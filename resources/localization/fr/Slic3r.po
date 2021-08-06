@@ -5,14 +5,19 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Slic3r\n"
+<<<<<<< Updated upstream
 "POT-Creation-Date: 2021-07-10 00:00\n"
 "PO-Revision-Date: 2021-07-10 00:00\n"
+=======
+"POT-Creation-Date: 2021-08-06 00:00\n"
+"PO-Revision-Date: 2021-08-06 00:00\n"
+>>>>>>> Stashed changes
 "Last-Translator: 5axes\n"
-"Language-Team:5axes, supermerill\n"
+"Language-Team:\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Language:fr\n"
+"Language: fr\n"
 
 msgid "!! Can be unstable in some os distribution !!"
 msgstr "!! peut être instable avec certaines distributions de système d'exploitation."
@@ -4366,7 +4371,12 @@ msgstr ""
 msgid ""
 "Horizontal width of the brim that will be printed around each object on the "
 "first layer."
+<<<<<<< Updated upstream
 msgstr "Largeur horizontale de la bordure qui sera imprimée autour de chaque objet sur la première couche."
+=======
+msgstr ""
+"Largeur du cordon de la bordure qui sera imprimée autour de chaque objet sur la première couche."
+>>>>>>> Stashed changes
 
 msgid ""
 "Horizontal width of the brim that will be printed inside each object on the "
