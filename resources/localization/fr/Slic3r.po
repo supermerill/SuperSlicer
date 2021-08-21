@@ -5,14 +5,14 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Slic3r\n"
-"POT-Creation-Date: 2021-07-12 00:00\n"
-"PO-Revision-Date: 2021-07-12 00:00\n"
-"Last-Translator: 5axes\n"
-"Language-Team:5axes, supermerill\n"
+"POT-Creation-Date: 2021-08-21 00:00\n"
+"PO-Revision-Date: 2021-08-21 00:00\n"
+"Last-Translator: 5axes, supermerill\n"
+"Language-Team: fr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Language:fr\n"
+"Language: fr\n"
 
 msgid "!! Can be unstable in some os distribution !!"
 msgstr "!! peut être instable avec certaines distributions de système d'exploitation."
@@ -25,14 +25,11 @@ msgid ""
 "taken. Switching to %1% printer requires reloading of %1% presets."
 msgstr "L'imprimante %1% était active au moment où l'instantané cible Annuler / Refaire a été pris. Basculer vers l'imprimante %1% requiert de recharger les préréglages de %1%."
 
+msgid "%1% was substituted with %2%"
+msgstr "%1% a été substitué par %2%"
+
 msgid "%1% was successfully sliced."
 msgstr "%1% a été découpé avec succès."
-
-msgid "%1%=%2% mm is too low to be printable at a layer height %3% mm"
-msgstr "%1%=%2% mm est trop bas pour être imprimable avec une hauteur de couche de %3% mm"
-
-msgid "%3.2f mm³/s at filament speed %3.2f mm/s."
-msgstr "%3.2f mm³/s à une vitesse de filament de %3.2f mm/s."
 
 msgid "%d (%d shells)"
 msgstr "%d (%d coques)"
@@ -65,6 +62,9 @@ msgstr "Erreur %s"
 
 msgid "%s Family"
 msgstr "%s Famille"
+
+msgid "%s flow rate is maximized "
+msgstr "Le débit de %s est maximisé"
 
 msgid "%s GUI initialization failed"
 msgstr "%s L'initialisation de l'interface graphique a échoué"
@@ -109,8 +109,20 @@ msgstr "%s n'a aucunes mises à jour de configuration disponibles."
 msgid "%s incompatibility"
 msgstr "Incompatibilité de %s"
 
+msgid "%s information"
+msgstr "%s information"
+
 msgid "%s is closing: Unsaved Changes"
 msgstr "%s se ferme : Modifications non sauvegardées"
+
+msgid ""
+"%s is not using the newest configuration available.\n"
+"Configuration Wizard may not offer the latest printers, filaments and SLA "
+"materials to be installed. "
+msgstr ""
+"%s n'utilise pas la dernière configuration disponible.\n"
+"L'assistant de configuration peut ne pas proposer les dernières imprimantes, filaments et matériaux SLA "
+"à installer. "
 
 msgid ""
 "%s now uses an updated configuration structure.\n"
@@ -460,6 +472,15 @@ msgstr "Au-delà de Z"
 
 msgid "Acceleration control (advanced)"
 msgstr "Contrôle de l'accélération (avancé)"
+
+msgid ""
+"Acceleration for travel moves (jumps between distant extrusion points).\n"
+"Note that the deceleration of a travel will use the acceleration value of "
+"the extrusion that will be printed after it (if any)"
+msgstr ""
+"Accélération pour les déplacements (sauts entre des points d'extrusion distants).\n"
+"Notez que la décélération d'un déplacement utilisera la valeur d'accélération de "
+"l'extrusion et sera imprimée après elle (le cas échéant)"
 
 msgid "Access via settings button in the top menu"
 msgstr "Accès via le bouton Paramètres dans le menu supérieur"
@@ -1418,8 +1439,12 @@ msgstr ""
 "Remarque : ce nom peut être modifié ultérieurement dans les réglages des "
 "imprimantes physiques"
 
-msgid "by the print profile maximum"
-msgstr "par le maximum du profil de l'imprimante"
+msgid ""
+"by the print profile maximum volumetric rate of %3.2f mm³/s at filament "
+"speed %3.2f mm/s."
+msgstr ""
+"par le taux volumétrique maximum du profil d'impression de %3.2f mm³/s à la vitesse du filament"
+" de %3.2f mm/s"
 
 msgid "C&alibration"
 msgstr "C&alibration"
@@ -1769,6 +1794,20 @@ msgstr "&Assistant de Configuration"
 msgid "Configuration Assistant"
 msgstr "Assistant de Configuration"
 
+msgid ""
+"Configuration bundle was loaded, however some configuration values were not "
+"recognized."
+msgstr ""
+"Le paquet de configuration a été chargé, mais certaines valeurs de configuration n'ont pas été "
+"reconnues"
+
+msgid ""
+"Configuration file \"%1%\" was loaded, however some configuration values "
+"were not recognized."
+msgstr ""
+"Le fichier de configuration \"%1%\" a été chargé, mais certaines valeurs de configuration "
+"n'ont pas été reconnues."
+
 msgid "Configuration notes"
 msgstr "Notes de configuration"
 
@@ -1867,11 +1906,23 @@ msgstr "Raccordement des lignes de remplissage du dessus"
 msgid "Connection to %s works correctly."
 msgstr "La connexion avec %s fonctionne correctement."
 
+msgid "Connection to PrusaLink works correctly."
+msgstr "La connexion à PrusaLink fonctionne correctement."
+
 msgid "Contact distance on top of supports"
 msgstr "Distance de contact au-dessus des supports"
 
 msgid "Contact distance under the bottom of supports"
 msgstr "Distance de contact en-dessous des supports"
+
+msgid "Continue and install configuration updates?"
+msgstr "Continuer et installer les mises à jour de la configuration ?"
+
+msgid "Continue to activate a configuration snapshot %1%?"
+msgstr "Continuer à activer un instantané de configuration %1%?"
+
+msgid "Continue with applying configuration changes?"
+msgstr "Poursuivre l'application des changements de configuration ?"
 
 msgid ""
 "Contributions by Henrik Brix Andersen, Nicolas Dandrimont, Mark Hindess, "
@@ -1939,6 +1990,9 @@ msgstr "Copier dans le Presse-Papier"
 
 msgid "Copy Version Info"
 msgstr "Copier les Infos de Version"
+
+msgid "Copying of file %1% to %2% failed: %3%"
+msgstr "La copie du fichier %1% vers %2% a échoué : %3%"
 
 msgid ""
 "Copying of the temporary G-code has finished but the exported code couldn't "
@@ -2020,6 +2074,9 @@ msgstr "Ne peut pas se connecter à %s"
 
 msgid "Could not connect to Prusa SLA"
 msgstr "Impossible de se connecter à Prusa SLA"
+
+msgid "Could not connect to PrusaLink"
+msgstr "Impossible de se connecter à PrusaLink"
 
 msgid ""
 "Could not detect system SSL certificate store. The slicer will be unable to "
@@ -2224,6 +2281,13 @@ msgstr "Couleur par défaut"
 
 msgid "default color"
 msgstr "couleur par défaut"
+
+msgid ""
+"Default distance used for the auto-arrange feature of the plater.\n"
+"Set to 0 to use the last value instead."
+msgstr ""
+"Distance par défaut utilisée pour la fonction d'auto-alignement du plateau.\n"
+"Réglez à 0 pour utiliser la dernière valeur à la place."
 
 msgid "Default extrusion spacing"
 msgstr "Espacement par défaut des extrusions"
@@ -2580,9 +2644,6 @@ msgid ""
 "when unloaded. This should match the value in printer firmware. "
 msgstr "Distance entre la pointe de l'extrudeuse et la position où le filament est positionné en attente lorsqu'il est déchargé. Cela doit correspondre à la valeur dans le firmware de l'imprimante. "
 
-msgid "Distance used for the auto-arrange feature of the plater."
-msgstr "Distance utilisée par la fonction d'agencement automatique du plateau."
-
 msgid "Distribution"
 msgstr "Distribution"
 
@@ -2643,6 +2704,9 @@ msgstr "Ne pas agencer"
 
 msgid "Don't avoid crossing on 1st layer"
 msgstr "N'évitez pas de traverser sur la 1ère couche"
+
+msgid "Don't install"
+msgstr "Ne pas installer"
 
 msgid "Don't notify about new releases any more"
 msgstr "Ne plus me notifier au sujet des nouvelles publications"
@@ -3109,9 +3173,6 @@ msgstr "sauf pour les premières couches %1% où le ventilateur est désactivé"
 msgid "except for the first layer where the fan is disabled"
 msgstr "sauf pour la première couche où le ventilateur est désactivé"
 
-msgid "Excessive %1%=%2% mm to be printable with a nozzle diameter %3% mm"
-msgstr "Dépasse de %1%=%2% mm pour être imprimable avec une buse de diamètre %3% mm"
-
 msgid "Exit %s"
 msgstr "Sortir de %s"
 
@@ -3531,6 +3592,9 @@ msgstr "Couches estompées"
 msgid "failed finding central directory"
 msgstr "impossible de trouver le répertoire central"
 
+msgid "Failed loading file \"%1%\" due to an invalid configuration."
+msgstr "Échec du chargement du fichier \"%1%\" en raison d'une configuration non valide."
+
 msgid "Failed loading the input model."
 msgstr "Échec du chargement du modèle d'entrée."
 
@@ -3821,8 +3885,8 @@ msgstr "Ratio du débit de la première couche"
 msgid "First layer height"
 msgstr "Hauteur de la première couche"
 
-msgid "First layer height can't be greater than nozzle diameter"
-msgstr "La hauteur de la première couche ne peut pas être supérieure au diamètre de la buse"
+msgid "First layer height can't be greater than %s"
+msgstr "La hauteur de la première couche ne peut pas être supérieure à %s"
 
 msgid "First layer nozzle temperature"
 msgstr "Température de la buse de la première couche"
@@ -3874,9 +3938,6 @@ msgstr "Calibration du débit"
 
 msgid "Flow rate"
 msgstr "Débit"
-
-msgid "flow rate is maximized"
-msgstr "le débit est maximisé"
 
 msgid "Flow ratio"
 msgstr "Ratio de débit"
@@ -3952,6 +4013,13 @@ msgid ""
 "Useful for multi-extruder prints with translucent materials or manual "
 "soluble support material."
 msgstr "Force la génération de coques pleines entre des volumes/matériaux adjacents. Utile pour des impressions multi-extrudeuses avec des matériaux translucides ou avec un support manuel soluble."
+
+msgid ""
+"Forward-compatibility rule when loading configurations from config files and "
+"project files (3MF, AMF)."
+msgstr ""
+"Règle de compatibilité ascendante lors du chargement de configurations à partir de fichiers de configuration et "
+"des fichiers de projet (3MF, AMF)."
 
 msgid "FreeCAD path"
 msgstr "Chemin FreeCAD"
@@ -4260,6 +4328,9 @@ msgstr "Hauteur"
 msgid "Height (mm)"
 msgstr "Hauteur (mm)"
 
+msgid "height in layers"
+msgstr "hauteur des couches"
+
 msgid ""
 "Height of skirt expressed in layers. Set this to a tall value to use skirt "
 "as a shield against drafts."
@@ -4386,12 +4457,14 @@ msgstr ""
 "Barre de défilement horizontale - Déplacer le curseur actif vers la Droite"
 
 msgid ""
-"Horizontal width of the brim that will be printed around each object on the first layer."
+"Horizontal width of the brim that will be printed around each object on the "
+"first layer."
 msgstr ""
 "Largeur du cordon de la jupe qui sera imprimée autour de chaque objet sur la première couche."
 
 msgid ""
-"Horizontal width of the brim that will be printed inside each object on the first layer."
+"Horizontal width of the brim that will be printed inside each object on the "
+"first layer."
 msgstr ""
 "Largeur de la jupe intérieure, qui sera imprimée à l'intérieur des trous d'un objet sur la première couche."
 
@@ -4928,8 +5001,8 @@ msgstr "Échec de l'import du fichier 3mf réparé"
 msgid "Import profile only"
 msgstr "Importer le profil uniquement"
 
-msgid "Import SL1 archive"
-msgstr "Importer l'archive SL1"
+msgid "Import SL1 / SL1S archive"
+msgstr "Importation des archives SL1 / SL1S"
 
 msgid "Import SLA archive"
 msgstr "Importer l'archive SLA"
@@ -5079,6 +5152,9 @@ msgstr "Distance d'insertion"
 msgid "Inspect / activate configuration snapshots"
 msgstr "Inspecter / activer les instantanés de configuration"
 
+msgid "Install"
+msgstr "Installer"
+
 msgid "Instance %d"
 msgstr "Instance %d"
 
@@ -5194,8 +5270,19 @@ msgstr "Calibration du débit de lissage"
 msgid "Ironing post-process (This will go on top of infills and perimeters)"
 msgstr "Lissage en Post-traitement"
 
-msgid "Ironing post-process speed"
-msgstr "Vitesse du post-traitement de lissage"
+msgid "Ironing speed"
+msgstr "Vitesse de lissage"
+
+msgid ""
+"Ironing speed. Used for the ironing pass of the ironing infill pattern, and "
+"the post-process infill. Can be defined as mm.s, or a % of the top solid "
+"infill speed.\n"
+"Ironing extrusions are ignored from the automatic volumetric speed "
+"computation."
+msgstr ""
+" Vitesse de lissage. Utilisée pour la passe de lissage du motif de remplissage de lissage, et "
+"le remplissage post-traitement. Peut être définie en mm.s, ou en % de la vitesse de remplissagede la surface supérieure"
+"Les extrusions de lissage sont ignorées du calcul automatique de la vitesse volumétrique."
 
 msgid "Ironing Type"
 msgstr "Type de lissage"
@@ -5336,8 +5423,8 @@ msgstr "Couche"
 msgid "Layer height"
 msgstr "Hauteur couche"
 
-msgid "Layer height can't be greater than nozzle diameter"
-msgstr "La hauteur de couche ne peut pas être supérieure au diamètre de la buse"
+msgid "Layer height can't be greater than %s"
+msgstr "La hauteur de couche ne peut pas être supérieure à %s"
 
 msgid "Layer height limits"
 msgstr "Limites de hauteur de couche"
@@ -5526,8 +5613,8 @@ msgstr "Charger un modèle"
 msgid "Load an model saved with imperial units"
 msgstr "Charger un modèle enregistré avec des unités impériales"
 
-msgid "Load an SL1 archive"
-msgstr "Charger une archive SL1"
+msgid "Load an SL1 / Sl1S archive"
+msgstr "Charger une archive SL1 / Sl1S"
 
 msgid ""
 "Load and store settings at the given directory. This is useful for "
@@ -5756,6 +5843,9 @@ msgstr "Longueur maximale"
 
 msgid "Max merge distance"
 msgstr "Distance maximum de fusion"
+
+msgid "Max perimeters layer for solid infill"
+msgstr "Couche de périmètre maximale pour le remplissage plein"
 
 msgid "Max pillar linking distance"
 msgstr "Distance maximum de jonction de pilier"
@@ -6311,6 +6401,9 @@ msgstr "Monotone"
 
 msgid "Monotonic (filled)"
 msgstr "Monotone (remplit)"
+
+msgid "Most likely the configuration was produced by a newer version of "
+msgstr "Il est fort probable que la configuration ait été produite par une version plus récente de l'application "
 
 msgid "Mouse wheel"
 msgstr "Roulette de la souris"
@@ -6968,6 +7061,9 @@ msgstr "Ouvrez le manuel du Slic3r dans votre navigateur."
 msgid "Open the Slic3r website in your browser"
 msgstr "Ouvrir le site web de Slic3r dans votre navigateur"
 
+msgid "Opening Configuration Wizard"
+msgstr "Ouverture de l'assistant de configuration"
+
 msgid "Optimize orientation"
 msgstr "Optimiser l'orientation"
 
@@ -7322,11 +7418,11 @@ msgid "Pick another vendor supported by %s"
 msgstr "Choisissez un autre fournisseur pris en charge par %s"
 
 msgid ""
-"Picture sizes to be stored into a .gcode and .sl1 files, in the following "
-"format: \"XxY, XxY, ...\""
+"Picture sizes to be stored into a .gcode and .sl1 / .sl1s files, in the "
+"following format: \"XxY, XxY, ...\""
 msgstr ""
-"Tailles de photo à stocker dans un fichier .gcode et .sl1, au format "
-"suivant : \"XxY, XxY, ...\""
+"Les tailles des images doivent être enregistrées dans un fichier .gcode et .sl1 / .sl1s, dans le "
+"format suivant : \"XxY, XxY, ...\""
 
 msgid "Pigment percentage"
 msgstr "Pourcentage de pigment"
@@ -7493,6 +7589,9 @@ msgstr "File d'Attente de Téléchargement de l'&Hôte d'Impression"
 
 msgid "Print a calibration cube, for various calibration goals."
 msgstr "Imprimer un cube d'étalonnage, pour divers objectifs d'étalonnage."
+
+msgid "Print all brim at startup"
+msgstr "Imprimer tous les bordures au démarrage"
 
 msgid ""
 "Print contour perimeters from the outermost one to the innermost one instead "
@@ -8115,6 +8214,9 @@ msgstr "Seuil inversé"
 msgid "Revert conversion from imperial units"
 msgstr "Annuler la conversion des unités impériales"
 
+msgid "Review the substitutions and adjust them if needed."
+msgstr "Passez en revue les substitutions et ajustez-les si nécessaire."
+
 msgid "Right"
 msgstr "Droite"
 
@@ -8257,8 +8359,8 @@ msgstr "Sauvegarder le projet (3mf)"
 msgid "Save project as (3mf)"
 msgstr "Sauvegarder le projet en tant que (3mf)"
 
-msgid "Save SL1 file as:"
-msgstr "Sauvegarder le fichier SL1 sous :"
+msgid "Save SL1 / SL1S file as:"
+msgstr "Enregistrer le fichier SL1 / SL1S sous :"
 
 msgid "Save the selected options to preset \"%1%\"."
 msgstr "Enregistrer les options sélectionnées dans le préréglage \"%1%\"."
@@ -8316,6 +8418,9 @@ msgstr "Coût de l'angle de jointure"
 
 msgid "Seam painting"
 msgstr "Peinture de jointure"
+
+msgid "Seam Position"
+msgstr "Position de la couture"
 
 msgid "Seam position"
 msgstr "Position des jointures"
@@ -9420,10 +9525,14 @@ msgstr "Vitesse (mm/s)"
 
 msgid ""
 "Speed for filling small gaps using short zigzag moves. Keep this reasonably "
-"low to avoid too much shaking and resonance issues."
+"low to avoid too much shaking and resonance issues.\n"
+"Gap fill extrusions are ignored from the automatic volumetric speed "
+"computation, unless you set it to 0."
 msgstr ""
-"Vitesse pour combler les petits écarts en utilisant des mouvements courts en zigzag. Gardez-la raisonnablement "
-"faible pour éviter trop de secousses et des problèmes de résonance."
+"Vitesse pour combler les petits écarts en utilisant des mouvements courts en zigzag. Gardez cette vitesse raisonnablement "
+"faible pour éviter trop de secousses et des problèmes de résonance.\n"
+"Les extrusions de remplissage des vides sont ignorées dans le calcul automatique de la vitesse volumétrique "
+", à moins que vous ne la définissiez sur 0."
 
 msgid "Speed for milling tool."
 msgstr "Vitesse de l'outil de fraisage."
@@ -10109,6 +10218,9 @@ msgstr ""
 msgid "the following suffix is not allowed:"
 msgstr "le suffixe suivant n'est pas autorisé :"
 
+msgid "The following values were substituted:"
+msgstr "Les valeurs suivantes ont été substituées :"
+
 msgid ""
 "The gap between the object bottom and the generated pad in zero elevation "
 "mode."
@@ -10198,6 +10310,17 @@ msgstr ""
 "Le nombre de couches pleines du dessous est augmenté au-dessus de "
 "bottom_solid_layers si nécessaire pour satisfaire l'épaisseur minimale de la "
 "coque inférieure."
+
+msgid ""
+"The number of layers on which the elephant foot compensation will be active. "
+"The first layer will be shrunk by the elephant foot compensation value, then "
+"the next layers will be gradually shrunk less, up to the layer indicated by "
+"this value."
+msgstr ""
+"Le nombre de couches sur lesquelles la compensation du pied d'éléphant sera active. "
+"La première couche sera réduite de la valeur de la compensation des pied d'éléphant, puis "
+"les couches suivantes seront progressivement réduites, jusqu'à la couche indiquée par "
+"cette valeur."
 
 msgid ""
 "The number of top solid layers is increased above top_solid_layers if "
@@ -11394,6 +11517,17 @@ msgstr ""
 "d'installer les fichiers compatibles avec ce %s."
 
 msgid ""
+"This version of Slic3r may not understand configurations produced by newest "
+"Slic3r versions. For example, newer Slic3r may extend the list of supported "
+"firmware flavors. One may decide to bail out or to substitute an unknown "
+"value with a default silently or verbosely."
+msgstr ""
+"Cette version de Slic3r peut ne pas comprendre les configurations produites par les versions"
+" les plus récentes de Slic3r. Par exemple, une version plus récente de Slic3r peut étendre la liste des "
+"types de firmware supportées. On peut décider d'abandonner ou de substituer une valeur "
+"inconnue par une valeur par défaut, avec ou sans mention explicite."
+
+msgid ""
 "This will apply a gamma correction to the rasterized 2D polygons. A gamma "
 "value of zero means thresholding with the threshold in the middle. This "
 "behaviour eliminates antialiasing without losing holes in polygons."
@@ -11669,6 +11803,9 @@ msgstr "Translation"
 msgid "Travel"
 msgstr "Déplacement"
 
+msgid "Travel acceleration"
+msgstr "Accélération du déplacement"
+
 msgid "Travel cost"
 msgstr "Coût déplacement"
 
@@ -11711,6 +11848,9 @@ msgid "Unable to reload:"
 msgstr "Impossible de recharger :"
 
 msgid "Undef"
+msgstr "Indéfini"
+
+msgid "Undefined"
 msgstr "Indéfini"
 
 msgid "undefined error"
@@ -12154,8 +12294,12 @@ msgstr ""
 "Lors de la fermeture de l'application, toujours demander pour les "
 "modifications non enregistrées"
 
-msgid "when printing"
-msgstr "pendant l'impression des"
+msgid ""
+"when printing %s with a volumetric rate of %3.2f mm³/s at filament speed "
+"%3.2f mm/s."
+msgstr ""
+"lors de l'impression de %s avec un taux volumétrique de %3.2f mm³/s à la vitesse du filament "
+"%3.2f mm/s."
 
 msgid ""
 "When printing multi-material objects, this settings will make Slic3r to clip "
@@ -12277,6 +12421,17 @@ msgstr ""
 
 msgid ""
 "When using 'Complete individual objects', the default behavior is to draw "
+"the brim at the beginning of each object. if you prefer to have more place "
+"for you objects, you can print all the brims at the beginning, so ther is "
+"less problem with collision."
+msgstr ""
+"Lorsque vous utilisez 'Compléter les objets individuels', le comportement par défaut est de dessiner "
+"le bord au début de chaque objet. Si vous préférez avoir plus de place "
+"pour vos objets, vous pouvez imprimer toutes les bordures au début, ainsi il y a "
+"moins de problème de collision."
+
+msgid ""
+"When using 'Complete individual objects', the default behavior is to draw "
 "the skirt around each object. if you prefer to have only one skirt for the "
 "whole plater, use this option."
 msgstr ""
@@ -12290,6 +12445,28 @@ msgid ""
 msgstr ""
 "Lorsque vous créez un nouveau projet, il conservera l'état actuel des préréglages, et "
 "n'ouvre pas la boîte de dialogue de changement de préréglage."
+
+msgid ""
+"When you have a medium/hight number of top/bottom solid layers, and a low/"
+"medium of perimeters, then it have to put some solid infill inside the part "
+"to have enough solid layers.\n"
+"By setting this to somethign higher than 0, you can remove this 'inside "
+"filling'. This number allow to keep some if there is a low number of "
+"perimeter over the void.\n"
+"If this setting is equal or higher than the top/bottom solid layer count, it "
+"won't evict anything.\n"
+"If this setting is set to 1, it will evict all solid fill are are only over "
+"perimeters.\n"
+"Set it to 0 to disable."
+msgstr ""
+"Lorsque vous avez un nombre moyen/haut de couches pleines supérieures/inférieures, et un nombre faible/"
+"moyen de périmètres, alors il faut mettre du remplissage plein à l'intérieur de la pièce "
+"pour avoir assez de couches pleines."
+"En fixant cette valeur à un niveau supérieur à 0, vous pouvez supprimer ce 'remplissage intérieur'."
+"Ce nombre permet d'en garder si le nombre de périmètre au-dessus du vide est faible.\n"
+"Si ce paramètre est égal ou supérieur au nombre de couches pleines supérieures et inférieures, le logiciel n'extrudera rien.\n"
+"Si ce paramètre est réglé sur 1, le logiciel extrudera toutes les couches pleines qui sont seulement au-dessus des périmètres.\n"
+"Mets-le à 0 pour le désactiver."
 
 msgid "WHITE BULLET"
 msgstr "PUCE BLANCHE"
@@ -12407,9 +12584,6 @@ msgstr "Tour de purge Y"
 msgid "Wipe while retracting"
 msgstr "Essuyer lors des rétractions"
 
-msgid "with a volumetric rate"
-msgstr "avec un débit volumétrique"
-
 msgid ""
 "With bowden extruders, it may be wise to do some amount of quick retract "
 "before doing the wipe movement."
@@ -12460,6 +12634,9 @@ msgstr "Compensation en XY"
 
 msgid "XY First layer compensation"
 msgstr "XY Compensation de la première couche"
+
+msgid "XY First layer compensation height in layers"
+msgstr "XY Hauteur de compensation de la première couche en couches"
 
 msgid "XY holes compensation"
 msgstr "Compensation des trous XY"
