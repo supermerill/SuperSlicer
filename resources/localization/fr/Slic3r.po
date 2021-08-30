@@ -9357,7 +9357,7 @@ msgid "Slicing"
 msgstr "Couche"
 
 msgid "Slicing complete"
-msgstr "Découpe annulée"
+msgstr "Découpe achevée"
 
 msgid "Slicing done"
 msgstr "Découpe effectuée"
