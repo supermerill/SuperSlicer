@@ -6237,7 +6237,7 @@ msgid "Minimal distance of the support points"
 msgstr "Distance minimale des points de support"
 
 msgid "Minimal filament extrusion length"
-msgstr "Longueur minimale d'extrusion de filament"
+msgstr "Longueur minimale de la bordure"
 
 msgid "Minimal points distance"
 msgstr "Distance minimale des points"
