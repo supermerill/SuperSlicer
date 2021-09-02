@@ -2852,7 +2852,7 @@ msgid ""
 msgstr "L'Élévation est trop basse pour cet objet. utilisez la fonction \"Socle autour de l'objet\" pour imprimer l'objet sans élévation."
 
 msgid "else from object"
-msgstr "autre à partir de l'objet"
+msgstr "sinon à partir de l'objet"
 
 msgid ""
 "Emit M73 P[percent printed] R[remaining time in minutes] at 1 minute "
@@ -4072,7 +4072,7 @@ msgid "From"
 msgstr "Depuis"
 
 msgid "from brim"
-msgstr "à partir de la bordure"
+msgstr "à partir de la jupe"
 
 msgid "From filament"
 msgstr "Depuis le filament"
@@ -7690,7 +7690,7 @@ msgid "Print a calibration cube, for various calibration goals."
 msgstr "Imprimer un cube d'étalonnage, pour divers objectifs d'étalonnage."
 
 msgid "Print all brim at startup"
-msgstr "Imprimer tous les bordures au démarrage"
+msgstr "Imprimer toutes les bordures au démarrage"
 
 msgid ""
 "Print contour perimeters from the outermost one to the innermost one instead "
@@ -10242,7 +10242,7 @@ msgid "The default angle for connecting support sticks and junctions."
 msgstr "L'angle par défaut pour connecter les tiges de support et les jonctions."
 
 msgid "The distance is computed from the brim and not from the objects"
-msgstr "La distance est calculée à partir du bord et non des objets."
+msgstr "La distance est calculée à partir de la jupe et non des objets."
 
 msgid ""
 "The endings of the support pillars will be deployed on the gap between the "
