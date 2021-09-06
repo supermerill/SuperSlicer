@@ -5,8 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Slic3r\n"
-"POT-Creation-Date: 2021-09-02 00:00\n"
-"PO-Revision-Date: 2021-09-02 00:00\n"
+"POT-Creation-Date: 2021-09-06 00:00\n"
+"PO-Revision-Date: 2021-09-06 00:00\n"
 "Last-Translator: 5axes, supermerill\n"
 "Language-Team: fr\n"
 "MIME-Version: 1.0\n"
@@ -832,6 +832,28 @@ msgstr "Aligné"
 
 msgid "All"
 msgstr "Tout"
+
+msgid ""
+"All characters that are written here will be replaced by '_' when writing "
+"the gcode file name.\n"
+"If the first charater is '[' or '(', then this field will be considered as a "
+"regexp (enter '[^a-zA-Z0-9]' to only use ascii char)."
+msgstr ""
+"Tous les caractères qui sont écrits ici seront remplacés par '_' lors de l'écriture "
+"du nom du fichier gcode.\n"
+"Si le premier caractère est '[' ou '(', alors ce champ sera considéré comme une "
+"expression rationnelle regexp (entrez '[^a-zA-Z0-9]' pour utiliser uniquement les caractères ascii)."
+
+msgid ""
+"All characters that are written here will be replaced by '_' when writing "
+"the gcode file name.\n"
+"If the first charater is '[' or '(', then this field will be considered as a "
+"regexp (enter '[^a-zA-Z]' to only use ascii char)."
+msgstr ""
+"Tous les caractères qui sont écrits ici seront remplacés par '_' lors de l'écriture "
+"du nom du fichier gcode.\n"
+"Si le premier caractère est '[' ou '(', alors ce champ sera considéré comme une "
+"expression rationnelle regexp (entrez '[^a-zA-Z]' pour utiliser uniquement les caractères ascii)."
 
 msgid ""
 "All gaps between the alst periemter and the infill which are thinner than a "
@@ -4209,6 +4231,9 @@ msgstr "Génération de la jupe"
 msgid "Generating G-code"
 msgstr "Génération du G-Code"
 
+msgid "Generating G-code layer %s / %s"
+msgstr "Génération de la couche G-code %s / %s"
+
 msgid "Generating index buffers"
 msgstr "Génération des tampons d'index"
 
@@ -4217,6 +4242,9 @@ msgstr "Génération du socle"
 
 msgid "Generating perimeters"
 msgstr "Génération des périmètres"
+
+msgid "Generating perimeters: layer %s / %s"
+msgstr "Génération des périmètres : couche %s / %s"
 
 msgid "Generating skirt"
 msgstr "Génération de la bordure"
@@ -5033,6 +5061,12 @@ msgstr "Ignorer les fichiers de configuration non-existants"
 msgid "Ignores facets facing away from the camera."
 msgstr "Ignore les facettes opposées à la caméra."
 
+msgid "Illegal characters"
+msgstr "Caractères illégaux"
+
+msgid "Illegal characters for filename"
+msgstr "Caractères illégaux pour le nom de fichier"
+
 msgid "Import &Config"
 msgstr "Importer la &Configuration"
 
@@ -5184,6 +5218,9 @@ msgstr "Largeur du remplissage"
 
 msgid "Infill/perimeters overlap"
 msgstr "Chevauchement remplissage/périmètres"
+
+msgid "Infilling layer %s / %s"
+msgstr "Couche de remplissage %s / %s"
 
 msgid "Infilling layers"
 msgstr "Remplissage des couches"
