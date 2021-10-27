@@ -5,10 +5,10 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Slic3r\n"
-"POT-Creation-Date: 2021-09-06 00:00\n"
-"PO-Revision-Date: 2021-09-06 00:00\n"
-"Last-Translator: 5axes, supermerill\n"
-"Language-Team: fr\n"
+"POT-Creation-Date: 2021-10-27 00:00\n"
+"PO-Revision-Date: 2021-10-27 00:00\n"
+"Last-Translator: 5axes\n"
+"Language-Team:\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -1149,6 +1149,9 @@ msgstr "Associe les fichiers .gcode à %1%"
 
 msgid "Associate .stl files to %1%"
 msgstr "Associe les fichiers .stl à %1%"
+
+msgid "at %1%%% over all bridges"
+msgstr "à %1%%% sur tous les ponts"
 
 msgid "at %1%%% over bridges"
 msgstr "à %1%%% au-dessus des ponts"
@@ -2388,9 +2391,6 @@ msgstr "Profil par défaut du matériau SLA"
 msgid "default SLA print profile"
 msgstr "profil d'impression SLA par défaut"
 
-msgid "Default speed"
-msgstr "Vitesse par défaut"
-
 msgid "default value"
 msgstr "Valeur par défaut"
 
@@ -3539,6 +3539,9 @@ msgstr "Périmètres supplémentaires au-dessus des surplombs"
 msgid "Extra skirt lines on the first layer."
 msgstr "Lignes de bordure supplémentaires sur la première couche."
 
+msgid "Extra unretraction"
+msgstr "Non-retrait supplémentaire"
+
 msgid "Extra Wipe for external perimeters"
 msgstr "Essuyage Extra pour les périmètres extérieurs"
 
@@ -4188,8 +4191,8 @@ msgstr "Vitesse de remplissage des lacunes"
 msgid "Gapfill after last perimeter"
 msgstr "Remplissage après le dernier périmètre"
 
-msgid "Gcode"
-msgstr "G-Code"
+msgid "Gcode done"
+msgstr "G-Code fait"
 
 msgid "GCode Pre&view Tab"
 msgstr "Onglet Pré&Visualisation G-Code"
@@ -5323,6 +5326,9 @@ msgstr "Création d'interface entre coques"
 msgid "Interior Brim width"
 msgstr "Largeur de bordure intérieure"
 
+msgid "Internal"
+msgstr "Interne"
+
 msgid "Internal bridge infill"
 msgstr "Remplissage des ponts intérieurs"
 
@@ -5340,6 +5346,9 @@ msgstr "Remplissage interne"
 
 msgid "Internal perimeter"
 msgstr "Périmètre interne"
+
+msgid "Internal perimeters speed"
+msgstr "Vitesse des périmètres internes"
 
 msgid ""
 "Internal perimeters will go around sharp corners by turning around instead "
@@ -5979,14 +5988,17 @@ msgstr "Vitesse maximale du ventilateur"
 msgid "Max layer height"
 msgstr "Hauteur de couche maximum"
 
+msgid "Max layer height can't be greater than nozzle diameter"
+msgstr "La hauteur maximale de la couche ne doit pas être supérieure au diamètre de la buse."
+
 msgid "Max length"
 msgstr "Longueur maximale"
 
+msgid "Max line overlap"
+msgstr "Chevauchement maximal des lignes"
+
 msgid "Max merge distance"
 msgstr "Distance maximum de fusion"
-
-msgid "Max perimeters layer for solid infill"
-msgstr "Couche de périmètre maximale pour le remplissage plein"
 
 msgid "Max pillar linking distance"
 msgstr "Distance maximum de jonction de pilier"
@@ -6279,6 +6291,9 @@ msgstr "Surface minimale de remplissage des espaces"
 msgid "Min layer height"
 msgstr "Hauteur de couche minimum"
 
+msgid "Min layer height can't be greater than Max layer height"
+msgstr "La hauteur minimale de la couche ne peut pas être supérieure à la hauteur maximale de la couche."
+
 msgid "Min length"
 msgstr "Longueur minimale"
 
@@ -6356,6 +6371,9 @@ msgstr "Vitesses minimums"
 
 msgid "Minimum initial exposure time"
 msgstr "Temps d'exposition initiale minimum"
+
+msgid "Minimum retraction"
+msgstr "Retrait minimum"
 
 msgid "Minimum shell thickness"
 msgstr "Épaisseur de coque minimale"
@@ -6769,6 +6787,12 @@ msgstr "Aucun fichier précédemment découpé."
 msgid "NO RAMMING AT ALL"
 msgstr "PAS D'EXPULSION DU TOUT"
 
+msgid "No solid infill over"
+msgstr "Pas de remplissage plein si plus de"
+
+msgid "No solid infill over perimeters"
+msgstr "Pas de remplissage plein sur les périmètres"
+
 msgid "No sparse layers (EXPERIMENTAL)"
 msgstr "Sans couches dispersées (EXPERIMENTAL)"
 
@@ -7028,6 +7052,9 @@ msgstr "Ancienne valeur"
 msgid "On"
 msgstr "Sur"
 
+msgid "On first layer"
+msgstr "Pour la première couche"
+
 msgid "On odd layers"
 msgstr "Sur les couches impaires"
 
@@ -7053,6 +7080,9 @@ msgid ""
 msgstr ""
 "Dans ce système, %s utilise des certificats HTTPS issus du système Magasin "
 "de Certificats ou Trousseau."
+
+msgid "On top surfaces"
+msgstr "Sur les surfaces supérieures"
 
 msgid "On/Off one layer mode of the vertical slider"
 msgstr "On/Off mode couche unique de la barre de défilement verticale"
@@ -7133,6 +7163,12 @@ msgstr "Décaler Z seulement en-dessous de"
 
 msgid "Only one peri - other algo"
 msgstr "Un seul perimetre - autre algo"
+
+msgid "Only one perimeter"
+msgstr "Un seul périmètre"
+
+msgid "Only one perimeter on First layer"
+msgstr "Un seul périmètre sur la première couche"
 
 msgid "Only one perimeter on Top surfaces"
 msgstr "Un seul périmètre sur le dessus"
@@ -8591,6 +8627,9 @@ msgstr "Jointures"
 msgid "Seam angle cost"
 msgstr "Coût de l'angle de jointure"
 
+msgid "Seam gap"
+msgstr "Espace de joiture"
+
 msgid "Seam painting"
 msgstr "Peinture de jointure"
 
@@ -8749,8 +8788,14 @@ msgstr ""
 msgid "Select the STL file to repair:"
 msgstr "Sélectionner le fichier STL à réparer :"
 
-msgid "Select this option to enforce z-lift on the first layer."
-msgstr "Sélectionnez cette option pour appliquer le Décalage en Z à la première couche."
+msgid ""
+"Select this option to enforce z-lift on the first layer.\n"
+"If this is enabled and the lift value is 0 or deactivated, then every first "
+"move before each object will be lifted by the first layer height."
+msgstr ""
+"Sélectionnez cette option pour imposer le z-lift sur la première couche.\n"
+"Si cette option est activée et que la valeur d'élévation est 0 ou désactivée, alors chaque premier "
+"mouvement avant chaque objet sera soulevé de la hauteur de la première couche."
 
 msgid "Select this option to not use/enforce the z-lift on a top surface."
 msgstr "Sélectionnez cette option pour ne pas utiliser/appliquer le Décalage en Z sur une surface du dessus."
@@ -11493,6 +11538,15 @@ msgstr ""
 "Peut être exprimé en mm ou un % du diamètre de la buse."
 
 msgid ""
+"This settign will ensure that all overlap are no hgher than this value. This "
+"is useful for filament that are too viscous, as the line can't flow under "
+"the previous one."
+msgstr ""
+"Ce paramètre garantit que tous les chevauchements ne sont pas supérieurs à cette valeur. Ceci "
+"est utile pour les filaments trop visqueux, car la ligne ne peut pas passer sous "
+"la précédente."
+
+msgid ""
 "This setting allows you to modify the time estimation by a % amount. As "
 "Slic3r only uses the Marlin algorithm, it's not precise enough if another "
 "firmware is used."
@@ -11832,6 +11886,14 @@ msgstr ""
 
 msgid "to"
 msgstr "à"
+
+msgid ""
+"To avoid visible seam, the extrusion can be stoppped a bit before the end of "
+"the loop.\n"
+"Can be a mm or a % of the current extruder diameter."
+msgstr ""
+"Pour éviter une couture visible, l'extrusion peut être arrêtée un peu avant la fin de la boucle.\n"
+"Peut être un mm ou un % du diamètre actuel de l'extrudeuse."
 
 msgid "To do that please specify a new name for the preset."
 msgstr "Pour faire cela veuillez spécifier un nouveau nom pour le préréglage."
@@ -12220,6 +12282,11 @@ msgid "Use only as safeguards"
 msgstr "Utiliser uniquement pour sauvegarde"
 
 msgid ""
+"Use only one perimeter on first layer, to give more space to the top infill "
+"pattern."
+msgstr "Utilisez un seul périmètre sur la première couche, pour donner plus d'espace au remplissage supérieur."
+
+msgid ""
 "Use only one perimeter on flat top surface, to give more space to the top "
 "infill pattern."
 msgstr ""
@@ -12556,10 +12623,14 @@ msgstr "Lorsque vous imprimez avec de très basses hauteurs de couche, vous pouv
 msgid ""
 "When retraction is triggered before changing tool, filament is pulled back "
 "by the specified amount (the length is measured on raw filament, before it "
-"enters the extruder)."
+"enters the extruder).\n"
+"Note: This value will be unretracted when this extruder will load the next "
+"time."
 msgstr ""
-"Lorsque la rétraction est déclenchée avant un changement de filament, le filament est retiré de la longueur indiquée"
-" (la longueur est mesurée sur le filament brut, avant qu'il entre dans l'extrudeuse)."
+"Lorsque la rétraction est déclenchée avant le changement de filament, il est tiré en arrière "
+"de la quantité spécifiée (la longueur est mesurée sur le filament brut, avant qu'il "
+"n'entre dans l'extrudeuse).\n"
+"Note : Cette valeur sera rétractée lors du prochain chargement de cette extrudeuse."
 
 msgid ""
 "When retraction is triggered, filament is pulled back by the specified "
@@ -12616,10 +12687,12 @@ msgstr ""
 
 msgid ""
 "When the retraction is compensated after changing tool, the extruder will "
-"push this additional amount of filament."
+"push this additional amount of filament (but not on the first extruder after "
+"start, as it should already be loaded)."
 msgstr ""
-"Lorsque la rétraction est compensée après un changement de filament,"
-" l'extrudeuse extrudera cette quantité de filament en plus."
+"Lorsque la rétraction est compensée après le changement de filament, l'extrudeuse "
+"pousse cette quantité supplémentaire de filament (mais pas sur la première extrudeuse après "
+"démarrage, car elle devrait déjà être chargée)."
 
 msgid ""
 "When the retraction is compensated after the travel move, the extruder will "
@@ -12978,11 +13051,11 @@ msgstr ""
 "compte."
 
 msgid ""
-"You have unsaved Changed, do you want to save your project or to remove all "
+"You have unsaved changes, do you want to save your project or to remove all "
 "settings and objects?"
 msgstr ""
-"Vous avez des modifications non sauvegardées, voulez-vous sauvegarder votre projet ou supprimer toutes les modifications ? "
-"des paramètres et des objets ?"
+"Vous avez des modifications non sauvegardées, voulez-vous sauvegarder votre projet ou supprimer tous "
+"paramètres et objets ?"
 
 msgid "You may need to update your graphics card driver."
 msgstr "Vous avez peut-être besoin de mettre à jour le pilote de votre carte graphique."
