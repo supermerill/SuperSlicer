@@ -11893,7 +11893,7 @@ msgid ""
 "Can be a mm or a % of the current extruder diameter."
 msgstr ""
 "Pour éviter une couture visible, l'extrusion peut être arrêtée un peu avant la fin de la boucle.\n"
-"Peut être un mm ou un % du diamètre actuel de l'extrudeuse."
+"Peut être un mm ou un % du diamètre actuel de la buse."
 
 msgid "To do that please specify a new name for the preset."
 msgstr "Pour faire cela veuillez spécifier un nouveau nom pour le préréglage."
