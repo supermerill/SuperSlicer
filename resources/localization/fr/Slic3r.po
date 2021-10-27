@@ -8628,7 +8628,7 @@ msgid "Seam angle cost"
 msgstr "Coût de l'angle de jointure"
 
 msgid "Seam gap"
-msgstr "Espace de joiture"
+msgstr "Espace de jointure"
 
 msgid "Seam painting"
 msgstr "Peinture de jointure"
