@@ -2336,6 +2336,9 @@ msgstr "Couleur par défaut"
 msgid "default color"
 msgstr "couleur par défaut"
 
+msgid "Default distance between objects"
+msgstr "Distance par défaut entre les objets"
+
 msgid ""
 "Default distance used for the auto-arrange feature of the plater.\n"
 "Set to 0 to use the last value instead."
@@ -2662,9 +2665,6 @@ msgstr "Distance"
 
 msgid "Distance between ironing lines"
 msgstr "Distance entre les lignes de lissage"
-
-msgid "Distance between objects"
-msgstr "Distance entre les objets"
 
 msgid ""
 "Distance between skirt and object(s). Set this to zero to attach the skirt "
