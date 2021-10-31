@@ -44,7 +44,7 @@ void CalibrationRetractionDialog::create_buttons(wxStdDialogButtonSizer* buttons
     auto size = wxSize(4 * em_unit(), wxDefaultCoord);
     temp_start = new wxTextCtrl(this, wxID_ANY, std::to_string(temp), wxDefaultPosition, size);
     temp_start->SetToolTip(_L("Note that only Multiple of 5 can be engraved in the part"));
-    wxString choices_decr[] = { _L("one test"),_L("2x10°"),_L("3x10°"), _L("4x10°"), _L("3x50°"), _L("5x5°") };
+    wxString choices_decr[] = { _L("one test"),_L("2x10°"),_L("3x10°"), _L("4x10°"), _L("3x5°"), _L("5x5°") };
     decr_temp = new wxComboBox(this, wxID_ANY, wxString{ "current" }, wxDefaultPosition, wxDefaultSize, 6, choices_decr);
     decr_temp->SetToolTip(_L("Select the number tower to print, and by how many degrees C to decrease each time."));
     decr_temp->SetSelection(0);
