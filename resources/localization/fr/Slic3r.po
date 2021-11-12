@@ -2911,7 +2911,9 @@ msgstr "L'Élévation est trop basse pour cet objet. utilisez la fonction \"Socl
 msgid ""
 "Emit something at 1 minute intervals into the G-code to let the firmware "
 "show accurate remaining time."
-msgstr "Emmetre quelquechose à une minute d'intervalle dan le G-code pour permettre au Firmware d'afficher précisément le temps d'impression restant"
+msgstr ""
+"Emettre une indication à une minute d'intervalle dan le G-code pour permettre au Firmware d'afficher précisément le temps d'impression restant.\n"
+"Le réglage du type d'incation se fait via le réglage remaining_times_type."
 
 msgid "Empty layers detected, the output would not be printable."
 msgstr "Couches vides détectées, la sortie ne serait pas imprimable."
@@ -8875,7 +8877,8 @@ msgstr ""
 "mouvement avant chaque objet sera soulevé de la hauteur de la première couche."
 
 msgid "Select this option to not use/enforce the z-lift on a top surface."
-msgstr "Sélectionnez cette option pour ne pas utiliser/appliquer le Décalage en Z sur une surface du dessus."
+msgstr ""
+"Sélectionnez cette option pour utiliser/appliquer le Décalage en Z sur les surfaces selon différents réglages."
 
 msgid "Select toolbar icon size in respect to the default one."
 msgstr "Sélectionner la taille de l'icône de la barre d'outil par rapport à la taille par défaut."
