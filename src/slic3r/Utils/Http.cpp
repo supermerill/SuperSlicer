@@ -466,6 +466,14 @@ Http& Http::ca_file(const std::string &name)
 	return *this;
 }
 
+Http& Http::client_cert(const std::string &name)
+{
+	curl_easy_setopt(p->curl, CURLOPT_SSLCERT, name.c_str());
+	curl_easy_setopt(p->curl, CURLOPT_SSLCERTTYPE, "P12");
+
+	return *this;
+}
+
 Http& Http::form_add(const std::string &name, const std::string &contents)
 {
 	if (p) {

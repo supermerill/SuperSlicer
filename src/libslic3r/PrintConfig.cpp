@@ -179,6 +179,13 @@ void PrintConfigDef::init_common_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionString(""));
 
+    def = this->add("printhost_client_cert", coString);
+    def->label = L("Client Certificate File");
+    def->category = OptionCategory::general;
+    def->tooltip = L("Custom Client certificate file can be specified for 2-way ssl authentication, in p12/pfx format. "
+                   "If left blank, now client certificate is used.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionString(""));
 
     // Options used by physical printers
     
@@ -3021,6 +3028,13 @@ void PrintConfigDef::init_fff_params()
     def->label = L("HTTPS CA File");
     def->tooltip = L("Custom CA certificate file can be specified for HTTPS OctoPrint connections, in crt/pem format. "
                    "If left blank, the default OS CA certificate repository is used.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionString(""));
+
+    def = this->add("printhost_client_cert", coString);
+    def->label = L("Client Certificate File");
+    def->tooltip = L("Custom Client certificate file can be specified for 2-way ssl authentication, in p12/pfx format. "
+                   "If left blank, now client certificate is used.");
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionString(""));
 
@@ -6085,6 +6099,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "print_temperature",
 "printhost_apikey",
 "printhost_cafile",
+"printhost_client_cert",
 "retract_lift_first_layer",
 "retract_lift_top",
 "seam_angle_cost",

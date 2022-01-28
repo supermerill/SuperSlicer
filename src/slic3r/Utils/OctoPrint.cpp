@@ -25,7 +25,8 @@ namespace Slic3r {
 OctoPrint::OctoPrint(DynamicPrintConfig *config) :
     host(config->opt_string("print_host")),
     apikey(config->opt_string("printhost_apikey")),
-    cafile(config->opt_string("printhost_cafile"))
+    cafile(config->opt_string("printhost_cafile")),
+    client_cert(config->opt_string("printhost_client_cert"))
 {}
 
 const char* OctoPrint::get_name() const { return "OctoPrint"; }
@@ -160,6 +161,10 @@ void OctoPrint::set_auth(Http &http) const
     if (! cafile.empty()) {
         http.ca_file(cafile);
     }
+
+    if (! client_cert.empty()) {
+        http.client_cert(client_cert);
+    }
 }
 
 std::string OctoPrint::make_url(const std::string &path) const
@@ -217,6 +222,10 @@ void SL1Host::set_auth(Http &http) const
     if (! get_cafile().empty()) {
         http.ca_file(get_cafile());
     }
+
+    if (! get_client_cert().empty()) {
+        http.client_cert(get_client_cert());
+    }
 }
 
 // PrusaLink
@@ -260,6 +269,10 @@ void PrusaLink::set_auth(Http& http) const
 
     if (!get_cafile().empty()) {
         http.ca_file(get_cafile());
+    }
+
+    if (! get_client_cert().empty()) {
+        http.client_cert(get_client_cert());
     }
 }
 

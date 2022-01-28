@@ -402,6 +402,39 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
     port_line.append_widget(print_host_printers);
     m_optgroup->append_line(port_line);
 
+    option = m_optgroup->get_option("printhost_client_cert");
+    option.opt.width = Field::def_width_wider();
+    Line client_cert_line = m_optgroup->create_single_option_line(option);
+
+    auto printhost_client_cert_browse = [=](wxWindow* parent) {
+        auto sizer = create_sizer_with_btn(parent, &m_printhost_client_cert_browse_btn, "browse", _L("Browse") + " " + dots);
+        m_printhost_client_cert_browse_btn->Bind(wxEVT_BUTTON, [this, m_optgroup](wxCommandEvent e) {
+            static const auto filemasks = _L("Client certificate files (*.pfx, *.p12)|*.pfx;*.p12|All files|*.*");
+            wxFileDialog openFileDialog(this, _L("Open Client certificate file"), "", "", filemasks, wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+            if (openFileDialog.ShowModal() != wxID_CANCEL) {
+                m_optgroup->set_value("printhost_client_cert", std::move(openFileDialog.GetPath()), true);
+                m_optgroup->get_field("printhost_client_cert")->field_changed();
+            }
+            });
+
+        return sizer;
+    };
+
+    client_cert_line.append_widget(printhost_client_cert_browse);
+    m_optgroup->append_line(client_cert_line);
+
+    const auto client_cert_hint = _u8L("Client certificate file is optional. It is only needed if you use 2-way ssl.");
+
+    Line clientcert_hint{ "", "" };
+    clientcert_hint.full_width = 1;
+    clientcert_hint.widget = [this, client_cert_hint](wxWindow* parent) {
+        auto txt = new wxStaticText(parent, wxID_ANY, client_cert_hint);
+        auto sizer = new wxBoxSizer(wxHORIZONTAL);
+        sizer->Add(txt);
+        return sizer;
+    };
+    m_optgroup->append_line(clientcert_hint);
+
     const auto ca_file_hint = _u8L("HTTPS CA file is optional. It is only needed if you use HTTPS with a self-signed certificate.");
 
     if (Http::ca_file_supported()) {

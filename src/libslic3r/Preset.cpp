@@ -1706,6 +1706,7 @@ const std::vector<std::string>& PhysicalPrinter::printer_options()
             "print_host", 
             "printhost_apikey",
             "printhost_cafile",
+            "printhost_client_cert",
             "printhost_port",
             "printhost_authorization_type",
             // HTTP digest authentization (RFC 2617)
@@ -1749,13 +1750,14 @@ const std::set<std::string>& PhysicalPrinter::get_preset_names() const
 
 bool PhysicalPrinter::has_empty_config() const 
 {
-    return  config.opt_string("print_host"        ).empty() && 
-            config.opt_string("printhost_apikey"  ).empty() && 
-            config.opt_string("printhost_cafile"  ).empty() && 
-            config.opt_string("printhost_port"    ).empty() &&
-            config.opt_string("printhost_user"    ).empty() && 
-            config.opt_string("printhost_password").empty() && 
-            config.opt_string("printhost_port"    ).empty();
+    return  config.opt_string("print_host"              ).empty() && 
+            config.opt_string("printhost_apikey"        ).empty() && 
+            config.opt_string("printhost_cafile"        ).empty() && 
+            config.opt_string("printhost_client_cert"   ).empty() && 
+            config.opt_string("printhost_port"          ).empty() &&
+            config.opt_string("printhost_user"          ).empty() && 
+            config.opt_string("printhost_password"      ).empty() && 
+            config.opt_string("printhost_port"          ).empty();
 }
 
 void PhysicalPrinter::update_preset_names_in_config()

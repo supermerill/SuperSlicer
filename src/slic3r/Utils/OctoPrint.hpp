@@ -32,6 +32,7 @@ public:
     std::string get_host() const override { return host; }
     const std::string& get_apikey() const { return apikey; }
     const std::string& get_cafile() const { return cafile; }
+    const std::string& get_client_cert() const { return client_cert; }
 
 protected:
     virtual bool validate_version_text(const boost::optional<std::string> &version_text) const;
@@ -40,6 +41,7 @@ private:
     std::string host;
     std::string apikey;
     std::string cafile;
+    std::string client_cert;
 
     virtual void set_auth(Http &http) const;
     std::string make_url(const std::string &path) const;
