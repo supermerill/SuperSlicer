@@ -183,7 +183,7 @@ void PrintConfigDef::init_common_params()
     def->label = L("Client Certificate File");
     def->category = OptionCategory::general;
     def->tooltip = L("Custom Client certificate file can be specified for 2-way ssl authentication, in p12/pfx format. "
-                   "If left blank, now client certificate is used.");
+                   "If left blank, no client certificate is used.");
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionString(""));
 
@@ -3034,7 +3034,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("printhost_client_cert", coString);
     def->label = L("Client Certificate File");
     def->tooltip = L("Custom Client certificate file can be specified for 2-way ssl authentication, in p12/pfx format. "
-                   "If left blank, now client certificate is used.");
+                   "If left blank, no client certificate is used.");
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionString(""));
 
