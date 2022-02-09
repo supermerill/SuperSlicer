@@ -141,7 +141,7 @@ void PrintBase::status_update_warnings(ObjectID object_id, int step, PrintStateB
     	printf("%s warning: %s\n", (object_id == this->id()) ? "print" : "print object", message.c_str());
 }
 
-tbb::mutex& PrintObjectBase::state_mutex(PrintBase *print)
+std::mutex& PrintObjectBase::state_mutex(PrintBase *print)
 { 
 	return print->state_mutex();
 }

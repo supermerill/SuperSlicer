@@ -230,7 +230,7 @@ public:
     void use(ExtrusionMultiPath &multipath) override { for (ExtrusionPath path : multipath.paths) path.set_role(new_role); }
     void use(ExtrusionMultiPath3D &multipath) override { for (ExtrusionPath path : multipath.paths) path.set_role(new_role); }
     void use(ExtrusionLoop &loop) override { for (ExtrusionPath path : loop.paths) path.set_role(new_role); }
-    void use(ExtrusionEntityCollection &collection) override { for (ExtrusionEntity *entity : collection.entities) entity->visit(*this); }
+    void use(ExtrusionEntityCollection &collection) override { for (ExtrusionEntity *entity : collection.entities()) entity->visit(*this); }
 };
 
 } // namespace Slic3r

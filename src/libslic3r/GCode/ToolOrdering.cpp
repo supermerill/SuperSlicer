@@ -64,7 +64,7 @@ uint16_t LayerTools::extruder(const ExtrusionEntityCollection &extrusions, const
 	// 1 based extruder ID.
 	uint16_t extruder = ((this->extruder_override == 0) ?
 	    (is_infill(extrusions.role()) ?
-	    	(is_solid_infill(extrusions.entities.front()->role()) ? region.config().solid_infill_extruder : region.config().infill_extruder) :
+	    	(is_solid_infill(extrusions.entities().front()->role()) ? region.config().solid_infill_extruder : region.config().infill_extruder) :
 			region.config().perimeter_extruder.value) :
 		this->extruder_override);
 	return (extruder == 0) ? 0 : extruder - 1;
@@ -209,12 +209,12 @@ void ToolOrdering::collect_extruders(const PrintObject &object, const std::vecto
                 continue;
             const PrintRegion &region = *object.print()->regions()[region_id];
 
-            if (! layerm->perimeters.entities.empty()) {
+            if (! layerm->perimeters.entities().empty()) {
                 bool something_nonoverriddable = true;
 
                 if (m_print_config_ptr) { // in this case complete_objects is false (see ToolOrdering constructors)
                     something_nonoverriddable = false;
-                    for (const auto& eec : layerm->perimeters.entities) // let's check if there are nonoverriddable entities
+                    for (const ExtrusionEntity* eec : layerm->perimeters.entities()) // let's check if there are nonoverriddable entities()
                         if (!layer_tools.wiping_extrusions().is_overriddable_and_mark(dynamic_cast<const ExtrusionEntityCollection&>(*eec), *m_print_config_ptr, object, region))
                             something_nonoverriddable = true;
                 }
@@ -228,10 +228,10 @@ void ToolOrdering::collect_extruders(const PrintObject &object, const std::vecto
             bool has_infill       = false;
             bool has_solid_infill = false;
             bool something_nonoverriddable = false;
-            for (const ExtrusionEntity *ee : layerm->fills.entities) {
+            for (const ExtrusionEntity *ee : layerm->fills.entities()) {
                 // fill represents infill extrusions of a single island.
                 const auto *fill = dynamic_cast<const ExtrusionEntityCollection*>(ee);
-                ExtrusionRole role = fill->entities.empty() ? erNone : fill->entities.front()->role();
+                ExtrusionRole role = fill->entities().empty() ? erNone : fill->entities().front()->role();
                 if (is_solid_infill(role))
                     has_solid_infill = true;
                 else if (role != erNone)
@@ -636,7 +636,7 @@ float WipingExtrusions::mark_wiping_extrusions(const Print& print, uint16_t old_
 
                 bool wipe_into_infill_only = ! object->config().wipe_into_objects && region.config().wipe_into_infill;
                 if (region.config().infill_first != perimeters_done || wipe_into_infill_only) {
-                    for (const ExtrusionEntity* ee : this_layer->regions()[region_id]->fills.entities) {                      // iterate through all infill Collections
+                    for (const ExtrusionEntity* ee : this_layer->regions()[region_id]->fills.entities()) {                      // iterate through all infill Collections
                         auto* fill = dynamic_cast<const ExtrusionEntityCollection*>(ee);
 
                         if (!is_overriddable(*fill, print.config(), *object, region))
@@ -660,7 +660,7 @@ float WipingExtrusions::mark_wiping_extrusions(const Print& print, uint16_t old_
                 // Now the same for perimeters - see comments above for explanation:
                 if (object->config().wipe_into_objects && region.config().infill_first == perimeters_done)
                 {
-                    for (const ExtrusionEntity* ee : this_layer->regions()[region_id]->perimeters.entities) {
+                    for (const ExtrusionEntity* ee : this_layer->regions()[region_id]->perimeters.entities()) {
                         auto* fill = dynamic_cast<const ExtrusionEntityCollection*>(ee);
                         if (is_overriddable(*fill, print.config(), *object, region) && !is_entity_overridden(fill, copy) && fill->total_volume() > min_infill_volume) {
                             set_extruder_override(fill, copy, new_extruder, num_of_copies);
@@ -680,7 +680,7 @@ float WipingExtrusions::mark_wiping_extrusions(const Print& print, uint16_t old_
 
 
 
-// Called after all toolchanges on a layer were mark_infill_overridden. There might still be overridable entities,
+// Called after all toolchanges on a layer were mark_infill_overridden. There might still be overridable entities(),
 // that were not actually overridden. If they are part of a dedicated object, printing them with the extruder
 // they were initially assigned to might mean violating the perimeter-infill order. We will therefore go through
 // them again and make sure we override it.
@@ -707,7 +707,7 @@ void WipingExtrusions::ensure_perimeters_infills_order(const Print& print)
                 if (!region.config().wipe_into_infill && !object->config().wipe_into_objects)
                     continue;
 
-                for (const ExtrusionEntity* ee : this_layer->regions()[region_id]->fills.entities) {                      // iterate through all infill Collections
+                for (const ExtrusionEntity* ee : this_layer->regions()[region_id]->fills.entities()) {                      // iterate through all infill Collections
                     auto* fill = dynamic_cast<const ExtrusionEntityCollection*>(ee);
 
                     if (!is_overriddable(*fill, print.config(), *object, region)
@@ -730,7 +730,8 @@ void WipingExtrusions::ensure_perimeters_infills_order(const Print& print)
                 }
 
                 // Now the same for perimeters - see comments above for explanation:
-                for (const ExtrusionEntity* ee : this_layer->regions()[region_id]->perimeters.entities) {                      // iterate through all perimeter Collections
+                for (const ExtrusionEntity* ee : this_layer->regions()[region_id]->perimeters.entities()) {
+                    // iterate through all perimeter Collections
                     auto* fill = dynamic_cast<const ExtrusionEntityCollection*>(ee);
                     if (is_overriddable(*fill, print.config(), *object, region) && ! is_entity_overridden(fill, copy))
                         set_extruder_override(fill, copy, (region.config().infill_first ? last_nonsoluble_extruder : first_nonsoluble_extruder), num_of_copies);

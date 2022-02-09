@@ -736,7 +736,9 @@ void FreeCADDialog::createSTC()
     m_text->Bind(wxEVT_STC_CHARADDED, &FreeCADDialog::on_char_add, this);
     m_text->Bind(wxEVT_KEY_DOWN, &FreeCADDialog::on_key_type, this);
     m_text->Bind(wxEVT_CHAR, &FreeCADDialog::on_char_type, this);
+#if (wxMAJOR_VERSION > 3) || (wxMAJOR_VERSION == 3 && wxMINOR_VERSION >= 1)
     m_text->Bind(wxEVT_STC_AUTOCOMP_COMPLETED, &FreeCADDialog::on_autocomp_complete, this);
+#endif
     m_text->Connect(wxID_ANY,
             wxEVT_KEY_DOWN,
             wxKeyEventHandler(FreeCADDialog::on_key_type),

@@ -410,19 +410,19 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
     std::vector<ExtrusionEntityCollection*> fills_by_priority;
     auto store_fill = [&fills_by_priority, this](size_t region_id) {
         if (fills_by_priority.size() == 1) {
-            m_regions[region_id]->fills.append(fills_by_priority[0]->entities);
+            m_regions[region_id]->fills.append(fills_by_priority[0]->entities());
             delete fills_by_priority[0];
         } else {
             m_regions[region_id]->fills.set_can_sort_reverse(false, false);
             ExtrusionEntityCollection* eec = new ExtrusionEntityCollection();
             eec->set_can_sort_reverse(false, false);
-            m_regions[region_id]->fills.entities.push_back(eec);
             for (ExtrusionEntityCollection* per_priority : fills_by_priority) {
-                if (!per_priority->entities.empty())
-                    eec->entities.push_back(per_priority);
+                if (!per_priority->entities().empty())
+                    eec->set_entities().push_back(per_priority);
                 else
                     delete per_priority;
             }
+            m_regions[region_id]->fills.append(ExtrusionEntitiesPtr{ eec });
         }
         fills_by_priority.clear();
     };
@@ -489,6 +489,9 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         //union with safety offset to avoid separation from the appends of different surface with same settings.
         surface_fill.expolygons = union_ex(surface_fill.expolygons, true);
 
+        //store default values, before modification.
+        bool dont_adjust = surface_fill.params.dont_adjust;
+        float density = surface_fill.params.density;
         for (ExPolygon &expoly : surface_fill.expolygons) {
             //set overlap polygons
             f->no_overlap_expolygons.clear();
@@ -503,6 +506,11 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
                 f->overlap = 0;
                 f->no_overlap_expolygons.push_back(expoly);
             }
+
+            //set default param (that can be modified by bridge thing)
+            surface_fill.params.dont_adjust = dont_adjust;
+            surface_fill.params.bridge_offset = 0;
+            surface_fill.params.density = density;
 
             //init the surface with the current polygon
             if (!expoly.contour.empty()) {
@@ -526,6 +534,10 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
                         } else {
                             expolys = offset_ex(ExPolygon{surface_fill.surface.expolygon.contour}, -scale_t(surface_fill.params.spacing) / 2 - 10);
                         }
+                        // if nothing after collapse, then go to next surface_fill.expolygon
+                        if (expolys.empty())
+                            continue;
+
                         BoundingBox bb;
                         bool first = true;
                         for (ExPolygon& expoly : expolys) {
@@ -568,7 +580,7 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
                 //make fill
                 while ((size_t)surface_fill.params.priority >= fills_by_priority.size())
                     fills_by_priority.push_back(new ExtrusionEntityCollection());
-                f->fill_surface_extrusion(&surface_fill.surface, surface_fill.params, fills_by_priority[(size_t)surface_fill.params.priority]->entities);
+                f->fill_surface_extrusion(&surface_fill.surface, surface_fill.params, fills_by_priority[(size_t)surface_fill.params.priority]->set_entities());
             }
         }
     }
@@ -580,32 +592,32 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
     // The path type could be ExtrusionPath, ExtrusionLoop or ExtrusionEntityCollection.
     // Why the paths are unpacked?
     for (LayerRegion *layerm : m_regions)
-        for (const ExtrusionEntity *thin_fill : layerm->thin_fills.entities) {
+        for (const ExtrusionEntity *thin_fill : layerm->thin_fills.entities()) {
             ExtrusionEntityCollection *collection = new ExtrusionEntityCollection();
-            if (!layerm->fills.can_sort() && layerm->fills.entities.size() > 0 && layerm->fills.entities[0]->is_collection()) {
-                ExtrusionEntityCollection* no_sort_fill = static_cast<ExtrusionEntityCollection*>(layerm->fills.entities[0]);
-                if (!no_sort_fill->can_sort() && no_sort_fill->entities.size() > 0 && no_sort_fill->entities[0]->is_collection())
-                    static_cast<ExtrusionEntityCollection*>(no_sort_fill->entities[0])->entities.push_back(collection);
+            if (!layerm->fills.can_sort() && layerm->fills.entities().size() > 0 && layerm->fills.entities()[0]->is_collection()) {
+                ExtrusionEntityCollection* no_sort_fill = static_cast<ExtrusionEntityCollection*>(layerm->fills.entities()[0]);
+                if (!no_sort_fill->can_sort() && no_sort_fill->entities().size() > 0 && no_sort_fill->entities()[0]->is_collection())
+                    static_cast<ExtrusionEntityCollection*>(no_sort_fill->entities()[0])->append(ExtrusionEntitiesPtr{ collection });
             } else
-                layerm->fills.entities.push_back(collection);
-            collection->entities.push_back(thin_fill->clone());
+                layerm->fills.append(ExtrusionEntitiesPtr{ collection });
+            collection->append(*thin_fill);
         }
 
 #ifndef NDEBUG
     for (LayerRegion *layerm : m_regions)
-        for (size_t i1 = 0; i1 < layerm->fills.entities.size(); ++i1) {
-            assert(dynamic_cast<ExtrusionEntityCollection*>(layerm->fills.entities[i1]) != nullptr);
-            if (!layerm->fills.can_sort() && layerm->fills.entities.size() > 0 && i1 == 0){
-                ExtrusionEntityCollection* no_sort_fill = static_cast<ExtrusionEntityCollection*>(layerm->fills.entities[0]);
+        for (size_t i1 = 0; i1 < layerm->fills.entities().size(); ++i1) {
+            assert(dynamic_cast<ExtrusionEntityCollection*>(layerm->fills.entities()[i1]) != nullptr);
+            if (!layerm->fills.can_sort() && layerm->fills.entities().size() > 0 && i1 == 0){
+                ExtrusionEntityCollection* no_sort_fill = static_cast<ExtrusionEntityCollection*>(layerm->fills.entities()[0]);
                 assert(no_sort_fill != nullptr);
                 assert(!no_sort_fill->empty());
-                for (size_t i2 = 0; i2 < no_sort_fill->entities.size(); ++i2) {
-                    ExtrusionEntityCollection* priority_fill = dynamic_cast<ExtrusionEntityCollection*>(no_sort_fill->entities[i2]);
+                for (size_t i2 = 0; i2 < no_sort_fill->entities().size(); ++i2) {
+                    ExtrusionEntityCollection* priority_fill = dynamic_cast<ExtrusionEntityCollection*>(no_sort_fill->entities()[i2]);
                     assert(priority_fill != nullptr);
                     assert(!priority_fill->empty());
                     if (!no_sort_fill->can_sort()) {
-                        for (size_t i3 = 0; i3 < priority_fill->entities.size(); ++i3)
-                            assert(dynamic_cast<ExtrusionEntityCollection*>(priority_fill->entities[i3]) != nullptr);
+                        for (size_t i3 = 0; i3 < priority_fill->entities().size(); ++i3)
+                            assert(dynamic_cast<ExtrusionEntityCollection*>(priority_fill->entities()[i3]) != nullptr);
                     }
                 }
             }
@@ -780,11 +792,11 @@ void Layer::make_ironing()
             if (! polylines.empty()) {
                 // Save into layer.
                 ExtrusionEntityCollection *eec = new ExtrusionEntityCollection();
-                ironing_params.layerm->ironings.entities.push_back(eec);
+                ironing_params.layerm->ironings.append(ExtrusionEntitiesPtr{ eec });
                 // Don't sort the ironing infill lines as they are monotonicly ordered.
                 eec->set_can_sort_reverse(false, false);
                 extrusion_entities_append_paths(
-                    eec->entities, std::move(polylines),
+                    eec->set_entities(), std::move(polylines),
                     erIroning,
                     flow_mm3_per_mm, float(flow.width), float(height));
             }

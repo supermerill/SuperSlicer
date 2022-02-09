@@ -114,8 +114,8 @@ class MedialAxis {
         void remove_bits(ThickPolylines& pp);
 };
     
-    /// create a ExtrusionEntityCollection from ThickPolylines, discretizing the variable width into little sections (of 4*SCALED_RESOLUTION length) where needed.
-    ExtrusionEntityCollection thin_variable_width(const ThickPolylines &polylines, ExtrusionRole role, Flow flow, coord_t resolution_internal);
+    /// create a ExtrusionEntitiesPtr from ThickPolylines, discretizing the variable width into little sections (of 4*SCALED_RESOLUTION length) where needed. Please delete all ptr if not used.
+    ExtrusionEntitiesPtr thin_variable_width(const ThickPolylines &polylines, ExtrusionRole role, Flow flow, coord_t resolution_internal);
 }
 
 

@@ -6102,15 +6102,15 @@ void GLCanvas3D::_load_print_object_toolpaths(const PrintObject& print_object, c
                         _3DScene::extrusionentity_to_verts(layerm->perimeters, float(layer->print_z), copy,
                         	volume(idx_layer, layerm->region()->config().perimeter_extruder.value, 0));
                     if (ctxt.has_infill) {
-                        for (const ExtrusionEntity *ee : layerm->fills.entities) {
+                        for (const ExtrusionEntity *ee : layerm->fills.entities()) {
                             // fill represents infill extrusions of a single island.
                             const auto *fill = dynamic_cast<const ExtrusionEntityCollection*>(ee);
-                            if (fill != nullptr && !fill->entities.empty())
+                            if (fill != nullptr && !fill->entities().empty())
                                 _3DScene::extrusionentity_to_verts(*fill, 
                                     float(layer->print_z), 
                                     copy,
 	                                volume(idx_layer, 
-                                        is_solid_infill(fill->entities.front()->role()) ?
+                                        is_solid_infill(fill->entities().front()->role()) ?
                                         layerm->region()->config().solid_infill_extruder :
                                         layerm->region()->config().infill_extruder,
 		                                1));
@@ -6120,7 +6120,7 @@ void GLCanvas3D::_load_print_object_toolpaths(const PrintObject& print_object, c
                 if (ctxt.has_support) {
                     const SupportLayer *support_layer = dynamic_cast<const SupportLayer*>(layer);
                     if (support_layer) {
-                        for (const ExtrusionEntity *extrusion_entity : support_layer->support_fills.entities)
+                        for (const ExtrusionEntity *extrusion_entity : support_layer->support_fills.entities())
                             if (extrusion_entity != nullptr)
                                 _3DScene::extrusionentity_to_verts(*extrusion_entity, float(layer->print_z), copy,
 	                            volume(idx_layer, 

@@ -244,6 +244,19 @@ void PresetUpdater::priv::prune_tmps() const
 		}
 }
 
+//parse the string, if it doesn't contain a valid version string, return invalid version.
+Semver get_version(const std::string &str, const std::regex &regexp) {
+	std::smatch match;
+	if (std::regex_match(str, match, regexp)) {
+		std::string version_cleaned = match[0];
+		const boost::optional<Semver> version = Semver::parse(version_cleaned);
+		if (version.has_value()) {
+			return *version;
+		}
+	}
+	return Semver::invalid();
+}
+
 // Get Slic3rPE version available online, save in AppConfig.
 void PresetUpdater::priv::sync_version() const
 {
@@ -267,34 +280,48 @@ void PresetUpdater::priv::sync_version() const
 			std::stringstream json_stream(body);
 			boost::property_tree::read_json(json_stream, root);
 			bool i_am_pre = false;
-			std::string best_pre = "1";
-			std::string best_release = "1";
+			//at least two number, use '.' as separator. can be followed by -Az23 for prereleased and +Az42 for metadata
+			std::regex matcher("[0-9]+\.[0-9]+(\.[0-9]+)*(-[A-Za-z0-9]+)?(\\+[A-Za-z0-9]+)?");
+
+			Semver current_version(SLIC3R_VERSION_FULL);
+			Semver best_pre(1,0,0,0);
+			Semver best_release(1, 0, 0, 0);
 			std::string best_pre_url;
 			std::string best_release_url;
+			const std::regex reg_num("([0-9]+)");
 			for (auto json_version : root) {
 				std::string tag = json_version.second.get<std::string>("tag_name");
-				if (SLIC3R_VERSION_FULL == tag)
+				for (std::regex_iterator it = std::sregex_iterator(tag.begin(), tag.end(), reg_num); it != std::sregex_iterator(); ++it) {
+
+				}
+				Semver tag_version = get_version(tag, matcher);
+				if (current_version == tag_version)
 					i_am_pre = json_version.second.get<bool>("prerelease");
 				if (json_version.second.get<bool>("prerelease")) {
-					if (best_pre < tag) {
-						best_pre = tag;
+					if (best_pre < tag_version) {
+						best_pre = tag_version;
 						best_pre_url = json_version.second.get<std::string>("html_url");
 					}
 				} else {
-					if (best_release < tag) {
-						best_release = tag;
+					if (best_release < tag_version) {
+						best_release = tag_version;
 						best_release_url = json_version.second.get<std::string>("html_url");
 					}
 				}
 			}
-
-			if ((i_am_pre ? best_pre : best_release) <= SLIC3R_VERSION_FULL)
+			//if release is more recent than beta, use release anyway
+			if (best_pre < best_release) {
+				best_pre = best_release;
+				best_pre_url = best_release_url;
+			}
+			//if we're the most recent, don't do anything
+			if ((i_am_pre ? best_pre : best_release) <= current_version)
 				return;
 
-			BOOST_LOG_TRIVIAL(info) << format("Got %1% online version: `%2%`. Sending to GUI thread...", SLIC3R_APP_NAME, i_am_pre? best_pre:best_release);
+			BOOST_LOG_TRIVIAL(info) << format("Got %1% online version: `%2%`. Sending to GUI thread...", SLIC3R_APP_NAME, i_am_pre ? best_pre : best_release);
 
 			wxCommandEvent* evt = new wxCommandEvent(EVT_SLIC3R_VERSION_ONLINE);
-			evt->SetString(i_am_pre ? best_pre : best_release);
+			evt->SetString((i_am_pre ? best_pre : best_release).to_string());
 			GUI::wxGetApp().QueueEvent(evt);
 		})
 		.perform_sync();

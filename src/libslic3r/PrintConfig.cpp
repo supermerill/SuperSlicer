@@ -280,7 +280,7 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::customgcode;
     def->tooltip = L("This custom code is inserted at every layer change, right before the Z move. "
                    "Note that you can use placeholder variables for all Slic3r settings as well "
-                   "as [layer_num] and [layer_z].");
+                   "as {layer_num} and {layer_z}.");
     def->multiline = true;
     def->full_width = true;
     def->height = 5;
@@ -290,7 +290,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("between_objects_gcode", coString);
     def->label = L("Between objects G-code");
     def->category = OptionCategory::customgcode;
-    def->tooltip = L("This code is inserted between objects when using sequential printing. By default extruder and bed temperature are reset using non-wait command; however if M104, M109, M140 or M190 are detected in this custom code, Slic3r will not add temperature commands. Note that you can use placeholder variables for all Slic3r settings, so you can put a \"M109 S[first_layer_temperature]\" command wherever you want.");
+    def->tooltip = L("This code is inserted between objects when using sequential printing. By default extruder and bed temperature are reset using non-wait command; however if M104, M109, M140 or M190 are detected in this custom code, Slic3r will not add temperature commands. Note that you can use placeholder variables for all Slic3r settings, so you can put a \"M109 S{first_layer_temperature}\" command wherever you want.");
     def->multiline = true;
     def->full_width = true;
     def->height = 12;
@@ -770,7 +770,7 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::perimeter;
     def->tooltip = L("Add solid infill near sloping surfaces to guarantee the vertical shell thickness "
                    "(top+bottom solid layers)."
-                   "\n!! solid_over_perimeters may erase these surfaces !! So you should deactivate it if you want to use this.");
+                   "\n!! solid_over_perimeters may erase these surfaces !!");
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
@@ -1211,8 +1211,8 @@ void PrintConfigDef::init_fff_params()
     def->label = L("Extruder temp offset");
     def->category = OptionCategory::extruders;
     def->tooltip = L("This offset will be added to all extruder temperatures set in the filament settings."
-        "\nNote that you should set 'M104 S{first_layer_temperature[initial_extruder] + extruder_temperature_offset[initial_extruder]}'"
-        "\ninstead of 'M104 S[first_layer_temperature]' in the start_gcode");
+        "\nNote that you should set 'M104 S{first_layer_temperature{initial_extruder} + extruder_temperature_offset{initial_extruder}}'"
+        "\ninstead of 'M104 S{first_layer_temperature}' in the start_gcode");
     def->sidetext = L("°C");
     def->mode = comExpert;
     def->is_vector_extruder = true;
@@ -1339,7 +1339,7 @@ void PrintConfigDef::init_fff_params()
         "\nA value that is enclosed by double-quotes will be available as a string (without the quotes)"
         "\nA value that only takes values as 'true' or 'false' will be a boolean)"
         "\nEvery other value will be parsed as a string as-is."
-        "\nThese varibles will be available as an array in the custom gcode (one item per extruder), don't forget to use them with the [current_extruder] index to get the current value."
+        "\nThese varibles will be available as an array in the custom gcode (one item per extruder), don't forget to use them with the {current_extruder} index to get the current value."
         " If a filament has a typo on the variable that change its type, then the parser will convert evrything to strings.");
     def->multiline = true;
     def->full_width = true;
@@ -2545,7 +2545,7 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::customgcode;
     def->tooltip = L("This custom code is inserted at every layer change, right after the Z move "
         "and before the extruder moves to the first layer point. Note that you can use "
-        "placeholder variables for all Slic3r settings as well as [layer_num] and [layer_z].");
+        "placeholder variables for all Slic3r settings as well as {layer_num} and {layer_z}.");
     def->cli = "after-layer-gcode|layer-gcode";
     def->multiline = true;
     def->full_width = true;
@@ -2557,7 +2557,7 @@ void PrintConfigDef::init_fff_params()
     def->label = L("After layer change G-code");
     def->category = OptionCategory::customgcode;
     def->tooltip = L("This custom code is inserted at every extrusion type change."
-        "Note that you can use placeholder variables for all Slic3r settings as well as [last_extrusion_role], [extrusion_role], [layer_num] and [layer_z]."
+        "Note that you can use placeholder variables for all Slic3r settings as well as {last_extrusion_role}, {extrusion_role}, {layer_num} and {layer_z}."
         " The 'extrusion_role' strings can take these string values:"
         " { Perimeter, ExternalPerimeter, OverhangPerimeter, InternalInfill, SolidInfill, TopSolidInfill, BridgeInfill, GapFill, Skirt, SupportMaterial, SupportMaterialInterface, WipeTower, Mixed }."
         " Mixed is only used when the role of the extrusion is not unique, not exactly inside another category or not known.");
@@ -2586,7 +2586,7 @@ void PrintConfigDef::init_fff_params()
     def->label = L("Method");
     def->full_label = L("Supports remaining times method");
     def->category = OptionCategory::firmware;
-    def->tooltip = L("M73: Emit M73 P[percent printed] R[remaining time in minutes] at 1 minute"
+    def->tooltip = L("M73: Emit M73 P{percent printed} R{remaining time in minutes} at 1 minute"
         " intervals into the G-code to let the firmware show accurate remaining time."
         " As of now only the Prusa i3 MK3 firmware recognizes M73."
         " Also the i3 MK3 firmware supports M73 Qxx Sxx for the silent mode."
@@ -3084,12 +3084,12 @@ void PrintConfigDef::init_fff_params()
     def->label = L("Output filename format");
     def->category = OptionCategory::output;
     def->tooltip = L("You can use all configuration options as variables inside this template. "
-                   "For example: [layer_height], [fill_density] etc. You can also use [timestamp], "
-                   "[year], [month], [day], [hour], [minute], [second], [version], [input_filename], "
-                   "[input_filename_base].");
+                   "For example: {layer_height}, {fill_density} etc. You can also use {timestamp}, "
+                   "{year}, {month}, {day}, {hour}, {minute}, {second}, {version}, {input_filename}, "
+                   "{input_filename_base}.");
     def->full_width = true;
     def->mode = comExpert;
-    def->set_default_value(new ConfigOptionString("[input_filename_base].gcode"));
+    def->set_default_value(new ConfigOptionString("{input_filename_base}.gcode"));
 
     def = this->add("overhangs_speed", coFloatOrPercent);
     def->label = L("Overhangs");
@@ -3922,7 +3922,7 @@ void PrintConfigDef::init_fff_params()
         "such commands will not be prepended automatically so you're free to customize "
         "the order of heating commands and other custom actions. Note that you can use "
         "placeholder variables for all Slic3r settings, so you can put "
-        "a \"M109 S[first_layer_temperature]\" command wherever you want."
+        "a \"M109 S{first_layer_temperature}\" command wherever you want."
         "\n placeholders: initial_extruder, total_layer_count, has_wipe_tower, has_single_extruder_multi_material_priming, total_toolchanges, bounding_box[minx,miny,maxx,maxy]");
     def->multiline = true;
     def->full_width = true;
@@ -3948,7 +3948,7 @@ void PrintConfigDef::init_fff_params()
                    "M104, M109, M140 or M190 in your custom codes, such commands will "
                    "not be prepended automatically so you're free to customize the order "
                    "of heating commands and other custom actions. Note that you can use placeholder variables "
-                   "for all Slic3r settings, so you can put a \"M109 S[first_layer_temperature]\" command "
+                   "for all Slic3r settings, so you can put a \"M109 S{first_layer_temperature}\" command "
                    "wherever you want. If you have multiple extruders, the gcode is processed "
                    "in extruder order.");
     def->multiline = true;
@@ -4036,7 +4036,7 @@ void PrintConfigDef::init_fff_params()
         " the top/bottom solid layer count, it won't do anything. If this setting is set to 1, it will evict "
         " all solid fill above/below perimeters. "
         "\nSet zero to disable."
-        "\n!! ensure_vertical_shell_thickness may be erased by this setting !!.");
+        "\n!! ensure_vertical_shell_thickness needs to be activated so this algorithm can work !!.");
     def->min = 0;
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionInt(2));
@@ -4427,8 +4427,8 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::customgcode;
     def->tooltip = L("This custom code is inserted at every extruder change. If you don't leave this empty, you are "
         "expected to take care of the toolchange yourself - Slic3r will not output any other G-code to "
-        "change the filament. You can use placeholder variables for all Slic3r settings as well as [previous_extruder] "
-        "and [next_extruder], so e.g. the standard toolchange command can be scripted as T[next_extruder]."
+        "change the filament. You can use placeholder variables for all Slic3r settings as well as {previous_extruder} "
+        "and {next_extruder}, so e.g. the standard toolchange command can be scripted as T{next_extruder}."
         "!! Warning !!: if any character is written here, Slic3r won't output any toochange command by itself.");
     def->multiline = true;
     def->full_width = true;
@@ -4571,7 +4571,7 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::general;
     def->tooltip = L("This experimental setting uses outputs the E values in cubic millimeters "
                    "instead of linear millimeters. If your firmware doesn't already know "
-                   "filament diameter(s), you can put commands like 'M200 D[filament_diameter_0] T0' "
+                   "filament diameter(s), you can put commands like 'M200 D{filament_diameter_0} T0' "
                    "in your start G-code in order to turn volumetric mode on and use the filament "
                    "diameter associated to the filament selected in Slic3r. This is only supported "
                    "in recent Marlin.");
@@ -5019,10 +5019,10 @@ void PrintConfigDef::init_milling_params()
     def = this->add("milling_toolchange_start_gcode", coStrings);
     def->label = L("G-Code to switch to this toolhead");
     def->category = OptionCategory::milling_extruders;
-    def->tooltip = L("Put here the gcode to change the toolhead (called after the g-code T[next_extruder]). You have access to [next_extruder] and [previous_extruder]."
+    def->tooltip = L("Put here the gcode to change the toolhead (called after the g-code T{next_extruder}). You have access to {next_extruder} and {previous_extruder}."
         " next_extruder is the 'extruder number' of the new milling tool, it's equal to the index (begining at 0) of the milling tool plus the number of extruders."
         " previous_extruder is the 'extruder number' of the previous tool, it may be a normal extruder, if it's below the number of extruders."
-        " The number of extruder is available at [extruder] and the number of milling tool is available at [milling_cutter].");
+        " The number of extruder is available at {extruder} and the number of milling tool is available at {milling_cutter}.");
     def->multiline = true;
     def->full_width = true;
     def->height = 12;
@@ -5033,10 +5033,10 @@ void PrintConfigDef::init_milling_params()
     def = this->add("milling_toolchange_end_gcode", coStrings);
     def->label = L("G-Code to switch from this toolhead");
     def->category = OptionCategory::milling_extruders;
-    def->tooltip = L("Enter here the gcode to end the toolhead action, like stopping the spindle. You have access to [next_extruder] and [previous_extruder]."
+    def->tooltip = L("Enter here the gcode to end the toolhead action, like stopping the spindle. You have access to {next_extruder} and {previous_extruder}."
         " previous_extruder is the 'extruder number' of the current milling tool, it's equal to the index (begining at 0) of the milling tool plus the number of extruders."
         " next_extruder is the 'extruder number' of the next tool, it may be a normal extruder, if it's below the number of extruders."
-        " The number of extruder is available at [extruder]and the number of milling tool is available at [milling_cutter].");
+        " The number of extruder is available at {extruder}and the number of milling tool is available at {milling_cutter}.");
     def->multiline = true;
     def->full_width = true;
     def->height = 12;
@@ -5923,8 +5923,8 @@ void PrintConfigDef::handle_legacy(t_config_option_key &opt_key, std::string &va
 std::map<std::string,std::string> PrintConfigDef::from_prusa(t_config_option_key& opt_key, std::string& value, const DynamicConfig& all_conf) {
     std::map<std::string, std::string> output;
     if ("toolchange_gcode" == opt_key) {
-        if (!value.empty() && value.find("T[next_extruder]") == std::string::npos) {
-            value = "T[next_extruder]\n" + value;
+        if (!value.empty() && value.find("T{next_extruder}") == std::string::npos && value.find("T[next_extruder]") == std::string::npos) {
+            value = "T{next_extruder}\n" + value;
         }
     }
     if ("xy_size_compensation" == opt_key) {

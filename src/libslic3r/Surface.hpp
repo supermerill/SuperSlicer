@@ -35,7 +35,10 @@ inline SurfaceType operator|(SurfaceType a, SurfaceType b) {
     return static_cast<SurfaceType>(static_cast<uint16_t>(a) | static_cast<uint16_t>(b));
 }
 inline SurfaceType operator&(SurfaceType a, SurfaceType b) {
-    return static_cast<SurfaceType>(static_cast<uint16_t>(a)& static_cast<uint16_t>(b));
+    return static_cast<SurfaceType>(static_cast<uint16_t>(a) & static_cast<uint16_t>(b));
+}
+inline SurfaceType operator^(SurfaceType a, SurfaceType b) {
+    return static_cast<SurfaceType>(static_cast<uint16_t>(a) ^ static_cast<uint16_t>(b));
 }
 inline SurfaceType operator|=(SurfaceType& a, SurfaceType b) {
     a = a | b; return a;

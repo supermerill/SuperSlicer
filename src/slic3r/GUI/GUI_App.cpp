@@ -744,7 +744,14 @@ void GUI_App::init_app_config()
 	// Mac : "~/Library/Application Support/Slic3r"
 
     if (data_dir().empty()) {
-        //check if there is a "configuration" directory next to the resources
+        //check if there is a "configuration" directory
+#ifdef __APPLE__
+        //... next to the app bundle on MacOs
+        if (boost::filesystem::exists(boost::filesystem::path{ resources_dir() } / ".." / ".." / ".." / "configuration")) {
+            set_data_dir((boost::filesystem::path{ resources_dir() } / ".." / ".." / ".." / "configuration").string());
+        } else
+#endif
+        //... next to the resources directory
         if (boost::filesystem::exists(boost::filesystem::path{ resources_dir() } / ".." / "configuration")) {
             set_data_dir((boost::filesystem::path{ resources_dir() } / ".." / "configuration").string());
         } else {
@@ -865,7 +872,7 @@ bool GUI_App::on_init_inner()
         }
         wxString artist;
         if (!file_name.empty() && file_name != (std::string(SLIC3R_APP_NAME) + L(" icon"))) {
-            wxString splash_screen_path = wxString::FromUTF8((boost::filesystem::path(Slic3r::resources_dir()) / "splashscreen" / file_name).string());
+            wxString splash_screen_path = wxString::FromUTF8((boost::filesystem::path(Slic3r::resources_dir()) / "splashscreen" / file_name).string().c_str());
         // make a bitmap with dark grey banner on the left side
             bmp = SplashScreen::MakeBitmap(wxBitmap(splash_screen_path, wxBITMAP_TYPE_JPEG));
 

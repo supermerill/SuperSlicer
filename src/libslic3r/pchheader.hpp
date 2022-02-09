@@ -35,6 +35,7 @@
 #include <locale>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <numeric>
 #include <ostream>
 #include <queue>
@@ -93,12 +94,13 @@
 #include <boost/thread.hpp>
 #include <boost/version.hpp>
 
-#include <tbb/atomic.h>
 #include <tbb/parallel_for.h>
 #include <tbb/spin_mutex.h>
-#include <tbb/mutex.h>
+#if (TBB_VERSION_MAJOR >= 2020)
 #include <tbb/task_group.h>
+#else
 #include <tbb/task_scheduler_init.h>
+#endif
 
 #include <Eigen/Dense>
 #include <Eigen/Geometry>

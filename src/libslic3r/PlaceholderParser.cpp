@@ -650,6 +650,7 @@ namespace client
         // If false, the macro_processor will evaluate a full macro.
         // If true, the macro processor will evaluate just a boolean condition using the full expressive power of the macro processor.
         bool                     just_boolean_expression = false;
+        inline static bool       ignore_legacy = false;
         std::string              error_message;
 
         static std::map<t_config_option_key, std::unique_ptr<ConfigOption>> checked_vars;
@@ -764,6 +765,10 @@ namespace client
             std::string                     &output)
         {
             std::string         opt_key_str(opt_key.begin(), opt_key.end());
+            if (ignore_legacy) {
+                output = "[" + opt_key_str + "]";
+                return;
+            }
             const ConfigOption *opt = ctx->resolve_symbol(opt_key_str);
             size_t              idx = ctx->current_extruder_id;
             if (opt == nullptr) {
@@ -801,6 +806,10 @@ namespace client
             std::string                     &output)
         {
             std::string         opt_key_str(opt_key.begin(), opt_key.end());
+            if (ignore_legacy) {
+                output = "[" + opt_key_str + "]";
+                return;
+            }
             const ConfigOption *opt = ctx->resolve_symbol(opt_key_str);
             if (opt == nullptr) {
                 // Check whether the opt_key ends with '_'.
@@ -876,7 +885,7 @@ namespace client
                 }
             }
             //return
-            out = expr<Iterator>(opt != nullptr, out.it_range.begin(), end_pos);
+            //out = expr<Iterator>(opt != nullptr, out.it_range.begin(), end_pos);
         }
 
         template <typename Iterator>
@@ -1246,6 +1255,10 @@ namespace client
 
             text_block = *(
                         text [_val+=_1]
+                        // escape character: can escape '[' and '{' or is printed as-is.
+                    |  (no_skip[raw["\\["]]     [_val = _val + "["])
+                    |  (no_skip[raw["\\{"]]     [_val = _val + "{"])
+                    |  (no_skip[raw["\\"]]      [_val = _val + "\\"])
                         // Allow back tracking after '{' in case of a text_block embedded inside a condition.
                         // In that case the inner-most {else} wins and the {if}/{elsif}/{else} shall be paired.
                         // {elsif}/{else} without an {if} will be allowed to back track from the embedded text_block.
@@ -1256,7 +1269,7 @@ namespace client
 
             // Free-form text up to a first brace, including spaces and newlines.
             // The free-form text will be inserted into the processed text without a modification.
-            text = no_skip[raw[+(utf8char - char_('[') - char_('{'))]];
+            text = no_skip[raw[+(utf8char - char_('[') - char_('{') - char_('\\'))]];
             text.name("text");
 
             // New style of macro expansion.
@@ -1289,10 +1302,12 @@ namespace client
 */
 
             // Legacy variable expansion of the original Slic3r, in the form of [scalar_variable] or [vector_variable_index].
+            // note: should use 'identifier' instead of 'raw[lexeme[*((utf8char - char_('\\') - char_(']')) | ('\\' > char_))]]'
+            //       but it's that way to allow to ignore the legacy_variable_expansion is disabled, witout outputting an exception
             legacy_variable_expansion =
-                    (identifier >> &lit(']'))
+                    ((raw[lexeme[*((utf8char - char_('\\') - char_(']')) | ('\\' > char_))]] >> &lit(']')) >> &lit(']'))
                         [ px::bind(&MyContext::legacy_variable_expansion<Iterator>, _r1, _1, _val) ]
-                |   (identifier > lit('[') > identifier > ']') 
+                |   ((raw[lexeme[*((utf8char - char_('\\') - char_(']')) | ('\\' > char_))]] >> &lit(']')) > lit('[') > (raw[lexeme[*((utf8char - char_('\\') - char_(']')) | ('\\' > char_))]] >> &lit(']')) > ']')
                         [ px::bind(&MyContext::legacy_variable_expansion2<Iterator>, _r1, _1, _2, _val) ]
                 ;
             legacy_variable_expansion.name("legacy_variable_expansion");
@@ -1384,6 +1399,10 @@ namespace client
                         { MyContext::check_variable<Iterator>(ctx, opt_key, end_pos, out, new ConfigOptionFloat(value)); }
                 static void default_string_(boost::iterator_range<Iterator>& it_range, const MyContext* ctx, boost::iterator_range<Iterator>& opt_key, Iterator& end_pos, expr<Iterator>& out)
                         { MyContext::check_variable<Iterator>(ctx, opt_key, end_pos, out, new ConfigOptionString(std::string(it_range.begin() + 1, it_range.end() - 1))); }
+                static void set_ignore_legacy_(bool& value)
+                        { 
+                    MyContext::ignore_legacy = value; 
+                }
             };
             unary_expression = iter_pos[px::bind(&FactorActions::set_start_pos, _1, _val)] >> (
                     scalar_variable_reference(_r1)                  [ _val = _1 ]
@@ -1399,14 +1418,15 @@ namespace client
                                                                     [ px::bind(&MyContext::random<Iterator>, _r1, _val, _2) ]
                 |   (kw["int"] > '(' > unary_expression(_r1) > ')') [ px::bind(&FactorActions::to_int,  _1,     _val) ]
                 |   (kw["exists"] > '('  > identifier > ')' > iter_pos)        [ px::bind(&MyContext::check_variable<Iterator>, _r1, _1, _2, _val, nullptr) ]
-                |   (kw["default"] > '(' > identifier > ',' > strict_double > ')' > iter_pos)
+                |   (kw["default_double"] > '(' > identifier > ',' > strict_double > ')' > iter_pos)
                                                                     [px::bind(&FactorActions::default_double_, _2, _r1, _1, _3, _val)]
-                |   (kw["default"] > '(' > identifier > ',' > int_ > ')' > iter_pos)
+                |   (kw["default_int"] > '(' > identifier > ',' > int_ > ')' > iter_pos)
                                                                     [px::bind(&FactorActions::default_int_, _2, _r1, _1, _3, _val)]
-                |   (kw["default"] > '('  > identifier > ',' > kw[bool_] > ')' > iter_pos)
+                |   (kw["default_bool"] > '('  > identifier > ',' > kw[bool_] > ')' > iter_pos)
                                                                     [ px::bind(&FactorActions::default_bool_, _2, _r1, _1, _3, _val) ]
-                |   (kw["default"] > '(' > identifier > ',' > raw[lexeme['"' > *((utf8char - char_('\\') - char_('"')) | ('\\' > char_)) > '"']] > ')' > iter_pos)
+                |   (kw["default_string"] > '(' > identifier > ',' > raw[lexeme['"' > *((utf8char - char_('\\') - char_('"')) | ('\\' > char_)) > '"']] > ')' > iter_pos)
                                                                     [px::bind(&FactorActions::default_string_, _2, _r1, _1, _3, _val)]
+                |   (kw["ignore_legacy"] > '(' > kw[bool_] > ')')   [px::bind(&FactorActions::set_ignore_legacy_, _1)]
                 |   (strict_double > iter_pos)                      [ px::bind(&FactorActions::double_, _1, _2, _val) ]
                 |   (int_      > iter_pos)                          [ px::bind(&FactorActions::int_,    _1, _2, _val) ]
                 |   (kw[bool_] > iter_pos)                          [ px::bind(&FactorActions::bool_,   _1, _2, _val) ]
@@ -1447,7 +1467,11 @@ namespace client
                 ("or")
                 ("true")
                 ("exists")
-                ("default");
+                ("default_double")
+                ("default_int")
+                ("default_bool")
+                ("default_string")
+                ("ignore_legacy");
 
             if (0) {
                 debug(start);

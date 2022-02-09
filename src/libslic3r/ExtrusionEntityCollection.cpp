@@ -28,27 +28,27 @@ ExtrusionEntityCollection& ExtrusionEntityCollection::operator= (const Extrusion
 {
     this->no_sort = other.no_sort;
     clear();
-    this->append(other.entities);
+    this->append(other.m_entities);
     return *this;
 }
 
 void ExtrusionEntityCollection::swap(ExtrusionEntityCollection &c)
 {
-    std::swap(this->entities, c.entities);
+    std::swap(this->m_entities, c.m_entities);
     std::swap(this->no_sort, c.no_sort);
 }
 
 void ExtrusionEntityCollection::clear()
 {
-	for (size_t i = 0; i < this->entities.size(); ++i)
-		delete this->entities[i];
-    this->entities.clear();
+	for (size_t i = 0; i < this->m_entities.size(); ++i)
+		delete this->m_entities[i];
+    this->m_entities.clear();
 }
 
 ExtrusionEntityCollection::operator ExtrusionPaths() const
 {
     ExtrusionPaths paths;
-    for (const ExtrusionEntity *ptr : this->entities) {
+    for (const ExtrusionEntity *ptr : this->entities()) {
         if (const ExtrusionPath *path = dynamic_cast<const ExtrusionPath*>(ptr))
             paths.push_back(*path);
     }
@@ -57,26 +57,26 @@ ExtrusionEntityCollection::operator ExtrusionPaths() const
 
 void ExtrusionEntityCollection::reverse()
 {
-    for (ExtrusionEntity *ptr : this->entities)
+    for (ExtrusionEntity *ptr : this->m_entities)
     {
         // Don't reverse it if it's a loop, as it doesn't change anything in terms of elements ordering
         // and caller might rely on winding order
         if (ptr->can_reverse() && !ptr->is_loop())
             ptr->reverse();
     }
-    std::reverse(this->entities.begin(), this->entities.end());
+    std::reverse(this->m_entities.begin(), this->m_entities.end());
 }
 
 void ExtrusionEntityCollection::replace(size_t i, const ExtrusionEntity &entity)
 {
-    delete this->entities[i];
-    this->entities[i] = entity.clone();
+    delete this->m_entities[i];
+    this->m_entities[i] = entity.clone();
 }
 
 void ExtrusionEntityCollection::remove(size_t i)
 {
-    delete this->entities[i];
-    this->entities.erase(this->entities.begin() + i);
+    delete this->m_entities[i];
+    this->m_entities.erase(this->m_entities.begin() + i);
 }
 
 ExtrusionEntityCollection ExtrusionEntityCollection::chained_path_from(const ExtrusionEntitiesPtr& extrusion_entities, const Point &start_near, ExtrusionRole role)
@@ -89,7 +89,7 @@ ExtrusionEntityCollection ExtrusionEntityCollection::chained_path_from(const Ext
     //    if (role == erMixed)
     //        out = *this;
     //    else {
-    //        for (const ExtrusionEntity *ee : this->entities) {
+    //        for (const ExtrusionEntity *ee : this->entities()) {
     //            if (role != erMixed) {
     //                // The caller wants only paths with a specific extrusion role.
     //                auto role2 = ee->role();
@@ -99,31 +99,31 @@ ExtrusionEntityCollection ExtrusionEntityCollection::chained_path_from(const Ext
     //                    continue;
     //                }
     //            }
-    //            out.entities.emplace_back(ee->clone());
+    //            out.entities().emplace_back(ee->clone());
     //        }
     //    }
-    //    chain_and_reorder_extrusion_entities(out.entities, &start_near);
+    //    chain_and_reorder_extrusion_entities(out.entities(), &start_near);
     //}
     //return out;
     // Return a filtered copy of the collection.
     ExtrusionEntityCollection out;
-    out.entities = filter_by_extrusion_role(extrusion_entities, role);
+    out.m_entities = filter_by_extrusion_role(extrusion_entities, role);
     // Clone the extrusion entities.
-    for (ExtrusionEntity* &ptr : out.entities)
+    for (ExtrusionEntity* &ptr : out.m_entities)
         ptr = ptr->clone();
-    chain_and_reorder_extrusion_entities(out.entities, &start_near);
+    chain_and_reorder_extrusion_entities(out.m_entities, &start_near);
     return out;
 }
 
 void ExtrusionEntityCollection::polygons_covered_by_width(Polygons &out, const float scaled_epsilon) const
 {
-    for (const ExtrusionEntity *entity : this->entities)
+    for (const ExtrusionEntity *entity : this->entities())
         entity->polygons_covered_by_width(out, scaled_epsilon);
 }
 
 void ExtrusionEntityCollection::polygons_covered_by_spacing(Polygons &out, const float spacing_ratio, const float scaled_epsilon) const
 {
-    for (const ExtrusionEntity *entity : this->entities)
+    for (const ExtrusionEntity *entity : this->entities())
         entity->polygons_covered_by_spacing(out, spacing_ratio, scaled_epsilon);
 }
 
@@ -135,7 +135,7 @@ size_t ExtrusionEntityCollection::items_count() const
 
 void
 CountEntities::use(const ExtrusionEntityCollection &coll) {
-    for (const ExtrusionEntity* entity : coll.entities) {
+    for (const ExtrusionEntity* entity : coll.entities()) {
         entity->visit(*this);
     }
 }
@@ -153,12 +153,12 @@ void
 FlatenEntities::use(const ExtrusionEntityCollection &coll) {
     if ((!coll.can_sort() || !this->to_fill.can_sort()) && preserve_ordering) {
         FlatenEntities unsortable(coll, preserve_ordering);
-        for (const ExtrusionEntity* entity : coll.entities) {
+        for (const ExtrusionEntity* entity : coll.entities()) {
             entity->visit(unsortable);
         }
         to_fill.append(std::move(unsortable.to_fill));
     } else {
-        for (const ExtrusionEntity* entity : coll.entities) {
+        for (const ExtrusionEntity* entity : coll.entities()) {
             entity->visit(*this);
         }
     }

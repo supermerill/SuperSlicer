@@ -73,7 +73,7 @@ static BoundingBoxf extrusionentity_extents(const ExtrusionEntity *extrusion_ent
 static inline BoundingBoxf extrusionentity_extents(const ExtrusionEntityCollection &extrusion_entity_collection)
 {
     BoundingBoxf bbox;
-    for (const ExtrusionEntity *extrusion_entity : extrusion_entity_collection.entities)
+    for (const ExtrusionEntity *extrusion_entity : extrusion_entity_collection.entities())
         bbox.merge(extrusionentity_extents(extrusion_entity));
     return bbox;
 }
@@ -114,13 +114,13 @@ BoundingBoxf get_print_object_extrusions_extents(const PrintObject &print_object
         BoundingBoxf bbox_this;
         for (const LayerRegion *layerm : layer->regions()) {
             bbox_this.merge(extrusionentity_extents(layerm->perimeters));
-            for (const ExtrusionEntity *ee : layerm->fills.entities)
+            for (const ExtrusionEntity *ee : layerm->fills.entities())
                 // fill represents infill extrusions of a single island.
                 bbox_this.merge(extrusionentity_extents(*dynamic_cast<const ExtrusionEntityCollection*>(ee)));
         }
         const SupportLayer *support_layer = dynamic_cast<const SupportLayer*>(layer);
         if (support_layer)
-            for (const ExtrusionEntity *extrusion_entity : support_layer->support_fills.entities)
+            for (const ExtrusionEntity *extrusion_entity : support_layer->support_fills.entities())
                 bbox_this.merge(extrusionentity_extents(extrusion_entity));
         for (const PrintInstance &instance : print_object.instances()) {
             BoundingBoxf bbox_translated(bbox_this);

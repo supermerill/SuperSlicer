@@ -3,6 +3,7 @@
  *
  */
 
+#include <mutex>
 #include <numeric>
 #include <libslic3r/SLA/SupportTree.hpp>
 #include <libslic3r/SLA/SpatIndex.hpp>
@@ -17,7 +18,6 @@
 #include <libnest2d/optimizers/nlopt/subplex.hpp>
 #include <boost/log/trivial.hpp>
 #include <tbb/parallel_for.h>
-#include <tbb/mutex.h>
 #include <tbb/spin_mutex.h>
 #include <libslic3r/I18N.hpp>
 

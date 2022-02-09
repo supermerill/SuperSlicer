@@ -233,16 +233,18 @@ else ()
             COMMAND ls
             # COMMAND ln -sf Slic3r slic3r
             #was: COMMAND ln -sf Slic3r prusa-gcodeviewer
-            COMMAND ln -sf Slic3r ${GCODEVIEWER_APP_CMD}
+            COMMAND ln -sf ${SLIC3R_APP_CMD} ${GCODEVIEWER_APP_CMD}
             #was: COMMAND ln -sf Slic3r PrusaGCodeViewer
-            COMMAND ln -sf Slic3r ${GCODEVIEWER_APP_KEY}
+            COMMAND ln -sf ${SLIC3R_APP_CMD} ${GCODEVIEWER_APP_KEY}
+            #for tests
             WORKING_DIRECTORY "$<TARGET_FILE_DIR:Slic3r>"
             COMMENT "Symlinking the G-code viewer to Slic3r, symlinking to slic3r and gcodeviewer"
             VERBATIM)
     else ()
         add_custom_command(TARGET Slic3r POST_BUILD
             #was: COMMAND ln -sf Slic3r prusa-gcodeviewer
-            COMMAND ln -sf slic3r ${GCODEVIEWER_APP_CMD}
+            COMMAND ln -sf ${SLIC3R_APP_CMD} ${GCODEVIEWER_APP_CMD}
+            #for tests
             WORKING_DIRECTORY "$<TARGET_FILE_DIR:Slic3r>"
             COMMENT "Symlinking the G-code viewer to Slic3r"
             VERBATIM)

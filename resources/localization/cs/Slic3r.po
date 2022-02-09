@@ -241,7 +241,7 @@ msgstr "mm"
 msgid ""
 "Diameter of the print bed. It is assumed that origin (0,0) is located in the "
 "center."
-msgstr "Průměr tiskové podložky. Přepokládaný počátek (0,0) je umístěn uprostřed."
+msgstr "Průměr tiskové podložky. Předpokládaný počátek (0,0) je umístěn uprostřed."
 
 
 #: src/slic3r/GUI/BedShapeDialog.cpp:141
@@ -466,7 +466,7 @@ msgid ""
 "change.\n"
 "(both support_material_extruder and support_material_interface_extruder need "
 "to be set to 0)."
-msgstr "Čistící věž v současné době podporuje pouze nerozpustné podpěry\npokud jsou vytištěny s aktuálním extrudérem bez spuštění výměny nástroje.\n(jak extruder pro tisk podpor tak extruder pro tisk kontaktních podpěr je třeba nastavit na 0)."
+msgstr "Čistící věž v současné době podporuje pouze nerozpustné podpěry\npokud jsou vytištěny s aktuálním extruderem bez spuštění výměny nástroje.\n(jak extruder pro tisk podpor tak extruder pro tisk kontaktních podpěr je třeba nastavit na 0)."
 
 
 #: src/slic3r/GUI/ConfigManipulation.cpp:159
@@ -895,7 +895,7 @@ msgstr "Ostatní výrobci"
 #: src/slic3r/GUI/ConfigWizard.cpp:1270
 #, possible-c-format
 msgid "Pick another vendor supported by %s"
-msgstr "Vyberte si jiného výrobce, který je podporováný programem %s"
+msgstr "Vyberte si jiného výrobce, který je podporovaný programem %s"
 
 
 #: src/slic3r/GUI/ConfigWizard.cpp:1302
@@ -3019,7 +3019,7 @@ msgstr "Zavřít aplikaci, přesunu si svá data"
 
 #: src/slic3r/GUI/GUI_App.cpp:417
 msgid "Start the application"
-msgstr "Spusťit aplikaci"
+msgstr "Spustit aplikaci"
 
 
 #: src/slic3r/GUI/GUI_App.cpp:605
@@ -3458,7 +3458,7 @@ msgstr "Změna pořadí Těles v Objektu"
 
 #: src/slic3r/GUI/GUI_ObjectList.cpp:1263
 msgid "Object reordered"
-msgstr "Zěna pořadí objektů"
+msgstr "Změna pořadí objektů"
 
 
 #: src/slic3r/GUI/GUI_ObjectList.cpp:1340
@@ -3482,7 +3482,7 @@ msgstr "Přidání nastavení pro Vrstvy"
 
 #: src/slic3r/GUI/GUI_ObjectList.cpp:1484
 msgid "Add Settings for Sub-object"
-msgstr "Přidání nastavení pro Dílčí objeky"
+msgstr "Přidání nastavení pro Dílčí objekty"
 
 
 #: src/slic3r/GUI/GUI_ObjectList.cpp:1485
@@ -3583,7 +3583,7 @@ msgstr "Změnit velikost podle tiskového objemu"
 
 #: src/slic3r/GUI/GUI_ObjectList.cpp:1903
 msgid "Scale the selected object to fit the print volume"
-msgstr "Přizpůsobit měřítko vybraného objektu, aby se objekt vešel do tiksového objemu"
+msgstr "Přizpůsobit měřítko vybraného objektu, aby se objekt vešel do tiskového objemu"
 
 
 #: src/slic3r/GUI/GUI_ObjectList.cpp:1932 src/slic3r/GUI/Plater.cpp:5413
@@ -4363,7 +4363,7 @@ msgstr "Načíst konfiguraci ze souboru ini/amf/3mf/gcode"
 
 #: src/slic3r/GUI/KBShortcutsDialog.cpp:77
 msgid "Load Config from ini/amf/3mf/gcode and merge"
-msgstr "Načíst konfiguraci zesouboru ini/amf/3mf/gcode a sloučit"
+msgstr "Načíst konfiguraci ze souboru ini/amf/3mf/gcode a sloučit"
 
 
 #: src/slic3r/GUI/KBShortcutsDialog.cpp:79 src/slic3r/GUI/Plater.cpp:771
@@ -4696,7 +4696,7 @@ msgstr "Podložka"
 
 #: src/slic3r/GUI/KBShortcutsDialog.cpp:170
 msgid "All gizmos: Rotate - left mouse button; Pan - right mouse button"
-msgstr "Všechna gizma: Rotace - levé talčítko myši; Posun - pravé tlačítko myši"
+msgstr "Všechna gizma: Rotace - levé tlačítko myši; Posun - pravé tlačítko myši"
 
 
 #: src/slic3r/GUI/KBShortcutsDialog.cpp:171
@@ -6996,7 +6996,7 @@ msgid ""
 "If enabled, the descriptions of configuration parameters in settings tabs "
 "wouldn't work as hyperlinks. If disabled, the descriptions of configuration "
 "parameters in settings tabs will work as hyperlinks."
-msgstr "Pokud je aškrtnuto, popisky konfiguračních parametrů na kartách nastavení nebudou fungovat jako hypertextové odkazy. Pokud není zaškrtnuto, popisy konfiguračních parametrů budou fungovat jako hypertextové odkazy."
+msgstr "Pokud je zaškrtnuto, popisky konfiguračních parametrů na kartách nastavení nebudou fungovat jako hypertextové odkazy. Pokud není zaškrtnuto, popisy konfiguračních parametrů budou fungovat jako hypertextové odkazy."
 
 
 #: src/slic3r/GUI/Preferences.cpp:374
@@ -7404,7 +7404,7 @@ msgstr "Přednastavení s názvem \"%1%\" již existuje a není kompatibilní s 
 
 #: src/slic3r/GUI/SavePresetDialog.cpp:137
 msgid "Note: This preset will be replaced after saving"
-msgstr "Upozornění: Taoto přednastavení bude po uložení nahrazeno"
+msgstr "Upozornění: Toto přednastavení bude po uložení nahrazeno"
 
 
 #: src/slic3r/GUI/SavePresetDialog.cpp:142
@@ -7451,7 +7451,7 @@ msgstr "Změnit \"%1%\" na\"%2%\" pro tuto fyzickou tiskárnu \"%3%\""
 #: src/slic3r/GUI/SavePresetDialog.cpp:310
 #, possible-c-format
 msgid "Add \"%1%\" as a next preset for the the physical printer \"%2%\""
-msgstr "Přidat \"%1%\" jako další přednasatevení pro fyzickou tikárnu \"%2%\""
+msgstr "Přidat \"%1%\" jako další přednastavení pro fyzickou tiskárnu \"%2%\""
 
 
 #: src/slic3r/GUI/SavePresetDialog.cpp:311
@@ -7472,7 +7472,7 @@ msgstr "Normální"
 
 #: src/slic3r/GUI/Selection.cpp:172
 msgid "Selection-Add"
-msgstr "Výběř - Přidání"
+msgstr "Výběr - Přidání"
 
 
 #: src/slic3r/GUI/Selection.cpp:213
@@ -7718,7 +7718,7 @@ msgstr "Extrudery"
 
 #: src/slic3r/GUI/Tab.cpp:1995
 msgid "Number of extruders of the printer."
-msgstr "Počet extrudérů tiskárny."
+msgstr "Počet extruderů tiskárny."
 
 
 #: src/slic3r/GUI/Tab.cpp:2024
@@ -8148,7 +8148,7 @@ msgstr "Přenést"
 msgid ""
 "You will not be asked about the unsaved changes the next time you switch a "
 "preset."
-msgstr "Při příštím přepnutí přednasatvení nebudete dotázáni na neuložené změny."
+msgstr "Při příštím přepnutí přednastavení nebudete dotázáni na neuložené změny."
 
 
 #: src/slic3r/GUI/UnsavedChangesDialog.cpp:678
@@ -8156,7 +8156,7 @@ msgstr "Při příštím přepnutí přednasatvení nebudete dotázáni na neulo
 msgid ""
 "Visit \"Preferences\" and check \"%1%\"\n"
 "to be asked about unsaved changes again."
-msgstr "Pro zrušení zapamatování jděte do Nastaneví a zaškrtněte \"%1%\"."
+msgstr "Pro zrušení zapamatování jděte do Nastavení a zaškrtněte \"%1%\"."
 
 
 #: src/slic3r/GUI/UnsavedChangesDialog.cpp:747
@@ -8183,7 +8183,7 @@ msgstr "Přenést vybraná nastavení do nově zvoleného přednastavení."
 #: src/slic3r/GUI/UnsavedChangesDialog.cpp:756
 #, possible-c-format
 msgid "Save the selected options to preset \"%1%\"."
-msgstr "Uloží vybraná nastaneví do přednastavení \"%1%\"."
+msgstr "Uloží vybraná nastavení do přednastavení \"%1%\"."
 
 
 #: src/slic3r/GUI/UnsavedChangesDialog.cpp:757
@@ -9034,7 +9034,7 @@ msgstr "V současné době není funkce \"Prevence odkapávání\" filamentu pod
 #: src/libslic3r/Print.cpp:1412
 msgid ""
 "The Wipe Tower currently does not support volumetric E (use_volumetric_e=0)."
-msgstr "Čistíví Věž v současné době nepodporuje volumetric E (use_volumetric_e = 0)."
+msgstr "Čistící Věž v současné době nepodporuje volumetric E (use_volumetric_e = 0)."
 
 
 #: src/libslic3r/Print.cpp:1414
@@ -9119,7 +9119,7 @@ msgid ""
 "printed with the current extruder without triggering a tool change. (both "
 "support_material_extruder and support_material_interface_extruder need to be "
 "set to 0)."
-msgstr "Čistící věž v současné době podporuje pouze nerozpustné podpěry\npokud jsou vytištěny s aktuálním extrudérem bez spuštění výměny nástroje.\n(jak extruder pro tisk podpor tak extruder pro tisk kontaktních podpěr je třeba nastavit na 0)."
+msgstr "Čistící věž v současné době podporuje pouze nerozpustné podpěry\npokud jsou vytištěny s aktuálním extruderem bez spuštění výměny nástroje.\n(jak extruder pro tisk podpor tak extruder pro tisk kontaktních podpěr je třeba nastavit na 0)."
 
 
 #: src/libslic3r/Print.cpp:1568
@@ -10950,7 +10950,7 @@ msgstr "Délka retrakce před očištěním"
 msgid ""
 "With bowden extruders, it may be wise to do some amount of quick retract "
 "before doing the wipe movement."
-msgstr "U bowdenových extrudérů může být vhodné provést rychlé retrakce než se spustí očištění."
+msgstr "U bowdenových extruderů může být vhodné provést rychlé retrakce než se spustí očištění."
 
 
 #: src/libslic3r/PrintConfig.cpp:3017
@@ -11320,7 +11320,7 @@ msgstr "Tento G-code bude použit jako vlastní kód"
 
 #: src/libslic3r/PrintConfig.cpp:3545
 msgid "Single Extruder Multi Material"
-msgstr "MultiMaterial tisk s jedním extrudérem"
+msgstr "MultiMaterial tisk s jedním extruderem"
 
 
 #: src/libslic3r/PrintConfig.cpp:3547
@@ -11424,7 +11424,7 @@ msgid ""
 "bottom, regardless of whether normal support material is enabled or not and "
 "regardless of any angle threshold. This is useful for getting more adhesion "
 "of objects having a very thin or poor footprint on the build plate."
-msgstr "Vygeneruje podpěry pro zadaný počet vrstev počítaných od spodního okraje, bez ohledu na to, zda jsou povoleny standartní podpěry nebo nikoliv a bez ohledu na jakýkoli prah úhlu. To je užitečné pro získání větší přilnavosti předmětů s velmi tenkou nebo špatnou stopou na tiskové podložce."
+msgstr "Vygeneruje podpěry pro zadaný počet vrstev počítaných od spodního okraje, bez ohledu na to, zda jsou povoleny standardní podpěry nebo nikoliv a bez ohledu na jakýkoli práh úhlu. To je užitečné pro získání větší přilnavosti předmětů s velmi tenkou nebo špatnou stopou na tiskové podložce."
 
 
 #: src/libslic3r/PrintConfig.cpp:3664
@@ -12365,7 +12365,7 @@ msgstr "Rozteč spojek Podložka-Objekt"
 msgid ""
 "Distance between two connector sticks which connect the object and the "
 "generated pad."
-msgstr "Rozteč mezi dvěmi spojkami, které spojují objekt s vygenerovanou podložkou."
+msgstr "Rozteč mezi dvěma spojkami, které spojují objekt s vygenerovanou podložkou."
 
 
 #: src/libslic3r/PrintConfig.cpp:5083
@@ -12738,7 +12738,7 @@ msgid ""
 "Sets logging sensitivity. 0:fatal, 1:error, 2:warning, 3:info, 4:debug, 5:"
 "trace\n"
 "For example. loglevel=2 logs fatal, error and warning level messages."
-msgstr "Zvolte úroveň logování:  0:fatalní chyby, 1:chyby, 2:varování, 3:info, 4:ladění, 5:trasování\nNapříklad. loglevel=2 zaznamenává fatální chyby, chyby a varovné zprávy."
+msgstr "Zvolte úroveň logování:  0:fatální chyby, 1:chyby, 2:varování, 3:info, 4:ladění, 5:trasování\nNapříklad. loglevel=2 zaznamenává fatální chyby, chyby a varovné zprávy."
 
 
 #: src/libslic3r/PrintConfig.cpp:6432
@@ -12755,7 +12755,7 @@ msgstr "Vykreslení pomocí softwaru. Namísto výchozího ovladače OpenGL je n
 
 #: src/libslic3r/PrintObject.cpp:115
 msgid "Processing triangulated mesh"
-msgstr "Zpracovávám tringulační sítě"
+msgstr "Zpracovávám triangulační sítě"
 
 
 #: src/libslic3r/PrintObject.cpp:277

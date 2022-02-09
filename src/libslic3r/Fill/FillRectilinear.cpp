@@ -3233,12 +3233,12 @@ FillRectilinearPeri::fill_surface_extrusion(const Surface *surface, const FillPa
         /// pass the no_sort attribute to the extrusion path
         eec->set_can_sort_reverse(!this->no_sort(), !this->no_sort());
         /// add it into the collection
-        eecroot->entities.push_back(eec);
+        eecroot->append(ExtrusionEntitiesPtr{ eec });
         //get the role
         ExtrusionRole good_role = getRoleFromSurfaceType(params, surface);
         /// push the path
         extrusion_entities_append_paths(
-            eec->entities,
+            eec->set_entities(),
             polylines_1,
             good_role,
             params.flow.mm3_per_mm() * params.flow_mult,
@@ -3265,12 +3265,12 @@ FillRectilinearPeri::fill_surface_extrusion(const Surface *surface, const FillPa
         /// pass the no_sort attribute to the extrusion path
         eec->set_can_sort_reverse(!this->no_sort(), !this->no_sort());
         /// add it into the collection
-        eecroot->entities.push_back(eec);
+        eecroot->append(ExtrusionEntitiesPtr{ eec });
         //get the role
         ExtrusionRole good_role = getRoleFromSurfaceType(params, surface);
         /// push the path
         extrusion_entities_append_paths(
-            eec->entities,
+            eec->set_entities(),
             polylines_2,
             good_role,
             params.flow.mm3_per_mm() * params.flow_mult,
@@ -3455,7 +3455,7 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
                 idx++;
             }
             if (current_extrusion->size() < 2) extrusions->paths.pop_back();
-            if (!extrusions->paths.empty()) eec->entities.push_back(extrusions);
+            if (!extrusions->paths.empty()) eec->append(ExtrusionEntitiesPtr{ extrusions });
             else delete extrusions;
         }
         // === end ===
@@ -3563,13 +3563,13 @@ FillRectilinearWGapFill::fill_surface_extrusion(const Surface *surface, const Fi
             eec->set_can_sort_reverse(!this->no_sort(), !this->no_sort());
 
         extrusion_entities_append_paths(
-            eec->entities, polylines_rectilinear,
+            eec->set_entities(), polylines_rectilinear,
             good_role,
             params.flow.mm3_per_mm() * params.flow_mult * flow_mult_exact_volume,
             params.flow.width * params.flow_mult * float(flow_mult_exact_volume),
             params.flow.height);
 
-        coll_nosort->entities.push_back(eec);
+        coll_nosort->append(ExtrusionEntitiesPtr{ eec });
 
         unextruded_areas = diff_ex(rectilinear_areas, union_ex(eec->polygons_covered_by_spacing(params.flow.spacing_ratio , 10), true));
     }
@@ -3590,7 +3590,7 @@ FillRectilinearWGapFill::fill_surface_extrusion(const Surface *surface, const Fi
         FillParams params2{ params };
         params2.role = good_role;
 
-        do_gap_fill(intersection_ex(gapfill_areas, no_overlap_expolygons), params2, coll_nosort->entities);
+        do_gap_fill(intersection_ex(gapfill_areas, no_overlap_expolygons), params2, coll_nosort->set_entities());
     }
 
     // === end ===

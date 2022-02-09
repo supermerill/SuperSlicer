@@ -1979,7 +1979,7 @@ template<class T> static inline T chain_path_items(const Points &points, const T
 	return out;
 }
 
-ClipperLib::PolyNodes chain_clipper_polynodes(const Points &points, const ClipperLib::PolyNodes &items)
+std::vector<ClipperLib::PolyNode*> chain_clipper_polynodes(const Points &points, const std::vector<ClipperLib::PolyNode*> &items)
 {
 	return chain_path_items(points, items);
 }

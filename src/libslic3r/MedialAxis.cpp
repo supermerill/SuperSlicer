@@ -2064,7 +2064,7 @@ MedialAxis::build(ThickPolylines &polylines_out)
 
 }
 
-ExtrusionEntityCollection
+ExtrusionEntitiesPtr
 thin_variable_width(const ThickPolylines &polylines, ExtrusionRole role, Flow flow, coord_t resolution_internal)
 {
     assert(resolution_internal > SCALED_EPSILON);
@@ -2074,7 +2074,7 @@ thin_variable_width(const ThickPolylines &polylines, ExtrusionRole role, Flow fl
     // of segments, and any pruning shall be performed before we apply this tolerance
     const coord_t tolerance = flow.scaled_width() / 10;//scale_(0.05);
 
-    ExtrusionEntityCollection coll;
+    ExtrusionEntitiesPtr coll;
     for (const ThickPolyline &p : polylines) {
         ExtrusionPaths paths;
         ExtrusionPath path(role);
@@ -2227,23 +2227,23 @@ thin_variable_width(const ThickPolylines &polylines, ExtrusionRole role, Flow fl
         // Append paths to collection.
         if (!paths.empty()) {
             if (paths.front().first_point().coincides_with_epsilon(paths.back().last_point())) {
-                coll.append(ExtrusionLoop(paths));
+                coll.push_back(new ExtrusionLoop(std::move(paths)));
             } else {
                 if (role == erThinWall){
                     //thin walls : avoid to cut them, please.
                     //also, keep the start, as the start should be already in a frontier where possible.
-                    ExtrusionEntityCollection unsortable_coll(paths);
-                    unsortable_coll.set_can_sort_reverse(false, false);
-                    coll.append(unsortable_coll);
+                    ExtrusionEntityCollection *unsortable_coll = new ExtrusionEntityCollection(std::move(paths));
+                    unsortable_coll->set_can_sort_reverse(false, false);
+                    coll.push_back(unsortable_coll);
                 } else {
-                    if (paths.size() <= 1) {
-                        coll.append(paths);
+                    if (paths.size() == 1) {
+                        coll.push_back(paths.front().clone_move());
                     } else {
-                        ExtrusionEntityCollection unsortable_coll(paths);
+                        ExtrusionEntityCollection *unsortable_coll = new ExtrusionEntityCollection(std::move(paths));
                         //gap fill : can reverse, but refrain from cutting them as it creates a mess.
                         // I say that, but currently (false, true) does bad things.
-                        unsortable_coll.set_can_sort_reverse(false, true);
-                        coll.append(unsortable_coll);
+                        unsortable_coll->set_can_sort_reverse(false, true);
+                        coll.push_back(unsortable_coll);
                     }
                 }
             }

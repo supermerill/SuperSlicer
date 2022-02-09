@@ -1078,8 +1078,10 @@ Polyline AvoidCrossingPerimeters::travel_to(const GCode &gcodegen, const Point &
         *could_be_wipe_disabled = false;
     } else if (max_detour_length_exceeded) {
         *could_be_wipe_disabled = false;
-    } else
-        *could_be_wipe_disabled = !need_wipe(gcodegen, m_grid_lslice, travel, result_pl, travel_intersection_count);
+    }
+    // Not reliable enough, now using diff_pl(Polylines{ travel }, to_polygons(m_layer->lslices)); by the caller. supermerill/SuperSlicer#2154
+//    else
+//        *could_be_wipe_disabled = !need_wipe(gcodegen, m_grid_lslice, travel, result_pl, travel_intersection_count);
 
     return result_pl;
 }

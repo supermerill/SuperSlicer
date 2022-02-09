@@ -27,6 +27,7 @@ public:
     virtual double extrude(double dE);
     virtual double retract(double length, double restart_extra, double restart_extra_from_toolchange);
     virtual double unretract();
+    virtual void   reset_retract();
     double E() const { return m_E; }
     void   reset_E() { m_E = 0.; }
     double e_per_mm(double mm3_per_mm) const { return mm3_per_mm * m_e_per_mm3; }

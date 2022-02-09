@@ -113,15 +113,25 @@ struct AMFParserContext
         ctx->characters(s, len);    
     }
 
-    static const char* get_attribute(const char **atts, const char *id) {
+    static const char* get_attribute(const char** atts, const char* id) {
         if (atts == nullptr)
             return nullptr;
         while (*atts != nullptr) {
-            if (strcmp(*(atts ++), id) == 0)
+            if (strcmp(*(atts++), id) == 0)
                 return *atts;
-            ++ atts;
+            ++atts;
         }
         return nullptr;
+    }
+
+    static const char* get_not_null_attribute(const char** atts, const char* id) {
+        const char* str = get_attribute(atts, id);
+        if (str == nullptr) {
+            char error_buf[1024];
+            ::sprintf(error_buf, "Error, missing tag %s", id);
+            throw Slic3r::FileIOError(error_buf);
+        }
+        return str;
     }
 
     enum AMFNodeType {
@@ -304,7 +314,7 @@ void AMFParserContext::startElement(const char *name, const char **atts)
     case 2:
         if (strcmp(name, "metadata") == 0) {
             if (m_path[1] == NODE_TYPE_MATERIAL || m_path[1] == NODE_TYPE_OBJECT) {
-                m_value[0] = get_attribute(atts, "type");
+                m_value[0] = get_not_null_attribute(atts, "type");
                 node_type_new = NODE_TYPE_METADATA;
             }
         } else if (strcmp(name, "layer_config_ranges") == 0 && m_path[1] == NODE_TYPE_OBJECT)
@@ -329,19 +339,19 @@ void AMFParserContext::startElement(const char *name, const char **atts)
         else if (m_path[1] == NODE_TYPE_CUSTOM_GCODE) {
             if (strcmp(name, "code") == 0) {
                 node_type_new = NODE_TYPE_GCODE_PER_HEIGHT;
-                m_value[0] = get_attribute(atts, "print_z");
-                m_value[1] = get_attribute(atts, "extruder");
-                m_value[2] = get_attribute(atts, "color");
+                m_value[0] = get_not_null_attribute(atts, "print_z");
+                m_value[1] = get_not_null_attribute(atts, "extruder");
+                m_value[2] = get_not_null_attribute(atts, "color");
                 if (get_attribute(atts, "type"))
                 {
-                    m_value[3] = get_attribute(atts, "type");
-                    m_value[4] = get_attribute(atts, "extra");
+                    m_value[3] = get_not_null_attribute(atts, "type");
+                    m_value[4] = get_not_null_attribute(atts, "extra");
                 }
                 else
                 {
                     // It means that data was saved in old version (2.2.0 and older) of PrusaSlicer
                     // read old data ... 
-                    std::string gcode = get_attribute(atts, "gcode");
+                    std::string gcode = get_not_null_attribute(atts, "gcode");
                     // ... and interpret them to the new data
                     CustomGCode::Type type= gcode == "M600" ? CustomGCode::ColorChange :
                                             gcode == "M601" ? CustomGCode::PausePrint :
@@ -353,7 +363,7 @@ void AMFParserContext::startElement(const char *name, const char **atts)
             }
             else if (strcmp(name, "mode") == 0) {
                 node_type_new = NODE_TYPE_CUSTOM_GCODE_MODE;
-                m_value[0] = get_attribute(atts, "value");
+                m_value[0] = get_not_null_attribute(atts, "value");
             }
         }
         break;
@@ -421,7 +431,7 @@ void AMFParserContext::startElement(const char *name, const char **atts)
                 node_type_new = NODE_TYPE_TRIANGLE;
         }
         else if (m_path[3] == NODE_TYPE_RANGE && strcmp(name, "metadata") == 0) {
-            m_value[0] = get_attribute(atts, "type");
+            m_value[0] = get_not_null_attribute(atts, "type");
             node_type_new = NODE_TYPE_METADATA;
         }
         break;

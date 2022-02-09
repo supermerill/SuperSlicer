@@ -118,7 +118,7 @@ bool validate_pad(const TriangleMesh &pad, const sla::PadConfig &pcfg)
 
 void SLAPrint::clear()
 {
-    tbb::mutex::scoped_lock lock(this->state_mutex());
+    std::scoped_lock lock(this->state_mutex());
     // The following call should stop background processing if it is running.
     this->invalidate_all_steps();
     for (SLAPrintObject *object : m_objects)
@@ -212,7 +212,7 @@ SLAPrint::ApplyStatus SLAPrint::apply(const Model &model, DynamicPrintConfig con
         update_apply_status(false);
 
     // Grab the lock for the Print / PrintObject milestones.
-    tbb::mutex::scoped_lock lock(this->state_mutex());
+    std::scoped_lock lock(this->state_mutex());
 
     // The following call may stop the background processing.
     bool invalidate_all_model_objects = false;
@@ -514,7 +514,7 @@ SLAPrint::ApplyStatus SLAPrint::apply(const Model &model, DynamicPrintConfig con
 void SLAPrint::set_task(const TaskParams &params)
 {
     // Grab the lock for the Print / PrintObject milestones.
-    tbb::mutex::scoped_lock lock(this->state_mutex());
+    std::scoped_lock lock(this->state_mutex());
 
     int n_object_steps = int(params.to_object_step) + 1;
     if (n_object_steps == 0)
@@ -897,7 +897,7 @@ bool SLAPrint::is_step_done(SLAPrintObjectStep step) const
 {
     if (m_objects.empty())
         return false;
-    tbb::mutex::scoped_lock lock(this->state_mutex());
+    std::scoped_lock lock(this->state_mutex());
     for (const SLAPrintObject *object : m_objects)
         if (! object->is_step_done_unguarded(step))
             return false;

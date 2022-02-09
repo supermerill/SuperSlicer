@@ -1291,7 +1291,7 @@ void WipeTower::toolchange_Wipe(
 	float dy = m_extra_spacing*m_perimeter_width;
 	float wipe_speed = 1600.f;
     if (this->m_config->filament_max_speed.get_at(this->m_current_tool) > 0) {
-        wipe_speed = this->m_config->filament_max_speed.get_at(this->m_current_tool);
+        wipe_speed = this->m_config->filament_max_speed.get_at(this->m_current_tool) * 60; // mm/s -> mm/min
     }
 
     // if there is less than 2.5*m_perimeter_width to the edge, advance straightaway (there is likely a blob anyway)

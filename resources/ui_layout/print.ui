@@ -14,7 +14,6 @@ group:Horizontal shells
 		setting:bottom_solid_min_thickness
 	end_line
 	top_bottom_shell_thickness_explanation
-	setting:solid_over_perimeters
 	setting:enforce_full_fill_volume
 group:Quality
 	line:Only one perimeter 
@@ -26,7 +25,10 @@ group:Quality
 		setting:label_width$8:extra_perimeters_overhangs
 		setting:label_width$10:extra_perimeters_odd_layers
 	end_line
-	setting:ensure_vertical_shell_thickness
+	line:Ensure vertical shell thickness
+		setting:label$_:ensure_vertical_shell_thickness
+		setting:solid_over_perimeters
+	end_line
 	line:Avoid crossing perimeters
 		setting:label$_:avoid_crossing_perimeters
 		setting:label_width$12:label$Not on first layer:avoid_crossing_not_first_layer

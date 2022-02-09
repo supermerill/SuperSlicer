@@ -35,7 +35,7 @@ public:
     // This is called from GCode::process_layer - see implementation for further comments:
     const ExtruderPerCopy* get_extruder_overrides(const ExtrusionEntity* entity, int correct_extruder_id, size_t num_of_copies);
 
-    // This function goes through all infill entities, decides which ones will be used for wiping and
+    // This function goes through all infill entities(), decides which ones will be used for wiping and
     // marks them by the extruder id. Returns volume that remains to be wiped on the wipe tower:
     float mark_wiping_extrusions(const Print& print, uint16_t old_extruder, uint16_t new_extruder, float volume_to_wipe);
 

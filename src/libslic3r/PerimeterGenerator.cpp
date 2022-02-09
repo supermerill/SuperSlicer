@@ -926,34 +926,36 @@ void PerimeterGenerator::process()
             }
             // at this point, all loops should be in contours[0] (= contours.front() )
             // collection of loops to add into loops
-            ExtrusionEntityCollection entities;
+            ExtrusionEntityCollection peri_entities;
             if (config->perimeter_loop.value) {
-                //onlyone_perimter = >fusion all perimeterLoops
+                //onlyone_perimeter = >fusion all perimeterLoops
                 for (PerimeterGeneratorLoop& loop : contours.front()) {
                     ExtrusionLoop extr_loop = this->_traverse_and_join_loops(loop, get_all_Childs(loop), loop.polygon.points.front());
                     //ExtrusionLoop extr_loop = this->_traverse_and_join_loops_old(loop, loop.polygon.points.front(), true);
                     extr_loop.paths.back().polyline.points.push_back(extr_loop.paths.front().polyline.points.front());
-                    entities.append(extr_loop);
+                    peri_entities.append(extr_loop);
                 }
 
                 // append thin walls
                 if (!thin_walls_thickpolys.empty()) {
                     if (this->object_config->thin_walls_merge) {
-                        _merge_thin_walls(entities, thin_walls_thickpolys);
+                        _merge_thin_walls(peri_entities, thin_walls_thickpolys);
                     } else {
-                        ExtrusionEntityCollection tw = thin_variable_width
-                            (thin_walls_thickpolys, erThinWall, this->ext_perimeter_flow, std::max(ext_perimeter_width / 4, scale_t(this->print_config->resolution)));
-                        entities.append(tw.entities);
+                        peri_entities.append(thin_variable_width(
+                            thin_walls_thickpolys, 
+                            erThinWall, 
+                            this->ext_perimeter_flow, 
+                            std::max(ext_perimeter_width / 4, scale_t(this->print_config->resolution))));
                     }
                     thin_walls_thickpolys.clear();
                 }
             } else {
                 if (this->object_config->thin_walls_merge) {
                     ThickPolylines no_thin_walls;
-                    entities = this->_traverse_loops(contours.front(), no_thin_walls);
-                    _merge_thin_walls(entities, thin_walls_thickpolys);
+                    peri_entities = this->_traverse_loops(contours.front(), no_thin_walls);
+                    _merge_thin_walls(peri_entities, thin_walls_thickpolys);
                 } else {
-                    entities = this->_traverse_loops(contours.front(), thin_walls_thickpolys);
+                    peri_entities = this->_traverse_loops(contours.front(), thin_walls_thickpolys);
                 }
             }
 
@@ -968,68 +970,62 @@ void PerimeterGenerator::process()
                     if (this->config->external_perimeters_hole.value || brim_first_layer) {
                         //reverse only not-thin wall
                         ExtrusionEntityCollection coll2;
-                        for (const auto loop : entities.entities) {
+                        for (const ExtrusionEntity* loop : peri_entities.entities()) {
                             if ( (loop->is_loop() && loop->role() != erThinWall)) {
-                                coll2.entities.push_back(loop);
+                                coll2.append(*loop);
                             }
                         }
                         coll2.reverse();
-                        for (const auto loop : entities.entities) {
+                        for (const ExtrusionEntity* loop : peri_entities.entities()) {
                             if (!((loop->is_loop() && loop->role() != erThinWall))) {
-                                coll2.entities.push_back(loop);
+                                coll2.append(*loop);
                             }
                         }
-                        //note: this hacky thing is possible because coll2.entities contains in fact entities's entities
-                        //if you does entities = coll2, you'll delete entities's entities and then you have nothing.
-                        entities.entities = coll2.entities;
-                        //and you have to empty coll2 or it will delete his content, hence crashing our hack
-                        coll2.entities.clear();
+                        //note: this hacky thing is possible because coll2.entities contains in fact peri_entities's entities
+                        //if you does peri_entities = coll2, you'll delete peri_entities's entities() and then you have nothing.
+                        peri_entities = std::move(coll2);
                     } else {
                         //reverse only not-hole perimeters
                         ExtrusionEntityCollection coll2;
-                        for (const auto loop : entities.entities) {
+                        for (const ExtrusionEntity* loop : peri_entities.entities()) {
                             if ((loop->is_loop() && loop->role() != erThinWall) && !(((ExtrusionLoop*)loop)->loop_role() & ExtrusionLoopRole::elrHole) != 0) {
-                                coll2.entities.push_back(loop);
+                                coll2.append(*loop);
                             }
                         }
                         coll2.reverse();
-                        for (const auto loop : entities.entities) {
-                            if (!((loop->is_loop() && loop->role() != erThinWall) && (((ExtrusionLoop*)loop)->loop_role() & ExtrusionLoopRole::elrHole) != 0)) {
-                                coll2.entities.push_back(loop);
+                        for (const ExtrusionEntity* loop : peri_entities.entities()) {
+                            if (!((loop->is_loop() && loop->role() != erThinWall) && !(((ExtrusionLoop*)loop)->loop_role() & ExtrusionLoopRole::elrHole) != 0)) {
+                                coll2.append(*loop);
                             }
                         }
                         //note: this hacky thing is possible because coll2.entities contains in fact entities's entities
-                        //if you does entities = coll2, you'll delete entities's entities and then you have nothing.
-                        entities.entities = coll2.entities;
-                        //and you have to empty coll2 or it will delete his content, hence crashing our hack
-                        coll2.entities.clear();
+                        //if you does peri_entities = coll2, you'll delete peri_entities's entities and then you have nothing.
+                        peri_entities = std::move(coll2);
                     }
                 } else if (this->config->external_perimeters_hole.value) {
                     //reverse the hole, and put them in first place.
                     ExtrusionEntityCollection coll2;
-                    for (const auto loop : entities.entities) {
+                    for (const ExtrusionEntity* loop : peri_entities.entities()) {
                         if ((loop->is_loop() && loop->role() != erThinWall) && (((ExtrusionLoop*)loop)->loop_role() & ExtrusionLoopRole::elrHole) != 0) {
-                            coll2.entities.push_back(loop);
+                            coll2.append(*loop);
                         }
                     }
                     coll2.reverse();
-                    for (const auto loop : entities.entities) {
+                    for (const ExtrusionEntity* loop : peri_entities.entities()) {
                         if (!((loop->is_loop() && loop->role() != erThinWall) && (((ExtrusionLoop*)loop)->loop_role() & ExtrusionLoopRole::elrHole) != 0)) {
-                            coll2.entities.push_back(loop);
+                            coll2.append(*loop);
                         }
                     }
-                    //note: this hacky thing is possible because coll2.entities contains in fact entities's entities
-                    //if you does entities = coll2, you'll delete entities's entities and then you have nothing.
-                    entities.entities = coll2.entities;
-                    //and you have to empty coll2 or it will delete his content, hence crashing our hack
-                    coll2.entities.clear();
+                    //note: this hacky thing is possible because coll2.entities contains in fact peri_entities's entities
+                    //if you does peri_entities = coll2, you'll delete peri_entities's entities and then you have nothing.
+                    peri_entities = std::move(coll2);
                 }
 
             }
             // append perimeters for this slice as a collection
-            if (!entities.empty()) {
+            if (!peri_entities.empty()) {
                 //move it, to avoid to clone evrything and then delete it
-                this->loops->entities.emplace_back(new ExtrusionEntityCollection(std::move(entities)));
+                this->loops->append(peri_entities);
             }
         } // for each loop of an island
 
@@ -1104,19 +1100,11 @@ void PerimeterGenerator::process()
             }
             // create extrusion from lines
             if (!polylines.empty()) {
-                ExtrusionEntityCollection gap_fill = thin_variable_width(polylines,
-                    erGapFill, this->solid_infill_flow, scale_t(this->print_config->resolution_internal));
-
-                //{
-                //    static int isaqsdsdfsdfqzfn = 0;
-                //    std::stringstream stri;
-                //    stri << this->layer->id() << "_gapfill_" << isaqsdsdfsdfqzfn++ << ".svg";
-                //    SVG svg(stri.str());
-                //    svg.draw((surface.expolygon), "grey");
-                //    svg.draw(polylines, "blue");
-                //    svg.Close();
-                //}
-                this->gap_fill->append(gap_fill.entities);
+                this->gap_fill->append(thin_variable_width(
+                    polylines,
+                    erGapFill, 
+                    this->solid_infill_flow, 
+                    scale_t(this->print_config->resolution_internal)));
                 /*  Make sure we don't infill narrow parts that are already gap-filled
                     (we only consider this surface's gaps to reduce the diff() complexity).
                     Growing actual extrusions ensures that gaps not filled by medial axis
@@ -1124,13 +1112,12 @@ void PerimeterGenerator::process()
                     that medial axis skips but infill might join with other infill regions
                     and use zigzag).  */
                     // get clean surface of gap
-                gap_srf = union_ex(offset(gap_fill.polygons_covered_by_width(float(SCALED_EPSILON) / 10), float(SCALED_EPSILON / 2)));
+                gap_srf = union_ex(offset(this->gap_fill->polygons_covered_by_width(float(SCALED_EPSILON) / 10), float(SCALED_EPSILON / 2)));
                 // intersection to ignore the bits of gapfill tha may be over infill, as it's epsilon and there may be some voids here anyway.
                 gap_srf = intersection_ex(gap_srf, gaps_ex);
                 // the diff(last, gap) will be done after, as we have to keep the last un-gapped to avoid unneeded gap/infill offset
             }
         }
-        //TODO: if a gapfill extrusion is a loop and with width always >= perimeter width then change the type to perimeter and put it at the right place in the loops vector.
 
         // create one more offset to be used as boundary for fill
         // we offset by half the perimeter spacing (to get to the actual infill boundary)
@@ -1460,7 +1447,7 @@ ExtrusionEntityCollection PerimeterGenerator::_traverse_loops(
 {
     // loops is an arrayref of ::Loop objects
     // turn each one into an ExtrusionLoop object
-    ExtrusionEntityCollection coll;
+    ExtrusionEntitiesPtr coll;
     for (const PerimeterGeneratorLoop &loop : loops) {
         bool is_external = loop.is_external();
         
@@ -1502,20 +1489,20 @@ ExtrusionEntityCollection PerimeterGenerator::_traverse_loops(
             paths.push_back(path);
         }
 
-        coll.append(ExtrusionLoop(paths, loop_role));
+        coll.push_back(new ExtrusionLoop(paths, loop_role));
     }
     
     // append thin walls to the nearest-neighbor search (only for first iteration)
     if (!thin_walls.empty()) {
-        ExtrusionEntityCollection tw = thin_variable_width(thin_walls, erThinWall, this->ext_perimeter_flow, std::max(ext_perimeter_flow.scaled_width() / 4, scale_t(this->print_config->resolution)));
-        coll.append(tw.entities);
+        ExtrusionEntitiesPtr tw = thin_variable_width(thin_walls, erThinWall, this->ext_perimeter_flow, std::max(ext_perimeter_flow.scaled_width() / 4, scale_t(this->print_config->resolution)));
+        coll.insert(coll.end(), tw.begin(), tw.end());
+        //don't add again
         thin_walls.clear();
     }
-
     // traverse children and build the final collection
     Point zero_point(0, 0);
     //result is  [idx, needReverse] ?
-    std::vector<std::pair<size_t, bool>> chain = chain_extrusion_entities(coll.entities, &zero_point);
+    std::vector<std::pair<size_t, bool>> chain = chain_extrusion_entities(coll, &zero_point);
     ExtrusionEntityCollection coll_out;
     if (chain.empty()) return coll_out;
 
@@ -1543,34 +1530,34 @@ ExtrusionEntityCollection PerimeterGenerator::_traverse_loops(
         if (idx.first >= loops.size()) {
             // this is a thin wall
             // let's get it from the sorted collection as it might have been reversed
-            coll_out.entities.reserve(coll_out.entities.size() + 1);
-            coll_out.entities.emplace_back(coll.entities[idx.first]);
-            coll.entities[idx.first] = nullptr;
+            coll_out.set_entities().reserve(coll_out.entities().size() + 1);
+            coll_out.set_entities().emplace_back(coll[idx.first]);
+            coll[idx.first] = nullptr;
             if (idx.second)
-                coll_out.entities.back()->reverse();
+                coll_out.entities().back()->reverse();
             //if thin extrusion is a loop, make it ccw like a normal contour.
-            if (ExtrusionLoop* loop = dynamic_cast<ExtrusionLoop*>(coll_out.entities.back())) {
+            if (ExtrusionLoop* loop = dynamic_cast<ExtrusionLoop*>(coll_out.entities().back())) {
                 loop->make_counter_clockwise();
             }
         } else {
             const PerimeterGeneratorLoop &loop = loops[idx.first];
             assert(thin_walls.empty());
             ExtrusionEntityCollection children = this->_traverse_loops(loop.children, thin_walls);
-            coll_out.entities.reserve(coll_out.entities.size() + children.entities.size() + 1);
-            ExtrusionLoop *eloop = static_cast<ExtrusionLoop*>(coll.entities[idx.first]);
-            coll.entities[idx.first] = nullptr;
+            coll_out.set_entities().reserve(coll_out.entities().size() + children.entities().size() + 1);
+            ExtrusionLoop *eloop = static_cast<ExtrusionLoop*>(coll[idx.first]);
+            coll[idx.first] = nullptr;
             if (loop.is_contour) {
                 //note: this->layer->id() % 2 == 1 already taken into account in the is_steep_overhang compute (to save time).
                 if (loop.is_steep_overhang && this->layer->id() % 2 == 1)
                     eloop->make_clockwise();
                 else
                     eloop->make_counter_clockwise();
-                coll_out.append(std::move(children.entities));
+                coll_out.append(std::move(children.entities()));
                 coll_out.append(*eloop);
             } else {
                 eloop->make_clockwise();
                 coll_out.append(*eloop);
-                coll_out.append(std::move(children.entities));
+                coll_out.append(std::move(children.entities()));
             }
         }
     }
@@ -1578,6 +1565,7 @@ ExtrusionEntityCollection PerimeterGenerator::_traverse_loops(
 }
 
 void PerimeterGenerator::_merge_thin_walls(ExtrusionEntityCollection &extrusions, ThickPolylines &thin_walls) const {
+    //TODO: find a way to avoid double copy (from EntityCollection to ChangeFlow to searcher.search_result.loop
     class ChangeFlow : public ExtrusionVisitor {
     public:
         float percent_extrusion;
@@ -1585,7 +1573,7 @@ void PerimeterGenerator::_merge_thin_walls(ExtrusionEntityCollection &extrusions
         virtual void use(ExtrusionPath &path) override {
             path.mm3_per_mm *= percent_extrusion;
             path.width *= percent_extrusion;
-            paths.emplace_back(std::move(path));
+            paths.push_back(path);
         }
         virtual void use(ExtrusionPath3D &path3D) override { /*shouldn't happen*/ }
         virtual void use(ExtrusionMultiPath &multipath) override { /*shouldn't happen*/ }
@@ -1595,7 +1583,7 @@ void PerimeterGenerator::_merge_thin_walls(ExtrusionEntityCollection &extrusions
                 this->use(path);
         }
         virtual void use(ExtrusionEntityCollection &collection) override {
-            for (ExtrusionEntity *entity : collection.entities)
+            for (ExtrusionEntity *entity : collection.entities())
                 entity->visit(*this);
         }
     };
@@ -1662,7 +1650,7 @@ void PerimeterGenerator::_merge_thin_walls(ExtrusionEntityCollection &extrusions
         virtual void use(ExtrusionEntityCollection &collection) override {
             collection.set_can_sort_reverse(true, true);
             //for each loop? (or other collections)
-            for (ExtrusionEntity *entity : collection.entities)
+            for (ExtrusionEntity *entity : collection.entities())
                 entity->visit(*this);
         }
     };
@@ -1701,9 +1689,10 @@ void PerimeterGenerator::_merge_thin_walls(ExtrusionEntityCollection &extrusions
             searcher.search_result.loop->paths.insert(searcher.search_result.loop->paths.begin() + 1 + searcher.search_result.idx_path, 
                 ExtrusionPath(poly_after, *searcher.search_result.path));
             //create thin wall path exttrusion
-            ExtrusionEntityCollection tws = thin_variable_width({ tw }, erThinWall, this->ext_perimeter_flow, std::max(ext_perimeter_flow.scaled_width() / 4, scale_t(this->print_config->resolution)));
+            ExtrusionEntityCollection tws;
+            tws.append(thin_variable_width({ tw }, erThinWall, this->ext_perimeter_flow, std::max(ext_perimeter_flow.scaled_width() / 4, scale_t(this->print_config->resolution))));
             ChangeFlow change_flow;
-            if (tws.entities.size() == 1 && tws.entities[0]->is_loop()) {
+            if (tws.entities().size() == 1 && tws.entities()[0]->is_loop()) {
                 //loop, just add it 
                 change_flow.percent_extrusion = 1;
                 change_flow.use(tws);
@@ -1715,9 +1704,9 @@ void PerimeterGenerator::_merge_thin_walls(ExtrusionEntityCollection &extrusions
 
             } else {
                 //first add the return path
-                ExtrusionEntityCollection tws_second = tws;
+                //ExtrusionEntityCollection tws_second = tws; // this does a deep copy
                 change_flow.percent_extrusion = 0.1f;
-                change_flow.use(tws_second);
+                change_flow.use(tws); // tws_second); //does not need the deep copy if the change_flow copy the content instead of re-using it.
                 //force reverse
                 for (ExtrusionPath &path : change_flow.paths)
                     path.reverse();
@@ -1738,8 +1727,7 @@ void PerimeterGenerator::_merge_thin_walls(ExtrusionEntityCollection &extrusions
     }
 
     //now add thinwalls that have no anchor (make them reversable)
-    ExtrusionEntityCollection tws = thin_variable_width(not_added, erThinWall, this->ext_perimeter_flow, std::max(ext_perimeter_flow.scaled_width() / 4, scale_t(this->print_config->resolution)));
-    extrusions.append(tws.entities);
+    extrusions.append(thin_variable_width(not_added, erThinWall, this->ext_perimeter_flow, std::max(ext_perimeter_flow.scaled_width() / 4, scale_t(this->print_config->resolution))));
 }
 
 PerimeterIntersectionPoint

@@ -56,8 +56,8 @@ namespace Slic3r {
             }
         }
         
-        if (eec->entities.empty()) delete eec;
-        else eecroot.entities.push_back(eec);
+        if (eec->entities().empty()) delete eec;
+        else eecroot.append(ExtrusionEntitiesPtr{ eec });
     }
     
     void FillSmooth::fill_expolygon(const int idx, ExtrusionEntityCollection &eec, const Surface &srf_to_fill, 
@@ -115,7 +115,7 @@ namespace Slic3r {
                 
             }
             extrusion_entities_append_paths(
-                eec.entities, std::move(polylines_layer),
+                eec.set_entities(), std::move(polylines_layer),
                 good_role,
                 params.flow.mm3_per_mm() * params.flow_mult * mult_flow,
                 //min-reduced flow width for a better view (it's mostly a gui thing, but some support code can want to mess with it)
@@ -153,7 +153,7 @@ namespace Slic3r {
             perform_single_fill(2, *eecroot, *surface, monotonic_params);
         }
         
-        if (!eecroot->entities.empty()) 
+        if (!eecroot->entities().empty()) 
             out.push_back(eecroot);
         else delete eecroot;
 

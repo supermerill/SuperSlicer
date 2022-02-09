@@ -21,9 +21,8 @@ extern "C" {
  */
 
 typedef struct semver_version_s {
-  int major;
-  int minor;
-  int patch;
+  int * counters;
+  int counter_size;
   char * metadata;
   char * prerelease;
 } semver_t;
@@ -72,7 +71,10 @@ int
 semver_parse (const char *str, semver_t *ver);
 
 int
-semver_parse_version (const char *str, semver_t *ver);
+semver_count_version(const char* str);
+
+int
+semver_parse_version(const char* str, semver_t* ver);
 
 void
 semver_render (semver_t *x, char *dest);
@@ -81,13 +83,13 @@ int
 semver_numeric (semver_t *x);
 
 void
-semver_bump (semver_t *x);
+semver_bump_major (semver_t *x);
 
 void
 semver_bump_minor (semver_t *x);
 
 void
-semver_bump_patch (semver_t *x);
+semver_bump (semver_t *x, int idx);
 
 void
 semver_free (semver_t *x);

@@ -252,6 +252,7 @@ private:
     void clip_fill_surfaces();
     void tag_under_bridge();
     void discover_horizontal_shells();
+    void clean_surfaces();
     void combine_infill();
     void _generate_support_material();
     std::pair<FillAdaptive::OctreePtr, FillAdaptive::OctreePtr> prepare_adaptive_infill_data();

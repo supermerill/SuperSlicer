@@ -3032,8 +3032,11 @@ void TabPrinter::toggle_options()
         }
 
         // wipe_only_crossing can only work if avoid_crossing_perimeters
-        if (!full_print_config.opt_bool("avoid_crossing_perimeters"))
-            get_field("wipe_only_crossing", i)->toggle(false);
+        if (!full_print_config.opt_bool("avoid_crossing_perimeters")) {
+            field = get_field("wipe_only_crossing", i);
+            if (field)
+                field->toggle(false);
+        }
 
         if (use_firmware_retraction && wipe) {
             wxMessageDialog dialog(parent(),

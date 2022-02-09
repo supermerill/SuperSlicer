@@ -427,7 +427,7 @@ std::vector<BridgeDetector::BridgeDirection> BridgeDetector::bridge_direction_ca
     }
     /*  compare first value with last one and remove the greatest one (PI) 
         in case they are parallel (PI, 0) */
-    if (Slic3r::Geometry::directions_parallel(angles.front().angle, angles.back().angle, min_resolution))
+    if (angles.size() > 1 && Slic3r::Geometry::directions_parallel(angles.front().angle, angles.back().angle, min_resolution))
         angles.pop_back();
 
     return angles;

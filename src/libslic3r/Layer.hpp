@@ -43,6 +43,7 @@ public:
     // and for re-starting of infills.
     ExPolygons                  fill_expolygons;
     // Unspecified fill polygons, used for interecting when we don't want the infill/perimeter overlap
+    // note: if empty, that means there is no overlap, so you don't need to intersect with it.
     ExPolygons                  fill_no_overlap_expolygons;
     // collection of surfaces for infill generation
     SurfaceCollection           fill_surfaces;
@@ -86,7 +87,7 @@ public:
     void    export_region_fill_surfaces_to_svg_debug(const char *name) const;
 
     // Is there any valid extrusion assigned to this LayerRegion?
-    bool    has_extrusions() const { return !this->perimeters.entities.empty() || !this->fills.entities.empty() || !this->ironings.entities.empty() || !this->thin_fills.entities.empty(); }
+    bool    has_extrusions() const { return !this->perimeters.entities().empty() || !this->fills.entities().empty() || !this->ironings.entities().empty() || !this->thin_fills.entities().empty(); }
 
 protected:
     friend class Layer;

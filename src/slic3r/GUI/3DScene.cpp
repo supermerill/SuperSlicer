@@ -1623,7 +1623,7 @@ void ExtrusionToVert::use(const ExtrusionPath3D &path3D) { _3DScene::extrusionen
 void ExtrusionToVert::use(const ExtrusionMultiPath &multipath) { _3DScene::extrusionentity_to_verts(multipath, print_z, copy, volume); }
 void ExtrusionToVert::use(const ExtrusionMultiPath3D &multipath3D) { _3DScene::extrusionentity_to_verts(multipath3D, print_z, copy, volume); }
 void ExtrusionToVert::use(const ExtrusionLoop &loop) { _3DScene::extrusionentity_to_verts(loop, print_z, copy, volume); }
-void ExtrusionToVert::use(const ExtrusionEntityCollection &collection) { for (const ExtrusionEntity *extrusion_entity : collection.entities) extrusion_entity->visit(*this); }
+void ExtrusionToVert::use(const ExtrusionEntityCollection &collection) { for (const ExtrusionEntity *extrusion_entity : collection.entities()) extrusion_entity->visit(*this); }
 
 void _3DScene::extrusionentity_to_verts(const ExtrusionEntity &extrusion_entity, float print_z, const Point &copy, GLVolume &volume)
 {

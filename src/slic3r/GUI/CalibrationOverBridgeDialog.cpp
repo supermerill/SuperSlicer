@@ -94,6 +94,7 @@ void CalibrationOverBridgeDialog::create_geometry(bool over_bridge) {
     const ConfigOptionFloat* extruder_clearance_radius = print_config->option<ConfigOptionFloat>("extruder_clearance_radius");
     const ConfigOptionPoints* bed_shape = printer_config->option<ConfigOptionPoints>("bed_shape");
     const float brim_width = print_config->option<ConfigOptionFloat>("brim_width")->getFloat();
+    const float skirt_width = print_config->option("skirts")->getInt() == 0 ? 0 : print_config->option("skirt_distance")->getFloat() + print_config->option("skirts")->getInt() * nozzle_diameter * 2;
     Vec2d bed_size = BoundingBoxf(bed_shape->values).size();
     Vec2d bed_min = BoundingBoxf(bed_shape->values).min;
     float offsetx = 3 + 30 * xyz_scale + extruder_clearance_radius->value + brim_width + (brim_width > extruder_clearance_radius->value ? brim_width - extruder_clearance_radius->value : 0);
@@ -106,7 +107,7 @@ void CalibrationOverBridgeDialog::create_geometry(bool over_bridge) {
     model.objects[objs_idx[5]]->translate({ bed_min.x() + bed_size.x() / 2 + offsetx / 2, bed_min.y() + bed_size.y() / 2 + offsety, 0 });
 
     // if not enough space, forget about complete_objects
-    if (bed_size.y() < offsety * 2 + 30 * xyz_scale + brim_width || bed_size.x() < offsetx + 35 * xyz_scale + brim_width)
+    if (bed_size.y() < offsety * 2 + 30 * xyz_scale + brim_width * 2 + skirt_width * 2 + 5 || bed_size.x() < offsetx + 35 * xyz_scale + brim_width * 2 + skirt_width * 2 + 5)
         has_to_arrange = true;
 
     /// --- main config, please modify object config when possible ---

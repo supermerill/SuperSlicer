@@ -24,6 +24,7 @@
 #endif //WIN32
 
 #if __linux__
+#include <mutex>
 #include <dbus/dbus.h> /* Pull in all of D-Bus headers. */
 #endif //__linux__
 
