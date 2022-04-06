@@ -16,9 +16,6 @@
 #include <list>
 
 namespace Slic3r {
-    int count_error = 0;
-
-    //int Slic3r::MedialAxis::staticid = 0;
 
 void
 MedialAxis::build(Polylines &polylines)
@@ -667,6 +664,7 @@ MedialAxis::fusion_corners(ThickPolylines &pp)
         //if (polyline.points.size() != 2) continue; // maybe we should have something to merge X-point to 2-point if it's near enough.
         if (polyline.endpoints.first) polyline.reverse();
         else if (!polyline.endpoints.second) continue;
+        if (polyline.width.back() > min_width) continue;
 
         //check my length is small
         coord_t length = (coord_t)polyline.length();
@@ -1210,6 +1208,7 @@ MedialAxis::remove_too_thin_extrusion(ThickPolylines& pp)
     bool changes = false;
     for (size_t i = 0; i < pp.size(); ++i) {
         ThickPolyline& polyline = pp[i];
+        bool polyline_changes = false;
         // remove bits with too small extrusion
         while (polyline.points.size() > 1 && polyline.width.front() < this->min_width && polyline.endpoints.first) {
             //try to split if possible
@@ -1226,11 +1225,13 @@ MedialAxis::remove_too_thin_extrusion(ThickPolylines& pp)
                     polyline.width.erase(polyline.width.begin());
                 }
                 changes = true;
+                polyline_changes = true;
                 break;
             }
             polyline.points.erase(polyline.points.begin());
             polyline.width.erase(polyline.width.begin());
             changes = true;
+            polyline_changes = true;
         }
         while (polyline.points.size() > 1 && polyline.width.back() < this->min_width && polyline.endpoints.second) {
             //try to split if possible
@@ -1247,20 +1248,126 @@ MedialAxis::remove_too_thin_extrusion(ThickPolylines& pp)
                     polyline.width.erase(polyline.width.end() - 1);
                 }
                 changes = true;
+                polyline_changes = true;
                 break;
             }
             polyline.points.erase(polyline.points.end() - 1);
             polyline.width.erase(polyline.width.end() - 1);
             changes = true;
+            polyline_changes = true;
         }
         //remove points and bits that comes from a "main line"
-        if (polyline.points.size() < 2 || (changes && polyline.length() < this->max_width && polyline.points.size() ==2)) {
+        if (polyline.points.size() < 2 || (polyline_changes && polyline.length() < this->max_width && polyline.points.size() ==2)) {
             //remove self if too small
             pp.erase(pp.begin() + i);
             --i;
         }
     }
     if (changes) concatThickPolylines(pp);
+}
+
+void
+MedialAxis::concatenate_small_polylines(ThickPolylines& pp)
+{
+
+    /*
+     new goal: ensure that if there is a too short segment, it will be connected with a sufficiently long one, to save it
+    */
+    coordf_t shortest_size = (coordf_t)this->min_length;
+    std::set<size_t> deleted;
+    std::vector<size_t> idx_per_size;
+    //TODO: cache the length
+    for (size_t i = 0; i < pp.size(); ++i) {
+        ThickPolyline& polyline = pp[i];
+        if (polyline.endpoints.first && polyline.endpoints.second) continue; // optimization
+        if (polyline.length() <= shortest_size)
+            idx_per_size.push_back(i);
+    }
+    std::sort(idx_per_size.begin(), idx_per_size.end(), [&pp](size_t a, size_t b) -> bool {return pp[a].length() > pp[b].length(); });
+    for (size_t idx_sorted = 0; idx_sorted < idx_per_size.size(); ++idx_sorted) {
+        if (deleted.find(idx_per_size[idx_sorted]) != deleted.end()) continue;
+        //all these polylines need to be saved
+        ThickPolyline& polyline = pp[idx_per_size[idx_sorted]];
+
+        ThickPolyline* best_candidate = nullptr;
+        float best_dot = -1;
+        coordf_t best_length = -1;
+        size_t best_idx = 0;
+
+        // find another polyline starting here
+        for (size_t j = 0; j < pp.size(); ++j) {
+            if (deleted.find(j) != deleted.end()) continue;
+            if (j == idx_per_size[idx_sorted]) continue;
+            ThickPolyline& other = pp[j];
+            if (other.endpoints.first && other.endpoints.second) continue;
+            coordf_t other_length = other.length();
+            if (other_length + polyline.length() <= shortest_size) continue; // need to be long enough to save it
+            bool me_reverse = false;
+            bool other_reverse = false;
+            if (polyline.last_point().coincides_with_epsilon(other.last_point())) {
+                other_reverse = true;
+            } else if (polyline.first_point().coincides_with_epsilon(other.last_point())) {
+                me_reverse = true;
+                other_reverse = true;
+            } else if (polyline.first_point().coincides_with_epsilon(other.first_point())) {
+                me_reverse = true;
+            } else if (!polyline.last_point().coincides_with_epsilon(other.first_point())) {
+                continue;
+            }
+
+            //find the straitest
+            Vec2d v_poly(me_reverse ? polyline.lines().front().vector().x() : polyline.lines().back().vector().x(),
+                me_reverse ? polyline.lines().front().vector().y() : polyline.lines().back().vector().y());
+            v_poly *= (1 / std::sqrt(v_poly.x() * v_poly.x() + v_poly.y() * v_poly.y()));
+            Vec2d v_other(other_reverse ? other.lines().back().vector().x() : other.lines().front().vector().x(),
+                other_reverse ? other.lines().back().vector().y() : other.lines().front().vector().y());
+            v_other *= (1 / std::sqrt(v_other.x() * v_other.x() + v_other.y() * v_other.y()));
+            float other_dot = std::abs(float(v_poly.x() * v_other.x() + v_poly.y() * v_other.y()));
+            // use the straitest one
+            // but if almost equal, use the shortest one
+            if (std::abs(other_dot - best_dot) < 0.01) {
+                if (best_length < 0 || best_length > other_length) {
+                    best_candidate = &other;
+                    best_idx = j;
+                    best_dot = other_dot;
+                    best_length = other_length;
+                }
+            } else if (other_dot > best_dot) {
+                best_candidate = &other;
+                best_idx = j;
+                best_dot = other_dot;
+                best_length = other_length;
+            }
+        }
+        if (best_candidate != nullptr && best_candidate->points.size() > 1) {
+            if (polyline.last_point().coincides_with_epsilon(best_candidate->last_point())) {
+                best_candidate->reverse();
+            } else if (polyline.first_point().coincides_with_epsilon(best_candidate->last_point())) {
+                polyline.reverse();
+                best_candidate->reverse();
+            } else if (polyline.first_point().coincides_with_epsilon(best_candidate->first_point())) {
+                polyline.reverse();
+            }
+            //intersections may create over-extrusion because the included circle can be a bit larger. We have to make it short again if needed.
+            if (polyline.points.size() > 1 && best_candidate->points.size() > 1
+                && polyline.width.back() > polyline.width[polyline.width.size() - 2]
+                && polyline.width.back() > best_candidate->width[1]) {
+                polyline.width.back() = std::min(polyline.width[polyline.width.size() - 2], best_candidate->width[1]);
+            }
+            //be far enough
+            int far_idx = 1;
+            while (far_idx < best_candidate->points.size() && polyline.last_point().coincides_with_epsilon(best_candidate->points[far_idx]))
+                far_idx++;
+            polyline.points.insert(polyline.points.end(), best_candidate->points.begin() + far_idx, best_candidate->points.end());
+            polyline.width.insert(polyline.width.end(), best_candidate->width.begin() + far_idx, best_candidate->width.end());
+            polyline.endpoints.second = best_candidate->endpoints.second;
+            assert(polyline.width.size() == polyline.points.size());
+            deleted.insert(best_idx);
+        }
+    }
+    //delete items to delete (iterate in reverse order to not invalidate the idxs
+    for (auto rit = deleted.rbegin(); rit != deleted.rend(); rit++)
+        pp.erase(pp.begin() + (*rit));
 }
 
 void
@@ -1402,7 +1509,7 @@ MedialAxis::remove_too_thin_points(ThickPolylines& pp)
 }
 
 void
-MedialAxis::remove_too_short_polylines(ThickPolylines& pp, const coord_t min_size)
+MedialAxis::remove_too_short_polylines(ThickPolylines& pp)
 {
     // reduce the flow at the intersection ( + ) points
     //FIXME: TODO: note that crossings are unnafected right now. they may need a different codepath directly in their method
@@ -1468,7 +1575,7 @@ MedialAxis::remove_too_short_polylines(ThickPolylines& pp, const coord_t min_siz
     while (changes) {
         changes = false;
 
-        coordf_t shortest_size = (coordf_t) min_size;
+        coordf_t shortest_size = (coordf_t)this->min_length;
         size_t shortest_idx = -1;
         for (size_t i = 0; i < pp.size(); ++i) {
             ThickPolyline& polyline = pp[i];
@@ -1499,8 +1606,6 @@ MedialAxis::remove_too_short_polylines(ThickPolylines& pp, const coord_t min_siz
     changes = true;
     while (changes) {
         changes = false;
-
-        coordf_t shortest_size = (coordf_t)min_size;
         size_t shortest_idx = -1;
         for (size_t polyidx = 0; polyidx < pp.size(); ++polyidx) {
             ThickPolyline& tp = pp[polyidx];
@@ -2000,10 +2105,20 @@ MedialAxis::build(ThickPolylines &polylines_out)
     //    svg.Close();
     //}
     //TODO: reduce the flow at the intersection ( + ) points on crossing?
+    concatenate_small_polylines(pp);
+    //{
+    //    std::stringstream stri;
+    //    stri << "medial_axis_6_concat_small_" << id << ".svg";
+    //    SVG svg(stri.str());
+    //    svg.draw(*bounds, "grey");
+    //    svg.draw(this->expolygon, "green");
+    //    svg.draw(pp, "red");
+    //    svg.Close();
+    //}
     concatenate_polylines_with_crossing(pp);
     //{
     //    std::stringstream stri;
-    //    stri << "medial_axis_6_concat_" << id << ".svg";
+    //    stri << "medial_axis_7_concat_" << id << ".svg";
     //    SVG svg(stri.str());
     //    svg.draw(*bounds, "grey");
     //    svg.draw(this->expolygon, "green");
@@ -2011,7 +2126,7 @@ MedialAxis::build(ThickPolylines &polylines_out)
     //    svg.Close();
     //}
 
-    remove_too_short_polylines(pp, max_w * 2);
+    remove_too_short_polylines(pp);
     //{
     //    std::stringstream stri;
     //    stri << "medial_axis_8_tooshort_" << id << ".svg";

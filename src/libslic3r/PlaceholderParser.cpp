@@ -730,7 +730,7 @@ namespace client
                 if (vector_opt->is_extruder_size()) {
 
                     if (raw_opt->type() == coFloats || raw_opt->type() == coInts || raw_opt->type() == coBools)
-                        return vector_opt->getFloat(current_extruder_id);
+                        return vector_opt->getFloat(int(current_extruder_id));
                     if (raw_opt->type() == coFloatsOrPercents) {
                         const ConfigOptionFloatsOrPercents* opt_fl_per = static_cast<const ConfigOptionFloatsOrPercents*>(raw_opt);
                         if (!opt_fl_per->values[current_extruder_id].percent)
@@ -856,8 +856,9 @@ namespace client
             boost::iterator_range<Iterator>& opt_key,
             Iterator& end_pos,
             expr<Iterator>& out,
-            ConfigOption* default_val = nullptr)
+            std::unique_ptr<ConfigOption>&& default_val)
         {
+            bool has_default_value = default_val.get() != nullptr;
             t_config_option_key key = std::string(opt_key.begin(), opt_key.end());
             const ConfigOption* opt = nullptr;
             if (ctx->config_override != nullptr)
@@ -866,26 +867,18 @@ namespace client
                 opt = ctx->config->option(key);
             if (opt == nullptr && ctx->external_config != nullptr)
                 opt = ctx->external_config->option(key);
-            if (opt == nullptr) {
-                std::unique_ptr<ConfigOption> ppt;
-                if(default_val == nullptr)
-                    ppt = std::unique_ptr<ConfigOption>(new ConfigOptionBool(false));
-                else
-                    ppt = std::unique_ptr<ConfigOption>(default_val);
-                // set flag to say "it's a var that isn't here, please ignore it"
-                ppt->flags |= ConfigOption::FCO_PLACEHOLDER_TEMP;
-                if (MyContext::checked_vars.find(key) != MyContext::checked_vars.end()) {
-                    if (default_val != nullptr) {
-                        // erase previous value
-                        MyContext::checked_vars[key] = std::move(ppt);
-                    }
-                } else {
-                    // put the var
-                    MyContext::checked_vars.emplace(std::move(key), std::move(ppt));
+            if (opt == nullptr && (has_default_value || MyContext::checked_vars.find(key) == MyContext::checked_vars.end()) ) {
+                // set stub bool value only if a default() hasn't been called yet.
+                if (!has_default_value) {
+                    default_val.reset(new ConfigOptionBool(false));
                 }
+                // set flag to say "it's a var that isn't here, please ignore it"
+                default_val->flags |= ConfigOption::FCO_PLACEHOLDER_TEMP;
+                MyContext::checked_vars[key] = std::move(default_val);
             }
-            //return
-            //out = expr<Iterator>(opt != nullptr, out.it_range.begin(), end_pos);
+            // return (wanted for exists() but not for default())
+            if(!has_default_value)
+                out = expr<Iterator>(opt != nullptr, out.it_range.begin(), end_pos);
         }
 
         template <typename Iterator>
@@ -952,7 +945,7 @@ namespace client
             case coInts:
                 opt_def = print_config_def.get(opt_key);
                 if (opt_def->is_vector_extruder) {
-                    output.set_i((int)((ConfigOptionVectorBase*)opt.opt)->getFloat(ctx->current_extruder_id));
+                    output.set_i(int(((ConfigOptionVectorBase*)opt.opt)->getFloat(int(ctx->current_extruder_id))));
                     break;
                 } else
                     ctx->throw_exception("Unknown scalar variable type", opt.it_range);
@@ -960,7 +953,7 @@ namespace client
             case coPercents:
                 vector_opt = static_cast<const ConfigOptionVectorBase*>(opt.opt);
                 if (vector_opt->is_extruder_size()) {
-                    output.set_d(((ConfigOptionVectorBase*)opt.opt)->getFloat(ctx->current_extruder_id));
+                    output.set_d(((ConfigOptionVectorBase*)opt.opt)->getFloat(int(ctx->current_extruder_id)));
                     break;
                 } else
                     ctx->throw_exception("Unknown scalar variable type", opt.it_range);
@@ -1301,13 +1294,11 @@ namespace client
                 "endif";
 */
 
-            // Legacy variable expansion of the original Slic3r, in the form of [scalar_variable] or [vector_variable_index].
-            // note: should use 'identifier' instead of 'raw[lexeme[*((utf8char - char_('\\') - char_(']')) | ('\\' > char_))]]'
-            //       but it's that way to allow to ignore the legacy_variable_expansion is disabled, witout outputting an exception
+            // Legacy variable expansion of the original Slic3r, in the form of [scalar_variable] or [vector_variable_index] or [vector_variable_[index_variable]].
             legacy_variable_expansion =
-                    ((raw[lexeme[*((utf8char - char_('\\') - char_(']')) | ('\\' > char_))]] >> &lit(']')) >> &lit(']'))
+                    (identifier >> &lit(']'))
                         [ px::bind(&MyContext::legacy_variable_expansion<Iterator>, _r1, _1, _val) ]
-                |   ((raw[lexeme[*((utf8char - char_('\\') - char_(']')) | ('\\' > char_))]] >> &lit(']')) > lit('[') > (raw[lexeme[*((utf8char - char_('\\') - char_(']')) | ('\\' > char_))]] >> &lit(']')) > ']')
+                |   (identifier > lit('[') > identifier > ']') 
                         [ px::bind(&MyContext::legacy_variable_expansion2<Iterator>, _r1, _1, _2, _val) ]
                 ;
             legacy_variable_expansion.name("legacy_variable_expansion");
@@ -1392,17 +1383,17 @@ namespace client
                         { out = value.unary_integer(out.it_range.begin()); }
                 //function for default keyword
                 static void default_bool_(bool &value, const MyContext* ctx, boost::iterator_range<Iterator>& opt_key, Iterator& end_pos, expr<Iterator>& out)
-                        { MyContext::check_variable<Iterator>(ctx, opt_key, end_pos, out, new ConfigOptionBool(value)); }
+                        { MyContext::check_variable<Iterator>(ctx, opt_key, end_pos, out, std::make_unique<ConfigOptionBool>(value)); }
                 static void default_int_(int &value, const MyContext* ctx, boost::iterator_range<Iterator>& opt_key, Iterator& end_pos, expr<Iterator>& out)
-                        { MyContext::check_variable<Iterator>(ctx, opt_key, end_pos, out, new ConfigOptionInt(value)); }
+                        { MyContext::check_variable<Iterator>(ctx, opt_key, end_pos, out, std::make_unique<ConfigOptionInt>(value)); }
                 static void default_double_(double &value, const MyContext* ctx, boost::iterator_range<Iterator>& opt_key, Iterator& end_pos, expr<Iterator>& out)
-                        { MyContext::check_variable<Iterator>(ctx, opt_key, end_pos, out, new ConfigOptionFloat(value)); }
+                        { MyContext::check_variable<Iterator>(ctx, opt_key, end_pos, out, std::make_unique<ConfigOptionFloat>(value)); }
                 static void default_string_(boost::iterator_range<Iterator>& it_range, const MyContext* ctx, boost::iterator_range<Iterator>& opt_key, Iterator& end_pos, expr<Iterator>& out)
-                        { MyContext::check_variable<Iterator>(ctx, opt_key, end_pos, out, new ConfigOptionString(std::string(it_range.begin() + 1, it_range.end() - 1))); }
+                        { MyContext::check_variable<Iterator>(ctx, opt_key, end_pos, out, std::make_unique<ConfigOptionString>(std::string(it_range.begin() + 1, it_range.end() - 1))); }
+                static void exists_(const MyContext* ctx, boost::iterator_range<Iterator>& opt_key, Iterator& end_pos, expr<Iterator>& out)
+                        { MyContext::check_variable<Iterator>(ctx, opt_key, end_pos, out, std::unique_ptr<ConfigOption>{nullptr}); }
                 static void set_ignore_legacy_(bool& value)
-                        { 
-                    MyContext::ignore_legacy = value; 
-                }
+                        { MyContext::ignore_legacy = value; }
             };
             unary_expression = iter_pos[px::bind(&FactorActions::set_start_pos, _1, _val)] >> (
                     scalar_variable_reference(_r1)                  [ _val = _1 ]
@@ -1417,7 +1408,7 @@ namespace client
                 |   (kw["random"] > '(' > conditional_expression(_r1) [_val = _1] > ',' > conditional_expression(_r1) > ')') 
                                                                     [ px::bind(&MyContext::random<Iterator>, _r1, _val, _2) ]
                 |   (kw["int"] > '(' > unary_expression(_r1) > ')') [ px::bind(&FactorActions::to_int,  _1,     _val) ]
-                |   (kw["exists"] > '('  > identifier > ')' > iter_pos)        [ px::bind(&MyContext::check_variable<Iterator>, _r1, _1, _2, _val, nullptr) ]
+                |   (kw["exists"] > '('  > identifier > ')' > iter_pos) [ px::bind(&FactorActions::exists_, _r1, _1, _2, _val) ]
                 |   (kw["default_double"] > '(' > identifier > ',' > strict_double > ')' > iter_pos)
                                                                     [px::bind(&FactorActions::default_double_, _2, _r1, _1, _3, _val)]
                 |   (kw["default_int"] > '(' > identifier > ',' > int_ > ')' > iter_pos)
@@ -1593,11 +1584,11 @@ bool PlaceholderParser::evaluate_boolean_expression(const std::string &templ, co
 }
 
 
-void PlaceholderParser::append_custom_variables(std::map<std::string, std::vector<std::string>> name2var_array, int nb_extruders) {
+void PlaceholderParser::append_custom_variables(std::map<std::string, std::vector<std::string>> name2var_array, uint16_t nb_extruders) {
 
     bool is_array = nb_extruders > 0;
     if (!is_array) nb_extruders = 1;
-    SLIC3R_REGEX_NAMESPACE::regex is_a_name("[a-zA-Z_]+");
+    SLIC3R_REGEX_NAMESPACE::regex is_a_name("[a-zA-Z_0-9]+");
     for (const auto& entry : name2var_array) {
         if (entry.first.empty())
             continue;
@@ -1606,7 +1597,7 @@ void PlaceholderParser::append_custom_variables(std::map<std::string, std::vecto
         const std::vector<std::string>& values = entry.second;
         //check if all values are empty
         bool is_not_string = false;
-        for (int extruder_id = 0; extruder_id < nb_extruders; ++extruder_id) {
+        for (uint16_t extruder_id = 0; extruder_id < nb_extruders; ++extruder_id) {
             if (!values[extruder_id].empty()) {
                 is_not_string = true;
                 break;
@@ -1616,7 +1607,7 @@ void PlaceholderParser::append_custom_variables(std::map<std::string, std::vecto
         //check if all values are strings
         if (is_not_string) {
             is_not_string = false;
-            for (int extruder_id = 0; extruder_id < nb_extruders; ++extruder_id) {
+            for (uint16_t extruder_id = 0; extruder_id < nb_extruders; ++extruder_id) {
                 if (!values[extruder_id].empty()) {
                     if (values[extruder_id].front() != '\"' && values[extruder_id].back() != '\"') {
                         is_not_string = true;
@@ -1632,7 +1623,7 @@ void PlaceholderParser::append_custom_variables(std::map<std::string, std::vecto
         bool is_not_bool = !is_not_string;
         std::vector<unsigned char> bool_values;
         if (!is_not_bool) {
-            for (int extruder_id = 0; extruder_id < nb_extruders; ++extruder_id) {
+            for (uint16_t extruder_id = 0; extruder_id < nb_extruders; ++extruder_id) {
                 if (!values[extruder_id].empty()) {
                     if (boost::algorithm::to_lower_copy(values[extruder_id]) == "true") {
                         bool_values.push_back(true);
@@ -1652,7 +1643,7 @@ void PlaceholderParser::append_custom_variables(std::map<std::string, std::vecto
         std::vector<double> double_values;
         //SLIC3R_REGEX_NAMESPACE::regex("\\s*[+-]?([0-9]+\\.[0-9]*([Ee][+-]?[0-9]+)?|\\.[0-9]+([Ee][+-]?[0-9]+)?|[0-9]+[Ee][+-]?[0-9]+)");
         if (!is_not_numeric) {
-            for (int extruder_id = 0; extruder_id < nb_extruders; ++extruder_id) {
+            for (uint16_t extruder_id = 0; extruder_id < nb_extruders; ++extruder_id) {
                 if (!values[extruder_id].empty()) {
                     try {
                         double_values.push_back(boost::lexical_cast<float>(values[extruder_id]));
@@ -1717,8 +1708,14 @@ void PlaceholderParser::append_custom_variables(std::map<std::string, std::vecto
 
 }
 
-void PlaceholderParser::parse_custom_variables(const ConfigOptionString& custom_variables) {
+void PlaceholderParser::reset()
+{
+    client::MyContext::checked_vars.clear();
+    m_config.clear();
+}
 
+void PlaceholderParser::parse_custom_variables(const ConfigOptionString& custom_variables)
+{
     std::map<std::string, std::vector<std::string>> name2var_array;
 
     std::string raw_text = custom_variables.value;
@@ -1726,7 +1723,7 @@ void PlaceholderParser::parse_custom_variables(const ConfigOptionString& custom_
     std::vector<std::string> lines;
     boost::algorithm::split(lines, raw_text, boost::is_any_of("\n"));
     for (const std::string& line : lines) {
-        int equal_pos = line.find_first_of('=');
+        size_t equal_pos = line.find_first_of('=');
         if (equal_pos != std::string::npos) {
             std::string name = line.substr(0, equal_pos);
             std::string value = line.substr(equal_pos + 1);
@@ -1754,7 +1751,7 @@ void PlaceholderParser::parse_custom_variables(const ConfigOptionStrings& filame
         std::vector<std::string> lines;
         boost::algorithm::split(lines, raw_text, boost::is_any_of("\n"));
         for (const std::string& line : lines) {
-            int equal_pos = line.find_first_of('=');
+            size_t equal_pos = line.find_first_of('=');
             if (equal_pos != std::string::npos) {
                 std::string name = line.substr(0, equal_pos);
                 std::string value = line.substr(equal_pos + 1);
@@ -1768,8 +1765,7 @@ void PlaceholderParser::parse_custom_variables(const ConfigOptionStrings& filame
             }
         }
     }
-    append_custom_variables(name2var_array, filament_custom_variables.values.size());
+    append_custom_variables(name2var_array, uint16_t(filament_custom_variables.values.size()));
 }
-
 
 }

@@ -390,6 +390,10 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
     // gap fill  can appear in infill
     //toggle_field("gap_fill_speed", have_perimeters && config->opt_bool("gap_fill"));
 
+    //speed
+    for (auto el : { "small_perimeter_min_length", "small_perimeter_max_length" })
+        toggle_field(el, config->option("small_perimeter_speed")->getFloat() > 0);
+
     bool has_ironing_pattern = config->opt_enum<InfillPattern>("top_fill_pattern") == InfillPattern::ipSmooth
         || config->opt_enum<InfillPattern>("bottom_fill_pattern") == InfillPattern::ipSmooth
         || config->opt_enum<InfillPattern>("solid_fill_pattern") == InfillPattern::ipSmooth;

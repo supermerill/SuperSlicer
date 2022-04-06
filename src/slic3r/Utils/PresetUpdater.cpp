@@ -281,7 +281,7 @@ void PresetUpdater::priv::sync_version() const
 			boost::property_tree::read_json(json_stream, root);
 			bool i_am_pre = false;
 			//at least two number, use '.' as separator. can be followed by -Az23 for prereleased and +Az42 for metadata
-			std::regex matcher("[0-9]+\.[0-9]+(\.[0-9]+)*(-[A-Za-z0-9]+)?(\\+[A-Za-z0-9]+)?");
+			std::regex matcher("[0-9]+\\.[0-9]+(\\.[0-9]+)*(-[A-Za-z0-9]+)?(\\+[A-Za-z0-9]+)?");
 
 			Semver current_version(SLIC3R_VERSION_FULL);
 			Semver best_pre(1,0,0,0);

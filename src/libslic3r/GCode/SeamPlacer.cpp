@@ -340,6 +340,7 @@ Point SeamPlacer::get_seam(const Layer& layer, SeamPosition seam_position,
         // Look for all lambda-seam-modifiers below current z, choose the highest one
         ModelVolume* v_lambda_seam = nullptr;
         Vec3d lambda_pos;
+        double lambda_z;
         double lambda_dist;
         double lambda_radius;
         //get model_instance (like from po->model_object()->instances, but we don't have the index for that array)
@@ -347,28 +348,34 @@ Point SeamPlacer::get_seam(const Layer& layer, SeamPosition seam_position,
         for (ModelVolume* v : po->model_object()->volumes) {
             if (v->is_seam_position()) {
                 //xy in object coordinates, z in plater coordinates
-                Vec3d test_lambda_pos = model_instance->transform_vector(v->get_offset(), true);
+                // created/moved shpere have offset in their transformation, and loaded ones have their loaded transformation in the source transformation.
+                Vec3d test_lambda_pos = model_instance->transform_vector((v->get_transformation() * v->source.transform).get_offset(), false);
+                // remove shift, as we used the transform_vector(.., FALSE). that way, we have a correct z vs the layer height, and same for the x and y vs polygon.
+                test_lambda_pos.x() -= unscaled(po->instances()[print_object_instance_idx].shift.x());
+                test_lambda_pos.y() -= unscaled(po->instances()[print_object_instance_idx].shift.y());
 
+                double test_lambda_z = std::abs(layer.print_z - test_lambda_pos.z());
                 Point xy_lambda(scale_(test_lambda_pos.x()), scale_(test_lambda_pos.y()));
                 Point nearest = polygon.point_projection(xy_lambda);
                 Vec3d polygon_3dpoint{ unscaled(nearest.x()), unscaled(nearest.y()), (double)layer.print_z };
                 double test_lambda_dist = (polygon_3dpoint - test_lambda_pos).norm();
                 double sphere_radius = po->model_object()->instance_bounding_box(0, true).size().x() / 2;
-                //if (test_lambda_dist > sphere_radius)
-                //    continue;
 
-                //use this one if the first or nearer (in z)
-                if (v_lambda_seam == nullptr || lambda_dist > test_lambda_dist) {
+
+                //use this one if the first or nearer (in z, or in xy if same z)
+                if (v_lambda_seam == nullptr
+                    || ( lambda_z > test_lambda_z )
+                    || ( lambda_z == test_lambda_z && lambda_dist > test_lambda_dist ) ){
                     v_lambda_seam = v;
                     lambda_pos = test_lambda_pos;
                     lambda_radius = sphere_radius;
                     lambda_dist = test_lambda_dist;
+                    lambda_z = test_lambda_z;
                 }
             }
         }
 
         if (v_lambda_seam != nullptr) {
-            lambda_pos = model_instance->transform_vector(v_lambda_seam->get_offset(), true);
             // Found, get the center point and apply rotation and scaling of Model instance. Continues to spAligned if not found or Weight set to Zero.
             last_pos = Point::new_scale(lambda_pos.x(), lambda_pos.y());
             // Weight is set by user and stored in the radius of the sphere

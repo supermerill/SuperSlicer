@@ -295,6 +295,8 @@ public:
 class CheckBox : public Field {
 	using Field::Field;
     bool            m_is_na_val {false};
+
+    void            set_widget_value(bool new_val);
 public:
 	CheckBox(const ConfigOptionDef& opt, const t_config_option_key& id) : Field(opt, id) {}
 	CheckBox(wxWindow* parent, const ConfigOptionDef& opt, const t_config_option_key& id) : Field(parent, opt, id) {}
@@ -315,8 +317,8 @@ public:
 
     void            msw_rescale() override;
 
-	void			enable() override { dynamic_cast<wxCheckBox*>(window)->Enable(); }
-	void			disable() override { dynamic_cast<wxCheckBox*>(window)->Disable(); }
+	void			enable() override { window->Enable(true); }
+	void			disable() override { window->Enable(false); }
 	wxWindow*		getWindow() override { return window; }
 };
 

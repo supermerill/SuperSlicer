@@ -267,9 +267,9 @@ group:sidetext_width$7:Modifiers
 		setting:label_width$8:width$4:first_layer_infill_speed
 	end_line
 	line:Small perimeter speed
+		setting:label_width$8:width$4:small_perimeter_speed
 		setting:label_width$8:width$4:small_perimeter_min_length
 		setting:label_width$8:width$4:small_perimeter_max_length
-		setting:label_width$8:width$4:small_perimeter_speed
 group:Acceleration control (advanced)
 	setting:default_acceleration
 	setting:perimeter_acceleration

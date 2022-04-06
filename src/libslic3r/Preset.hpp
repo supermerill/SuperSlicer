@@ -489,7 +489,7 @@ public:
     // Compare the content of get_selected_preset() with get_edited_preset() configs, return the list of keys where they differ.
     // Note that it won't take into account phony settings. Because current_dirty_options() is only used to see if the preset need to be saved.
     std::vector<std::string>    current_dirty_options(const bool deep_compare = false) const
-        { return dirty_options(&this->get_edited_preset(), &this->get_selected_preset(), deep_compare, false); }
+        { return dirty_options(&this->get_edited_preset(), &this->get_selected_preset(), deep_compare, true); }
     // Compare the content of get_selected_preset() with get_edited_preset() configs, return the list of keys where they differ.
     std::vector<std::string>    current_different_from_parent_options(const bool deep_compare = false) const
         { return dirty_options(&this->get_edited_preset(), this->get_selected_preset_parent(), deep_compare); }

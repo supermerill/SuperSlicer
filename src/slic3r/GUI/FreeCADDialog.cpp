@@ -452,7 +452,7 @@ void FreeCADDialog::on_autocomp_complete(wxStyledTextEvent& event) {
     } else if (((command->type & PyCommandType::pctMODIFIER) != 0) && !has_already_parenthese) {
         int nb_add_pos = 0;
         //check if there's not a forgotten '.' before
-        std::cout << "char before the word : " << stc->GetCharAt(currentPos - command->name.length() - 1) << "\n";
+        BOOST_LOG_TRIVIAL(warning) << "char before the word : " << stc->GetCharAt(currentPos - command->name.length() - 1) << "\n";
         if (stc->GetCharAt(currentPos - command->name.length() - 1) == ')') {
             stc->InsertText(currentPos - command->name.length(), ".");
             nb_add_pos++;
@@ -481,19 +481,9 @@ void FreeCADDialog::on_word_change_for_autocomplete(wxStyledTextEvent& event) {
     if ((event.GetModificationType() & (wxSTC_MOD_INSERTTEXT | wxSTC_PERFORMED_USER)) != (wxSTC_MOD_INSERTTEXT | wxSTC_PERFORMED_USER)) {
         return; // not our event
     }
-    //std::cout << "word_change "<<event.GetModificationType()<<" typed: " << (int)stc->GetCharAt(current_pos) << " with len_entered " << len_entered
-    //<< ", event_string='"<< event_string << "' (last='"<< (event_string.empty()?-1:event_string.Last().GetValue()) <<"') ; Str is '" << str << "' with length " << str.length() 
-    //    << "' chars are (c-1)='" << stc->GetCharAt(current_pos - 1) << "' : (c)='" << stc->GetCharAt(current_pos)
-    //<< "', text length=" << stc->GetTextLength() << ", currentPos=" << current_pos << " , " << int('\n') << "\n";
-    //std::cout << "test: " << (!(stc->GetCharAt(current_pos - 1) <= '\n')) << ", 2=" << (len_entered >= 0) << ", 3=" << (!str.empty()) 
-    //    << ", 4=" << (std::regex_match(str.ToStdString(), word_regex)) 
-    //    <<", Mod5="<<((event.GetModificationType() & wxSTC_STARTACTION) != 0)
-    //    <<", 6="<< (current_pos <= 1 || str != ".")<<", 6b="<< (str == ".")
-    //    << "\n";
 
     if ((event.GetModificationType() & wxSTC_STARTACTION) != 0 && (str.empty() || str.Last() != '.'))
         return;
-    //if (!event_string.empty() && !str.empty() && int(str[str.length() - 1]) != event_string.Last().GetValue()) std::cout << "removecall?\n";
     if (len_entered >= 0 && !str.empty() && std::regex_match(str.ToStdString(), word_regex)) {
         //check for possible words
         //todo: check for '.' to filter for modifiers
@@ -509,33 +499,24 @@ void FreeCADDialog::on_word_change_for_autocomplete(wxStyledTextEvent& event) {
         if (nb_words >= 1)
             stc->AutoCompShow(len_entered, possible);
     } else if (!str.empty() && str.Last() == '.') {
-        //wxString possible;
-        //for(const wxString &str : modif_words)
-        //    possible += possible.empty() ? str : (" " + str);
         wxString possible;
         for (const PyCommand &cmd : commands) {
             if (((cmd.type & PyCommandType::pctMODIFIER) != 0) && ((cmd.type & PyCommandType::pctDO_NOT_SHOW) == 0)) {
                 possible += possible.empty() ? cmd.name : (" " + cmd.name);
             }
         }
-        //std::cout << "autocomplete: modifier: '"<< possible.ToStdString() <<"'\n";
         if (possible.length() >= 1)
             stc->AutoCompShow(0, possible);
     }
 }
 
 void FreeCADDialog::on_char_add(wxStyledTextEvent& event) {
-    //if (event.GetUpdated() != wxSTC_UPDATE_CONTENT) return;
     wxStyledTextCtrl* stc = (wxStyledTextCtrl*)event.GetEventObject();
     // Find the word start
     int current_pos = stc->GetCurrentPos();
     int word_start_pos = stc->WordStartPosition(current_pos, true);
     //int len_entered = current_pos - word_start_pos;
     const wxString str = stc->GetTextRange(word_start_pos, current_pos + 1);
-    //if(current_pos>1)
-    //    std::cout << "char typed: " << (char)stc->GetCharAt(current_pos)<<" with length "<< len_entered 
-    //    << ", str is "<< str << "chars are '"<< stc->GetCharAt(current_pos - 1) << "' : '" << stc->GetCharAt(current_pos)
-    //    <<"', text length="<< stc->GetTextLength()<<", currentPos="<< current_pos<<" , "<<int('\n')<<"\n";
     if(current_pos > 2 && stc->GetCharAt(current_pos-1) == '\n'){
         //TODO: check that we are really in a freepyscad section.
         int lastpos = current_pos - 2;
@@ -615,7 +596,6 @@ void FreeCADDialog::comment(bool is_switch) {
 }
 
 void FreeCADDialog::on_char_type(wxKeyEvent &event) {
-    //std::cout << "on_char_type " << event.GetUnicodeKey() <<", " << event.GetModifiers() << "\n";
     if (event.GetUnicodeKey() == 'Q' && event.GetModifiers() == wxMOD_CONTROL) {
         comment(true);
     } else if (event.GetUnicodeKey() == 'K' && event.GetModifiers() == wxMOD_CONTROL) {
@@ -629,14 +609,12 @@ void FreeCADDialog::on_char_type(wxKeyEvent &event) {
 // space, back, del are ok but no ascii char
 void FreeCADDialog::on_key_type(wxKeyEvent& event)
 {
-    //std::cout << "on_key_type " << event.GetUnicodeKey() << " ? "<< int('Q') <<", "<< event.GetKeyCode() << ", " << event.GetModifiers() << "\n";
     if (event.GetKeyCode() == WXK_SPACE && event.GetModifiers() == wxMOD_CONTROL)
     {
         //get word, if any
         int current_pos = m_text->GetCurrentPos();
         int word_start_pos = m_text->WordStartPosition(current_pos, true);
         const wxString str = m_text->GetTextRange(word_start_pos, current_pos);
-        //std::cout << "ctrl-space! " << event.GetEventType() << " '" << str.ToStdString() << "' " << int(m_text->GetCharAt(current_pos - 1)) << "\n";
         if (current_pos > 0 && m_text->GetCharAt(current_pos - 1) == '.') {
             //only modifiers
             wxString possible;
@@ -656,7 +634,6 @@ void FreeCADDialog::on_key_type(wxKeyEvent& event)
                 nb_words++; possible += possible.empty() ? cmd.name : (" " + cmd.name);
             }
         }
-        //std::cout << "space autocomplete: find " << nb_words << " forstring '" << str << "'\n";
         // Display the autocompletion list
         if (nb_words >= 1)
             m_text->AutoCompShow(str.length(), possible);
@@ -714,10 +691,8 @@ void FreeCADDialog::createSTC()
     m_text = new wxStyledTextCtrl(this, wxID_ANY,
         wxDefaultPosition, wxDefaultSize, wxHW_SCROLLBAR_AUTO);
 
-    //m_text->SetMarginWidth(MARGIN_LINE_NUMBERS, 50);
     m_text->StyleSetForeground(wxSTC_STYLE_LINENUMBER, wxColour(75, 75, 75));
     m_text->StyleSetBackground(wxSTC_STYLE_LINENUMBER, wxColour(220, 220, 220));
-    //m_text->SetMarginType(MARGIN_LINE_NUMBERS, wxSTC_MARGIN_NUMBER);
 
     m_text->SetTabWidth(4);
     m_text->SetIndent(4);
@@ -818,22 +793,20 @@ void FreeCADDialog::test_update_script_file(std::string &json) {
         boost::locale::generator gen;
         std::locale loc = gen.generate(""); // or "C", "en_US.UTF-8" etc.
         std::locale::global(loc);
-        std::cout.imbue(loc);
 
-        std::cout << "root.commit.committer.date=" << str_date << "\n";
+        BOOST_LOG_TRIVIAL(debug) << "root.commit.committer.date=" << str_date;
         std::time_t commit_time = parse_iso_time(str_date);
-        std::cout << "github time_t = "<<commit_time<<"\n";
+        BOOST_LOG_TRIVIAL(debug) << "github time_t = " << commit_time;
         std::time_t last_modif = boost::filesystem::last_write_time(pyscad_path / "freepyscad.py");
-        std::cout << "pyscad_path time_t = " << commit_time << "\n";
+        BOOST_LOG_TRIVIAL(debug) << "pyscad_path time_t = " << commit_time;
         if (commit_time > last_modif) {
-            std::cout << "have to update!!\n";
             get_file_from_web("https://raw.githubusercontent.com/supermerill/FreePySCAD/master/__init__.py", pyscad_path / "__init__.py");
             get_file_from_web("https://raw.githubusercontent.com/supermerill/FreePySCAD/master/Init.py", pyscad_path / "Init.py");
             get_file_from_web("https://raw.githubusercontent.com/supermerill/FreePySCAD/master/freepyscad.py", pyscad_path / "freepyscad.py");
         }
     }
     catch (std::exception ex) {
-        std::cerr << "Error, cannot parse https://api.github.com/repos/supermerill/FreePySCAD/commits/master: " << ex.what() << "\n";
+        BOOST_LOG_TRIVIAL(error) << "Error, cannot parse https://api.github.com/repos/supermerill/FreePySCAD/commits/master: " << ex.what();
     }
 }
 
@@ -872,7 +845,7 @@ bool FreeCADDialog::init_start_python() {
         get_file_from_web("https://raw.githubusercontent.com/supermerill/FreePySCAD/master/__init__.py", scripts_path / "FreePySCAD" / "__init__.py");
         get_file_from_web("https://raw.githubusercontent.com/supermerill/FreePySCAD/master/Init.py", scripts_path / "FreePySCAD" / "Init.py");
         get_file_from_web("https://raw.githubusercontent.com/supermerill/FreePySCAD/master/freepyscad.py", scripts_path / "FreePySCAD" / "freepyscad.py");
-    }else if (!update_done){
+    } else if (!update_done) {
         update_done = true;
         //try to check last version on website
         //it's async so maybe you won't update it in time, but it's not the end of the world. 
@@ -881,7 +854,7 @@ bool FreeCADDialog::init_start_python() {
         get_string_from_web_async("https://api.github.com/repos/supermerill/FreePySCAD/commits/master", this, &FreeCADDialog::test_update_script_file);
     }
 
-    exec_var->process.reset(new boost::process::child(pythonpath.string() + " -u -i", boost::process::std_in < exec_var->pyin, 
+    exec_var->process.reset(new boost::process::child(pythonpath.string() + " -u -i", boost::process::std_in < exec_var->pyin,
         boost::process::std_out > exec_var->data_out, boost::process::std_err > exec_var->data_err, exec_var->ios));
     exec_var->pyin << "import sys" << std::endl;
 #ifndef __WINDOWS__
@@ -892,9 +865,7 @@ bool FreeCADDialog::init_start_python() {
     exec_var->pyin << "import Part" << std::endl;
     exec_var->pyin << "import Draft" << std::endl;
     exec_var->pyin << "sys.path.append('" << scripts_path.generic_string() << "')" << std::endl;
-    //std::cout << "sys.path.append('" << pyscad_path.generic_string() << "')" << std::endl;
     exec_var->pyin << "from FreePySCAD.freepyscad import *" << std::endl;
-    //std::cout << "from FreePySCAD.freepyscad import *" << std::endl;
     exec_var->pyin << "App.newDocument(\"document\")" << std::endl;
 #ifdef __WINDOWS__
     exec_var->pyin << "set_font_dir(\"C:/Windows/Fonts/\")" << std::endl;
@@ -997,7 +968,6 @@ void FreeCADDialog::create_geometry(wxCommandEvent& event_args) {
     }
 
 
-    //std::cout<< "scene().redraw(" << boost::replace_all_copy(boost::replace_all_copy(m_text->GetText(), "\r", ""), "\n", "") << ")" << std::endl;
     //exec_var->pyin << "scene().redraw("<< boost::replace_all_copy(boost::replace_all_copy(m_text->GetText(), "\r", ""), "\n", "") <<")" << std::endl;
     exec_var->pyin << ("exec(open('" + temp_file.generic_string() + "').read())\n");
     //filter to avoid importing "intermediate" object like ones from importStl
@@ -1008,11 +978,9 @@ void FreeCADDialog::create_geometry(wxCommandEvent& event_args) {
     end_python();
 
     std::string pyout_str_hello;
-    std::cout << "==cout==\n";
-    std::cout << exec_var->data_out.get();
-    std::cout << "==cerr==\n";
+    BOOST_LOG_TRIVIAL(trace) << "==cout==\n" << exec_var->data_out.get()<<"\n";
     std::string errStr = exec_var->data_err.get();
-    std::cout << errStr << "\n";
+    BOOST_LOG_TRIVIAL(trace) << "==cerr==\n" << errStr <<"\n";
     std::string cleaned = boost::replace_all_copy(boost::replace_all_copy(errStr, ">>> ", ""),"\r","");
     boost::replace_all(cleaned, "QWaitCondition: Destroyed while threads are still waiting\n", "");
     boost::replace_all(cleaned, "Type \"help\", \"copyright\", \"credits\" or \"license\" for more information.\n", "");

@@ -686,6 +686,7 @@ public:
 
     // extract rendering data from the given parameters
     void load(const GCodeProcessor::Result& gcode_result, const Print& print, bool initialized);
+    bool is_loaded(const GCodeProcessor::Result& gcode_result);
     // recalculate ranges in dependence of what is visible and sets tool/print colors
     void refresh(const GCodeProcessor::Result& gcode_result, const std::vector<std::string>& str_tool_colors);
 #if ENABLE_RENDER_PATH_REFRESH_AFTER_OPTIONS_CHANGE

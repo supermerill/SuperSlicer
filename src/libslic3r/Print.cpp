@@ -331,6 +331,8 @@ bool Print::invalidate_state_by_config_options(const std::vector<t_config_option
     for (PrintObjectStep ostep : osteps)
         for (PrintObject *object : m_objects)
             invalidated |= object->invalidate_step(ostep);
+    if(invalidated)
+        m_timestamp_last_change = std::time(0);
     return invalidated;
 }
 
@@ -700,13 +702,16 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
 
     // Do not use the ApplyStatus as we will use the max function when updating apply_status.
     unsigned int apply_status = APPLY_STATUS_UNCHANGED;
-    auto update_apply_status = [&apply_status](bool invalidated)
-        { apply_status = std::max<unsigned int>(apply_status, invalidated ? APPLY_STATUS_INVALIDATED : APPLY_STATUS_CHANGED); };
+    auto update_apply_status = [this, &apply_status](bool invalidated){ 
+        apply_status = std::max<unsigned int>(apply_status, invalidated ? APPLY_STATUS_INVALIDATED : APPLY_STATUS_CHANGED);
+        if(invalidated)
+            this->m_timestamp_last_change = std::time(0);
+    };
     if (! (print_diff.empty() && object_diff.empty() && region_diff.empty()))
         update_apply_status(false);
 
     // Grab the lock for the Print / PrintObject milestones.
-	std::scoped_lock lock(this->state_mutex());
+    { std::scoped_lock lock(this->state_mutex());
 
     // The following call may stop the background processing.
     if (! print_diff.empty())
@@ -738,7 +743,7 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
         if (num_extruders != m_config.nozzle_diameter.size()) {
         	num_extruders = m_config.nozzle_diameter.size();
         	num_extruders_changed = true;
-    }
+        }
     }
     
     class LayerRanges
@@ -1271,6 +1276,13 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
     check_model_ids_equal(m_model, model);
 #endif /* _DEBUG */
 
+    } // exit the mutex before re-using it via is_step_done
+    if (!is_step_done(PrintObjectStep::posSlice))
+        this->m_timestamp_last_change = std::time(0);
+    else if (!is_step_done(PrintStep::psSkirt) || !is_step_done(PrintStep::psBrim))
+        // reset the modify time if not all step done
+        this->m_timestamp_last_change = std::time(0);
+
 	return static_cast<ApplyStatus>(apply_status);
 }
 
@@ -1800,6 +1812,7 @@ void Print::auto_assign_extruders(ModelObject* model_object) const
 // Slicing process, running at a background thread.
 void Print::process()
 {
+    m_timestamp_last_change = std::time(0);
     name_tbb_thread_pool_threads();
     bool something_done = !is_step_done_unguarded(psBrim);
     BOOST_LOG_TRIVIAL(info) << "Starting the slicing process." << log_memory_info();
@@ -1942,6 +1955,7 @@ void Print::process()
         this->finalize_first_layer_convex_hull();
        this->set_done(psBrim);
     }
+    m_timestamp_last_change = std::time(0);
     BOOST_LOG_TRIVIAL(info) << "Slicing process finished." << log_memory_info();
     //notify gui that the slicing/preview structs are ready to be drawed
     if (something_done)
@@ -2127,7 +2141,7 @@ void Print::_make_skirt(const PrintObjectPtrs &objects, ExtrusionEntityCollectio
             out_first_layer->append(eloop);
         if (m_config.min_skirt_length.value > 0 && !first_layer_only) {
             // The skirt length is limited. Sum the total amount of filament length extruded, in mm.
-            extruded_length[extruder_idx] += unscale<double>(loop.length());// *extruders_e_per_mm[extruder_idx];
+            extruded_length[extruder_idx] += unscale<double>(loop.length()) * extruders_e_per_mm[extruder_idx];
             if (extruded_length[extruder_idx] < m_config.min_skirt_length.value) {
                 // Not extruded enough yet with the current extruder. Add another loop.
                 if (i == 1 && extruded_length[extruder_idx] > 0)
@@ -2261,7 +2275,8 @@ void Print::_extrude_brim_from_tree(std::vector<std::vector<BrimLoop>>& loops, c
             //nothing
         } else if (i_have_line && to_cut.children.empty()) {
             ExtrusionEntitiesPtr to_add;
-            for(Polyline& line : to_cut.lines)
+            for (Polyline& line : to_cut.lines) {
+                assert(line.size() > 0);
                 if (line.points.back() == line.points.front()) {
                     ExtrusionPath path(erSkirt, mm3_per_mm, width, height);
                     path.polyline.points = line.points;
@@ -2271,6 +2286,7 @@ void Print::_extrude_brim_from_tree(std::vector<std::vector<BrimLoop>>& loops, c
                     to_add.emplace_back(extrusion_path);
                     extrusion_path->polyline = line;
                 }
+            }
             parent->append(std::move(to_add));
         } else if (!i_have_line && !to_cut.children.empty()) {
             if (to_cut.children.size() == 1) {
@@ -2292,10 +2308,11 @@ void Print::_extrude_brim_from_tree(std::vector<std::vector<BrimLoop>>& loops, c
             }
         } else {
             ExtrusionEntityCollection* print_me_first = new ExtrusionEntityCollection();
-            ExtrusionEntitiesPtr to_add;
-            to_add.emplace_back(print_me_first);
             print_me_first->set_can_sort_reverse(false, false);
-            for (Polyline& line : to_cut.lines)
+            parent->append({ print_me_first });
+            ExtrusionEntitiesPtr to_add;
+            for (Polyline& line : to_cut.lines) {
+                assert(line.size() > 0);
                 if (line.points.back() == line.points.front()) {
                     ExtrusionPath path(erSkirt, mm3_per_mm, width, height);
                     path.polyline.points = line.points;
@@ -2305,7 +2322,8 @@ void Print::_extrude_brim_from_tree(std::vector<std::vector<BrimLoop>>& loops, c
                     to_add.emplace_back(extrusion_path);
                     extrusion_path->polyline = line;
                 }
-            parent->append(std::move(to_add));
+            }
+            print_me_first->append(std::move(to_add));
             if (to_cut.children.size() == 1) {
                 (*extrude_ptr)(to_cut.children[0], print_me_first);
             } else {
@@ -2315,14 +2333,15 @@ void Print::_extrude_brim_from_tree(std::vector<std::vector<BrimLoop>>& loops, c
                     (*extrude_ptr)(child, children);
                 //remove un-needed collection if possible
                 if (children->entities().size() == 1) {
-                    parent->append(*children->entities().front());
+                    print_me_first->append(*children->entities().front());
                     delete children;
                 } else if (children->entities().size() == 0) {
                     delete children;
                 } else {
-                    parent->append(ExtrusionEntitiesPtr{ children });
+                    print_me_first->append(ExtrusionEntitiesPtr{ children });
                 }
             }
+            assert(print_me_first->entities().size() > 0);
         }
     };
     extrude_ptr = &extrude;
@@ -2355,7 +2374,11 @@ void Print::_make_brim(const Flow &flow, const PrintObjectPtrs &objects, ExPolyg
         if (!object->support_layers().empty()) {
             Polygons polys = object->support_layers().front()->support_fills.polygons_covered_by_spacing(flow.spacing_ratio, float(SCALED_EPSILON));
             for (Polygon poly : polys) {
-                object_islands.emplace_back(brim_offset == 0 ? ExPolygon{ poly } : offset_ex(poly, brim_offset)[0]);
+                if (brim_offset == 0) {
+                    object_islands.emplace_back(poly);
+                } else {
+                    append(object_islands, offset_ex(Polygons{ poly }, brim_offset));
+                }
             }
         }
         islands.reserve(islands.size() + object_islands.size() * object->m_instances.size());

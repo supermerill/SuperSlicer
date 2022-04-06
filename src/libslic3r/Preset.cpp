@@ -1471,7 +1471,7 @@ inline t_config_option_keys deep_diff(const ConfigBase &config_this, const Confi
             && (ignore_phony || !(this_opt->is_phony() && other_opt->is_phony()))
             && ((*this_opt != *other_opt) || (this_opt->is_phony() != other_opt->is_phony())))
         {
-            if (opt_key == "bed_shape" || opt_key == "compatible_prints" || opt_key == "compatible_printers") {
+            if (opt_key == "bed_shape" || opt_key == "compatible_prints" || opt_key == "compatible_printers" || opt_key == "filament_ramming_parameters" || opt_key == "gcode_substitutions") {
                 // Scalar variable, or a vector variable, which is independent from number of extruders,
                 // thus the vector is presented to the user as a single input.
                 // note that thumbnails are not here becasue it has individual # entries
@@ -1501,8 +1501,8 @@ std::vector<std::string> PresetCollection::dirty_options(const Preset *edited, c
     std::vector<std::string> changed;
     if (edited != nullptr && reference != nullptr) {
         changed = deep_compare ?
-                deep_diff(edited->config, reference->config, ignore_phony) :
-                reference->config.diff(edited->config, ignore_phony);
+                deep_diff(edited->config, reference->config, !ignore_phony) :
+                reference->config.diff(edited->config, !ignore_phony);
         // The "compatible_printers" option key is handled differently from the others:
         // It is not mandatory. If the key is missing, it means it is compatible with any printer.
         // If the key exists and it is empty, it means it is compatible with no printer.

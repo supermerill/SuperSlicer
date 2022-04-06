@@ -134,12 +134,12 @@ void PerimeterGenerator::process()
                 }
             }
 
-            if (overhangs_width_speed > 0 && this->config->overhangs_width_speed.value < this->config->overhangs_width.value) {
+            if (overhangs_width_speed > 0 && (overhangs_width_speed < overhangs_width_flow || overhangs_width_flow == 0)) {
                 this->_lower_slices_bridge_speed_small = offset((simplified.empty() ? *this->lower_slices : simplified), (coordf_t)overhangs_width_speed_90 - (coordf_t)(ext_perimeter_width / 2));
                 this->_lower_slices_bridge_speed_big = offset((simplified.empty() ? *this->lower_slices : simplified), (coordf_t)overhangs_width_speed_110 - (coordf_t)(ext_perimeter_width / 2));
             }
             if (overhangs_width_flow > 0) {
-                if (overhangs_width_speed_110 == overhangs_width_flow_90 && this->config->overhangs_width_speed.value < this->config->overhangs_width.value)
+                if (overhangs_width_speed_110 == overhangs_width_flow_90 && overhangs_width_speed < overhangs_width_flow)
                     this->_lower_slices_bridge_flow_small = this->_lower_slices_bridge_speed_big;
                 else
                     this->_lower_slices_bridge_flow_small = offset((simplified.empty() ? *this->lower_slices : simplified), (coordf_t)overhangs_width_flow_90 - (coordf_t)(ext_perimeter_width / 2));
@@ -169,6 +169,7 @@ void PerimeterGenerator::process()
     //store surface for bridge infill to avoid unsupported perimeters (but the first one, this one is always good)
     if (this->config->no_perimeter_unsupported_algo != npuaNone
         && this->lower_slices != NULL && !this->lower_slices->empty()) {
+        coordf_t bridged_infill_margin = scale_d(config->bridged_infill_margin.get_abs_value(unscaled(ext_perimeter_width)));
 
         for (surface_idx = 0; surface_idx < all_surfaces.size(); surface_idx++) {
             Surface *surface = &all_surfaces[surface_idx];
@@ -205,13 +206,13 @@ void PerimeterGenerator::process()
                                     ExPolygon &poly_unsupp = *(unsupported_filtered.begin() + i);
                                     Polygons contour_simplified = poly_unsupp.contour.simplify(perimeter_spacing);
                                     ExPolygon poly_unsupp_bigger = poly_unsupp;
-                                    Polygons contour_bigger = offset(poly_unsupp_bigger.contour, perimeter_spacing);
+                                    Polygons contour_bigger = offset(poly_unsupp_bigger.contour, bridged_infill_margin);
                                     if (contour_bigger.size() == 1) poly_unsupp_bigger.contour = contour_bigger[0];
 
                                     //check convex, has some bridge, not overhang
                                     if (contour_simplified.size() == 1 && contour_bigger.size() == 1 && contour_simplified[0].concave_points().size() == 0
                                         && intersection_ex(bridgeable, { poly_unsupp }).size() > 0
-                                        && diff_ex({ poly_unsupp_bigger }, union_ex(last, offset_ex(bridgeable, perimeter_spacing * 1.5)), true).size() == 0
+                                        && diff_ex({ poly_unsupp_bigger }, union_ex(last, offset_ex(bridgeable, bridged_infill_margin + perimeter_spacing * .5)), true).size() == 0
                                         ) {
                                         //ok, keep it
                                         i++;
@@ -220,7 +221,7 @@ void PerimeterGenerator::process()
                                     }
                                 }
                                 unsupported_filtered = intersection_ex(last,
-                                    offset2_ex(unsupported_filtered, double(-perimeter_spacing / 2), double(perimeter_spacing * 3 / 2)));
+                                    offset2_ex(unsupported_filtered, double(-perimeter_spacing / 2), double(bridged_infill_margin + perimeter_spacing / 2)));
                                 if (this->config->no_perimeter_unsupported_algo.value == npuaFilled) {
                                     for (ExPolygon &expol : unsupported_filtered) {
                                         //check if the holes won't be covered by the upper layer
@@ -245,7 +246,7 @@ void PerimeterGenerator::process()
                                             if (intersection_ex(ExPolygons() = { expol }, ExPolygons() = { all_surfaces[surface_idx_other].expolygon }).size() > 0) {
                                                 //this means that other_surf was inside an expol holes
                                                 //as we removed them, we need to add a new one
-                                                ExPolygons new_poly = offset2_ex(all_surfaces[surface_idx_other].expolygon, double(-perimeter_spacing * 2), double(perimeter_spacing));
+                                                ExPolygons new_poly = offset2_ex(all_surfaces[surface_idx_other].expolygon, double(-bridged_infill_margin - perimeter_spacing), double(perimeter_spacing));
                                                 if (new_poly.size() == 1) {
                                                     all_surfaces[surface_idx_other].expolygon = new_poly[0];
                                                     expol.holes.push_back(new_poly[0].contour);
@@ -302,7 +303,6 @@ void PerimeterGenerator::process()
                                     last = diff_ex(last, unsupported_filtered);
                                     //ExPolygons no_bridge = diff_ex(offset_ex(unbridgeable, ext_perimeter_width * 3 / 2), last);
                                     //bridges_temp = diff_ex(bridges_temp, no_bridge);
-                                    coordf_t bridged_infill_margin = scale_d(config->bridged_infill_margin.get_abs_value(unscaled(ext_perimeter_width)));
                                     coordf_t offset_to_do = bridged_infill_margin;
                                     bool first = true;
                                     unbridgeable = diff_ex(unbridgeable, offset_ex(bridges_temp, ext_perimeter_width));
@@ -390,9 +390,10 @@ void PerimeterGenerator::process()
         ExPolygons top_fills;
         ExPolygons fill_clip;
         // simplification already done at slicing
-        //ExPolygons last        = union_ex(surface.expolygon.simplify_p(SCALED_RESOLUTION));
-        ExPolygons last = union_ex(surface.expolygon);
-        double last_area = -1;
+        //simplify the loop to avoid artifacts when shrinking almost-0 segments
+        coord_t resolution = scale_t(this->print_config->resolution.value);
+        ExPolygons last    = union_ex(surface.expolygon.simplify_p((resolution < SCALED_EPSILON ? SCALED_EPSILON : resolution)));
+        double last_area   = -1;
 
         if (loop_number >= 0) {
 
@@ -562,6 +563,7 @@ void PerimeterGenerator::process()
                                         ma.use_bounds(bound)
                                             .use_min_real_width(scale_t(this->ext_perimeter_flow.nozzle_diameter))
                                             .use_tapers(thin_walls_overlap)
+                                            .set_min_length(ext_perimeter_width + ext_perimeter_spacing)
                                             .build(thin_walls_thickpolys);
                                     }
                                     break;
@@ -702,7 +704,12 @@ void PerimeterGenerator::process()
                             holes[i].emplace_back(hole, i, false, has_steep_overhang);
                     }
                 }
-                last = std::move(next_onion);
+
+                //simplify the loop to avoid artifacts when shrinking almost-0 segments
+                resolution = scale_t(this->print_config->resolution.value);
+                last.clear();
+                for(ExPolygon& exp : next_onion)
+                    exp.simplify((resolution < SCALED_EPSILON ? SCALED_EPSILON : resolution), &last);
 
                 //store surface for top infill if only_one_perimeter_top
                 if (i == 0 && (config->only_one_perimeter_top && this->upper_slices != NULL)) {
@@ -1233,20 +1240,45 @@ ExtrusionPaths PerimeterGenerator::create_overhangs(const Polyline& loop_polygon
     bool no_small_flow = _lower_slices_bridge_speed_big == _lower_slices_bridge_flow_small;
     Polylines small_flow;
     Polylines big_flow;
+#ifdef _DEBUG
+    for (Polyline& poly : ok_polylines)
+        for (int i = 0; i < poly.points.size() - 1; i++)
+            assert(poly.points[i] != poly.points[i + 1]);
+#endif
 
     Polylines* previous = &ok_polylines;
-    if (this->config->overhangs_width_speed.value > 0 && this->config->overhangs_width_speed.value < this->config->overhangs_width.value) {
+    if (this->config->overhangs_width_speed.value > 0 && (this->config->overhangs_width_speed.value < this->config->overhangs_width.value || this->config->overhangs_width.value == 0)) {
         if (!this->_lower_slices_bridge_speed_small.empty()) {
             small_speed = diff_pl(*previous, this->_lower_slices_bridge_speed_small);
+#ifdef _DEBUG
+            for (Polyline& poly : small_speed) //                       assert small_speed
+                for (int i = 0; i < poly.points.size() - 1; i++) //     assert small_speed
+                    assert(poly.points[i] != poly.points[i + 1]); //    assert small_speed
+#endif
             if (!small_speed.empty()) {
                 *previous = intersection_pl(*previous, this->_lower_slices_bridge_speed_small);
+#ifdef _DEBUG
+                for (Polyline& poly : *previous) //                         assert previous
+                    for (int i = 0; i < poly.points.size() - 1; i++) //     assert previous
+                        assert(poly.points[i] != poly.points[i + 1]); //    assert previous
+#endif
                 previous = &small_speed;
             }
         }
         if (!this->_lower_slices_bridge_speed_big.empty()) {
             big_speed = diff_pl(*previous, this->_lower_slices_bridge_speed_big);
+#ifdef _DEBUG
+            for (Polyline& poly : big_speed) //                         assert big_speed
+                for (int i = 0; i < poly.points.size() - 1; i++) //     assert big_speed
+                    assert(poly.points[i] != poly.points[i + 1]); //    assert big_speed
+#endif
             if (!big_speed.empty()) {
                 *previous = intersection_pl(*previous, this->_lower_slices_bridge_speed_big);
+#ifdef _DEBUG
+                for (Polyline& poly : *previous) //                         assert previous
+                    for (int i = 0; i < poly.points.size() - 1; i++) //     assert previous
+                        assert(poly.points[i] != poly.points[i + 1]); //    assert previous
+#endif
                 previous = &big_speed;
             }
         }
@@ -1254,15 +1286,35 @@ ExtrusionPaths PerimeterGenerator::create_overhangs(const Polyline& loop_polygon
     if (this->config->overhangs_width.value > 0) {
         if (!this->_lower_slices_bridge_flow_small.empty()) {
             small_flow = diff_pl(*previous, this->_lower_slices_bridge_flow_small);
+#ifdef _DEBUG
+            for (Polyline& poly : small_flow) //                        assert small_flow
+                for (int i = 0; i < poly.points.size() - 1; i++) //     assert small_flow
+                    assert(poly.points[i] != poly.points[i + 1]); //    assert small_flow
+#endif
             if (!small_flow.empty()) {
                 *previous = intersection_pl(*previous, this->_lower_slices_bridge_flow_small);
+#ifdef _DEBUG
+                for (Polyline& poly : *previous) //                         assert previous
+                    for (int i = 0; i < poly.points.size() - 1; i++) //     assert previous
+                        assert(poly.points[i] != poly.points[i + 1]); //    assert previous
+#endif
                 previous = &small_flow;
             }
         }
         if (!this->_lower_slices_bridge_flow_big.empty()) {
             big_flow = diff_pl(*previous, this->_lower_slices_bridge_flow_big);
+#ifdef _DEBUG
+            for (Polyline& poly : big_flow) //                          assert big_flow
+                for (int i = 0; i < poly.points.size() - 1; i++) //     assert big_flow
+                    assert(poly.points[i] != poly.points[i + 1]); //    assert big_flow
+#endif
             if (!big_flow.empty()) {
                 *previous = intersection_pl(*previous, this->_lower_slices_bridge_flow_big);
+#ifdef _DEBUG
+                for (Polyline& poly : *previous) //                         assert previous
+                    for (int i = 0; i < poly.points.size() - 1; i++) //     assert previous
+                        assert(poly.points[i] != poly.points[i + 1]); //    assert previous
+#endif
                 previous = &big_flow;
             }
         }
@@ -1715,7 +1767,7 @@ void PerimeterGenerator::_merge_thin_walls(ExtrusionEntityCollection &extrusions
                 searcher.search_result.loop->paths.insert(searcher.search_result.loop->paths.begin() + 1 + searcher.search_result.idx_path,
                     change_flow.paths.begin(), change_flow.paths.end());
                 //add the real extrusion path
-                change_flow.percent_extrusion = 0.9f;
+                change_flow.percent_extrusion = 9.f; // 0.9 but as we modified it by 0.1 just before, has to multiply by 10
                 change_flow.paths = std::vector<ExtrusionPath>();
                 change_flow.use(tws);
                 searcher.search_result.loop->paths.insert(searcher.search_result.loop->paths.begin() + 1 + searcher.search_result.idx_path,
@@ -1844,26 +1896,32 @@ PerimeterGenerator::_get_nearest_point(const PerimeterGeneratorLoops &children, 
 
 
 ExtrusionLoop
-PerimeterGenerator::_extrude_and_cut_loop(const PerimeterGeneratorLoop &loop, const Point entry_point, const Line &direction) const
+PerimeterGenerator::_extrude_and_cut_loop(const PerimeterGeneratorLoop &loop, const Point entry_point, const Line &direction, bool enforce_loop) const
 {
 
     bool need_to_reverse = false;
     Polyline initial_polyline;
-    const coord_t dist_cut = (coord_t)scale_(this->print_config->nozzle_diameter.get_at(this->config->perimeter_extruder - 1));
+    coord_t dist_cut = (coord_t)scale_(this->print_config->nozzle_diameter.get_at(this->config->perimeter_extruder - 1));
 
 
     if (loop.polygon.points.size() < 3) return ExtrusionLoop(elrDefault);
     if (loop.polygon.length() < dist_cut * 2) {
-        ExtrusionLoop single_point(elrDefault);
-        Polyline poly_point;
-        poly_point.append(loop.polygon.centroid());
-        single_point.paths.emplace_back(
-            loop.is_external() ? erExternalPerimeter : erPerimeter,
-            (double)(loop.is_external() ? this->_ext_mm3_per_mm : this->_mm3_per_mm),
-            (float)(loop.is_external() ? this->ext_perimeter_flow.width : this->perimeter_flow.width),
-            (float)(this->layer->height));
-        single_point.paths.back().polyline = poly_point;
-        return single_point;
+        if (enforce_loop) {
+            //do something to still use it
+            dist_cut = loop.polygon.length() / 4;
+        } else {
+            //reduce it ot a single-point loop that will eb emrged inside the complex path
+            ExtrusionLoop single_point(elrDefault);
+            Polyline poly_point;
+            poly_point.append(loop.polygon.centroid());
+            single_point.paths.emplace_back(
+                loop.is_external() ? erExternalPerimeter : erPerimeter,
+                (double)(loop.is_external() ? this->_ext_mm3_per_mm : this->_mm3_per_mm),
+                (float)(loop.is_external() ? this->ext_perimeter_flow.width : this->perimeter_flow.width),
+                (float)(this->layer->height));
+            single_point.paths.back().polyline = poly_point;
+            return single_point;
+        }
     }
     const size_t idx_closest_from_entry_point = loop.polygon.closest_point_index(entry_point);
     if (loop.polygon.points[idx_closest_from_entry_point].distance_to(entry_point) > SCALED_EPSILON) {
@@ -1916,12 +1974,15 @@ PerimeterGenerator::_extrude_and_cut_loop(const PerimeterGeneratorLoop &loop, co
             if (direction.length() > 0) {
                 Polyline direction_polyline;
                 for (ExtrusionPath &path : paths) {
-                    direction_polyline.points.insert(direction_polyline.points.end(), path.polyline.points.begin(), path.polyline.points.end());
+                    if(direction_polyline.size() == 0 || direction_polyline.points.back() != path.first_point())
+                        direction_polyline.points.insert(direction_polyline.points.end(), path.polyline.points.begin(), path.polyline.points.end());
                 }
                 for (int i = 0; i < direction_polyline.points.size() - 1; i++)
                     assert(direction_polyline.points[i] != direction_polyline.points[i + 1]);
-                direction_polyline.clip_start(SCALED_RESOLUTION);
-                direction_polyline.clip_end(SCALED_RESOLUTION);
+                if (direction_polyline.length() > perimeter_flow.scaled_width() / 8) {
+                    direction_polyline.clip_start(perimeter_flow.scaled_width() / 20);
+                    direction_polyline.clip_end(perimeter_flow.scaled_width() / 20);
+                }
                 coord_t dot = direction.dot(Line(direction_polyline.points.back(), direction_polyline.points.front()));
                 need_to_reverse = dot>0;
             }
@@ -1996,7 +2057,7 @@ PerimeterGenerator::_traverse_and_join_loops(const PerimeterGeneratorLoop &loop,
     //const coord_t dist_cut = (coord_t)scale_(this->print_config->nozzle_diameter.get_at(this->config->perimeter_extruder - 1));
     //TODO change this->external_perimeter_flow.scaled_width() if it's the first one!
     const coord_t max_width_extrusion = this->perimeter_flow.scaled_width();
-    ExtrusionLoop my_loop = _extrude_and_cut_loop(loop, entry_point);
+    ExtrusionLoop my_loop = _extrude_and_cut_loop(loop, entry_point, Line{ {0,0},{0,0} }, true);
 
     int child_idx = 0;
     //Polylines myPolylines = { myPolyline };
@@ -2059,10 +2120,10 @@ PerimeterGenerator::_traverse_and_join_loops(const PerimeterGeneratorLoop &loop,
                 outer_end->polyline.points.insert(outer_end->polyline.points.begin(), nearest.outter_best);
             }
             Polyline to_reduce = outer_start->polyline;
-            if (to_reduce.points.size()>1) to_reduce.clip_end(SCALED_RESOLUTION);
+            if (to_reduce.points.size()>1 && to_reduce.length() > (perimeter_flow.scaled_width() / 10)) to_reduce.clip_end(perimeter_flow.scaled_width() / 20);
             deletedSection.a = to_reduce.points.back();
             to_reduce = outer_end->polyline;
-            if (to_reduce.points.size()>1) to_reduce.clip_start(SCALED_RESOLUTION);
+            if (to_reduce.points.size()>1 && to_reduce.length() > (perimeter_flow.scaled_width() / 10)) to_reduce.clip_start(perimeter_flow.scaled_width() / 20);
             deletedSection.b = to_reduce.points.front();
             
             //get the inner loop to connect to us.

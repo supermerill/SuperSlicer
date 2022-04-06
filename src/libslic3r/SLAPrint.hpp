@@ -539,7 +539,7 @@ private:
         void operator()(SLAPrint &         p,
                         double             st,
                         const std::string &msg,
-                        unsigned           flags = SlicingStatus::DEFAULT,
+                        uint16_t           flags = SlicingStatus::DEFAULT,
                         const std::string &logmsg = "");
         
         double status() const { return m_st; }

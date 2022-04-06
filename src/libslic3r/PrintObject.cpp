@@ -2934,7 +2934,7 @@ namespace Slic3r {
         double max_hole_area = scale_d(scale_d(m_config.hole_size_threshold.value));
         for (const ExPolygon& ex_poly : polys) {
             Polygons contours;
-            Polygons holes;
+            ExPolygons holes;
             for (const Polygon& hole : ex_poly.holes) {
                 //check if convex to reduce it
                 // check whether first point forms a convex angle
@@ -2964,27 +2964,29 @@ namespace Slic3r {
                             convex_delta_adapted = convex_delta * percent + (1 - percent) * not_convex_delta;
                         }
                         if (convex_delta_adapted != 0) {
-                            for (Polygon& newHole : offset(hole, -convex_delta_adapted)) {
-                                newHole.make_counter_clockwise();
-                                holes.emplace_back(std::move(newHole));
+                            Polygon hole_as_contour = hole;
+                            hole_as_contour.make_counter_clockwise();
+                            for (ExPolygon& newHole : offset_ex(hole_as_contour, convex_delta_adapted)) {
+                                holes.push_back(std::move(newHole));
                             }
                         } else {
-                            holes.push_back(hole);
-                            holes.back().make_counter_clockwise();
+                            holes.push_back(ExPolygon{ hole });
+                            holes.back().contour.make_counter_clockwise();
                         }
                     } else {
-                        holes.push_back(hole);
-                        holes.back().make_counter_clockwise();
+                        holes.push_back(ExPolygon{ hole });
+                        holes.back().contour.make_counter_clockwise();
                     }
                 } else {
                     if (not_convex_delta != 0) {
-                        for (Polygon& newHole : offset(hole, -not_convex_delta)) {
-                            newHole.make_counter_clockwise();
-                            holes.emplace_back(std::move(newHole));
+                        Polygon hole_as_contour = hole;
+                        hole_as_contour.make_counter_clockwise();
+                        for (ExPolygon& newHole : offset_ex(hole_as_contour, not_convex_delta)) {
+                            holes.push_back(std::move(newHole));
                         }
                     } else {
-                        holes.push_back(hole);
-                        holes.back().make_counter_clockwise();
+                        holes.push_back(ExPolygon{ hole });
+                        holes.back().contour.make_counter_clockwise();
                     }
                 }
             }
@@ -2997,7 +2999,7 @@ namespace Slic3r {
             } else {
                 contours.push_back(ex_poly.contour);
             }
-            ExPolygons temp = diff_ex(union_(contours), union_(holes));
+            ExPolygons temp = diff_ex(union_ex(contours), union_ex(holes));
             new_ex_polys.insert(new_ex_polys.end(), std::make_move_iterator(temp.begin()), std::make_move_iterator(temp.end()));
         }
         return union_ex(new_ex_polys);

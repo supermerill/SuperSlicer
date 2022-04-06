@@ -419,7 +419,6 @@ void Preview::reload_print(bool keep_volumes)
 #endif /* __linux__ */
         (!keep_volumes && m_canvas->is_preview_dirty()))
     {
-        m_canvas->set_preview_dirty();
         m_canvas->reset_volumes();
         m_loaded = false;
 #ifdef __linux__
@@ -427,7 +426,11 @@ void Preview::reload_print(bool keep_volumes)
 #endif /* __linux__ */
     }
 
-    load_print();
+    //test if gcode is up-to-date
+    if (m_gcode_result && m_canvas->is_gcode_preview_dirty(*m_gcode_result))
+        refresh_print();
+    else
+        load_print();
 }
 
 void Preview::refresh_print()
@@ -733,7 +736,7 @@ void Preview::update_layers_slider(const std::vector<double>& layers_z, bool kee
     // Save the initial slider span.
     double z_low = m_layers_slider->GetLowerValueD();
     double z_high = m_layers_slider->GetHigherValueD();
-    bool   was_empty = m_layers_slider->GetMaxValue() == 0;
+    bool   was_empty = m_layers_slider->GetMaxValue() == 0 || z_high == 0;
 
     bool force_sliders_full_range = was_empty;
     if (!keep_z_range)

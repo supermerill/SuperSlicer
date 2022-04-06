@@ -977,6 +977,9 @@ void GCodeProcessor::process_file(const std::string& filename, bool apply_postpr
 #if ENABLE_GCODE_VIEWER_STATISTICS
     m_result.time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count();
 #endif // ENABLE_GCODE_VIEWER_STATISTICS
+
+    //result is now updated
+    m_result.computed_timestamp = std::time(0);
 }
 
 float GCodeProcessor::get_time(PrintEstimatedTimeStatistics::ETimeMode mode) const

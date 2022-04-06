@@ -9,7 +9,11 @@
 #include <wx/sizer.h>
 
 int scale(const int val) { return val * Slic3r::GUI::wxGetApp().em_unit(); }
-int ITEM_WIDTH() { return scale(6); }   
+#ifdef __WXGTK3__
+int ITEM_WIDTH() { return scale(10); }
+#else
+int ITEM_WIDTH() { return scale(6); }
+#endif
 
 RammingDialog::RammingDialog(wxWindow* parent,const std::string& parameters)
 : wxDialog(parent, wxID_ANY, _(L("Ramming customization")), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE/* | wxRESIZE_BORDER*/)

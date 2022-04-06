@@ -96,7 +96,7 @@ void CalibrationBridgeDialog::create_geometry(std::string setting_to_test, bool 
     float z_scale = nozzle_diameter / 0.4;
     //do scaling
     if (z_scale < 0.9 || 1.2 < z_scale) {
-        for (size_t i = 0; i < 5; i++)
+        for (size_t i = 0; i < nb_items; i++)
             model.objects[objs_idx[i]]->scale(1, 1, z_scale);
     } else {
         z_scale = 1;
@@ -120,9 +120,9 @@ void CalibrationBridgeDialog::create_geometry(std::string setting_to_test, bool 
     Vec2d bed_size = BoundingBoxf(bed_shape->values).size();
     Vec2d bed_min = BoundingBoxf(bed_shape->values).min;
     float offsety = 2 + 10 * 1 + extruder_clearance_radius->value + brim_width + (brim_width > extruder_clearance_radius->value ? brim_width - extruder_clearance_radius->value : 0);
-    model.objects[objs_idx[0]]->translate({ bed_min.x() + bed_size.x() / 2, bed_min.y() + bed_size.y() / 2, 0 });
+    model.objects[objs_idx[0]]->translate({ bed_min.x() + bed_size.x() / 2, bed_min.y() + bed_size.y() / 2, 2.5 * z_scale });
     for (int i = 1; i < nb_items; i++) {
-        model.objects[objs_idx[i]]->translate({ bed_min.x() + bed_size.x() / 2, bed_min.y() + bed_size.y() / 2 + (i % 2 == 0 ? -1 : 1) * offsety * ((i + 1) / 2), 0 });
+        model.objects[objs_idx[i]]->translate({ bed_min.x() + bed_size.x() / 2, bed_min.y() + bed_size.y() / 2 + (i % 2 == 0 ? -1 : 1) * offsety * ((i + 1) / 2), 2.5 * z_scale });
     }
     // if not enough space, forget about complete_objects
     if (bed_size.y() < offsety * (nb_items + 1))

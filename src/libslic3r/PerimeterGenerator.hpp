@@ -113,7 +113,7 @@ private:
     // like _traverse_loops but with merging all periemter into one continuous loop
     ExtrusionLoop _traverse_and_join_loops(const PerimeterGeneratorLoop &loop, const PerimeterGeneratorLoops &childs, const Point entryPoint) const;
     // sub-function of _traverse_and_join_loops, transform a single loop as a cut extrusion to be merged with an other one.
-    ExtrusionLoop _extrude_and_cut_loop(const PerimeterGeneratorLoop &loop, const Point entryPoint, const Line &direction = Line(Point(0,0),Point(0,0))) const;
+    ExtrusionLoop _extrude_and_cut_loop(const PerimeterGeneratorLoop& loop, const Point entryPoint, const Line& direction = Line(Point(0, 0), Point(0, 0)), bool enforce_loop = false) const;
     // sub-function of _traverse_and_join_loops, find the good splot to cut a loop to be able to join it with an other one
     PerimeterIntersectionPoint _get_nearest_point(const PerimeterGeneratorLoops &children, ExtrusionLoop &myPolylines, const coord_t dist_cut, const coord_t max_dist) const;
 };

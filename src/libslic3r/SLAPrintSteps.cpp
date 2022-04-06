@@ -407,7 +407,7 @@ void SLAPrint::Steps::support_tree(SLAPrintObject &po)
     throw_if_canceled();
     
     // Create the unified mesh
-    auto rc = SlicingStatus::RELOAD_SCENE;
+    SlicingStatus::FlagBits rc = SlicingStatus::RELOAD_SCENE;
     
     // This is to prevent "Done." being displayed during merged_mesh()
     report_status(-1, L("Visualizing supports"));

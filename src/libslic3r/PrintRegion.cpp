@@ -19,7 +19,7 @@ uint16_t PrintRegion::extruder(FlowRole role, const PrintObject& object) const
         extruder = object.config().support_material_interface_extruder;
     else
         throw Slic3r::InvalidArgument("Unknown role");
-    return extruder;
+    return (uint16_t)extruder;
 }
 
 Flow PrintRegion::flow(FlowRole role, double layer_height, bool bridge, bool first_layer, double width, const PrintObject &object) const
@@ -56,7 +56,7 @@ Flow PrintRegion::flow(FlowRole role, double layer_height, bool bridge, bool fir
     // Here this->extruder(role) - 1 may underflow to MAX_INT, but then the get_at() will follback to zero'th element, so everything is all right.
     double nozzle_diameter = m_print->config().nozzle_diameter.get_at(this->extruder(role, object) - 1);
     return Flow::new_from_config_width(role, config_width, (float)nozzle_diameter, (float)layer_height,
-        this->config().get_computed_value("filament_max_overlap", this->extruder(role, object) - 1),
+        (float)this->config().get_computed_value("filament_max_overlap", this->extruder(role, object) - 1),
         bridge ? (float)m_config.bridge_flow_ratio.get_abs_value(1) : 0.0f);
 }
 
@@ -91,7 +91,7 @@ float  PrintRegion::width(FlowRole role, bool first_layer, const PrintObject& ob
     double nozzle_diameter = m_print->config().nozzle_diameter.get_at(this->extruder(role, object) - 1);
     if (config_width->value <= 0.) {
         // If user left option to 0, calculate a sane default width.
-        return Flow::auto_extrusion_width(role, nozzle_diameter);
+        return float(Flow::auto_extrusion_width(role, nozzle_diameter));
     } else {
         // If user set a manual value, use it.
         return float(config_width->get_abs_value(nozzle_diameter));

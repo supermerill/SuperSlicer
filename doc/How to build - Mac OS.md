@@ -14,6 +14,8 @@ XCode is available through Apple's App Store, the other three tools are availabl
 ### How to get the source code
 
 You have to gitclone  the repository
+
+Open 'terminal' and enter each line, one at a time.
 ```
 git clone https://github.com/supermerill/SuperSlicer.git
 ```
@@ -21,6 +23,7 @@ git clone https://github.com/supermerill/SuperSlicer.git
 and then you have to clone the profiles submodules
 
 ```
+cd SuperSlicer
 cd resources/profiles
 git submodule update
 ```

@@ -182,7 +182,9 @@ static std::string g_data_dir;
 
 void set_data_dir(const std::string &dir)
 {
-    g_data_dir = dir;
+	// make sure the path is well formed for the os.
+	boost::filesystem::path fixpath(dir);
+	g_data_dir = fixpath.make_preferred().string();
 }
 
 const std::string& data_dir()

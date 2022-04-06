@@ -1204,11 +1204,19 @@ bool NotificationManager::push_notification_data(std::unique_ptr<NotificationMan
 
 	if (this->activate_existing(notification.get())) {
 		m_pop_notifications.back()->update(notification->get_data());
-		canvas.request_extra_frame_delayed(33);
+        //request_extra_frame_delayed has to run from main thread
+        if (wxThread::IsMain())
+            canvas.request_extra_frame_delayed(33);
+        else
+            wxGetApp().CallAfter([&canvas]() { canvas.request_extra_frame_delayed(33); });
 		return false;
 	} else {
 		m_pop_notifications.emplace_back(std::move(notification));
-		canvas.request_extra_frame_delayed(33);
+        //request_extra_frame_delayed has to run from main thread
+        if (wxThread::IsMain())
+            canvas.request_extra_frame_delayed(33);
+        else
+            wxGetApp().CallAfter([&canvas]() { canvas.request_extra_frame_delayed(33); });
 		return true;
 	}
 }

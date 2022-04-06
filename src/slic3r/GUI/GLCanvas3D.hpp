@@ -476,8 +476,8 @@ private:
 
     // Screen is only refreshed from the OnIdle handler if it is dirty.
     bool m_dirty;
-    bool m_dirty_preview = true;
-    bool m_dirty_gcode = true;
+    std::time_t last_showned_gcode = 0;
+    std::time_t last_showned_print = 0;
     bool m_initialized;
     bool m_apply_zoom_to_volumes_filter;
     mutable std::vector<int> m_hover_volume_idxs;
@@ -560,9 +560,8 @@ public:
     void post_event(wxEvent &&event);
 
     void set_as_dirty();
-    void set_preview_dirty() { m_dirty_preview = true; }
-    bool is_preview_dirty() { return m_dirty_preview; }
-    void set_gcode_viewer_dirty() { m_dirty_gcode = true; }
+    bool is_preview_dirty();
+    bool is_gcode_preview_dirty(const GCodeProcessor::Result& gcode_result);
     void set_items_show(bool show_objects, bool show_gcode);
 
     unsigned int get_volumes_count() const;

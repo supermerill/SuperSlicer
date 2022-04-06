@@ -67,8 +67,37 @@ void AppConfig::set_defaults()
         if (get("drop_project_action").empty())
             set("drop_project_action", "1");
 
-        if (get("freecad_path").empty())
+        if (get("freecad_path").empty() || get("freecad_path") == ".") {
             set("freecad_path", ".");
+            //try to find it
+#ifdef _WIN32
+            //windows
+            boost::filesystem::path prg_files = "C:/Program Files";
+            boost::filesystem::path freecad_path;
+            if (boost::filesystem::exists(prg_files)) {
+                for (boost::filesystem::directory_entry& prg_dir : boost::filesystem::directory_iterator(prg_files)) {
+                    if (prg_dir.status().type() == boost::filesystem::file_type::directory_file
+                         && boost::starts_with(prg_dir.path().filename().string(), "FreeCAD")
+                         && (freecad_path.empty() || freecad_path.filename().string() < prg_dir.path().filename().string())) {
+                        freecad_path = prg_dir.path();
+                    }
+                }
+            }
+            if (!freecad_path.empty())
+                set("freecad_path", freecad_path.string());
+#else
+#ifdef __APPLE__
+            //apple
+            if (boost::filesystem::exists("/Applications/FreeCAD.app/Contents/Frameworks/FreeCAD"))
+                set("freecad_path", "/Applications/FreeCAD.app/Contents/Frameworks/FreeCAD");
+
+#else
+            // linux
+            if (boost::filesystem::exists("/usr/local/bin/FreeCAD"))
+                set("freecad_path", "/usr/local/bin/FreeCAD");
+#endif
+#endif
+        }
 
         if (get("show_overwrite_dialog").empty())
             set("show_overwrite_dialog", "1");

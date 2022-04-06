@@ -179,7 +179,7 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
         int mytemp = temp - temp_decr * id_item;
         if (mytemp <= 285 && mytemp >= 180 && mytemp % 5 == 0) {
             add_part(model.objects[objs_idx[id_item]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_temp" / ("t" + std::to_string(mytemp) + ".amf")).string(),
-                Vec3d{ 0,0, scale * 0.2 - 4.8 }, Vec3d{ scale,scale,scale });
+                Vec3d{ 0,0, scale * 0.0 - 4.8 }, Vec3d{ scale,scale,scale });
             model.objects[objs_idx[id_item]]->volumes[1]->rotate(PI / 2, Vec3d(0, 0, 1));
             model.objects[objs_idx[id_item]]->volumes[1]->rotate(-PI / 2, Vec3d(1, 0, 0));
         }
@@ -199,7 +199,7 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
     Vec2d bed_min = BoundingBoxf(bed_shape->values).min;
     float offset = 4 + 26 * scale * 1 + extruder_clearance_radius->value + brim_width + (brim_width > extruder_clearance_radius->value ? brim_width - extruder_clearance_radius->value : 0);
     if (nb_items == 1) {
-        model.objects[objs_idx[0]]->translate({ bed_min.x() + bed_size.x() / 2, bed_min.y() + bed_size.y() / 2, 0 });
+        model.objects[objs_idx[0]]->translate({ bed_min.x() + bed_size.x() / 2, bed_min.y() + bed_size.y() / 2, zscale_number });
     } else {
         has_to_arrange = true;
     }

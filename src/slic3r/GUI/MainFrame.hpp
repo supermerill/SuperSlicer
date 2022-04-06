@@ -119,6 +119,7 @@ class MainFrame : public DPIFrame
 
     // vector of a MenuBar items changeable in respect to printer technology 
     std::vector<wxMenuItem*> m_changeable_menu_items;
+    wxMenu* m_calibration_menu = nullptr;
     wxMenuItem* m_layerpreview_menu_item = nullptr;
 
     wxFileHistory m_recent_projects;

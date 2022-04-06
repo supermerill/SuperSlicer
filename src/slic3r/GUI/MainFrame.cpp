@@ -317,8 +317,6 @@ void MainFrame::update_layout()
             }
         };
 
-        std::cout << "update_layout: " << m_tabpanel->GetPageCount() << "\n";
-
         // On Linux m_plater needs to be removed from m_tabpanel before to reparent it
         //clear if previous was old
         m_tabpanel_stop_event = true;
@@ -1485,29 +1483,29 @@ void MainFrame::init_menubar_as_editor()
     }
 
     // calibration menu
-    wxMenu* calibrationMenu = nullptr;
+    m_calibration_menu = nullptr;
     if (wxGetApp().is_editor())
     {
-        calibrationMenu = new wxMenu();
-        append_menu_item(calibrationMenu, wxID_ANY, _(L("Introduction")), _(L("How to use this menu and calibrations.")),
+        m_calibration_menu = new wxMenu();
+        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Introduction")), _(L("How to use this menu and calibrations.")),
             [this](wxCommandEvent&) { wxGetApp().html_dialog(); });
-        calibrationMenu->AppendSeparator();
-        append_menu_item(calibrationMenu, wxID_ANY, _(L("Bed/Extruder levelling")), _(L("Create a test print to help you to level your printer bed.")),
+        m_calibration_menu->AppendSeparator();
+        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Bed/Extruder leveling")), _(L("Create a test print to help you to level your printer bed.")),
             [this](wxCommandEvent&) { wxGetApp().bed_leveling_dialog(); });
-        calibrationMenu->AppendSeparator();
-        append_menu_item(calibrationMenu, wxID_ANY, _(L("Filament Flow calibration")), _(L("Create a test print to help you to set your filament extrusion multiplier.")),
+        m_calibration_menu->AppendSeparator();
+        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Filament Flow calibration")), _(L("Create a test print to help you to set your filament extrusion multiplier.")),
             [this](wxCommandEvent&) { wxGetApp().flow_ratio_dialog(); });
-        append_menu_item(calibrationMenu, wxID_ANY, _(L("Filament temperature calibration")), _(L("Create a test print to help you to set your filament temperature.")),
+        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Filament temperature calibration")), _(L("Create a test print to help you to set your filament temperature.")),
             [this](wxCommandEvent&) { wxGetApp().filament_temperature_dialog(); });
-        append_menu_item(calibrationMenu, wxID_ANY, _(L("Extruder retraction calibration")), _(L("Create a test print to help you to set your retraction length.")),
+        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Extruder retraction calibration")), _(L("Create a test print to help you to set your retraction length.")),
             [this](wxCommandEvent&) { wxGetApp().calibration_retraction_dialog(); });
-        calibrationMenu->AppendSeparator();
-        append_menu_item(calibrationMenu, wxID_ANY, _(L("Bridge flow calibration")), _(L("Create a test print to help you to set your bridge flow ratio.")),
+        m_calibration_menu->AppendSeparator();
+        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Bridge flow calibration")), _(L("Create a test print to help you to set your bridge flow ratio.")),
             [this](wxCommandEvent&) { wxGetApp().bridge_tuning_dialog(); });
-        append_menu_item(calibrationMenu, wxID_ANY, _(L("Ironing pattern calibration")), _(L("Create a test print to help you to set your over-bridge flow ratio and ironing pattern.")),
+        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Ironing pattern calibration")), _(L("Create a test print to help you to set your over-bridge flow ratio and ironing pattern.")),
             [this](wxCommandEvent&) { wxGetApp().over_bridge_dialog(); });
-        calibrationMenu->AppendSeparator();
-        append_menu_item(calibrationMenu, wxID_ANY, _(L("Calibration cube")), _(L("Print a calibration cube, for various calibration goals.")),
+        m_calibration_menu->AppendSeparator();
+        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Calibration cube")), _(L("Print a calibration cube, for various calibration goals.")),
             [this](wxCommandEvent&) { wxGetApp().calibration_cube_dialog(); });
     }
 
@@ -1534,7 +1532,7 @@ void MainFrame::init_menubar_as_editor()
     if (editMenu) m_menubar->Append(editMenu, _L("&Edit"));
     m_menubar->Append(windowMenu, _L("&Window"));
     if (viewMenu) m_menubar->Append(viewMenu, _L("&View"));
-    if (calibrationMenu) m_menubar->Append(calibrationMenu, _L("C&alibration"));
+    if (m_calibration_menu) m_menubar->Append(m_calibration_menu, _L("C&alibration"));
     if (generationMenu) m_menubar->Append(generationMenu, _L("&Generate"));
     // Add additional menus from C++
     wxGetApp().add_config_menu(m_menubar);
@@ -1628,6 +1626,13 @@ void MainFrame::update_menubar()
     m_changeable_menu_items[miMaterialTab]  ->SetBitmap(create_scaled_bitmap(is_fff ? "spool"   : "resin"));
 
     m_changeable_menu_items[miPrinterTab]   ->SetBitmap(create_scaled_bitmap(is_fff ? "printer" : "sla_printer"));
+
+    if (m_calibration_menu) {
+        int id = m_menubar->FindMenu(m_calibration_menu->GetTitle());
+        if (id != wxNOT_FOUND) {
+            m_menubar->EnableTop(id, is_fff);
+        }
+    }
 }
 
 #if 0
@@ -2043,6 +2048,12 @@ void MainFrame::select_tab(ETabType tab /* = Any*/, bool keep_tab_type)
 {
     bool tabpanel_was_hidden = false;
 
+    //failsafe
+    if (!wxGetApp().is_editor()) {
+        assert(tab == ETabType::PlaterGcode);
+        tab = ETabType::PlaterGcode;
+    }
+
     // Controls on page are created on active page of active tab now.
     // We should select/activate tab before its showing to avoid an UI-flickering
     auto select = [this, tab](bool was_hidden) {
@@ -2068,6 +2079,7 @@ void MainFrame::select_tab(ETabType tab /* = Any*/, bool keep_tab_type)
                 new_selection = new_selection + 1;
         }
 
+        if (m_tabpanel->GetPageCount() == 0) return; // failsafe
         if (m_tabpanel->GetSelection() != (int)new_selection)
             m_tabpanel->SetSelection(new_selection);
         else if (was_hidden) {

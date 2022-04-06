@@ -103,11 +103,11 @@ void CalibrationBedDialog::create_geometry(wxCommandEvent& event_args) {
         plat->arrange();
         //TODO add message
     } else {
-        model.objects[objs_idx[0]]->translate({ bed_min.x() + offsetx,               bed_min.y() + bed_size.y() - offsety,0 });
-        model.objects[objs_idx[1]]->translate({ bed_min.x() + bed_size.x() - offsetx,bed_min.y() + offsety ,              0 });
-        model.objects[objs_idx[2]]->translate({ bed_min.x() + bed_size.x()/2,       bed_min.y() + bed_size.y() / 2,     0 });
-        model.objects[objs_idx[3]]->translate({ bed_min.x() + offsetx,               bed_min.y() + offsety,               0 });
-        model.objects[objs_idx[4]]->translate({ bed_min.x() + bed_size.x() - offsetx,bed_min.y() + bed_size.y() - offsety,0 });
+        model.objects[objs_idx[0]]->translate({ bed_min.x() + offsetx,               bed_min.y() + bed_size.y() - offsety, 1 * zscale });
+        model.objects[objs_idx[1]]->translate({ bed_min.x() + bed_size.x() - offsetx,bed_min.y() + offsety ,               1 * zscale });
+        model.objects[objs_idx[2]]->translate({ bed_min.x() + bed_size.x()/2,       bed_min.y() + bed_size.y() / 2,        1 * zscale });
+        model.objects[objs_idx[3]]->translate({ bed_min.x() + offsetx,               bed_min.y() + offsety,                1 * zscale });
+        model.objects[objs_idx[4]]->translate({ bed_min.x() + bed_size.x() - offsetx,bed_min.y() + bed_size.y() - offsety, 1 * zscale });
     }
 
     /// --- main config, please modify object config when possible ---

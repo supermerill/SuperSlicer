@@ -281,6 +281,8 @@ struct ConfigSubstitution {
     const ConfigOptionDef   *opt_def { nullptr };
     std::string              old_value;
     ConfigOptionUniquePtr    new_value;
+    ConfigSubstitution() = default;
+    ConfigSubstitution(const ConfigOptionDef* def, std::string old, ConfigOptionUniquePtr&& new_v) : opt_def(def), old_value(old), new_value(std::move(new_v)) {}
 };
 
 using  ConfigSubstitutions = std::vector<ConfigSubstitution>;

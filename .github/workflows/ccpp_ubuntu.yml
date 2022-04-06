@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - Nigthly
+      - Nightly
 
 jobs:
   build:

@@ -695,6 +695,7 @@ void GCode::do_export(Print* print, const char* path, GCodeProcessor::Result* re
         throw Slic3r::RuntimeError(std::string("G-code export to ") + path + " failed.\nCannot open the file for writing.\n");
 
     try {
+        m_placeholder_parser.reset();
         m_placeholder_parser_failed_templates.clear();
         this->_do_export(*print, file, thumbnail_cb);
         fflush(file);
@@ -1325,6 +1326,9 @@ void GCode::_do_export(Print& print, FILE* file, ThumbnailsGeneratorCallback thu
             if ((initial_extruder_id = tool_ordering.first_extruder()) != static_cast<uint16_t>(-1))
                 break;
         }
+        if (initial_extruder_id == static_cast<unsigned int>(-1))
+            // No object to print was found, cancel the G-code export.
+            throw Slic3r::SlicingError(_(L("No extrusions were generated for objects.")));
         // We don't allow switching of extruders per layer by Model::custom_gcode_per_print_z in sequential mode.
         // Use the extruder IDs collected from Regions.
         std::set<uint16_t> extruder_set = print.extruders();
@@ -1336,6 +1340,9 @@ void GCode::_do_export(Print& print, FILE* file, ThumbnailsGeneratorCallback thu
         // If the tool ordering has been pre-calculated by Print class for wipe tower already, reuse it.
 		tool_ordering = print.tool_ordering();
 		tool_ordering.assign_custom_gcodes(print);
+        if (tool_ordering.all_extruders().empty())
+            // No object to print was found, cancel the G-code export.
+            throw Slic3r::SlicingError(_(L("No extrusions were generated for objects.")));
         has_wipe_tower = print.has_wipe_tower() && tool_ordering.has_wipe_tower();
         initial_extruder_id = (has_wipe_tower && ! print.config().single_extruder_multi_material_priming) ?
             // The priming towers will be skipped.
@@ -1365,10 +1372,13 @@ void GCode::_do_export(Print& print, FILE* file, ThumbnailsGeneratorCallback thu
     // Emit machine envelope limits for the Marlin firmware.
     this->print_machine_envelope(file, print);
 
-    //add variables from filament_custom_variables
+    // Add variables from filament_custom_variables
     m_placeholder_parser.parse_custom_variables(m_config.print_custom_variables);
     m_placeholder_parser.parse_custom_variables(m_config.printer_custom_variables);
     m_placeholder_parser.parse_custom_variables(m_config.filament_custom_variables);
+
+    // Add physical printer variables
+    m_placeholder_parser.apply_config(print.physical_printer_config());
 
     // Let the start-up script prime the 1st printing tool.
     m_placeholder_parser.set("initial_tool", initial_extruder_id);
@@ -3034,7 +3044,7 @@ std::string GCode::extrude_loop_vase(const ExtrusionLoop &original_loop, const s
     if (paths.empty()) return "";
 
     // apply the small/external? perimeter speed
-    if (speed == -1 && is_perimeter(paths.front().role())){
+    if (speed == -1 && is_perimeter(paths.front().role()) && this->m_config.small_perimeter_speed.value > 0){
         coordf_t min_length = scale_d(this->m_config.small_perimeter_min_length.get_abs_value(EXTRUDER_CONFIG_WITH_DEFAULT(nozzle_diameter, 0)));
         coordf_t max_length = scale_d(this->m_config.small_perimeter_max_length.get_abs_value(EXTRUDER_CONFIG_WITH_DEFAULT(nozzle_diameter, 0)));
         max_length = std::max(min_length, max_length);
@@ -4078,18 +4088,21 @@ double_t GCode::_compute_speed_mm_per_sec(const ExtrusionPath& path, double spee
     //  don't modify bridge speed
     if (factor < 1 && !(is_bridge(path.role()))) {
         float small_speed = (float)m_config.small_perimeter_speed.get_abs_value(m_config.perimeter_speed);
-        //apply factor between feature speed and small speed
-        speed = (speed * factor) + double((1.f - factor) * small_speed);
+        if (small_speed > 0)
+            //apply factor between feature speed and small speed
+            speed = (speed * factor) + double((1.f - factor) * small_speed);
     }
     // Apply first layer modifier
     if (this->on_first_layer()) {
         const double base_speed = speed;
+        double first_layer_speed = m_config.first_layer_speed.get_abs_value(base_speed);
         if (path.role() == erInternalInfill || path.role() == erSolidInfill) {
             double first_layer_infill_speed = m_config.first_layer_infill_speed.get_abs_value(base_speed);
             if (first_layer_infill_speed > 0)
                 speed = std::min(first_layer_infill_speed, speed);
+            else if (first_layer_speed > 0)
+                speed = std::min(first_layer_speed, speed);
         } else {
-            double first_layer_speed = m_config.first_layer_speed.get_abs_value(base_speed);
             if (first_layer_speed > 0)
                 speed = std::min(first_layer_speed, speed);
         }

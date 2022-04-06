@@ -7,7 +7,7 @@ on:
 
 jobs:
   build_dep:
-    runs-on: windows-latest
+    runs-on: windows-2019
     
     steps:
     - uses: actions/checkout@v2
@@ -28,7 +28,7 @@ jobs:
         path: ./deps/build/destdir/
 
   build:
-    runs-on: windows-latest
+    runs-on: windows-2019
     needs: build_dep
     
     steps:

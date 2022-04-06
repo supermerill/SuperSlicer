@@ -1262,7 +1262,7 @@ std::string SLAPrintStatistics::finalize_output_path(const std::string &path_in)
 void SLAPrint::StatusReporter::operator()(SLAPrint &         p,
                                           double             st,
                                           const std::string &msg,
-                                          unsigned           flags,
+                                          uint16_t           flags,
                                           const std::string &logmsg)
 {
     m_st = st;

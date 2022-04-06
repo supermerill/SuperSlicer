@@ -782,8 +782,7 @@ void GUI_App::init_app_config()
                     (boost::format(_u8L("Error parsing %1% config file, it is probably corrupted. "
                         "Try to manually delete the file to recover from the error. Your user profiles will not be affected.")) % std::string(SLIC3R_APP_NAME)).str() +
                     "\n\n" + app_config->config_path() + "\n\n" + error);
-            }
-            else {
+            } else {
                 throw Slic3r::RuntimeError(
                     (boost::format(_u8L("Error parsing %1% config file, it is probably corrupted. "
                         "Try to manually delete the file to recover from the error.")) % std::string(GCODEVIEWER_APP_NAME)).str() +
@@ -984,6 +983,8 @@ bool GUI_App::on_init_inner()
     // hide settings tabs after first Layout
     if (is_editor())
         mainframe->select_tab(MainFrame::ETabType::LastPlater);
+    else
+        mainframe->select_tab(MainFrame::ETabType::PlaterGcode);
 
     sidebar().obj_list()->init_objects(); // propagate model objects to object list
 //     update_mode(); // !!! do that later
@@ -1253,6 +1254,8 @@ void GUI_App::recreate_GUI(const wxString& msg_name)
     if (is_editor())
         // hide settings tabs after first Layout
         mainframe->select_tab(MainFrame::ETabType::LastPlater);
+    else
+        mainframe->select_tab(MainFrame::ETabType::PlaterGcode);
     // Propagate model objects to object list.
     sidebar().obj_list()->init_objects();
     SetTopWindow(mainframe);
