@@ -179,11 +179,26 @@ void PrintConfigDef::init_common_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionString(""));
 
+    def = this->add("printhost_client_cert_enable", coString);
+    def->label = L("Enable 2-way ssl authentication");
+    def->category = OptionCategory::general;
+    def->tooltip = L("Use this option to enable 2-way ssl authentication with you printer");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("printhost_client_cert", coString);
     def->label = L("Client Certificate File");
     def->category = OptionCategory::general;
-    def->tooltip = L("Custom Client certificate file can be specified for 2-way ssl authentication, in p12/pfx format. "
+    def->tooltip = L("A Client certificate file for use with 2-way ssl authentication, in p12/pfx format. "
                    "If left blank, no client certificate is used.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionString(""));
+
+    def = this->add("printhost_client_cert_password", coString);
+    def->label = L("Client Certificate Password");
+    def->category = OptionCategory::general;
+    def->tooltip = L("Password for client certificate for 2-way ssl authentication. "
+                   "Leave blank if no password is needed");
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionString(""));
 
@@ -3034,10 +3049,23 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionString(""));
 
+    def = this->add("printhost_client_cert_enable", coBool);
+    def->label = L("Enable 2-way ssl authentication");
+    def->tooltip = L("Use this option to enable 2-way ssl authentication with you printer");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("printhost_client_cert", coString);
     def->label = L("Client Certificate File");
-    def->tooltip = L("Custom Client certificate file can be specified for 2-way ssl authentication, in p12/pfx format. "
+    def->tooltip = L("A Client certificate file for use with 2-way ssl authentication, in p12/pfx format. "
                    "If left blank, no client certificate is used.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionString(""));
+
+    def = this->add("printhost_client_cert_password", coString);
+    def->label = L("Client Certificate Password");
+    def->tooltip = L("Password for client certificate for 2-way ssl authentication. "
+                   "Leave blank if no password is needed");
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionString(""));
 
@@ -6113,7 +6141,9 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "print_temperature",
 "printhost_apikey",
 "printhost_cafile",
+"printhost_client_cert_enable",
 "printhost_client_cert",
+"printhost_client_cert_password",
 "retract_lift_first_layer",
 "retract_lift_top",
 "seam_angle_cost",

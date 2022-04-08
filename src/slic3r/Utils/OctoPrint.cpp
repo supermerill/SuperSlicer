@@ -26,7 +26,9 @@ OctoPrint::OctoPrint(DynamicPrintConfig *config) :
     host(config->opt_string("print_host")),
     apikey(config->opt_string("printhost_apikey")),
     cafile(config->opt_string("printhost_cafile")),
-    client_cert(config->opt_string("printhost_client_cert"))
+    client_cert(config->opt_string("printhost_client_cert")),
+    client_cert_password(config->opt_string("printhost_client_cert_password")),
+    client_cert_enabled(config->opt_bool("printhost_client_cert_enable"))
 {}
 
 const char* OctoPrint::get_name() const { return "OctoPrint"; }
@@ -162,8 +164,10 @@ void OctoPrint::set_auth(Http &http) const
         http.ca_file(cafile);
     }
 
-    if (! client_cert.empty()) {
-        http.client_cert(client_cert);
+    // Dont use if disabled, even if values are given
+    // We're always sending the password, even if empty, due to fix some bugs on macOS
+    if (client_cert_enabled && !client_cert.empty()) {
+        http.client_cert(client_cert, client_cert_password);
     }
 }
 
@@ -223,8 +227,10 @@ void SL1Host::set_auth(Http &http) const
         http.ca_file(get_cafile());
     }
 
-    if (! get_client_cert().empty()) {
-        http.client_cert(get_client_cert());
+    // Dont use if disabled, even if values are given
+        // We're always sending the password, even if empty, due to fix some bugs on macOS
+    if (get_client_cert_enabled() && !get_client_cert().empty()) {
+        http.client_cert(get_client_cert(), get_client_cert_password());
     }
 }
 
@@ -271,8 +277,10 @@ void PrusaLink::set_auth(Http& http) const
         http.ca_file(get_cafile());
     }
 
-    if (! get_client_cert().empty()) {
-        http.client_cert(get_client_cert());
+    // Dont use if disabled, even if values are given
+        // We're always sending the password, even if empty, due to fix some bugs on macOS
+    if (get_client_cert_enabled() && !get_client_cert().empty()) {
+        http.client_cert(get_client_cert(), get_client_cert_password());
     }
 }
 

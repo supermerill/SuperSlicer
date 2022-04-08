@@ -33,6 +33,8 @@ public:
     const std::string& get_apikey() const { return apikey; }
     const std::string& get_cafile() const { return cafile; }
     const std::string& get_client_cert() const { return client_cert; }
+    const std::string& get_client_cert_password() const { return client_cert_password; }
+    const bool get_client_cert_enabled() const { return client_cert_enabled; }
 
 protected:
     virtual bool validate_version_text(const boost::optional<std::string> &version_text) const;
@@ -42,6 +44,8 @@ private:
     std::string apikey;
     std::string cafile;
     std::string client_cert;
+    std::string client_cert_password;
+    bool client_cert_enabled;
 
     virtual void set_auth(Http &http) const;
     std::string make_url(const std::string &path) const;
