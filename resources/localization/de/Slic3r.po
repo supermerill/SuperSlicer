@@ -963,7 +963,7 @@ msgid "Avoid crossing perimeters"
 msgstr "Kreuzen der Kontur vermeiden"
 
 msgid "Avoid crossing perimeters - Max detour length"
-msgstr "Kreuzen von Perimetern Vermeiden - Maximale Umleitungslänge"
+msgstr "Kreuzen von Konturen Vermeiden - Maximale Umleitungslänge"
 
 msgid "BACK ARROW"
 msgstr "PFEIL ZURÜCK"
@@ -3281,10 +3281,10 @@ msgid "Generating pad"
 msgstr "Generiere Grundschicht"
 
 msgid "Generating perimeters"
-msgstr "Generiere Außenkonturen"
+msgstr "Generiere Konturen"
 
 msgid "Generating skirt and brim"
-msgstr "Erzeuge Schürtze und Rand"
+msgstr "Erzeuge Schürze und Rand"
 
 msgid "Generating support material"
 msgstr "Generiere Stützmaterial"
@@ -4259,7 +4259,7 @@ msgid "Layers"
 msgstr "Schichten"
 
 msgid "Layers and perimeters"
-msgstr "Schichten und Umfänge"
+msgstr "Schichten und Konturen"
 
 msgid "Leave \"%1%\" enabled"
 msgstr "\"%1%\" aktiviert lassen"
@@ -5334,7 +5334,7 @@ msgid "Only lift Z below"
 msgstr "Z anheben nur unter"
 
 msgid "Only retract when crossing perimeters"
-msgstr "Nur bei Umfangsüberquerungen einziehen"
+msgstr "Nur bei Kontursüberquerungen einziehen"
 
 msgid ""
 "Only the following installed printers are compatible with the selected "
@@ -5662,13 +5662,13 @@ msgstr ""
 "unerwünschten Artefakten führen."
 
 msgid "Perimeter"
-msgstr "Außenkontur"
+msgstr "Kontur"
 
 msgid "Perimeter extruder"
 msgstr "Umfang Extruder"
 
 msgid "perimeters"
-msgstr "Außenkonturen"
+msgstr "Konturen"
 
 msgid "Perimeters"
 msgstr "Konturen"
