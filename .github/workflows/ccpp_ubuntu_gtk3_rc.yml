@@ -1,4 +1,4 @@
-name: C/C++ Nigthly ubuntu-GTK3
+name: C/C++ Release Candidate ubuntu-GTK3
 
 on:
   push:
@@ -9,7 +9,7 @@ jobs:
   build:
 
     runs-on: ubuntu-18.04
-    
+
     env:
       EXEC_NAME: "${{ github.event.repository.name }}"
     steps:

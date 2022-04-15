@@ -1,4 +1,4 @@
-name: C/C++ debug arm macos
+name: C/C++ Release Candidate arm macos
 
 on:
   push:
@@ -9,7 +9,7 @@ jobs:
   build:
 
     runs-on: macos-11
-    
+
     steps:
     - uses: actions/checkout@v2
       with:
