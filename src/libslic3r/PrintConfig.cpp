@@ -493,9 +493,24 @@ void PrintConfigDef::init_common_params()
     def = this->add("printhost_client_cert", coString);
     def->label = L("Client Certificate File");
     def->category = OptionCategory::general;
-    def->tooltip = L("Custom Client certificate file can be specified for 2-way ssl authentication, in p12/pfx format. "
+    def->tooltip = L("A Client certificate file for use with 2-way ssl authentication, in p12/pfx format. "
                    "If left blank, no client certificate is used.");
     def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionString(""));
+
+    def = this->add("printhost_client_cert_enabled", coBool);
+    def->label = L("Enable 2-way ssl authentication");
+    def->category = OptionCategory::general;
+    def->tooltip = L("Use this option to enable 2-way ssl authentication with you printer");
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("printhost_client_cert_password", coString);
+    def->label = L("Client Certificate Password");
+    def->category = OptionCategory::general;
+    def->tooltip = L("Password for client certificate for 2-way ssl authentication. "
+                   "Leave blank if no password is needed");
+    def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionString(""));
 
     // Options used by physical printers
@@ -7232,6 +7247,8 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "print_retract_lift",
 "print_temperature",
 "printhost_client_cert",
+"printhost_client_cert_enabled",
+"printhost_client_cert_password",
 "remaining_times_type",
 "retract_lift_first_layer",
 "retract_lift_top",

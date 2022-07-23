@@ -3287,6 +3287,8 @@ void GCode::append_full_config(const Print &print, std::string &str)
         "printhost_apikey",
         "printhost_cafile",
         "printhost_client_cert",
+        "printhost_client_cert_password",
+        "printhost_client_cert_enabled",
         "printhost_port"
     };
     assert(std::is_sorted(banned_keys.begin(), banned_keys.end()));

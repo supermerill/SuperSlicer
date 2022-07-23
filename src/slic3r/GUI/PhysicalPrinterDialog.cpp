@@ -322,7 +322,7 @@ void PhysicalPrinterDialog::update_printers()
 void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgroup)
 {
     m_optgroup->m_on_change = [this](t_config_option_key opt_key, boost::any value) {
-        if (opt_key == "host_type" || opt_key == "printhost_authorization_type")
+        if (opt_key == "host_type" || opt_key == "printhost_authorization_type" || opt_key == "printhost_client_cert_enabled")
             this->update();
         if (opt_key == "print_host")
             this->update_printhost_buttons();
@@ -408,6 +408,10 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
     port_line.append_widget(print_host_printers);
     m_optgroup->append_line(port_line);
 
+    option = m_optgroup->get_option("printhost_client_cert_enabled");
+    option.opt.width = Field::def_width_wider();
+    m_optgroup->append_single_option_line(option);
+
     option = m_optgroup->get_option("printhost_client_cert");
     option.opt.width = Field::def_width_wider();
     Line client_cert_line = m_optgroup->create_single_option_line(option);
@@ -440,6 +444,10 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
         return sizer;
     };
     m_optgroup->append_line(clientcert_hint);
+
+    option = m_optgroup->get_option("printhost_client_cert_password");
+    option.opt.width = Field::def_width_wider();
+    m_optgroup->append_single_option_line(option);
 
     const auto ca_file_hint = _u8L("HTTPS CA file is optional. It is only needed if you use HTTPS with a self-signed certificate.");
 
@@ -586,6 +594,11 @@ void PhysicalPrinterDialog::update(bool printer_change)
             m_optgroup->hide_field("printhost_apikey");
             m_optgroup->hide_field("printhost_cafile");
         }
+
+        // Hide client cert options if disabled
+        const bool enable_client_authentication = m_config->option<ConfigOptionBool>("printhost_client_cert_enabled")->value;
+        m_optgroup->show_field("printhost_client_cert", enable_client_authentication);
+        m_optgroup->show_field("printhost_client_cert_password", enable_client_authentication);
     }
     else {
         m_optgroup->set_value("host_type", int(PrintHostType::htOctoPrint), false);
@@ -614,6 +627,7 @@ void PhysicalPrinterDialog::update(bool printer_change)
     }
 
     this->Layout();
+    this->Fit();
 }
 
 void PhysicalPrinterDialog::update_host_type(bool printer_change)

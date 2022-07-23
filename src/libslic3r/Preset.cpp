@@ -1778,6 +1778,8 @@ static std::vector<std::string> s_PhysicalPrinter_opts {
     "printhost_apikey",
     "printhost_cafile",
     "printhost_client_cert",
+    "printhost_client_cert_enabled",
+    "printhost_client_cert_password",
     "printhost_port",
     "printhost_authorization_type",
     // HTTP digest authentization (RFC 2617)
@@ -1824,14 +1826,15 @@ const std::set<std::string>& PhysicalPrinter::get_preset_names() const
 
 bool PhysicalPrinter::has_empty_config() const
 {
-    return  config.opt_string("print_host"        ).empty() &&
-            config.opt_string("printhost_apikey"  ).empty() &&
-            config.opt_string("printhost_cafile"  ).empty() &&
-            config.opt_string("printhost_client_cert").empty() && 
-            config.opt_string("printhost_port"    ).empty() &&
-            config.opt_string("printhost_user"    ).empty() &&
-            config.opt_string("printhost_password").empty() && 
-            config.opt_string("printhost_port"    ).empty();
+    return  config.opt_string("print_host"                      ).empty() &&
+            config.opt_string("printhost_apikey"                ).empty() &&
+            config.opt_string("printhost_cafile"                ).empty() &&
+            config.opt_string("printhost_client_cert"           ).empty() && 
+            config.opt_string("printhost_client_cert_password"  ).empty() && 
+            config.opt_string("printhost_port"                  ).empty() &&
+            config.opt_string("printhost_user"                  ).empty() &&
+            config.opt_string("printhost_password"              ).empty() && 
+            config.opt_string("printhost_port"                  ).empty();
 }
 
 // temporary workaround for compatibility with older Slicer

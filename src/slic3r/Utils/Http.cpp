@@ -522,10 +522,11 @@ Http& Http::ca_file(const std::string &name)
 	return *this;
 }
 
-Http& Http::client_cert(const std::string &name)
+Http& Http::client_cert(const std::string &name, const std::string &password)
 {
 	curl_easy_setopt(p->curl, CURLOPT_SSLCERT, name.c_str());
 	curl_easy_setopt(p->curl, CURLOPT_SSLCERTTYPE, "P12");
+	curl_easy_setopt(p->curl, CURLOPT_KEYPASSWD, password.c_str());
 
 	return *this;
 }

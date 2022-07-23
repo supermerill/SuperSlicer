@@ -79,8 +79,8 @@ public:
 	// specifically, this is supported with OpenSSL and NOT supported with Windows and OS X native certificate store.
 	// See also ca_file_supported().
 	Http& ca_file(const std::string &filename);
-	// Set a client certificate for usage with 2-way ssl authentication
-	Http& client_cert(const std::string &filename);
+	// Set a client certificate for usage with 2-way ssl authentication (password for key is optional)
+	Http& client_cert(const std::string &filename, const std::string &password = "");
 	// Add a HTTP multipart form field
 	Http& form_add(const std::string &name, const std::string &contents);
 	// Add a HTTP multipart form file data contents, `name` is the name of the part
