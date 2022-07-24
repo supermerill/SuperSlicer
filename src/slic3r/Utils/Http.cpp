@@ -525,8 +525,10 @@ Http& Http::ca_file(const std::string &name)
 Http& Http::client_cert(const std::string &name, const std::string &password)
 {
 	curl_easy_setopt(p->curl, CURLOPT_SSLCERT, name.c_str());
+#ifndef __APPLE__ // Only use this on non macos machines
 	curl_easy_setopt(p->curl, CURLOPT_SSLCERTTYPE, "P12");
 	curl_easy_setopt(p->curl, CURLOPT_KEYPASSWD, password.c_str());
+#endif // __APPLE__
 
 	return *this;
 }
