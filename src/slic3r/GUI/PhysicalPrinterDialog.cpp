@@ -322,7 +322,7 @@ void PhysicalPrinterDialog::update_printers()
 void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgroup)
 {
     m_optgroup->m_on_change = [this](t_config_option_key opt_key, boost::any value) {
-        if (opt_key == "host_type" || opt_key == "printhost_authorization_type" || opt_key == "printhost_client_cert_enabled")
+        if (opt_key == "host_type" || opt_key == "printhost_authorization_type")
             this->update();
         if (opt_key == "print_host")
             this->update_printhost_buttons();
@@ -408,11 +408,6 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
     port_line.append_widget(print_host_printers);
     m_optgroup->append_line(port_line);
 
-    option = m_optgroup->get_option("printhost_client_cert_enabled");
-    option.opt.width = Field::def_width_wider();
-    m_optgroup->append_single_option_line(option);
-
-#ifndef __APPLE__
     option = m_optgroup->get_option("printhost_client_cert");
     option.opt.width = Field::def_width_wider();
     Line client_cert_line = m_optgroup->create_single_option_line(option);
@@ -437,21 +432,14 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
     option = m_optgroup->get_option("printhost_client_cert_password");
     option.opt.width = Field::def_width_wider();
     m_optgroup->append_single_option_line(option);
-#else // __APPLE__
-    const auto client_cert_hint = _u8L("To use a client cert on MacOS, add your certificate to your keychain and make sure it's trusted.");
-
-    Line clientcert_hint{ "", "" };
-    clientcert_hint.full_width = 1;
-    clientcert_hint.widget = [this, client_cert_hint](wxWindow* parent) {
-        auto txt = new wxStaticText(parent, wxID_ANY, client_cert_hint);
-        auto sizer = new wxBoxSizer(wxHORIZONTAL);
-        sizer->Add(txt);
-        return sizer;
-    };
-    m_optgroup->append_line(clientcert_hint);
-#endif // __APPLE__
-
-    const auto client_cert_hint = _u8L("Client certificate file is optional. It is only needed if you use 2-way ssl.");
+    
+    auto client_cert_hint =  _u8L("Client certificate (2-way SSL):") + "\n\t" +
+        _u8L("Client certificate is optional. It is only needed if you use 2-way ssl.");
+#ifdef __APPLE__
+    client_cert_hint += "\n\t" +
+        _u8L("To use a client cert on MacOS, you might need to add your certificate to your keychain and make sure it's trusted.") + "\n\t" +
+        _u8L("You can either use a path to your certificate or the name of your certificate as you can find it in your Keychain");
+#endif //__APPLE__
 
     Line clientcert_hint{ "", "" };
     clientcert_hint.full_width = 1;
@@ -608,13 +596,6 @@ void PhysicalPrinterDialog::update(bool printer_change)
             m_optgroup->hide_field("printhost_apikey");
             m_optgroup->hide_field("printhost_cafile");
         }
-
-#ifndef __APPLE__
-        // Hide client cert options if disabled
-        const bool enable_client_authentication = m_config->option<ConfigOptionBool>("printhost_client_cert_enabled")->value;
-        m_optgroup->show_field("printhost_client_cert", enable_client_authentication);
-        m_optgroup->show_field("printhost_client_cert_password", enable_client_authentication);
-#endif
     }
     else {
         m_optgroup->set_value("host_type", int(PrintHostType::htOctoPrint), false);
@@ -643,7 +624,6 @@ void PhysicalPrinterDialog::update(bool printer_change)
     }
 
     this->Layout();
-    this->Fit();
 }
 
 void PhysicalPrinterDialog::update_host_type(bool printer_change)

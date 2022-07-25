@@ -1778,7 +1778,6 @@ static std::vector<std::string> s_PhysicalPrinter_opts {
     "printhost_apikey",
     "printhost_cafile",
     "printhost_client_cert",
-    "printhost_client_cert_enabled",
     "printhost_client_cert_password",
     "printhost_port",
     "printhost_authorization_type",
