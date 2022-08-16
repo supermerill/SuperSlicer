@@ -1259,7 +1259,7 @@ bool GUI_App::on_init_inner()
                         , NotificationManager::NotificationLevel::ImportantNotificationLevel
                         , Slic3r::format(_u8L("New release version %1% is available."), evt.GetString())
                         , _u8L("See Download page.")
-                        , [](wxEvtHandler* evnthndlr) {wxGetApp().open_web_page_localized("https://www.prusa3d.com/slicerweb"); return true; }
+                        , [](wxEvtHandler* evnthndlr) {wxGetApp().open_web_page_localized("https://github.com/supermerill/SuperSlicer/releases"); return true; }
                     );
                 //}
             }
@@ -1274,7 +1274,7 @@ bool GUI_App::on_init_inner()
                         , NotificationManager::NotificationLevel::ImportantNotificationLevel
                         , Slic3r::format(_u8L("New prerelease version %1% is available."), evt_string)
                         , _u8L("See Releases page.")
-                        , [](wxEvtHandler* evnthndlr) {wxGetApp().open_browser_with_warning_dialog("https://github.com/prusa3d/PrusaSlicer/releases"); return true; }
+                        , [](wxEvtHandler* evnthndlr) {wxGetApp().open_browser_with_warning_dialog("https://github.com/supermerill/SuperSlicer/releases"); return true; }
                     );
     }
             }
