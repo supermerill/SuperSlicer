@@ -3375,7 +3375,7 @@ bool GUI_App::open_browser_with_warning_dialog(const wxString& url, wxWindow* pa
     // warning dialog doesn't containe a "Remember my choice" checkbox
     // and will be shown only when "Suppress to open hyperlink in browser" is ON.
     else if (app_config->get(option_key) == "1") {
-        MessageDialog dialog(parent, _L("Open hyperlink in default browser?"), _L("PrusaSlicer: Open hyperlink"), wxICON_QUESTION | wxYES_NO);
+        MessageDialog dialog(parent, _L("Open hyperlink in default browser?"), format_wxstr(_L("%1%: Open hyperlink"), SLIC3R_APP_NAME), wxICON_QUESTION | wxYES_NO);
         launch = dialog.ShowModal() == wxID_YES;
     }
 
