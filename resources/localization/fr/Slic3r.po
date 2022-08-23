@@ -1855,7 +1855,7 @@ msgid "buffer too small"
 msgstr "buffer trop petit"
 
 msgid "build volume"
-msgstr "volume disponible"
+msgstr "Volume disponible"
 
 msgid "But on first layer"
 msgstr "Mais sur la première couche"
@@ -4222,7 +4222,7 @@ msgid "Export the model(s) as STL."
 msgstr "Exporter le(s) modèle(s) en tant que STL."
 
 msgid "Export to &Prusa Config"
-msgstr "Exportation vers &Prusa Config"
+msgstr "Export vers &Prusa Config"
 
 msgid "Export to SD card / Flash drive"
 msgstr "Exporter vers une carte SD / une clé USB"
