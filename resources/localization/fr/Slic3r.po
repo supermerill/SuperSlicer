@@ -470,7 +470,7 @@ msgid "0 (no open anchors)"
 msgstr "0 (aucune ancre ouverte)"
 
 msgid "0 (off)"
-msgstr "0 (arrêt)"
+msgstr "0 (aucun)"
 
 msgid "0 (Simple connect)"
 msgstr "0 (Connexion simple)"
@@ -1831,7 +1831,7 @@ msgid "Brim inside holes"
 msgstr "Bordure à l'intérieur des trous"
 
 msgid "Brim separation gap"
-msgstr "Espacement du la Jupe"
+msgstr "Espacement de la Jupe"
 
 msgid "Brim type"
 msgstr "Type de Jupe"
@@ -8199,7 +8199,7 @@ msgid "More"
 msgstr "Plus"
 
 msgid "Mosaic from picture"
-msgstr "Mosaique depuis une iamge"
+msgstr "Mosaique depuis une image"
 
 msgid ""
 "Most likely the configuration was produced by a newer version of %1% or "
