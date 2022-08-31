@@ -6645,7 +6645,7 @@ msgstr ""
 "Peut entraîner un peu plus de temps de traitement, et les coins sont un peu moins pointus."
 
 msgid "Internal resolution"
-msgstr "Résolution interne."
+msgstr "Résolution interne"
 
 msgid "Introduction"
 msgstr "Introduction"
