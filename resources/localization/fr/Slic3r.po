@@ -1828,7 +1828,7 @@ msgid "Brim inside holes"
 msgstr "Bordure à l'intérieur des trous"
 
 msgid "Brim separation gap"
-msgstr "Espacement de la Jupe"
+msgstr "Espacement de la Bordure"
 
 msgid "Brim type"
 msgstr "Type de Jupe"
@@ -13952,7 +13952,7 @@ msgid ""
 "before the retraction wipe. Note that the retraction wipe will follow the "
 "exact external perimeter (center) line if this parameter is disabled, and "
 "will follow the inner side of the external periemter line if enabled"
-msgstr "Ce paramètre permet de nettoyer légèrment la buse après la fin de l'extrusion d'un périmètre extérieur en la déplacant vers l'intérieur de la pièce. L'essuyage supplémentaire  est d'abord exécuté (wipe_extra_perimeter), puis celui-ci et enfin l'essuyage dûe à la rétraction du filament. A noter que si ce paramètre est désactivé, l'essuyage de la rétraction suivra la ligne centrale du périmètre extérieur, et pas la ligne virtuelle qui part de la fin de cet essuyage."
+msgstr "Ce paramètre permet de nettoyer légèrement la buse après la fin de l'extrusion d'un périmètre extérieur en la déplacant vers l'intérieur de la pièce. L'essuyage supplémentaire  est d'abord exécuté (wipe_extra_perimeter), puis celui-ci et enfin l'essuyage dûe à la rétraction du filament. A noter que si ce paramètre est désactivé, l'essuyage de la rétraction suivra la ligne centrale du périmètre extérieur, et pas la ligne virtuelle qui part de la fin de cet essuyage."
 
 msgid "This G-code will be used as a code for the color change"
 msgstr "Ce G-Code sera utilisé comme code pour le changement de couleur"
@@ -16127,7 +16127,7 @@ msgid "Wipe inside"
 msgstr "Essuyer à l'intérieur"
 
 msgid "Wipe inside at end"
-msgstr "Essuyez l'intérieur à la fin"
+msgstr "Essuyez vers l'intérieur à la fin"
 
 msgid "Wipe inside at start"
 msgstr "Essuyer au démarrage"
