@@ -85,6 +85,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "external_perimeter_acceleration",
         "external_perimeter_cut_corners",
         "external_perimeter_fan_speed",
+        "internal_perimeter_fan_as_external",
         "extrusion_axis",
         "extruder_clearance_height",
         "extruder_clearance_radius",

@@ -36,7 +36,10 @@ group:Fan speed - default
 		setting:label$Infill bridges:bridge_internal_fan_speed
 	end_line
 	setting:top_fan_speed
-	setting:external_perimeter_fan_speed
+	line:External perimeter fan speed
+		setting:label$:external_perimeter_fan_speed
+		setting:label$Internal as external:internal_perimeter_fan_as_external
+	end_line
 	setting:support_material_interface_fan_speed
 	line:Disable fan for the first
 		setting:label$_:sidetext_width$12:disable_fan_first_layers

@@ -1139,6 +1139,7 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     ((ConfigOptionBool,                 enforce_retract_first_layer))
     ((ConfigOptionFloatOrPercent,       external_perimeter_acceleration))
     ((ConfigOptionInts,                 external_perimeter_fan_speed))
+    ((ConfigOptionBools,                internal_perimeter_fan_as_external))
     ((ConfigOptionFloat,                extruder_clearance_height))
     ((ConfigOptionFloat,                extruder_clearance_radius))
     ((ConfigOptionStrings,              extruder_colour))

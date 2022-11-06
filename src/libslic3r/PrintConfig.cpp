@@ -1490,6 +1490,14 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionInts { -1 });
 
+    def = this->add("internal_perimeter_fan_as_external", coBools);
+    def->label = L("Cool internal perimeter as external");
+    def->category = OptionCategory::cooling;
+    def->tooltip = L("If this is enabled, internal perimeters will be cooled as external");
+    def->mode = comAdvancedE | comSuSi;
+    def->is_vector_extruder = true;
+    def->set_default_value(new ConfigOptionBools{ false });
+
     def = this->add("external_perimeter_overlap", coPercent);
     def->label = L("external perimeter overlap");
     def->full_label = L("Ext. peri. overlap");
@@ -7434,6 +7442,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "external_perimeter_cut_corners",
 "external_perimeter_extrusion_spacing",
 "external_perimeter_fan_speed",
+"perimeters_fan_as_external",
 "external_perimeter_overlap",
 "external_perimeters_hole",
 "external_perimeters_nothole",

@@ -5167,6 +5167,8 @@ std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string 
             comment += ";_EXTERNAL_PERIMETER";
         if (path.role() == erThinWall)
             comment += ";_EXTERNAL_PERIMETER";
+        if (BOOL_EXTRUDER_CONFIG(internal_perimeter_fan_as_external) && path.role() == erPerimeter)
+            comment += ";_EXTERNAL_PERIMETER";
     }
     // F     is mm per minute.
     // speed is mm per second
