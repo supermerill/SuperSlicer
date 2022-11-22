@@ -1048,6 +1048,15 @@ void PrintConfigDef::init_fff_params()
     def->mode = comSimpleAE | comPrusa;
     def->set_default_value(new ConfigOptionBool(false));
 
+    def = this->add("parallel_objects_step", coFloat);
+    def->label = L("Parallel printing step");
+    def->category = OptionCategory::output;
+    def->tooltip = L("When simultaniously printing multiple objects this feature will complete "
+        "each object height range before moving onto next one. It's your responsibility to ensure enough distance "
+        " for avoiding extruder/nozzle collision.");
+    def->mode = comSimpleAE | comPrusa;
+    def->set_default_value(new ConfigOptionFloat(0));
+
     def = this->add("complete_objects_one_skirt", coBool);
     def->label = L("Allow only one skirt loop");
     def->category = OptionCategory::output;

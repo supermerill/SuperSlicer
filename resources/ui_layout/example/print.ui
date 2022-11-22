@@ -465,6 +465,7 @@ group:Plater
 	setting:duplicate_distance
 group:Sequential printing
 	setting:tags$Advanced$Expert$Prusa:complete_objects
+	setting:tags$Advanced$Expert$Prusa:parallel_objects_step
 	setting:complete_objects_one_skirt
 	setting:complete_objects_sort
 	line:Extruder clearance (mm)

@@ -2031,6 +2031,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         "bed_shape", "bed_custom_texture", "bed_custom_model", 
         "brim_width", "brim_width_interior","brim_separation",
         "complete_objects",
+        "parallel_objects_step",
         "complete_objects_sort",
         "complete_objects_one_skirt",
         "brim_per_object",

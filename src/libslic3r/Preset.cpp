@@ -614,6 +614,7 @@ static std::vector<std::string> s_Preset_print_options {
         "notes", 
         "print_custom_variables",
         "complete_objects",
+        "parallel_objects_step",
         "complete_objects_one_skirt",
         "complete_objects_sort",
         "extruder_clearance_radius", 
