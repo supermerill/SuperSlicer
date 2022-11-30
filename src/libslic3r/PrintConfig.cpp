@@ -1493,7 +1493,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("internal_perimeter_fan_as_external", coBools);
     def->label = L("Cool internal perimeter as external");
     def->category = OptionCategory::cooling;
-    def->tooltip = L("If this is enabled, internal perimeters will be cooled as external");
+    def->tooltip = L("Internal perimeters will be cooled as external to improve print stability when infill is not cooled.");
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionBools{ false });
