@@ -1853,6 +1853,9 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
                 print_object_instances_ordering = sort_object_instances_by_model_order(print);
                 std::vector<const PrintInstance*>::const_iterator prev_object = print_object_instances_ordering.begin();
 
+                bool first_layer = true;
+                proceed_layers:
+
                 for (coordf_t Rstart = 0, Rend = range;; Rstart += range, Rend += range) {
                     bool is_layers = false;
                     print_object_instance_sequential_active = print_object_instances_ordering.begin();
@@ -1860,15 +1863,23 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
                     for (size_t i = 0; i < print.objects().size(); ++i, ++print_object_instance_sequential_active) {
                         std::vector<LayerToPrint> object_layers = collect_layers_to_print(*print.objects()[i]);
                         std::vector<std::pair<coordf_t, std::vector<LayerToPrint>>> layers_to_print_range;
-                        
+
+                        int layer_num = 0;
                         for (const LayerToPrint& ltp : object_layers) {
+                            layer_num++;
+                            if (!first_layer && layer_num == 1)
+                                continue;
+
                             if (ltp.print_z() >= Rstart && ltp.print_z() < Rend) {
                                 std::pair<coordf_t, std::vector<LayerToPrint>> merged;
                                 merged.first = ltp.print_z();
                                 merged.second.emplace_back(ltp);
                                 layers_to_print_range.emplace_back(merged);
+                                if (first_layer)
+                                    break;
                             }
                         }
+
                         if (!layers_to_print_range.empty())
                         {
                             if (print_object_instance_sequential_active != prev_object) {
@@ -1883,6 +1894,10 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
                             prev_object = print_object_instance_sequential_active;
                             is_layers = true;
                         }
+                    }
+                    if (first_layer) {
+                        first_layer = false;
+                        goto proceed_layers;
                     }
                     if (!is_layers) {
                         break;
