@@ -510,6 +510,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
     for (auto el : { /*"extruder_clearance_radius", "extruder_clearance_height",*/ "complete_objects_one_skirt",
         "complete_objects_sort"})
         toggle_field(el, have_sequential_printing);
+    toggle_field("parallel_objects_step", !have_sequential_printing);
 
     bool have_ooze_prevention = config->opt_bool("ooze_prevention");
     toggle_field("standby_temperature_delta", have_ooze_prevention);

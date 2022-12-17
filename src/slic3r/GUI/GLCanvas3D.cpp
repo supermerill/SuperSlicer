@@ -3073,7 +3073,7 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
         m_mouse.set_start_position_3D_as_invalid();
         m_mouse.position = pos.cast<double>();
 
-        if (evt.Dragging() && current_printer_technology() == ptFFF && fff_print()->config().complete_objects) {
+        if (evt.Dragging() && current_printer_technology() == ptFFF && (fff_print()->config().complete_objects || fff_print()->config().parallel_objects_step > 0)) {
             switch (m_gizmos.get_current_type())
             {
             case GLGizmosManager::EType::Move:
@@ -3272,7 +3272,7 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
             }
 
             m_selection.translate(cur_pos - m_mouse.drag.start_position_3D);
-            if (current_printer_technology() == ptFFF && fff_print()->config().complete_objects)
+            if (current_printer_technology() == ptFFF && (fff_print()->config().complete_objects || fff_print()->config().parallel_objects_step > 0))
                 update_sequential_clearance();
             wxGetApp().obj_manipul()->set_dirty();
             m_dirty = true;
@@ -3900,7 +3900,7 @@ void GLCanvas3D::mouse_up_cleanup()
 
 void GLCanvas3D::update_sequential_clearance()
 {
-    if (current_printer_technology() != ptFFF || !fff_print()->config().complete_objects)
+    if (current_printer_technology() != ptFFF || (!fff_print()->config().complete_objects && fff_print()->config().parallel_objects_step == 0))
         return;
 
     if (m_layers_editing.is_enabled() || m_gizmos.is_dragging())

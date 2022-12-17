@@ -1051,9 +1051,10 @@ void PrintConfigDef::init_fff_params()
     def = this->add("parallel_objects_step", coFloat);
     def->label = L("Parallel printing step");
     def->category = OptionCategory::output;
-    def->tooltip = L("When simultaniously printing multiple objects this feature will complete "
-        "each object height range before moving onto next one. It's your responsibility to ensure enough distance "
-        " for avoiding extruder/nozzle collision.");
+    def->tooltip = L("When objects printed simultaniously this feature will complete "
+        "each object height range before moving to next one (first layers will be still printed one by one. "
+        "Use value between nozzle tip and extruder body or heatblock, etc. "
+        "Put radius at this height in the field extruder \"Radius\" below.");
     def->mode = comSimpleAE | comPrusa;
     def->set_default_value(new ConfigOptionFloat(0));
 
@@ -7845,7 +7846,7 @@ double min_object_distance(const ConfigBase *config, double ref_height /* = 0*/)
     double base_dist = 0;
     //std::cout << "START min_object_distance =>" << base_dist << "\n";
     const ConfigOptionBool* co_opt = config->option<ConfigOptionBool>("complete_objects");
-    if (co_opt && co_opt->value) {
+    if (config->option("parallel_objects_step")->getFloat() > 0 || co_opt && co_opt->value) {
         double skirt_dist = 0;
         try {
             std::vector<double> vals = dynamic_cast<const ConfigOptionFloats*>(config->option("nozzle_diameter"))->values;

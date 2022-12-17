@@ -3326,7 +3326,7 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
             if (printer_technology == ptFFF) {
                 const Print* print = background_process.fff_print();
                 Polygons polygons;
-                if (print->config().complete_objects)
+                if (print->config().complete_objects || print->config().parallel_objects_step > 0)
                     Print::sequential_print_horizontal_clearance_valid(*print, &polygons);
                 view3D->get_canvas3d()->set_sequential_print_clearance_visible(true);
                 view3D->get_canvas3d()->set_sequential_print_clearance_render_fill(true);
