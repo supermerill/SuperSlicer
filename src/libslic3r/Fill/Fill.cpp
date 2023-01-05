@@ -106,9 +106,9 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
     SurfaceFillParams                                    params;
     bool                                                 has_internal_voids = false;
     for (size_t region_id = 0; region_id < layer.regions().size(); ++ region_id) {
-        /*const*/ LayerRegion  &layerm = *layer.regions()[region_id];
+        const LayerRegion  &layerm = *layer.regions()[region_id];
         region_to_surface_params[region_id].assign(layerm.fill_surfaces.size(), nullptr);
-        for (/*const*/ Surface &surface : layerm.fill_surfaces.surfaces)
+        for (const Surface &surface : layerm.fill_surfaces.surfaces)
             if (surface.surface_type == (stPosInternal | stDensVoid)) {
                 has_internal_voids = true;
             } else {
@@ -183,10 +183,9 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
                     }
                 }
 
+                // Set bridge role for all layers above bridge.
                 if (surface.surface_type & stModOverAbyss) {
                     params.role = erBridgeInfill;
-                    // for the sake of safety remove abyss modifyer
-					surface.surface_type = surface.surface_type ^ stModOverAbyss;
                 }
 
                 params.fill_exactly = region_config.enforce_full_fill_volume.getBool();

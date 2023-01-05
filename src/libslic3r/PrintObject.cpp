@@ -504,11 +504,9 @@ std::vector<std::reference_wrapper<const PrintRegion>> PrintObject::all_regions(
         this->replaceSurfaceType(stPosInternal | stDensSparse,
             stPosInternal | stDensSparse | stModOverAbyss,
             stPosBottom | stDensSolid | stModBridge);
-        for (const Layer* layer : m_layers) {
-            this->replaceSurfaceType(stPosInternal | stDensSparse,
-                stPosInternal | stDensSparse | stModOverAbyss,
-                stPosInternal | stDensSparse | stModOverAbyss);
-        }
+        this->replaceSurfaceType(stPosInternal | stDensSparse,
+            stPosInternal | stDensSparse | stModOverAbyss,
+            stPosInternal | stDensSparse | stModOverAbyss);
 
         this->replaceSurfaceType(stPosInternal | stDensSolid,
             stPosInternal | stDensSolid | stModOverBridge,
@@ -2348,7 +2346,7 @@ bool PrintObject::invalidate_state_by_config_options(
             const PrintRegion& region = this->printing_region(region_id);
 
             // skip over-bridging in case there are no modification
-            if (region.config().over_bridge_flow_ratio.get_abs_value(1) == 1) continue;
+            if (region.config().over_bridge_flow_ratio.get_abs_value(1) == 1 && !(st_replacement & stModOverAbyss)) continue;
 
             for (LayerPtrs::iterator layer_it = m_layers.begin(); layer_it != m_layers.end(); ++layer_it) {
                 // skip first layer
