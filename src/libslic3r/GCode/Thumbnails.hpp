@@ -37,6 +37,7 @@ inline void export_thumbnails_to_file(ThumbnailsGeneratorCallback &thumbnail_cb,
         //Create the thumbnails
         static constexpr const size_t max_row_length = 78;
         ThumbnailsList thumbnails = thumbnail_cb(ThumbnailsParams{ good_sizes, true, true, with_bed, true });
+        image_count = 0
         for (const ThumbnailData& data : thumbnails)
             if (data.is_valid()) {
                 auto compressed = compress_thumbnail(data, format);
@@ -54,6 +55,27 @@ inline void export_thumbnails_to_file(ThumbnailsGeneratorCallback &thumbnail_cb,
                         else
                             assert(false);
                         output("; bigtree thumbnail end\n");
+                    }
+                    else if (format == GCodeThumbnailsFormat::TFT) {
+                        // for TFT, small and big thumbnails are necessary
+                        
+                        image_tag = ";simage:"
+
+                        // if second image (big)
+                        if (image_count == 1){
+                            image_tag = ";;gimage:"
+                        }
+                        
+                        output((boost::format("\n;\n; %s begin %dx%d\n") % compressed->tag() % data.width % data.height);
+                        
+                        if (((char*)compressed->data)[compressed->size -1] == '\0')
+                            output((char*)(compressed->data));
+                        else
+                            assert(false);
+                        
+                        output("M10086 ;\n");
+
+                        image_count++;
                     } else {
                         std::string encoded;
                         encoded.resize(boost::beast::detail::base64::encoded_size(compressed->size));
