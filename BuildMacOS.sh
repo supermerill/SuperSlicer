@@ -12,7 +12,7 @@ then
     exit -1
 fi
 
-while getopts ":iaxbh" opt; do
+while getopts ":iaxbhc" opt; do
   case ${opt} in
     i )
         export BUILD_IMAGE="1"
@@ -26,11 +26,15 @@ while getopts ":iaxbh" opt; do
     b )
         export BUILD_DEBUG="1"
         ;;
+    c)
+        export BUILD_XCODE="1"
+        ;;
     h ) echo "Usage: ./BuildMacOS.sh [-i]"
         echo "   -i: Generate DMG image (optional)"
         echo "   -a: Build for arm64 (Apple Silicon)"
         echo "   -x: Build for x86_64 (Intel)"
         echo "   -b: Build with debug symbols"
+        echo "   -c: Build for XCode"
         exit 0
         ;;
   esac
@@ -157,9 +161,13 @@ echo -n "[7/9] Configuring Slic3r..."
     then
         BUILD_ARGS="-DCMAKE_BUILD_TYPE=Debug ${BUILD_ARGS}"
     fi
+    if [[ -n "$BUILD_XCODE" ]]
+    then
+        BUILD_ARGS="-GXcode ${BUILD_ARGS}"
+    fi
     # cmake
     pushd build
-    echo "Cmake command: cmake .. -DCMAKE_PREFIX_PATH=\"$PWD/../deps/build/destdir/usr/local\" -DCMAKE_OSX_DEPLOYMENT_TARGET=\"10.14\" -DSLIC3R_STATIC=1 ${BUILD_ARGS}"
+    echo "Slic3r Cmake command: cmake .. -DCMAKE_PREFIX_PATH=\"$PWD/../deps/build/destdir/usr/local\" -DCMAKE_OSX_DEPLOYMENT_TARGET=\"10.14\" -DSLIC3R_STATIC=1 ${BUILD_ARGS}"
     cmake .. -DCMAKE_PREFIX_PATH="$PWD/../deps/build/destdir/usr/local" -DCMAKE_OSX_DEPLOYMENT_TARGET="10.14" -DSLIC3R_STATIC=1 ${BUILD_ARGS}
 } #&> $ROOT/build/Build.log # Capture all command output
 echo "done"
@@ -167,8 +175,10 @@ echo "done"
 echo -n "[8/9] Building Slic3r..."
 {
     # make Slic3r
-    make -j$NCORES Slic3r
-
+    if [[ -z "$BUILD_XCODE" ]]
+    then
+        make -j$NCORES Slic3r
+    fi
     # make .mo
     make gettext_po_to_mo
 } #&> $ROOT/build/Build.log # Capture all command output
