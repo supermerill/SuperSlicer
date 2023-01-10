@@ -278,8 +278,10 @@ private:
 	size_t m_max_color_changes 	= 0; 	// Maximum number of color changes per layer.
     int    m_old_temperature    = -1;   // To keep track of what was the last temp that we set (so we don't issue the command when not neccessary)
     float  m_travel_speed       = 0.f;
-    float  m_first_layer_speed  = 0.f;
+    float  m_first_layer_speed  = 0.f;   // First layer speed in mm/s.
     size_t m_first_layer_idx    = size_t(-1);
+	float  m_speed              = 0.f;  // Wipe tower speed in mm/s.
+	float  m_wipe_starting_speed = 0.f; // Starting speed during wipe, up to m_speed.
 
 	// G-code generator parameters.
     float           m_cooling_tube_retraction   = 0.f;

@@ -5243,6 +5243,20 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->set_default_value(new ConfigOptionFloatOrPercent(100, true));
 
+    def = this->add("wipe_tower_speed", coFloat);
+    def->label = L("Wipe Tower Speed");
+    def->tooltip = L("Printing speed of the wipe tower. Capped by filament_max_volumetric_speed (if set).");
+    def->sidetext = L("mm/s");
+    def->mode = comAdvancedE | comPrusa;
+    def->set_default_value(new ConfigOptionFloat(80.));
+
+    def = this->add("wipe_tower_wipe_starting_speed", coFloat);
+    def->label = L("Wipe starting speed");
+    def->tooltip = L("Start of the wiping speed ramp up. Set to 0 to disable.");
+    def->sidetext = L("mm/s");
+    def->mode = comAdvancedE | comPrusa;
+    def->set_default_value(new ConfigOptionFloat(26.));
+
     def = this->add("threads", coInt);
     def->label = L("Threads");
     def->tooltip = L("Threads are used to parallelize long-running tasks. Optimal threads number "

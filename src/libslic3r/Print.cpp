@@ -297,6 +297,8 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
             || opt_key == "wipe_tower_brim_width"
             || opt_key == "wipe_tower_bridging"
             || opt_key == "wipe_tower_no_sparse_layers"
+            || opt_key == "wipe_tower_speed"
+            || opt_key == "wipe_tower_wipe_starting_speed"
             || opt_key == "wiping_volumes_matrix"
             || opt_key == "parking_pos_retraction"
             || opt_key == "cooling_tube_retraction"

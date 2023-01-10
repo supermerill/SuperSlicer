@@ -2046,6 +2046,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         "skirt_extrusion_width", "skirt_height",
         "variable_layer_height", "nozzle_diameter", "single_extruder_multi_material",
         "wipe_tower", "wipe_tower_brim_width", "wipe_tower_rotation_angle", "wipe_tower_width", "wipe_tower_x", "wipe_tower_y",
+        "wipe_tower_speed", "wipe_tower_wipe_starting_speed",
         "extruder_colour", "filament_colour", "material_colour",
         "printer_model", "printer_technology",
         // These values are necessary to construct SlicingParameters by the Canvas3D variable layer height editor.

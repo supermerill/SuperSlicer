@@ -1033,6 +1033,8 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionBool,                single_extruder_multi_material))
     ((ConfigOptionBool,                single_extruder_multi_material_priming))
     ((ConfigOptionBool,                wipe_tower_no_sparse_layers))
+    ((ConfigOptionFloat,               wipe_tower_speed))
+    ((ConfigOptionFloat,               wipe_tower_wipe_starting_speed))
     ((ConfigOptionStrings,             tool_name))
     ((ConfigOptionString,              toolchange_gcode))
     ((ConfigOptionFloat,               travel_speed))
