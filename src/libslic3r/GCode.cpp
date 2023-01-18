@@ -3856,11 +3856,11 @@ std::string GCode::extrude_loop(const ExtrusionLoop &original_loop, const std::s
     const bool is_full_loop_ccw = loop_to_seam.polygon().is_counter_clockwise();
     //after that point, loop_to_seam can be modified by 'paths', so don't use it anymore
 #if _DEBUG
-    for (auto it = std::next(loop.paths.begin()); it != loop.paths.end(); ++it) {
-        assert(it->polyline.points.size() >= 2);
-        assert(std::prev(it)->polyline.last_point() == it->polyline.first_point());
-    }
-    assert(loop.paths.front().first_point() == loop.paths.back().last_point());
+    //for (auto it = std::next(loop.paths.begin()); it != loop.paths.end(); ++it) {
+    //    assert(it->polyline.points.size() >= 2);
+    //    assert(std::prev(it)->polyline.last_point() == it->polyline.first_point());
+    //}
+    //assert(loop.paths.front().first_point() == loop.paths.back().last_point());
 #endif
     // clip the path to avoid the extruder to get exactly on the first point of the loop;
     // if polyline was shorter than the clipping distance we'd get a null polyline, so

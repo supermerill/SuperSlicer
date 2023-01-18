@@ -23,6 +23,7 @@ std::string PresetHints::cooling_description(const Preset &preset)
     int     top_fan_speed = preset.config.opt_int("top_fan_speed", 0);
     int     supp_inter_fan_speed = preset.config.opt_int("support_material_interface_fan_speed", 0);
     int     bridge_fan_speed = preset.config.opt_int("bridge_fan_speed", 0);
+    bool    bridge_fan_speed_over_abyss = preset.config.opt_bool("bridge_fan_speed_over_abyss");
     int     bridge_internal_fan_speed = preset.config.opt_int("bridge_internal_fan_speed", 0);
     int     ext_peri_fan_speed = preset.config.opt_int("external_perimeter_fan_speed", 0);
     int     disable_fan_first_layers = preset.config.opt_int("disable_fan_first_layers", 0);
@@ -62,6 +63,8 @@ std::string PresetHints::cooling_description(const Preset &preset)
                 out += ", " + (boost::format(_utf8(L("at %1%%% over all bridges"))) % bridge_fan_speed).str();
             else
                 out += ", " + (boost::format(_utf8(L("at %1%%% over bridges"))) % bridge_fan_speed).str();
+            if (bridge_fan_speed_over_abyss)
+                out += " and for all layers above";
         }
         if (bridge_internal_fan_speed >= 0){
             if (bridge_internal_fan_speed > min_fan_speed) {

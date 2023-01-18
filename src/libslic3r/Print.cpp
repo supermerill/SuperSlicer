@@ -71,6 +71,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "bridge_acceleration",
         "bridge_internal_acceleration",
         "bridge_fan_speed",
+        "bridge_fan_speed_over_abyss",
         "bridge_internal_fan_speed",
         "colorprint_heights",
         "complete_objects_sort",

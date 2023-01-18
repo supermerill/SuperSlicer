@@ -785,6 +785,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat,                xy_size_compensation))
     ((ConfigOptionFloat,                xy_inner_size_compensation))
     ((ConfigOptionBool,                 wipe_into_objects))
+    ((ConfigOptionBool,                 bridge_fan_speed_over_abyss))
 )
 
 // This object is mapped to Perl as Slic3r::Config::PrintRegion.

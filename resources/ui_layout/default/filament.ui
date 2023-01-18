@@ -34,6 +34,7 @@ group:Fan speed - default
 	line:Bridges fan speed
 		setting:label$:bridge_fan_speed
 		setting:label$Infill bridges:bridge_internal_fan_speed
+		setting:label$Use bridges fan speed for upper layers:bridge_fan_speed_over_abyss
 	end_line
 	setting:top_fan_speed
 	setting:external_perimeter_fan_speed
