@@ -363,7 +363,7 @@ std::vector<coordf_t> layer_height_profile_from_ranges(
 
 // Based on the work of @platsch
 // Fill layer_height_profile by heights ensuring a prescribed maximum cusp height.
-std::vector<double> layer_height_profile_adaptive(const SlicingParameters& slicing_params, const ModelObject& object, float quality_factor)
+std::vector<double> layer_height_profile_adaptive(const SlicingParameters& slicing_params, const ModelObject& object, float quality_factor, float max_adaptive_layer_height)
 {
     // 1) Initialize the SlicingAdaptive class with the object meshes.
     SlicingAdaptive as;
@@ -383,7 +383,7 @@ std::vector<double> layer_height_profile_adaptive(const SlicingParameters& slici
     size_t current_facet = 0;
     // loop until we have at least one layer and the max slice_z reaches the object height
     while (print_z + EPSILON < slicing_params.object_print_z_height()) {
-        coordf_t height = slicing_params.max_layer_height;
+        coordf_t height = std::min(slicing_params.max_layer_height, (coordf_t)max_adaptive_layer_height);
         // Slic3r::debugf "\n Slice layer: %d\n", $id;
         // determine next layer height
         float cusp_height = as.next_layer_height(float(print_z), quality_factor, current_facet);

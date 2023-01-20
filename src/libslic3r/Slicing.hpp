@@ -145,7 +145,7 @@ extern std::vector<coordf_t> layer_height_profile_from_ranges(
 
 extern std::vector<double> layer_height_profile_adaptive(
     const SlicingParameters& slicing_params,
-    const ModelObject& object, float quality_factor);
+    const ModelObject& object, float quality_factor, float max_adaptive_layer_height);
 
 struct HeightProfileSmoothingParams
 {
@@ -155,6 +155,16 @@ struct HeightProfileSmoothingParams
     HeightProfileSmoothingParams() : radius(5), keep_min(false) {}
     HeightProfileSmoothingParams(unsigned int radius, bool keep_min) : radius(radius), keep_min(keep_min) {}
 };
+
+struct HeightProfileAdaptiveParams
+{
+    float adaptive_quality;
+    float max_adaptive_layer_height;
+
+    HeightProfileAdaptiveParams() : adaptive_quality(0.5f), max_adaptive_layer_height(0.3f) {}
+    HeightProfileAdaptiveParams(float adaptive_quality, float max_adaptive_layer_height) : adaptive_quality(adaptive_quality), max_adaptive_layer_height(max_adaptive_layer_height) {}
+};
+
 
 extern std::vector<double> smooth_height_profile(
     const std::vector<double>& profile, const SlicingParameters& slicing_params,

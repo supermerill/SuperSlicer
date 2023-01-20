@@ -145,6 +145,7 @@ using Vec3dEvent = Event<Vec3d>;
 template <size_t N> using Vec3dsEvent = ArrayEvent<Vec3d, N>;
 
 using HeightProfileSmoothEvent = Event<HeightProfileSmoothingParams>;
+using HeightProfileAdaptiveEvent = Event<HeightProfileAdaptiveParams>;
 
 wxDECLARE_EVENT(EVT_GLCANVAS_SCHEDULE_BACKGROUND_PROCESS, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_RIGHT_CLICK, RBtnEvent);
@@ -173,7 +174,7 @@ wxDECLARE_EVENT(EVT_GLCANVAS_UNDO, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_REDO, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_COLLAPSE_SIDEBAR, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_RESET_LAYER_HEIGHT_PROFILE, SimpleEvent);
-wxDECLARE_EVENT(EVT_GLCANVAS_ADAPTIVE_LAYER_HEIGHT_PROFILE, Event<float>);
+wxDECLARE_EVENT(EVT_GLCANVAS_ADAPTIVE_LAYER_HEIGHT_PROFILE, HeightProfileAdaptiveEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_SMOOTH_LAYER_HEIGHT_PROFILE, HeightProfileSmoothEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_RELOAD_FROM_DISK, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_RENDER_TIMER, wxTimerEvent/*RenderTimerEvent*/);
@@ -211,7 +212,7 @@ class GLCanvas3D
         std::vector<double>         m_layer_height_profile;
         bool                        m_layer_height_profile_modified{ false };
 
-        mutable float               m_adaptive_quality{ 0.5f };
+        mutable HeightProfileAdaptiveParams m_adaptive_params;
         mutable HeightProfileSmoothingParams m_smooth_params;
         
         static float                s_overlay_window_width;
@@ -260,7 +261,7 @@ class GLCanvas3D
 		void adjust_layer_height_profile();
 		void accept_changes(GLCanvas3D& canvas);
         void reset_layer_height_profile(GLCanvas3D& canvas);
-        void adaptive_layer_height_profile(GLCanvas3D& canvas, float quality_factor);
+        void adaptive_layer_height_profile(GLCanvas3D& canvas, float quality_factor, float max_adaptive_layer_height);
         void smooth_layer_height_profile(GLCanvas3D& canvas, const HeightProfileSmoothingParams& smoothing_params);
 
         static float get_cursor_z_relative(const GLCanvas3D& canvas);
@@ -680,7 +681,7 @@ public:
     bool is_search_pressed() const;
 
     void reset_layer_height_profile();
-    void adaptive_layer_height_profile(float quality_factor);
+    void adaptive_layer_height_profile(const HeightProfileAdaptiveParams& adaptive_params);
     void smooth_layer_height_profile(const HeightProfileSmoothingParams& smoothing_params);
 
     bool is_reload_delayed() const;
