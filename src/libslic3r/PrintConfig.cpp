@@ -724,8 +724,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("bridge_fan_speed_over_abyss", coBool);
     def->label = L("Use bridges fan speed for above layers");
     def->category = OptionCategory::cooling;
-    def->tooltip = L("All layers above bridge will use bridge speed."
-                     "\nFor better results set \"External perimeter fan speed\" >= 2%");
+    def->tooltip = L("All layers above bridge will use bridge speed.");
     def->mode = comAdvancedE | comPrusa;
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionBool(false));
