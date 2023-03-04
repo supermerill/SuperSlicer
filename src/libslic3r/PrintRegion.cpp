@@ -22,24 +22,43 @@ uint16_t PrintRegion::extruder(FlowRole role, const PrintObject& object) const
     return (uint16_t)extruder;
 }
 
-Flow PrintRegion::flow(const PrintObject &object, FlowRole role, double layer_height, bool first_layer) const
+Flow PrintRegion::flow(const PrintObject &object, FlowRole role, double layer_height, bool first_layer, size_t layer_id) const
 {
     ConfigOptionFloatOrPercent  config_width;
     ConfigOptionFloatOrPercent  config_spacing;
     // Get extrusion width from configuration.
 	double overlap = 1.;
+
     // (might be an absolute value, or a percent value, or zero for auto)
      if (role == frExternalPerimeter) {
         config_width = m_config.external_perimeter_extrusion_width;
         config_spacing = m_config.external_perimeter_extrusion_spacing;
+
+        if (layer_id > 0 && layer_id % 2 == 1 && config_width.percent==false) {
+            config_width = new ConfigOptionFloatOrPercent(config_width.value + m_config.external_perimeter_extrusion_change_odd_layers, false);
+            config_spacing = new ConfigOptionFloatOrPercent(config_spacing.value + m_config.external_perimeter_extrusion_change_odd_layers, false);
+        }
+
 		overlap = this->config().external_perimeter_overlap.get_abs_value(1);
     } else if (role == frPerimeter) {
         config_width = m_config.perimeter_extrusion_width;
         config_spacing = m_config.perimeter_extrusion_spacing;
+
+        if (layer_id > 0 && layer_id % 2 == 1 && config_width.percent == false) {
+            config_width = new ConfigOptionFloatOrPercent(config_width.value + m_config.perimeter_extrusion_change_odd_layers, false);
+            config_spacing = new ConfigOptionFloatOrPercent(config_spacing.value + m_config.perimeter_extrusion_change_odd_layers, false);
+        }
+
 		overlap = this->config().perimeter_overlap.get_abs_value(1);
     } else if (role == frInfill) {
         config_width = m_config.infill_extrusion_width;
         config_spacing = m_config.infill_extrusion_spacing;
+
+        if (layer_id > 0 && layer_id % 2 == 1 && config_width.percent == false) {
+            config_width = new ConfigOptionFloatOrPercent(config_width.value + m_config.infill_extrusion_change_odd_layers, false);
+            config_spacing = new ConfigOptionFloatOrPercent(config_spacing.value + m_config.infill_extrusion_change_odd_layers, false);
+        }
+
     } else if (role == frSolidInfill) {
         config_width = m_config.solid_infill_extrusion_width;
         config_spacing = m_config.solid_infill_extrusion_spacing;

@@ -1559,6 +1559,9 @@ void PageDiameters::apply_custom_config(DynamicPrintConfig &config)
     config.option("infill_extrusion_width")->set_phony(true);
     config.option("solid_infill_extrusion_width")->set_phony(true);
     config.option("top_infill_extrusion_width")->set_phony(true);
+    config.set_key_value("perimeter_extrusion_change_odd_layers", new ConfigOptionFloat(0));
+    config.set_key_value("external_perimeter_extrusion_change_odd_layers", new ConfigOptionFloat(0));
+    config.set_key_value("infill_extrusion_change_odd_layers", new ConfigOptionFloat(0));
     config.update_phony({});
 }
 

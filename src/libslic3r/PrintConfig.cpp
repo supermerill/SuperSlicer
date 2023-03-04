@@ -1482,6 +1482,17 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(new ConfigOptionFloatOrPercent(0, false, true));
 
+    def = this->add("external_perimeter_extrusion_change_odd_layers", coFloat);
+    def->label = L("External perimeters");
+    def->full_label = L("External perimeters width change on odd layers");
+    def->category = OptionCategory::width;
+    def->tooltip = L("Change width on every odd layer for better overlap with adjacent layers and getting stringer shells. "
+                     "Try values about +/- 0.1 with different sign for external and internal perimeters."
+                     "\nThis could be combined with extra permeters on odd layers. Works with absolute width.");
+    def->sidetext = L("mm");
+    def->mode = comAdvancedE | comPrusa;
+    def->set_default_value(new ConfigOptionFloat(0));
+
     def = this->add("external_perimeter_cut_corners", coPercent);
     def->label = L("Cutting corners");
     def->full_label = L("Ext. peri. cut corners");
@@ -3052,6 +3063,17 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionFloatOrPercent(0, false, true));
 
+    def = this->add("infill_extrusion_change_odd_layers", coFloat);
+    def->label = L("Infill");
+    def->full_label = L("Infill width change on odd layers");
+    def->category = OptionCategory::width;
+    def->tooltip = L("Change width on every odd layer for better overlap with adjacent layers and getting stringer shells. "
+                     "Try values about +/- 0.1 with different sign."
+                     "\nThis could be combined with extra permeters on odd layers. Works with absolute width.");
+    def->sidetext = L("mm");
+    def->mode = comAdvancedE | comPrusa;
+    def->set_default_value(new ConfigOptionFloat(0));
+
     def = this->add("infill_extrusion_spacing", coFloatOrPercent);
     def->label = L("Infill");
     def->full_label = L("Infill spacing");
@@ -4000,6 +4022,17 @@ void PrintConfigDef::init_fff_params()
     def->can_phony = true;
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(new ConfigOptionFloatOrPercent(100, true, false));
+
+    def = this->add("perimeter_extrusion_change_odd_layers", coFloat);
+    def->label = L("Perimeters");
+    def->full_label = L("Perimeters width change on odd layers");
+    def->category = OptionCategory::width;
+    def->tooltip = L("Change width on every odd layer for better overlap with adjacent layers and getting stringer shells. "
+                     "Try values about +/- 0.1 with different sign for external and internal perimeters."
+                     "\nThis could be combined with extra permeters on odd layers. Works with absolute width.");
+    def->sidetext = L("mm");
+    def->mode = comAdvancedE | comPrusa;
+    def->set_default_value(new ConfigOptionFloat(0));
 
     def = this->add("perimeter_loop", coBool);
     def->label = L("Perimeters loop");

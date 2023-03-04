@@ -221,7 +221,8 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
                         *layer.object(),
                         extrusion_role,
                         (surface.thickness == -1) ? layer.height : surface.thickness,   // extrusion height
-                        layer.id() == 0                                                 // first layer?
+                        layer.id() == 0,                                                 // first layer?
+                        layer.id()
                     );
                 }
                 
@@ -245,7 +246,8 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
                             *layer.object(),
                             frInfill,
                             layer.object()->config().layer_height.value,  // TODO: handle infill_every_layers?
-                            false  // no first layer
+                            false,  // no first layer
+                            layer.id()
                         ).spacing();
 
                     // Anchor a sparse infill to inner perimeters with the following anchor length:
@@ -376,7 +378,8 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
                     *layer.object(),
                     frSolidInfill,
                     layer.height,         // extrusion height
-                    layer.id() == 0       // first layer?
+                    layer.id() == 0,       // first layer?
+                    layer.id()
                 );
                 params.spacing = params.flow.spacing();            
                 surface_fills.emplace_back(params);
