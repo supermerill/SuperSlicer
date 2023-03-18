@@ -1092,6 +1092,15 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     ((ConfigOptionFloatOrPercent,       bridge_internal_acceleration))
     ((ConfigOptionInts,                 bridge_fan_speed))
     ((ConfigOptionInts,                 bridge_internal_fan_speed))
+    //((ConfigOptionInts,                 support_material_interface_fan_speed)) -dupe
+    ((ConfigOptionInts,                 support_material_fan_speed))
+    ((ConfigOptionInts,                 internal_infill_fan_speed))
+    ((ConfigOptionInts,                 solid_infill_fan_speed))
+    ((ConfigOptionInts,                 internal_perimeter_fan_speed))
+    //((ConfigOptionInts,                 ironing_fan_speed)) //cant use. need more type memory 
+    ((ConfigOptionInts,                 overhang_perimeter_fan_speed))
+    //((ConfigOptionInts,                 thin_wall_fan_speed))  //cant use. need more type memory
+    ((ConfigOptionInts,                 gap_fill_fan_speed))
     ((ConfigOptionFloatOrPercent,       brim_acceleration))
     ((ConfigOptionInts,                 chamber_temperature))
     ((ConfigOptionBool,                 complete_objects))

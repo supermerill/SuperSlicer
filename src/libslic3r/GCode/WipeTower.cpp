@@ -509,7 +509,7 @@ public:
 		if (speed == m_last_fan_speed)
 			return *this;
 		if (speed == 0)
-			m_gcode += "M107\n";
+			m_gcode += "M107; wipetower\n";
 		else
             m_gcode += "M106 S" + std::to_string(unsigned(255.0 * speed / 100.0)) + comment + "\n";
 		m_last_fan_speed = speed;

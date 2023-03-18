@@ -213,7 +213,8 @@ void FanMover::_remove_slow_fan(int16_t min_speed, float past_sec) {
 
 std::string FanMover::_set_fan(int16_t speed) {
     const Tool* tool = m_writer.get_tool(m_currrent_extruder < 20 ? m_currrent_extruder : 0);
-    return GCodeWriter::set_fan(m_writer.config.gcode_flavor.value, m_writer.config.gcode_comments.value, speed, tool ? tool->fan_offset() : 0, m_writer.config.fan_percentage.value);
+    //return GCodeWriter::set_fan(m_writer.config.gcode_flavor.value, m_writer.config.gcode_comments.value, speed, tool ? tool->fan_offset() : 0, m_writer.config.fan_percentage.value);
+    return GCodeWriter::set_fan(m_writer.config.gcode_flavor.value, m_writer.config.gcode_comments.value, speed, tool ? tool->fan_offset() : 0, m_writer.config.fan_percentage.value, "");
 }
 
 
@@ -308,7 +309,7 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                                 }
 
                                 //if kickstart
-                                // first erase everything lower that that value
+                                //first erase everything lower than that value
                                 _remove_slow_fan(fan_speed, m_buffer_time_size + 1);
                                 // then erase everything lower that kickstart
                                 _remove_slow_fan(fan_baseline, kickstart);
@@ -341,7 +342,7 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                                 }
                                 m_front_buffer_fan_speed = fan_speed;
                             } else {
-                                // first erase everything lower that that value
+                                // first erase everything lower than that value
                                 _remove_slow_fan(fan_speed, m_buffer_time_size + 1);
                                 // then write the fan command
                                 if (!m_buffer.empty() && (m_buffer_time_size - m_buffer.front().time * 0.1) > nb_seconds_delay) {
@@ -471,7 +472,9 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
     // puts the line back into the gcode
     //if buffer too big, flush it.
     if (time >= 0) {
-        while (!m_buffer.empty() && (need_flush || m_buffer_time_size - m_buffer.front().time > nb_seconds_delay - EPSILON) ){
+         while (!m_buffer.empty() && (need_flush || m_buffer_time_size - m_buffer.front().time > nb_seconds_delay - EPSILON) ){
+//                  bug is in here don't flush buffer if it's a new line ?
+//                  sometimes once a new line starts it removes the first fan speed command only happens with kickstart - fan_speedup_time
             BufferData& frontdata = m_buffer.front();
             if (frontdata.fan_speed < 0 || frontdata.fan_speed != m_front_buffer_fan_speed || frontdata.is_kickstart) {
                 if (frontdata.is_kickstart && frontdata.fan_speed < m_front_buffer_fan_speed) {
