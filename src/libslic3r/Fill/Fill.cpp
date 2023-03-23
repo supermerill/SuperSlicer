@@ -221,7 +221,6 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
                         *layer.object(),
                         extrusion_role,
                         (surface.thickness == -1) ? layer.height : surface.thickness,   // extrusion height
-                        layer.id() == 0,                                                 // first layer?
                         layer.id()
                     );
                 }
@@ -246,7 +245,6 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
                             *layer.object(),
                             frInfill,
                             layer.object()->config().layer_height.value,  // TODO: handle infill_every_layers?
-                            false,  // no first layer
                             layer.id()
                         ).spacing();
 
@@ -378,7 +376,6 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
                     *layer.object(),
                     frSolidInfill,
                     layer.height,         // extrusion height
-                    layer.id() == 0,       // first layer?
                     layer.id()
                 );
                 params.spacing = params.flow.spacing();            

@@ -644,6 +644,7 @@ static std::vector<std::string> s_Preset_print_options {
         "infill_extrusion_change_odd_layers",
         "solid_infill_extrusion_spacing",
         "solid_infill_extrusion_width",
+        "solid_infill_extrusion_change_odd_layers",
         "top_infill_extrusion_spacing",
         "top_infill_extrusion_width",
         "support_material_extrusion_width",

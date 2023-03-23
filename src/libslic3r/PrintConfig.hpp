@@ -911,6 +911,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionInt,                  solid_infill_extruder))
     ((ConfigOptionFloatOrPercent,       solid_infill_extrusion_width))
     ((ConfigOptionFloatOrPercent,       solid_infill_extrusion_spacing))
+    ((ConfigOptionFloat,                solid_infill_extrusion_change_odd_layers))
     ((ConfigOptionInt,                  solid_infill_every_layers))
     ((ConfigOptionFloatOrPercent,       solid_infill_speed))
     ((ConfigOptionPercent,              solid_infill_overlap))

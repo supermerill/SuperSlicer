@@ -23,7 +23,7 @@ Flow LayerRegion::flow(FlowRole role) const
 
 Flow LayerRegion::flow(FlowRole role, double layer_height) const
 {
-    return m_region->flow(*m_layer->object(), role, layer_height, m_layer->id() == 0, m_layer->id());
+    return m_region->flow(*m_layer->object(), role, layer_height, m_layer->id());
 }
 
 // Average diameter of nozzles participating on extruding this region.

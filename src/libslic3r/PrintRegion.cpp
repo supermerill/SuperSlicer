@@ -22,8 +22,9 @@ uint16_t PrintRegion::extruder(FlowRole role, const PrintObject& object) const
     return (uint16_t)extruder;
 }
 
-Flow PrintRegion::flow(const PrintObject &object, FlowRole role, double layer_height, bool first_layer, size_t layer_id) const
+Flow PrintRegion::flow(const PrintObject &object, FlowRole role, double layer_height, size_t layer_id) const
 {
+    bool first_layer = layer_id == 0;
     ConfigOptionFloatOrPercent  config_width;
     ConfigOptionFloatOrPercent  config_spacing;
     // Get extrusion width from configuration.
@@ -62,7 +63,13 @@ Flow PrintRegion::flow(const PrintObject &object, FlowRole role, double layer_he
     } else if (role == frSolidInfill) {
         config_width = m_config.solid_infill_extrusion_width;
         config_spacing = m_config.solid_infill_extrusion_spacing;
-		overlap = this->config().solid_infill_overlap.get_abs_value(1);
+
+        if (layer_id > 0 && layer_id % 2 == 1 && config_width.percent == false) {
+            config_width = new ConfigOptionFloatOrPercent(config_width.value + m_config.solid_infill_extrusion_change_odd_layers, false);
+            config_spacing = new ConfigOptionFloatOrPercent(config_spacing.value + m_config.solid_infill_extrusion_change_odd_layers, false);
+        }
+        
+        overlap = this->config().solid_infill_overlap.get_abs_value(1);
     } else if (role == frTopSolidInfill) {
         config_width = m_config.top_infill_extrusion_width;
         config_spacing = m_config.top_infill_extrusion_spacing;

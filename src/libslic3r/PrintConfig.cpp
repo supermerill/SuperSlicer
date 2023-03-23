@@ -4799,6 +4799,17 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionFloatOrPercent(0, false, true));
 
+    def = this->add("solid_infill_extrusion_change_odd_layers", coFloat);
+    def->label = L("Infill");
+    def->full_label = L("Solid infill width change on odd layers");
+    def->category = OptionCategory::width;
+    def->tooltip = L("Change width on every odd layer for better overlap with adjacent layers and getting stringer shells. "
+        "Try values about +/- 0.1 with different sign."
+        "\nThis could be combined with extra permeters on odd layers. Works with absolute width.");
+    def->sidetext = L("mm");
+    def->mode = comAdvancedE | comPrusa;
+    def->set_default_value(new ConfigOptionFloat(0));
+
     def = this->add("solid_infill_extrusion_spacing", coFloatOrPercent);
     def->label = L("Solid spacing");
     def->full_label = L("Solid infill spacing");
