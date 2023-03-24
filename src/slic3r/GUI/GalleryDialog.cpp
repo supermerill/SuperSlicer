@@ -301,7 +301,7 @@ static void generate_thumbnail_from_model(const std::string& filename)
 
     fs::path out_path = fs::path(filename);
     out_path.replace_extension("png");
-    image.SaveFile(out_path.string(), wxBITMAP_TYPE_PNG);
+    image.SaveFile(from_u8(out_path.string()), wxBITMAP_TYPE_PNG);
 }
 
 void GalleryDialog::load_label_icon_list()
@@ -343,8 +343,6 @@ void GalleryDialog::load_label_icon_list()
 
     int px_cnt = (int)(em_unit() * IMG_PX_CNT * 0.1f + 0.5f);
     m_image_list = new wxImageList(px_cnt, px_cnt);
-
-    std::string ext = ".png";
 
     for (const auto& item : list_items) {
         fs::path model_path = fs::path((item.is_system ? m_sys_dir_path : m_cust_dir_path) + item.name);

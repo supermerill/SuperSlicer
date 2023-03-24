@@ -156,6 +156,10 @@ void s_not_thick_bridge_set(bool set)
 //    spRandom [spNearest] spAligned spRear [spCustom] spCost
 // ("Cost-based") ("Random") ("Aligned") ("Rear")
 // -> Corners Nearest Random Aligned Rear Custom
+
+//    spRandom spAllRandom [spNearest] spAligned spExtrAligned spRear [spCustom] spCost
+// ("Cost-based") ("Scattered") ("Random") ("Aligned") ("Contiguous") ("Rear")
+// -> Corners Nearest Scattered Random  Aligned Contiguous Rear Custom
 float user_angle = 0;
 float user_travel = 0;
 
@@ -164,37 +168,44 @@ int s_seam_position_get(string &out get_val)
 	int pos = get_int("seam_position");
 	string seam_pos;
 	get_string("seam_position", seam_pos);
-	if(pos < 5){
-		if (pos == 0) return 2;
+	if(pos < 7){
+		if (pos == 0) return 2;// Scattered
+		if (pos == 1) return 3;// Random
 		return pos + 1;
 	} else {
 		float angle = get_float("seam_angle_cost");
 		float travel = get_float("seam_travel_cost");
-		if(angle > travel * 3.9 && angle < travel * 4.1) return 0;
-		if(travel > angle * 1.9 && travel < angle * 2.1) return 1;
+		if(angle >= 1. && travel <= 0.8) return 0; //corner
+		if(angle <= 1. && travel >= 1.0) return 1; //nearest
 		user_angle = angle;
 		user_travel = travel;
 	}
-	return 5;
+	return 7;
 }
 
 void s_seam_position_set(string &in set_val, int idx)
 {
 	if (idx == 2 ) {
-		set_int("seam_position", 0);
+		set_int("seam_position", 0); // Scattered
+	} else if (idx == 3) {
+		set_int("seam_position", 1); // Random
+	} else if (idx == 4) {
+		set_int("seam_position", 3); // Aligned
+	} else if (idx == 5) {
+		set_int("seam_position", 4); // Contiguous
+	} else if (idx == 6) {
+		set_int("seam_position", 5); // Rear
 	} else if (idx <= 1) {
-		set_int("seam_position", 5);
-		if (idx == 0) {
+		set_int("seam_position", 7);
+		if (idx == 0) { //corner
+			set_percent("seam_angle_cost", 120);
+			set_percent("seam_travel_cost", 40);
+		} else { // == 1 // nearest
 			set_percent("seam_angle_cost", 80);
-			set_percent("seam_travel_cost", 20);
-		} else {
-			set_percent("seam_angle_cost", 30);
-			set_percent("seam_travel_cost", 60);
+			set_percent("seam_travel_cost", 100);
 		}
-	} else if (idx < 5) {
-		set_int("seam_position", idx - 1);
 	} else {
-		set_int("seam_position", 5);
+		set_int("seam_position", 7); // custom
 		if(user_angle > 0 || user_travel > 0){
 			set_percent("seam_angle_cost", user_angle);
 			set_percent("seam_travel_cost", user_travel);

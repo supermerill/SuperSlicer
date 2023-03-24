@@ -384,7 +384,8 @@ void fill_iniconf(ConfMap &m, const SLAPrint &print)
     m["layerHeight"]    = get_cfg_value(cfg, "layer_height");
     m["expTime"]        = get_cfg_value(cfg, "exposure_time");
     m["expTimeFirst"]   = get_cfg_value(cfg, "initial_exposure_time");
-    m["expUserProfile"] = get_cfg_value(cfg, "material_print_speed") == "slow" ? "1" : "0";
+    const std::string mps = get_cfg_value(cfg, "material_print_speed");
+    m["expUserProfile"] = mps == "slow" ? "1" : mps == "fast" ? "0" : "2";
     m["materialName"]   = get_cfg_value(cfg, "sla_material_settings_id");
     m["printerModel"]   = get_cfg_value(cfg, "printer_model");
     m["printerVariant"] = get_cfg_value(cfg, "printer_variant");

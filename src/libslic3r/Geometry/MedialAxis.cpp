@@ -3172,7 +3172,7 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
             wanted_width = unscaled(line.a_width) * 0.35 + 1.3 * Flow::rounded_rectangle_extrusion_width_from_spacing(0.f, flow.height(), 1.f);
         }
 
-        if (path.polyline.points.empty()) {
+        if (path.polyline.empty()) {
             if (wanted_width != current_flow.width()) {
                 current_flow = current_flow.with_width((float)wanted_width);
             }
@@ -3207,7 +3207,7 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
                 path.height = current_flow.height();
             }
         }
-        assert(path.polyline.points.size() > 2 || path.first_point() != path.last_point());
+        assert(path.polyline.size() > 2 || path.first_point() != path.last_point());
     }
     if (path.polyline.is_valid())
         paths.push_back(path);
@@ -3231,8 +3231,8 @@ ExtrusionEntitiesPtr
         if (!multi_paths.empty()) {
 #if _DEBUG
             for (auto it = std::next(multi_paths.paths.begin()); it != multi_paths.paths.end(); ++it) {
-                assert(it->polyline.points.size() >= 2);
-                assert(std::prev(it)->polyline.last_point() == it->polyline.first_point());
+                assert(it->polyline.size() >= 2);
+                assert(std::prev(it)->polyline.back() == it->polyline.front());
             }
 #endif
             if (multi_paths.paths.front().first_point().coincides_with_epsilon(multi_paths.paths.back().last_point())) {

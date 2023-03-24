@@ -26,9 +26,9 @@ class ExtrusionEntityCollection : public ExtrusionEntity
 {
 private:
     // set to tru to forbit to reorder and reverse all entities indie us.
-    bool no_sort;
+    bool m_no_sort;
     // even if no_sort, allow to reverse() us (and our entities if they allow it, but they should) 
-    bool no_reverse;
+    bool m_no_reverse;
     ExtrusionEntitiesPtr m_entities;     // we own these entities
 public:
     virtual ExtrusionEntityCollection* clone() const override { return new ExtrusionEntityCollection(*this); }
@@ -40,16 +40,17 @@ public:
     /// Iterating over this needs to check each child to see if it, too is a collection.
     const ExtrusionEntitiesPtr& entities() const { return m_entities; }
     ExtrusionEntitiesPtr& set_entities() { return m_entities; }
-    ExtrusionEntityCollection(): no_sort(false), no_reverse(false) {}
-    ExtrusionEntityCollection(const ExtrusionEntityCollection &other) : no_sort(other.no_sort), no_reverse(other.no_reverse) { this->append(other.entities()); }
-    ExtrusionEntityCollection(ExtrusionEntityCollection &&other) : m_entities(std::move(other.m_entities)), no_sort(other.no_sort), no_reverse(other.no_reverse) {}
+    ExtrusionEntityCollection() : m_no_sort(false), m_no_reverse(false) {}
+    ExtrusionEntityCollection(bool no_sort, bool no_reverse) : m_no_sort(no_sort), m_no_reverse(no_reverse) {}
+    ExtrusionEntityCollection(const ExtrusionEntityCollection &other) : m_no_sort(other.m_no_sort), m_no_reverse(other.m_no_reverse) { this->append(other.entities()); }
+    ExtrusionEntityCollection(ExtrusionEntityCollection &&other) : m_entities(std::move(other.m_entities)), m_no_sort(other.m_no_sort), m_no_reverse(other.m_no_reverse) {}
     explicit ExtrusionEntityCollection(const ExtrusionPaths &paths);
     ExtrusionEntityCollection& operator=(const ExtrusionEntityCollection &other);
     ExtrusionEntityCollection& operator=(ExtrusionEntityCollection &&other) {
         this->clear();
         this->m_entities = std::move(other.m_entities);
-        this->no_sort  = other.no_sort;
-        this->no_reverse = other.no_reverse;
+        this->m_no_sort  = other.m_no_sort;
+        this->m_no_reverse = other.m_no_reverse;
         return *this;
     }
     ~ExtrusionEntityCollection() override { clear(); }
@@ -66,9 +67,9 @@ public:
         }
         return out;
     }
-    void set_can_sort_reverse(bool sort, bool reverse) { this->no_sort = !sort; this->no_reverse = !reverse; }
-    bool can_sort() const { return !this->no_sort; }
-    bool can_reverse() const override { return can_sort() || !this->no_reverse; }
+    void set_can_sort_reverse(bool sort, bool reverse) { this->m_no_sort = !sort; this->m_no_reverse = !reverse; }
+    bool can_sort() const { return !this->m_no_sort; }
+    bool can_reverse() const override { return can_sort() || !this->m_no_reverse; }
     bool empty() const { return this->m_entities.empty(); }
     void clear();
     void swap (ExtrusionEntityCollection &c);
@@ -102,7 +103,7 @@ public:
     static ExtrusionEntityCollection chained_path_from(const ExtrusionEntitiesPtr &extrusion_entities, const Point &start_near, ExtrusionRole role = erMixed);
     ExtrusionEntityCollection chained_path_from(const Point &start_near, ExtrusionRole role = erNone) const {
         if (role == erNone) role = this->role();
-        if( this->no_sort || (role == erMixed) )
+        if( this->m_no_sort || (role == erMixed) )
             return *this;
         else
             return chained_path_from(this->m_entities, start_near, role);
@@ -131,12 +132,12 @@ public:
     double total_volume() const override { double volume=0.; for (const auto& ent : entities()) volume+=ent->total_volume(); return volume; }
 
     // Following methods shall never be called on an ExtrusionEntityCollection.
-    Polyline as_polyline() const override {
+    PolylineOrArc as_polyline() const override {
         throw Slic3r::RuntimeError("Calling as_polyline() on a ExtrusionEntityCollection");
-        return Polyline();
+        return PolylineOrArc();
     };
 
-    void collect_polylines(Polylines &dst) const override {
+    void collect_polylines(PolylinesOrArcs &dst) const override {
         for (const ExtrusionEntity* extrusion_entity : this->entities())
             extrusion_entity->collect_polylines(dst);
     }

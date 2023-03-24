@@ -168,9 +168,9 @@ public:
     Point  rotated(double cos_a, double sin_a) const { Point res(*this); res.rotate(cos_a, sin_a); return res; }
     Point  rotated(double angle, const Point &center) const { Point res(*this); res.rotate(angle, center); return res; }
     Point  rotate_90_degree_ccw() const { return Point(-this->y(), this->x()); }
-    int32_t    nearest_point_index(const Points &points) const;
-    int32_t    nearest_point_index(const PointConstPtrs &points) const;
-    int32_t    nearest_point_index(const PointPtrs &points) const;
+    int32_t nearest_point_index(const Points &points) const;
+    int32_t nearest_point_index(const PointConstPtrs &points) const;
+    int32_t nearest_point_index(const PointPtrs &points) const;
     bool   nearest_point(const Points &points, Point* point) const;
     double ccw(const Point &p1, const Point &p2) const;
     double ccw(const Line &line) const;
@@ -195,6 +195,11 @@ public:
 inline bool operator<(const Point &l, const Point &r) 
 { 
     return l.x() < r.x() || (l.x() == r.x() && l.y() < r.y());
+}
+
+inline Point operator* (const Point& l, const double &r)
+{
+    return {coord_t(l.x() * r), coord_t(l.y() * r)};
 }
 
 inline bool is_approx(const Point &p1, const Point &p2, coord_t epsilon = coord_t(SCALED_EPSILON))

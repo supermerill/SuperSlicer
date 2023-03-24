@@ -103,6 +103,8 @@ add_library(libslic3r STATIC
     Format/STL.hpp
     Format/SL1.hpp
     Format/SL1.cpp
+    Format/STEP.hpp
+    Format/STEP.cpp
     Format/SLAArchive.hpp
     Format/SLAArchive.cpp
     Format/CWS.hpp
@@ -119,8 +121,8 @@ add_library(libslic3r STATIC
     GCode/FindReplace.hpp
     GCode/PostProcessor.cpp
     GCode/PostProcessor.hpp
-#    GCode/PressureEqualizer.cpp
-#    GCode/PressureEqualizer.hpp
+    GCode/PressureEqualizer.cpp
+    GCode/PressureEqualizer.hpp
     GCode/PrintExtents.cpp
     GCode/PrintExtents.hpp
     GCode/SpiralVase.cpp
@@ -145,10 +147,14 @@ add_library(libslic3r STATIC
     GCodeWriter.hpp
     Geometry.cpp
     Geometry.hpp
+	Geometry/ArcFitter.cpp
+	Geometry/ArcFitter.hpp
+    Geometry/Bicubic.hpp
     Geometry/Circle.cpp
     Geometry/Circle.hpp
     Geometry/ConvexHull.cpp
     Geometry/ConvexHull.hpp
+    Geometry/Curves.hpp
     Geometry/MedialAxis.cpp
     Geometry/MedialAxis.hpp
     Geometry/Voronoi.hpp
@@ -185,6 +191,8 @@ add_library(libslic3r STATIC
     MultiPoint.cpp
     MultiPoint.hpp
     MutablePriorityQueue.hpp
+    NormalUtils.cpp
+    NormalUtils.hpp
     ObjectID.cpp
     ObjectID.hpp
     PerimeterGenerator.cpp
@@ -224,6 +232,8 @@ add_library(libslic3r STATIC
     QuadricEdgeCollapse.cpp
     QuadricEdgeCollapse.hpp
     Semver.cpp
+    ShortEdgeCollapse.cpp
+    ShortEdgeCollapse.hpp
     ShortestPath.cpp
     ShortestPath.hpp
     SLAPrint.cpp
@@ -236,6 +246,8 @@ add_library(libslic3r STATIC
     SlicesToTriangleMesh.cpp
     SlicingAdaptive.cpp
     SlicingAdaptive.hpp
+    Subdivide.cpp
+    Subdivide.hpp
     SupportMaterial.cpp
     SupportMaterial.hpp
     Surface.cpp
@@ -262,6 +274,8 @@ add_library(libslic3r STATIC
     Thread.hpp
     TriangleSelector.cpp
     TriangleSelector.hpp
+    TriangleSetSampling.cpp
+    TriangleSetSampling.hpp
     MTUtils.hpp
     Zipper.hpp
     Zipper.cpp
@@ -396,6 +410,9 @@ encoding_check(libslic3r)
 target_compile_definitions(libslic3r PUBLIC -DUSE_TBB -DTBB_USE_CAPTURED_EXCEPTION=0)
 target_include_directories(libslic3r PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(libslic3r PUBLIC ${EXPAT_INCLUDE_DIRS})
+
+find_package(JPEG REQUIRED)
+
 target_link_libraries(libslic3r
     libnest2d
     admesh
@@ -405,7 +422,7 @@ target_link_libraries(libslic3r
     boost_libs
     clipper
     nowide
-    ${EXPAT_LIBRARIES}
+    libexpat
     glu-libtess
     qhull
     semver
@@ -414,9 +431,14 @@ target_link_libraries(libslic3r
     ${CMAKE_DL_LIBS}
     PNG::PNG
     ZLIB::ZLIB
+    JPEG::JPEG
     qoi
-	jpeg-compressor
     )
+
+if (APPLE)
+    # TODO: we need to fix notarization with the separate shared library
+    target_link_libraries(libslic3r OCCTWrapper)
+endif ()
 
 if (TARGET OpenVDB::openvdb)
     target_link_libraries(libslic3r OpenVDB::openvdb)
@@ -431,6 +453,8 @@ if(SLIC3R_PROFILE)
 endif()
 
 if (APPLE)
+    # This flag prevents the need for minimum SDK version 10.14
+    # currently, PS targets v10.12
     target_compile_options(libslic3r PUBLIC "-fno-aligned-allocation")
 endif ()
 

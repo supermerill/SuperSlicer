@@ -16,6 +16,7 @@
 #include "GCode.hpp"
 #include "GCode/WipeTower.hpp"
 #include "Utils.hpp"
+#include "BuildVolume.hpp"
 
 #include <float.h>
 
@@ -143,10 +144,8 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "milling_offset",
         "milling_z_offset",
         "milling_z_lift",
-#ifdef HAS_PRESSURE_EQUALIZER
         "max_volumetric_extrusion_rate_slope_positive",
         "max_volumetric_extrusion_rate_slope_negative",
-#endif /* HAS_PRESSURE_EQUALIZER */
         "notes",
         "only_retract_when_crossing_perimeters",
         "output_filename_format",
@@ -320,12 +319,15 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
             osteps.emplace_back(posSupportMaterial);
         } else if (
             opt_key == "first_layer_extrusion_width"
+            || opt_key == "arc_fitting"
+            || opt_key == "arc_fitting_tolerance"
             || opt_key == "min_layer_height"
             || opt_key == "max_layer_height"
             || opt_key == "filament_max_overlap"
             || opt_key == "gcode_resolution") {
             osteps.emplace_back(posPerimeters);
             osteps.emplace_back(posInfill);
+            osteps.emplace_back(posSimplifyPath);
             osteps.emplace_back(posSupportMaterial);
             steps.emplace_back(psSkirtBrim);
         }
@@ -522,7 +524,7 @@ bool Print::sequential_print_horizontal_clearance_valid(const Print &print, Poly
 	                        Geometry::assemble_transform(Vec3d{ 0.0, 0.0, model_instance0->get_offset().z() }, model_instance0->get_rotation(), model_instance0->get_scaling_factor(), model_instance0->get_mirror())),
                 	// Shrink the extruder_clearance_radius a tiny bit, so that if the object arrangement algorithm placed the objects
 	                // exactly by satisfying the extruder_clearance_radius, this test will not trigger collision.
-	                float(scale_(0.5 * object_grow - EPSILON)),
+	                float(scale_(0.5 * object_grow - BuildVolume::BedEpsilon)),
 	                jtRound, scale_t(0.1)).front());
 	    }
 	    // Make a copy, so it may be rotated for instances.
@@ -1053,7 +1055,7 @@ void Print::process()
     for (PrintObject* obj : m_objects) {
         obj->ironing();
     }
-	this->set_status(50, L("Generating support material"));
+	this->set_status(45, L("Generating support material"));
     for (PrintObject* obj : m_objects) {
         obj->generate_support_material();
     }
@@ -1072,7 +1074,7 @@ void Print::process()
         this->set_done(psWipeTower);
     }
     if (this->set_started(psSkirtBrim)) {
-        this->set_status(55, L("Generating skirt and brim"));
+        this->set_status(50, L("Generating skirt and brim"));
 
         m_skirt.clear();
         m_skirt_first_layer.reset();
@@ -1086,7 +1088,7 @@ void Print::process()
             obj->m_skirt_first_layer.reset();
         }
         if (this->has_skirt()) {
-            this->set_status(55, L("Generating skirt"));
+            this->set_status(50, L("Generating skirt"));
             if (config().complete_objects && !config().complete_objects_one_skirt){
                 for (PrintObject *obj : m_objects) {
                     //create a skirt "pattern" (one per object)
@@ -1148,7 +1150,7 @@ void Print::process()
         for (std::vector<PrintObject*> &obj_group : obj_groups) {
             const PrintObjectConfig &brim_config = obj_group.front()->config();
             if (brim_config.brim_width > 0 || brim_config.brim_width_interior > 0) {
-                this->set_status(57, L("Generating brim"));
+                this->set_status(52, L("Generating brim"));
                 if (brim_config.brim_per_object) {
                     for (PrintObject *obj : obj_group) {
                         //get flow
@@ -1221,6 +1223,49 @@ void Print::process()
         // the skirt gets invalidated, brim gets invalidated as well and the following line is called.
         this->set_done(psSkirtBrim);
     }
+    
+    //simplify / make arc fitting
+    {
+        const bool spiral_mode = config().spiral_vase;
+        const bool enable_arc_fitting = config().arc_fitting && !spiral_mode;
+        if (enable_arc_fitting) {
+            this->set_status(55, L("Creating arcs"));
+        } else {
+            this->set_status(55, L("Simplifying paths"));
+        }
+        for (PrintObject* obj : m_objects) {
+            obj->simplify_extrusion_path();
+        }
+        //also simplify object skirt & brim
+        if (enable_arc_fitting && (!this->m_skirt.empty() || !this->m_brim.empty())) {
+            coordf_t scaled_resolution = scale_d(config().resolution.value);
+            if (scaled_resolution == 0) scaled_resolution = enable_arc_fitting ? SCALED_EPSILON * 2 : SCALED_EPSILON;
+            const ConfigOptionFloatOrPercent& arc_fitting_tolerance = config().arc_fitting_tolerance;
+
+            this->set_status(0, L("Optimizing skirt & brim %s%%"), { std::to_string(0) }, PrintBase::SlicingStatus::SECONDARY_STATE);
+            std::atomic<int> atomic_count{ 0 };
+            GetPathsVisitor visitor;
+            this->m_skirt.visit(visitor);
+            this->m_brim.visit(visitor);
+            tbb::parallel_for(
+                tbb::blocked_range<size_t>(0, visitor.paths.size() + visitor.paths3D.size()),
+                [this, &visitor, scaled_resolution, &arc_fitting_tolerance, &atomic_count](const tbb::blocked_range<size_t>& range) {
+                    size_t path_idx = range.begin();
+                    for (; path_idx < range.end() && path_idx < visitor.paths.size(); ++path_idx) {
+                        visitor.paths[path_idx]->simplify(scaled_resolution, true, scale_d(arc_fitting_tolerance.get_abs_value(visitor.paths[path_idx]->width)));
+                        int nb_items_done = (++atomic_count);
+                        this->set_status(int((nb_items_done * 100) / (visitor.paths.size() + visitor.paths3D.size())), L("Optimizing skirt & brim %s%%"), { std::to_string(int(100*nb_items_done / double(visitor.paths.size() + visitor.paths3D.size()))) }, PrintBase::SlicingStatus::SECONDARY_STATE);
+                    }
+                    for (; path_idx < range.end() && path_idx - visitor.paths.size() < visitor.paths3D.size(); ++path_idx) {
+                        visitor.paths3D[path_idx - visitor.paths.size()]->simplify(scaled_resolution, true, scale_d(arc_fitting_tolerance.get_abs_value(visitor.paths[path_idx]->width)));
+                        int nb_items_done = (++atomic_count);
+                        this->set_status(int((nb_items_done * 100) / (visitor.paths.size() + visitor.paths3D.size())), L("Optimizing skirt & brim %s%%"), { std::to_string(int(100*nb_items_done / double(visitor.paths.size() + visitor.paths3D.size()))) }, PrintBase::SlicingStatus::SECONDARY_STATE);
+                    }
+                }
+            );
+        }
+    }
+
     m_timestamp_last_change = std::time(0);
     BOOST_LOG_TRIVIAL(info) << "Slicing process finished." << log_memory_info();
     //notify gui that the slicing/preview structs are ready to be drawed
@@ -1296,10 +1341,10 @@ void Print::_make_skirt(const PrintObjectPtrs &objects, ExtrusionEntityCollectio
             if (!object->support_layers().empty() && object->support_layers().front()->print_z == object->m_layers[0]->print_z) {
                 Points support_points;
                 for (const ExtrusionEntity* extrusion_entity : object->support_layers().front()->support_fills.entities()) {
-                    Polylines poly;
-                    extrusion_entity->collect_polylines(poly);
-                    for (const Polyline& polyline : poly)
-                        append(support_points, polyline.points);
+                    PolylinesOrArcs polys;
+                    extrusion_entity->collect_polylines(polys);
+                    for (const PolylineOrArc& polyline : polys)
+                        append(support_points, polyline.get_points());
                 }
                 Polygon hull_support = Slic3r::Geometry::convex_hull(support_points);
                 for (const Polygon& poly : offset(hull_support, scale_(object->config().brim_width)))

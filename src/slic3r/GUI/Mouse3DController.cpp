@@ -670,6 +670,11 @@ void Mouse3DController::init()
 #ifndef _WIN32
     	// Don't start the background thread on Windows, as the HID messages are sent as Windows messages.
 	    m_thread = std::thread(&Mouse3DController::run, this);
+#else
+        // For some reason, HID message routing does not work well with remote session. Requires further investigation
+        if (::GetSystemMetrics(SM_REMOTESESSION)) {
+            m_thread = std::thread(&Mouse3DController::run, this);
+        }
 #endif // _WIN32
 	}
 }

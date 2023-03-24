@@ -2312,9 +2312,11 @@ void Clipper::ProcessHorizontal(TEdge *horzEdge)
 
     if (horzEdge->OutIdx >= 0 && !IsOpen)  //note: may be done multiple times
 		{
-#ifdef use_xyz
-            if (dir == dLeftToRight) SetZ(e->Curr, *horzEdge, *e);
-            else SetZ(e->Curr, *e, *horzEdge);
+#ifdef CLIPPERLIB_USE_XYZ
+            if (dir == dLeftToRight)
+                SetZ(e->Curr, *horzEdge, *e);
+            else
+                SetZ(e->Curr, *e, *horzEdge);
 #endif
             op1 = AddOutPt(horzEdge, e->Curr);
 			TEdge* eNextHorz = m_SortedEdges;
@@ -2640,8 +2642,8 @@ void Clipper::ProcessEdgesAtTopOfScanbeam(const cInt topY)
       {
         e->Curr.x() = TopX( *e, topY );
         e->Curr.y() = topY;
-#ifdef use_xyz
-        e->Curr.Z = topY == e->Top.Y ? e->Top.Z : (topY == e->Bot.Y ? e->Bot.Z : 0);
+#ifdef CLIPPERLIB_USE_XYZ
+        e->Curr.z() = topY == e->Top.y() ? e->Top.z() : (topY == e->Bot.y() ? e->Bot.z() : 0);
 #endif
       }
 

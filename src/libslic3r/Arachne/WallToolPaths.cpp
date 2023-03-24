@@ -489,7 +489,7 @@ const std::vector<VariableWidthLines> &WallToolPaths::generate()
     const double wall_add_middle_threshold   = std::clamp(unscaled(this->min_bead_width) / unscaled(this->perimeter_width_x), 0.01, 0.99); // For an even nr. of lines: When to add a new middle in between the innermost two walls.
 
     const int wall_distribution_count = this->print_object_config.wall_distribution_count.value;
-    const size_t max_bead_count = (inset_count < std::numeric_limits<coord_t>::max() / 2) ? 2 * inset_count : std::numeric_limits<coord_t>::max();
+    const size_t max_bead_count = (inset_count < size_t(std::numeric_limits<coord_t>::max() / 2)) ? 2 * inset_count : size_t(std::numeric_limits<coord_t>::max());
     const auto beading_strat = BeadingStrategyFactory::makeStrategy
         (
             bead_spacing_0,

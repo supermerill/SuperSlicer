@@ -162,7 +162,7 @@ private:
     ExtrusionPaths create_overhangs(const ClipperLib_Z::Path& loop_polygons, ExtrusionRole role, bool is_external) const;
 
     // transform loops into ExtrusionEntityCollection, adding also thin walls into it.
-    ExtrusionEntityCollection _traverse_loops(const PerimeterGeneratorLoops &loops, ThickPolylines &thin_walls) const;
+    ExtrusionEntityCollection _traverse_loops(const PerimeterGeneratorLoops &loops, ThickPolylines &thin_walls, int count_since_overhang = 0) const;
     ExtrusionEntityCollection _traverse_extrusions(std::vector<PerimeterGeneratorArachneExtrusion>& pg_extrusions);
     // try to merge thin walls to a current periemter exrusion or just add it to the end of the list.
     void _merge_thin_walls(ExtrusionEntityCollection &extrusions, ThickPolylines &thin_walls) const;

@@ -28,8 +28,6 @@
 #include "GUI.hpp"
 #include "wxExtensions.hpp"
 
-//#define ALLOW_PRUSA_FIRST "PrusaResearch"
-
 namespace fs = boost::filesystem;
 
 namespace Slic3r {

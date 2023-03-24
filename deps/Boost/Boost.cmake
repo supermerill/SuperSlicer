@@ -67,6 +67,18 @@ include(ProcessorCount)
 ProcessorCount(NPROC)
 file(TO_NATIVE_PATH ${DESTDIR}/usr/local/ _prefix)
 
+set(_boost_flags "")
+if (UNIX) 
+    set(_boost_flags "cflags=-fPIC;cxxflags=-fPIC")
+endif ()
+
+if(APPLE)
+    set(_boost_flags 
+        "cflags=-fPIC -mmacosx-version-min=${DEP_OSX_TARGET};"
+        "cxxflags=-fPIC -mmacosx-version-min=${DEP_OSX_TARGET};"
+        "mflags=-fPIC -mmacosx-version-min=${DEP_OSX_TARGET};"
+        "mmflags=-fPIC -mmacosx-version-min=${DEP_OSX_TARGET}") 
+endif()
 
 set(_boost_variants "")
 if(CMAKE_BUILD_TYPE)
@@ -90,6 +102,11 @@ if (NOT _boost_variants)
     set(_boost_variants release)
 endif()
 
+set(_boost_layout system)
+if (MSVC)
+    set(_boost_layout versioned)
+endif ()
+
 if (IS_CROSS_COMPILE AND APPLE)
     if (${CMAKE_OSX_ARCHITECTURES} MATCHES "arm")
         message(STATUS "Compiling Boost for arm64.")
@@ -108,23 +125,12 @@ if (IS_CROSS_COMPILE AND APPLE)
     set(_boost_linkflags "linkflags=${_arch_flags}")
 endif ()
 
-set(_boost_flags "")
-if(APPLE)
-    set(_boost_flags 
-        "cflags=-fPIC ${_arch_flags} -mmacosx-version-min=${DEP_OSX_TARGET};"
-        "cxxflags=-fPIC ${_arch_flags} -mmacosx-version-min=${DEP_OSX_TARGET};"
-        "mflags=-fPIC ${_arch_flags} -mmacosx-version-min=${DEP_OSX_TARGET};"
-        "mmflags=-fPIC ${_arch_flags} -mmacosx-version-min=${DEP_OSX_TARGET}") 
-elseif (UNIX)
-    set(_boost_flags "cflags=-fPIC;cxxflags=-fPIC")
-endif()
-
 set(_build_cmd ${_build_cmd}
                ${_boost_flags}
                ${_boost_linkflags}
                -j${NPROC}
                ${_libs}
-               --layout=versioned
+               --layout=${_boost_layout}
                --debug-configuration
                toolset=${_boost_toolset}
                address-model=${_bits}

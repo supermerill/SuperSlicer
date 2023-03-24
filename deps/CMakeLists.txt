@@ -93,6 +93,9 @@ function(prusaslicer_add_cmake_project projectname)
     if (MSVC)
         set(_gen CMAKE_GENERATOR "${DEP_MSVC_GEN}" CMAKE_GENERATOR_PLATFORM "${DEP_PLATFORM}")
         set(_build_j "/m")
+        if (${projectname} STREQUAL "OCCT")
+            set(_build_j "/m:1")
+        endif ()
     endif ()
 
 if (NOT IS_CROSS_COMPILE OR NOT APPLE)
@@ -218,22 +221,29 @@ include(CGAL/CGAL.cmake)
 include(NLopt/NLopt.cmake)
 
 include(OpenSSL/OpenSSL.cmake)
-include(CURL/CURL.cmake)
+
+set(CURL_PKG "")
+if (NOT CURL_FOUND) 
+    include(CURL/CURL.cmake)
+    set(CURL_PKG dep_CURL)
+endif ()
 
 include(JPEG/JPEG.cmake)
 include(TIFF/TIFF.cmake)
 include(wxWidgets/wxWidgets.cmake)
+include(OCCT/OCCT.cmake)
 
 set(_dep_list
     dep_Boost
     dep_TBB
-    dep_CURL
+    ${CURL_PKG}
     dep_wxWidgets
     dep_Cereal
     dep_NLopt
     dep_OpenVDB
     dep_OpenCSG
     dep_CGAL
+    dep_OCCT
     ${PNG_PKG}
     ${ZLIB_PKG}
     ${EXPAT_PKG}

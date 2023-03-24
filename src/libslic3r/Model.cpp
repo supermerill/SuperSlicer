@@ -16,6 +16,7 @@
 #include "Format/OBJ.hpp"
 #include "Format/STL.hpp"
 #include "Format/3mf.hpp"
+#include "Format/STEP.hpp"
 
 #include <float.h>
 
@@ -141,13 +142,15 @@ Model Model::read_from_file(const std::string& input_file, DynamicPrintConfig* c
         result = load_stl(input_file.c_str(), &model);
     else if (boost::algorithm::iends_with(input_file, ".obj"))
         result = load_obj(input_file.c_str(), &model);
+    else if (boost::algorithm::iends_with(input_file, ".step") || boost::algorithm::iends_with(input_file, ".stp"))
+        result = load_step(input_file.c_str(), &model);
     else if (boost::algorithm::iends_with(input_file, ".amf") || boost::algorithm::iends_with(input_file, ".amf.xml"))
         result = load_amf(input_file.c_str(), config, config_substitutions, &model, options & LoadAttribute::CheckVersion);
     else if (boost::algorithm::iends_with(input_file, ".3mf"))
         //FIXME options & LoadAttribute::CheckVersion ? 
         result = load_3mf(input_file.c_str(), *config, *config_substitutions, &model, false);
     else
-        throw Slic3r::RuntimeError("Unknown file format. Input file must have .stl, .obj, .amf(.xml) extension. (.prusa is not supported anymore by prusa)");
+        throw Slic3r::RuntimeError("Unknown file format. Input file must have .stl, .obj, .amf(.xml) or .step/.stp extension.");
 
     if (! result)
         throw Slic3r::RuntimeError("Loading of a model file failed.");

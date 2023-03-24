@@ -14,7 +14,7 @@ class PresetUpdater;
 
 namespace GUI {
 
-//#define ALLOW_PRUSA_FIRST 1
+//#define ALLOW_PRUSA_FIRST "PrusaResearch"
 
 class ConfigWizard: public DPIDialog
 {

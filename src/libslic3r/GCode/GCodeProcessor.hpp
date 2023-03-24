@@ -381,18 +381,19 @@ namespace Slic3r {
             std::map<size_t, double> volumes_per_extruder;
 
             double role_cache;
-            std::map<ExtrusionRole, std::pair<double, double>> filaments_per_role;
+            std::map<ExtrusionRole, std::pair<double, double>> filaments_per_role; // ExtrusionRole -> (m, g)
 
             void reset();
 
-            void increase_caches(double extruded_volume);
+            void increase_caches(double extruded_volume, uint16_t extruder_id, double parking_volume, double extra_loading_volume);
 
             void process_color_change_cache();
-            void process_extruder_cache(GCodeProcessor* processor);
-            void process_role_cache(GCodeProcessor* processor);
-            void process_caches(GCodeProcessor* processor);
-
-            friend class GCodeProcessor;
+            void process_extruder_cache(uint16_t extruder_id);
+            void process_role_cache(const GCodeProcessor* processor);
+            void process_caches(const GCodeProcessor* processor);
+       private:
+            std::vector<double> extruder_retracted_volume;
+            bool recent_toolchange = false;
         };
 
     public:
@@ -555,6 +556,8 @@ namespace Slic3r {
         ExtruderColors m_extruder_colors;
         ExtruderTemps m_extruder_temps;
         bool m_single_extruder_mmu = false;
+        float m_parking_position;
+        float m_extra_loading_move;
         double m_extruded_last_z;
         float m_first_layer_height; // mm
         bool m_processing_start_custom_gcode;

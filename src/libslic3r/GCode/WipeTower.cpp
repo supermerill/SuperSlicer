@@ -12,7 +12,8 @@
 #include "LocalesUtils.hpp"
 #include "Flow.hpp"
 
-#include <boost/algorithm/string/case_conv.hpp>
+#include <boost/algorithm/string/predicate.hpp>
+
 
 namespace Slic3r
 {
@@ -1453,7 +1454,7 @@ WipeTower::ToolChangeResult WipeTower::finish_layer()
 
     // Ask our writer about how much material was consumed.
     // Skip this in case the layer is sparse and config option to not print sparse layers is enabled.
-    if (! m_no_sparse_layers || toolchanges_on_layer)
+    if (! m_no_sparse_layers || toolchanges_on_layer || first_layer)
         if (m_current_tool < m_used_filament_length.size())
             m_used_filament_length[m_current_tool] += writer.get_and_reset_used_filament_length();
 
@@ -1469,7 +1470,7 @@ void WipeTower::plan_toolchange(float z_par, float layer_height_par, uint16_t ol
 	if (m_plan.empty() || m_plan.back().z + WT_EPSILON < z_par) // if we moved to a new layer, we'll add it to m_plan first
 		m_plan.push_back(WipeTowerInfo(z_par, layer_height_par));
 
-    if (m_first_layer_idx == size_t(-1) && (! m_no_sparse_layers || old_tool != new_tool))
+    if (m_first_layer_idx == size_t(-1) && (! m_no_sparse_layers || old_tool != new_tool || m_plan.size() == 1))
         m_first_layer_idx = m_plan.size() - 1;
 
     if (old_tool == new_tool)	// new layer without toolchanges - we are done

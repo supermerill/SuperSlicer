@@ -38,7 +38,9 @@ public:
     const Point& operator[](Points::size_type idx) const { return this->points[idx]; }
 
     // last point == first point for polygons
+    //please don't use that, prefer 'is_loop', front() and back().
     const Point& last_point() const override { return this->points.front(); }
+    virtual bool is_loop() const { return true; }
 
     Lines lines() const override;
     Polyline split_at_vertex(const Point &point) const;

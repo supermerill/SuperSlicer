@@ -8,10 +8,10 @@
 #include "../Print.hpp"
 #include "../PrintConfig.hpp"
 #include "../Surface.hpp"
-#include "../PerimeterGenerator.hpp"
 
 #include "FillBase.hpp"
 #include "FillRectilinear.hpp"
+#include "FillLightning.hpp"
 #include "FillConcentric.hpp"
 
 namespace Slic3r {
@@ -424,7 +424,7 @@ void export_group_fills_to_svg(const char *path, const std::vector<SurfaceFill> 
 #endif
 
 // friend to Layer
-void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive::Octree* support_fill_octree)
+void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive::Octree* support_fill_octree, FillLightning::Generator* lightning_generator)
 {
     for (LayerRegion* layerm : m_regions) {
         layerm->fills.clear();
@@ -490,6 +490,9 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         f->angle    = surface_fill.params.angle;
         f->adapt_fill_octree = (surface_fill.params.pattern == ipSupportCubic) ? support_fill_octree : adaptive_fill_octree;
 
+        if (surface_fill.params.pattern == ipLightning)
+            dynamic_cast<FillLightning::Filler*>(f.get())->generator = lightning_generator;
+
         if (perimeter_generator.value == PerimeterGeneratorType::Arachne && surface_fill.params.pattern == ipConcentric) {
             FillConcentric *fill_concentric = dynamic_cast<FillConcentric *>(f.get());
             assert(fill_concentric != nullptr);
@@ -532,7 +535,7 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         //params.anchor_length   = surface_fill.params.anchor_length;
         //params.anchor_length_max = surface_fill.params.anchor_length_max;
         //params.resolution        = resolution;
-        surface_fill.params.use_arachne       = perimeter_generator == PerimeterGeneratorType::Arachne && surface_fill.params.pattern == ipConcentric;
+        surface_fill.params.use_arachne = perimeter_generator == PerimeterGeneratorType::Arachne && surface_fill.params.pattern == ipConcentric;
         //params.layer_height      = m_regions[surface_fill.region_id]->layer()->height;
 
         //union with safety offset to avoid separation from the appends of different surface with same settings.
@@ -873,6 +876,7 @@ void Layer::make_ironing()
             surface_fill.expolygon = std::move(expoly);
             Polylines polylines;
             try {
+                assert(!fill_params.use_arachne);
                 polylines = fill.fill_surface(&surface_fill, fill_params);
             } catch (InfillFailedException &) {
             }

@@ -37,7 +37,13 @@ namespace FillAdaptive {
     struct Octree;
     struct OctreeDeleter;
     using OctreePtr = std::unique_ptr<Octree, OctreeDeleter>;
-};
+}; // namespace FillAdaptive
+
+namespace FillLightning {
+    class Generator;
+    struct GeneratorDeleter;
+    using GeneratorPtr = std::unique_ptr<Generator, GeneratorDeleter>;
+}; // namespace FillLightning
 
 // Print step IDs for keeping track of the print state.
 // The Print steps are applied in this order.
@@ -57,7 +63,9 @@ enum PrintStep {
 
 enum PrintObjectStep {
     posSlice, posPerimeters, posPrepareInfill,
-    posInfill, posIroning, posSupportMaterial, posCount,
+    posInfill, posIroning, posSupportMaterial, 
+    posSimplifyPath, // simplify &  arc fitting
+    posCount,
 };
 
 // A PrintRegion object represents a group of volumes to print
@@ -376,6 +384,7 @@ private:
     void infill();
     void ironing();
     void generate_support_material();
+    void simplify_extrusion_path();
 
     void slice_volumes();
     // Has any support (not counting the raft).
@@ -394,6 +403,7 @@ private:
     void combine_infill();
     void _generate_support_material();
     std::pair<FillAdaptive::OctreePtr, FillAdaptive::OctreePtr> prepare_adaptive_infill_data();
+    FillLightning::GeneratorPtr prepare_lightning_infill_data();
 
     // XYZ in scaled coordinates
     Vec3crd									m_size;

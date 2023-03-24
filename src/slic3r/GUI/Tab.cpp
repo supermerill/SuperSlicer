@@ -2124,6 +2124,8 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(std::string setting_type_nam
                     option.opt.tooltip = (params[i].substr(8, params[i].size() - 8));
                     boost::replace_all(option.opt.tooltip, "\\n", "\n");
                     boost::replace_all(option.opt.tooltip, "\\t", "\t");
+                    boost::replace_all(option.opt.tooltip, "\\.", ":");
+                    boost::replace_all(option.opt.tooltip, "\\£", "$");
                     need_to_notified_search = true;
                 }
                 else if (boost::starts_with(params[i], "max_literal$"))
@@ -3348,6 +3350,10 @@ void TabPrinter::toggle_options()
     bool have_remaining_times = m_config->opt_bool("remaining_times");
     field = get_field("remaining_times_type");
     if (field) field->toggle(have_remaining_times);
+	
+    bool have_arc_fitting = m_config->opt_bool("arc_fitting");
+    field = get_field("arc_fitting_tolerance");
+    if (field) field->toggle(have_arc_fitting);
 
     auto flavor = m_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value;
     bool is_marlin_flavor = flavor == gcfMarlinLegacy || flavor == gcfMarlinFirmware;
@@ -4135,10 +4141,19 @@ void Tab::save_preset(std::string name /*= ""*/, bool detach)
         if (result != wxID_OK && result != wxID_APPLY)
             return;
         name = dlg.get_name();
-        }
+    }
+
+    // Print bed has to be updated, when printer preset is detached from the system preset
+    if (detach && m_type == Preset::TYPE_PRINTER)
+        m_config->opt_string("printer_model", true) = "";
 
     // Save the preset into Slic3r::data_dir / presets / section_name / preset_name.ini
     m_presets->save_current_preset(name, detach);
+
+    // Print bed has to be updated, when printer preset is detached from the system preset
+    if (detach && m_type == Preset::TYPE_PRINTER)
+        wxGetApp().mainframe->on_config_changed(m_config);
+
     // Mark the print & filament enabled if they are compatible with the currently selected preset.
     // If saving the preset changes compatibility with other presets, keep the now incompatible dependent presets selected, however with a "red flag" icon showing that they are no more compatible.
     m_preset_bundle->update_compatible(PresetSelectCompatibleType::Never);
@@ -4193,6 +4208,10 @@ void Tab::save_preset(std::string name /*= ""*/, bool detach)
 
     // update preset comboboxes in DiffPresetDlg
     wxGetApp().mainframe->diff_dialog.update_presets(m_type);
+
+    //when "Detach from system preset" makes the btton disappear after click on it and detaching of the profile from system profile
+    if (detach)
+        update_description_lines();
 }
 
 // Called for a currently selected preset.

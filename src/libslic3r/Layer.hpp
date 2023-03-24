@@ -20,6 +20,10 @@ namespace FillAdaptive {
     struct Octree;
 };
 
+namespace FillLightning {
+    class Generator;
+};
+
 class LayerRegion
 {
 public:
@@ -95,6 +99,7 @@ public:
     // Is there any valid extrusion assigned to this LayerRegion?
     bool    has_extrusions() const { return !this->perimeters.entities().empty() || !this->fills.entities().empty() || !this->ironings.entities().empty() || !this->thin_fills.entities().empty(); }
 
+    void    simplify_extrusion_entity();
 protected:
     friend class Layer;
     friend class PrintObject;
@@ -154,8 +159,8 @@ public:
     void                    make_perimeters();
     void                    make_milling_post_process();
     // Phony version of make_fills() without parameters for Perl integration only.
-    void                    make_fills() { this->make_fills(nullptr, nullptr); }
-    void                    make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive::Octree* support_fill_octree);
+    void                    make_fills() { this->make_fills(nullptr, nullptr, nullptr); }
+    void                    make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive::Octree* support_fill_octree, FillLightning::Generator* lightning_generator);
     void                    make_ironing();
 
     void                    export_region_slices_to_svg(const char *path) const;
@@ -167,6 +172,7 @@ public:
     // Is there any valid extrusion assigned to this LayerRegion?
     virtual bool            has_extrusions() const { for (auto layerm : m_regions) if (layerm->has_extrusions()) return true; return false; }
 
+    void simplify_extrusion_path() { for (auto layerm : m_regions) layerm->simplify_extrusion_entity(); }
 protected:
     friend class PrintObject;
     friend std::vector<Layer*> new_layers(PrintObject*, const std::vector<coordf_t>&);
@@ -201,6 +207,7 @@ public:
     // Zero based index of an interface layer, used for alternating direction of interface / contact layers.
     size_t                      interface_id() const { return m_interface_id; }
 
+    void simplify_support_extrusion_path();
 protected:
     friend class PrintObject;
 

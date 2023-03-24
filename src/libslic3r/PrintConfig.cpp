@@ -51,20 +51,20 @@ static const t_config_enum_values s_keys_map_PrinterTechnology{
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(PrinterTechnology)
 
 
-static const t_config_enum_values s_keys_map_CompleteObjectSort{
+static const t_config_enum_values s_keys_map_CompleteObjectSort {
     {"object", cosObject},
     {"lowy", cosY},
     {"lowz", cosZ},
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(CompleteObjectSort)
 
-static const t_config_enum_values s_keys_map_OutputFormat{
+static const t_config_enum_values s_keys_map_OutputFormat {
     {"mCWS", ofMaskedCWS},
     {"SL1", ofSL1},
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(OutputFormat)
 
-static const t_config_enum_values s_keys_map_WipeAlgo{
+static const t_config_enum_values s_keys_map_WipeAlgo {
     {"linear", waLinear},
     {"quadra", waQuadra},
     {"expo", waHyper},
@@ -89,7 +89,7 @@ static const t_config_enum_values s_keys_map_GCodeFlavor{
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(GCodeFlavor)
 
-static const t_config_enum_values s_keys_map_MachineLimitsUsage{
+static const t_config_enum_values s_keys_map_MachineLimitsUsage {
     {"emit_to_gcode",       int(MachineLimitsUsage::EmitToGCode)},
     {"time_estimate_only",  int(MachineLimitsUsage::TimeEstimateOnly)},
     {"limits",              int(MachineLimitsUsage::Limits)},
@@ -97,7 +97,7 @@ static const t_config_enum_values s_keys_map_MachineLimitsUsage{
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(MachineLimitsUsage)
 
-static const t_config_enum_values s_keys_map_PrintHostType{
+static const t_config_enum_values s_keys_map_PrintHostType {
     {"prusalink", htPrusaLink},
     {"octoprint", htOctoPrint},
     {"duet",    htDuet},
@@ -111,20 +111,20 @@ static const t_config_enum_values s_keys_map_PrintHostType{
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(PrintHostType)
 
-static const t_config_enum_values s_keys_map_AuthorizationType{
+static const t_config_enum_values s_keys_map_AuthorizationType {
     {"key", atKeyPassword},
     {"user", atUserPassword},
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(AuthorizationType)
 
-static const t_config_enum_values s_keys_map_BridgeType{
+static const t_config_enum_values s_keys_map_BridgeType {
     {"nozzle",  uint8_t(BridgeType::btFromNozzle)},
     {"height",  uint8_t(BridgeType::btFromHeight)},
     {"flow",    uint8_t(BridgeType::btFromFlow)},
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(BridgeType)
 
-static const t_config_enum_values s_keys_map_FuzzySkinType{
+static const t_config_enum_values s_keys_map_FuzzySkinType {
     { "none",           int(FuzzySkinType::None) },
     { "external",       int(FuzzySkinType::External) },
     { "shell",          int(FuzzySkinType::Shell) },
@@ -132,7 +132,7 @@ static const t_config_enum_values s_keys_map_FuzzySkinType{
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(FuzzySkinType)
 
-static const t_config_enum_values s_keys_map_InfillPattern{
+static const t_config_enum_values s_keys_map_InfillPattern {
     {"rectilinear",         ipRectilinear},
     {"alignedrectilinear",  ipAlignedRectilinear},
     {"monotonic",           ipMonotonic},
@@ -159,53 +159,51 @@ static const t_config_enum_values s_keys_map_InfillPattern{
     {"sawtooth",            ipSawtooth},
     {"adaptivecubic",       ipAdaptiveCubic},
     {"supportcubic",        ipSupportCubic},
-#if HAS_LIGHTNING_INFILL
-    { "lightning",          ipLightning }
-#endif // HAS_LIGHTNING_INFILL
+    {"lightning",           ipLightning},
     {"auto",                ipAuto}
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(InfillPattern)
 
-static const t_config_enum_values s_keys_map_IroningType{
+static const t_config_enum_values s_keys_map_IroningType {
     {"top", int(IroningType::TopSurfaces)},
     {"topmost", int(IroningType::TopmostOnly)},
     {"solid", int(IroningType::AllSolid)},
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(IroningType)
 
-static const t_config_enum_values s_keys_map_SlicingMode{
+static const t_config_enum_values s_keys_map_SlicingMode {
     { "regular",        int(SlicingMode::Regular) },
     { "even_odd",       int(SlicingMode::EvenOdd) },
     { "close_holes",    int(SlicingMode::CloseHoles) }
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(SlicingMode)
 
-static const t_config_enum_values s_keys_map_SupportMaterialPattern{
+static const t_config_enum_values s_keys_map_SupportMaterialPattern {
     {"rectilinear", smpRectilinear},
     {"rectilinear-grid", smpRectilinearGrid},
     {"honeycomb", smpHoneycomb},
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(SupportMaterialPattern)
 
-static const t_config_enum_values s_keys_map_SupportMaterialStyle{
+static const t_config_enum_values s_keys_map_SupportMaterialStyle {
     { "grid",           smsGrid },
     { "snug",           smsSnug }
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(SupportMaterialStyle)
 
 //unused
-static const t_config_enum_values s_keys_map_SupportMaterialInterfacePattern{
+static const t_config_enum_values s_keys_map_SupportMaterialInterfacePattern {
     { "auto",           smipAuto },
     { "rectilinear",    smipRectilinear },
     { "concentric",     smipConcentric }
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(SupportMaterialInterfacePattern)
 
-static const t_config_enum_values s_keys_map_SeamPosition{
-        {"random", spRandom},
+static const t_config_enum_values s_keys_map_SeamPosition {
+        {"random",    spRandom},
         {"allrandom", spAllRandom},
-        {"nearest", spNearest}, // unused, replaced by cost
-        {"cost", spCost},
+        {"nearest",   spNearest}, // unused, replaced by cost
+        {"cost",      spCost},
         {"aligned", spAligned},
         {"contiguous", spExtremlyAligned},
         {"rear", spRear},
@@ -269,8 +267,9 @@ static const t_config_enum_values s_keys_map_SLAPillarConnectionMode{
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(SLAPillarConnectionMode)
 
 static const t_config_enum_values s_keys_map_SLAMaterialSpeed = {
-    {"slow", slamsSlow},
-    {"fast", slamsFast}
+    {"slow",            slamsSlow},
+    {"fast",            slamsFast},
+    {"high_viscosity",  slamsHighViscosity}
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(SLAMaterialSpeed);
 
@@ -580,6 +579,24 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("Prevent the gcode builder from triggering an exception if a full layer is empty, and allow the print to start from thin air afterward.");
     def->mode = comExpert | comSuSi;
     def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("arc_fitting", coBool);
+    def->label = L("Arc fitting");
+    def->category = OptionCategory::firmware;
+    def->tooltip = L("Enable this to get a G-code file which has G2 and G3 moves. "
+        "And the fitting tolerance is same with resolution");
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("arc_fitting_tolerance", coFloatOrPercent);
+    def->label = L("Arc fitting tolerance");
+    def->sidetext = L("mm or %");
+    def->category = OptionCategory::firmware;
+    def->tooltip = L("When using the arc_fitting option, allow the curve to deviate a cetain % from the collection of strait paths."
+        "\nCan be a mm value or a percentage of the current extrusion width.");
+    def->mode = comAdvancedE | comSuSi;
+    def->min = 0;
+    def->set_default_value(new ConfigOptionFloatOrPercent(5, true));
 
     def = this->add("avoid_crossing_perimeters", coBool);
     def->label = L("Avoid crossing perimeters");
@@ -1108,7 +1125,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("mm");
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(91.5f));
+    def->set_default_value(new ConfigOptionFloat(91.5));
 
     def = this->add("cooling_tube_length", coFloat);
     def->label = L("Cooling tube length");
@@ -1117,7 +1134,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("mm");
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(5.f));
+    def->set_default_value(new ConfigOptionFloat(5.));
 
     def = this->add("curve_smoothing_angle_convex", coFloat);
     def->label = L("Min convex angle");
@@ -2171,6 +2188,7 @@ void PrintConfigDef::init_fff_params()
     def->enum_values.push_back("HIPS");
     def->enum_values.push_back("EDGE");
     def->enum_values.push_back("NGEN");
+    def->enum_values.push_back("PA");
     def->enum_values.push_back("NYLON");
     def->enum_values.push_back("PVA");
     def->enum_values.push_back("PC");
@@ -2314,9 +2332,7 @@ void PrintConfigDef::init_fff_params()
     def->enum_values.push_back("scatteredrectilinear"); 
     def->enum_values.push_back("adaptivecubic");
     def->enum_values.push_back("supportcubic");
-#if HAS_LIGHTNING_INFILL
     def->enum_values.push_back("lightning");
-#endif // HAS_LIGHTNING_INFILL
     def->enum_labels.push_back(L("Rectilinear"));
     def->enum_labels.push_back(L("Monotonic"));
     def->enum_labels.push_back(L("Grid"));
@@ -2334,9 +2350,7 @@ void PrintConfigDef::init_fff_params()
     def->enum_labels.push_back(L("Scattered Rectilinear"));
     def->enum_labels.push_back(L("Adaptive Cubic"));
     def->enum_labels.push_back(L("Support Cubic"));
-#if HAS_LIGHTNING_INFILL
     def->enum_labels.push_back(L("Lightning"));
-#endif // HAS_LIGHTNING_INFILL
     def->mode = comSimpleAE | comPrusa;
     def->set_default_value( new ConfigOptionEnum<InfillPattern>(ipStars));
 
@@ -2583,9 +2597,9 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::fuzzy_skin;
     def->tooltip = L("Fuzzy skin type."
         "\nNone: setting disabled."
-        "\Outside walls: Apply fuzzy skin only on the external perimeters of the outside (not the holes)."
-        "\External walls: Apply fuzzy skin only on all external perimeters."
-        "\All perimeters: Apply fuzzy skin on all perimeters (external, internal and gapfill).");
+        "\nOutside walls: Apply fuzzy skin only on the external perimeters of the outside (not the holes)."
+        "\nExternal walls: Apply fuzzy skin only on all external perimeters."
+        "\nAll perimeters: Apply fuzzy skin on all perimeters (external, internal and gapfill).");
     def->enum_keys_map = &ConfigOptionEnum<FuzzySkinType>::get_enum_values();
     def->enum_values.push_back("none");
     def->enum_values.push_back("external");
@@ -3152,7 +3166,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->category = OptionCategory::mmsetup;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(0.f));
+    def->set_default_value(new ConfigOptionFloat(0.));
 
     def = this->add("ironing", coBool);
     def->label = L("Enable ironing");
@@ -3567,31 +3581,29 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionFloat(0));
 
-#ifdef HAS_PRESSURE_EQUALIZER
     def = this->add("max_volumetric_extrusion_rate_slope_positive", coFloat);
     def->label = L("Max volumetric slope positive");
-    def->tooltip = L("This experimental setting is used to limit the speed of change in extrusion rate. "
+    def->tooltip = L("This experimental setting is used to limit the speed of change in extrusion rate "
+                       "for a transition from lower speed to higher speed. "
                    "A value of 1.8 mm³/s² ensures, that a change from the extrusion rate "
                    "of 1.8 mm³/s (0.45mm extrusion width, 0.2mm extrusion height, feedrate 20 mm/s) "
                    "to 5.4 mm³/s (feedrate 60 mm/s) will take at least 2 seconds.");
     def->sidetext = L("mm³/s²");
     def->min = 0;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(0);
     def->set_default_value(new ConfigOptionFloat(0));
 
     def = this->add("max_volumetric_extrusion_rate_slope_negative", coFloat);
     def->label = L("Max volumetric slope negative");
-    def->tooltip = L("This experimental setting is used to limit the speed of change in extrusion rate. "
+    def->tooltip = L("This experimental setting is used to limit the speed of change in extrusion rate "
+                       "for a transition from higher speed to lower speed. "
                    "A value of 1.8 mm³/s² ensures, that a change from the extrusion rate "
-                   "of 1.8 mm³/s (0.45mm extrusion width, 0.2mm extrusion height, feedrate 20 mm/s) "
-                   "to 5.4 mm³/s (feedrate 60 mm/s) will take at least 2 seconds.");
+                   "of 5.4 mm³/s (0.45 mm extrusion width, 0.2 mm extrusion height, feedrate 60 mm/s) "
+                   "to 1.8 mm³/s (feedrate 20 mm/s) will take at least 2 seconds.");
     def->sidetext = L("mm³/s²");
     def->min = 0;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(0);
     def->set_default_value(new ConfigOptionFloat(0));
-#endif /* HAS_PRESSURE_EQUALIZER */
 
     def = this->add("min_fan_speed", coInts);
     def->label = L("Default fan speed");
@@ -3834,6 +3846,20 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->set_default_value(new ConfigOptionFloatOrPercent(100, true));
 
+    def = this->add("overhangs_speed_enforce", coInt);
+    def->label = L("Enforce overhangs speed");
+    def->full_label = L("Enforce overhangs speed");
+    def->category = OptionCategory::speed;
+    def->tooltip = L("Set the speed of the full perimeters to the overhang speed, and also the next one(s) if any."
+                "\nSet to 0 to disable."
+                "\nSet to 1 to set the overhang speed to the full periemter if there is any overhang detected in the periemter."
+                "\nSet to more than 1 to also set the overhang speed to the next perimeter(s)."
+                );
+    def->sidetext = L("perimeters");
+    def->min = 0;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionInt(0));
+
     def = this->add("overhangs_width_speed", coFloatOrPercent);
     def->label = L("'As bridge' speed threshold");
     def->full_label = L("Overhang bridge speed threshold");
@@ -3910,7 +3936,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("mm");
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(92.f));
+    def->set_default_value(new ConfigOptionFloat(92.));
 
     def = this->add("extra_loading_move", coFloat);
     def->label = L("Extra loading distance");
@@ -3919,7 +3945,7 @@ void PrintConfigDef::init_fff_params()
                       " if negative, the loading move is shorter than unloading. ");
     def->sidetext = L("mm");
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(-2.f));
+    def->set_default_value(new ConfigOptionFloat(-2.));
 
     def = this->add("perimeter_acceleration", coFloatOrPercent);
     def->label = L("Internal");
@@ -4431,7 +4457,13 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::perimeter;
     def->tooltip = L("Position of perimeters' starting points."
                     "\nCost-based option let you choose the angle and travel cost. A high angle cost will place the seam where it can be hidden by a corner"
-                    ", the travel cost place the seam near the last position (often at the end of the previous infill).");
+                    ", the travel cost place the seam near the last position (often at the end of the previous infill). Default is 60 % and 100 %."
+                    " There is also the visibility and the overhang cost, but they are static."
+                    "\n Scattered: seam is placed at a random position on external perimeters"
+                    "\n Random: seam is placed at a random position for all perimeters"
+                    "\n Aligned: seams are grouped in the best place possible (minimum 6 layers per group)"
+                    "\n Contiguous: seam is placed over a seam from the previous layer (useful with enforcers)"
+                    "\n Rear: seam is placed at the far side (highest Y coordinates)");
     def->enum_keys_map = &ConfigOptionEnum<SeamPosition>::get_enum_values();
     def->enum_values.push_back("cost");
     def->enum_values.push_back("random");
@@ -4445,18 +4477,100 @@ void PrintConfigDef::init_fff_params()
     def->enum_labels.push_back(L("Aligned"));
     def->enum_labels.push_back(L("Contiguous"));
     def->enum_labels.push_back(L("Rear"));
-    def->mode = comSimpleAE | comPrusa;
+    def->mode = comSimpleAE | comPrusa | comSuSi;
     def->set_default_value(new ConfigOptionEnum<SeamPosition>(spCost));
 
     def = this->add("seam_angle_cost", coPercent);
     def->label = L("Angle cost");
     def->full_label = L("Seam angle cost");
     def->category = OptionCategory::perimeter;
-    def->tooltip = L("Cost of placing the seam at a bad angle. The worst angle (max penalty) is when it's flat.");
+    def->tooltip = L("Cost of placing the seam at a bad angle. The worst angle (max penalty) is when it's flat."
+        "\n100% is the default penalty");
     def->sidetext = L("%");
     def->min = 0;
+    def->max = 1000;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionPercent(80));
+    def->set_default_value(new ConfigOptionPercent(60));
+
+    def = this->add("seam_gap", coFloatsOrPercents);
+    def->label = L("Seam gap");
+    def->category = OptionCategory::extruders;
+    def->tooltip = L("To avoid visible seam, the extrusion can be stoppped a bit before the end of the loop."
+        "\nCan be a mm or a % of the current extruder diameter.");
+    def->sidetext = L("mm or %");
+    def->min = 0;
+    def->max_literal = { 5, false };
+    def->mode = comExpert | comSuSi;
+    def->is_vector_extruder = true;
+    def->set_default_value(new ConfigOptionFloatsOrPercents{ FloatOrPercent{15,true} });
+
+    def = this->add("seam_gap_external", coFloatsOrPercents);
+    def->label = L("Seam gap for external perimeters");
+    def->category = OptionCategory::extruders;
+    def->tooltip = L("To avoid visible seam, the extrusion can be stoppped a bit before the end of the loop."
+        "\n this setting is enforced only for external perimeter. It overrides 'seam_gap' if different than 0"
+        "\nCan be a mm or a % of the current seam gap.");
+    def->sidetext = L("mm or %");
+    def->min = 0;
+    def->max_literal = { 5, false };
+    def->mode = comExpert | comSuSi;
+    def->is_vector_extruder = true;
+    def->set_default_value(new ConfigOptionFloatsOrPercents{ FloatOrPercent{0,false} });
+
+    def = this->add("seam_notch_all", coFloatOrPercent);
+    def->label = L("for everything");
+    def->full_label = L("Seam notch");
+    def->category = OptionCategory::perimeter;
+    def->tooltip = L("It's sometimes very problematic to have a little buldge from the seam."
+        " This setting move the seam inside the part, in a little cavity (for every seams in external perimeters, unless it's in an overhang)."
+        "\nThe size of the cavity is in mm or a % of the external perimeter width. It's overriden by the two other 'seam notch' setting when applicable."
+        "\nSet zero to disable.");
+    def->sidetext = L("mm or %");
+    def->min = 0;
+    def->max_literal = { 5, false };
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloatOrPercent(0, false));
+
+    def = this->add("seam_notch_angle", coFloat);
+    def->label = L("max angle");
+    def->full_label = L("Seam notch maximum angle");
+    def->category = OptionCategory::perimeter;
+    def->tooltip = L("If the (external) angle at the seam is higher than this value, then no notch will be set. If the angle is too high, there isn't enough room for the notch.");
+    def->sidetext = L("°");
+    def->min = 0;
+    def->max = 360;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloat(250));
+
+    def = this->add("seam_notch_inner", coFloatOrPercent);
+    def->label = L("for round holes");
+    def->full_label = L("Seam notch for round holes");
+    def->category = OptionCategory::perimeter;
+    def->tooltip = L("In convex holes (circular/oval), it's sometimes very problematic to have a little buldge from the seam."
+        " This setting move the seam inside the part, in a little cavity (for all external perimeters in convex holes, unless it's in an overhang)."
+        "\nThe size of the cavity is in mm or a % of the external perimeter width"
+        "\nSet zero to disable.");
+    def->sidetext = L("mm or %");
+    def->min = 0;
+    def->max = 50;
+    def->max_literal = { 5, false };
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloatOrPercent(0, false));
+
+    def = this->add("seam_notch_outer", coFloatOrPercent);
+    def->label = L("for round perimeters");
+    def->full_label = L("Seam notch for round perimeters");
+    def->category = OptionCategory::perimeter;
+    def->tooltip = L("In convex perimeters (circular/oval), it's sometimes very problematic to have a little buldge from the seam."
+        " This setting move the seam inside the part, in a little cavity (for all external perimeters if the path is convex, unless it's in an overhang)."
+        "\nThe size of the cavity is in mm or a % of the external perimeter width"
+        "\nSet zero to disable.");
+    def->sidetext = L("mm or %");
+    def->min = 0;
+    def->max = 50;
+    def->max_literal = { 5, false };
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloatOrPercent(0, false));
 
     def = this->add("seam_travel_cost", coPercent);
     def->label = L("Travel cost");
@@ -4465,20 +4579,18 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("Cost of moving the extruder. The highest penalty is when the point is the furthest from the position of the extruder before extruding the external perimeter");
     def->sidetext = L("%");
     def->min = 0;
+    def->max = 1000;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionPercent(20));
+    def->set_default_value(new ConfigOptionPercent(100));
 
-    def = this->add("seam_gap", coFloatsOrPercents);
-    def->label = L("Seam gap");
-    def->category = OptionCategory::extruders;
-    def->tooltip = L("To avoid visible seam, the extrusion can be stoppped a bit before the end of the loop."
-                    "\nCan be a mm or a % of the current extruder diameter.");
-    def->sidetext = L("mm or %");
-    def->min = 0;
-    def->max_literal = { 5, false };
+    def = this->add("seam_visibility", coBool);
+    def->label = L("use visibility check");
+    def->full_label = L("Seam visibility check");
+    def->category = OptionCategory::perimeter;
+    def->tooltip = L("Check and penalize seams that are the most visible. launch rays to check from how many direction a point is visible."
+        "\nThis is a compute-intensive option.");
     def->mode = comExpert | comSuSi;
-    def->is_vector_extruder = true;
-    def->set_default_value(new ConfigOptionFloatsOrPercents{ FloatOrPercent{15,true} });
+    def->set_default_value(new ConfigOptionBool(true));
 
 #if 0
     def = this->add("seam_preferred_direction", coFloat);
@@ -5775,18 +5887,18 @@ void PrintConfigDef::init_fff_params()
                      "wipe tower. These values are used to simplify creation of the full purging "
                      "volumes below. ");
     def->mode = comSimpleAE | comPrusa;
-    def->set_default_value(new ConfigOptionFloats { 70.f, 70.f, 70.f, 70.f, 70.f, 70.f, 70.f, 70.f, 70.f, 70.f  });
+    def->set_default_value(new ConfigOptionFloats { 70., 70., 70., 70., 70., 70., 70., 70., 70., 70.  });
 
     def = this->add("wiping_volumes_matrix", coFloats);
     def->label = L("Purging volumes - matrix");
     def->tooltip = L("This matrix describes volumes (in cubic milimetres) required to purge the"
                      " new filament on the wipe tower for any given pair of tools. ");
     def->mode = comSimpleAE | comPrusa;
-    def->set_default_value(new ConfigOptionFloats {   0.f, 140.f, 140.f, 140.f, 140.f,
-                                                  140.f,   0.f, 140.f, 140.f, 140.f,
-                                                  140.f, 140.f,   0.f, 140.f, 140.f,
-                                                  140.f, 140.f, 140.f,   0.f, 140.f,
-                                                    140.f, 140.f, 140.f, 140.f,   0.f });
+    def->set_default_value(new ConfigOptionFloats {   0., 140., 140., 140., 140.,
+                                                    140.,   0., 140., 140., 140.,
+                                                    140., 140.,   0., 140., 140.,
+                                                    140., 140., 140.,   0., 140.,
+                                                    140., 140., 140., 140.,   0. });
 
 
     def = this->add("wipe_advanced", coBool);
@@ -6173,6 +6285,7 @@ void PrintConfigDef::init_extruder_option_keys()
         "retract_restart_extra_toolchange",
         "retract_speed",
         "seam_gap",
+        "seam_gap_external",
         "tool_name",
         "wipe",
         "wipe_extra_perimeter",
@@ -6424,6 +6537,15 @@ void PrintConfigDef::init_sla_params()
     def->min = 0;
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionFloat(8.));
+
+    def = this->add("high_viscosity_tilt_time", coFloat);
+    def->label = L("High viscosity");
+    def->full_label = L("Tilt for high viscosity resin");
+    def->tooltip = L("Time of the super slow tilt");
+    def->sidetext = L("s");
+    def->min = 0;
+    def->mode = comExpert;
+    def->set_default_value(new ConfigOptionFloat(10.));
 
     def = this->add("area_fill", coFloat);
     def->label = L("Area fill");
@@ -6871,7 +6993,7 @@ void PrintConfigDef::init_sla_params()
     def->sidetext = L("mm");
     def->min = 0;
     def->mode = comSimpleAE | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(1.f));
+    def->set_default_value(new ConfigOptionFloat(1.));
 
     def = this->add("pad_enable", coBool);
     def->label = L("Use pad");
@@ -7050,8 +7172,10 @@ void PrintConfigDef::init_sla_params()
     def->enum_keys_map = &ConfigOptionEnum<SLAMaterialSpeed>::get_enum_values();
     def->enum_values.push_back("slow");
     def->enum_values.push_back("fast");
+    def->enum_values.push_back("high_viscosity");
     def->enum_labels.push_back(L("Slow"));
     def->enum_labels.push_back(L("Fast"));
+    def->enum_labels.push_back(L("High viscosity"));
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionEnum<SLAMaterialSpeed>(slamsFast));
 
@@ -7267,9 +7391,6 @@ void PrintConfigDef::handle_legacy(t_config_option_key &opt_key, std::string &va
         "start_perimeters_at_concave_points", "start_perimeters_at_non_overhang", "randomize_start",
         "seal_position", "vibration_limit", "bed_size",
         "print_center", "g0", "threads", "pressure_advance", "wipe_tower_per_color_wipe",
-#ifndef HAS_PRESSURE_EQUALIZER
-        "max_volumetric_extrusion_rate_slope_positive", "max_volumetric_extrusion_rate_slope_negative",
-#endif /* HAS_PRESSURE_EQUALIZER */
         "cooling", "serial_port", "serial_speed",
         // Introduced in some PrusaSlicer 2.3.1 alpha, later renamed or removed.
         "fuzzy_skin_perimeter_mode", "fuzzy_skin_shape",
@@ -7433,6 +7554,8 @@ void ModelConfig::convert_from_prusa(const DynamicPrintConfig& global_config) {
 
 std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "allow_empty_layers",
+"arc_fitting",
+"arc_fitting_tolerance",
 "avoid_crossing_not_first_layer",
 "bridge_fill_pattern",
 "bridge_internal_acceleration",
@@ -7555,6 +7678,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "overhangs_reverse_threshold",
 "overhangs_reverse",
 "overhangs_speed",
+"overhangs_speed_enforce",
 "overhangs_width_speed",
 "perimeter_bonding",
 "perimeter_extrusion_spacing",
@@ -7575,7 +7699,13 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "retract_lift_top",
 "seam_angle_cost",
 "seam_gap",
+"seam_gap_external",
+"seam_notch_all",
+"seam_notch_angle",
+"seam_notch_inner",
+"seam_notch_outer",
 "seam_travel_cost",
+"seam_visibility",
 "skirt_brim",
 "skirt_distance_from_brim",
 "skirt_extrusion_width",
@@ -7973,6 +8103,7 @@ void DynamicPrintConfig::normalize_fdm()
         {
             this->opt<ConfigOptionInt>("top_solid_layers", true)->value = 0;
             this->opt<ConfigOptionPercent>("fill_density", true)->value = 0;
+            this->opt<ConfigOptionEnum<PerimeterGeneratorType>>("perimeter_generator", true)->value = PerimeterGeneratorType::Classic; 
             this->opt<ConfigOptionBool>("support_material", true)->value = false;
             this->opt<ConfigOptionInt>("solid_over_perimeters")->value = 0;
             this->opt<ConfigOptionInt>("support_material_enforce_layers")->value = 0;
@@ -7990,6 +8121,11 @@ void DynamicPrintConfig::normalize_fdm()
 //    if (auto* opt_gcode_resolution = this->opt<ConfigOptionFloat>("gcode_resolution", false); opt_gcode_resolution)
 //        // Resolution will be above 1um.
 //        opt_gcode_resolution->value = std::max(opt_gcode_resolution->value, 0.001);
+
+    if (auto *opt_min_bead_width = this->opt<ConfigOptionFloat>("min_bead_width", false); opt_min_bead_width)
+        opt_min_bead_width->value = std::max(opt_min_bead_width->value, 0.001);
+    if (auto *opt_wall_transition_length = this->opt<ConfigOptionFloat>("wall_transition_length", false); opt_wall_transition_length)
+        opt_wall_transition_length->value = std::max(opt_wall_transition_length->value, 0.001);
 
     if (auto *opt_min_bead_width = this->opt<ConfigOptionFloat>("min_bead_width", false); opt_min_bead_width)
         opt_min_bead_width->value = std::max(opt_min_bead_width->value, 0.001);

@@ -317,7 +317,7 @@ static std::vector<InnerBrimExPolygons> inner_brim_area(const Print             
             // After 7ff76d07684858fd937ef2f5d863f105a10f798e offset and shrink don't work with CW polygons (holes), so let's make it CCW.
             Polygons ex_poly_holes_reversed = ex_poly.holes;
             polygons_reverse(ex_poly_holes_reversed);
-            for (const PrintInstance &instance : object->instances()) {
+            for ([[maybe_unused]] const PrintInstance &instance : object->instances()) {
                 ++polygon_idx; // Increase idx because of the contour of the ExPolygon.
 
                 if (brim_type == BrimType::btInnerOnly || brim_type == BrimType::btOuterAndInner)
@@ -817,16 +817,16 @@ void extrude_brim_from_tree(const Print& print, std::vector<std::vector<BrimLoop
             //nothing
         } else if (i_have_line && to_cut.children.empty()) {
             ExtrusionEntitiesPtr to_add;
-            for (Polyline& line : to_cut.lines) {
-                assert(line.size() > 0);
-                if (line.points.back() == line.points.front()) {
+            for (Polyline& pline : to_cut.lines) {
+                assert(pline.size() > 0);
+                if (pline.back() == pline.front()) {
                     ExtrusionPath path(erSkirt, mm3_per_mm, width, height);
-                    path.polyline.points = line.points;
+                    path.polyline = pline;
                     to_add.push_back(new ExtrusionLoop(std::move(path), elrSkirt));
                 } else {
                     ExtrusionPath* extrusion_path = new ExtrusionPath(erSkirt, mm3_per_mm, width, height);
                     to_add.push_back(extrusion_path);
-                    extrusion_path->polyline = line;
+                    extrusion_path->polyline = pline;
                 }
             }
             parent->append(std::move(to_add));
@@ -853,16 +853,16 @@ void extrude_brim_from_tree(const Print& print, std::vector<std::vector<BrimLoop
             print_me_first->set_can_sort_reverse(false, false);
             parent->append({ print_me_first });
             ExtrusionEntitiesPtr to_add;
-            for (Polyline& line : to_cut.lines) {
-                assert(line.size() > 0);
-                if (line.points.back() == line.points.front()) {
+            for (Polyline& pline : to_cut.lines) {
+                assert(pline.size() > 0);
+                if (pline.back() == pline.front()) {
                     ExtrusionPath path(erSkirt, mm3_per_mm, width, height);
-                    path.polyline.points = line.points;
+                    path.polyline = pline;
                     to_add.push_back(new ExtrusionLoop(std::move(path), elrSkirt));
                 } else {
                     ExtrusionPath* extrusion_path = new ExtrusionPath(erSkirt, mm3_per_mm, width, height);
                     to_add.push_back(extrusion_path);
-                    extrusion_path->polyline = line;
+                    extrusion_path->polyline = pline;
                 }
             }
             print_me_first->append(std::move(to_add));
@@ -1024,10 +1024,11 @@ void make_brim(const Print& print, const Flow& flow, const PrintObjectPtrs& obje
     print.throw_if_canceled();
 
     //simplify & merge
-    coordf_t scaled_resolution = scale_d(brim_config.get_computed_value("resolution_internal"));
+    //get brim resolution (lower resolution if no arc fitting)
+    coordf_t scaled_resolution_brim = (print.config().arc_fitting.value)? scale_d(print.config().resolution) : scale_d(print.config().resolution_internal) / 10;
     ExPolygons unbrimmable_areas;
     for (ExPolygon& expoly : islands)
-        for (ExPolygon& expoly : expoly.simplify(scaled_resolution/10))
+        for (ExPolygon& expoly : expoly.simplify(scaled_resolution_brim))
             unbrimmable_areas.emplace_back(std::move(expoly));
     islands = union_safety_offset_ex(unbrimmable_areas);
     unbrimmable_areas = islands;
@@ -1077,7 +1078,7 @@ void make_brim(const Print& print, const Flow& flow, const PrintObjectPtrs& obje
             for (ExPolygon& expoly : last_islands) {
                 for (ExPolygon& big_contour : offset_ex(expoly, double(scaled_spacing), jtSquare)) {
                     bigger_islands.push_back(big_contour);
-                    Polygons simplifiesd_big_contour = big_contour.contour.simplify(scaled_resolution / 10);
+                    Polygons simplifiesd_big_contour = big_contour.contour.simplify(scaled_resolution_brim);
                     if (simplifiesd_big_contour.size() == 1) {
                         bigger_islands.back().contour = simplifiesd_big_contour.front();
                     }
@@ -1210,7 +1211,8 @@ void make_brim_ears(const Print& print, const Flow& flow, const PrintObjectPtrs&
 
     print.throw_if_canceled();
 
-    const coordf_t scaled_resolution = scale_d(brim_config.get_computed_value("resolution_internal"));
+    //get brim resolution (low resolution if no arc fitting)
+    coordf_t scaled_resolution_brim = (print.config().arc_fitting.value) ? scale_d(print.config().resolution) : scale_d(print.config().resolution_internal) / 10;
     if (brim_config.brim_ears_pattern.value == InfillPattern::ipConcentric) {
 
         //create loops (same as standard brim)
@@ -1222,7 +1224,7 @@ void make_brim_ears(const Print& print, const Flow& flow, const PrintObjectPtrs&
             for (ExPolygon& expoly : islands) {
                 Polygon poly = expoly.contour;
                 poly.points.push_back(poly.points.front());
-                Points p = MultiPoint::_douglas_peucker(poly.points, scaled_resolution/10);
+                Points p = MultiPoint::_douglas_peucker(poly.points, scaled_resolution_brim);
                 p.pop_back();
                 poly.points = std::move(p);
                 loops.push_back(poly);
@@ -1368,7 +1370,8 @@ void make_brim_interior(const Print& print, const Flow& flow, const PrintObjectP
     brimmable_areas = diff_ex(brimmable_areas, unbrimmable_areas, ApplySafetyOffset::Yes);
 
     //now get all holes, use them to create loops
-    const coordf_t scaled_resolution = scale_d(brim_config.get_computed_value("resolution_internal"));
+    //get brim resolution (low resolution if no arc fitting)
+    coordf_t scaled_resolution_brim = (print.config().arc_fitting.value) ? scale_d(print.config().resolution) : scale_d(print.config().resolution_internal) / 10;
     std::vector<std::vector<BrimLoop>> loops;
     for (size_t i = 0; i < num_loops; ++i) {
         print.throw_if_canceled();
@@ -1378,7 +1381,7 @@ void make_brim_interior(const Print& print, const Flow& flow, const PrintObjectP
             Polygons temp = offset(poly, double(-flow.scaled_spacing()), jtSquare);
             for (Polygon& poly : temp) {
                 poly.points.push_back(poly.points.front());
-                Points p = MultiPoint::_douglas_peucker(poly.points, scaled_resolution/10);
+                Points p = MultiPoint::_douglas_peucker(poly.points, scaled_resolution_brim);
                 p.pop_back();
                 poly.points = std::move(p);
             }

@@ -21,6 +21,13 @@
 #include <cmath>
 #include <type_traits>
 
+#ifdef _WIN32
+// On MSVC, std::deque degenerates to a list of pointers, which defeats its purpose of reducing allocator load and memory fragmentation.
+// https://github.com/microsoft/STL/issues/147#issuecomment-1090148740
+// Thus it is recommended to use boost::container::deque instead.
+#include <boost/container/deque.hpp>
+#endif // _WIN32
+
 #include "Technologies.hpp"
 #include "Semver.hpp"
 
@@ -72,6 +79,16 @@ static constexpr double INSET_OVERLAP_TOLERANCE = 0.4;
 namespace Slic3r {
 
 extern Semver SEMVER;
+
+// On MSVC, std::deque degenerates to a list of pointers, which defeats its purpose of reducing allocator load and memory fragmentation.
+template<class T, class Allocator = std::allocator<T>>
+using deque = 
+#ifdef _WIN32
+    // Use boost implementation, which allocates blocks of 512 bytes instead of blocks of 8 bytes.
+    boost::container::deque<T, Allocator>;
+#else // _WIN32
+    std::deque<T, Allocator>;
+#endif // _WIN32
 
 template<typename T, typename Q>
 inline T unscale(Q v) { return T(v) * T(SCALING_FACTOR); }
@@ -327,7 +344,13 @@ public:
     inline bool   empty() const { return size() == 0; }
 };
 
+template<class T, class = FloatingOnly<T>>
+constexpr T NaN = std::numeric_limits<T>::quiet_NaN();
 
+constexpr float NaNf = NaN<float>;
+constexpr double NaNd = NaN<double>;
+
+#if _DEBUG
 // to check when & how an object is created/copied/deleted
 class Intrumentation {
 public:
@@ -353,6 +376,7 @@ public:
         return *this;
     }
 };
+#endif
 
 } // namespace Slic3r
 

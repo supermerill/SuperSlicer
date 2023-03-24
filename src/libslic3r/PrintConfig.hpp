@@ -39,8 +39,6 @@
 #include <boost/preprocessor/tuple/elem.hpp>
 #include <boost/preprocessor/tuple/to_seq.hpp>
 
-// #define HAS_PRESSURE_EQUALIZER
-
 namespace Slic3r {
 
 enum CompleteObjectSort {
@@ -110,8 +108,6 @@ enum class FuzzySkinType {
     All,
 };
 
-#define HAS_LIGHTNING_INFILL 0
-
 enum InfillPattern : uint8_t{
     ipRectilinear, ipAlignedRectilinear, ipGrid, ipTriangles, ipStars, ipCubic, ipLine,
     ipConcentric, ipConcentricGapFill,
@@ -124,9 +120,7 @@ enum InfillPattern : uint8_t{
     ipRectilinearWGapFill,
     ipMonotonic,
     ipMonotonicWGapFill,
-#if HAS_LIGHTNING_INFILL
     ipLightning,
-#endif // HAS_LIGHTNING_INFILL
     ipAuto,
     ipCount,
 };
@@ -734,6 +728,11 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionEnum<SeamPosition>,   seam_position))
     ((ConfigOptionPercent,              seam_angle_cost))
     ((ConfigOptionPercent,              seam_travel_cost))
+    ((ConfigOptionFloatOrPercent,       seam_notch_all))
+    ((ConfigOptionFloat,                seam_notch_angle))
+    ((ConfigOptionFloatOrPercent,       seam_notch_inner))
+    ((ConfigOptionFloatOrPercent,       seam_notch_outer))
+    ((ConfigOptionBool,                 seam_visibility))
 //    ((ConfigOptionFloat,                seam_preferred_direction))
 //    ((ConfigOptionFloat,                seam_preferred_direction_jitter))
     ((ConfigOptionFloat,                slice_closing_radius))
@@ -885,6 +884,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloatOrPercent,       min_width_top_surface))
     // Detect bridging perimeters
     ((ConfigOptionFloatOrPercent,       overhangs_speed))
+    ((ConfigOptionInt,                  overhangs_speed_enforce))
     ((ConfigOptionFloatOrPercent,       overhangs_width))
     ((ConfigOptionFloatOrPercent,       overhangs_width_speed))
     ((ConfigOptionBool,                 overhangs_reverse))
@@ -987,6 +987,8 @@ PRINT_CONFIG_CLASS_DEFINE(
 PRINT_CONFIG_CLASS_DEFINE(
     GCodeConfig,
 
+    ((ConfigOptionBool,                arc_fitting))
+    ((ConfigOptionFloatOrPercent,      arc_fitting_tolerance))
     ((ConfigOptionString,              before_layer_gcode))
     ((ConfigOptionString,              between_objects_gcode))
     ((ConfigOptionFloats,              deretract_speed))
@@ -1049,6 +1051,8 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat,               max_gcode_per_second))
     ((ConfigOptionFloatOrPercent,      max_print_speed))
     ((ConfigOptionFloat,               max_volumetric_speed))
+    ((ConfigOptionFloat,               max_volumetric_extrusion_rate_slope_positive))
+    ((ConfigOptionFloat,               max_volumetric_extrusion_rate_slope_negative))
     ((ConfigOptionFloats,              milling_z_lift))
     ((ConfigOptionFloat,               min_length))
     ((ConfigOptionPercents,            retract_before_wipe))
@@ -1201,6 +1205,7 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     ((ConfigOptionInt,                  skirt_height))
     ((ConfigOptionFloatOrPercent,       skirt_extrusion_width))
     ((ConfigOptionFloatsOrPercents,     seam_gap))
+    ((ConfigOptionFloatsOrPercents,     seam_gap_external))
     ((ConfigOptionInt,                  skirts))
     ((ConfigOptionFloats,               slowdown_below_layer_time))
     ((ConfigOptionBool,                 spiral_vase))
@@ -1216,6 +1221,7 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     ((ConfigOptionString,               thumbnails_color))
     ((ConfigOptionBool,                 thumbnails_custom_color))
     ((ConfigOptionBool,                 thumbnails_end_file))
+    ((ConfigOptionEnum<GCodeThumbnailsFormat>, thumbnails_format))
     ((ConfigOptionBool,                 thumbnails_with_bed))
     ((ConfigOptionPercent,              time_estimation_compensation))
     ((ConfigOptionFloat,                time_cost))
@@ -1407,7 +1413,7 @@ PRINT_CONFIG_CLASS_DEFINE(
 
 )
 
-enum SLAMaterialSpeed { slamsSlow, slamsFast };
+enum SLAMaterialSpeed { slamsSlow, slamsFast, slamsHighViscosity };
 
 PRINT_CONFIG_CLASS_DEFINE(
     SLAMaterialConfig,
@@ -1452,6 +1458,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat,                        gamma_correction))
     ((ConfigOptionFloat,                        fast_tilt_time))
     ((ConfigOptionFloat,                        slow_tilt_time))
+    ((ConfigOptionFloat,                        high_viscosity_tilt_time))
     ((ConfigOptionFloat,                        area_fill))
     ((ConfigOptionFloat,                        min_exposure_time))
     ((ConfigOptionFloat,                        max_exposure_time))

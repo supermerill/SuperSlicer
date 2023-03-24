@@ -20,6 +20,7 @@ group:Tilt
 	line:Tilt time
 		setting:fast_tilt_time
 		setting:slow_tilt_time
+		setting:high_viscosity_tilt_time
 	end_line
 	setting:area_fill
 group:Corrections

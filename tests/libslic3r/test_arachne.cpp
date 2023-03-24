@@ -11,22 +11,22 @@ using namespace Slic3r::Arachne;
 //#define ARACHNE_DEBUG_OUT
 
 #ifdef ARACHNE_DEBUG_OUT
-static void draw_extrusion(const std::string &path, const Polygons &polygons, const std::vector<VariableWidthLines> &vlines, const ExPolygons &contours)
+static void export_perimeters_to_svg(const std::string &path, const Polygons &contours, const std::vector<Arachne::VariableWidthLines> &perimeters, const ExPolygons &infill_area)
 {
     coordf_t    stroke_width = scale_(0.03);
-    BoundingBox bbox         = get_extents(polygons);
+    BoundingBox bbox         = get_extents(contours);
     bbox.offset(scale_(1.));
     ::Slic3r::SVG svg(path.c_str(), bbox);
 
-    svg.draw(contours, "cyan");
+    svg.draw(infill_area, "cyan");
 
-    for (const VariableWidthLines &vl : vlines)
-        for (const ExtrusionLine &el : vl) {
-            ThickPolyline thick_polyline = to_thick_polyline(el);
+    for (const Arachne::VariableWidthLines &perimeter : perimeters)
+        for (const Arachne::ExtrusionLine &extrusion_line : perimeter) {
+            ThickPolyline thick_polyline = to_thick_polyline(extrusion_line);
             svg.draw({thick_polyline}, "green", "blue", stroke_width);
         }
 
-    for (const Line &line : to_lines(polygons))
+    for (const Line &line : to_lines(contours))
         svg.draw(line, "red", stroke_width);
 }
 #endif
@@ -52,7 +52,7 @@ TEST_CASE("Arachne - Closed ExtrusionLine", "[ArachneClosedExtrusionLine]") {
     std::vector<Arachne::VariableWidthLines> perimeters = wallToolPaths.getToolPaths();
 
 #ifdef ARACHNE_DEBUG_OUT
-    draw_extrusion(debug_out_path("arachne-closed-extrusion-line.svg"), polygons, perimeters, union_ex(wallToolPaths.getInnerContour()));
+    export_perimeters_to_svg(debug_out_path("arachne-closed-extrusion-line.svg"), polygons, perimeters, union_ex(wallToolPaths.getInnerContour()));
 #endif
 
     for (VariableWidthLines &perimeter : perimeters)
@@ -85,7 +85,7 @@ TEST_CASE("Arachne - Missing perimeter - #8472", "[ArachneMissingPerimeter8472]"
     std::vector<Arachne::VariableWidthLines> perimeters = wallToolPaths.getToolPaths();
 
 #ifdef ARACHNE_DEBUG_OUT
-    draw_extrusion(debug_out_path("arachne-missing-perimeter-8472.svg"), polygons, perimeters, union_ex(wallToolPaths.getInnerContour()));
+    export_perimeters_to_svg(debug_out_path("arachne-missing-perimeter-8472.svg"), polygons, perimeters, union_ex(wallToolPaths.getInnerContour()));
 #endif
 
     REQUIRE(perimeters.size() == 3);

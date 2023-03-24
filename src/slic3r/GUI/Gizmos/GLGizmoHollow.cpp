@@ -847,7 +847,7 @@ void GLGizmoHollow::select_point(int i)
         m_selected.assign(m_selected.size(), i == AllPoints);
         m_selection_empty = (i == NoPoints);
 
-        if (i == AllPoints) {
+        if (i == AllPoints && ! drain_holes.empty()) {
             m_new_hole_radius = drain_holes[0].radius;
             m_new_hole_height = drain_holes[0].height;
         }

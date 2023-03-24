@@ -342,18 +342,26 @@ LayerRangeEditor::LayerRangeEditor( ObjectLayers* parent,
     this->Bind(wxEVT_TEXT_ENTER, [this, edit_fn](wxEvent&)
     {
         m_enter_pressed     = true;
-        // If LayersList wasn't updated/recreated, we can call wxEVT_KILL_FOCUS.Skip()
-        if (m_type&etLayerHeight) {
-            if (!edit_fn(get_value(), true, false))
+        // Workaround! Under Linux we have to use CallAfter() to avoid crash after pressing ENTER key
+        // see #7531, #8055, #8408
+#ifdef __linux__
+        wxTheApp->CallAfter([this, edit_fn]() {
+#endif
+            // If LayersList wasn't updated/recreated, we can call wxEVT_KILL_FOCUS.Skip()
+            if (m_type & etLayerHeight) {
+                if (!edit_fn(get_value(), true, false))
+                    SetValue(m_valid_value);
+                else
+                    m_valid_value = double_to_string(get_value());
+                m_call_kill_focus = true;
+            }
+            else if (!edit_fn(get_value(), true, false)) {
                 SetValue(m_valid_value);
-            else
-                m_valid_value = double_to_string(get_value());
-            m_call_kill_focus = true;
-        }
-        else if (!edit_fn(get_value(), true, false)) {
-            SetValue(m_valid_value);
-            m_call_kill_focus = true;
-        }
+                m_call_kill_focus = true;
+            }
+#ifdef __linux__
+        });
+#endif 
     }, this->GetId());
 
     this->Bind(wxEVT_KILL_FOCUS, [this, edit_fn](wxFocusEvent& e)
@@ -419,16 +427,13 @@ coordf_t LayerRangeEditor::get_value()
     const char dec_sep = is_decimal_separator_point() ? '.' : ',';
     const char dec_sep_alt = dec_sep == '.' ? ',' : '.';
     // Replace the first incorrect separator in decimal number.
-    if (str.Replace(dec_sep_alt, dec_sep, false) != 0)
-        SetValue(str);
+    str.Replace(dec_sep_alt, dec_sep, false);
 
     if (str == ".")
         layer_height = 0.0;
-    else {
-        if (!str.ToDouble(&layer_height) || layer_height < 0.0f) {
-            show_error(m_parent, _L("Invalid numeric input."));
-            SetValue(double_to_string(layer_height));
-        }
+    else if (!str.ToDouble(&layer_height) || layer_height < 0.0f) {
+        show_error(m_parent, _L("Invalid numeric input."));
+        assert(m_valid_value.ToDouble(&layer_height));
     }
 
     return layer_height;

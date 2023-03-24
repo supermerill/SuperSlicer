@@ -683,67 +683,81 @@ void GCodeProcessor::TimeProcessor::post_process(const std::string& filename, st
 
 void GCodeProcessor::UsedFilaments::reset()
 {
-    color_change_cache = 0.0f;
-    volumes_per_color_change = std::vector<double>();
+    this->color_change_cache = 0.0f;
+    this->volumes_per_color_change = std::vector<double>();
 
-    tool_change_cache = 0.0f;
-    volumes_per_extruder.clear();
+    this->tool_change_cache = 0.0f;
+    this->volumes_per_extruder.clear();
 
-    role_cache = 0.0f;
-    filaments_per_role.clear();
+    this->role_cache = 0.0f;
+    this->filaments_per_role.clear();
+
+    this->extruder_retracted_volume.clear();
 }
 
-void GCodeProcessor::UsedFilaments::increase_caches(double extruded_volume)
+void GCodeProcessor::UsedFilaments::increase_caches(double extruded_volume, uint16_t extruder_id, double parking_volume, double extra_loading_volume)
 {
-    color_change_cache += extruded_volume;
-    tool_change_cache += extruded_volume;
-    role_cache += extruded_volume;
+    if (extruder_id >= this->extruder_retracted_volume.size())
+        this->extruder_retracted_volume.resize(extruder_id + 1, parking_volume);
+    
+    if (this->recent_toolchange) {
+        extruded_volume -= extra_loading_volume;
+        this->recent_toolchange = false;
+    }
+    
+    this->extruder_retracted_volume[extruder_id] -= extruded_volume;
+
+    if (this->extruder_retracted_volume[extruder_id] < 0.) {
+        extruded_volume = -this->extruder_retracted_volume[extruder_id];
+        this->extruder_retracted_volume[extruder_id] = 0.;
+
+        this->color_change_cache += extruded_volume;
+        this->tool_change_cache += extruded_volume;
+        this->role_cache += extruded_volume;
+    }
 }
 
 void GCodeProcessor::UsedFilaments::process_color_change_cache()
 {
-    if (color_change_cache != 0.0f) {
-        volumes_per_color_change.push_back(color_change_cache);
-        color_change_cache = 0.0f;
+    if (this->color_change_cache != 0.0f) {
+        this->volumes_per_color_change.push_back(this->color_change_cache);
+        this->color_change_cache = 0.0f;
     }
 }
 
-void GCodeProcessor::UsedFilaments::process_extruder_cache(GCodeProcessor* processor)
+void GCodeProcessor::UsedFilaments::process_extruder_cache(uint16_t extruder_id)
 {
-    size_t active_extruder_id = processor->m_extruder_id;
-    if (tool_change_cache != 0.0f) {
-        if (volumes_per_extruder.find(active_extruder_id) != volumes_per_extruder.end())
-            volumes_per_extruder[active_extruder_id] += tool_change_cache;
-        else
-            volumes_per_extruder[active_extruder_id] = tool_change_cache;
-        tool_change_cache = 0.0f;
+    if (this->tool_change_cache != 0.0) {
+        this->volumes_per_extruder[extruder_id] += this->tool_change_cache;
+        this->tool_change_cache = 0.0;
     }
+    this->recent_toolchange = true;
 }
 
-void GCodeProcessor::UsedFilaments::process_role_cache(GCodeProcessor* processor)
+void GCodeProcessor::UsedFilaments::process_role_cache(const GCodeProcessor* processor)
 {
-    if (role_cache != 0.0f) {
+    if (this->role_cache != 0.0f) {
         std::pair<double, double> filament = { 0.0f, 0.0f };
 
         double s = PI * sqr(0.5 * processor->m_result.filament_diameters[processor->m_extruder_id]);
-        filament.first = role_cache / s * 0.001;
-        filament.second = role_cache * processor->m_result.filament_densities[processor->m_extruder_id] * 0.001;
+        filament.first = this->role_cache / s * 0.001;
+        filament.second = this->role_cache * processor->m_result.filament_densities[processor->m_extruder_id] * 0.001;
 
         ExtrusionRole active_role = processor->m_extrusion_role;
-        if (filaments_per_role.find(active_role) != filaments_per_role.end()) {
-            filaments_per_role[active_role].first += filament.first;
-            filaments_per_role[active_role].second += filament.second;
+        if (this->filaments_per_role.find(active_role) != this->filaments_per_role.end()) {
+            this->filaments_per_role[active_role].first += filament.first;
+            this->filaments_per_role[active_role].second += filament.second;
         }
         else
-            filaments_per_role[active_role] = filament;
-        role_cache = 0.0f;
+            this->filaments_per_role[active_role] = filament;
+        this->role_cache = 0.0f;
     }
 }
 
-void GCodeProcessor::UsedFilaments::process_caches(GCodeProcessor* processor)
+void GCodeProcessor::UsedFilaments::process_caches(const GCodeProcessor* processor)
 {
     process_color_change_cache();
-    process_extruder_cache(processor);
+    process_extruder_cache(processor->m_extruder_id);
     process_role_cache(processor);
 }
 
@@ -913,6 +927,13 @@ void GCodeProcessor::apply_config(const PrintConfig& config)
     m_time_processor.filament_unload_times.resize(config.filament_unload_time.values.size());
     for (size_t i = 0; i < config.filament_unload_time.values.size(); ++i) {
         m_time_processor.filament_unload_times[i] = static_cast<float>(config.filament_unload_time.values[i]);
+    }
+
+    // With MM setups like Prusa MMU2, the filaments may be expected to be parked at the beginning.
+    // Remember the parking position so the initial load is not included in filament estimate.
+    if (config.single_extruder_multi_material && extruders_count > 1 && config.wipe_tower) {
+        m_parking_position = float(config.parking_pos_retraction.value);
+        m_extra_loading_move = float(config.extra_loading_move);
     }
 
     for (size_t i = 0; i < static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Count); ++i) {
@@ -1302,6 +1323,8 @@ void GCodeProcessor::reset()
     }
     m_single_extruder_mmu = false;
 
+    m_parking_position = 0.f;
+    m_extra_loading_move = 0.f;
     m_extruded_last_z = 0.0;
     m_first_layer_height = 0.0f;
     m_processing_start_custom_gcode = false;
@@ -2674,28 +2697,28 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line)
     }
 
     // calculates movement deltas
-    double max_abs_delta = 0.0f;
     AxisCoords delta_pos;
-    for (unsigned char a = X; a <= E; ++a) {
+    for (unsigned char a = X; a <= E; ++a)
         delta_pos[a] = m_end_position[a] - m_start_position[a];
-        max_abs_delta = std::max<float>(max_abs_delta, std::abs(delta_pos[a]));
-    }
 
-    // no displacement, return
-    if (max_abs_delta == 0.0f)
+    if (std::all_of(delta_pos.begin(), delta_pos.end(), [](double d) { return d == 0.; }))
         return;
+
+    float volume_extruded_filament = area_filament_cross_section * delta_pos[E];
+    if (m_extrude_factor_override_percentage.size() > m_extruder_id)
+        volume_extruded_filament *= m_extrude_factor_override_percentage[m_extruder_id];
+
+    if (volume_extruded_filament != 0.)
+        m_used_filaments.increase_caches(volume_extruded_filament,
+            this->m_extruder_id, area_filament_cross_section * this->m_parking_position,
+            area_filament_cross_section * this->m_extra_loading_move);
 
     EMoveType type = move_type(delta_pos);
     float height_saved = -1;
     if (type == EMoveType::Extrude) {
         double delta_xyz = std::sqrt(sqr(delta_pos[X]) + sqr(delta_pos[Y]) + sqr(delta_pos[Z]));
-        double volume_extruded_filament = area_filament_cross_section * delta_pos[E];
-        if (m_extrude_factor_override_percentage.size() > m_extruder_id)
-            volume_extruded_filament *= m_extrude_factor_override_percentage[m_extruder_id];
-        double area_toolpath_cross_section = volume_extruded_filament / delta_xyz;
 
-        // save extruded volume to the cache
-        m_used_filaments.increase_caches(volume_extruded_filament);
+        double area_toolpath_cross_section = volume_extruded_filament / delta_xyz;
 
         // volume extruded filament / tool displacement = area toolpath cross section
         m_mm3_per_mm = float(area_toolpath_cross_section);
@@ -3768,7 +3791,7 @@ void GCodeProcessor::process_filaments(CustomGCode::Type code)
         m_used_filaments.process_color_change_cache();
 
     if (code == CustomGCode::ToolChange)
-        m_used_filaments.process_extruder_cache(this);
+        m_used_filaments.process_extruder_cache(this->m_extruder_id);
 }
 
 void GCodeProcessor::simulate_st_synchronize(float additional_time)

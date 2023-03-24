@@ -92,16 +92,18 @@ void RotoptimizeJob::finalize()
 
             auto    trmatrix = oi->get_transformation().get_matrix();
             Polygon trchull  = o->convex_hull_2d(trmatrix);
-
-            MinAreaBoundigBox rotbb(trchull, MinAreaBoundigBox::pcConvex);
-            double            phi = rotbb.angle_to_X();
-
-            // The box should be landscape
-            if(rotbb.width() < rotbb.height()) phi += PI / 2;
-
-            Vec3d rt = oi->get_rotation(); rt(Z) += phi;
-
-            oi->set_rotation(rt);
+            
+            if (!trchull.empty()) {
+                MinAreaBoundigBox rotbb(trchull, MinAreaBoundigBox::pcConvex);
+                double            phi = rotbb.angle_to_X();
+    
+                // The box should be landscape
+                if(rotbb.width() < rotbb.height()) phi += PI / 2;
+    
+                Vec3d rt = oi->get_rotation(); rt(Z) += phi;
+    
+                oi->set_rotation(rt);
+            }
         }
 
         // Correct the z offset of the object which was corrupted be

@@ -28,6 +28,7 @@ inline void export_thumbnails_to_file(ThumbnailsGeneratorCallback &thumbnail_cb,
 {
     // Write thumbnails using base64 encoding
     if (thumbnail_cb != nullptr) {
+        // 0-size is the same as no sizes.
         std::vector<Vec2d> good_sizes;
         for (const Vec2d& size : sizes)
             if (size.x() > 0 && size.y() > 0)

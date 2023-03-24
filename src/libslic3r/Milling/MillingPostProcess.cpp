@@ -65,19 +65,19 @@ namespace Slic3r {
                 contour.mm3_per_mm = 0;
                 contour.width = (float)this->print_config->milling_diameter.get_at(0);
                 contour.height = (float)layer->height;
-                contour.polyline.points.push_back(best_polyline.points[first_point_extract_idx]);
+                contour.polyline.append(best_polyline.points[first_point_extract_idx]);
                 for (int32_t idx = first_point_idx; idx < poly.points.size(); idx++) {
-                    contour.polyline.points.push_back(poly.points[idx]);
+                    contour.polyline.append(poly.points[idx]);
                 }
                 if (second_point_idx <= first_point_idx) {
                     for (int32_t idx = 0; idx < poly.points.size(); idx++) {
-                        contour.polyline.points.push_back(poly.points[idx]);
+                        contour.polyline.append(poly.points[idx]);
                     }
                 }
                 for (int32_t idx = 0; idx < second_point_idx + 1; idx++) {
-                    contour.polyline.points.push_back(poly.points[idx]);
+                    contour.polyline.append(poly.points[idx]);
                 }
-                contour.polyline.points.push_back(best_polyline.points[second_point_extract_idx]);
+                contour.polyline.append(best_polyline.points[second_point_extract_idx]);
 
                 out_coll.append(std::move(contour));
                 return;
@@ -88,8 +88,9 @@ namespace Slic3r {
         //default path, without safe-guard up-down.
         ExtrusionPath contour(erMilling);
         contour.polyline = poly.split_at_first_point();
-        if (contour.polyline.points.size() > 3)
-            contour.polyline.points.push_back(contour.polyline.points[1]);
+        //do a second pass on the first segment
+        if (contour.polyline.size() > 2)
+            contour.polyline.append(contour.polyline.get_points()[1]);
         contour.mm3_per_mm = 0;
         contour.width = (float)this->print_config->milling_diameter.get_at(0);
         contour.height = (float)layer->height;

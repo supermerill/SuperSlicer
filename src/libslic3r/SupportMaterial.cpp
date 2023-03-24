@@ -1319,7 +1319,7 @@ namespace SupportMaterialInternal {
                         // This is a complete loop.
                         // Add the outer contour first.
                         Polygon poly;
-                        poly.points = ep.polyline.points;
+                        poly.points = ep.polyline.get_points();
                         poly.points.pop_back();
                         if (poly.area() < 0)
                             poly.reverse();
@@ -1330,7 +1330,7 @@ namespace SupportMaterialInternal {
                     }
                 } else if (ep.size() >= 2) {
                     // Offset the polyline.
-                    polygons_append(out, offset(ep.polyline, exp, SUPPORT_SURFACES_OFFSET_PARAMETERS));
+                    polygons_append(out, offset(ep.polyline.as_polyline(), exp, SUPPORT_SURFACES_OFFSET_PARAMETERS));
                 }
             }
     }
@@ -1370,7 +1370,7 @@ namespace SupportMaterialInternal {
             // Trim the perimeters of this layer by the lower layer to get the unsupported pieces of perimeters.
             overhang_perimeters = diff_pl(overhang_perimeters, lower_grown_slices);
         #else
-            Polylines overhang_perimeters = diff_pl(layerm.perimeters.as_polylines(), lower_grown_slices);
+            Polylines overhang_perimeters = diff_pl(to_polylines(layerm.perimeters.as_polylines()), lower_grown_slices);
         #endif
             
             // only consider straight overhangs
@@ -3424,6 +3424,7 @@ static inline void fill_expolygon_generate_paths(
     new_params.role = role;
     filler->init_spacing(spacing, new_params);
     {
+        assert(!fill_params.use_arachne);
         Surface surface(stPosInternal | stDensSparse, std::move(expolygon));
         //TODO: catch exception here?
         filler->fill_surface_extrusion(&surface, new_params, dst);
@@ -3955,8 +3956,8 @@ void modulate_extrusion_by_overlapping_layers(
     {
         Polylines &polylines = path_fragments.back().polylines;
         for (const ExtrusionEntity *ee : flatten_extrusions_in_out.entities()) {
-            for (Polyline &polyline : ee->as_polylines()) {
-                polylines.emplace_back(std::move(polyline));
+            for (PolylineOrArc &polyline : ee->as_polylines()) {
+                polylines.emplace_back(polyline.as_polyline()); //TODO check if move() is possible (it was, but now that it's a PolylineOrArc and not a Polyline...)
             }
             path_ends.emplace_back(std::pair<Point, Point>(polylines.back().points.front(), polylines.back().points.back()));
         }
@@ -4077,15 +4078,15 @@ void modulate_extrusion_by_overlapping_layers(
             if (! fragment_end_min.is_start)
                 frag_polyline.reverse();
             // Enforce exact overlap of the end points of successive fragments.
-            assert(frag_polyline.points.front() == pt_current);
+            assert(frag_polyline.front() == pt_current);
             frag_polyline.points.front() = pt_current;
             // Don't repeat the first point.
-            if (! path->polyline.points.empty())
-                path->polyline.points.pop_back();
+            if (! path->polyline.empty())
+                path->polyline.clip_last_point();
             // Consume the fragment's polyline, remove it from the input fragments, so it will be ignored the next time.
             path->polyline.append(std::move(frag_polyline));
-            frag_polyline.points.clear();
-            pt_current = path->polyline.points.back();
+            frag_polyline.clear();
+            pt_current = path->polyline.back();
             if (pt_current == pt_end) {
                 // End of the path.
                 break;

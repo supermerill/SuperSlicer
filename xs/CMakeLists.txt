@@ -194,6 +194,11 @@ if (MSVC)
         COMMAND ${CMAKE_COMMAND} -E copy ${TOP_LEVEL_PROJECT_DIR}/deps/GMP/gmp/lib/win${_bits}/libgmp-10.dll "${PERL_LOCAL_LIB_ARCH_DIR}/auto/Slic3r/XS/"
         COMMENT "Installing gmp runtime into the local-lib directory ..."
         VERBATIM)
+
+    add_custom_command(TARGET XS POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy ${TOP_LEVEL_PROJECT_DIR}/deps/MPFR/mpfr/lib/win${_bits}/libmpfr-4.dll "${PERL_LOCAL_LIB_ARCH_DIR}/auto/Slic3r/XS/"
+        COMMENT "Installing mpfr runtime into the local-lib directory ..."
+        VERBATIM)
 endif()
 
 # Installation

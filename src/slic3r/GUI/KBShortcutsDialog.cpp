@@ -75,12 +75,12 @@ void KBShortcutsDialog::fill_shortcuts()
         Shortcuts commands_shortcuts = {
             // File
             { ctrl + "N", L("New project, clear platter") },
-            { ctrl + "O", L("Open project STL/OBJ/AMF/3MF with config, clear platter") },
+            { ctrl + "O", L("Open project AMF/3MF with config, clear platter") },
             { ctrl + "S", L("Save project (3mf)") },
             { ctrl + alt + "S", L("Save project as (3mf)") },
             { ctrl + "R", L("(Re)slice") },
             // File>Import
-            { ctrl + "I", L("Import STL/OBJ/AMF/3MF without config, keep platter") },
+            { ctrl + "I", L("Import STL/3MF/STEP/OBJ/AMF without config, keep platter") },
             { ctrl + "L", L("Import Config from ini/amf/3mf/gcode") },
             { ctrl + alt + "L", L("Load Config from ini/amf/3mf/gcode and merge") },
             // File>Export

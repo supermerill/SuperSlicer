@@ -15,6 +15,7 @@
 
 #include "Thread.hpp"
 #include "Utils.hpp"
+#include "LocalesUtils.hpp"
 
 namespace Slic3r {
 
@@ -236,21 +237,8 @@ void name_tbb_thread_pool_threads_set_locale()
 				std::ostringstream name;
 		        name << "slic3r_tbb_" << range.begin();
 		        set_current_thread_name(name.str().c_str());
-		        // Set locales of the worker thread to "C".
-#ifdef _WIN32
-			    _configthreadlocale(_ENABLE_PER_THREAD_LOCALE);
-			    std::setlocale(LC_ALL, "C");
-#else
-				// We are leaking some memory here, because the newlocale() produced memory will never be released.
-				// This is not a problem though, as there will be a maximum one worker thread created per physical thread.
-				uselocale(newlocale(
-#ifdef __APPLE__
-					LC_ALL_MASK
-#else // some Unix / Linux / BSD
-					LC_ALL
-#endif
-					, "C", nullptr));
-#endif
+                // Set locales of the worker thread to "C".
+                set_c_locales();
     		}
         });
 }

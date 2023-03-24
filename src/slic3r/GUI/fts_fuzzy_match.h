@@ -33,6 +33,7 @@
 
 #include <cstdint> // uint8_t
 #include <ctype.h> // ::tolower, ::toupper
+#include <cwctype> // std::towlower, std::towupper
 #include <cstring> // memcpy
 
 #include <cstdio>

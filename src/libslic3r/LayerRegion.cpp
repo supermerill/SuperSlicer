@@ -497,10 +497,15 @@ void LayerRegion::prepare_fill_surfaces()
     bool spiral_vase = this->layer()->object()->print()->config().spiral_vase;
 
     // if no solid layers are requested, turn top/bottom surfaces to internal
+    // For Lightning infill, infill_only_where_needed is ignored because both
+    // do a similar thing, and their combination doesn't make much sense.
     if (! spiral_vase && this->region().config().top_solid_layers == 0) {
         for (Surfaces::iterator surface = this->fill_surfaces.surfaces.begin(); surface != this->fill_surfaces.surfaces.end(); ++surface)
             if (surface->has_pos_top())
-                surface->surface_type = (this->layer()->object()->config().infill_only_where_needed && !this->region().config().infill_dense.value) ?
+                surface->surface_type = (
+                        this->layer()->object()->config().infill_only_where_needed 
+                        && !this->region().config().infill_dense.value
+                        && this->region().config().fill_pattern != ipLightning) ?
                     stPosInternal | stDensVoid : stPosInternal | stDensSparse;
     }
     if (this->region().config().bottom_solid_layers == 0) {
@@ -605,6 +610,23 @@ void LayerRegion::export_region_fill_surfaces_to_svg_debug(const char *name) con
     static std::map<std::string, size_t> idx_map;
     size_t &idx = idx_map[name];
     this->export_region_fill_surfaces_to_svg(debug_out_path("LayerRegion-fill_surfaces-%s-%d.svg", name, idx ++).c_str());
+}
+
+void LayerRegion::simplify_extrusion_entity()
+{
+
+    const PrintConfig& print_config = this->layer()->object()->print()->config();
+    const bool spiral_mode = print_config.spiral_vase;
+    const bool enable_arc_fitting = print_config.arc_fitting && !spiral_mode;
+    coordf_t scaled_resolution = scale_d(print_config.resolution.value);
+    if (scaled_resolution == 0) scaled_resolution = enable_arc_fitting ? SCALED_EPSILON * 2 : SCALED_EPSILON;
+
+    //call simplify for all paths
+    SimplifyVisitor visitor{ scaled_resolution , enable_arc_fitting, &print_config.arc_fitting_tolerance };
+    this->perimeters.visit(visitor);
+    this->fills.visit(visitor);
+    this->ironings.visit(visitor);
+    this->milling.visit(visitor);
 }
 
 }

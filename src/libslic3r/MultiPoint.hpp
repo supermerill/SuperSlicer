@@ -15,6 +15,7 @@ class BoundingBox3;
 class MultiPoint
 {
 public:
+    //TODO: makes that private?
     Points points;
     
     MultiPoint() {}
@@ -31,19 +32,25 @@ public:
     void rotate(double angle) { this->rotate(cos(angle), sin(angle)); }
     void rotate(double cos_angle, double sin_angle);
     void rotate(double angle, const Point &center);
-    void reverse() { std::reverse(this->points.begin(), this->points.end()); }
+    virtual void reverse() { std::reverse(this->points.begin(), this->points.end()); }
 
     const Point& front() const { return this->points.front(); }
     const Point& back() const { return this->points.back(); }
     const Point& first_point() const { return this->front(); }
     virtual const Point& last_point() const = 0;
+    virtual bool is_loop() const { return size() <= 1 || front() == back(); }
     virtual Lines lines() const = 0;
     size_t size() const { return points.size(); }
     bool   empty() const { return points.empty(); }
     double length() const;
     bool   is_valid() const { return this->points.size() >= 2; }
 
+    // Return index of a polygon point exactly equal to point.
+    // Return -1 if no such point exists.
     int  find_point(const Point &point) const;
+    // Return index of the closest point to point closer than scaled_epsilon.
+    // Return -1 if no such point exists.
+    int  find_point(const Point &point, const double scaled_epsilon) const;
     bool has_boundary_point(const Point &point) const;
     int  closest_point_index(const Point &point) const {
         int idx = -1;
@@ -66,7 +73,7 @@ public:
     bool has_duplicate_points() const;
     // Remove exact duplicates, return true if any duplicate has been removed.
     bool remove_duplicate_points();
-    void clear() { this->points.clear(); }
+    virtual void clear() { this->points.clear(); }
     void append(const Point &point) { this->points.push_back(point); }
     void append(const Points &src) { this->append(src.begin(), src.end()); }
     void append(const Points::const_iterator &begin, const Points::const_iterator &end) { this->points.insert(this->points.end(), begin, end); }

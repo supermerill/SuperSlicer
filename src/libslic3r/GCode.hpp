@@ -26,9 +26,7 @@
 #include <string>
 #include <chrono>
 
-#ifdef HAS_PRESSURE_EQUALIZER
 #include "GCode/PressureEqualizer.hpp"
-#endif /* HAS_PRESSURE_EQUALIZER */
 
 namespace Slic3r {
 
@@ -117,6 +115,20 @@ class ColorPrintColors
     static const std::vector<std::string> Colors;
 public:
     static const std::vector<std::string>& get() { return Colors; }
+};
+
+struct LayerResult {
+    std::string gcode;
+    size_t      layer_id;
+    // Is spiral vase post processing enabled for this layer?
+    bool        spiral_vase_enable { false };
+    // Should the cooling buffer content be flushed at the end of this layer?
+    bool        cooling_buffer_flush { false };
+    // Is indicating if this LayerResult should be processed, or it is just inserted artificial LayerResult.
+    // It is used for the pressure equalizer because it needs to buffer one layer back.
+    bool        nop_layer_result { false };
+
+    static LayerResult make_nop_layer_result() { return {"", std::numeric_limits<coord_t>::max(), false, false, true}; }
 };
 
 class GCode : ExtrusionVisitorConst  {
@@ -237,14 +249,6 @@ private:
     static std::vector<LayerToPrint>        		                   collect_layers_to_print(const PrintObject &object);
     static std::vector<std::pair<coordf_t, std::vector<LayerToPrint>>> collect_layers_to_print(const Print &print);
 
-    struct LayerResult {
-        std::string gcode;
-        size_t      layer_id;
-        // Is spiral vase post processing enabled for this layer?
-        bool        spiral_vase_enable { false };
-        // Should the cooling buffer content be flushed at the end of this layer?
-        bool        cooling_buffer_flush { false };
-    };
     LayerResult process_layer(
         const Print                     &print,
         PrintStatistics                 &print_stat,
@@ -287,23 +291,24 @@ private:
     std::string     visitor_gcode;
     std::string     visitor_comment;
     double          visitor_speed;
-    std::unique_ptr<EdgeGrid::Grid> *visitor_lower_layer_edge_grid;
     virtual void use(const ExtrusionPath &path) override { visitor_gcode += extrude_path(path, visitor_comment, visitor_speed); };
     virtual void use(const ExtrusionPath3D &path3D) override { visitor_gcode += extrude_path_3D(path3D, visitor_comment, visitor_speed); };
     virtual void use(const ExtrusionMultiPath &multipath) override { visitor_gcode += extrude_multi_path(multipath, visitor_comment, visitor_speed); };
     virtual void use(const ExtrusionMultiPath3D &multipath) override { visitor_gcode += extrude_multi_path3D(multipath, visitor_comment, visitor_speed); };
-    virtual void use(const ExtrusionLoop &loop) override { visitor_gcode += extrude_loop(loop, visitor_comment, visitor_speed, visitor_lower_layer_edge_grid); };
+    virtual void use(const ExtrusionLoop &loop) override { visitor_gcode += extrude_loop(loop, visitor_comment, visitor_speed); };
     virtual void use(const ExtrusionEntityCollection &collection) override;
-    std::string     extrude_entity(const ExtrusionEntity &entity, const std::string &description, double speed = -1., std::unique_ptr<EdgeGrid::Grid> *lower_layer_edge_grid = nullptr);
-    std::string     extrude_loop(const ExtrusionLoop &loop, const std::string &description, double speed = -1., std::unique_ptr<EdgeGrid::Grid> *lower_layer_edge_grid = nullptr);
-    std::string     extrude_loop_vase(const ExtrusionLoop &loop, const std::string &description, double speed = -1., std::unique_ptr<EdgeGrid::Grid> *lower_layer_edge_grid = nullptr);
+    std::string     extrude_entity(const ExtrusionEntity &entity, const std::string &description, double speed = -1.);
+    std::string     extrude_loop(const ExtrusionLoop &loop, const std::string &description, double speed = -1.);
+    std::string     extrude_loop_vase(const ExtrusionLoop &loop, const std::string &description, double speed = -1.);
     std::string     extrude_multi_path(const ExtrusionMultiPath &multipath, const std::string &description, double speed = -1.);
     std::string     extrude_multi_path3D(const ExtrusionMultiPath3D &multipath, const std::string &description, double speed = -1.);
     std::string     extrude_path(const ExtrusionPath &path, const std::string &description, double speed = -1.);
     std::string     extrude_path_3D(const ExtrusionPath3D &path, const std::string &description, double speed = -1.);
-    void            split_at_seam_pos(ExtrusionLoop &loop, std::unique_ptr<EdgeGrid::Grid> *lower_layer_edge_grid, bool was_clockwise);
+    void            split_at_seam_pos(ExtrusionLoop &loop, bool was_clockwise);
     template <typename THING = ExtrusionEntity> // can be templated safely because private
     void            add_wipe_points(const std::vector<THING>& paths);
+    void            seam_notch(const ExtrusionLoop& original_loop, ExtrusionPaths& building_paths,
+        ExtrusionPaths& notch_extrusion_start, ExtrusionPaths& notch_extrusion_end, bool is_hole_loop, bool is_full_loop_ccw);
 
     // Extruding multiple objects with soluble / non-soluble / combined supports
     // on a multi-material printer, trying to minimize tool switches.
@@ -372,7 +377,7 @@ private:
 		// For sequential print, the instance of the object to be printing has to be defined.
 		const size_t                     				 single_object_instance_idx);
 
-    std::string     extrude_perimeters(const Print &print, const std::vector<ObjectByExtruder::Island::Region> &by_region, std::unique_ptr<EdgeGrid::Grid> &lower_layer_edge_grid);
+    std::string     extrude_perimeters(const Print &print, const std::vector<ObjectByExtruder::Island::Region> &by_region);
     std::string     extrude_infill(const Print& print, const std::vector<ObjectByExtruder::Island::Region>& by_region, bool is_infill_first);
     std::string     extrude_ironing(const Print& print, const std::vector<ObjectByExtruder::Island::Region>& by_region);
     std::string     extrude_support(const ExtrusionEntityCollection &support_fills);
@@ -388,6 +393,7 @@ private:
 
     // Cache for custom seam enforcers/blockers for each layer.
     SeamPlacer                          m_seam_placer;
+    bool                                m_seam_perimeters = false;
 
     /* Origin of print coordinates expressed in unscaled G-code coordinates.
        This affects the input arguments supplied to the extrude*() and travel_to()
@@ -395,7 +401,7 @@ private:
     Vec2d                               m_origin;
     FullPrintConfig                     m_config;
     // scaled G-code resolution
-    double                              m_scaled_gcode_resolution;
+    coordf_t                            m_scaled_gcode_resolution;
     GCodeWriter                         m_writer;
     PlaceholderParser                   m_placeholder_parser;
     // For random number generator etc.
@@ -464,9 +470,7 @@ private:
     //to know the current spiral layer. Only for process_layer. began at 1, 0 means no spiral. Negative means disbaled spiral.
     int32_t                             m_spiral_vase_layer = 0;
     std::unique_ptr<GCodeFindReplace>   m_find_replace;
-#ifdef HAS_PRESSURE_EQUALIZER
     std::unique_ptr<PressureEqualizer>  m_pressure_equalizer;
-#endif /* HAS_PRESSURE_EQUALIZER */
     std::unique_ptr<WipeTowerIntegration> m_wipe_tower;
 
     // Heights (print_z) at which the skirt has already been extruded.
@@ -495,6 +499,8 @@ private:
     std::unique_ptr<FanMover> m_fan_mover;
 
     std::string _extrude(const ExtrusionPath &path, const std::string &description, double speed = -1);
+    void _extrude_line(std::string& gcode_str, const Line& line, const double e_per_mm, const std::string& comment);
+    void _extrude_line_cut_corner(std::string& gcode_str, const Line& line, const double e_per_mm, const std::string& comment, Point& last_pos, const double path_width);
     std::string _before_extrude(const ExtrusionPath &path, const std::string &description, double speed = -1);
     double_t    _compute_speed_mm_per_sec(const ExtrusionPath& path, double speed = -1);
     std::string _after_extrude(const ExtrusionPath &path);
@@ -520,6 +526,7 @@ private:
 
     friend class Wipe;
     friend class WipeTowerIntegration;
+    friend class PressureEqualizer;
 };
 
 std::vector<const PrintInstance*> sort_object_instances_by_model_order(const Print& print);

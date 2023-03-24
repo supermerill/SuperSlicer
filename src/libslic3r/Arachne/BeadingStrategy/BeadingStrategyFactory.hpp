@@ -9,14 +9,6 @@
 
 namespace Slic3r::Arachne
 {
-    enum class BeadingStrategyType
-    {
-        Center,
-        Distributed,
-        InwardDistributed,
-        None,
-        Count
-    };
 
 class BeadingStrategyFactory
 {

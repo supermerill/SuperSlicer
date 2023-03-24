@@ -2,7 +2,8 @@
 #include "../miniz_extension.hpp"
 
 #include <qoi/qoi.h>
-#include <jpeg-compressor/jpge.h>
+#include <jpeglib.h>
+#include <jerror.h>
 
 namespace Slic3r::GCodeThumbnails {
 
@@ -78,27 +79,48 @@ std::unique_ptr<CompressedImageBuffer> compress_thumbnail_biqu(const ThumbnailDa
 std::unique_ptr<CompressedImageBuffer> compress_thumbnail_jpg(const ThumbnailData& data)
 {
     // Take vector of RGBA pixels and flip the image vertically
-    std::vector<uint8_t> rgba_pixels(data.pixels.size());
-    const size_t row_size = data.width * 4;
-    for (size_t y = 0; y < data.height; ++y)
+    std::vector<unsigned char> rgba_pixels(data.pixels.size());
+    const unsigned int row_size = data.width * 4;
+    for (unsigned int y = 0; y < data.height; ++y) {
         ::memcpy(rgba_pixels.data() + (data.height - y - 1) * row_size, data.pixels.data() + y * row_size, row_size);
+    }
+
+    // Store pointers to scanlines start for later use
+    std::vector<unsigned char*> rows_ptrs;
+    rows_ptrs.reserve(data.height);
+    for (unsigned int y = 0; y < data.height; ++y) {
+        rows_ptrs.emplace_back(&rgba_pixels[y * row_size]);
+    }
+
+    std::vector<unsigned char> compressed_data(data.pixels.size());
+    unsigned char* compressed_data_ptr = compressed_data.data();
+    unsigned long compressed_data_size = data.pixels.size();
+
+    jpeg_error_mgr err;
+    jpeg_compress_struct info;
+    info.err = jpeg_std_error(&err);
+    jpeg_create_compress(&info);
+    jpeg_mem_dest(&info, &compressed_data_ptr, &compressed_data_size);
+
+    info.image_width = data.width;
+    info.image_height = data.height;
+    info.input_components = 4;
+    info.in_color_space = JCS_EXT_RGBA;
+
+    jpeg_set_defaults(&info);
+    jpeg_set_quality(&info, 85, TRUE);
+    jpeg_start_compress(&info, TRUE);
+
+    jpeg_write_scanlines(&info, rows_ptrs.data(), data.height);
+    jpeg_finish_compress(&info);
+    jpeg_destroy_compress(&info);
+
+    // FIXME -> Add error checking
 
     auto out = std::make_unique<CompressedJPG>();
-
-    std::vector<jpge::uint8> compressed_data(data.pixels.size());
-    jpge::params params;
-    params.m_quality = 85;
-    params.m_subsampling = jpge::H2V2;
-    params.m_no_chroma_discrim_flag = false;
-    params.m_two_pass_flag = false;
-    params.m_use_std_tables = false;
-
-    int compressed_data_size = int(compressed_data.size());
-    if (jpge::compress_image_to_jpeg_file_in_memory(compressed_data.data(), compressed_data_size, data.width, data.height, 4, rgba_pixels.data(), params)) {
-        out->data = malloc(compressed_data_size);
-        out->size = size_t(compressed_data_size);
-        ::memcpy(out->data, (const void*)compressed_data.data(), out->size);
-    }
+    out->data = malloc(compressed_data_size);
+    out->size = size_t(compressed_data_size);
+    ::memcpy(out->data, (const void*)compressed_data.data(), out->size);
     return out;
 }
 

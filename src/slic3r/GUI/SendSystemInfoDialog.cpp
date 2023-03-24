@@ -140,7 +140,7 @@ static bool check_internet_connection_win()
 {
     bool internet = true; // return true if COM object creation fails.
 
-    if (CoInitializeEx(NULL, COINIT_APARTMENTTHREADED) == S_OK) {
+    if (SUCCEEDED(CoInitializeEx(NULL, COINIT_APARTMENTTHREADED))) {
         {
             CComPtr<INetworkListManager> pNLM;
             if (pNLM.CoCreateInstance(CLSID_NetworkListManager) == S_OK) {

@@ -801,32 +801,42 @@ void CreateMMUTiledCanvas::load_config()
         ifs.open(path);
 #ifdef WIN32
         // Verify the checksum of the config file without taking just for debugging purpose.
-        if (!AppConfig::verify_config_file_checksum(ifs))
+        const AppConfig::ConfigFileInfo config_file_info = AppConfig::check_config_file_and_verify_checksum(ifs);
+        if (!config_file_info.correct_checksum) {
             BOOST_LOG_TRIVIAL(info) << "The configuration file " << path <<
-            " has a wrong MD5 checksum or the checksum is missing. This may indicate a file corruption or a harmless user edit.";
-
+                " has a wrong MD5 checksum or the checksum is missing. This may indicate a file corruption or a harmless user edit.";
+        }
+        if (!config_file_info.correct_checksum && config_file_info.contains_null) {
+            BOOST_LOG_TRIVIAL(info) << "The configuration file " + path + " is corrupted, because it is contains null characters.";
+            throw Slic3r::CriticalException("The configuration file contains null characters.");
+        }
         ifs.seekg(0, boost::nowide::ifstream::beg);
 #endif
-        pt::read_ini(ifs, tree);
+        try {
+            pt::read_ini(ifs, tree);
+        }
+        catch (pt::ptree_error& ex) {
+            throw Slic3r::CriticalException(ex.what());
+        }
     }
-    catch (pt::ptree_error& ex) {
+    catch (Slic3r::CriticalException& ex) {
 #ifdef WIN32
         // The configuration file is corrupted, try replacing it with the backup configuration.
         ifs.close();
-        std::string backup_path = (path_dir / "config.ini.bak").string();
+        std::string backup_path = (boost::format("%1%.bak") % path).str();
         if (boost::filesystem::exists(backup_path)) {
             // Compute checksum of the configuration backup file and try to load configuration from it when the checksum is correct.
             boost::nowide::ifstream backup_ifs(backup_path);
-            if (!AppConfig::verify_config_file_checksum(backup_ifs)) {
-                BOOST_LOG_TRIVIAL(error) << format("Both \"%1%\" and \"%2%\" are corrupted. It isn't possible to restore configuration from the backup.", path, backup_path);
+            if (const AppConfig::ConfigFileInfo config_file_info = AppConfig::check_config_file_and_verify_checksum(backup_ifs); !config_file_info.correct_checksum || config_file_info.contains_null) {
+                BOOST_LOG_TRIVIAL(error) << format(R"(Both "%1%" and "%2%" are corrupted. It isn't possible to restore configuration from the backup.)", path, backup_path);
                 backup_ifs.close();
                 boost::filesystem::remove(backup_path);
             } else if (std::string error_message; copy_file(backup_path, path, error_message, false) != SUCCESS) {
-                BOOST_LOG_TRIVIAL(error) << format("Configuration file \"%1%\" is corrupted. Failed to restore from backup \"%2%\": %3%", path, backup_path, error_message);
+                BOOST_LOG_TRIVIAL(error) << format(R"(Configuration file "%1%" is corrupted. Failed to restore from backup "%2%": %3%)", path, backup_path, error_message);
                 backup_ifs.close();
                 boost::filesystem::remove(backup_path);
             } else {
-                BOOST_LOG_TRIVIAL(info) << format("Configuration file \"%1%\" was corrupted. It has been succesfully restored from the backup \"%2%\".", path, backup_path);
+                BOOST_LOG_TRIVIAL(info) << format(R"(Configuration file "%1%" was corrupted. It has been successfully restored from the backup "%2%".)", path, backup_path);
                 // Try parse configuration file after restore from backup.
                 try {
                     ifs.open(path);
@@ -834,12 +844,12 @@ void CreateMMUTiledCanvas::load_config()
                     recovered = true;
                 }
                 catch (pt::ptree_error& ex) {
-                    BOOST_LOG_TRIVIAL(info) << format("Failed to parse configuration file \"%1%\" after it has been restored from backup: %2%", path, ex.what());
+                    BOOST_LOG_TRIVIAL(info) << format(R"(Failed to parse configuration file "%1%" after it has been restored from backup: %2%)", path, ex.what());
                 }
             }
         } else
 #endif // WIN32
-            BOOST_LOG_TRIVIAL(info) << format("Failed to parse configuration file \"%1%\": %2%", path, ex.what());
+            BOOST_LOG_TRIVIAL(info) << format(R"(Failed to parse configuration file "%1%": %2%)", path, ex.what());
         if (!recovered) {
             // Report the initial error of parsing PrusaSlicer.ini.
             // Error while parsing config file. We'll customize the error message and rethrow to be displayed.

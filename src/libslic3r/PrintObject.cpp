@@ -14,6 +14,7 @@
 #include "TriangleMeshSlicer.hpp"
 #include "Utils.hpp"
 #include "Fill/FillAdaptive.hpp"
+#include "Fill/FillLightning.hpp"
 #include "Format/STL.hpp"
 
 #include <atomic>
@@ -560,23 +561,24 @@ std::vector<std::reference_wrapper<const PrintRegion>> PrintObject::all_regions(
         // prerequisites
         this->prepare_infill();
 
-        m_print->set_status(40, L("Infilling layers"));
+        m_print->set_status(35, L("Infilling layers"));
         m_print->set_status(0, L("Infilling layer %s / %s"), { std::to_string(0), std::to_string(m_layers.size()) }, PrintBase::SlicingStatus::SECONDARY_STATE);
         if (this->set_started(posInfill)) {
             auto [adaptive_fill_octree, support_fill_octree] = this->prepare_adaptive_infill_data();
+            auto lightning_generator                         = this->prepare_lightning_infill_data();
 
             // atomic counter for gui progress
             std::atomic<int> atomic_count{ 0 };
-            int nb_layers_update = std::max(1, (int)m_layers.size() / 20);
+            const int nb_layers_update = std::max(1, (int)m_layers.size() / 20);
 
             BOOST_LOG_TRIVIAL(debug) << "Filling layers in parallel - start";
             tbb::parallel_for(
                 tbb::blocked_range<size_t>(0, m_layers.size()),
-                [this, &adaptive_fill_octree = adaptive_fill_octree, &support_fill_octree = support_fill_octree, &atomic_count, nb_layers_update](const tbb::blocked_range<size_t>& range) {
+                [this, &adaptive_fill_octree = adaptive_fill_octree, &support_fill_octree = support_fill_octree, &lightning_generator, &atomic_count, nb_layers_update](const tbb::blocked_range<size_t>& range) {
                 for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
                     std::chrono::time_point<std::chrono::system_clock> start_make_fill = std::chrono::system_clock::now();
                     m_print->throw_if_canceled();
-                    m_layers[layer_idx]->make_fills(adaptive_fill_octree.get(), support_fill_octree.get());
+                    m_layers[layer_idx]->make_fills(adaptive_fill_octree.get(), support_fill_octree.get(), lightning_generator.get());
 
                     // updating progress
                     int nb_layers_done = (++atomic_count);
@@ -641,6 +643,74 @@ std::vector<std::reference_wrapper<const PrintRegion>> PrintObject::all_regions(
         }
     }
 
+    void PrintObject::simplify_extrusion_path()
+    {
+        if (this->set_started(posSimplifyPath)) {
+            const PrintConfig& print_config = this->print()->config();
+            const bool spiral_mode = print_config.spiral_vase;
+            const bool enable_arc_fitting = print_config.arc_fitting && !spiral_mode;
+
+            m_print->set_status(0, L("Optimizing layer %s / %s"), { std::to_string(0), std::to_string(m_layers.size()) }, PrintBase::SlicingStatus::SECONDARY_STATE);
+            BOOST_LOG_TRIVIAL(debug) << "Simplify extrusion path of object in parallel - start";
+            //BBS: infill and walls
+            std::atomic<int> atomic_count{ 0 };
+            tbb::parallel_for(
+                tbb::blocked_range<size_t>(0, m_layers.size()),
+                [this, &atomic_count](const tbb::blocked_range<size_t>& range) {
+                    for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
+                        m_print->throw_if_canceled();
+                        m_layers[layer_idx]->simplify_extrusion_path();
+                        int nb_layers_done = (++atomic_count);
+                        m_print->set_status(int((nb_layers_done * 100) / m_layers.size()), L("Optimizing layer %s / %s"), { std::to_string(nb_layers_done), std::to_string(m_layers.size()) }, PrintBase::SlicingStatus::SECONDARY_STATE);
+                    }
+                }
+            );
+            //also simplify object skirt & brim
+            if (enable_arc_fitting) {
+                coordf_t scaled_resolution = scale_d(print_config.resolution.value);
+                if (scaled_resolution == 0) scaled_resolution = enable_arc_fitting ? SCALED_EPSILON * 2 : SCALED_EPSILON;
+                const ConfigOptionFloatOrPercent& arc_fitting_tolerance = print_config.arc_fitting_tolerance;
+
+                GetPathsVisitor visitor;
+                this->m_skirt.visit(visitor);
+                this->m_brim.visit(visitor);
+                tbb::parallel_for(
+                    tbb::blocked_range<size_t>(0, visitor.paths.size() + visitor.paths3D.size()),
+                    [this, &visitor, scaled_resolution, &arc_fitting_tolerance](const tbb::blocked_range<size_t>& range) {
+                        size_t path_idx = range.begin();
+                        for (; path_idx < range.end() && path_idx < visitor.paths.size(); ++path_idx) {
+                            visitor.paths[path_idx]->simplify(scaled_resolution, true, arc_fitting_tolerance.get_abs_value(visitor.paths[path_idx]->width));
+                        }
+                        for (; path_idx < range.end() && path_idx - visitor.paths.size() < visitor.paths3D.size(); ++path_idx) {
+                            visitor.paths3D[path_idx - visitor.paths.size()]->simplify(scaled_resolution, true, arc_fitting_tolerance.get_abs_value(visitor.paths3D[path_idx - visitor.paths.size()]->width));
+                        }
+                    }
+                );
+            }
+            m_print->throw_if_canceled();
+            BOOST_LOG_TRIVIAL(debug) << "Simplify extrusion path of object in parallel - end";
+
+            //BBS: share same progress
+            BOOST_LOG_TRIVIAL(debug) << "Simplify extrusion path of support in parallel - start";
+            m_print->set_status(0, L("Optimizing support layer %s / %s"), { std::to_string(0), std::to_string(m_layers.size()) }, PrintBase::SlicingStatus::SECONDARY_STATE);
+            atomic_count.store(0);
+            tbb::parallel_for(
+                tbb::blocked_range<size_t>(0, m_support_layers.size()),
+                [this, &atomic_count](const tbb::blocked_range<size_t>& range) {
+                    for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
+                        m_print->throw_if_canceled();
+                        m_support_layers[layer_idx]->simplify_support_extrusion_path();
+                        int nb_layers_done = (++atomic_count);
+                        m_print->set_status(int((nb_layers_done * 100) / m_layers.size()), L("Optimizing layer %s / %s"), { std::to_string(nb_layers_done), std::to_string(m_layers.size()) }, PrintBase::SlicingStatus::SECONDARY_STATE);
+                    }
+                }
+            );
+            m_print->throw_if_canceled();
+            BOOST_LOG_TRIVIAL(debug) << "Simplify extrusion path of support in parallel - end";
+            this->set_done(posSimplifyPath);
+        }
+    }
+
     std::pair<FillAdaptive::OctreePtr, FillAdaptive::OctreePtr> PrintObject::prepare_adaptive_infill_data()
     {
         using namespace FillAdaptive;
@@ -679,6 +749,24 @@ std::vector<std::reference_wrapper<const PrintRegion>> PrintObject::all_regions(
             adaptive_line_spacing ? build_octree(mesh, overhangs.front(), adaptive_line_spacing, false) : OctreePtr(),
             support_line_spacing ? build_octree(mesh, overhangs.front(), support_line_spacing, true) : OctreePtr());
     }
+
+FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
+{
+    bool     has_lightning_infill = false;
+    coordf_t lightning_density    = 0.;
+    size_t   lightning_cnt        = 0;
+    for (size_t region_id = 0; region_id < this->num_printing_regions(); ++region_id)
+        if (const PrintRegionConfig &config = this->printing_region(region_id).config(); config.fill_density > 0 && config.fill_pattern.value == ipLightning) {
+            has_lightning_infill = true;
+            lightning_density   += config.fill_density;
+            ++lightning_cnt;
+        }
+
+    if (has_lightning_infill)
+        lightning_density /= coordf_t(lightning_cnt);
+
+    return has_lightning_infill ? FillLightning::build_generator(std::as_const(*this), lightning_density, [this]() -> void { this->throw_if_canceled(); }) : FillLightning::GeneratorPtr();
+}
 
     void PrintObject::clear_layers()
     {
@@ -878,7 +966,6 @@ bool PrintObject::invalidate_state_by_config_options(
                 || opt_key == "enforce_full_fill_volume"
                 || opt_key == "fill_angle"
                 || opt_key == "fill_angle_increment"
-                || opt_key == "fill_pattern"
                 || opt_key == "fill_top_flow_ratio"
                 || opt_key == "fill_smooth_width"
                 || opt_key == "fill_smooth_distribution"
@@ -890,9 +977,20 @@ bool PrintObject::invalidate_state_by_config_options(
                 || opt_key == "infill_connection_solid"
                 || opt_key == "infill_connection_top"
                 || opt_key == "seam_gap"
+                || opt_key == "seam_gap_external"
                 || opt_key == "top_infill_extrusion_spacing"
                 || opt_key == "top_infill_extrusion_width" ) {
                 steps.emplace_back(posInfill);
+        } else if (opt_key == "fill_pattern") {
+            steps.emplace_back(posInfill);
+
+            const auto *old_fill_pattern = old_config.option<ConfigOptionEnum<InfillPattern>>(opt_key);
+            const auto *new_fill_pattern = new_config.option<ConfigOptionEnum<InfillPattern>>(opt_key);
+            assert(old_fill_pattern && new_fill_pattern);
+            // We need to recalculate infill surfaces when infill_only_where_needed is enabled, and we are switching from
+            // the Lightning infill to another infill or vice versa.
+            if (m_config.infill_only_where_needed && (new_fill_pattern->value == ipLightning || old_fill_pattern->value == ipLightning))
+                steps.emplace_back(posPrepareInfill);
             } else if (opt_key == "fill_density") {
                 // One likely wants to reslice only when switching between zero infill to simulate boolean difference (subtracting volumes),
                 // normal infill and 100% (solid) infill.
@@ -963,12 +1061,18 @@ bool PrintObject::invalidate_state_by_config_options(
                 || opt_key == "gap_fill_speed"
                 || opt_key == "infill_speed"
                 || opt_key == "overhangs_speed"
+                || opt_key == "overhangs_speed_enforce"
                 || opt_key == "perimeter_speed"
                 || opt_key == "seam_position"
                 || opt_key == "seam_preferred_direction"
                 || opt_key == "seam_preferred_direction_jitter"
                 || opt_key == "seam_angle_cost"
+                || opt_key == "seam_notch_all"
+                || opt_key == "seam_notch_angle"
+                || opt_key == "seam_notch_inner"
+                || opt_key == "seam_notch_outer"
                 || opt_key == "seam_travel_cost"
+                || opt_key == "seam_visibility"
                 || opt_key == "small_perimeter_speed"
                 || opt_key == "small_perimeter_min_length"
                 || opt_key == "small_perimeter_max_length"
@@ -1015,20 +1119,20 @@ bool PrintObject::invalidate_state_by_config_options(
 
         // propagate to dependent steps
         if (step == posPerimeters) {
-            invalidated |= this->invalidate_steps({ posPrepareInfill, posInfill, posIroning });
-        invalidated |= m_print->invalidate_steps({ psSkirtBrim });
+            invalidated |= this->invalidate_steps({ posPrepareInfill, posInfill, posIroning, posSimplifyPath });
+            invalidated |= m_print->invalidate_steps({ psSkirtBrim });
         } else if (step == posPrepareInfill) {
-            invalidated |= this->invalidate_steps({ posInfill, posIroning });
+            invalidated |= this->invalidate_steps({ posInfill, posIroning, posSimplifyPath });
         } else if (step == posInfill) {
-            invalidated |= this->invalidate_steps({ posIroning });
-        invalidated |= m_print->invalidate_steps({ psSkirtBrim });
+            invalidated |= this->invalidate_steps({ posIroning, posSimplifyPath });
+            invalidated |= m_print->invalidate_steps({ psSkirtBrim });
         } else if (step == posSlice) {
-            invalidated |= this->invalidate_steps({ posPerimeters, posPrepareInfill, posInfill, posIroning, posSupportMaterial });
-        invalidated |= m_print->invalidate_steps({ psSkirtBrim });
-        m_slicing_params->valid = false;
+            invalidated |= this->invalidate_steps({ posPerimeters, posPrepareInfill, posInfill, posIroning, posSupportMaterial, posSimplifyPath });
+            invalidated |= m_print->invalidate_steps({ psSkirtBrim });
+            m_slicing_params->valid = false;
         } else if (step == posSupportMaterial) {
-        invalidated |= m_print->invalidate_steps({ psSkirtBrim });
-        m_slicing_params->valid = false;
+            invalidated |= m_print->invalidate_steps({ psSkirtBrim });
+            m_slicing_params->valid = false;
         }
 
         // Wipe tower depends on the ordering of extruders, which in turn depends on everything.
@@ -2594,7 +2698,14 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
     // fill_surfaces but we only turn them into VOID surfaces, thus preserving the boundaries.
     void PrintObject::clip_fill_surfaces()
     {
-    if (! m_config.infill_only_where_needed.value)
+    bool has_lightning_infill = false;
+    for (size_t region_id = 0; region_id < this->num_printing_regions(); ++region_id)
+        if (const PrintRegionConfig &config = this->printing_region(region_id).config(); config.fill_density > 0 && config.fill_pattern.value == ipLightning)
+            has_lightning_infill = true;
+
+    // For Lightning infill, infill_only_where_needed is ignored because both
+    // do a similar thing, and their combination doesn't make much sense.
+    if (! m_config.infill_only_where_needed.value || has_lightning_infill)
             return;
     bool has_infill = false;
     for (size_t i = 0; i < this->num_printing_regions(); ++ i)

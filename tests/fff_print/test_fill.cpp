@@ -445,6 +445,8 @@ bool test_if_solid_surface_filled(const ExPolygon& expolygon, double flow_spacin
 	Surface surface(SurfaceType::stDensSolid | SurfaceType::stPosBottom, expolygon);
     if (fill_params.use_arachne) // Make this test fail when Arachne is used because this test is not ready for it.
         return false;
+    if (fill_params.use_arachne) // Make this test fail when Arachne is used because this test is not ready for it.
+        return false;
 	Slic3r::Polylines paths = filler->fill_surface(&surface, fill_params);
 
     // check whether any part was left uncovered

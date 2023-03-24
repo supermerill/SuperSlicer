@@ -9,9 +9,9 @@ set(SLIC3R_APP_KEY "SuperSlicer")
 set(SLIC3R_APP_CMD "superslicer")
 # versions
 set(SLIC3R_VERSION "2.5.59")
-set(SLIC3R_VERSION_FULL "2.5.59.0")
+set(SLIC3R_VERSION_FULL "2.5.59.2")
 set(SLIC3R_BUILD_ID "${SLIC3R_APP_KEY}_${SLIC3R_VERSION_FULL}+UNKNOWN")
-set(SLIC3R_RC_VERSION "2,5,59,0")
+set(SLIC3R_RC_VERSION "2,5,59,2")
 set(SLIC3R_RC_VERSION_DOTS "${SLIC3R_VERSION_FULL}")
 
 # Same as the slicer name but for gcodeviewer

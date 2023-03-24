@@ -15,12 +15,12 @@ add_subdirectory(semver)
 add_subdirectory(libigl)
 add_subdirectory(hints)
 add_subdirectory(qoi)
-add_subdirectory(jpeg-compressor)
-
-# Adding libnest2d project for bin packing...
 add_subdirectory(libnest2d)
-
 add_subdirectory(libslic3r)
+
+if (SLIC3R_ENABLE_FORMAT_STEP)
+    add_subdirectory(occt_wrapper)
+endif ()
 
 if (SLIC3R_GUI)
     add_subdirectory(imgui)
@@ -88,7 +88,7 @@ if (SLIC3R_GUI)
     string(REGEX MATCH "wxexpat" WX_EXPAT_BUILTIN ${wxWidgets_LIBRARIES})
     if (EXPAT_FOUND AND NOT WX_EXPAT_BUILTIN)
         list(FILTER wxWidgets_LIBRARIES EXCLUDE REGEX expat)
-        list(APPEND wxWidgets_LIBRARIES ${EXPAT_LIBRARIES})
+        list(APPEND wxWidgets_LIBRARIES libexpat)
     endif ()
     
     # This is an issue in the new wxWidgets cmake build, doesn't deal with librt
@@ -142,6 +142,7 @@ if (NOT WIN32)
 endif ()
 
 target_link_libraries(Slic3r libslic3r cereal)
+
 if (APPLE)
 #    add_compile_options(-stdlib=libc++)
 #    add_definitions(-DBOOST_THREAD_DONT_USE_CHRONO -DBOOST_NO_CXX11_RVALUE_REFERENCES -DBOOST_THREAD_USES_MOVE)

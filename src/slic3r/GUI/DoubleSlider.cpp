@@ -783,7 +783,8 @@ wxString Control::get_label(int tick, LabelType label_type/* = ltHeightWithLayer
             return str;
         if (label_type == ltHeightWithLayer) {
             size_t layer_number = m_is_wipe_tower ? get_layer_number(value, label_type) + 1 : (m_values.empty() ? value : value + 1);
-            return format_wxstr("%1%\n(%2%)", str, layer_number);
+            double layer_height = m_values.empty() ? m_label_koef : m_values[layer_number - 1] - (layer_number > 1 ? m_values[layer_number - 2] : 0);
+            return format_wxstr("%1%\n(%2%,\n%3%)", str, wxString::Format("%.*f", 2, layer_height), layer_number);
     }
     }
 

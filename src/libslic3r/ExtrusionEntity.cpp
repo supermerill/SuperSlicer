@@ -30,12 +30,12 @@ void ExtrusionVisitorConst::use(const ExtrusionEntityCollection &collection) { d
 void
 ExtrusionPath::intersect_expolygons(const ExPolygonCollection &collection, ExtrusionEntityCollection* retval) const
 {
-    this->_inflate_collection(intersection_pl(Polylines{ polyline }, collection.expolygons), retval);
+    this->_inflate_collection(intersection_pl(Polylines{ this->polyline.as_polyline() }, collection.expolygons), retval);
 }
 
 void ExtrusionPath::subtract_expolygons(const ExPolygonCollection &collection, ExtrusionEntityCollection* retval) const
 {
-    this->_inflate_collection(diff_pl(Polylines{ this->polyline }, collection.expolygons), retval);
+    this->_inflate_collection(diff_pl(Polylines{ this->polyline.as_polyline() }, collection.expolygons), retval);
 }
 
 void ExtrusionPath::clip_end(coordf_t distance)
@@ -43,9 +43,17 @@ void ExtrusionPath::clip_end(coordf_t distance)
     this->polyline.clip_end(distance);
 }
 
-void ExtrusionPath::simplify(coordf_t tolerance)
+void ExtrusionPath::simplify(coordf_t tolerance, bool with_fitting_arc, double fitting_arc_tolerance)
 {
-    this->polyline.simplify(tolerance);
+    this->polyline.simplify(tolerance, with_fitting_arc, fitting_arc_tolerance);
+}
+
+void ExtrusionPath3D::simplify(coordf_t tolerance, bool with_fitting_arc, double fitting_arc_tolerance)
+{
+    //TODO: simplify but only for sub-path with same zheight.
+    //if (with_fitting_arc) {
+    //    this->polyline.simplify(tolerance, with_fitting_arc, fitting_arc_tolerance);
+    //}
 }
 
 double ExtrusionPath::length() const
@@ -57,13 +65,13 @@ void ExtrusionPath::_inflate_collection(const Polylines &polylines, ExtrusionEnt
 {
     ExtrusionEntitiesPtr to_add;
     for (const Polyline &polyline : polylines)
-        to_add.emplace_back(new ExtrusionPath(polyline, *this));
+        to_add.emplace_back(new ExtrusionPath(PolylineOrArc{ polyline }, *this));
     collection->append(std::move(to_add));
 }
 
 void ExtrusionPath::polygons_covered_by_width(Polygons &out, const float scaled_epsilon) const
 {
-    polygons_append(out, offset(this->polyline, double(scale_(this->width/2)) + scaled_epsilon));
+    polygons_append(out, offset(this->polyline.as_polyline(), double(scale_(this->width/2)) + scaled_epsilon));
 }
 
 void ExtrusionPath::polygons_covered_by_spacing(Polygons &out, const float spacing_ratio, const float scaled_epsilon) const
@@ -76,7 +84,7 @@ void ExtrusionPath::polygons_covered_by_spacing(Polygons &out, const float spaci
     auto flow = bridge 
         ? Flow::bridging_flow(this->width, 0.f) 
         : Flow::new_from_width(this->width, 0.f, this->height, spacing_ratio);
-    polygons_append(out, offset(this->polyline, 0.5f * float(flow.scaled_spacing()) + scaled_epsilon));
+    polygons_append(out, offset(this->polyline.as_polyline(), 0.5f * float(flow.scaled_spacing()) + scaled_epsilon));
 }
 
 bool ExtrusionLoop::make_clockwise()
@@ -105,9 +113,17 @@ Polygon ExtrusionLoop::polygon() const
     Polygon polygon;
     for (const ExtrusionPath &path : this->paths) {
         // for each polyline, append all points except the last one (because it coincides with the first one of the next polyline)
-        polygon.points.insert(polygon.points.end(), path.polyline.points.begin(), path.polyline.points.end()-1);
+        polygon.points.insert(polygon.points.end(), path.polyline.get_points().begin(), path.polyline.get_points().end()-1);
     }
     return polygon;
+}
+
+PolylineOrArc ExtrusionLoop::as_polyline() const {
+    PolylineOrArc polyline;
+    for (const ExtrusionPath& path : this->paths) {
+        polyline.append(path.as_polyline());
+    }
+    return polyline;
 }
 
 double ExtrusionLoop::length() const
@@ -118,86 +134,106 @@ double ExtrusionLoop::length() const
     return len;
 }
 
-bool ExtrusionLoop::split_at_vertex(const Point &point)
+bool ExtrusionLoop::split_at_vertex(const Point &point, const double scaled_epsilon)
 {
     for (ExtrusionPaths::iterator path = this->paths.begin(); path != this->paths.end(); ++path) {
-        int idx = path->polyline.find_point(point);
-        if (idx != -1) {
+        if (int idx = path->polyline.find_point(point, scaled_epsilon); idx != -1) {
             if (this->paths.size() == 1) {
                 // just change the order of points
-                path->polyline.points.insert(path->polyline.points.end(), path->polyline.points.begin() + 1, path->polyline.points.begin() + idx + 1);
-                path->polyline.points.erase(path->polyline.points.begin(), path->polyline.points.begin() + idx);
+                PolylineOrArc p1, p2;
+                path->polyline.split_at_index(idx, &p1, &p2);
+                if (p1.is_valid() && p2.is_valid()) {
+                    p2.append(std::move(p1));
+                    path->polyline.swap(p2); // swap points & fitting result
+                }
             } else {
                 // new paths list starts with the second half of current path
                 ExtrusionPaths new_paths;
+                PolylineOrArc p1, p2;
+                path->polyline.split_at_index(idx, &p1, &p2);
                 new_paths.reserve(this->paths.size() + 1);
                 {
                     ExtrusionPath p = *path;
-                    p.polyline.points.erase(p.polyline.points.begin(), p.polyline.points.begin() + idx);
+                    p.polyline.swap(p2);
                     if (p.polyline.is_valid()) new_paths.push_back(p);
                 }
-            
+
                 // then we add all paths until the end of current path list
-                new_paths.insert(new_paths.end(), path+1, this->paths.end());  // not including this path
-            
+                new_paths.insert(new_paths.end(), path + 1, this->paths.end());  // not including this path
+
                 // then we add all paths since the beginning of current list up to the previous one
                 new_paths.insert(new_paths.end(), this->paths.begin(), path);  // not including this path
-            
+
                 // finally we add the first half of current path
                 {
                     ExtrusionPath p = *path;
-                    p.polyline.points.erase(p.polyline.points.begin() + idx + 1, p.polyline.points.end());
+                    p.polyline.swap(p1);
                     if (p.polyline.is_valid()) new_paths.push_back(p);
                 }
                 // we can now override the old path list with the new one and stop looping
-                std::swap(this->paths, new_paths);
+                this->paths = std::move(new_paths);
             }
             return true;
         }
     }
+    // The point was not found.
     return false;
 }
 
-std::pair<size_t, Point> ExtrusionLoop::get_closest_path_and_point(const Point& point, bool prefer_non_overhang) const
+ExtrusionLoop::ClosestPathPoint ExtrusionLoop::get_closest_path_and_point(const Point &point, bool prefer_non_overhang) const
 {
     // Find the closest path and closest point belonging to that path. Avoid overhangs, if asked for.
-    size_t path_idx = 0;
-    Point  p;
-    {
-        double min = std::numeric_limits<double>::max();
-        Point  p_non_overhang;
-        size_t path_idx_non_overhang = 0;
-        double min_non_overhang = std::numeric_limits<double>::max();
-        for (const ExtrusionPath& path : this->paths) {
-            Point p_tmp = point.projection_onto(path.polyline);
-            double dist = (p_tmp - point).cast<double>().norm();
-            if (dist < min) {
-                p = p_tmp;
-                min = dist;
-                path_idx = &path - &this->paths.front();
+    ClosestPathPoint out { 0, 0 };
+    double           min2 = std::numeric_limits<double>::max();
+    ClosestPathPoint best_non_overhang { 0, 0 };
+    double           min2_non_overhang = std::numeric_limits<double>::max();
+    for (const ExtrusionPath& path : this->paths) {
+        std::pair<int, Point> foot_pt_ = foot_pt(path.polyline.get_points(), point);
+        double d2 = (foot_pt_.second - point).cast<double>().squaredNorm();
+        if (d2 < min2) {
+            out.foot_pt     = foot_pt_.second;
+            out.path_idx    = &path - &this->paths.front();
+            out.segment_idx = foot_pt_.first;
+            min2            = d2;
             }
-            if (prefer_non_overhang && !is_bridge(path.role()) && dist < min_non_overhang) {
-                p_non_overhang = p_tmp;
-                min_non_overhang = dist;
-                path_idx_non_overhang = &path - &this->paths.front();
-            }
-        }
-        if (prefer_non_overhang && min_non_overhang != std::numeric_limits<double>::max()) {
-            // Only apply the non-overhang point if there is one.
-            path_idx = path_idx_non_overhang;
-            p = p_non_overhang;
+        if (prefer_non_overhang && !is_bridge(path.role()) && d2 < min2_non_overhang) {
+            best_non_overhang.foot_pt     = foot_pt_.second;
+            best_non_overhang.path_idx    = &path - &this->paths.front();
+            best_non_overhang.segment_idx = foot_pt_.first;
+            min2_non_overhang             = d2;
         }
     }
-    return std::make_pair(path_idx, p);
+    if (prefer_non_overhang && min2_non_overhang != std::numeric_limits<double>::max()) {
+        // Only apply the non-overhang point if there is one.
+        out = best_non_overhang;
+    }
+    return out;
 }
 
 // Splitting an extrusion loop, possibly made of multiple segments, some of the segments may be bridging.
-void ExtrusionLoop::split_at(const Point &point, bool prefer_non_overhang)
+void ExtrusionLoop::split_at(const Point &point, bool prefer_non_overhang, const double scaled_epsilon)
 {
     if (this->paths.empty())
         return;
     
-    auto [path_idx, p] = get_closest_path_and_point(point, prefer_non_overhang);
+    auto [path_idx, segment_idx, p] = get_closest_path_and_point(point, prefer_non_overhang);
+    
+    // Snap p to start or end of segment_idx if closer than scaled_epsilon.
+    {
+        const Point *p1 = this->paths[path_idx].polyline.get_points().data() + segment_idx;
+        const Point *p2 = p1;
+        ++ p2;
+        double d2_1 = (point - *p1).cast<double>().squaredNorm();
+        double d2_2 = (point - *p2).cast<double>().squaredNorm();
+        const double thr2 = scaled_epsilon * scaled_epsilon;
+        if (d2_1 < d2_2) {
+            if (d2_1 < thr2)
+                p = *p1;
+        } else {
+            if (d2_2 < thr2) 
+                p = *p2;
+        }
+    }
     
     // now split path_idx in two parts
     const ExtrusionPath &path = this->paths[path_idx];
@@ -206,13 +242,13 @@ void ExtrusionLoop::split_at(const Point &point, bool prefer_non_overhang)
     path.polyline.split_at(p, &p1.polyline, &p2.polyline);
     
     if (this->paths.size() == 1) {
-        if (! p1.polyline.is_valid() || p1.polyline.length() == 0)
-            std::swap(this->paths.front().polyline.points, p2.polyline.points);
-        else if (! p2.polyline.is_valid() || p2.polyline.length() == 0)
-            std::swap(this->paths.front().polyline.points, p1.polyline.points);
-        else {
-            p2.polyline.points.insert(p2.polyline.points.end(), p1.polyline.points.begin() + 1, p1.polyline.points.end());
-            std::swap(this->paths.front().polyline.points, p2.polyline.points);
+        if (!p1.polyline.is_valid()) {
+            this->paths.front().polyline.swap(p2.polyline);
+        } else if (!p2.polyline.is_valid()) {
+            this->paths.front().polyline.swap(p1.polyline);
+        } else {
+            p2.polyline.append(std::move(p1.polyline));
+            this->paths.front().polyline.swap(p2.polyline);
         }
     } else {
         // install the two paths
@@ -222,7 +258,7 @@ void ExtrusionLoop::split_at(const Point &point, bool prefer_non_overhang)
     }
     
     // split at the new vertex
-    this->split_at_vertex(p);
+    this->split_at_vertex(p, 0.);
 }
 
 ExtrusionPaths clip_end(ExtrusionPaths& paths, coordf_t distance)
@@ -253,7 +289,7 @@ bool ExtrusionLoop::has_overhang_point(const Point &point) const
         if (pos != -1) {
             // point belongs to this path
             // we consider it overhang only if it's not an endpoint
-            return (is_bridge(path.role()) && pos > 0 && pos != (int)(path.polyline.points.size())-1);
+            return (is_bridge(path.role()) && pos > 0 && pos != (int)(path.polyline.size())-1);
         }
     }
     return false;
@@ -343,20 +379,20 @@ ExtrusionRole ExtrusionEntity::string_to_role(const std::string_view role)
 }
 void ExtrusionPrinter::use(const ExtrusionPath &path) { 
     ss << "ExtrusionPath:" << (uint16_t)path.role() << "{";
-    for (int i = 0; i < path.polyline.points.size(); i++) {
+    for (int i = 0; i < path.polyline.size(); i++) {
         if (i != 0) ss << ",";
-        double x = (mult * (path.polyline.points[i].x()));
-        double y = (mult * (path.polyline.points[i].y()));
+        double x = (mult * (path.polyline.get_points()[i].x()));
+        double y = (mult * (path.polyline.get_points()[i].y()));
         ss << std::fixed << "{"<<(trunc?(int)x:x) << "," << (trunc ? (int)y : y) <<"}";
     }
     ss << "}";
 }
 void ExtrusionPrinter::use(const ExtrusionPath3D &path3D) {
     ss << "ExtrusionPath3D:" << (uint16_t)path3D.role() << "{";
-    for (int i = 0; i < path3D.polyline.points.size();i++){
+    for (int i = 0; i < path3D.polyline.size();i++){
         if (i != 0) ss << ",";
-        double x = (mult * (path3D.polyline.points[i].x()));
-        double y = (mult * (path3D.polyline.points[i].y()));
+        double x = (mult * (path3D.polyline.get_points()[i].x()));
+        double y = (mult * (path3D.polyline.get_points()[i].y()));
         double z = (path3D.z_offsets.size() > i ? mult * (path3D.z_offsets[i]) : -1);
         ss << std::fixed << "{" << (trunc ? (int)x : x) << "," << (trunc ? (int)y : y) << "," << (trunc ? (int)z : z) << "}";
     }

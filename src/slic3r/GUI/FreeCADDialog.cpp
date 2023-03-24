@@ -503,10 +503,10 @@ void FreeCADDialog::on_char_add(wxStyledTextEvent& event) {
         stc->SetTargetStart(current_pos);
         stc->SetTargetEnd(current_pos + 1);
         stc->ReplaceTarget("");
-    } else if (stc->GetTextLength() > current_pos && event.GetKey() == int(')') && stc->GetCharAt(current_pos - 1) == ')' && stc->GetCharAt(current_pos) == ')') {
-        stc->SetTargetStart(current_pos);
-        stc->SetTargetEnd(current_pos + 1);
-        stc->ReplaceTarget("");
+    //} else if (stc->GetTextLength() > current_pos && event.GetKey() == int(')') && stc->GetCharAt(current_pos - 1) == ')' && stc->GetCharAt(current_pos) == ')') {
+    //    stc->SetTargetStart(current_pos);
+    //    stc->SetTargetEnd(current_pos + 1);
+    //    stc->ReplaceTarget("");
     } else if (stc->GetTextLength() > current_pos && event.GetKey() == int('"') && stc->GetCharAt(current_pos - 1) == '"' && stc->GetCharAt(current_pos) == '"') {
         stc->SetTargetStart(current_pos);
         stc->SetTargetEnd(current_pos + 1);
@@ -612,8 +612,8 @@ void FreeCADDialog::on_key_type(wxKeyEvent& event)
         int current_pos = m_text->GetCurrentPos();
         if (m_text->GetCharAt(current_pos - 1) == '(' && m_text->GetCharAt(current_pos) == ')')
             current_pos--;
-        if (m_text->GetCharAt(current_pos - 2) == '(' && m_text->GetCharAt(current_pos - 1) == ')')
-            current_pos -= 2;
+        //if (m_text->GetCharAt(current_pos - 2) == '(' && m_text->GetCharAt(current_pos - 1) == ')')
+        //    current_pos -= 2;
         int word_start_pos = m_text->WordStartPosition(current_pos, true);
         wxString str = m_text->GetTextRange(word_start_pos, current_pos);
         if (str.length() > 2) {
@@ -946,6 +946,8 @@ void FreeCADDialog::create_geometry(wxCommandEvent& event_args) {
         m_errors->AppendText("Error, cannot write into " + temp_file.string() + "!");
         return;
     }
+    //also write the current temp file
+    this->write_text_in_file(m_text->GetText(), boost::filesystem::path(Slic3r::data_dir()) / "temp" / "current_pyscad.py");
 
 
     //exec_var->pyin << "scene().redraw("<< boost::replace_all_copy(boost::replace_all_copy(m_text->GetText(), "\r", ""), "\n", "") <<")" << std::endl;

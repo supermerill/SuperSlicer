@@ -42,6 +42,7 @@ option(SLIC3R_MSVC_COMPILE_PARALLEL "Compile on Visual Studio in parallel" 1)
 option(SLIC3R_MSVC_PDB          "Generate PDB files on MSVC in Release mode" 1)
 option(SLIC3R_PERL_XS           "Compile XS Perl module and enable Perl unit and integration tests" 0)
 option(SLIC3R_ASAN              "Enable ASan on Clang and GCC" 0)
+option(SLIC3R_ENABLE_FORMAT_STEP "Enable compilation of STEP file support" 1)
 # If SLIC3R_FHS is 1 -> SLIC3R_DESKTOP_INTEGRATION is always 0, othrewise variable.
 CMAKE_DEPENDENT_OPTION(SLIC3R_DESKTOP_INTEGRATION "Allow perfoming desktop integration during runtime" 1 "NOT SLIC3R_FHS" 0)
 
@@ -427,23 +428,6 @@ else()
     target_link_libraries(libcurl INTERFACE crypt32)
 endif()
 
-if (SLIC3R_STATIC AND NOT SLIC3R_STATIC_EXCLUDE_CURL)
-    if (NOT APPLE)
-        # libcurl is always linked dynamically to the system libcurl on OSX.
-        # On other systems, libcurl is linked statically if SLIC3R_STATIC is set.
-        target_compile_definitions(libcurl INTERFACE CURL_STATICLIB)
-    endif()
-    if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        # As of now, our build system produces a statically linked libcurl,
-        # which links the OpenSSL library dynamically.
-        find_package(OpenSSL REQUIRED)
-        message("OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
-        message("OpenSSL libraries: ${OPENSSL_LIBRARIES}")
-        target_include_directories(libcurl INTERFACE ${OPENSSL_INCLUDE_DIR})
-        target_link_libraries(libcurl INTERFACE ${OPENSSL_LIBRARIES})
-    endif()
-endif()
-
 ## OPTIONAL packages
 
 # Find eigen3 or use bundled version
@@ -456,21 +440,9 @@ if (NOT EIGEN3_FOUND)
 endif ()
 include_directories(BEFORE SYSTEM ${EIGEN3_INCLUDE_DIR})
 
-# Find expat or use bundled version
-# Always use the system libexpat on Linux.
-
-find_package(EXPAT)
-
-if (NOT EXPAT_FOUND)
-    add_library(expat STATIC
-        ${LIBDIR}/expat/xmlparse.c
-        ${LIBDIR}/expat/xmlrole.c
-        ${LIBDIR}/expat/xmltok.c
-    )
-    set(EXPAT_FOUND 1)
-    set(EXPAT_INCLUDE_DIRS ${LIBDIR}/expat/)
-    set(EXPAT_LIBRARIES expat)
-endif ()
+# Find expat. We have our overriden FindEXPAT which exports libexpat target
+# no matter what.
+find_package(EXPAT REQUIRED)
 
 find_package(PNG REQUIRED)
 

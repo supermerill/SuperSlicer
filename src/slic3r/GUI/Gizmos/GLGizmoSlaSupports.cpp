@@ -998,7 +998,7 @@ void GLGizmoSlaSupports::select_point(int i)
             point_and_selection.selected = ( i == AllPoints );
         m_selection_empty = (i == NoPoints);
 
-        if (i == AllPoints)
+        if (i == AllPoints && ! m_editing_cache.empty())
             m_new_point_head_diameter = m_editing_cache[0].support_point.head_front_radius * 2.f;
     }
     else {

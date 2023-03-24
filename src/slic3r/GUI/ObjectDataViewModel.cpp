@@ -1706,8 +1706,10 @@ void ObjectDataViewModel::Rescale()
             break;
         case itLayerRoot:
             node->m_bmp = create_scaled_bitmap(LayerRootIcon);
+            break;
         case itLayer:
             node->m_bmp = create_scaled_bitmap(LayerIcon);
+            break;
         case itInfo:
             node->m_bmp = m_info_bmps.at(node->m_info_item_type);
             break;

@@ -112,9 +112,9 @@ inline ExPolygons to_expolygon(const Polygons &other)
 
 inline Lines to_lines(const ExPolygon &src) 
 {
-    size_t n_lines = src.contour.points.size();
+    size_t n_lines = src.contour.size();
     for (size_t i = 0; i < src.holes.size(); ++ i)
-        n_lines += src.holes[i].points.size();
+        n_lines += src.holes[i].size();
     Lines lines;
     lines.reserve(n_lines);
     for (size_t i = 0; i <= src.holes.size(); ++ i) {
@@ -130,9 +130,9 @@ inline Lines to_lines(const ExPolygons &src)
 {
     size_t n_lines = 0;
     for (ExPolygons::const_iterator it_expoly = src.begin(); it_expoly != src.end(); ++ it_expoly) {
-        n_lines += it_expoly->contour.points.size();
+        n_lines += it_expoly->contour.size();
         for (size_t i = 0; i < it_expoly->holes.size(); ++ i)
-            n_lines += it_expoly->holes[i].points.size();
+            n_lines += it_expoly->holes[i].size();
     }
     Lines lines;
     lines.reserve(n_lines);

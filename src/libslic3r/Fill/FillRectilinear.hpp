@@ -156,9 +156,9 @@ protected:
     virtual bool is_monotonic() const override { return true; }
 };
 
-Points sample_grid_pattern(const ExPolygon &expolygon, coord_t spacing);
-Points sample_grid_pattern(const ExPolygons &expolygons, coord_t spacing);
-Points sample_grid_pattern(const Polygons &polygons, coord_t spacing);
+Points sample_grid_pattern(const ExPolygon &expolygon, coord_t spacing, const BoundingBox &global_bounding_box);
+Points sample_grid_pattern(const ExPolygons &expolygons, coord_t spacing, const BoundingBox &global_bounding_box);
+Points sample_grid_pattern(const Polygons &polygons, coord_t spacing, const BoundingBox &global_bounding_box);
 
 } // namespace Slic3r
 

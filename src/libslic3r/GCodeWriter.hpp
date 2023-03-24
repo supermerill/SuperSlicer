@@ -71,6 +71,7 @@ public:
     std::string travel_to_z(double z, const std::string &comment = std::string());
     bool        will_move_z(double z) const;
     std::string extrude_to_xy(const Vec2d &point, double dE, const std::string &comment = std::string());
+    std::string extrude_arc_to_xy(const Vec2d& point, const Vec2d& center_offset, double dE, const bool is_ccw, const std::string& comment = std::string()); //BBS: generate G2 or G3 extrude which moves by arc
     std::string extrude_to_xyz(const Vec3d &point, double dE, const std::string &comment = std::string());
     std::string retract(bool before_wipe = false);
     std::string retract_for_toolchange(bool before_wipe = false);
@@ -115,15 +116,25 @@ private:
     std::string _retract(double length, double restart_extra, double restart_extra_toolchange, const std::string &comment);
 
 };
-#if 0
+
+#define DONT_USE_CHARCONV 1
+#ifndef DONT_USE_CHARCONV
 // removed as charconv isn't here in older system like ubuntu 16.04 (cpp 17)
 #include <charconv>
+#endif
 #define USE_GCODEFORMATTER
 class GCodeFormatter {
 public:
-    GCodeFormatter() {
+    int m_gcode_precision_xyz = 3;
+    int m_gcode_precision_e = 5;
+    GCodeFormatter(int gcode_precision_xyz, int gcode_precision_e)
+            : m_gcode_precision_xyz(gcode_precision_xyz), m_gcode_precision_e(gcode_precision_e){
         this->buf_end = buf + buflen;
+#ifndef DONT_USE_CHARCONV
         this->ptr_err.ptr = this->buf;
+#else 
+        this->ptr_err_ptr = this->buf;
+#endif
     }
 
     GCodeFormatter(const GCodeFormatter&) = delete;
@@ -135,8 +146,9 @@ public:
     // thus the filament moves 3.063 / 0.6 = 51x slower than the XY axes
     // and we need roughly two decimal digits more on extruder than on XY.
 #if 1
-    static constexpr const int XYZF_EXPORT_DIGITS = 3;
-    static constexpr const int E_EXPORT_DIGITS    = 5;
+    // use gcode_precision_xyz and gcode_precision_e from conf
+    //static constexpr const int XYZF_EXPORT_DIGITS = 3;
+    //static constexpr const int E_EXPORT_DIGITS    = 5;
 #else
     // order of magnitude smaller extrusion rate erros
     static constexpr const int XYZF_EXPORT_DIGITS = 4;
@@ -149,68 +161,114 @@ public:
     void emit_axis(const char axis, const double v, size_t digits);
 
     void emit_xy(const Vec2d &point) {
-        this->emit_axis('X', point.x(), XYZF_EXPORT_DIGITS);
-        this->emit_axis('Y', point.y(), XYZF_EXPORT_DIGITS);
+        this->emit_axis('X', point.x(), m_gcode_precision_xyz);
+        this->emit_axis('Y', point.y(), m_gcode_precision_xyz);
     }
 
     void emit_xyz(const Vec3d &point) {
-        this->emit_axis('X', point.x(), XYZF_EXPORT_DIGITS);
-        this->emit_axis('Y', point.y(), XYZF_EXPORT_DIGITS);
+        this->emit_axis('X', point.x(), m_gcode_precision_xyz);
+        this->emit_axis('Y', point.y(), m_gcode_precision_xyz);
         this->emit_z(point.z());
     }
 
     void emit_z(const double z) {
-        this->emit_axis('Z', z, XYZF_EXPORT_DIGITS);
+        this->emit_axis('Z', z, m_gcode_precision_xyz);
     }
 
     void emit_e(const std::string &axis, double v) {
         if (! axis.empty()) {
             // not gcfNoExtrusion
-            this->emit_axis(axis[0], v, E_EXPORT_DIGITS);
+            this->emit_axis(axis[0], v, m_gcode_precision_e);
         }
     }
 
     void emit_f(double speed) {
-        this->emit_axis('F', speed, XYZF_EXPORT_DIGITS);
+        this->emit_axis('F', speed, m_gcode_precision_xyz);
     }
 
     void emit_string(const std::string &s) {
+#ifndef DONT_USE_CHARCONV
         strncpy(ptr_err.ptr, s.c_str(), s.size());
         ptr_err.ptr += s.size();
+#else 
+        strncpy(ptr_err_ptr, s.c_str(), s.size());
+        ptr_err_ptr += s.size();
+#endif
     }
 
     void emit_comment(bool allow_comments, const std::string &comment) {
         if (allow_comments && ! comment.empty()) {
+#ifndef DONT_USE_CHARCONV
             *ptr_err.ptr ++ = ' '; *ptr_err.ptr ++ = ';'; *ptr_err.ptr ++ = ' ';
+#else 
+            * ptr_err_ptr++ = ' '; *ptr_err_ptr++ = ';'; *ptr_err_ptr++ = ' ';
+#endif
             this->emit_string(comment);
         }
     }
 
     std::string string() {
+#ifndef DONT_USE_CHARCONV
         *ptr_err.ptr ++ = '\n';
         return std::string(this->buf, ptr_err.ptr - buf);
+#else 
+        * ptr_err_ptr++ = '\n';
+        return std::string(this->buf, ptr_err_ptr - buf);
+#endif
     }
 
 protected:
     static constexpr const size_t   buflen = 256;
     char                            buf[buflen];
     char* buf_end;
+#ifndef DONT_USE_CHARCONV
     std::to_chars_result            ptr_err;
+#else 
+    char* ptr_err_ptr;
+#endif
 };
 
 class GCodeG1Formatter : public GCodeFormatter {
 public:
-    GCodeG1Formatter() {
+    GCodeG1Formatter(int gcode_precision_xyz, int gcode_precision_e)
+            : GCodeFormatter(gcode_precision_xyz, gcode_precision_e)
+    {
         this->buf[0] = 'G';
         this->buf[1] = '1';
         this->buf_end = buf + buflen;
+#ifndef DONT_USE_CHARCONV
         this->ptr_err.ptr = this->buf + 2;
+#else
+        this->ptr_err_ptr = this->buf + 2;
+#endif
     }
 
     GCodeG1Formatter(const GCodeG1Formatter&) = delete;
     GCodeG1Formatter& operator=(const GCodeG1Formatter&) = delete;
 };
+
+
+class GCodeG2G3Formatter : public GCodeFormatter {
+public:
+    GCodeG2G3Formatter(int gcode_precision_xyz, int gcode_precision_e, bool is_ccw) : GCodeFormatter(gcode_precision_xyz, gcode_precision_e) {
+        this->buf[0] = 'G';
+        this->buf[1] = is_ccw ? '3' : '2';
+        this->buf_end = buf + buflen;
+#ifndef DONT_USE_CHARCONV
+        this->ptr_err.ptr = this->buf + 2;
+#else
+        this->ptr_err_ptr = this->buf + 2;
 #endif
+    }
+
+    void emit_ij(const Vec2d& point) {
+        this->emit_axis('I', point.x(), m_gcode_precision_xyz);
+        this->emit_axis('J', point.y(), m_gcode_precision_xyz);
+    }
+
+    GCodeG2G3Formatter(const GCodeG2G3Formatter&) = delete;
+    GCodeG2G3Formatter& operator=(const GCodeG2G3Formatter&) = delete;
+};
 
 } /* namespace Slic3r */
 

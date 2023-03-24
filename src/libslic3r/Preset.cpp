@@ -470,11 +470,19 @@ static std::vector<std::string> s_Preset_print_options {
         "avoid_crossing_not_first_layer",
         "thin_perimeters", "thin_perimeters_all",
         "overhangs_speed",
+        "overhangs_speed_enforce",
         "overhangs_width",
         "overhangs_width_speed", 
         "overhangs_reverse",
         "overhangs_reverse_threshold",
         "seam_position",
+        "seam_angle_cost",
+        "seam_notch_all",
+        "seam_notch_angle",
+        "seam_notch_inner",
+        "seam_notch_outer",
+        "seam_travel_cost",
+        "seam_visibility",
         // external_perimeters
         "external_perimeters_first",
         "external_perimeters_vase",
@@ -505,9 +513,7 @@ static std::vector<std::string> s_Preset_print_options {
         "only_retract_when_crossing_perimeters", "enforce_retract_first_layer",
         "infill_first",
         "avoid_crossing_perimeters_max_detour",
-#ifdef HAS_PRESSURE_EQUALIZER
         "max_volumetric_extrusion_rate_slope_positive", "max_volumetric_extrusion_rate_slope_negative", 
-#endif /* HAS_PRESSURE_EQUALIZER */
         "min_width_top_surface",
         // speeds
         "default_speed",
@@ -674,8 +680,6 @@ static std::vector<std::string> s_Preset_print_options {
         "exact_last_layer_height",
         "perimeter_loop",
         "perimeter_loop_seam",
-        "seam_angle_cost",
-        "seam_travel_cost",
         "infill_connection", "infill_connection_solid", "infill_connection_top", "infill_connection_bottom", "infill_connection_bridge",
         "first_layer_infill_speed",
         // thin wall
@@ -781,6 +785,8 @@ static std::vector<std::string> s_Preset_machine_limits_options {
 };
 
 static std::vector<std::string> s_Preset_printer_options {
+	"arc_fitting",
+    "arc_fitting_tolerance",
     "printer_technology",
     "bed_shape", "bed_custom_texture", "bed_custom_model", "z_offset", "init_z_rotate",
     "fan_kickstart",
@@ -916,7 +922,7 @@ static std::vector<std::string> s_Preset_sla_printer_options {
     "display_width", "display_height", "display_pixels_x", "display_pixels_y",
     "display_mirror_x", "display_mirror_y",
     "display_orientation",
-    "fast_tilt_time", "slow_tilt_time", "area_fill",
+    "fast_tilt_time", "slow_tilt_time", "high_viscosity_tilt_time", "area_fill",
     "relative_correction",
     "relative_correction_x",
     "relative_correction_y",

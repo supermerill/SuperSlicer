@@ -76,10 +76,17 @@ group:sidetext_width$5:Advanced
 		setting:width$5:gap_fill_min_length
 	end_line
 	line:Seam
-		setting:tags$Simple$Advanced$Expert$Prusa$SuSi:script:enum$corners$Corners$nearest$Nearest$random$Random$aligned$Aligned$rear$Rear$custom$Custom:depends$seam_position$seam_angle_cost$seam_travel_cost:label$Seam position:label_width$12:sidetext_width$0:tooltip$Position of perimeters' starting points.\nCustom can be defined in Advanced or Expert mode. Cost-based settings let you choose the angle and travel cost. A high angle cost will place the seam where it can be hidden by a corner, the travel cost place the seam near the last position (often at the end of the previous infill).:s_seam_position
+		setting:tags$Simple$Advanced$Expert$Prusa$SuSi:script:enum$corners$Corners$nearest$Nearest$random$Scattered$allrandom$Random$aligned$Aligned$contiguous$Contiguous$rear$Rear$custom$Custom:depends$seam_position$seam_angle_cost$seam_travel_cost:label$Seam position:label_width$12:sidetext_width$0:tooltip$Position of perimeters' starting points. May use the angle & travel cost (with the fixed visilibity & ovehangs cost) to find the best place.\nCorners\. at least 100% angle cost and no more than 80% travel cost (default to 120-40).\nNearest\. no more than 100% angle cost and at least 100% travel cost (default to 80-100).\nScattered\. seam is placed at a random position on external perimeters.\nRandom\. seam is placed at a random position for all perimeters.\nAligned\. seams are grouped in the best place possible (minimum 6 layers per group).\nContiguous\. seam is placed over a seam from the previous layer (useful with enforcers as seeds).\nRear\. seam is placed at the far side (highest Y coordinates).\nCustom\. Other conbination of angle & travel cost than 'Corners' and 'Nearest', (default to 60-100).\nCustom & weight can be defined in Advanced or Expert mode.:s_seam_position:s_seam_position
 #		setting:tags$Expert:label_width$12:sidetext_width$0:seam_position
 		setting:tags$Advanced$Expert$SuSi:width$3:sidetext_width$0:seam_angle_cost
 		setting:tags$Advanced$Expert$SuSi:width$3:sidetext_width$0:seam_travel_cost
+		setting:tags$Expert$SuSi:sidetext_width$0:seam_visibility
+	end_line
+	line:Seam notch
+		setting:seam_notch_inner
+		setting:seam_notch_outer
+		setting:seam_notch_all
+		setting:seam_notch_angle
 	end_line
 	line:One-loop perimeters
 		setting:sidetext_width$0:label$_:perimeter_loop

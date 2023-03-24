@@ -368,7 +368,6 @@ Flow Flow::new_from_config_width(FlowRole role, const ConfigOptionFloatOrPercent
         throw Slic3r::InvalidArgument("Invalid flow height supplied to new_from_config_width()");
 
     float w;
-    float s;
     if (!width.is_phony()) {
         if (!width.percent && width.value == 0.) {
             // If user left option to 0, calculate a sane default width.

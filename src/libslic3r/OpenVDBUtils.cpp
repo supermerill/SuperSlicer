@@ -14,6 +14,7 @@
 #include <openvdb/tools/VolumeToMesh.h>
 #include <openvdb/tools/Composite.h>
 #include <openvdb/tools/LevelSetRebuild.h>
+#include <openvdb/tools/FastSweeping.h>
 
 //#include "MTUtils.hpp"
 
@@ -42,16 +43,13 @@ public:
         : its{m}, voxel_scale{voxel_sc} {};
 };
 
-// TODO: Do I need to call initialize? Seems to work without it as well but the
-// docs say it should be called ones. It does a mutex lock-unlock sequence all
-// even if was called previously.
 openvdb::FloatGrid::Ptr mesh_to_grid(const indexed_triangle_set &    mesh,
                                      const openvdb::math::Transform &tr,
                                      float voxel_scale,
                                      float exteriorBandWidth,
-                                     float interiorBandWidth,
-                                     int   flags)
+                                     float interiorBandWidth)
 {
+    // Might not be needed but this is now proven to be working
     openvdb::initialize();
 
     std::vector<indexed_triangle_set> meshparts = its_split(mesh);
@@ -64,22 +62,34 @@ openvdb::FloatGrid::Ptr mesh_to_grid(const indexed_triangle_set &    mesh,
     openvdb::FloatGrid::Ptr grid;
     for (auto &m : meshparts) {
         auto subgrid = openvdb::tools::meshToVolume<openvdb::FloatGrid>(
-            TriangleMeshDataAdapter{m, voxel_scale}, tr, exteriorBandWidth,
-            interiorBandWidth, flags);
+            TriangleMeshDataAdapter{m, voxel_scale}, tr, 1.f, 1.f);
 
         if (grid && subgrid) openvdb::tools::csgUnion(*grid, *subgrid);
         else if (subgrid) grid = std::move(subgrid);
     }
 
-    if (grid) {
-        grid = openvdb::tools::levelSetRebuild(*grid, 0., exteriorBandWidth,
-                                               interiorBandWidth);
-    } else if(meshparts.empty()) {
+    if (meshparts.size() > 1) {
+        // This is needed to avoid various artefacts on multipart meshes.
+        // TODO: replace with something faster
+        grid = openvdb::tools::levelSetRebuild(*grid, 0., 1.f, 1.f);
+    }
+    if(meshparts.empty()) {
         // Splitting failed, fall back to hollow the original mesh
         grid = openvdb::tools::meshToVolume<openvdb::FloatGrid>(
-            TriangleMeshDataAdapter{mesh}, tr, exteriorBandWidth,
-            interiorBandWidth, flags);
+            TriangleMeshDataAdapter{mesh}, tr, 1.f, 1.f);
     }
+
+    constexpr int DilateIterations = 1;
+
+    grid = openvdb::tools::dilateSdf(
+        *grid, interiorBandWidth, openvdb::tools::NN_FACE_EDGE,
+        DilateIterations,
+        openvdb::tools::FastSweepingDomain::SWEEP_LESS_THAN_ISOVALUE);
+
+    grid = openvdb::tools::dilateSdf(
+        *grid, exteriorBandWidth, openvdb::tools::NN_FACE_EDGE,
+        DilateIterations,
+        openvdb::tools::FastSweepingDomain::SWEEP_GREATER_THAN_ISOVALUE);
 
     grid->insertMeta("voxel_scale", openvdb::FloatMetadata(voxel_scale));
 
@@ -128,6 +138,17 @@ openvdb::FloatGrid::Ptr redistance_grid(const openvdb::FloatGrid &grid,
                                                     float(er), float(ir));
 
     // Copies voxel_scale metadata, if it exists.
+    new_grid->insertMeta(*grid.deepCopyMeta());
+
+    return new_grid;
+}
+
+openvdb::FloatGrid::Ptr redistance_grid(const openvdb::FloatGrid &grid,
+                                        double                    iso)
+{
+    auto new_grid = openvdb::tools::levelSetRebuild(grid, float(iso));
+
+       // Copies voxel_scale metadata, if it exists.
     new_grid->insertMeta(*grid.deepCopyMeta());
 
     return new_grid;
