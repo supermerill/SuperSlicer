@@ -501,12 +501,30 @@ std::vector<std::reference_wrapper<const PrintRegion>> PrintObject::all_regions(
     // to remove only half of the combined infill
         this->bridge_over_infill();
         m_print->throw_if_canceled();
-        
+
         // Propagate brdige to all upper layers.
         if (this->config().bridge_speeds_above) {
+            //soild over bridge
+            this->replaceSurfaceType(stPosInternal | stDensSolid,
+                stPosInternal | stDensSolid | stModAboveBridge,
+                stPosBottom | stDensSolid | stModBridge);
+
+            //sparse over bridge
             this->replaceSurfaceType(stPosInternal | stDensSparse,
                 stPosInternal | stDensSparse | stModAboveBridge,
                 stPosBottom | stDensSolid | stModBridge);
+
+            //soild over solid
+            this->replaceSurfaceType(stPosInternal | stDensSolid,
+                stPosInternal | stDensSolid | stModAboveBridge,
+                stPosInternal | stDensSolid | stModAboveBridge);
+
+            //sparse over solid
+            this->replaceSurfaceType(stPosInternal | stDensSparse,
+                stPosInternal | stDensSparse | stModAboveBridge,
+                stPosInternal | stDensSolid | stModAboveBridge);
+
+            //sparse over sparse
             this->replaceSurfaceType(stPosInternal | stDensSparse,
                 stPosInternal | stDensSparse | stModAboveBridge,
                 stPosInternal | stDensSparse | stModAboveBridge);

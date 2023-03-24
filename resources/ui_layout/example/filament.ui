@@ -44,7 +44,7 @@ group:Fan speed - default
 		setting:label_width$20:label$Use also for solid:solid_fan_speed_as_top
 	end_line
 	line:External perimeter fan speed
-   		setting:label$:external_perimeter_fan_speed
+		setting:label$:external_perimeter_fan_speed
 		setting:label_width$20:label$Use also for internal:internal_perimeter_fan_as_external
 	end_line
 	setting:support_material_interface_fan_speed
