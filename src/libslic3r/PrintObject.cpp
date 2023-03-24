@@ -502,13 +502,13 @@ std::vector<std::reference_wrapper<const PrintRegion>> PrintObject::all_regions(
         m_print->throw_if_canceled();
         
         // Propagate brdige to all upper layers.
-        if (this->config().bridge_fan_speed_over_abyss) {
+        if (this->config().bridge_speeds_above) {
             this->replaceSurfaceType(stPosInternal | stDensSparse,
-                stPosInternal | stDensSparse | stModOverAbyss,
+                stPosInternal | stDensSparse | stModAboveBridge,
                 stPosBottom | stDensSolid | stModBridge);
             this->replaceSurfaceType(stPosInternal | stDensSparse,
-                stPosInternal | stDensSparse | stModOverAbyss,
-                stPosInternal | stDensSparse | stModOverAbyss);
+                stPosInternal | stDensSparse | stModAboveBridge,
+                stPosInternal | stDensSparse | stModAboveBridge);
         }
         //
 
@@ -2349,8 +2349,8 @@ bool PrintObject::invalidate_state_by_config_options(
         for (size_t region_id = 0; region_id < this->num_printing_regions(); ++region_id) {
             const PrintRegion& region = this->printing_region(region_id);
 
-            // skip over-bridging in case there are no modification
-            if (region.config().over_bridge_flow_ratio.get_abs_value(1) == 1 && !(st_replacement & stModOverAbyss)) continue;
+            // don't skip over-bridging in case there are no modification as it's needed for cooling
+            //if (region.config().over_bridge_flow_ratio.get_abs_value(1) == 1) continue;
 
             for (LayerPtrs::iterator layer_it = m_layers.begin(); layer_it != m_layers.end(); ++layer_it) {
                 // skip first layer

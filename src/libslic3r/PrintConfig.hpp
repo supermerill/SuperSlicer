@@ -785,7 +785,8 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat,                xy_size_compensation))
     ((ConfigOptionFloat,                xy_inner_size_compensation))
     ((ConfigOptionBool,                 wipe_into_objects))
-    ((ConfigOptionBool,                 bridge_fan_speed_over_abyss))
+    ((ConfigOptionBool,                 bridge_speeds_above))
+    ((ConfigOptionBool,                 solid_fan_speed_as_top))
 )
 
 // This object is mapped to Perl as Slic3r::Config::PrintRegion.
@@ -839,6 +840,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionPercent,              fill_top_flow_ratio))
     ((ConfigOptionPercent,              fill_smooth_distribution))
     ((ConfigOptionFloatOrPercent,       fill_smooth_width))
+    ((ConfigOptionBool,                 internal_bridge_speeds_over))
     ((ConfigOptionBool,                 gap_fill_enabled))
     ((ConfigOptionFloatOrPercent,       gap_fill_extension))
     ((ConfigOptionPercent,              gap_fill_flow_match_perimeter))
@@ -1140,6 +1142,7 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     ((ConfigOptionBool,                 enforce_retract_first_layer))
     ((ConfigOptionFloatOrPercent,       external_perimeter_acceleration))
     ((ConfigOptionInts,                 external_perimeter_fan_speed))
+    ((ConfigOptionBools,                internal_perimeter_fan_as_external))
     ((ConfigOptionFloat,                extruder_clearance_height))
     ((ConfigOptionFloat,                extruder_clearance_radius))
     ((ConfigOptionStrings,              extruder_colour))

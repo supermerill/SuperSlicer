@@ -31,7 +31,7 @@ enum SurfaceType  : uint16_t {
     /// Bridge Modifier: 2nd layer of dense infill over sparse infill/nothing, may be printed with an over-extruding flow.
     stModOverBridge = 1 << 8,
     /// All layers above bridge, used to set bridge fan speed. Set "External perimeter fan speed" >= 2%, otherwise somelayers will be skipped.
-    stModOverAbyss  = 1 << 9,
+    stModAboveBridge  = 1 << 9,
 };
 inline SurfaceType operator|(SurfaceType a, SurfaceType b) {
     return static_cast<SurfaceType>(static_cast<uint16_t>(a) | static_cast<uint16_t>(b));

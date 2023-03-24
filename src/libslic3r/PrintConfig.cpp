@@ -721,19 +721,18 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionInts{ 100 });
 
-    def = this->add("bridge_fan_speed_over_abyss", coBool);
-    def->label = L("Use bridges fan speed for above layers");
+    def = this->add("bridge_speeds_above", coBool);
+    def->label = L("Fan/print speeds for upper layers");
     def->category = OptionCategory::cooling;
-    def->tooltip = L("All layers above bridge will use bridge speed.");
+    def->tooltip = L("All sparse infill above bridge will use its fan and print speeds. It also will be generated as separated region.");
     def->mode = comAdvancedE | comPrusa;
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionBool(false));
 
-
     def = this->add("bridge_internal_fan_speed", coInts);
     def->label = L("Infill bridges fan speed");
     def->category = OptionCategory::cooling;
-    def->tooltip = L("This fan speed is enforced during all infill bridges. It won't slow down the fan if it's currently running at a higher speed."
+    def->tooltip = L("This fan speed is enforced during all infill bridges."
         "\nSet to 1 to follow default speed."
         "\nSet to -1 to disable this override (internal bridges will use Bridges fan speed)."
         "\nCan only be overriden by disable_fan_first_layers.");
@@ -743,6 +742,14 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionInts{ -1 });
+
+    def = this->add("internal_bridge_speeds_over", coBool);
+    def->label = L("Use internal bridge speeds for above layers");
+    def->category = OptionCategory::cooling;
+    def->tooltip = L("First solid infill above internal bridge will use its fan and print speeds.");
+    def->mode = comAdvancedE | comSuSi;
+    def->is_vector_extruder = true;
+    def->set_default_value(new ConfigOptionBool(false));
 
     def = this->add("bridge_type", coEnum);
     def->label = L("Bridge flow baseline");
@@ -1498,6 +1505,14 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionInts { -1 });
+
+    def = this->add("internal_perimeter_fan_as_external", coBools);
+    def->label = L("Cool internal perimeter as external");
+    def->category = OptionCategory::cooling;
+    def->tooltip = L("If this is enabled, internal perimeters will be cooled as external");
+    def->mode = comAdvancedE | comSuSi;
+    def->is_vector_extruder = true;
+    def->set_default_value(new ConfigOptionBools{ false });
 
     def = this->add("external_perimeter_overlap", coPercent);
     def->label = L("external perimeter overlap");
@@ -5077,9 +5092,9 @@ void PrintConfigDef::init_fff_params()
     def->set_default_value(new ConfigOptionFloat(0));
 
     def = this->add("support_material_interface_fan_speed", coInts);
-    def->label = L("Support interface fan speed");
+    def->label = L("Support interface/material fan speed");
     def->category = OptionCategory::cooling;
-    def->tooltip = L("This fan speed is enforced during all support interfaces, to be able to weaken their bonding with a high fan speed."
+    def->tooltip = L("This fan speed is enforced during all support interfaces and material, to be able to weaken their bonding with a high fan speed."
         "\nSet to 1 to disable the fan."
         "\nSet to -1 to disable this override."
         "\nCan only be overriden by disable_fan_first_layers.");
@@ -5513,6 +5528,14 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionInts{ -1 });
+
+    def = this->add("solid_fan_speed_as_top", coBool);
+    def->label = L("Use top speed for solid infil");
+    def->category = OptionCategory::cooling;
+    def->tooltip = L("Solid infill will use top fan speed.");
+    def->mode = comAdvancedE | comSuSi;
+    def->is_vector_extruder = true;
+    def->set_default_value(new ConfigOptionBool(false));
 
     def = this->add("top_infill_extrusion_width", coFloatOrPercent);
     def->label = L("Top solid infill");
@@ -7443,6 +7466,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "external_perimeter_cut_corners",
 "external_perimeter_extrusion_spacing",
 "external_perimeter_fan_speed",
+"perimeters_fan_as_external",
 "external_perimeter_overlap",
 "external_perimeters_hole",
 "external_perimeters_nothole",

@@ -179,12 +179,15 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
                     if (surface.has_pos_top()) {
                         params.role = erTopSolidInfill;
                     } else {
-                        params.role = erSolidInfill;
+                        if (surface.has_mod_overBridge() && region_config.internal_bridge_speeds_over)
+                            params.role = erInternalBridgeInfill;
+                        else
+                            params.role = erSolidInfill;
                     }
                 }
 
                 // Set bridge role for all layers above bridge.
-                if (surface.surface_type & stModOverAbyss) {
+                if (surface.surface_type & stModAboveBridge) {
                     params.role = erBridgeInfill;
                 }
 

@@ -33,11 +33,20 @@ group:Fan speed - default
 	setting:min_fan_speed
 	line:Bridges fan speed
 		setting:label$:bridge_fan_speed
-		setting:label$Infill bridges:bridge_internal_fan_speed
-		setting:label$Use bridges fan speed for upper layers:bridge_fan_speed_over_abyss
+		setting:label_width$20:label$Fan/print speeds for upper layers:bridge_speeds_above
 	end_line
-	setting:top_fan_speed
-	setting:external_perimeter_fan_speed
+	line:Infill bridges fan speed
+		setting:label$:bridge_internal_fan_speed
+		setting:label_width$20:label$Fan/print speeds for first solid layer:internal_bridge_speeds_over
+	end_line
+	line: Top fan speed
+		setting:label$:top_fan_speed
+		setting:label_width$20:label$Use also for solid:solid_fan_speed_as_top
+	end_line
+	line:External perimeter fan speed
+   		setting:label$:external_perimeter_fan_speed
+		setting:label_width$20:label$Use also for internal:internal_perimeter_fan_as_external
+	end_line
 	setting:support_material_interface_fan_speed
 	line:Disable fan for the first
 		setting:label$_:sidetext_width$12:disable_fan_first_layers
