@@ -342,7 +342,7 @@ group:sidetext_width$7:Modifiers
 		setting:label_width$8:width$4:first_layer_infill_speed
 		setting:label_width$8:width$4:label$Over raft:first_layer_speed_over_raft
 	end_line
-	line:Small perimeter speed
+	line:Small perimeter/radius speed
 		setting:label_width$8:width$4:small_perimeter_speed
 		setting:label_width$8:width$4:small_perimeter_min_length
 		setting:label_width$8:width$4:small_perimeter_max_length
