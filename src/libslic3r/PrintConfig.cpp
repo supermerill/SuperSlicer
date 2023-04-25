@@ -1374,7 +1374,7 @@ void PrintConfigDef::init_fff_params()
     def->label = L("But on first layer");
     def->full_label = L("Don't check crossings for retraction on first layer");
     def->category = OptionCategory::extruders;
-    def->tooltip = L("let the retraction happens on the first alyer even if the travel path does not exceed the upper layer's perimeters.");
+    def->tooltip = L("let the retraction happens on the first layer even if the travel path does not exceed the upper layer's perimeters.");
     def->mode = comExpert;
     def->set_default_value(new ConfigOptionBool(true));
 
