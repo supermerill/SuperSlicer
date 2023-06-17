@@ -707,7 +707,7 @@ void PrintConfigDef::init_fff_params()
     def->set_default_value(new ConfigOptionInts{ 100 });
 
     def = this->add("bridge_internal_fan_speed", coInts);
-    def->label = L("Internal Infill bridges fan speed");
+    def->label = L("Internal Infill Bridges fan speed");
     def->category = OptionCategory::cooling;
     def->tooltip = L("This fan speed is enforced during all infill bridges. It won't slow down the fan if it's currently running at a higher speed."
         "\nSet to 1 to disable fan."
@@ -825,7 +825,7 @@ void PrintConfigDef::init_fff_params()
 
 
     def = this->add("gap_fill_fan_speed", coInts);
-    def->label = L("Gap Fill an speed");
+    def->label = L("Gap Fill fan speed");
     def->category = OptionCategory::cooling;
     def->tooltip = L("This fan speed is enforced during all gap fill Perimeter moves"
         "\nSet to 1 to disable fan."
@@ -5051,7 +5051,7 @@ void PrintConfigDef::init_fff_params()
     def->set_default_value(new ConfigOptionFloatOrPercent(0, false));
 
     def = this->add("support_material_interface_fan_speed", coInts);
-    def->label = L("Support interface fan speed");
+    def->label = L("Support Interface fan speed");
     def->category = OptionCategory::cooling;
     def->tooltip = L("This fan speed is enforced during all support interfaces, to be able to weaken their bonding with a high fan speed."
         "\nSet to 1 to disable the fan."

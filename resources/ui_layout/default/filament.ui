@@ -41,11 +41,11 @@ group:Fan speed - default
         setting:sidetext_width$22:internal_perimeter_fan_speed
     end_line
     setting:overhang_perimeter_fan_speed
-    line:Support Material fan Speed
+    line:Support Material fan speed
         setting:label$:sidetext_width$8:support_material_fan_speed
         setting:sidetext_width$20:support_material_interface_fan_speed
     end_line
-    line:Internal Infill fan Speed
+    line:Internal Infill fan speed
         setting:label$:sidetext_width$12:internal_infill_fan_speed
         setting:sidetext_width$26:solid_infill_fan_speed
     end_line

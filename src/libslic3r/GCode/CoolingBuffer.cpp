@@ -42,6 +42,7 @@ void CoolingBuffer::reset(const Vec3d &position)
 struct CoolingLine
 {
     enum Type : uint64_t {
+        //uint32_t 
         //uint64_t
         //__int64
         //unsigned long long
