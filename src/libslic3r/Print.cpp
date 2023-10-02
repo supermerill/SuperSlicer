@@ -1646,6 +1646,15 @@ void Print::_make_wipe_tower()
     m_wipe_tower_data.number_of_toolchanges = wipe_tower.get_number_of_toolchanges();
 }
 
+std::string Print::pause_print_gcode() const
+{
+    if (m_config.pause_print_gcode.value.empty()) {
+        return std::string(m_config.gcode_flavor == gcfKlipper ? "PAUSE" : "M601")
+    } else {
+        return m_config.pause_print_gcode.value
+    }
+}
+
 // Generate a recommended G-code output file name based on the format template, default extension, and template parameters
 // (timestamps, object placeholders derived from the model, current placeholder prameters and print statistics.
 // Use the final print statistics if available, or just keep the print statistics placeholders if not available yet (before G-code is finalized).

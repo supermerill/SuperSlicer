@@ -646,6 +646,7 @@ public:
     const WipeTowerData&        wipe_tower_data() const { return wipe_tower_data(0,0); }
     const ToolOrdering& 		tool_ordering() const { return m_tool_ordering; }
 
+	std::string                 pause_print_gcode() const;
 	std::string                 output_filename(const std::string &filename_base = std::string()) const override;
 
     size_t                      num_print_regions() const throw() { return m_print_regions.size(); }
