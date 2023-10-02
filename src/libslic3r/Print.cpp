@@ -1649,9 +1649,9 @@ void Print::_make_wipe_tower()
 std::string Print::pause_print_gcode() const
 {
     if (m_config.pause_print_gcode.value.empty()) {
-        return std::string(m_config.gcode_flavor == gcfKlipper ? "PAUSE" : "M601")
+        return std::string(m_config.gcode_flavor == gcfKlipper ? "PAUSE" : "M601");
     } else {
-        return m_config.pause_print_gcode.value
+        return m_config.pause_print_gcode.value;
     }
 }
 
