@@ -51,10 +51,11 @@ wxDEFINE_EVENT(wxCUSTOMEVT_TICKSCHANGED, wxEvent);
 
 static std::string gcode(Type type)
 {
-    const PrintConfig& config = GUI::wxGetApp().plater()->fff_print().config();
+    const Print& print = GUI::wxGetApp().plater()->fff_print();
+    const PrintConfig& config = print.config();
     switch (type) {
     case ColorChange: return config.color_change_gcode;
-    case PausePrint:  return config.pause_print_gcode;
+    case PausePrint:  return print.pause_print_gcode();
     case Template:    return config.template_custom_gcode;
     default:          return "";
     }
