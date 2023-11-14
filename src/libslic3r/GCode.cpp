@@ -4767,8 +4767,38 @@ double_t GCode::_compute_speed_mm_per_sec(const ExtrusionPath& path, double spee
     return speed;
 }
 
+
+void GCode::cooldown_marker_init() {
+    if (!_cooldown_marker_speed[ExtrusionRole::erExternalPerimeter].empty()) {
+        std::string allow_speed_change = ";CM_extrude_speed;_EXTRUDE_SET_SPEED";
+        //only change speed on external perimeter (and similar) speed if really necessary.
+        std::string maybe_allow_speed_change = ";CM_extrude_speed_external;_EXTRUDE_SET_SPEED_MAYBE";
+        _cooldown_marker_speed[erNone] = "";
+        _cooldown_marker_speed[erPerimeter] = allow_speed_change;
+        _cooldown_marker_speed[erExternalPerimeter] = maybe_allow_speed_change;
+        _cooldown_marker_speed[erOverhangPerimeter] = "";
+        _cooldown_marker_speed[erInternalInfill] = allow_speed_change;
+        _cooldown_marker_speed[erSolidInfill] = allow_speed_change;
+        _cooldown_marker_speed[erTopSolidInfill] = allow_speed_change;
+        _cooldown_marker_speed[erIroning] = maybe_allow_speed_change;
+        _cooldown_marker_speed[erBridgeInfill] = "";
+        _cooldown_marker_speed[erInternalBridgeInfill] = maybe_allow_speed_change;
+        _cooldown_marker_speed[erThinWall] = maybe_allow_speed_change;
+        _cooldown_marker_speed[erGapFill] = allow_speed_change;
+        _cooldown_marker_speed[erSkirt] = allow_speed_change;
+        _cooldown_marker_speed[erSupportMaterial] = allow_speed_change;
+        _cooldown_marker_speed[erSupportMaterialInterface] = maybe_allow_speed_change;
+        _cooldown_marker_speed[erWipeTower] = allow_speed_change;
+        _cooldown_marker_speed[erMilling] = "";
+        _cooldown_marker_speed[erCustom] = maybe_allow_speed_change;
+        _cooldown_marker_speed[erMixed] = maybe_allow_speed_change;
+    }
+}
+
+
 std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string &description_in, double speed) {
     std::string gcode;
+    gcode.reserve(512);
     std::string description{ description_in };
 
 
@@ -5111,20 +5141,10 @@ std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string 
 
     std::string comment;
     if (m_enable_cooling_markers) {
-        if(path.role() == erInternalBridgeInfill)
-            gcode += ";_BRIDGE_INTERNAL_FAN_START\n";
-        else if (is_bridge(path.role()))
-            gcode += ";_BRIDGE_FAN_START\n";
-        else if (ExtrusionRole::erTopSolidInfill == path.role())
-            gcode += ";_TOP_FAN_START\n";
-        else if (ExtrusionRole::erSupportMaterialInterface == path.role())
-            gcode += ";_SUPP_INTER_FAN_START\n";
-        else
-            comment = ";_EXTRUDE_SET_SPEED";
-        if (path.role() == erExternalPerimeter)
-            comment += ";_EXTERNAL_PERIMETER";
-        if (path.role() == erThinWall)
-            comment += ";_EXTERNAL_PERIMETER";
+        // Send the current extrusion type to Coolingbuffer
+        gcode += ";_EXTRUDETYPE_"; gcode += char('A' + path.role()); gcode += "\n";
+        // comment to be on the same line as the speed command.
+        comment = GCode::_cooldown_marker_speed[path.role()];
     }
     // F     is mm per minute.
     // speed is mm per second
@@ -5134,17 +5154,10 @@ std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string 
 }
 std::string GCode::_after_extrude(const ExtrusionPath &path) {
     std::string gcode;
-    if (m_enable_cooling_markers)
-        if (path.role() == erInternalBridgeInfill)
-            gcode += ";_BRIDGE_INTERNAL_FAN_END\n";
-        else if (is_bridge(path.role()))
-            gcode += ";_BRIDGE_FAN_END\n";
-        else if (ExtrusionRole::erTopSolidInfill == path.role())
-            gcode += ";_TOP_FAN_END\n";
-        else if (ExtrusionRole::erSupportMaterialInterface == path.role())
-            gcode += ";_SUPP_INTER_FAN_END\n";
-        else
-            gcode += ";_EXTRUDE_END\n";
+    if (m_enable_cooling_markers) {
+        // Notify Coolingbuffer that the current extrusion end.
+        gcode += ";_EXTRUDE_END\n";
+    }
 
     if (path.role() != ExtrusionRole::erGapFill ) {
         m_last_notgapfill_extrusion_role = path.role();

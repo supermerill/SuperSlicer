@@ -143,7 +143,9 @@ public:
         m_silent_time_estimator_enabled(false),
         m_last_obj_copy(nullptr, Point(std::numeric_limits<coord_t>::max(), std::numeric_limits<coord_t>::max())),
         m_last_too_small(ExtrusionRole::erNone)
-        {}
+    {
+        cooldown_marker_init();
+    }
     ~GCode() = default;
 
     // throws std::runtime_exception on error,
@@ -518,6 +520,12 @@ private:
 
     friend class Wipe;
     friend class WipeTowerIntegration;
+    friend class PressureEqualizer;
+
+    //utility for cooling markers
+    static inline std::string _cooldown_marker_speed[ExtrusionRole::erCount];
+    bool cooldwon_marker_no_slowdown_section = false;;
+    static void cooldown_marker_init();
 };
 
 std::vector<const PrintInstance*> sort_object_instances_by_model_order(const Print& print);

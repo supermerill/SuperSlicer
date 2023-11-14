@@ -20,7 +20,7 @@ group:Temperature °C
 group:Filament properties
 	setting:width$7:filament_type
 	setting:filament_soluble
-    setting:filament_shrink
+	setting:filament_shrink
 	setting:filament_max_overlap
 group:Print speed override
 	setting:filament_max_speed
@@ -30,18 +30,30 @@ group:Print speed override
 page:Cooling:time
 group:Fan speed - default
 	setting:label$Run the fan at default speed when possible:fan_always_on
+	line:Disable fan for the first
+		setting:width$5:label$_:sidetext_width$7:disable_fan_first_layers
+		setting:width$5:label_width$12:full_fan_speed_layer
+	end_line
 	setting:min_fan_speed
+	line:Perimeter fan speed
+		setting:label$:perimeter_fan_speed
+		setting:label_width$12:label$External:external_perimeter_fan_speed
+	end_line
+	setting:overhang_perimeter_fan_speed
+	setting:infill_fan_speed
+	line:Solid Infill fan speed
+		setting:label$:solid_infill_fan_speed
+		setting:label_width$12:label$Top:top_fan_speed
+	end_line
+	line:Support Material fan speed
+		setting:label$:support_material_fan_speed
+		setting:label_width$12:label$Support Interface:support_material_interface_fan_speed
+	end_line
 	line:Bridges fan speed
 		setting:label$:bridge_fan_speed
-		setting:label$Infill bridges:bridge_internal_fan_speed
+		setting:label_width$12:label$Infill bridges:bridge_internal_fan_speed
 	end_line
-	setting:top_fan_speed
-	setting:external_perimeter_fan_speed
-	setting:support_material_interface_fan_speed
-	line:Disable fan for the first
-		setting:label$_:sidetext_width$12:disable_fan_first_layers
-		setting:full_fan_speed_layer
-	end_line
+	setting:gap_fill_fan_speed
 group:Short layer time - began to increase base fan speed
 	setting:fan_below_layer_time
 	setting:label$Max fan speed:max_fan_speed

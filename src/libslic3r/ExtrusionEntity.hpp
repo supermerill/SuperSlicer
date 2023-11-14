@@ -52,7 +52,7 @@ enum ExtrusionRole : uint16_t {
 };
 */
 enum ExtrusionRole : uint8_t {
-    erNone,
+    erNone, // erNone needs to be 0 (for cooling and everything that use the role as index)
     erPerimeter,
     erExternalPerimeter,
     erOverhangPerimeter,
