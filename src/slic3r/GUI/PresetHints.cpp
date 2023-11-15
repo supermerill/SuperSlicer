@@ -21,7 +21,7 @@ std::string PresetHints::cooling_description(const Preset &preset)
     int     min_fan_speed = preset.config.opt_int("min_fan_speed", 0);
     int     max_fan_speed = preset.config.opt_int("max_fan_speed", 0);
     int     top_fan_speed = preset.config.opt_int("top_fan_speed", 0);
-    int     support_material_interface_fan_speed = preset.config.opt_int("support_material_interface_fan_speed", 0);
+    int     supp_inter_fan_speed = preset.config.opt_int("support_material_interface_fan_speed", 0);
     int     bridge_fan_speed = preset.config.opt_int("bridge_fan_speed", 0);
     int     bridge_internal_fan_speed = preset.config.opt_int("bridge_internal_fan_speed", 0);
     int     ext_peri_fan_speed = preset.config.opt_int("external_perimeter_fan_speed", 0);
@@ -31,108 +31,45 @@ std::string PresetHints::cooling_description(const Preset &preset)
     int     min_print_speed = int(preset.config.opt_float("min_print_speed", 0) + 0.5);
     int     max_speed_reduc = int(preset.config.opt_float("max_speed_reduction", 0));
     float   fan_below_layer_time = preset.config.opt_float("fan_below_layer_time", 0);
-    int     support_material_fan_speed = preset.config.opt_int("support_material_fan_speed", 0);
-    int     internal_infill_fan_speed = preset.config.opt_int("internal_infill_fan_speed", 0);
-    int     solid_infill_fan_speed = preset.config.opt_int("solid_infill_fan_speed", 0);
-    int     internal_perimeter_fan_speed = preset.config.opt_int("internal_perimeter_fan_speed", 0);
-    //int     ironing_fan_speed = preset.config.opt_int("ironing_fan_speed", 0); //not currently supported.
-    int     overhang_perimeter_fan_speed = preset.config.opt_int("overhang_perimeter_fan_speed", 0);
-    //int     thin_wall_fan_speed = preset.config.opt_int("thin_wall_fan_speed", 0);//not currently supported.
-    int     gap_fill_fan_speed = preset.config.opt_int("gap_fill_fan_speed", 0);
 
-
-    //for the time being, -1 should be for disable, but it's 0 from legacy.
-    // if any values are -1 for default give them the min_fan_speed
-
+    //for the time being, -1 shoudl eb for disable, but it's 0 from legacy.
     if (top_fan_speed == 0) top_fan_speed = -1;
     if (bridge_fan_speed == 0) bridge_fan_speed = -1;
     if (bridge_internal_fan_speed == 0) bridge_internal_fan_speed = -1;
     if (ext_peri_fan_speed == 0) ext_peri_fan_speed = -1;
-    if (support_material_fan_speed == 0) support_material_fan_speed = -1;
-    if (top_fan_speed == 0) top_fan_speed = -1;
-    if (support_material_interface_fan_speed == 0) support_material_interface_fan_speed = -1;
-    if (support_material_fan_speed == 0) support_material_fan_speed = -1;
-    if (internal_infill_fan_speed == 0) internal_infill_fan_speed = -1;
-    if (solid_infill_fan_speed == 0) solid_infill_fan_speed = -1;
-    if (internal_perimeter_fan_speed == 0) internal_perimeter_fan_speed = -1;
-    //if (ironing_fan_speed == 0) ironing_fan_speed = -1;
-    if (overhang_perimeter_fan_speed == 0) overhang_perimeter_fan_speed = -1;
-    //if (thin_wall_fan_speed == 0) thin_wall_fan_speed = -1;
-    if (gap_fill_fan_speed == 0) gap_fill_fan_speed = -1;
-
-    // if values are 1 disable fan set speed to 0
     if (top_fan_speed == 1) top_fan_speed = 0;
     if (bridge_fan_speed == 1) bridge_fan_speed = 0;
     if (bridge_internal_fan_speed == 1) bridge_internal_fan_speed = 0;
     if (ext_peri_fan_speed == 1) ext_peri_fan_speed = 0;
-    if (support_material_fan_speed == 1) support_material_fan_speed = 0;
-    if (support_material_interface_fan_speed == 1) support_material_interface_fan_speed = 0;
-    if (support_material_fan_speed == 1) support_material_fan_speed = 0;
-    if (internal_infill_fan_speed == 1) internal_infill_fan_speed = 0;
-    if (solid_infill_fan_speed == 1) solid_infill_fan_speed = 0;
-    if (internal_perimeter_fan_speed == 1) internal_perimeter_fan_speed = 0;
-    //if (ironing_fan_speed == 1) ironing_fan_speed = 0;
-    if (overhang_perimeter_fan_speed == 1) overhang_perimeter_fan_speed = 0;
-    //if (thin_wall_fan_speed == 1) thin_wall_fan_speed = 0;
-    if (gap_fill_fan_speed == 1) gap_fill_fan_speed = 0;
 
     //if (preset.config.opt_bool("cooling", 0)) {
     out = _utf8(L("Fan"));
-    if (preset.config.opt_bool("fan_always_on", 0) == true || preset.config.opt_bool("fan_always_on", 1) == false  ) {
-                                                     // ouput a warning if filament type is ABS and a ER fan value is higher than others ? - will help user prevent a warp 
-                                                     //                                                      -depending on real world part cooling fan power
+    if (preset.config.opt_bool("fan_always_on", 0)) {
 
-        out += " " + (boost::format(_utf8(L("will run at %1%%% by default over areas that have value -1. \n\tand for extrusion roles not independantly supported."))) % min_fan_speed).str() ;
+        out += " " + (boost::format(_utf8(L("will run at %1%%% by default"))) % min_fan_speed).str() ;
 
         if (ext_peri_fan_speed >= 0 && ext_peri_fan_speed != min_fan_speed) {
-            out += "\n " + (boost::format(_utf8(L("at %1%%% over external perimeters"))) % ext_peri_fan_speed).str();
+            out += ", " + (boost::format(_utf8(L("at %1%%% over external perimeters"))) % ext_peri_fan_speed).str();
         }
         if (top_fan_speed >= 0 && top_fan_speed != min_fan_speed) {
-            out += "\n " + (boost::format(_utf8(L("at %1%%% over top fill surfaces"))) % top_fan_speed).str();
+            out += ", " + (boost::format(_utf8(L("at %1%%% over top fill surfaces"))) % top_fan_speed).str();
         }
-        if (support_material_interface_fan_speed >= 0 && support_material_interface_fan_speed != min_fan_speed) {
-            out += "\n " + (boost::format(_utf8(L("at %1%%% over support interface surfaces"))) % support_material_interface_fan_speed).str();
+        if (supp_inter_fan_speed >= 0 && supp_inter_fan_speed != min_fan_speed) {
+            out += ", " + (boost::format(_utf8(L("at %1%%% over support interface surfaces"))) % supp_inter_fan_speed).str();
         }
         if (bridge_fan_speed >= 0 && bridge_fan_speed > min_fan_speed) {
             if (bridge_internal_fan_speed < 0)
-                out += "\n " + (boost::format(_utf8(L("at %1%%% over all bridges"))) % bridge_fan_speed).str();
+                out += ", " + (boost::format(_utf8(L("at %1%%% over all bridges"))) % bridge_fan_speed).str();
             else
-                out += "\n " + (boost::format(_utf8(L("at %1%%% over bridges"))) % bridge_fan_speed).str();
+                out += ", " + (boost::format(_utf8(L("at %1%%% over bridges"))) % bridge_fan_speed).str();
         }
         if (bridge_internal_fan_speed >= 0){
             if (bridge_internal_fan_speed > min_fan_speed) {
-                out += "\n " + (boost::format(_utf8(L("at %1%%% over infill bridges"))) % bridge_internal_fan_speed).str();
+                out += ", " + (boost::format(_utf8(L("at %1%%% over infill bridges"))) % bridge_internal_fan_speed).str();
             } else if (bridge_fan_speed >= 0 && bridge_fan_speed > min_fan_speed) {
-                out += "\n " + (boost::format(_utf8(L("at %1%%% over infill bridges"))) % min_fan_speed).str();
+                out += ", " + (boost::format(_utf8(L("at %1%%% over infill bridges"))) % min_fan_speed).str();
             }
         }
-
-        if (support_material_fan_speed >= 0 && support_material_fan_speed != min_fan_speed) {
-            out += "\n " + (boost::format(_utf8(L("at %1%%% over support material surfaces"))) % support_material_fan_speed).str();
-        }
-        if (internal_infill_fan_speed >= 0 && internal_infill_fan_speed != min_fan_speed) {
-            out += "\n " + (boost::format(_utf8(L("at %1%%% over infill surfaces"))) % internal_infill_fan_speed).str();
-        }
-        if (solid_infill_fan_speed >= 0 && solid_infill_fan_speed != min_fan_speed) {
-            out += "\n " + (boost::format(_utf8(L("at %1%%% over solid infill surfaces"))) % solid_infill_fan_speed).str();
-        }
-        if (internal_perimeter_fan_speed >= 0 && internal_perimeter_fan_speed != min_fan_speed) {
-            out += "\n " + (boost::format(_utf8(L("at %1%%% over internal perimeter surfaces"))) % internal_perimeter_fan_speed).str();
-        }
-        /*if (ironing_fan_speed >= 0 && ironing_fan_speed != min_fan_speed) {
-            out += "\n " + (boost::format(_utf8(L("at %1%%% over all ironing surfaces"))) % ironing_fan_speed).str();
-        }*/
-        if (overhang_perimeter_fan_speed >= 0 && overhang_perimeter_fan_speed != min_fan_speed) {
-            out += "\n " + (boost::format(_utf8(L("at %1%%% over all overhang surfaces"))) % overhang_perimeter_fan_speed).str();
-        }
-        /*if (thin_wall_fan_speed >= 0 && thin_wall_fan_speed != min_fan_speed) {
-            out += "\n " + (boost::format(_utf8(L("at %1%%% over all thin wall surfaces"))) % thin_wall_fan_speed).str();
-        }*/
-        if (gap_fill_fan_speed >= 0 && gap_fill_fan_speed != min_fan_speed) {
-            out += "\n " + (boost::format(_utf8(L("at %1%%% over all gap fill surfaces"))) % gap_fill_fan_speed).str();
-        }
-
-
         if (disable_fan_first_layers > 1)
             out += ", " + (boost::format(_utf8(L("except for the first %1% layers where the fan is disabled"))) % disable_fan_first_layers).str();
         else if (disable_fan_first_layers == 1)
@@ -160,20 +97,8 @@ std::string PresetHints::cooling_description(const Preset &preset)
         if (top_fan_speed >= 0) {
             out += ", " + (boost::format(_utf8(L("at %1%%% over top fill surfaces"))) % top_fan_speed).str();
         }
-        if (support_material_interface_fan_speed >= 0) {
-            out += ", " + (boost::format(_utf8(L("at %1%%% over support interface surfaces"))) % support_material_interface_fan_speed).str();
-        }
-        if (support_material_fan_speed >= 0) {
-            out += ", " + (boost::format(_utf8(L("at %1%%% over support surfaces"))) % support_material_fan_speed).str();
-        }
-        if (internal_infill_fan_speed >= 0) {
-            out += ", " + (boost::format(_utf8(L("at %1%%% over internal infill surfaces"))) % internal_infill_fan_speed).str();
-        }
-        if (solid_infill_fan_speed >= 0) {
-            out += ", " + (boost::format(_utf8(L("at %1%%% over solid infill surfaces"))) % solid_infill_fan_speed).str();
-        }
-        if (internal_perimeter_fan_speed >= 0) {
-            out += ", " + (boost::format(_utf8(L("at %1%%% over internal perimeter surfaces"))) % internal_perimeter_fan_speed).str();
+        if (supp_inter_fan_speed >= 0) {
+            out += ", " + (boost::format(_utf8(L("at %1%%% over support interface surfaces"))) % supp_inter_fan_speed).str();
         }
         if (bridge_fan_speed > max_fan_speed) {
             out += ", " + (boost::format(_utf8(L("at %1%%% over bridges"))) % bridge_fan_speed).str();
@@ -229,51 +154,15 @@ std::string PresetHints::cooling_description(const Preset &preset)
     bridge_internal_fan_speed = preset.config.opt_int("bridge_internal_fan_speed", 0);
     ext_peri_fan_speed = preset.config.opt_int("external_perimeter_fan_speed", 0);
     top_fan_speed = preset.config.opt_int("top_fan_speed", 0);
-    support_material_interface_fan_speed = preset.config.opt_int("support_material_interface_fan_speed", 0);
-    support_material_fan_speed = preset.config.opt_int("support_material_fan_speed", 0);
-    internal_infill_fan_speed = preset.config.opt_int("internal_infill_fan_speed", 0);
-    solid_infill_fan_speed = preset.config.opt_int("solid_infill_fan_speed", 0);
-    internal_perimeter_fan_speed = preset.config.opt_int("internal_perimeter_fan_speed", 0);
-    gap_fill_fan_speed = preset.config.opt_int("gap_fill_fan_speed", 0);
-    overhang_perimeter_fan_speed = preset.config.opt_int("overhang_perimeter_fan_speed", 0);
-
     if (top_fan_speed == 0)
         out += "\n\n!!! 0 for the Top fan speed is Deprecated, please set it to -1 to disable it !!!";
     if (ext_peri_fan_speed == 0)
         out += "\n\n!!! 0 for the External perimeters fan speed is Deprecated, please set it to -1 to disable it !!!";
     if (bridge_fan_speed == 0)
         out += "\n\n!!! 0 for the Bridge fan speed is Deprecated, please set it to -1 to disable it !!!";
-    if ( bridge_internal_fan_speed == 0)
-        out += "\n\n!!! 0 for the Bridge Internal fan speed is Deprecated, please set it to -1 to disable it !!!";
-    if ( top_fan_speed ==0)
-        out += "\n\n!!! 0 for the Top Perimeters fan speed is Deprecated, please set it to -1 to disable it !!!";
-    if ( support_material_interface_fan_speed == 0)
-        out += "\n\n!!! 0 for the Support Material interface fan speed is Deprecated, please set it to -1 to disable it !!!";
-    if ( support_material_fan_speed == 0)
-        out += "\n\n!!! 0 for the Suport Material fan speed is Deprecated, please set it to -1 to disable it !!!";
-    if ( internal_infill_fan_speed == 0)
-        out += "\n\n!!! 0 for the Internal Infill fan speed is Deprecated, please set it to -1 to disable it !!!";
-    if ( solid_infill_fan_speed == 0)
-        out += "\n\n!!! 0 for the Solid Infill fan speed is Deprecated, please set it to -1 to disable it !!!";
-    if ( internal_perimeter_fan_speed == 0)
-        out += "\n\n!!! 0 for the Internal perimeters fan speed is Deprecated, please set it to -1 to disable it !!!";
-    if ( gap_fill_fan_speed == 0)
-        out += "\n\n!!! 0 for the Gap Fill perimeters fan speed is Deprecated, please set it to -1 to disable it !!!";
-    if ( overhang_perimeter_fan_speed == 0)
-        out += "\n\n!!! 0 for the Overhang perimeters fan speed is Deprecated, please set it to -1 to disable it !!!";
-    //if ( thin_wall_fan_speed = 0)
-    //    out += "\n\n!!! 0 for the External perimeters fan speed is Deprecated, please set it to -1 to disable it !!!";
-    //if ( wipe_tower_fan_speed = 0)
-    //    out += "\n\n!!! 0 for the External perimeters fan speed is Deprecated, please set it to -1 to disable it !!!";
-    //if ( ironing_fan_speed = 0)
-    //    out += "\n\n!!! 0 for the Ironing perimeters fan speed is Deprecated, please set it to -1 to disable it !!!";
+    if (bridge_internal_fan_speed == 0)
+        out += "\n\n!!! 0 for the Infill bridge fan speed is Deprecated, please set it to -1 to disable it !!!";
 
-
-
-
-    
-    out += "\n\n\nfan speed types currently not independently supported.Thin Wall,Ironing,Skirt/Brim,WipeTower,Milling \nthese will use min_fan_speed if 'fan_always_on' enabled"; //could make check box for unsupported types to use x fan type ?
-                                                                                                                          // but that might have "too much info on the screen" making clutter
     return out;
 }
 

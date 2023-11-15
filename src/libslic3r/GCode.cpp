@@ -282,8 +282,8 @@ static inline void set_extra_lift(const float previous_print_z, const int layer_
 
         // tag for fan speed (to not lost it)
         const bool finalize = &tcr == &m_final_purge;
-        //if (!finalize)
-        //    gcode += ";_STORE_FAN_SPEED_WT\n";
+        if (!finalize)
+            gcode += ";_STORE_FAN_SPEED_WT\n";
 
         // Toolchangeresult.gcode assumes the wipe tower corner is at the origin (except for priming lines)
         // We want to rotate and shift all extrusions (gcode postprocessing) and starting and ending position
@@ -395,8 +395,8 @@ static inline void set_extra_lift(const float previous_print_z, const int layer_
         check_add_eol(toolchange_gcode_str);
 
         // tag for fan speed (to not lost it)
-        //if (!finalize)
-            //gcode += ";_RESTORE_FAN_SPEED_WT\n";
+        if (!finalize)
+            gcode += ";_RESTORE_FAN_SPEED_WT\n";
 
         // A phony move to the end position at the wipe tower.
         gcodegen.writer().travel_to_xy(end_pos.cast<double>());
@@ -5111,7 +5111,7 @@ std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string 
 
     std::string comment;
     if (m_enable_cooling_markers) {
-        /*if(path.role() == erInternalBridgeInfill)
+        if(path.role() == erInternalBridgeInfill)
             gcode += ";_BRIDGE_INTERNAL_FAN_START\n";
         else if (is_bridge(path.role()))
             gcode += ";_BRIDGE_FAN_START\n";
@@ -5125,86 +5125,7 @@ std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string 
             comment += ";_EXTERNAL_PERIMETER";
         if (path.role() == erThinWall)
             comment += ";_EXTERNAL_PERIMETER";
-     }*/
-
-        // ALL FAN START EXTRUSION ROLES SET,
-        if (ExtrusionRole::erBridgeInfill == path.role()){
-            gcode += ";_BRIDGE_FAN_START\n";
-            }
-        else if (ExtrusionRole::erInternalBridgeInfill == path.role()){
-            gcode += ";_BRIDGE_INTERNAL_FAN_START\n";
-            }
-        else if (ExtrusionRole::erTopSolidInfill == path.role()){
-            gcode += ";_TOP_FAN_START\n";
-            }
-        else if (ExtrusionRole::erSupportMaterialInterface == path.role()){
-            gcode += ";_SUPP_INTER_FAN_START\n";
-            }
-        else if (ExtrusionRole::erSupportMaterial == path.role()){
-            gcode += ";_SUPPORT_MAT_FAN_START\n";
-            comment = ";_EXTRUDE_SET_SPEED"; // set placeholder for speed slowdown on based on time.
-            }
-        else if (ExtrusionRole::erInternalInfill == path.role()){
-            gcode += ";_INTERNAL_INFILL_FAN_START\n";
-            comment = ";_EXTRUDE_SET_SPEED";
-            }
-        else if (ExtrusionRole::erSolidInfill == path.role()){
-            gcode += ";_SOLID_INFILL_FAN_START\n";
-            comment = ";_EXTRUDE_SET_SPEED";
-            }
-        else if (ExtrusionRole::erExternalPerimeter == path.role()){
-            //gcode += ";_EXTERNAL_PERI_FAN_START\n";
-            comment = ";_EXTRUDE_SET_SPEED";
-            }
-        else if (ExtrusionRole::erPerimeter == path.role()){
-            gcode += ";_INTERNAL_PERI_FAN_START\n";
-            comment = ";_EXTRUDE_SET_SPEED";
-            }
-        else if (path.role() == erOverhangPerimeter) {
-            gcode += ";_OVERHANG_FAN_START\n";
-            comment = ";_EXTRUDE_SET_SPEED";
-            }
-        else if (ExtrusionRole::erGapFill == path.role()){
-            gcode += ";_GAP_FILL_FAN_START\n";
-            comment = ";_EXTRUDE_SET_SPEED";
-            }
-        else if (ExtrusionRole::erThinWall == path.role()){
-            gcode += ";_THIN_WALL_FAN_START\n";
-            comment = ";_EXTRUDE_SET_SPEED";
-            }
-        else if (ExtrusionRole::erIroning == path.role()){
-            gcode += ";_IRONING_FAN_START\n";
-            comment = ";_EXTRUDE_SET_SPEED";
-            }
-        else if (ExtrusionRole::erSkirt == path.role()){
-            //gcode += ";_SKIRT_FAN_START\n";
-            //comment = ";_EXTRUDE_SET_SPEED";
-        }
-        else if (ExtrusionRole::erWipeTower == path.role()){
-            gcode += ";_WIPE_TOWER_FAN_START\n";
-            comment = ";_EXTRUDE_SET_SPEED";
-            }
-        else if (ExtrusionRole::erMilling == path.role()){
-            //gcode += ";_MILLING_FAN_START\n";
-            }
-        else if (ExtrusionRole::erCustom == path.role()){
-            gcode += ";_CUSTOM_FAN_START\n";
-            //comment = ";_EXTRUDE_SET_SPEED";
-            }
-        else if (ExtrusionRole::erMixed == path.role()){
-            gcode += ";_MIXED_FAN_START\n";
-            //comment = ";_EXTRUDE_SET_SPEED";
-            }
-        else //skipping erCustom , erMilling, erMixed
-            comment = ";_EXTRUDE_SET_SPEED";
-        if (path.role() == erExternalPerimeter)
-            comment += ";_EXTERNAL_PERIMETER"; 
-        //if (path.role() == erThinWall)
-        //    comment += ";_EXTERNAL_PERIMETER";
     }
-
-
-
     // F     is mm per minute.
     // speed is mm per second
     gcode += m_writer.set_speed(speed, "", comment);
@@ -5214,7 +5135,6 @@ std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string 
 std::string GCode::_after_extrude(const ExtrusionPath &path) {
     std::string gcode;
     if (m_enable_cooling_markers)
-        /*
         if (path.role() == erInternalBridgeInfill)
             gcode += ";_BRIDGE_INTERNAL_FAN_END\n";
         else if (is_bridge(path.role()))
@@ -5224,78 +5144,8 @@ std::string GCode::_after_extrude(const ExtrusionPath &path) {
         else if (ExtrusionRole::erSupportMaterialInterface == path.role())
             gcode += ";_SUPP_INTER_FAN_END\n";
         else
-            gcode += ";_EXTRUDE_END\n";*/
+            gcode += ";_EXTRUDE_END\n";
 
-        if (ExtrusionRole::erBridgeInfill == path.role()){
-            gcode += ";_BRIDGE_FAN_END\n";
-            }
-        else if (ExtrusionRole::erInternalBridgeInfill == path.role()){
-            gcode += ";_BRIDGE_INTERNAL_FAN_END\n";
-            }
-        else if (ExtrusionRole::erTopSolidInfill == path.role()){
-            gcode += ";_TOP_FAN_END\n";
-            } 
-        else if (ExtrusionRole::erSupportMaterialInterface == path.role()){
-            gcode += ";_SUPP_INTER_FAN_END\n";
-            }
-        else if (ExtrusionRole::erSupportMaterial == path.role()){
-            gcode += ";_SUPPORT_MAT_FAN_END\n";
-            gcode += ";_EXTRUDE_END\n";
-            }
-        else if (ExtrusionRole::erInternalInfill == path.role()){
-            gcode += ";_INTERNAL_INFILL_FAN_END\n";
-            gcode += ";_EXTRUDE_END\n";
-            }
-        else if (ExtrusionRole::erSolidInfill == path.role()){
-            gcode += ";_SOLID_INFILL_FAN_END\n";
-            gcode += ";_EXTRUDE_END\n";
-            }
-        else if (ExtrusionRole::erExternalPerimeter == path.role()){
-            //gcode += ";_EXTERNAL_PERI_FAN_END\n";
-            gcode += ";_EXTRUDE_END\n";
-            }
-        else if (ExtrusionRole::erPerimeter == path.role()){
-            gcode += ";_INTERNAL_PERI_FAN_END\n";
-            gcode += ";_EXTRUDE_END\n";
-            }
-        else if (ExtrusionRole::erOverhangPerimeter == path.role()){
-            gcode += ";_OVERHANG_FAN_END\n";
-            gcode += ";_EXTRUDE_END\n";
-            }
-        else if (ExtrusionRole::erGapFill == path.role()){
-            gcode += ";_GAP_FILL_FAN_END\n";
-            gcode += ";_EXTRUDE_END\n";
-            }
-        else if (ExtrusionRole::erThinWall == path.role()){
-            gcode += ";_THIN_WALL_FAN_END\n";
-            gcode += ";_EXTRUDE_END\n";
-            }
-        else if (ExtrusionRole::erIroning == path.role()){
-            gcode += ";_IRONING_FAN_END\n";
-            gcode += ";_EXTRUDE_END\n";
-            }
-        else if (ExtrusionRole::erSkirt == path.role()){
-            //gcode += ";_SKIRT_FAN_END\n"; 
-            //gcode += ";_EXTRUDE_END\n";
-            }
-        else if (ExtrusionRole::erWipeTower == path.role()){
-            gcode += ";_WIPE_TOWER_FAN_END\n";
-            //gcode += ";_EXTRUDE_END\n";
-            }
-        else if (ExtrusionRole::erMilling == path.role()){
-            //gcode += ";_MILLING_FAN_END\n";
-            //gcode += ";_EXTRUDE_END\n";
-            }
-        else if (ExtrusionRole::erCustom == path.role()){
-            gcode += ";_CUSTOM_FAN_END\n";
-            //gcode += ";_EXTRUDE_END\n";
-            }
-        else if (ExtrusionRole::erMixed == path.role()){
-            gcode += ";_MIXED_FAN_END\n";
-            //gcode += ";_EXTRUDE_END\n";
-            }
-        else //skipping erCustom , erMilling, erMixed
-            gcode += ";_EXTRUDE_END\n";
     if (path.role() != ExtrusionRole::erGapFill ) {
         m_last_notgapfill_extrusion_role = path.role();
     }
@@ -5845,43 +5695,43 @@ void GCode::ObjectByExtruder::Island::Region::append(const Type type, const Extr
 std::string
 GCode::extrusion_role_to_string_for_parser(const ExtrusionRole & role) {
     switch (role) {
-        case erPerimeter:
-            return "Perimeter";
-        case erExternalPerimeter:
-            return "ExternalPerimeter";
-        case erOverhangPerimeter:
-            return "OverhangPerimeter";
-        case erInternalInfill:
-            return "InternalInfill";
-        case erSolidInfill:
-            return "SolidInfill";
-        case erTopSolidInfill:
-            return "TopSolidInfill";
-        case erBridgeInfill:
-        case erInternalBridgeInfill:
-            return "BridgeInfill";
-        case erThinWall:
-            return "ThinWall";
-        case erGapFill:
-            return "GapFill";
-        case erIroning:
-            return "Ironing";
-        case erSkirt:
-            return "Skirt";
-        case erSupportMaterial:
-            return "SupportMaterial";
-        case erSupportMaterialInterface:
-            return "SupportMaterialInterface";
-        case erWipeTower:
-            return "WipeTower";
-        case erMilling:
-            return "Mill";
-        case erCustom:
-        case erMixed:
-        case erCount:
-        case erNone:
-        default:
-            return "Mixed";
+    case erPerimeter:
+        return "Perimeter";
+    case erExternalPerimeter:
+        return "ExternalPerimeter";
+    case erOverhangPerimeter:
+        return "OverhangPerimeter";
+    case erInternalInfill:
+        return "InternalInfill";
+    case erSolidInfill:
+        return "SolidInfill";
+    case erTopSolidInfill:
+        return "TopSolidInfill";
+    case erBridgeInfill:
+    case erInternalBridgeInfill:
+        return "BridgeInfill";
+    case erThinWall:
+        return "ThinWall";
+    case erGapFill:
+        return "GapFill";
+    case erIroning:
+        return "Ironing";
+    case erSkirt:
+        return "Skirt";
+    case erSupportMaterial:
+        return "SupportMaterial";
+    case erSupportMaterialInterface:
+        return "SupportMaterialInterface";
+    case erWipeTower:
+        return "WipeTower";
+    case erMilling:
+        return "Mill";
+    case erCustom:
+    case erMixed:
+    case erCount:
+    case erNone:
+    default:
+        return "Mixed";
     }
 }
 
