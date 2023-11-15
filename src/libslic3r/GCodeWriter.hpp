@@ -83,7 +83,8 @@ public:
     Vec3d       get_unlifted_position() const { return m_pos - Vec3d{0, 0, m_extra_lift + m_lifted}; }
 
     // To be called by the CoolingBuffer from another thread.
-    static std::string set_fan(const GCodeFlavor gcode_flavor, bool gcode_comments, uint8_t speed, uint8_t tool_fan_offset, bool is_fan_percentage);
+    //static std::string set_fan(const GCodeFlavor gcode_flavor, bool gcode_comments, uint8_t speed, uint8_t tool_fan_offset, bool is_fan_percentage);
+    static std::string set_fan(const GCodeFlavor gcode_flavor, bool gcode_comments, uint8_t speed,uint8_t tool_fan_offset,bool is_fan_percentage,const char fanrole[26]);
     // To be called by the main thread. It always emits the G-code, it does remember the previous state to be able to reset after the wipe tower (but remove that when the wipe tower will be extrusions and not string).
     // Keeping the state is left to the CoolingBuffer, which runs asynchronously on another thread.
     std::string set_fan(uint8_t speed, uint16_t default_tool = 0);

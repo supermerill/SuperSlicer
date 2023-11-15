@@ -29,18 +29,31 @@ group:Print speed override
 
 page:Cooling:time
 group:Fan speed - default
-	setting:label$Run the fan at default speed when possible:fan_always_on
+	setting:label$Run the fan at default speed for extrusion roles not specified :fan_always_on
 	setting:min_fan_speed
 	line:Bridges fan speed
-		setting:label$:bridge_fan_speed
-		setting:label$Infill bridges:bridge_internal_fan_speed
+		setting:label$:sidetext_width$6:bridge_fan_speed
+		setting:sidetext_width$20:bridge_internal_fan_speed
 	end_line
 	setting:top_fan_speed
-	setting:external_perimeter_fan_speed
-	setting:support_material_interface_fan_speed
+    line:External Perimeter fan speed
+	    setting:label$:sidetext_width$8:external_perimeter_fan_speed
+        setting:sidetext_width$22:internal_perimeter_fan_speed
+    end_line
+    setting:overhang_perimeter_fan_speed
+    line:Support Material fan speed
+        setting:label$:sidetext_width$8:support_material_fan_speed
+        setting:sidetext_width$20:support_material_interface_fan_speed
+    end_line
+    line:Internal Infill fan speed
+        setting:label$:sidetext_width$12:internal_infill_fan_speed
+        setting:sidetext_width$26:solid_infill_fan_speed
+    end_line
+    setting:gap_fill_fan_speed
+
 	line:Disable fan for the first
-		setting:label$_:sidetext_width$12:disable_fan_first_layers
-		setting:full_fan_speed_layer
+		setting:label$_:sidetext_width$11:disable_fan_first_layers
+		setting:sidetext_width$20:full_fan_speed_layer
 	end_line
 group:Short layer time - began to increase base fan speed
 	setting:fan_below_layer_time

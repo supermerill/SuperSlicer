@@ -41,7 +41,11 @@ void CoolingBuffer::reset(const Vec3d &position)
 
 struct CoolingLine
 {
-    enum Type : uint32_t {
+    enum Type : uint64_t {
+        //uint32_t 
+        //uint64_t
+        //__int64
+        //unsigned long long
         TYPE_SET_TOOL           = 1 << 0,
         TYPE_EXTRUDE_END        = 1 << 1,
         TYPE_BRIDGE_FAN_START   = 1 << 2,
@@ -61,8 +65,40 @@ struct CoolingLine
         TYPE_WIPE               = 1 << 15,
         TYPE_G4                 = 1 << 16,
         TYPE_G92                = 1 << 17,
-        TYPE_STORE_FOR_WT       = 1 << 18,
-        TYPE_RESTORE_AFTER_WT   = 1 << 19,
+        //TYPE_STORE_FOR_WT       = 1 << 18,
+        //TYPE_RESTORE_AFTER_WT   = 1 << 19,
+        TYPE_SUPPORT_MAT_FAN_START     = 1 << 18,
+        TYPE_SUPPORT_MAT_FAN_END       = 1 << 19,
+        TYPE_INTERNAL_INFILL_FAN_START = 1 << 20,
+        TYPE_INTERNAL_INFILL_FAN_END   = 1 << 21,
+        TYPE_SOLID_INFILL_FAN_START        = 1 << 22,
+        TYPE_SOLID_INFILL_FAN_END          = 1 << 23,
+        TYPE_INTERNAL_PERI_FAN_START       = 1 << 24,
+        TYPE_INTERNAL_PERI_FAN_END         = 1 << 25,
+        TYPE_GAP_FILL_FAN_START            = 1 << 26,
+        TYPE_GAP_FILL_FAN_END              = 1 << 27,
+        TYPE_OVERHANG_PERI_FAN_START       = 1 << 28, //out of 32bit data range?
+        TYPE_OVERHANG_PERI_FAN_END         = 1 << 29,
+        TYPE_MIXED_FAN_START               = 1 << 30,
+        TYPE_MIXED_FAN_END                 = 1 << 31,
+        //TYPE_THIN_WALL_FAN_START         = 2 << 2,
+        //TYPE_THIN_WALL_FAN_END           = 2 << 3,
+        //TYPE_IRONING_FAN_START           = 2 << 4,
+        //TYPE_IRONING_FAN_END             = 2 << 5,
+        //TYPE_SKIRT_FAN_START             = 2 << 6,
+        //TYPE_SKIRT_FAN_END               = 2 << 7,
+        //TYPE_WIPE_TOWER_FAN_START        = 2 << 8,
+        //TYPE_WIPE_TOWER_FAN_END          = 2 << 9,
+        //TYPE_MILLING_FAN_START           = 2 << 10,
+        //TYPE_MILLING_FAN_END             = 2 << 11,
+        //TYPE_EXTERNAL_PERI_FAN_START       = 2 << 12,
+        //TYPE_EXTERNAL_PERI_FAN_END         = 2 << 13,
+
+        //missing types
+        // erCustom
+        // erMixed
+
+
         // Would be TYPE_ADJUSTABLE, but the block of G-code lines has zero extrusion length, thus the block
         // cannot have its speed adjusted. This should not happen (sic!).
         TYPE_ADJUSTABLE_EMPTY   = 1 << 12,
@@ -533,24 +569,104 @@ std::vector<PerExtruderAdjustments> CoolingBuffer::parse_layer_gcode(const std::
                 if (map_extruder_to_per_extruder_adjustment.size() > 1)
                     BOOST_LOG_TRIVIAL(error) << "CoolingBuffer encountered an invalid toolchange, maybe from a custom gcode: " << sline;
             }
-
-        } else if (boost::starts_with(sline, ";_BRIDGE_FAN_START")) {
+        }
+        else if (boost::starts_with(sline, ";_BRIDGE_FAN_START")) {
             line.type = CoolingLine::TYPE_BRIDGE_FAN_START;
         } else if (boost::starts_with(sline, ";_BRIDGE_FAN_END")) {
             line.type = CoolingLine::TYPE_BRIDGE_FAN_END;
-        } else if (boost::starts_with(sline, ";_BRIDGE_INTERNAL_FAN_START")) {
+        }
+        else if (boost::starts_with(sline, ";_BRIDGE_INTERNAL_FAN_START")) {
             line.type = CoolingLine::TYPE_BRIDGE_INTERNAL_FAN_START;
         } else if (boost::starts_with(sline, ";_BRIDGE_INTERNAL_FAN_END")) {
             line.type = CoolingLine::TYPE_BRIDGE_INTERNAL_FAN_END;
-        } else if (boost::starts_with(sline, ";_TOP_FAN_START")) {
+        } 
+        else if (boost::starts_with(sline, ";_TOP_FAN_START")) {
             line.type = CoolingLine::TYPE_TOP_FAN_START;
         } else if (boost::starts_with(sline, ";_TOP_FAN_END")) {
             line.type = CoolingLine::TYPE_TOP_FAN_END;
+
         } else if (boost::starts_with(sline, ";_SUPP_INTER_FAN_START")) {
             line.type = CoolingLine::TYPE_SUPP_INTER_FAN_START;
         } else if (boost::starts_with(sline, ";_SUPP_INTER_FAN_END")) {
             line.type = CoolingLine::TYPE_SUPP_INTER_FAN_END;
-        } else if (boost::starts_with(sline, "G4 ")) {
+
+        } else if (boost::starts_with(sline, ";_SUPPORT_MAT_FAN_START")) {
+            line.type = CoolingLine::TYPE_SUPPORT_MAT_FAN_START;
+        } else if (boost::starts_with(sline, ";_SUPPORT_MAT_FAN_END")) {
+            line.type = CoolingLine::TYPE_SUPPORT_MAT_FAN_END;
+
+        } else if (boost::starts_with(sline, ";_INTERNAL_INFILL_FAN_START")) {
+            line.type = CoolingLine::TYPE_INTERNAL_INFILL_FAN_START;
+        } else if (boost::starts_with(sline, ";_INTERNAL_INFILL_FAN_END")) {
+            line.type = CoolingLine::TYPE_INTERNAL_INFILL_FAN_END;
+
+        } else if (boost::starts_with(sline, ";_SOLID_INFILL_FAN_START")) {
+            line.type = CoolingLine::TYPE_SOLID_INFILL_FAN_START;
+        } else if (boost::starts_with(sline, ";_SOLID_INFILL_FAN_END")) {
+            line.type = CoolingLine::TYPE_SOLID_INFILL_FAN_END;
+
+        } else if (boost::starts_with(sline, ";_INTERNAL_PERI_FAN_START")) {
+            line.type = CoolingLine::TYPE_INTERNAL_PERI_FAN_START;
+        } else if (boost::starts_with(sline, ";_INTERNAL_PERI_FAN_END")) {
+            line.type = CoolingLine::TYPE_INTERNAL_PERI_FAN_END;
+
+        } else if (boost::starts_with(sline, ";_OVERHANG_FAN_START")) {
+            line.type = CoolingLine::TYPE_OVERHANG_PERI_FAN_START;
+        } else if (boost::starts_with(sline, ";_OVERHANG_FAN_END")) {
+            line.type = CoolingLine::TYPE_OVERHANG_PERI_FAN_END;
+
+        } else if (boost::starts_with(sline, ";_GAP_FILL_FAN_START")) {
+            line.type = CoolingLine::TYPE_GAP_FILL_FAN_START;
+        } else if (boost::starts_with(sline, ";_GAP_FILL_FAN_END")) {
+            line.type = CoolingLine::TYPE_GAP_FILL_FAN_END;
+
+        } else if (boost::starts_with(sline, ";_THIN_WALL_FAN_START")) {             
+            line.type = CoolingLine::TYPE_MIXED_FAN_START;
+        } else if (boost::starts_with(sline, ";_THIN_WALL_FAN_END")) {
+            line.type = CoolingLine::TYPE_MIXED_FAN_END;
+
+        } else if (boost::starts_with(sline, ";_IRONING_FAN_START")) {          
+            line.type = CoolingLine::TYPE_MIXED_FAN_START;
+            //line.type = CoolingLine::TYPE_IRONING_FAN_START;
+        } else if (boost::starts_with(sline, ";_IRONING_FAN_END")) {
+            line.type = CoolingLine::TYPE_MIXED_FAN_END;
+            //line.type = CoolingLine::TYPE_IRONING_FAN_END;
+
+        } else if (boost::starts_with(sline, ";_WIPE_TOWER_FAN_START")) {
+            line.type = CoolingLine::TYPE_MIXED_FAN_START;
+            //line.type = CoolingLine::TYPE_WIPE_TOWER_FAN_START;
+        } else if (boost::starts_with(sline, ";_WIPE_TOWER_FAN_END")) {
+            line.type = CoolingLine::TYPE_MIXED_FAN_END;
+            //line.type = CoolingLine::TYPE_WIPE_TOWER_FAN_END;
+
+        } else if (boost::starts_with(sline, ";_MILLING_FAN_START")) {            
+            //line.type = CoolingLine::TYPE_MILLING_FAN_START;
+        } else if (boost::starts_with(sline, ";_MILLING_FAN_END")) {
+            //line.type = CoolingLine::TYPE_MILLING_FAN_END;
+
+        } else if (boost::starts_with(sline, ";_CUSTOM_FAN_START")) {
+            //line.type = CoolingLine::TYPE_CUSTOM_FAN_START;
+        } else if (boost::starts_with(sline, ";_CUSTOM_FAN_END")) {
+            //line.type = CoolingLine::TYPE_CUSTOM_FAN_END;
+
+        } else if (boost::starts_with(sline, ";_MIXED_FAN_START")) {
+            //line.type = CoolingLine::TYPE_MIXED_FAN_START;
+        } else if (boost::starts_with(sline, ";_MIXED_FAN_END")) {
+            //line.type = CoolingLine::TYPE_MIXED_FAN_END;
+
+        }/*else if (boost::starts_with(sline, ";_SKIRT_FAN_START")) {             
+            line.type = CoolingLine::TYPE_SKIRT_FAN_START;
+        } else if (boost::starts_with(sline, ";_SKIRT_FAN_END")) {
+            line.type = CoolingLine::TYPE_SKIRT_FAN_END;
+        }*/
+        else if (boost::starts_with(sline, ";_EXTERNAL_PERI_FAN_START")) {
+            //line.type = CoolingLine::TYPE_EXTERNAL_PERI_FAN_START; //last change comment this block out.
+        } else if (boost::starts_with(sline, ";_EXTERNAL_PERI_FAN_END")) {
+            //line.type = CoolingLine::TYPE_EXTERNAL_PERI_FAN_END;
+        }
+
+
+        else if (boost::starts_with(sline, "G4 ")) {
             // Parse the wait time.
             line.type = CoolingLine::TYPE_G4;
             size_t pos_S = sline.find('S', 3);
@@ -559,10 +675,10 @@ std::vector<PerExtruderAdjustments> CoolingBuffer::parse_layer_gcode(const std::
             line.time = line.time_max = float(
                 (pos_S > 0) ? atof(sline.c_str() + pos_S + 1) :
                 (pos_P > 0) ? atof(sline.c_str() + pos_P + 1) * 0.001 : 0.);
-        } else if (boost::starts_with(sline, ";_STORE_FAN_SPEED_WT")) {
-            line.type = CoolingLine::TYPE_STORE_FOR_WT;
-        } else if (boost::starts_with(sline, ";_RESTORE_FAN_SPEED_WT")) {
-            line.type = CoolingLine::TYPE_RESTORE_AFTER_WT;
+        } else if (boost::starts_with(sline, ";_STORE_FAN_SPEED_WT")) {//not needed anymore
+            //line.type = CoolingLine::TYPE_STORE_FOR_WT;
+        } else if (boost::starts_with(sline, ";_RESTORE_FAN_SPEED_WT")) {//not needed anymore
+            //line.type = CoolingLine::TYPE_RESTORE_AFTER_WT;
         }
         if (line.type != 0)
             adjustment->lines.emplace_back(std::move(line));
@@ -803,53 +919,176 @@ std::string CoolingBuffer::apply_layer_cooldown(
     int  bridge_internal_fan_speed = 0;
     bool top_fan_control = false;
     int  top_fan_speed = 0;
-    bool supp_inter_fan_control = false;
-    int  supp_inter_fan_speed = 0;
-    bool ext_peri_fan_control = false;
-    int  ext_peri_fan_speed = 0;
+    //bool ext_peri_fan_control = false;
+    bool min_fan_control                               = false;
+    int  min_fan_speed                                 = 0;
+    bool external_perimeter_fan_control                = false;
+    int  external_perimeter_fan_speed                  = 0;
+    bool ironing_fan_control                           = false;
+    int  ironing_fan_speed                             = 0;
+    bool internal_perimeter_fan_control                = false;
+    int  internal_perimeter_fan_speed                  = 0;
+    bool overhang_perimeter_fan_control                = false;
+    int  overhang_perimeter_fan_speed                  = 0;
+    bool thin_wall_fan_control                         = false;
+    int  thin_wall_fan_speed                           = 0;
+    bool gap_fill_fan_control                          = false;
+    int  gap_fill_fan_speed                            = 0;
+    bool support_material_interface_fan_control        = false;
+    int  support_material_interface_fan_speed          = 0;
+    bool support_material_fan_control                  = false; 
+    int  support_material_fan_speed                    = 0;
+    bool internal_infill_fan_control                   = false; 
+    int  internal_infill_fan_speed                     = 0;
+    bool solid_inifill_fan_control                     = false; 
+    int  solid_infill_fan_speed                        = 0;
+    bool skirt_fan_control                             = false; 
+    int  skirt_fan_speed                               = 0;
+    bool wipe_tower_fan_control                        = false; 
+    int  wipe_tower_fan_speed                          = 0;
+    //bool mixed_fan_control                             = false; 
+    //int  mixed_fan_speed                               = 0;
+
+
 #define EXTRUDER_CONFIG(OPT) m_config.OPT.get_at(m_current_extruder)
     auto change_extruder_set_fan = [this, layer_id, layer_time, &new_gcode, 
         &bridge_fan_control, &bridge_fan_speed, &bridge_internal_fan_control, &bridge_internal_fan_speed, 
         &top_fan_control, &top_fan_speed,
-        &ext_peri_fan_control, &ext_peri_fan_speed,
-        &supp_inter_fan_control, &supp_inter_fan_speed]() {
+        &external_perimeter_fan_control, &external_perimeter_fan_speed,
+        &support_material_interface_fan_control, &support_material_interface_fan_speed,
+        &support_material_fan_control, &support_material_fan_speed,
+        &internal_infill_fan_control, &internal_infill_fan_speed,
+        &solid_inifill_fan_control, &solid_infill_fan_speed,
+        &internal_perimeter_fan_control, &internal_perimeter_fan_speed,
+        &thin_wall_fan_control, &thin_wall_fan_speed,
+        &overhang_perimeter_fan_control, &overhang_perimeter_fan_speed,
+        &ironing_fan_control, &ironing_fan_speed,
+        &gap_fill_fan_control, &gap_fill_fan_speed,
+        &wipe_tower_fan_control, &wipe_tower_fan_speed
+        //&mixed_fan_control, &mixed_fan_speed
+        ](){
+
         int min_fan_speed = EXTRUDER_CONFIG(min_fan_speed);
+        int disabled_fan_speed = 0;
         bridge_fan_speed = EXTRUDER_CONFIG(bridge_fan_speed);
         bridge_internal_fan_speed = EXTRUDER_CONFIG(bridge_internal_fan_speed);
         top_fan_speed = EXTRUDER_CONFIG(top_fan_speed);
-        supp_inter_fan_speed = EXTRUDER_CONFIG(support_material_interface_fan_speed);
-        ext_peri_fan_speed = EXTRUDER_CONFIG(external_perimeter_fan_speed);
+        support_material_interface_fan_speed = EXTRUDER_CONFIG(support_material_interface_fan_speed);
+        external_perimeter_fan_speed = EXTRUDER_CONFIG(external_perimeter_fan_speed);
+        support_material_fan_speed = EXTRUDER_CONFIG(support_material_fan_speed);
+        internal_infill_fan_speed = EXTRUDER_CONFIG(internal_infill_fan_speed);
+        solid_infill_fan_speed = EXTRUDER_CONFIG(solid_infill_fan_speed);
+        internal_perimeter_fan_speed = EXTRUDER_CONFIG(internal_perimeter_fan_speed);
+        gap_fill_fan_speed = EXTRUDER_CONFIG(gap_fill_fan_speed);
+        overhang_perimeter_fan_speed = EXTRUDER_CONFIG(overhang_perimeter_fan_speed);
+
+
+        if (EXTRUDER_CONFIG(fan_always_on) == true){
+            //ironing_fan_speed = EXTRUDER_CONFIG(ironing_fan_speed);
+            ironing_fan_speed = min_fan_speed;
+            //thin_wall_fan_speed = EXTRUDER_CONFIG(thin_wall_fan_speed);
+            thin_wall_fan_speed = min_fan_speed;
+            //wipe_tower_fan_speed = EXTRUDER_CONFIG(wipe_tower_fan_speed);
+            wipe_tower_fan_speed = min_fan_speed;
+            //mixed_fan_speed = EXTRUDER_CONFIG(min_fan_speed);
+        }
+        else if (EXTRUDER_CONFIG(fan_always_on) == false){
+            ironing_fan_speed = top_fan_speed;
+            thin_wall_fan_speed = external_perimeter_fan_speed;
+            wipe_tower_fan_speed = external_perimeter_fan_speed;
+
+        }
         // 0 is deprecated for disable: take care of temp settings.
-        if (bridge_fan_speed == 0) bridge_fan_speed = -1;
+        /*if (bridge_fan_speed == 0) bridge_fan_speed = -1;
         if (bridge_internal_fan_speed == 0) bridge_internal_fan_speed = -1;
-        if (ext_peri_fan_speed == 0) ext_peri_fan_speed = -1;
-        if (top_fan_speed == 0) top_fan_speed = -1;
+        if (external_perimeter_fan_speed == 0) external_perimeter_fan_speed = -1;
+        if (top_fan_speed == 0) top_fan_speed = -1;*/
+
+
+// if any values are -1 for default give them the min_fan_speed
+// if values are 1 disable fan set speed to 0
+
         if (bridge_fan_speed == 1) bridge_fan_speed = 0;
         if (bridge_internal_fan_speed == 1) bridge_internal_fan_speed = 0;
-        if (ext_peri_fan_speed == 1) ext_peri_fan_speed = 0;
+        if (external_perimeter_fan_speed == 1) external_perimeter_fan_speed = 0;
         if (top_fan_speed == 1) top_fan_speed = 0;
+        if (support_material_interface_fan_speed == 1) support_material_interface_fan_speed = 0;
+        if (support_material_fan_speed == 1) support_material_fan_speed = 0;
+        if (internal_infill_fan_speed == 1) internal_infill_fan_speed = 0;
+        if (solid_infill_fan_speed == 1) solid_infill_fan_speed = 0;
+        if (internal_perimeter_fan_speed == 1) internal_perimeter_fan_speed = 0;
+        if (ironing_fan_speed == 1) ironing_fan_speed = 0;
+        if (overhang_perimeter_fan_speed == 1) overhang_perimeter_fan_speed = 0;
+        if (thin_wall_fan_speed == 1) thin_wall_fan_speed = 0;
+        if (gap_fill_fan_speed == 1) gap_fill_fan_speed = 0;
+        if (wipe_tower_fan_speed == 1) wipe_tower_fan_speed = 0;
+
+        if (bridge_fan_speed == -1) bridge_fan_speed = min_fan_speed;
+        if (bridge_internal_fan_speed == -1) bridge_internal_fan_speed = bridge_fan_speed;//use bridge  if internal is -1
+        if (external_perimeter_fan_speed == -1) external_perimeter_fan_speed = min_fan_speed;
+        if (top_fan_speed == -1) top_fan_speed = min_fan_speed;
+        if (support_material_fan_speed == -1) support_material_fan_speed = min_fan_speed;
+        if (support_material_interface_fan_speed == -1) support_material_interface_fan_speed = support_material_fan_speed;//use support if interface is -1
+        if (internal_infill_fan_speed == -1) internal_infill_fan_speed = min_fan_speed;
+        if (solid_infill_fan_speed == -1) solid_infill_fan_speed = internal_infill_fan_speed; //use internal if solid is -1
+        if (internal_perimeter_fan_speed == -1) internal_perimeter_fan_speed = external_perimeter_fan_speed; //use external if internal is -1
+        if (ironing_fan_speed == -1) ironing_fan_speed = min_fan_speed;
+        if (overhang_perimeter_fan_speed == -1) overhang_perimeter_fan_speed = min_fan_speed;
+        if (thin_wall_fan_speed == -1) thin_wall_fan_speed = min_fan_speed;
+        if (gap_fill_fan_speed == -1) gap_fill_fan_speed = min_fan_speed;
+        if (wipe_tower_fan_speed == -1) wipe_tower_fan_speed = min_fan_speed;
+
         // end deprecation
         int fan_speed_new = EXTRUDER_CONFIG(fan_always_on) ? min_fan_speed : 0;
+        int fan_speed_last = fan_speed_new;
         int disable_fan_first_layers = EXTRUDER_CONFIG(disable_fan_first_layers);
-        // Is the fan speed ramp enabled?
+        bool apply_full_fan_at_layer = false;
         int full_fan_speed_layer = EXTRUDER_CONFIG(full_fan_speed_layer);
-        if (disable_fan_first_layers <= 0 && full_fan_speed_layer > 0) {
+
+        if(full_fan_speed_layer < int(layer_id) )
+        {
+            apply_full_fan_at_layer = true;
+        }
+        else
+            apply_full_fan_at_layer = false;
+        if (full_fan_speed_layer == 0)
+        {
+            apply_full_fan_at_layer = false;
+        }
+
+        
+        // Is the fan speed ramp enabled?
+
+        //if (disable_fan_first_layers <= 0 && full_fan_speed_layer > 0) {
             // When ramping up fan speed from disable_fan_first_layers to full_fan_speed_layer, force disable_fan_first_layers above zero,
             // so there will be a zero fan speed at least at the 1st layer.
-            disable_fan_first_layers = 1;
-        }
+        //    disable_fan_first_layers = 1;
+        //}
         if (int(layer_id) >= disable_fan_first_layers) {
             int   max_fan_speed             = EXTRUDER_CONFIG(max_fan_speed);
             float slowdown_below_layer_time = float(EXTRUDER_CONFIG(slowdown_below_layer_time));
             float fan_below_layer_time      = float(EXTRUDER_CONFIG(fan_below_layer_time));
-            //if (EXTRUDER_CONFIG(cooling)) {
+
+            if (apply_full_fan_at_layer == false) {
                 if (layer_time < slowdown_below_layer_time && fan_below_layer_time > 0) {
                     // Layer time very short. Enable the fan to a full throttle.
                     fan_speed_new = std::max(max_fan_speed, fan_speed_new);
                     bridge_fan_speed = std::max(max_fan_speed, bridge_fan_speed);
                     bridge_internal_fan_speed = std::max(max_fan_speed, bridge_internal_fan_speed);
-                    ext_peri_fan_speed = std::max(max_fan_speed, ext_peri_fan_speed); // cannot be ovveridden
-                    //top_fan_speed = std::max(max_fan_speed, top_fan_speed);
+                    external_perimeter_fan_speed = std::max(max_fan_speed, external_perimeter_fan_speed);
+                    top_fan_speed = std::max(max_fan_speed, top_fan_speed);
+                    support_material_fan_speed = std::max(max_fan_speed, support_material_fan_speed);
+                    support_material_interface_fan_speed = std::max(max_fan_speed, support_material_interface_fan_speed);
+                    internal_infill_fan_speed = std::max(max_fan_speed, internal_infill_fan_speed);
+                    solid_infill_fan_speed = std::max(max_fan_speed, solid_infill_fan_speed);
+                    internal_perimeter_fan_speed = std::max(max_fan_speed, internal_perimeter_fan_speed);
+                    ironing_fan_speed = std::max(max_fan_speed, ironing_fan_speed);
+                    overhang_perimeter_fan_speed = std::max(max_fan_speed, overhang_perimeter_fan_speed);
+                    thin_wall_fan_speed = std::max(max_fan_speed, thin_wall_fan_speed);
+                    gap_fill_fan_speed  = std::max(max_fan_speed, gap_fill_fan_speed);
+                    wipe_tower_fan_speed = std::max(max_fan_speed, wipe_tower_fan_speed);
+                    //mixed_fan_speed = std::max(max_fan_speed, mixed_fan_speed);
+
                 } else if (layer_time < fan_below_layer_time) {
                     // Layer time quite short. Enable the fan proportionally according to the current layer time.
                     assert(layer_time >= slowdown_below_layer_time);
@@ -860,58 +1099,156 @@ std::string CoolingBuffer::apply_layer_cooldown(
                         bridge_fan_speed = int(floor(t * bridge_fan_speed + (1. - t) * max_fan_speed) + 0.5);
                     if (bridge_internal_fan_speed >= 0 && bridge_internal_fan_speed < max_fan_speed)
                         bridge_internal_fan_speed = int(floor(t * bridge_internal_fan_speed + (1. - t) * max_fan_speed) + 0.5);
-                    if (ext_peri_fan_speed >= 0 && ext_peri_fan_speed < max_fan_speed)
-                        ext_peri_fan_speed = int(floor(t * ext_peri_fan_speed + (1. - t) * max_fan_speed) + 0.5);
-                    //if (top_fan_speed >= 0 && top_fan_speed < max_fan_speed) // cannot be ovveridden
-                    //    top_fan_speed = int(floor(t * top_fan_speed + (1. - t) * max_fan_speed) + 0.5);
-                }
-            //}
+                    if (external_perimeter_fan_speed >= 0 && external_perimeter_fan_speed < max_fan_speed)
+                        external_perimeter_fan_speed = int(floor(t * external_perimeter_fan_speed + (1. - t) * max_fan_speed) + 0.5);
+                    if (support_material_interface_fan_speed >= 0 && support_material_interface_fan_speed < max_fan_speed) 
+                        support_material_interface_fan_speed = int(floor(t * support_material_interface_fan_speed + (1. - t) * max_fan_speed) + 0.5);
+                    if (support_material_fan_speed >= 0 && support_material_fan_speed < max_fan_speed)
+                        support_material_fan_speed = int(floor(t * support_material_fan_speed + (1. - t) * max_fan_speed) + 0.5);
+                    if (internal_infill_fan_speed >= 0 && internal_infill_fan_speed < max_fan_speed)
+                        internal_infill_fan_speed = int(floor(t * internal_infill_fan_speed + (1. - t) * max_fan_speed) + 0.5);
+                    if (solid_infill_fan_speed >= 0 && solid_infill_fan_speed < max_fan_speed)
+                        solid_infill_fan_speed = int(floor(t * solid_infill_fan_speed + (1. - t) * max_fan_speed) + 0.5);
+                    if (internal_perimeter_fan_speed >= 0 && internal_perimeter_fan_speed < max_fan_speed)
+                        internal_perimeter_fan_speed = int(floor(t * internal_perimeter_fan_speed + (1. - t) * max_fan_speed) + 0.5);
+                    if (ironing_fan_speed >= 0 && ironing_fan_speed < max_fan_speed)
+                        ironing_fan_speed = int(floor(t * ironing_fan_speed + (1. - t) * max_fan_speed) + 0.5);
+                    if (overhang_perimeter_fan_speed >= 0 && overhang_perimeter_fan_speed < max_fan_speed)
+                        overhang_perimeter_fan_speed = int(floor(t * overhang_perimeter_fan_speed + (1. - t) * max_fan_speed) + 0.5);
+                    if (thin_wall_fan_speed >= 0 && thin_wall_fan_speed < max_fan_speed)
+                        thin_wall_fan_speed = int(floor(t * thin_wall_fan_speed + (1. - t) * max_fan_speed) + 0.5);
+                    if (gap_fill_fan_speed >= 0 && gap_fill_fan_speed < max_fan_speed)
+                        gap_fill_fan_speed = int(floor(t * gap_fill_fan_speed + (1. - t) * max_fan_speed) + 0.5);
+                    if (wipe_tower_fan_speed >= 0 && wipe_tower_fan_speed < max_fan_speed)
+                        wipe_tower_fan_speed = int(floor(t * wipe_tower_fan_speed + (1. - t) * max_fan_speed) + 0.5);
+                    //if (mixed_fan_speed >= 0 && mixed_fan_speed < max_fan_speed)
+                    //    mixed_fan_speed = int(floor(t * mixed_fan_speed + (1. - t) * max_fan_speed) + 0.5);
 
-            // Is the fan speed ramp enabled?
-            int full_fan_speed_layer = EXTRUDER_CONFIG(full_fan_speed_layer);
-            // When ramping up fan speed from disable_fan_first_layers to full_fan_speed_layer, if disable_fan_first_layers is zero,
-            // the not-fan layer is a hypothetical -1 layer.
-            if (int(layer_id) >= disable_fan_first_layers && int(layer_id) + 1 < full_fan_speed_layer) {
-                // Ramp up the fan speed from disable_fan_first_layers to full_fan_speed_layer.
+                    if (top_fan_speed >= 0 && top_fan_speed < max_fan_speed) // needs to be set, otherwise remaining layers keep this fan speed? bug still active???
+                        top_fan_speed = int(floor(t * top_fan_speed + (1. - t) * max_fan_speed) + 0.5);
+                }
+            }
+
+
+
+            //if (int(layer_id) >= disable_fan_first_layers && int(layer_id) + 1 < full_fan_speed_layer) {
+            if (apply_full_fan_at_layer == true){//could prob add in fan_speed_new and fan_speed last here. they would need to be global variables since due to the way files are sliced. small bug with bridge fan speeds applying half of new value.
+
                 float factor = float(int(layer_id + 1) - disable_fan_first_layers) / float(full_fan_speed_layer - disable_fan_first_layers);
-                fan_speed_new = std::clamp(int(float(fan_speed_new   ) * factor + 0.5f), 0, 255);
+                if (full_fan_speed_layer >=50){
+                    factor = factor * factor;
+                }
+                //math gets broken if full_fan_speed_layer is too high ie 50,100
+                fan_speed_new = std::clamp(int(float(fan_speed_new ) * factor + 0.5f), 0, 255);
                 if (bridge_fan_speed >= 0)
                     bridge_fan_speed = std::clamp(int(float(bridge_fan_speed) * factor + 0.5f), 0, 255);
                 if (bridge_internal_fan_speed >= 0)
                     bridge_internal_fan_speed = std::clamp(int(float(bridge_internal_fan_speed) * factor + 0.5f), 0, 255);
-            }
-            bridge_fan_control = bridge_fan_speed > fan_speed_new && bridge_fan_speed >= 0;
-            bridge_internal_fan_control = bridge_internal_fan_speed > fan_speed_new && bridge_internal_fan_speed >= 0;
-            top_fan_control = top_fan_speed != fan_speed_new && top_fan_speed >= 0;
-            supp_inter_fan_control = supp_inter_fan_speed != fan_speed_new && supp_inter_fan_speed >= 0;
-            ext_peri_fan_control = ext_peri_fan_speed != fan_speed_new && ext_peri_fan_speed >= 0;
-            // if bridge_internal_fan is disabled, it takes the value of bridge_fan_control
-            // if bridge_internal_fan_speed is too low, it takes the value of fan_speed_new
-            if (!bridge_internal_fan_control && bridge_fan_control) {
-                bridge_internal_fan_control = true;
-                if(bridge_internal_fan_speed >= 0)
-                    bridge_internal_fan_speed = fan_speed_new;
-                else
-                    bridge_internal_fan_speed = bridge_fan_speed;
+                if (external_perimeter_fan_speed >= 0)
+                    external_perimeter_fan_speed = std::clamp(int(float(external_perimeter_fan_speed) * factor + 0.5f), 0, 255);
+                if (top_fan_speed >= 0)
+                    top_fan_speed = std::clamp(int(float(top_fan_speed) * factor + 0.5f), 0, 255);
+                if (support_material_fan_speed >= 0)
+                    support_material_fan_speed = std::clamp(int(float(support_material_fan_speed) * factor + 0.5f), 0, 255);
+                if (support_material_interface_fan_speed >= 0)
+                    support_material_interface_fan_speed = std::clamp(int(float(support_material_interface_fan_speed) * factor + 0.5f), 0, 255);
+                if (internal_infill_fan_speed >= 0)
+                    internal_infill_fan_speed = std::clamp(int(float(internal_infill_fan_speed) * factor + 0.5f), 0, 255);
+                if (solid_infill_fan_speed >= 0)
+                    solid_infill_fan_speed = std::clamp(int(float(solid_infill_fan_speed) * factor + 0.5f), 0, 255);
+                if (internal_perimeter_fan_speed >= 0)
+                    internal_perimeter_fan_speed = std::clamp(int(float(internal_perimeter_fan_speed) * factor + 0.5f), 0, 255);
+                if (ironing_fan_speed >= 0)
+                    ironing_fan_speed = std::clamp(int(float(ironing_fan_speed) * factor + 0.5f), 0, 255);
+                if (overhang_perimeter_fan_speed >= 0)
+                    overhang_perimeter_fan_speed = std::clamp(int(float(overhang_perimeter_fan_speed) * factor + 0.5f), 0, 255);
+                if (thin_wall_fan_speed >= 0)
+                    thin_wall_fan_speed = std::clamp(int(float(thin_wall_fan_speed) * factor + 0.5f), 0, 255);
+                if (gap_fill_fan_speed >= 0)
+                    gap_fill_fan_speed = std::clamp(int(float(gap_fill_fan_speed) * factor + 0.5f), 0, 255);
+                if (wipe_tower_fan_speed >= 0)
+                    wipe_tower_fan_speed = std::clamp(int(float(wipe_tower_fan_speed) * factor + 0.5f), 0, 255);
+            
             }
 
+
+
+//if(fan_speed_new != fan_speed_last)
+//        if(fan_speed_new == bridge_fan_speed)
+//            {bridge_fan_control = true}
+
+
+            /*
+            bridge_fan_control = bridge_fan_speed != fan_speed_new && bridge_fan_speed >= 0;
+            bridge_internal_fan_control = bridge_internal_fan_speed != fan_speed_new && bridge_internal_fan_speed >= 0;
+            top_fan_control = top_fan_speed != fan_speed_new && top_fan_speed >= 0;
+            support_material_interface_fan_control = support_material_interface_fan_speed != fan_speed_new && support_material_interface_fan_speed >= 0;
+            external_perimeter_fan_control = external_perimeter_fan_speed != fan_speed_new && external_perimeter_fan_speed >= 0;
+            support_material_fan_control = support_material_fan_speed != fan_speed_new && support_material_fan_speed >= 0;
+            internal_infill_fan_control = internal_infill_fan_speed != fan_speed_new && internal_infill_fan_speed >= 0;
+            solid_inifill_fan_control = solid_infill_fan_speed != fan_speed_new && solid_infill_fan_speed >= 0;
+            internal_perimeter_fan_control = internal_perimeter_fan_speed != fan_speed_new && internal_perimeter_fan_speed >= 0;
+            ironing_fan_control = ironing_fan_speed != fan_speed_new && ironing_fan_speed >= 0;
+            overhang_perimeter_fan_control = overhang_perimeter_fan_speed != fan_speed_new && overhang_perimeter_fan_speed >= 0;
+            thin_wall_fan_control = thin_wall_fan_speed != fan_speed_new && thin_wall_fan_speed >= 0;
+            gap_fill_fan_control = gap_fill_fan_speed != fan_speed_new && gap_fill_fan_speed >= 0;
+            wipe_tower_fan_control = wipe_tower_fan_speed != fan_speed_new && wipe_tower_fan_speed >= 0;
+            //mixed_fan_control = mixed_fan_speed != fan_speed_new && mixed_fan_speed >= 0;
+
+            */
+            bridge_fan_control                      = true;
+            bridge_internal_fan_control             = true;
+            top_fan_control                         = true;
+            support_material_interface_fan_control  = true;
+            external_perimeter_fan_control          = true;
+            support_material_fan_control            = true;
+            internal_infill_fan_control             = true;
+            solid_inifill_fan_control               = true;
+            internal_perimeter_fan_control          = true;
+            ironing_fan_control                     = true;
+            overhang_perimeter_fan_control          = true;
+            thin_wall_fan_control                   = true;
+            gap_fill_fan_control                    = true;
+            wipe_tower_fan_control                  = true;
+
         } else {
-            bridge_fan_control = false;
-            bridge_fan_speed   = 0;
-            bridge_internal_fan_control = false;
-            bridge_internal_fan_speed = 0;
-            top_fan_control    = false;
-            top_fan_speed      = 0;
-            supp_inter_fan_control = false;
-            supp_inter_fan_speed = 0;
-            ext_peri_fan_control = false;
-            ext_peri_fan_speed = 0;
-            fan_speed_new      = 0;
+            bridge_fan_control                     = false;
+            bridge_fan_speed                       = 0;
+            bridge_internal_fan_control            = false;
+            bridge_internal_fan_speed              = 0;
+            top_fan_control                        = false;
+            top_fan_speed                          = 0;
+            support_material_interface_fan_control = false;
+            support_material_interface_fan_speed   = 0;
+            external_perimeter_fan_control         = false;
+            external_perimeter_fan_speed           = 0;
+            support_material_fan_control           = false;
+            support_material_fan_speed             = 0;
+            internal_infill_fan_control            = false;
+            internal_infill_fan_speed              = 0;
+            solid_inifill_fan_control              = false;
+            solid_infill_fan_speed                 = 0;
+            internal_perimeter_fan_control         = false;
+            internal_perimeter_fan_speed           = 0;
+            ironing_fan_control                    = false;
+            ironing_fan_speed                      = 0;
+            overhang_perimeter_fan_control         = false;
+            overhang_perimeter_fan_speed           = 0;
+            thin_wall_fan_control                  = false;
+            thin_wall_fan_speed                    = 0;
+            gap_fill_fan_control                   = false;
+            gap_fill_fan_speed                     = 0;
+            wipe_tower_fan_control                 = false;
+            wipe_tower_fan_speed                   = 0;
+            //mixed_fan_control                    = false;
+            //mixed_fan_speed                      = 0;       
+            fan_speed_new                          = 0;
         }
-        if (fan_speed_new != m_fan_speed) {
-            m_fan_speed = fan_speed_new;
-            new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, m_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
-        }
+        /*if (fan_speed_new != m_fan_speed) {
+            m_fan_speed = fan_speed_new;//writes default fan speed at start
+            new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, m_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"inital_fan_speed;");
+            //new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, m_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
+        }*/
     };
     //set to know all fan modifiers that can be applied ( TYPE_BRIDGE_FAN_END, TYPE_TOP_FAN_START, TYPE_SUPP_INTER_FAN_START, TYPE_EXTERNAL_PERIMETER).
     std::unordered_set<CoolingLine::Type> current_fan_sections;
@@ -934,20 +1271,23 @@ std::string CoolingBuffer::apply_layer_cooldown(
             if (!boost::starts_with(line_start, ";_")) {
                 new_gcode.append(line_start, line_end - line_start);
             }
-        } else if (line->type & CoolingLine::TYPE_STORE_FOR_WT) {
-            stored_fan_speed = m_fan_speed;
+        } /*else if (line->type & CoolingLine::TYPE_STORE_FOR_WT) {
+            //stored_fan_speed = m_fan_speed;
         } else if (line->type & CoolingLine::TYPE_RESTORE_AFTER_WT) {
-            new_gcode += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, stored_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
-        } else if (line->type & CoolingLine::TYPE_BRIDGE_FAN_START) {
+            new_gcode += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, stored_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage, "restored");
+            //new_gcode += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, stored_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
+        
+        }*/ else if (line->type & CoolingLine::TYPE_BRIDGE_FAN_START) {
             if (bridge_fan_control && current_fan_sections.find(CoolingLine::TYPE_BRIDGE_FAN_START) == current_fan_sections.end()) {
                 fan_need_set = true;
                 current_fan_sections.insert(CoolingLine::TYPE_BRIDGE_FAN_START);
             }
         } else if (line->type & CoolingLine::TYPE_BRIDGE_FAN_END) {
             if (bridge_fan_control || current_fan_sections.find(CoolingLine::TYPE_BRIDGE_FAN_START) != current_fan_sections.end()) {
-                fan_need_set = true;
+                fan_need_set = true;//shouldn't this be false?? or do you want to set fans speed at end of extrusion role ?
                 current_fan_sections.erase(CoolingLine::TYPE_BRIDGE_FAN_START);
             }
+
         } else if (line->type & CoolingLine::TYPE_BRIDGE_INTERNAL_FAN_START) {
             if (bridge_internal_fan_control && current_fan_sections.find(CoolingLine::TYPE_BRIDGE_INTERNAL_FAN_START) == current_fan_sections.end()) {
                 fan_need_set = true;
@@ -958,6 +1298,7 @@ std::string CoolingBuffer::apply_layer_cooldown(
                 fan_need_set = true;
                 current_fan_sections.erase(CoolingLine::TYPE_BRIDGE_INTERNAL_FAN_START);
             }
+
         } else if (line->type & CoolingLine::TYPE_TOP_FAN_START) {
             if (top_fan_control && current_fan_sections.find(CoolingLine::TYPE_TOP_FAN_START) == current_fan_sections.end()) {
                 fan_need_set = true;
@@ -968,24 +1309,150 @@ std::string CoolingBuffer::apply_layer_cooldown(
                 fan_need_set = true;
                 current_fan_sections.erase(CoolingLine::TYPE_TOP_FAN_START);
             }
+
         } else if (line->type & CoolingLine::TYPE_SUPP_INTER_FAN_START) {
-            if (supp_inter_fan_control && current_fan_sections.find(CoolingLine::TYPE_SUPP_INTER_FAN_START) == current_fan_sections.end()) {
+            if (support_material_interface_fan_control && current_fan_sections.find(CoolingLine::TYPE_SUPP_INTER_FAN_START) == current_fan_sections.end()) {
                 fan_need_set = true;
                 current_fan_sections.insert(CoolingLine::TYPE_SUPP_INTER_FAN_START);
             }
         } else if (line->type & CoolingLine::TYPE_SUPP_INTER_FAN_END) {
-            if (supp_inter_fan_control || current_fan_sections.find(CoolingLine::TYPE_SUPP_INTER_FAN_START) != current_fan_sections.end()) {
+            if (support_material_interface_fan_control || current_fan_sections.find(CoolingLine::TYPE_SUPP_INTER_FAN_START) != current_fan_sections.end()) {
                 fan_need_set = true;
                 current_fan_sections.erase(CoolingLine::TYPE_SUPP_INTER_FAN_START);
             }
-        } else if (line->type & CoolingLine::TYPE_EXTRUDE_END) {
-            if (ext_peri_fan_control || current_fan_sections.find(CoolingLine::TYPE_EXTERNAL_PERIMETER) != current_fan_sections.end()) {
+
+        } else if (line->type & CoolingLine::TYPE_SUPPORT_MAT_FAN_START) {
+            if (support_material_fan_control && current_fan_sections.find(CoolingLine::TYPE_SUPPORT_MAT_FAN_START) == current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.insert(CoolingLine::TYPE_SUPPORT_MAT_FAN_START);
+            }
+        } else if (line->type & CoolingLine::TYPE_SUPPORT_MAT_FAN_END) {
+            if (support_material_fan_control || current_fan_sections.find(CoolingLine::TYPE_SUPPORT_MAT_FAN_START) != current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.erase(CoolingLine::TYPE_SUPPORT_MAT_FAN_START);
+            }
+        } else if (line->type & CoolingLine::TYPE_INTERNAL_INFILL_FAN_START) {//-----------------------
+            if (internal_infill_fan_control && current_fan_sections.find(CoolingLine::TYPE_INTERNAL_INFILL_FAN_START) == current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.insert(CoolingLine::TYPE_INTERNAL_INFILL_FAN_START);
+            }
+        } else if (line->type & CoolingLine::TYPE_INTERNAL_INFILL_FAN_END) {//----------------------
+            if (internal_infill_fan_control || current_fan_sections.find(CoolingLine::TYPE_INTERNAL_INFILL_FAN_START) != current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.erase(CoolingLine::TYPE_INTERNAL_INFILL_FAN_START);
+            }
+        } else if (line->type & CoolingLine::TYPE_SOLID_INFILL_FAN_START) {
+            if (solid_inifill_fan_control && current_fan_sections.find(CoolingLine::TYPE_SOLID_INFILL_FAN_START) == current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.insert(CoolingLine::TYPE_SOLID_INFILL_FAN_START);
+            }
+        } else if (line->type & CoolingLine::TYPE_SOLID_INFILL_FAN_END) {
+            if (solid_inifill_fan_control || current_fan_sections.find(CoolingLine::TYPE_SOLID_INFILL_FAN_START) != current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.erase(CoolingLine::TYPE_SOLID_INFILL_FAN_START);
+            }
+        } else if (line->type & CoolingLine::TYPE_INTERNAL_PERI_FAN_START) {//-------------------------
+            if (internal_perimeter_fan_control && current_fan_sections.find(CoolingLine::TYPE_INTERNAL_PERI_FAN_START) == current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.insert(CoolingLine::TYPE_INTERNAL_PERI_FAN_START);
+            }
+        } else if (line->type & CoolingLine::TYPE_INTERNAL_PERI_FAN_END) {//----------------------------
+            if (internal_perimeter_fan_control || current_fan_sections.find(CoolingLine::TYPE_INTERNAL_PERI_FAN_START) != current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.erase(CoolingLine::TYPE_INTERNAL_PERI_FAN_START);
+            }
+        } else if (line->type & CoolingLine::TYPE_GAP_FILL_FAN_START) {
+            if (gap_fill_fan_control && current_fan_sections.find(CoolingLine::TYPE_GAP_FILL_FAN_START) == current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.insert(CoolingLine::TYPE_GAP_FILL_FAN_START);
+            }
+        } else if (line->type & CoolingLine::TYPE_GAP_FILL_FAN_END) {
+            if (gap_fill_fan_control || current_fan_sections.find(CoolingLine::TYPE_GAP_FILL_FAN_START) != current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.erase(CoolingLine::TYPE_GAP_FILL_FAN_START);
+            }
+
+        } else if (line->type & CoolingLine::TYPE_OVERHANG_PERI_FAN_START) {//-------------------------
+            if (overhang_perimeter_fan_control && current_fan_sections.find(CoolingLine::TYPE_OVERHANG_PERI_FAN_START) == current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.insert(CoolingLine::TYPE_OVERHANG_PERI_FAN_START);
+            }
+        } else if (line->type & CoolingLine::TYPE_OVERHANG_PERI_FAN_END) {//-------------------------
+            if (overhang_perimeter_fan_control || current_fan_sections.find(CoolingLine::TYPE_OVERHANG_PERI_FAN_START) != current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.erase(CoolingLine::TYPE_OVERHANG_PERI_FAN_START);
+            }
+
+        }
+
+
+
+
+
+
+        else if (line->type & CoolingLine::TYPE_MIXED_FAN_START) {
+         //else if (line->type & CoolingLine::TYPE_THIN_WALL_FAN_START) {}
+            if (thin_wall_fan_control && current_fan_sections.find(CoolingLine::TYPE_MIXED_FAN_START) == current_fan_sections.end()) {
+            //if (thin_wall_fan_control && current_fan_sections.find(CoolingLine::TYPE_THIN_WALL_FAN_START) == current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.insert(CoolingLine::TYPE_MIXED_FAN_START);
+                //current_fan_sections.insert(CoolingLine::TYPE_THIN_WALL_FAN_START);
+            }
+        } else if (line->type & CoolingLine::TYPE_MIXED_FAN_END) {
+          //else if (line->type & CoolingLine::TYPE_THIN_WALL_FAN_END) {
+            if (thin_wall_fan_control || current_fan_sections.find(CoolingLine::TYPE_MIXED_FAN_START) != current_fan_sections.end()) {
+            //if (thin_wall_fan_control || current_fan_sections.find(CoolingLine::TYPE_THIN_WALL_FAN_START) != current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.erase(CoolingLine::TYPE_MIXED_FAN_START);
+                //thin_wall_fan_control = false;
+                //current_fan_sections.erase(CoolingLine::TYPE_THIN_WALL_FAN_START);
+            }
+
+        } else if (line->type & CoolingLine::TYPE_MIXED_FAN_START) {
+            //else if (line->type & CoolingLine::TYPE_IRONING_FAN_START) {
+            if (ironing_fan_control && current_fan_sections.find(CoolingLine::TYPE_MIXED_FAN_START) == current_fan_sections.end()) {
+            //if (ironing_fan_control || current_fan_sections.find(CoolingLine::TYPE_IRONING_FAN_START) != current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.insert(CoolingLine::TYPE_MIXED_FAN_START);
+                //current_fan_sections.insert(CoolingLine::TYPE_IRONING_FAN_START);
+            }
+        } else if (line->type & CoolingLine::TYPE_MIXED_FAN_END) {
+            //else if (line->type & CoolingLine::TYPE_IRONING_FAN_END) {
+            if (ironing_fan_control || current_fan_sections.find(CoolingLine::TYPE_MIXED_FAN_START) != current_fan_sections.end()) {
+            //if (ironing_fan_control || current_fan_sections.find(CoolingLine::TYPE_IRONING_FAN_START) != current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.erase(CoolingLine::TYPE_MIXED_FAN_START);
+                //ironing_fan_control = false;
+                //current_fan_sections.erase(CoolingLine::TYPE_IRONING_FAN_START);
+            }
+        }else if (line->type & CoolingLine::TYPE_MIXED_FAN_START) {
+            //else if (line->type & CoolingLine::TYPE_WIPE_TOWER_FAN_START) {
+            if (wipe_tower_fan_control && current_fan_sections.find(CoolingLine::TYPE_MIXED_FAN_START) == current_fan_sections.end()) {
+           // if (wipe_tower_fan_control || current_fan_sections.find(CoolingLine::TYPE_WIPE_TOWER_FAN_START) != current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.insert(CoolingLine::TYPE_MIXED_FAN_START);
+                //current_fan_sections.insert(CoolingLine::TYPE_WIPE_TOWER_FAN_START);
+            }
+        } else if (line->type & CoolingLine::TYPE_MIXED_FAN_END) {
+            //else if (line->type & CoolingLine::TYPE_WIPE_TOWER_FAN_END) {
+            if (wipe_tower_fan_control || current_fan_sections.find(CoolingLine::TYPE_MIXED_FAN_START) != current_fan_sections.end()) {
+            //if (wipe_tower_fan_control || current_fan_sections.find(CoolingLine::TYPE_WIPE_TOWER_FAN_START) != current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.erase(CoolingLine::TYPE_MIXED_FAN_START);
+                //current_fan_sections.erase(CoolingLine::TYPE_WIPE_TOWER_FAN_START);
+                //wipe_tower_fan_control = false;
+            }
+        }
+        
+
+        else if (line->type & CoolingLine::TYPE_EXTRUDE_END) {
+            if (external_perimeter_fan_control || current_fan_sections.find(CoolingLine::TYPE_EXTERNAL_PERIMETER) != current_fan_sections.end()) {
                 fan_need_set = true;
                 current_fan_sections.erase(CoolingLine::TYPE_EXTERNAL_PERIMETER);
             }
         } else if (line->type & (CoolingLine::TYPE_ADJUSTABLE | CoolingLine::TYPE_ADJUSTABLE_EMPTY | CoolingLine::TYPE_EXTERNAL_PERIMETER | CoolingLine::TYPE_WIPE | CoolingLine::TYPE_HAS_F)) {
             //ext_peri_fan_speed
-            if ((line->type & CoolingLine::TYPE_EXTERNAL_PERIMETER) != 0 && ext_peri_fan_control && current_fan_sections.find(CoolingLine::TYPE_EXTERNAL_PERIMETER) == current_fan_sections.end()) {
+            if ((line->type & CoolingLine::TYPE_EXTERNAL_PERIMETER) != 0 && external_perimeter_fan_control && current_fan_sections.find(CoolingLine::TYPE_EXTERNAL_PERIMETER) == current_fan_sections.end()) {
                 fan_need_set = true;
                 current_fan_sections.insert(CoolingLine::TYPE_EXTERNAL_PERIMETER);
             }
@@ -1068,32 +1535,107 @@ std::string CoolingBuffer::apply_layer_cooldown(
         } else {
             new_gcode.append(line_start, line_end - line_start);
         }
-        if (fan_need_set) {
-            //choose the speed with highest priority
-            if (current_fan_sections.find(CoolingLine::TYPE_BRIDGE_FAN_START) != current_fan_sections.end())
-                new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, bridge_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
-            else if (current_fan_sections.find(CoolingLine::TYPE_BRIDGE_INTERNAL_FAN_START) != current_fan_sections.end())
-                new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, bridge_internal_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
-            else if (current_fan_sections.find(CoolingLine::TYPE_TOP_FAN_START) != current_fan_sections.end())
-                new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, top_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
-            else if (current_fan_sections.find(CoolingLine::TYPE_SUPP_INTER_FAN_START) != current_fan_sections.end())
-                new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, supp_inter_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
-            else if (current_fan_sections.find(CoolingLine::TYPE_EXTERNAL_PERIMETER) != current_fan_sections.end())
-                new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, ext_peri_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
+        if (fan_need_set == true) {
+            //choose the speed with highest priority //new if statement doesn't matter for priority now.
+
+            if (bridge_internal_fan_control && current_fan_sections.find(CoolingLine::TYPE_BRIDGE_INTERNAL_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_BRIDGE_INTERNAL_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, bridge_internal_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"bridge_internl_fan_speed;");
+            
+            if (support_material_fan_control && current_fan_sections.find(CoolingLine::TYPE_SUPPORT_MAT_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_SUPPORT_MAT_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, support_material_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"support_material_fan_;;;;");
+            
+            if (internal_perimeter_fan_control && current_fan_sections.find(CoolingLine::TYPE_INTERNAL_PERI_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_INTERNAL_PERI_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, internal_perimeter_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"internal_perimeter_fan_;;");
+
+            if (overhang_perimeter_fan_control && current_fan_sections.find(CoolingLine::TYPE_OVERHANG_PERI_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_OVERHANG_PERI_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, overhang_perimeter_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"overhang_perimeter_fan_;;");
+
+            if (solid_inifill_fan_control && current_fan_sections.find(CoolingLine::TYPE_SOLID_INFILL_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_SOLID_INFILL_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, solid_infill_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"solid_infill_fan_speed;;;");
+                    
+            if (internal_infill_fan_control && current_fan_sections.find(CoolingLine::TYPE_INTERNAL_INFILL_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_INTERNAL_INFILL_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, internal_infill_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"internal_infil_fan_speed;");                
+            
+            if (support_material_interface_fan_control && current_fan_sections.find(CoolingLine::TYPE_SUPP_INTER_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_SUPP_INTER_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, support_material_interface_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"support_interface_fan;;;;");
+                
+            if (top_fan_control && current_fan_sections.find(CoolingLine::TYPE_TOP_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_TOP_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, top_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"top_fan_speed_;;;;;;;;;;;;");
+
+            if (external_perimeter_fan_control && current_fan_sections.find(CoolingLine::TYPE_EXTERNAL_PERIMETER) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_EXTERNAL_PERIMETER)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, external_perimeter_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"ext_peri_fan_speed;;;;;;;");
+
+            if (gap_fill_fan_control && current_fan_sections.find(CoolingLine::TYPE_GAP_FILL_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_GAP_FILL_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, gap_fill_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"gap_fill_fan_;;;;;;;;;;;;");
+                
+            if (bridge_fan_control && current_fan_sections.find(CoolingLine::TYPE_BRIDGE_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_BRIDGE_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, bridge_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"bridge_fan_speed;;;;;;;;;");
+
+            //else if needed to prevent double ups of fan types getting set.priority
+            if (thin_wall_fan_control && current_fan_sections.find(CoolingLine::TYPE_MIXED_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_MIXED_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, thin_wall_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"Mixed_fan_speed;;;;;;;;;;");
+          
+            else if (ironing_fan_control && current_fan_sections.find(CoolingLine::TYPE_MIXED_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_MIXED_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, ironing_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"Mixed_fan_speed;;;;;;;;;;");
+
+            else if (wipe_tower_fan_control && current_fan_sections.find(CoolingLine::TYPE_MIXED_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_MIXED_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, wipe_tower_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"Mixed_fan_speed;;;;;;;;;;");
+
+
+
+            /*
+            if (ironing_fan_control && current_fan_sections.find(CoolingLine::TYPE_IRONING_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_IRONING_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, ironing_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"ironing_fan_speed_;;;;;;;;;;;;");
+                    //new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, ironing_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
+
+            if (thin_wall_fan_control && current_fan_sections.find(CoolingLine::TYPE_THIN_WALL_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_THIN_WALL_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, thin_wall_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"thin_wall_fan_speed_;;;;;;;;;;;;");
+                    //new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, thin_wall_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
+
+            if (wipe_tower_fan_control && current_fan_sections.find(CoolingLine::TYPE_WIPE_TOWER_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_WIPE_TOWER_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, wipe_tower_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"wipe_tower_fan_speed_;;;;;;;;;;;;");
+                    //new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, wipe_tower_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
+
+            */
+
+            /*if (mixed_fan_control && current_fan_sections.find(CoolingLine::TYPE_MIXED_FAN_START) != current_fan_sections.end())
+                if (line->type & CoolingLine::TYPE_MIXED_FAN_START)
+                    new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, mixed_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"mixed_fan_speed_;;;;;;;;;;;;");
+                    //new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, mixed_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
+            */
             else
-                new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, m_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
-            fan_need_set = false;
+                new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, min_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,"restored fan toolchange;;");
+                //new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, m_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
+                //new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, -1, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,";error finding cooling line");
+                fan_need_set = false;
         }
         pos = line_end;
     }
-#undef EXTRUDER_CONFIG
-    const char *gcode_end = gcode.c_str() + gcode.size();
-    if (pos < gcode_end)
-        new_gcode.append(pos, gcode_end - pos);
+    #undef EXTRUDER_CONFIG
+        const char *gcode_end = gcode.c_str() + gcode.size();
+        if (pos < gcode_end)
+            new_gcode.append(pos, gcode_end - pos);
 
-    // There should be no empty G1 lines emitted.
-    assert(new_gcode.find("G1\n") == std::string::npos);
-    return new_gcode;
-}
+        // There should be no empty G1 lines emitted.
+        assert(new_gcode.find("G1\n") == std::string::npos);
+        return new_gcode;
+    }
 
 } // namespace Slic3r

@@ -742,7 +742,9 @@ std::string GCodeWriter::unlift()
     return gcode;
 }
 
-std::string GCodeWriter::set_fan(const GCodeFlavor gcode_flavor, bool gcode_comments, uint8_t speed, uint8_t tool_fan_offset, bool is_fan_percentage)
+//std::string GCodeWriter::set_fan(const GCodeFlavor gcode_flavor, bool gcode_comments, uint8_t speed, uint8_t tool_fan_offset, bool is_fan_percentage)
+std::string GCodeWriter::set_fan(const GCodeFlavor gcode_flavor, bool gcode_comments, uint8_t speed, uint8_t tool_fan_offset, bool is_fan_percentage,  const char fanrole[26])
+// include type extrusion role -to help with debug need to truncate the fanrole data 
 {
 /*
     std::ostringstream gcode;
@@ -775,7 +777,8 @@ std::string GCodeWriter::set_fan(const GCodeFlavor gcode_flavor, bool gcode_comm
         gcode << "\n";
     }
     return gcode.str();*/
-
+    std::string        fanrole1 = fanrole;
+    std::string        fanrole2 = fanrole1.substr(0, fanrole1.find(";"));
     std::ostringstream gcode;
 
     //add fan_offset
@@ -791,9 +794,9 @@ std::string GCodeWriter::set_fan(const GCodeFlavor gcode_flavor, bool gcode_comm
         } else if ((gcfMakerWare == gcode_flavor) || (gcfSailfish == gcode_flavor)) {
             gcode << "M127";
         } else {
-            gcode << "M107";
+            gcode << "M107; makersail";//sometimes it appears after a fan speed has been defined.     #fixed
         }
-        if (gcode_comments) gcode << " ; disable fan";
+        if (gcode_comments) gcode << "; disable fan " << fanrole2 << "\n";
         gcode << "\n";
     } else {
         if ((gcfMakerWare == gcode_flavor) || (gcfSailfish == gcode_flavor)) {
@@ -807,8 +810,8 @@ std::string GCodeWriter::set_fan(const GCodeFlavor gcode_flavor, bool gcode_comm
             }
             gcode << (fan_baseline * (fan_speed / 100.0));
         }
-        if (gcode_comments) gcode << " ; enable fan";
-        gcode << "\n";
+        if (gcode_comments) gcode << "; enable fan " << fanrole2 << "\n";
+        else  gcode << "\n";
     }
     return gcode.str();
 }
@@ -817,7 +820,8 @@ std::string GCodeWriter::set_fan(const uint8_t speed, uint16_t default_tool)
 {
     const Tool *tool = m_tool == nullptr ? get_tool(default_tool) : m_tool;
     m_last_fan_speed = speed;
-    return GCodeWriter::set_fan(this->config.gcode_flavor.value, this->config.gcode_comments.value, speed, tool ? tool->fan_offset() : 0, this->config.fan_percentage.value);
+    return GCodeWriter::set_fan(this->config.gcode_flavor.value, this->config.gcode_comments.value, speed, tool ? tool->fan_offset() : 0, this->config.fan_percentage.value,"");
+    //return GCodeWriter::set_fan(this->config.gcode_flavor.value, this->config.gcode_comments.value, speed, tool ? tool->fan_offset() : 0, this->config.fan_percentage.value);
 }
 
 #ifdef USE_GCODEFORMATTER
