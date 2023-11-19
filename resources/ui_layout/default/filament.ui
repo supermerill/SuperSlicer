@@ -39,7 +39,7 @@ group:Fan speed - default
 		setting:label$:perimeter_fan_speed
 		setting:label_width$12:label$External:external_perimeter_fan_speed
 	end_line
-	setting:overhang_perimeter_fan_speed
+	setting:overhangs_fan_speed
 	setting:infill_fan_speed
 	line:Solid Infill fan speed
 		setting:label$:solid_infill_fan_speed

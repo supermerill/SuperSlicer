@@ -768,10 +768,10 @@ std::vector<uint8_t> etype_can_increase_fan = {
     ExtrusionRole::erNone,
     ExtrusionRole::erBridgeInfill,
     ExtrusionRole::erInternalBridgeInfill,
-    //ExtrusionRole::erTopSolidInfill,
-    //ExtrusionRole::erIroning,
-    //ExtrusionRole::erSupportMaterialInterface,
-    //ExtrusionRole::erSupportMaterial,
+    ExtrusionRole::erTopSolidInfill,
+    ExtrusionRole::erIroning,
+    ExtrusionRole::erSupportMaterialInterface,
+    ExtrusionRole::erSupportMaterial,
     ExtrusionRole::erExternalPerimeter,
     ExtrusionRole::erThinWall,
     ExtrusionRole::erPerimeter,
@@ -782,18 +782,18 @@ std::vector<uint8_t> etype_can_increase_fan = {
 // list of fan that won't be reduced in the first layers by full_fan_speed_layer (after disable_fan_first_layers)
 std::vector<uint8_t> etype_can_ramp_up_fan = {
     ExtrusionRole::erNone,
-    //ExtrusionRole::erBridgeInfill,
-    //ExtrusionRole::erInternalBridgeInfill,
+    ExtrusionRole::erBridgeInfill,
+    ExtrusionRole::erInternalBridgeInfill,
     ExtrusionRole::erTopSolidInfill,
     ExtrusionRole::erIroning,
-    //ExtrusionRole::erSupportMaterialInterface,
+    ExtrusionRole::erSupportMaterialInterface,
     ExtrusionRole::erSupportMaterial,
     ExtrusionRole::erExternalPerimeter,
     ExtrusionRole::erThinWall,
     ExtrusionRole::erPerimeter,
     ExtrusionRole::erSolidInfill,
     ExtrusionRole::erInternalInfill,
-    //ExtrusionRole::erOverhangPerimeter,
+    ExtrusionRole::erOverhangPerimeter,
     ExtrusionRole::erGapFill };
 
 // Apply slow down over G-code lines stored in per_extruder_adjustments, enable fan if needed.
@@ -856,30 +856,48 @@ std::string CoolingBuffer::apply_layer_cooldown(
         int full_fan_speed_layer = EXTRUDER_CONFIG(full_fan_speed_layer);
         if (int(layer_id) >= disable_fan_first_layers) {
             int   max_fan_speed             = EXTRUDER_CONFIG(max_fan_speed);
-            float slowdown_below_layer_time = float(EXTRUDER_CONFIG(slowdown_below_layer_time));
+            float slowdown_below_layer_time = float(EXTRUDER_CONFIG(slowdown_below_layer_time));//BUG extrusion speed doesn't slow down here anymore
             float fan_below_layer_time      = float(EXTRUDER_CONFIG(fan_below_layer_time));
             for (int i = 0; i < ExtrusionRole::erCount; i++) {
                 fan_speeds[i] = default_fan_speed[i];
+                if(fan_speeds[i] == -1){fan_speeds[i]=min_fan_speed;}// if fan ER has -1 give it min_fan_speed value
             }
             //if not always on, the default is "no fan" and not the min.
             if (!EXTRUDER_CONFIG(fan_always_on)) {
                 fan_speeds[0] = 0;
             }
-            if (layer_time < slowdown_below_layer_time && fan_below_layer_time > 0) {
-                // Layer time very short. Enable the fan to a full throttle.
+            if (layer_time <= fan_below_layer_time) {
+                // Layer time very short. Enable the fan to a full throttle. //GUI: short layer time - began to incrase fan base speed
+                // FIXED i think ? // BUG https://imgur.com/a/smAkApD support material only on a layer fan speed value gets re written, must be becuase of the suport height being thicker layers? combing infill layers has no effect on factor value. it also has the wrong layertime value.
+                //FIXED //bug with setting fan speeds value
                 //fan_speed_new = std::max(max_fan_speed, fan_speed_new);
                 for (size_t etype_idx = 0; etype_idx < etype_can_increase_fan.size(); etype_idx++) {
                     uint16_t idx = etype_can_increase_fan[etype_idx];
-                    fan_speeds[idx] = std::max(max_fan_speed, fan_speeds[idx]);
+                    if (fan_speeds[idx] < max_fan_speed){
+                        if(fan_speeds[idx] != 0){//if fan isn't disabled change it's vlaue.
+                            //fan_speeds[idx] = std::max(max_fan_speed, fan_speeds[idx]);
+                            fan_speeds[idx] = max_fan_speed;
+                        }
+                        //else
+                            //fan_control[idx] = false;
+                    }
                 }
-            } else if (layer_time < fan_below_layer_time) {
-                // Layer time quite short. Enable the fan proportionally according to the current layer time.
+            }
+            if (layer_time < slowdown_below_layer_time) {//BUG extrusion speed doesn't slow down here anymore
+                //GUI: very short layer time - began to decrease extrusion rate 
+                //FIXED //bug with setting fan speeds value
+                // Layer time quite short. Enable the fan proportionally according to the current layer time. 
                 assert(layer_time >= slowdown_below_layer_time);
                 double t = (layer_time - slowdown_below_layer_time) / (fan_below_layer_time - slowdown_below_layer_time);
                 for (size_t etype_idx = 0; etype_idx < etype_can_increase_fan.size(); etype_idx++) {
                     uint16_t idx = etype_can_increase_fan[etype_idx];
                     if (fan_speeds[idx] < max_fan_speed) // don't reduce speed if max speed is lower.
-                        fan_speeds[idx] = std::clamp(int(t * fan_speeds[idx] + (1. - t) * max_fan_speed + 0.5), 0, 255);
+                        if(fan_speeds[idx] != 0){//if fan isn't disabled change it's vlaue.
+                            //fan_speeds[idx] = std::clamp(int(t * fan_speeds[idx] + (1. - t) * max_fan_speed + 0.5), 0, 255); //sends slightly wrong value
+                            fan_speeds[idx] = max_fan_speed;
+                        }
+                        //else
+                            //fan_control[idx] = false;
                 }
             }
 
@@ -887,18 +905,53 @@ std::string CoolingBuffer::apply_layer_cooldown(
             int full_fan_speed_layer = EXTRUDER_CONFIG(full_fan_speed_layer);
             // When ramping up fan speed from disable_fan_first_layers to full_fan_speed_layer, if disable_fan_first_layers is zero,
             // the not-fan layer is a hypothetical -1 layer.
-            if (int(layer_id) >= disable_fan_first_layers && int(layer_id) + 1 < full_fan_speed_layer) {
-                // Ramp up the fan speed from disable_fan_first_layers to full_fan_speed_layer.
-                float factor = float(int(layer_id + 1) - disable_fan_first_layers) / float(full_fan_speed_layer - disable_fan_first_layers);
-                for (size_t etype_idx = 0; etype_idx < etype_can_ramp_up_fan.size(); etype_idx++) {
-                    uint16_t idx = etype_can_ramp_up_fan[etype_idx];
-                    fan_speeds[idx] = std::clamp(int(float(fan_speeds[idx]) * factor + 0.01f), 0, 255);
+            if(full_fan_speed_layer > 0 ){
+                float factor = 0.0;
+                if (int(layer_id) <= full_fan_speed_layer || full_fan_speed_layer < int(layer_id)) {
+                    if (disable_fan_first_layers == 0){factor = float(int(layer_id +1)) / full_fan_speed_layer * 100;}
+                    else 
+                        factor = float(int(layer_id - disable_fan_first_layers)) / full_fan_speed_layer * 100;// start ramping up from disable_fan_first_layers
+                    
+                    if(int(layer_id) - disable_fan_first_layers >= full_fan_speed_layer){factor = 100;}
+                    //FIXED //bug: with supports enabled the fan factor gets broken and starts on another layer. 
+                        for (size_t etype_idx = 0; etype_idx < etype_can_ramp_up_fan.size(); etype_idx++) {
+                            uint16_t idx = etype_can_ramp_up_fan[etype_idx];
+                            //FIXED //bug shouldn't be references fan speed from config and speed them up from their config value. results in some er having higher/lower fan speeds past full_fan_speed_layer, fixes itself a few layers after.
+                                if(fan_speeds[idx] != 0){// if er fan role isn't disabled TODO
+                                    
+                                    //fan_speeds[idx] = std::clamp(int(float(fan_speeds[idx]) * factor + 0.01f), 0, 255);//this is altering the values getting sent to set_fan
+                                    //fan_speeds[idx] = (factor *255) / 100;//sends pwm values to set_fan.
+                                    fan_speeds[idx] = (factor *100) / 255; //sends percentage to set_fan
+                                }
+                        }
                 }
             }
-            //only activate fan control if the fan speed is higher than default
-            fan_control[0] = true;
-            for (size_t i = 1; i < ExtrusionRole::erCount; i++) {
-                fan_control[i] = fan_speeds[i] >= 0 && fan_speeds[i] > fan_speeds[0];
+            
+            if (EXTRUDER_CONFIG(fan_always_on)) {//enables fan speed control
+                fan_control[0] = true;
+                for (size_t i = 1; i < ExtrusionRole::erCount; i++) {
+                    fan_control[i] = fan_speeds[i] >= 0 && fan_speeds[i] > fan_speeds[0];
+                    if (fan_speeds[i] != 0){
+                        fan_control[i] = true;
+                    }
+                    else
+                         fan_control[i] = false;
+                }
+            }
+            else if (!EXTRUDER_CONFIG(fan_always_on)) {// if it's disabled set -1 fan speeds to 0
+                fan_control[0] = true;
+                for (size_t i = 1; i < ExtrusionRole::erCount; i++) {
+                    if (fan_speeds[i] != 0){
+                        if(fan_speeds[i] != -1){
+                            fan_control[i] = true;
+                            fan_control[i] = fan_speeds[i];
+                        }
+                    }
+                    if(fan_speeds[i] == min_fan_speed){
+                        fan_control[i] = true;
+                        fan_speeds[i] = int(0);
+                    }
+                }
             }
 
             // if bridge_internal_fan is disabled, it takes the value of bridge_fan_control
@@ -1060,6 +1113,7 @@ std::string CoolingBuffer::apply_layer_cooldown(
             if (!fan_set) {
                 //return to default
                 new_gcode += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, m_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
+                //fan_set = true;// fan is set so stop adding it again?
             }
             fan_need_set = false;
         }
