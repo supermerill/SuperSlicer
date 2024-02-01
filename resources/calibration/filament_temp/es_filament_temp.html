@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Calibraci&oacute;n de la Temperatura del Filamento</title>
+</head>
+<body>
+
+<table width="100%">
+<tbody>
+<tr>
+<td style="text-align: center;">
+<h1>Calibraci&oacute;n de la Temperatura del Filamento</h1>
+</td>
+</tr>
+<tr>
+<td style="text-align: right;"><strong>
+	<table><tr><td>Necesita:</td>
+        <td style="text-align: left;">Nivelaci&oacute;n cama</td>
+        <td style="text-align: left;">Flujo</td></tr>
+	</table>
+	</strong>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Necesita haber realizado la calibraci&oacute;n de la cama antes que este test,</strong> y preferiblemente tambi&eacute;n la calibraci&oacute;n del Flujo..
+Esta calibraci&oacute;n le ayudar&aacute; a elegir la correcta temperatura correcta respecto a uni&oacute;n del filamento, voladizos y goteo del fusor.
+Tenga presente que este test depende de la ventilaci&oacute;n de capa elegida. Puede realizar este test varias veces con m&aacute;s o menos porcentaje de ventilaci&oacute;n de capa hasta encontrar el punto exacto.</p>
+<p>Este test imprimir&aacute; una torre, impresa a diferentes temperaturas para cada planta. La planta en la mitad de altura ser&aacute; impresa con la temperatura actual elegida en la configuraci&oacute;n de su filamento. La planta en la base, tocando la cama caliente, ser&aacute; impresa con la m&aacute;xima temperatura y la planta superior con la menor temperatura posible. Puede elegir la diferencia de temperatura entre plantas y el n&uacute;mero de plantas (cuantos test por debajo de la actual temperatura desea y cuantos test con temperaturas superiores) pero puede dejarlo tal cual est&aacute; para empezar.</p>
+<h2>Resultados / observaciones</h2>
+<p>El Objetivo es elegir la temperatura m&aacute;s alta posible que no genere artifactos.</p>
+<p>Primero, debe analizar la torre. Cada planta tiene la temperatura grabada en ella.</p>
+<table width="100%">
+<tbody>
+<tr>
+<td><img src="./temp_tower_180.jpg" width="400" height="100" /></td>
+<td>Demasiado fr&iacute;o, No puede ser extruido</td>
+<td>
+</tr>
+<tr>
+<td><img src="./temp_tower_195.jpg" width="400" height="100" /></td>
+<td>Bien</td>
+</tr>
+<tr>
+<td><img src="./temp_tower_210.jpg" width="400" height="100" /></td>
+<td>Bien</td>
+</tr>
+<tr>
+<td><img src="./temp_tower_225.jpg" width="400" height="100" /></td>
+<td>Demasiado caliente, se ve que la boquilla gotea</td>
+</tr>
+<tr>
+<td><img src="./temp_tower_240.jpg" width="400" height="100" /></td>
+<td>Muy caliente, se ve que la boquilla gotea</td>
+</tr>
+</tbody>
+</table>
+<p>Aqu&iacute; puede ver que la planta impresa a 210 grados celsius es la m&aacute;s caliente que podemos imprimir sin problemas de desintegraci&oacute;n (aparte del calor; la baja calidad de impresi&oacute;n es debido a altas velocidades). Tambi&eacute;n, tuve &eacute;xito al romper (con cierta dificultad) la planta a 195 grados debido a una mala adhesi&oacute;n entre capas; as&iacute; que fue impresa a una baja temperatura para este filamento. Aconsejo hacer el mismo test.</p>
+<h2>Resultados: destrucci&oacute;n</h2>
+<p>Finalmente, Debe romper cada planta por la mitad, para comprobar si las bajas temperaturas de impresi&oacute;n tienen efectos adversos en la uni&oacute;n de las capas. No deber&iacute;a ser posible romper solo con sus manos una planta. Si puede romper una planta, entonces la temperatura de esa planta es definitivamente demasiado baja (o el ventilador de capa ha enfriado demasiado r&aacute;pido esa planta debido al alto caudal de aire), por tanto debe elegir la temperatura m&aacute;s alta posible o repetir el test con menos ventilaci&oacute;n de capa. Cuando intente romper una planta con la mano, no ponga los dedos en la uni&oacute;n de esa planta con la anterior o la siguiente, al cambiar la temperatura en esa zona, es la m&aacute;s d&eacute;bil, sujete el inicio de esa planta y el final de esa misma planta firmemente.</p>
+<h2>C&oacute;mo afinar su impresora</h2>
+<p>Cambie la temperatura en el perfil de filamento (extrusor -> otras capas), despu&eacute;s guarde el perfil. La temperatura de la primera capa casi siempre es 5 grados m&aacute;s para ayudar en la adhesi&oacute;n a la cama, por tanto deber&iacute;a cambiarla tambi&eacute;n, especialmente si es menor a la nueva temperatura.</p>
+</ul>
+<h2>Notas</h2>
+<p>La mayor&iacute;a de las calibraciones debe ser hechas en el orden <strong>correcto</strong>. &Eacute;sta debe ser la tercera.</p>
+<p>Los n&uacute;meros de las temperaturas solo se ver&aacute;n entre 180 y 285. Valores m&aacute;s altos o bajos no se mostraran pero el test se har&aacute; correctamente, solo tiene que recordarlas.</p>
+<p>Esta torre se realiz&oacute; con el modelo 3D <a href="https://www.thingiverse.com/thing:2729076">creado por gaaZolee</a> con la licencia: CC BY-SA 3.0.<p>
+</body>
+</html>
