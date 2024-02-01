@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Calibraci&oacute;n del Patr&oacute;n de Alisado</title>
+</head>
+<body>
+
+<table width="100%">
+<tbody>
+<tr>
+<td style="text-align: center;">
+<h1>Calibraci&oacute;n del Patr&oacute;n de Alisado</h1>
+</td>
+</tr>
+<tr>
+<td style="text-align: right;"><strong>
+    <table><tr><td>Necesita:</td>
+        <td style="text-align: left;">Flujo</td>
+        <td style="text-align: left;">Temperatura</td></tr>
+    </table>
+    </strong>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Necesita realizar la calibraci&oacute;n de flujo del filamento y el ratio de flujo en puentes antes que este test.</strong> Mejor a&uacute;n si ha realizado la calibraci&oacute;n de Temperatura del Filamento.</p>
+<p>&Eacute;ste m&eacute;todo de calibraci&oacute;n imprimir&aacute; varias piezas modificando el ratio de flujo sobre puentes, entre 100 y 125. Elija el menor valor en el que la superficie superior es plana sin "agujeros". Empiece con el bot&oacute;n over-bridge calibration.</p>
+<p>Si la calibraci&oacute;n sobre puentes (Ajustes avanzados, Configuraci&oacute;n de Impresi&oacute;n, Width & Flow, Flow ratio -> Above the bridges) no es concluyente (mismos agujeros en todas las piezas), entonces puede establecer el flujo sobre puentes en 110% y use la opci&oacute;n top fill (Ajustes avanzados, Configuraci&oacute;n de Impresi&oacute;n, Width & Flow, Flow ratio -> Top fill). Este ajuste es un poco impredecible, as&iacute; que lo mejor es no establecerlo lejos del 100%.</p>
+<h2>Resultados</h2>
+<table width="100%">
+<tbody>
+<h4>Ejemplo:</h4>
+<tr>
+<td><img src="./100.jpg" width="150" height="100" /></td>
+<td><img src="./105.jpg" width="150" height="100" /></td>
+<td><img src="./110.jpg" width="150" height="100" /></td>
+<td><img src="./115.jpg" width="150" height="100" /></td>
+<td><img src="./120.jpg" width="150" height="100" /></td>
+</tr>
+<tr>
+<td style="text-align: center;">No plano</td>
+<td style="text-align: center;">No plano</td>
+<td style="text-align: center;">No plano</td>
+<td style="text-align: center;">Plano</td>
+<td style="text-align: center;">Plano</td>
+</tr>
+</table>
+Aqu&iacute;, podemos ver atifactos hasta que el flujo sobre puentes fue establecido a 115. Si era plano en la calibraci&oacute;n del flujo, y ahora no lo es, es porque los puentes debajo de la capas superiores se est&aacute;n cayendo un poco por gravedad, por eso deja m&aacute;s volumen para rellenar. Aqu&iacute; 115 deber&iacute;a ser suficiente, pero 120 es un valor m&aacute;s seguro.
+
+<h2>Consejos</h2>
+<p>TODO</p>
+</ul>
+<h2>Notas</h2>
+<p>Este test establece la opci&oacute;n "Completar objetos individuales", quiz&aacute;s desee resetear la Configuraci&oacute;n de Impresi&oacute;n despu&eacute;s de imprimir el test.</p>
+<p>Licencia de los modelos usados en este test de calibraci&oacute;n: CC BY-SA 3.0</p>
+</body>
+</html>
