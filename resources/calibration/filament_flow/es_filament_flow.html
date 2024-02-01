@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Calibraci&oacute;n del Flujo de Filamento</title>
+</head>
+<body>
+
+<table width="100%">
+<tbody>
+<tr>
+<td style="text-align: center;">
+<h1>Calibraci&oacute;n del Flujo de Filamento</h1>
+</td>
+</tr>
+<tr>
+<td style="text-align: right;"><strong>
+    <table><tr><td>Necesita:</td>
+        <td style="text-align: left;">Nivelaci&oacute;n de cama</td></tr>
+    </table>
+    </strong>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Necesita realizar la Nivelaci&oacute;n de la cama antes de este test.</strong></p>
+<p>Este test imprimir&aacute; cinco piezas con diferentes niveles de flujo. Puede elegir la diferencia de flujo entre cada pieza. Deber&iacute;a empezar con el 10%.
+Despu&eacute;s de verificar el resultado con la ayuda de la tabla siguiente, debe modificar el multiplicador de extrusi&oacute;n del filamento en su perfil de filamento (si el -20 es el mejor, cambie el multiplicador de 1 a 0.8, vea la f&oacute;rmula m&aacute;s abajo). &iexcl;No olvide guardar los cambios en el perfil de filamento! Puede continuar con el bot&oacute;n de 2% si quiere una mayor precisi&oacute;n.</p>
+<h2>Resultados</h2>
+<h4>Ejemplo:</h4>
+<table width="100%">
+<tbody>
+<tr>
+<td><img src="./m20.jpg" width="150" height="150" /></td>
+<td><img src="./m10.jpg" width="150" height="150" /></td>
+<td><img src="./0_v1.jpg" width="150" height="150" /></td>
+<td><img src="./p10.jpg" width="150" height="150" /></td>
+<td><img src="./p20.jpg" width="150" height="150" /></td>
+</tr>
+<tr>
+<td style="text-align: center;">No plano</td>
+<td style="text-align: center;">No plano</td>
+<td style="text-align: center;">No plano</td>
+<td style="text-align: center;">Plano<br />pero el c&iacute;rculo<br />no es tan bueno</td>
+<td style="text-align: center;">Plano<br />y c&iacute;rculo bueno</td>
+</tr>
+</table>
+<p>El flujo que desea elegir es el menor posible que no cree agujeros en la superficie superior. En este ejemplo parece que el mejor flujo es +20. As&iacute; que debe cambiar el multiplicador de extrusion a 1.2 e imprimir el segudo set de pruebas (o puede establecerlo en 1.15 y no contin&uacute;es el test).</p>
+<p>No mire la calidad de las letras, deber&iacute;a ser buena solo en 0, por eso calibramos la altura de la cama para este test de flujo. Aqu&iacute;, usando el flujo +20, deber&iacute;a bajar la cama un poquito (rehaciendo la
+calibraci&oacute;n de la cama).</p>
+<h4>Segundo paso, empezando en +20%:</h4>
+<table>
+<tbody>
+<tr>
+<td><img src="./m8.jpg" width="150" height="150" /></td>
+<td><img src="./m6.jpg" width="150" height="150" /></td>
+<td><img src="./m4.jpg" width="150" height="150" /></td>
+<td><img src="./m2.jpg" width="150" height="150" /></td>
+<td><img src="./0_v2.jpg" width="150" height="150" /></td>
+</tr>
+<tr>
+<td style="text-align: center;">No bueno</td>
+<td style="text-align: center;">No bueno</td>
+<td style="text-align: center;">Casi bueno</td>
+<td style="text-align: center;">Bueno pero el<br />c&iacute;rculo tiene<br />irregularidades</td>
+<td style="text-align: center;">Bueno</td>
+</tr>
+</table>
+<p>Aqu&iacute; podemos ver que el c&iacute;rculo no es muy bueno en el -8 y -6. El -4 es casi redondo pero no perfecto, eso indica que la boquilla perdi&oacute; presi&oacute;n. -2 es casi bueno pero el 0 es el &uacute;nico que puede ser considerado como "bueno", incluso si el c&iacute;rculo no es perfecto.</p>
+<h2>C&oacute;mo afinar la impresora</h2>
+<p>Tiene que cambiar el multiplicador de extrusi&oacute;n para el filamento que ha calibrado (y guardar el perfil). La f&oacute;rmula para el multiplicador de extrusi&oacute;n es: nuevo_multiplicador = ( (100 + numero_elegido) / 100 ) * viejo_multiplicador<br />
+Ejemplo: primer paso, elijo -10, as&iacute; tengo ((100-10)/100) * 1 = (0.9) * 1 = 0.9<br />
+segundo paso elijo +5, as&iacute; tengo ((100+5)/100) * 0.9 = (1.05) * 0.9 = 0.945
+</p>
+<p>Si desea hacer este cambio permanente y mantener su multiplicador de extrusi&oacute;n a 1 en SuperSlicer, puede cambiar la configuraci&oacute;n de su firmware multiplicando (o dividiendo, depende del firmware/configuraci&oacute;n) el 'extruder speed setting' (e-step, step_distance) por su multiplicador de extrusi&oacute;n.</p>
+<h2>Consejos</h2>
+<p>Antes de realizar este test, es preferible calibrar su extrusor (es m&aacute;s f&aacute;cil en sistemas bowden):</p>
+<ul>
+<li>Quite el tubo bowden del extrusor desde la salida del extrusor (o separe el extrusor del fusor si tiene un extrusor en directa)</li>
+<li>Introduzca el filamento a trav&eacute;s del extrusor (a mano o usando el programa que lo controla)</li>
+<li>Corte el filamento a ras de la salida del extrusor. Mide con una regla de acero que efectivamente hay 0mm. Si no lo hay, anote el valor y no olvide restar este valor de todas las dem&aacute;s medidas que realice.</li>
+<li>Ordene extruir 200mm de filamento (gcode: G1 E200).</li>
+<li>Mida la longitud extruida de filamento. Repita el proceso dos veces si desea mayor precisi&oacute;n.</li>
+<li>Tiene que cambiar su multiplicador de extrusi&oacute;n (e-step, step_distance) multiplicando (o dividiendo, dependiendo de su firmware) el valor actual por (200 / media_de_valores_medidos).</li>
+<p>Tenga en cuenta que este valor puede cambiar si cambia la presi&oacute;n ejercida por el extrusor al filamento.</p>
+</ul>
+<h2>Notas</h2>
+<p>Es muy dif&iacute;cil afinar el flujo por debajo del 2%, y de todas formas, no hay filamento tan suficientemente consistente para garantizarlo. Filamentos con precisi&oacute;n de +-0.03mm tiene una variaci&oacute;n del ~7% entre el m&iacute;nimo y m&aacute;ximo de su secci&oacute;n.</p>
+<p>La mayor&iacute;a de las calibraciones deben ser realizadas en el orden correcto. &Eacute;sta deber&iacute;a ser la segunda.</p>
+<p>Quiz&aacute;s desee realizar de nuevo la calibraci&oacute;n de la cama si el resultado es inferior a 0.9 o es m&aacute;s alto de 1.1.</p>
+<p>Tenga en cuenta que el multiplicador de extrusi&oacute;n puede variar con un filamento de diferente material, uno m&aacute;s blando puede ser marcado/mordido con m&aacute;s fuerza por el extrusor y debido a ello tendr&aacute; un menor di&aacute;metro en las ruedas dentadas del extrusor.</p>
+<p>Si el extrusor "se come" el filamento y no puede completar la capa superior, deber&aacute; incrementar la distribuci&oacute;n del Alisado, planchado, Ironing (en incrementos de 5%).(Modo Experto, Configuraci&oacute;n de Impresi&oacute;n -> Relleno)</p>
+<p>Este test establece la opci&oacute;n "Completar objetos individuales", quiz&aacute;s desee resetear la Configuraci&oacute;n de Impresi&oacute;n despu&eacute;s de imprimir el test.</p>
+<p>Licencia de los modelos usados en este test de calibraci&oacute;n: CC BY-SA 3.0</p>
+</body>
+</html>
