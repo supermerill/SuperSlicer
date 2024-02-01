@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Nivelaci&oacute;n de la cama</title>
+</head>
+<body>
+<table width="100%">
+<tbody>
+<tr>
+<td style="text-align: center;">
+<h1 style="text-align: center;">Nivelaci&oacute;n de la cama</h1>
+</td>
+</tr>
+<tr>
+    <td style="text-align: right;">
+        <table><tr><td>Necesita:</td>
+            <td style="text-align: left;">Nada</td></tr>
+        </table>
+</tr>
+</tbody>
+</table>
+<p>Esta calibraci&oacute;n es la primera a realizar porque se necesita una buena adhesi&oacute;n del filamento a la cama caliente.</p>
+<p>Esta calibraci&oacute;n se realiza para obtener un ajuste fino. Por favor realice una nivelaci&oacute;n de la cama antes de empezar y mueva la boquilla a 0.2mm por encima de la cama. Debe ser capaz de mover un folio de papel entre la boquilla y la cama, pero debe sentir como la boquilla roza el folio. Despu&eacute;s de eso, deber&iacute;a ser capaz de nivelar la cama con una precisi&oacute;n de ~0.1mm aproximadamente.</p>
+<h2>C&oacute;mo funciona</h2>
+<p>Primero, seleccione su impresora y su perfil de impresi&oacute;n por defecto con el perfil de filamento adecuado para dicho filamento (PLA, ABS). Tenga en cuenta que esta calibraci&oacute;n solo funciona para el primer extrusor si dispone de varios.</p>
+<p>Cuando presione el bot&oacute;n Generate, el programa crear&aacute; y laminar&aacute; el test de impresi&oacute;n. Tienes que enviarlo a la impresora e imprimirlo. Finalizada la impresi&oacute;n compare las 5 peque&ntilde;as piezas impresas con las fotos de abajo. Tendr&aacute; que afinar su impresora / firmware para corregir la altura si es necesario.</p>
+<p>Lea las notas y consejos m&aacute;s abajo para m&aacute;s informaci&oacute;n.</p>
+<h2>Resultados</h2>
+<table width="100%">
+<tbody>
+<tr>
+<td><img src="./low_ll.jpg" width="100" height="200" /></td>
+<td><img src="./low_l.jpg" width="100" height="200" /></td>
+<td><img src="./low.jpg" width="100" height="200" /></td>
+<td><img src="./good.jpg" width="100" height="200" /></td>
+<td><img src="./high.jpg" width="100" height="200" /></td>
+<td><img src="./high_h.jpg" width="100" height="200" /></td>
+<td><img src="./high_hh.jpg" width="100" height="200" /></td>
+</tr>
+<tr>
+<td style="text-align: center;">Demasiado lejos</td>
+<td style="text-align: center;">Muy lejos</td>
+<td style="text-align: center;">A&uacute;n lejos:<br />puede ver un<br />peque&ntilde;o hueco</td>
+<td style="text-align: center;">Perfecto</td>
+<td style="text-align: center;">todav&iacute;a cerca</td>
+<td style="text-align: center;">&iexcl;Atenci&oacute;n!<br />Muy cerca:<br />comprueba el grosor<br />&iexcl;con sus dedos!</td>
+<td style="text-align: center;">Demasiado cerca<br />Peligro para<br />la cama</td>
+</tr>
+</table>
+<h2>C&oacute;mo afinar la impresora</h2>
+<p><strong>Si tu impresora tiene tornillos de nivelaci&oacute;n  de cama</strong>, &uacute;salos para subir o bajar la cama donde la pieza en cuesti&oacute;n haya quedado muy lejos o muy cerca de la cama. No olvide repetir la impresi&oacute;n despu&eacute;s de efectuar los ajustes de la cama para verificar la compensaci&oacute;n realizada. Tenga cuidado, la mayor&iacute;a de las veces, media vuelta de giro a esos tornillos, corresponden con 0.2mm de altura, que t&iacute;picamente es la altura de la primera capa. Si eleva la cama, nunca gire m&aacute;s de media vuelta, normalmente deber&iacute;a girar un cuarto de vuelta el tornillo e imprimir de nuevo.</p>
+<p><strong>Si no dispone de tornillos de ajuste de la cama</strong>, tiene que usar el programa suministrado por el fabricante o el firmware. Revise el manual de su impresora.</p>
+<h2>Consejos</h2>
+<p>Si el filamento no se adhiere a la cama caliente puede intentar: </p>
+<ul>
+<li>Aumentar el ancho de extrusi&oacute;n, aumentar&aacute; la presi&oacute;n sin sobre-extruir. Puede aumentarlo hasta el 200% del di&aacute;metro de su boquilla, pero 150% deber&iacute;a ser suficiente. (Opciones Avanzadas, Configuraci&oacute;n de Impresi&oacute;n -> Width (ancho)</li>
+<li>Reducir la velocidad de impresi&oacute;n para dar tiempo a que se adhiera a la cama. (Opciones avanzadas, Configuraci&oacute;n de Impresi&oacute;n -> Velocidad)</li>
+<li>Puede des/habilitar "z-hop" para la primera capa "Solo Levantar Z"-&gt; "Encima de Z" para un valor mayor a la altura de su primera capa. Si lo activa, puede levantar el filamento de la cama y si lo desactiva, puede que la boquilla roce en la cama y empuje el filamento depositado, as&iacute; que debe hacer pruebas para encontrar el valor &oacute;ptimo. (Opciones Avanzadas, Configuraci&oacute;n de la Impresora -> Extrusor)</li>
+</ul>
+<h2>Notas</h2>
+<p>Este test usa su configuraci&oacute;n actual de altura de primera capa, pero quiz&aacute;s desee incrementar el valor hasta el 80 % del di&aacute;metro de su boquilla (antes de usar el boton 'generate'), sobre todo si es la primera vez que realiza este test y desea evitar el riesgo de que la boquilla colisione con la cama. Para una boquilla de 0.4 mm de di&aacute;metro, el m&aacute;ximo alto de capa sugerido ser&iacute;a 0.4 * 80% = 0.32 mm, dejando m&aacute;s espacio entre cama y boquilla para evitar colisiones.</p>
+<p>Si despu&eacute;s de la calibraci&oacute;n del flujo de filamento parece que el valor del flujo es totalmente err&oacute;neo, puede realizar este test una vez m&aacute;s deshaciendo este cambio sugerido en el p&aacute;rrafo anterior.</p>
+<p>La mayor&iacute;a de las calibraciones deben ser realizadas en el orden correcto. &Eacute;ste es el primero a realizar. Si desea obtener buenos resultados necesita calibrar su extrusor, por ejemplo: Si solicita extruir 100mm de filamento, esa es la cantidad justa de filamento que debe consumir a la entrada del extrusor.</p>
+<p>Este test establece la opci&oacute;n "Completar objetos individuales", quiz&aacute;s desee resetear la Configuraci&oacute;n de Impresi&oacute;n despu&eacute;s de imprimir el test.</p>
+<p>Licencia de los modelos usados en este test de calibraci&oacute;n: CC BY-SA 3.0</p>
+</body>
+</html>
