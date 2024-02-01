@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Calibraci&oacute;n de Retracci&oacute;n</title>
+</head>
+<body>
+
+<table width="100%">
+<tbody>
+<tr>
+<td style="text-align: center;">
+<h1>Calibraci&oacute;n de Retracci&oacute;n</h1>
+</td>
+</tr>
+<tr>
+<td style="text-align: right;"><strong>
+    <table><tr><td>Necesitas:</td>
+        <td style="text-align: left;">Flujo</td>
+        <td style="text-align: left;">Temperatura</td></tr>
+    </table>
+    </strong>
+</tr>
+</tbody>
+</table>
+
+<h2>C&oacute;mo realizarlo</h2>
+<p>Es preferible haber realizado las calibraciones de flujo y temperatura.
+Esta calibraci&oacute;n le ayudar&aacute; a elegir los valores correctos de distancia de retracci&oacute;n para su extrusor y el filamento actual</p>
+<p>Este test imprimir&aacute; una pieza varianado la distancia de retracci&oacute;n para cada mil&iacute;metro impreso en el eje Z.</p>
+<h3>Incrementos y Altura</h3>
+<p> Si tiene extrusi&oacute;n directa, es mejor probar con incrementos de 0.1 mm (Steps) y ~15 mm de Altura, ya que no es com&uacute;n necesitar m&aacute;s de 1 mm de retracci&oacute;n.</h2>
+<p> Si tiene extrusi&oacute;n Bowden, es mejor probar con incrementos de 0.5 mm Steps) y ~15 mm de Altura, ya que no es com&uacute;n necesitar m&aacute;s de 6 mm de retracci&oacute;n. Tambi&eacute;n puede usar incrementos de 0.2 y una altura mayor. Tenga cuidado, ya que una alta distancia de retracci&oacute;n, incrementar&aacute; el riesgo de atasco en la boquilla si suele tenerlos.</h2>
+<h3>Temperatura de Inicio e Incrementos</h3>
+<p>Por defecto, usa la temperatura actual para un solo test. As&iacute; que no deber&iacute;a modificarla, a menos que tambi&eacute;n desee optimizar la temperatura para prevenir hilos (de una torre a otra, stringing).</p>
+<p>En la calibraci&oacute;n de temperatura, obtuvo un intervalo de temperatura donde su impresi&oacute;n fue "suficientemente buena".</p>
+<p>Aqu&iacute;, usted deber&iacute;a empezar en la m&aacute;s alta temperatura aceptable. Si ya estableci&oacute; la temperatura de su filamento, se tomar&aacute; ese valor como "actual" para la temperatura inicial (Start temp). Si no la ha establecido a&uacute;n, seleccione la mayor temperatura en el desplegable "Start temp".</p>
+<p>Despu&eacute;s, elija una opci&oacute;n en el campo "Temp decr" que no reduzca la temperatura demasiado bajo. "3x10" significa que imprimir&aacute; tres tests, el primer test a la max. temp. y el resto decrementando 10C en cada uno.</p>
+<h3>Modificando capas peque&ntilde;as</h3>
+Este bot&oacute;n cambiar&aacute; las configuraciones de Filamento/refrigeraci&oacute;n para deshabilitar todas las caracter&iacute;sticas que se activan cuando una capa es muy peque&ntilde;a y necesita enfriarse a tiempo. Con este algoritmo deshabilitado, a&ntilde;adimos un reto extra a su impresora en t&eacute;rminos de retracci&oacute;n, as&iacute; que es un buen test de estr&eacute;s. Para habilitar de nuevo esas opciones tras esta impresi&oacute;n, elimine las modificaciones hechas por este test en la pesta&ntilde;a de Filamento (la peque&ntilde;a "flecha hacia atr&aacute;s" en color naranja).
+<h3>Resultados</h3>
+<p> Terminada esta impresi&oacute;n, puede contar los mil&iacute;metros con los peque&ntilde;os salientes que tiene a los lados las torres. Yo los cuento con mi u&ntilde;a. Cuando est&eacute; en la altura donde ya no haya hilos (stringing) de una torre a otra, tome ese n&uacute;mero. Multiplique ese n&uacute;mero por los Incrementos elegidos (Steps  0.1, 0.2, 0.5, &oacute; 1) y ya tiene la distancia de retracci&oacute;n para modificar (Ajustes Avanzados, Configuraci&oacute;n de Impresora, Extrusor, Retracci&oacute;n -> Largo). Puede a&ntilde;adir un 20% m&aacute;s de distancia para tener un peque&ntilde;o margen.</p>
+<p>Si tiene varias impresiones con diferentes tempearaturas, necesita elegir la mejor impresi&oacute;n, aquella con menos hilos, a menos que el decremento de hilos no sea tan grande como para justificar el decremento de temperatura.
+<h2>Ejemplo</h2>
+<table width="100%">
+<tbody>
+<tr>
+<td><img src="./retraction.jpg" width="480" height="270" /></td>
+<td>En esta impresi&oacute;n, el &uacute;ltimo hilo ocurre a la altura de ~10. Como us&eacute; un salto de 0.5, significa que necesito al menos 5mm de retracci&oacute;n, pero lo establecer&eacute; en 6 para asegurarme de eliminar la mayor&iacute;a de hilos.</td>
+<td>
+</tr>
+</tbody>
+</table>
+<p> </p>
+<h2>Notas</h2>
+<p>La velocidad de retracci&oacute;n debe ser tan alta como su extrusor/controladores/drivers puedan soportar de forma segura, con cierto margen. 50mm/s para retracci&oacute;n y 20mm/s para de-retracci&oacute;n son buenos valores de partida para PLA.</p>
+<p>Licencia de los modelos usados en este test de calibraci&oacute;n: CC BY-SA 3.0</p>
+</body>
+</html>
