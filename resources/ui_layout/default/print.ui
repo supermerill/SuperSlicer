@@ -359,6 +359,7 @@ group:Pressure equalizer (experimental)
 group:label_width$9:sidetext_width$8:Acceleration control (advanced)
 	line:Default acceleration
 		setting:width$4:default_acceleration
+		setting:width$2:deceleration_factor
 	line:Perimeter acceleration
 		setting:width$4:perimeter_acceleration
 		setting:width$4:external_perimeter_acceleration

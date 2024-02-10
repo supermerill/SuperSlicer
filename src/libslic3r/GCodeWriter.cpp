@@ -278,6 +278,14 @@ void GCodeWriter::set_acceleration(uint32_t acceleration)
     m_current_acceleration = acceleration;
 }
 
+void GCodeWriter::set_pressure(double pressure)// adding it in now for future commits of pressure advance numbers.
+{
+    if (pressure == m_current_pressure)
+        return;
+
+    m_current_pressure = pressure;
+}
+
 void GCodeWriter::set_travel_acceleration(uint32_t acceleration)
 {
     //only gcfMarlinFirmware and gcfRepRap can use the travel accel
@@ -289,6 +297,7 @@ void GCodeWriter::set_travel_acceleration(uint32_t acceleration)
         return;
 
     m_current_travel_acceleration = acceleration;
+    m_current_acceleration = acceleration;// theres a bug with this, setting travel accel needs to reset the current accel so it can get written.
 }
 
 uint32_t GCodeWriter::get_acceleration() const
@@ -297,7 +306,7 @@ uint32_t GCodeWriter::get_acceleration() const
 }
 
 std::string GCodeWriter::write_acceleration(){
-    if (m_current_acceleration == m_last_acceleration || m_current_acceleration == 0)
+    if (m_current_acceleration == m_last_acceleration || m_current_acceleration == 0 /*|| m_current_acceleration == m_current_travel_acceleration*/ )
         return "";
 
     m_last_acceleration = m_current_acceleration;
@@ -315,11 +324,47 @@ std::string GCodeWriter::write_acceleration(){
     } else if (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfRepRap)) {
         // M204: Set printing & travel acceleration
         gcode << "M204 P" << m_current_acceleration << " T" << (m_current_travel_acceleration > 0 ? m_current_travel_acceleration : m_current_acceleration);
-    } else { // gcfMarlinLegacy
+    } else if (FLAVOR_IS(gcfKlipper)){
+        if (this->config.deceleration_factor > 0){
+            gcode << "SET_VELOCITY_LIMIT ACCEL=" << m_current_acceleration <<" ACCEL_TO_DECEL=" << m_current_acceleration * this->config.deceleration_factor.value / 100 /*<< " SQUARE_CORNER_VELOCITY="*/; //GUI will need to be "cleaned up" before adding in square corner feature since it will add ~12 boxes.
+        }
+        else{
+            gcode << "SET_VELOCITY_LIMIT ACCEL=" << m_current_acceleration;//maybe have else statement still use m204 commands?
+            //gcode << "M204 S" << m_current_acceleration; what are the P/T parameters for?? >:(
+            // https://www.klipper3d.org/G-Codes.html#g-code-commands
+        }
+    }
+    else { // gcfMarlinLegacy
         // M204: Set default acceleration
         gcode << "M204 S" << m_current_acceleration;
     }
     if (this->config.gcode_comments) gcode << " ; adjust acceleration";
+    gcode << "\n";
+    
+    return gcode.str();
+}
+
+std::string GCodeWriter::write_pressure(){// adding it in now for future commits of pressure advance numbers.
+    if (m_current_pressure == m_last_pressure || m_current_pressure == 0)
+        return "";
+
+    m_last_pressure = m_current_pressure;
+
+    std::ostringstream gcode;
+    if (FLAVOR_IS(gcfRepetier)) {
+        // M20?
+    } else if(FLAVOR_IS(gcfLerdge) || FLAVOR_IS(gcfSprinter)){
+        // M20?
+    } else if (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfRepRap)) {
+        // M900 https://marlinfw.org/docs/gcode/M900.html
+        gcode << "M900 K" << m_current_pressure;
+    } else if (FLAVOR_IS(gcfKlipper)){
+        gcode << "SET_PRESSURE_ADVANCE ADVANCE=" << m_current_pressure ;
+    }
+    else { // anythign missing?
+        
+    }
+    if (this->config.gcode_comments) gcode << " ; adjust pressure";
     gcode << "\n";
     
     return gcode.str();

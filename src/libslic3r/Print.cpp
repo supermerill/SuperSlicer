@@ -199,6 +199,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "threads",
         "travel_acceleration",
         "travel_deceleration_use_target",
+        "deceleration_factor",
         "travel_speed",
         "travel_speed_z",
         "use_firmware_retraction",

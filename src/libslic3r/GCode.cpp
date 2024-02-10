@@ -5614,9 +5614,9 @@ std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string 
 
     // compute speed here to be able to know it for travel_deceleration_use_target
     speed = _compute_speed_mm_per_sec(path, speed);
-        
-    if (m_config.travel_deceleration_use_target){
+    if (m_config.travel_deceleration_use_target == true && m_config.gcode_flavor != gcfKlipper){
         if (travel_acceleration <= acceleration || travel_acceleration == 0 || acceleration == 0) {
+            //m_writer.set_travel_acceleration((uint32_t)floor(travel_acceleration + 0.5));
             m_writer.set_travel_acceleration((uint32_t)floor(acceleration + 0.5));
             m_writer.set_acceleration((uint32_t)floor(acceleration + 0.5));
             // go to first point of extrusion path (stop at midpoint to let us set the decel speed)
@@ -5630,9 +5630,10 @@ std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string 
                 Polyline poly_start = this->travel_to(gcode, path.first_point(), path.role());
                 coordf_t length = poly_start.length();
                 // compute some numbers
-                double previous_accel = m_writer.get_acceleration(); // in mm/s²
+                double previous_accel = m_writer.get_acceleration(); // in mm/s² // isn't used anywhere?
                 double previous_speed = m_writer.get_speed(); // in mm/s
                 double travel_speed = m_config.get_computed_value("travel_speed");
+                double deccel_factor = m_config.get_computed_value("deceleration_factor");
                 // first, the acceleration distance
                 const double extrude2travel_speed_diff = previous_speed >= travel_speed ? 0 : (travel_speed - previous_speed);
                 const double seconds_to_go_travel_speed = (extrude2travel_speed_diff / travel_acceleration);
@@ -5666,6 +5667,7 @@ std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string 
                 // don't use it if the travel speed isn't high enough vs next speed
                 cant_use_deceleration = cant_use_deceleration || dist_to_go_extrude_speed < coordf_t(SCALED_EPSILON);
                 if (cant_use_deceleration) {
+                    //m_writer.set_travel_acceleration((uint32_t)floor(travel_acceleration + 0.5)); ?
                     m_writer.set_travel_acceleration((uint32_t)floor(acceleration + 0.5));
                     m_writer.set_acceleration((uint32_t)floor(acceleration + 0.5));
                     this->write_travel_to(gcode, poly_start, "move to first " + description + " point (minimum acceleration)");
@@ -5699,7 +5701,8 @@ std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string 
                         this->write_travel_to(gcode, poly_start, "move to first " + description + " point (acceleration)");
                         //travel acceleration should be already set at startup via special gcode, and so it's automatically used by G0.
                         gcode += "; decel to extrusion\n";
-                        m_writer.set_travel_acceleration((uint32_t)floor(acceleration + 0.5));
+                        m_writer.set_travel_acceleration((uint32_t)floor(travel_acceleration * deccel_factor ));
+                        //m_writer.set_acceleration((uint32_t)floor(acceleration * deccel_factor ));
                         this->write_travel_to(gcode, poly_end, "move to first " + description + " point (deceleration)");
                         // restore travel accel and ensure the new extrusion accel is set
                         m_writer.set_travel_acceleration((uint32_t)floor(travel_acceleration + 0.5));
@@ -5707,6 +5710,7 @@ std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string 
                         gcode += "; end travel\n";
                 }
             } else {
+                //m_writer.set_travel_acceleration((uint32_t)floor(travel_acceleration + 0.5));
                 m_writer.set_acceleration((uint32_t)floor(acceleration + 0.5));
             }
         }

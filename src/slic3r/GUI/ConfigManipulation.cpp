@@ -540,6 +540,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
         toggle_field(el, config->opt_bool("milling_post_process"));
 
     bool have_default_acceleration = config->option<ConfigOptionFloatOrPercent>("default_acceleration")->value > 0;
+    bool have_decleration_enabled =  config->option<ConfigOptionPercent>("deceleration_factor")->value <= 0;
     for (auto el : { "perimeter_acceleration", "external_perimeter_acceleration", "thin_walls_acceleration" })
         toggle_field(el, have_default_acceleration && have_perimeters);
     toggle_field("infill_acceleration", have_default_acceleration && have_infill);
@@ -549,9 +550,11 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
     toggle_field("support_material_acceleration", have_default_acceleration && (have_support_material || have_brim || have_skirt));
     toggle_field("support_material_interface_acceleration", have_default_acceleration && have_support_material && have_support_interface);
     toggle_field("brim_acceleration", have_default_acceleration && (have_brim || have_skirt));
+    toggle_field("deceleration_factor", have_default_acceleration);// i guess this is enough checks? is there other firmware that supports decleration values ? and is it better to leave the firmware check for in gcodewriter?
     for (auto el : { "bridge_acceleration", "bridge_internal_acceleration", "overhangs_acceleration", "gap_fill_acceleration", "travel_acceleration", "travel_deceleration_use_target", "first_layer_acceleration" })
         toggle_field(el, have_default_acceleration);
 
+    toggle_field("travel_deceleration_use_target", have_default_acceleration && have_decleration_enabled );
     // for default speed, it needs at least a dependent field with a %
     toggle_field("default_speed", config->option<ConfigOptionFloatOrPercent>("perimeter_speed")->percent || 
         config->option<ConfigOptionFloatOrPercent>("solid_infill_speed")->percent || 
