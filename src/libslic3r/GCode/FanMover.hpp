@@ -35,11 +35,11 @@ class FanMover
 {
 private:
     const std::regex regex_fan_speed;
-    const float nb_seconds_delay;
+    const float nb_seconds_delay; // in s
     const bool with_D_option;
     const bool relative_e;
     const bool only_overhangs;
-    const float kickstart;
+    const float kickstart; // in s
 
     GCodeReader m_parser{};
     const GCodeWriter& m_writer;
@@ -76,8 +76,13 @@ public:
 
 private:
     BufferData& put_in_buffer(BufferData&& data) {
-        m_buffer_time_size += data.time;
-        m_buffer.emplace_back(data);
+         m_buffer_time_size += data.time;
+        if (data.fan_speed >= 0 && !m_buffer.empty() && m_buffer.back().fan_speed >= 0) {
+            // erase last item
+            m_buffer.back() = data;
+        } else {
+            m_buffer.emplace_back(data);
+        }
         return m_buffer.back();
     }
     std::list<BufferData>::iterator remove_from_buffer(std::list<BufferData>::iterator data) {
@@ -88,7 +93,7 @@ private:
     void _process_gcode_line(GCodeReader& reader, const GCodeReader::GCodeLine& line);
     void _process_ACTIVATE_EXTRUDER(const std::string_view command);
     void _process_T(const std::string_view command);
-    void _put_in_middle_G1(std::list<BufferData>::iterator item_to_split, float nb_sec, BufferData&& line_to_write);
+    void _put_in_middle_G1(std::list<BufferData>::iterator item_to_split, float nb_sec, BufferData&& line_to_write, float max_time);
     void _print_in_middle_G1(BufferData& line_to_split, float nb_sec, const std::string& line_to_write);
     void _remove_slow_fan(int16_t min_speed, float past_sec);
     void write_buffer_data();

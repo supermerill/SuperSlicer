@@ -596,3 +596,34 @@ TEST_CASE("G2/G3 gcode")
     }
 }
 
+TEST_CASE("4113 bug (erase all fan command after a point)") {
+    std::string gcode_input = read_to_string(std::string(TEST_DATA_DIR) + "/test_gcode/4113_fan_mover.gcode");
+    std::string gcode_output = read_to_string(std::string(TEST_DATA_DIR) + "/test_gcode/4113_fan_mover_ok.gcode");
+    
+    //"M106 S25.5\n";
+    GCodeWriter       writer;
+    // what's used from the writer:
+    writer.config.gcode_flavor.value   = gcfMarlinFirmware;
+    writer.config.gcode_comments.value = false;
+    writer.config.fan_percentage.value = false; // 0 -> 255
+    // writer.tool[0] = nullptr;
+    assert(writer.tool() == nullptr);
+    assert(writer.get_tool(0) == nullptr);
+
+    SECTION("disable evrything")
+    {
+        Slic3r::FanMover fan_mover(writer,
+                                   1,     // fan_speedup_time.value,
+                                   false, // with_D_option
+                                   true,  // use_relative_e_distances.value,
+                                   true, // fan_speedup_overhangs.value,
+                                   0.5      // fan_kickstart.value));
+        );
+        std::string      processed_gcode = fan_mover.process_gcode(gcode_input, true);
+        //remove
+        //REQUIRE(good_gcode == processed_gcode);
+        REQUIRE(processed_gcode.find("M106 S51") != std::string::npos);
+        REQUIRE(gcode_output == processed_gcode);
+    }
+
+}

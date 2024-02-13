@@ -91,12 +91,18 @@ int16_t get_fan_speed(const std::string &line, GCodeFlavor flavor) {
 
 }
 
-void FanMover::_put_in_middle_G1(std::list<BufferData>::iterator item_to_split, float nb_sec_since_itemtosplit_start, BufferData &&line_to_write) {
+void FanMover::_put_in_middle_G1(std::list<BufferData>::iterator item_to_split, float nb_sec_since_itemtosplit_start, BufferData &&line_to_write, float max_time) {
     assert(item_to_split != m_buffer.end());
-    if (nb_sec_since_itemtosplit_start > item_to_split->time * 0.9) {
+    // if the fan is at the end of the g1 and the diff is less than 10% of the delay, then don't bother
+    if (nb_sec_since_itemtosplit_start > item_to_split->time * 0.9 && (item_to_split->time - nb_sec_since_itemtosplit_start) < max_time * 0.1) {
         // doesn't really need to be split, print it after
         m_buffer.insert(next(item_to_split), line_to_write);
-    } else if (nb_sec_since_itemtosplit_start < item_to_split->time * 0.1) {
+    } else 
+        // does it need to be split?
+        // if it's almost at the start of the g1, and the time "lost" is less than 10%
+        if (nb_sec_since_itemtosplit_start < item_to_split->time * 0.1 && nb_sec_since_itemtosplit_start < max_time * 0.1 &&
+        // and the previous isn't a fan value
+        (item_to_split == m_buffer.begin() || std::prev(item_to_split)->fan_speed < 0)) {
         // doesn't really need to be split, print it before
         //will also print before if line_to_split.time == 0
         m_buffer.insert(item_to_split, line_to_write);
@@ -340,11 +346,18 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
             if (fan_speed >= 0) {
                 const auto fan_baseline = (m_writer.config.fan_percentage.value ? 100.0 : 255.0);
                 fan_speed = 100 * fan_speed / fan_baseline;
-                //speed change: stop kickstart reverting if any
-                m_current_kickstart.time = -1;
                 if (!m_is_custom_gcode) {
                     // if slow down => put in the queue. if not =>
-                    if (m_back_buffer_fan_speed < fan_speed) {
+                    if (m_current_kickstart.time > 0) {
+                        assert(m_back_buffer_fan_speed == m_current_kickstart.fan_speed);
+                    }
+                    if (m_back_buffer_fan_speed >= fan_speed) {
+                        if (m_current_kickstart.time > 0) {
+                            // stop kiskstart, and slow down
+                            m_current_kickstart.time = -1;
+                            //this fan speed will be printed, to make and end to the kickstart
+                        }
+                    } else {
                         if (nb_seconds_delay > 0 && (!only_overhangs || current_role == ExtrusionRole::erOverhangPerimeter)) {
                             //don't put this command in the queue
                             time = -1;
@@ -376,7 +389,7 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                                     time_count -= it->time;
                                     if (time_count< 0) {
                                         //found something that is lower than us
-                                        _put_in_middle_G1(it, it->time + time_count, BufferData(std::string(line.raw()), 0, fan_speed, true));
+                                        _put_in_middle_G1(it, it->time + time_count, BufferData(std::string(line.raw()), 0, fan_speed, true), nb_seconds_delay);
                                         //found, stop
                                         break;
                                     }
@@ -502,7 +515,7 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
             m_current_kickstart.time -= time;
             if (m_current_kickstart.time < 0) {
                 //prev is possible because we just do a emplace_back.
-                _put_in_middle_G1(prev(m_buffer.end()), time + m_current_kickstart.time, BufferData{ m_current_kickstart.raw, 0, m_current_kickstart.fan_speed, true });
+                _put_in_middle_G1(prev(m_buffer.end()), time + m_current_kickstart.time, BufferData{ m_current_kickstart.raw, 0, m_current_kickstart.fan_speed, true }, kickstart);
             }
         }
     }/* else {
@@ -547,17 +560,14 @@ void FanMover::write_buffer_data()
     if (frontdata.fan_speed < 0 || frontdata.fan_speed != m_front_buffer_fan_speed || frontdata.is_kickstart) {
         if (frontdata.is_kickstart && frontdata.fan_speed < m_front_buffer_fan_speed) {
             // you have to slow down! not kickstart! rewrite the fan speed.
-            m_process_output += _set_fan(
-                frontdata.fan_speed); // m_writer.set_fan(frontdata.fan_speed,true); //FIXME extruder id (or use the
-                                      // gcode writer, but then you have to disable the multi-thread thing
-
+            m_process_output += _set_fan(frontdata.fan_speed) + "\n";
             m_front_buffer_fan_speed = frontdata.fan_speed;
         } else {
             m_process_output += frontdata.raw + "\n";
-            if (frontdata.fan_speed >= 0) {
+            if (frontdata.fan_speed >= 0 || frontdata.is_kickstart) {
                 // note that this is the only place where the fan_speed is set and we print from the buffer, as if the
                 // fan_speed >= 0 => time == 0 and as this flush all time == 0 lines from the back of the queue...
-                m_front_buffer_fan_speed = frontdata.fan_speed;
+                m_front_buffer_fan_speed = frontdata.is_kickstart ? 100 : frontdata.fan_speed;
             }
         }
     }

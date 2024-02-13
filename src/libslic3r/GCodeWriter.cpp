@@ -567,7 +567,15 @@ std::string GCodeWriter::_travel_to_z(double z, const std::string &comment)
     gcode <<   " F" << F_NUM(speed * 60.0);
     COMMENT(comment);
     gcode << "\n";
-    return gcode.str();
+    // replace 'Z-0' by ' Z0'
+    std::string str = gcode.str();
+    if (auto it = str.find("Z-0 "); it != std::string::npos) {
+        str.replace(it, 2, "Z");
+    }
+    if (auto it = str.find("Z-0\n"); it != std::string::npos) {
+        str.replace(it, 2, "Z");
+    }
+    return str;
 }
 
 bool GCodeWriter::will_move_z(double z) const
@@ -641,7 +649,15 @@ std::string GCodeWriter::extrude_to_xyz(const Vec3d &point, double dE, const std
             gcode <<    " " << m_extrusion_axis << E_NUM(m_tool->E());
     COMMENT(comment);
     gcode << "\n";
-    return gcode.str();
+    // replace 'Z-0' by ' Z0'
+    std::string str = gcode.str();
+    if (auto it = str.find("Z-0 "); it != std::string::npos) {
+        str.replace(it, 2, "Z");
+    }
+    if (auto it = str.find("Z-0\n"); it != std::string::npos) {
+        str.replace(it, 2, "Z");
+    }
+    return str;
 }
 
 std::string GCodeWriter::retract(bool before_wipe)

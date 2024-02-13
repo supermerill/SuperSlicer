@@ -715,7 +715,7 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
     // Unpacks the collection, creates multiple collections per path.
     // The path type could be ExtrusionPath, ExtrusionLoop or ExtrusionEntityCollection.
     // Why the paths are unpacked?
-    for (LayerRegion *layerm : m_regions)
+    for (LayerRegion *layerm : m_regions) {
         for (const ExtrusionEntity *thin_fill : layerm->thin_fills.entities()) {
             ExtrusionEntityCollection *collection = new ExtrusionEntityCollection();
             if (!layerm->fills.can_sort() && layerm->fills.entities().size() > 0 && layerm->fills.entities()[0]->is_collection()) {
@@ -729,27 +729,8 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
                 layerm->fills.append(ExtrusionEntitiesPtr{ collection });
             collection->append(*thin_fill);
         }
+    }
 
-#ifndef NDEBUG
-    for (LayerRegion *layerm : m_regions)
-        for (size_t i1 = 0; i1 < layerm->fills.entities().size(); ++i1) {
-            assert(dynamic_cast<ExtrusionEntityCollection*>(layerm->fills.entities()[i1]) != nullptr);
-            if (!layerm->fills.can_sort() && layerm->fills.entities().size() > 0 && i1 == 0){
-                ExtrusionEntityCollection* no_sort_fill = static_cast<ExtrusionEntityCollection*>(layerm->fills.entities()[0]);
-                assert(no_sort_fill != nullptr);
-                assert(!no_sort_fill->empty());
-                for (size_t i2 = 0; i2 < no_sort_fill->entities().size(); ++i2) {
-                    ExtrusionEntityCollection* priority_fill = dynamic_cast<ExtrusionEntityCollection*>(no_sort_fill->entities()[i2]);
-                    assert(priority_fill != nullptr);
-                    assert(!priority_fill->empty());
-                    if (!no_sort_fill->can_sort()) {
-                        for (size_t i3 = 0; i3 < priority_fill->entities().size(); ++i3)
-                            assert(dynamic_cast<ExtrusionEntityCollection*>(priority_fill->entities()[i3]) != nullptr);
-                    }
-                }
-            }
-        }
-#endif
 }
 
 // Create ironing extrusions over top surfaces.

@@ -21,6 +21,7 @@ namespace GUI {
 
 class GCodeViewer
 {
+
     using IBufferType = unsigned short;
     using Color = std::array<float, 4>;
     using VertexBuffer = std::vector<float>;
@@ -35,6 +36,7 @@ class GCodeViewer
     static const std::vector<Color> Options_Colors;
     static const std::vector<Color> Travel_Colors;
     static const std::vector<Color> Range_Colors;
+    static const std::vector<Color> Range_Colors_Details;
     static const Color              Wipe_Color;
     static const Color              Neutral_Color;
     static const Color              Too_Low_Value_Color;
@@ -174,6 +176,156 @@ class GCodeViewer
 
         void reset();
     };
+    
+
+    public:
+    enum class EViewType : unsigned char
+    {
+        FeatureType,
+        Height,
+        Width,
+        Feedrate,
+        FanSpeed,
+        Temperature,
+        LayerTime,
+        Chronology,
+        VolumetricRate,
+        VolumetricFlow,
+        Tool,
+        Filament,
+        ColorPrint,
+        Count
+    };
+    private:
+    // helper to render extrusion paths
+    struct Extrusions
+    {
+        class Range
+        {
+            int32_t m_min;
+            int32_t m_max;
+            float m_full_precision_min;
+            float m_full_precision_max;
+
+            // a set of values if there are not too many, to be able to show discreate colors.
+            // their value is scaled by precision
+            std::map<int32_t, int> m_values_2_counts;
+
+            // count of all item passed into update
+            uint64_t total_count;
+            // total_count per log item
+            uint32_t counts[20];
+            int32_t maxs[20];
+            int32_t mins[20];
+            
+            // set 0 or lower to disable
+            int32_t m_user_min = 0;
+            int32_t m_user_max = 0;
+
+            //modes
+            bool m_log_scale = false;
+            float m_ratio_outlier = 0.f;
+            bool m_discrete = false;
+
+            // Cache
+            mutable int m_cache_discrete_count = -1;
+            mutable std::map<int32_t, GCodeViewer::Color> m_cache_discrete_colors;
+            std::vector<std::pair<std::string, GCodeViewer::Color>> m_cache_legend;
+
+            // Methods
+            int32_t scale_value(float value) const;
+            float unscale_value(int32_t value) const;
+            static float step_size(int32_t min, int32_t max, bool log = false);
+            int32_t get_current_max() const;
+            int32_t get_current_min() const;
+            void compute_discrete_colors() const;
+            std::string string_value(int32_t value) const;
+            void         clear_cache()
+            {
+                m_cache_discrete_count = (-1);
+                m_cache_discrete_colors.clear();
+                m_cache_legend.clear();
+            }
+        public:
+            const uint8_t decimal_precision;
+            const bool is_time;
+
+            Range(uint8_t deci_precision, bool is_time_range = false) : decimal_precision(deci_precision), is_time(is_time_range) { reset(); }
+            void update_from(const float value);
+            void reset();
+            //float step_size() const;
+            Color get_color_at(float value) const;
+            size_t count_discrete() const;
+            bool set_user_max(float val); // return true if value has changed
+            bool set_user_min(float val); // return true if value has changed
+            float get_user_max() const { return unscale_value(m_user_max); }
+            float get_user_min() const { return unscale_value(m_user_min); }
+            float get_absolute_max() const { return m_full_precision_max; }
+            float get_absolute_min() const { return m_full_precision_min; }
+            bool   is_log_scale() const { return m_log_scale; }
+            bool   set_log_scale(bool log_scale);
+            bool   has_outliers() const;
+            float  get_ratio_outliers() const { return m_ratio_outlier; }
+            bool   set_ratio_outliers(float ratio);
+            bool   is_discrete_mode() const { return m_discrete; }
+            bool   set_discrete_mode(bool is_discrete);
+            const std::vector<std::pair<std::string, GCodeViewer::Color>>& get_legend_colors();
+            
+            bool is_same_value(float f1, float f2) const;
+        };
+
+        struct Ranges
+        {
+            // Color mapping by layer height.
+            Range height{3, false};
+            // Color mapping by extrusion width.
+            Range width{3};
+            // Color mapping by feedrate.
+            Range feedrate{1};
+            // Color mapping by fan speed.
+            Range fan_speed{0};
+            // Color mapping by volumetric extrusion rate.
+            Range volumetric_rate{3};
+            // Color mapping by volumetric extrusion mm3/mm.
+            Range volumetric_flow{3};
+            // Color mapping by extrusion temperature.
+            Range temperature{0};
+            // Color mapping by layer time.
+            Range layer_duration{0, true};
+            // Color mapping by time.
+            Range elapsed_time{0,true};
+
+            Range* get(EViewType type);
+            
+            std::pair<std::string, std::string> min_max_cstr_id[size_t(EViewType::Count)];
+
+            Ranges();
+
+            void reset() {
+                height.reset();
+                width.reset();
+                feedrate.reset();
+                fan_speed.reset();
+                volumetric_rate.reset();
+                volumetric_flow.reset();
+                temperature.reset();
+                layer_duration.reset();
+                elapsed_time.reset();
+            }
+        };
+
+        unsigned int role_visibility_flags{ 0 };
+        Ranges ranges;
+
+        void reset_role_visibility_flags() {
+            role_visibility_flags = 0;
+            for (unsigned int i = 0; i < erCount; ++i) {
+                role_visibility_flags |= 1 << i;
+            }
+        }
+
+        void reset_ranges() { ranges.reset(); }
+    };
 
     // Used to identify different toolpath sub-types inside a IBuffer
     struct Path
@@ -218,7 +370,7 @@ class GCodeViewer
         float layer_time{ 0.0f };
         float elapsed_time{ 0.0f };
 
-        bool matches(const GCodeProcessorResult::MoveVertex& move) const;
+        bool matches(const GCodeProcessorResult::MoveVertex& move, const GCodeViewer::Extrusions::Ranges& comparators) const;
         size_t vertices_count() const {
             return sub_paths.empty() ? 0 : sub_paths.back().last.s_id - sub_paths.front().first.s_id + 1;
         }
@@ -382,94 +534,6 @@ class GCodeViewer
     {
         GLVolumeCollection volumes;
         bool visible{ false };
-    };
-
-    public:
-        enum class EViewType : unsigned char;
-    private:
-    // helper to render extrusion paths
-    struct Extrusions
-    {
-        struct Range
-        {
-            float min;
-            float max;
-            float full_precision_min;
-            float full_precision_max;
-
-            // 0 if no values, 1 if only one different value, 2 if only min max, 3 if more values.
-            uint8_t has_min_max = 0;
-
-            // count of all item passed into update
-            uint64_t total_count;
-            // total_count per log item
-            uint32_t counts[20];
-            float maxs[20];
-            float mins[20];
-            
-            // set 0 or lower to disable
-            float user_min = 0;
-            float user_max = 0;
-            bool log_scale = false;
-            float ratio_outlier = 0.f;
-
-            Range() { reset(); }
-            void update_from(const float value, const uint8_t decimal_precision);
-            void reset();
-            float get_current_max() const;
-            float get_current_min() const;
-            float step_size() const;
-            Color get_color_at(float value) const;
-            static float step_size(float min, float max, bool log = false);
-        };
-
-        struct Ranges
-        {
-            // Color mapping by layer height.
-            Range height;
-            // Color mapping by extrusion width.
-            Range width;
-            // Color mapping by feedrate.
-            Range feedrate;
-            // Color mapping by fan speed.
-            Range fan_speed;
-            // Color mapping by volumetric extrusion rate.
-            Range volumetric_rate;
-            // Color mapping by volumetric extrusion mm3/mm.
-            Range volumetric_flow;
-            // Color mapping by extrusion temperature.
-            Range temperature;
-            // Color mapping by layer time.
-            Range layer_duration;
-            // Color mapping by time.
-            Range elapsed_time;
-
-            Range* get(EViewType type);
-
-            void reset() {
-                height.reset();
-                width.reset();
-                feedrate.reset();
-                fan_speed.reset();
-                volumetric_rate.reset();
-                volumetric_flow.reset();
-                temperature.reset();
-                layer_duration.reset();
-                elapsed_time.reset();
-            }
-        };
-
-        unsigned int role_visibility_flags{ 0 };
-        Ranges ranges;
-
-        void reset_role_visibility_flags() {
-            role_visibility_flags = 0;
-            for (unsigned int i = 0; i < erCount; ++i) {
-                role_visibility_flags |= 1 << i;
-            }
-        }
-
-        void reset_ranges() { ranges.reset(); }
     };
 
     class Layers
@@ -701,24 +765,6 @@ public:
         std::vector<unsigned int> gcode_ids;
 
         void render(float legend_height) const;
-    };
-
-    enum class EViewType : unsigned char
-    {
-        FeatureType,
-        Height,
-        Width,
-        Feedrate,
-        FanSpeed,
-        Temperature,
-        LayerTime,
-        Chronology,
-        VolumetricRate,
-        VolumetricFlow,
-        Tool,
-        Filament,
-        ColorPrint,
-        Count
     };
 
 private:
