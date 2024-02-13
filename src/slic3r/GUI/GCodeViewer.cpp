@@ -14,6 +14,7 @@
 #include "Plater.hpp"
 #include "Camera.hpp"
 #include "I18N.hpp"
+#include "format.hpp"
 #include "GUI_Utils.hpp"
 #include "GUI.hpp"
 #include "DoubleSlider.hpp"
@@ -76,20 +77,21 @@ static std::vector<std::array<float, 4>> decode_colors(const std::vector<std::st
     return output;
 }
 
-// Round to a bin with minimum two digits resolution.
-// Equivalent to conversion to string with sprintf(buf, "%.2g", value) and conversion back to float, but faster.
-static float round_to_bin(const float value)
-{
-//    assert(value > 0);
-    constexpr float const scale    [5] = { 100.f,  1000.f,  10000.f,  100000.f,  1000000.f };
-    constexpr float const invscale [5] = { 0.01f,  0.001f,  0.0001f,  0.00001f,  0.000001f };
-    constexpr float const threshold[5] = { 0.095f, 0.0095f, 0.00095f, 0.000095f, 0.0000095f };
-    // Scaling factor, pointer to the tables above.
-    int                   i            = 0;
-    // While the scaling factor is not yet large enough to get two integer digits after scaling and rounding:
-    for (; value < threshold[i] && i < 4; ++ i) ;
-    return std::round(value * scale[i]) * invscale[i];
-}
+//create problem. let the range object takes care of that.
+//// Round to a bin with minimum two digits resolution.
+//// Equivalent to conversion to string with sprintf(buf, "%.2g", value) and conversion back to float, but faster.
+//static float round_to_bin(const float value)
+//{
+////    assert(value > 0);
+//    constexpr float const scale    [5] = { 100.f,  1000.f,  10000.f,  100000.f,  1000000.f };
+//    constexpr float const invscale [5] = { 0.01f,  0.001f,  0.0001f,  0.00001f,  0.000001f };
+//    constexpr float const threshold[5] = { 0.095f, 0.0095f, 0.00095f, 0.000095f, 0.0000095f };
+//    // Scaling factor, pointer to the tables above.
+//    int                   i            = 0;
+//    // While the scaling factor is not yet large enough to get two integer digits after scaling and rounding:
+//    for (; value < threshold[i] && i < 4; ++ i) ;
+//    return std::round(value * scale[i]) * invscale[i];
+//}
 
 void GCodeViewer::VBuffer::reset()
 {
@@ -132,7 +134,7 @@ void GCodeViewer::IBuffer::reset()
     count = 0;
 }
 
-bool GCodeViewer::Path::matches(const GCodeProcessorResult::MoveVertex& move) const
+bool GCodeViewer::Path::matches(const GCodeProcessorResult::MoveVertex& move, const GCodeViewer::Extrusions::Ranges& compare) const
 {
     auto matches_percent = [](float value1, float value2, float max_percent) {
         return std::abs(value2 - value1) / value1 <= max_percent;
@@ -150,11 +152,16 @@ bool GCodeViewer::Path::matches(const GCodeProcessorResult::MoveVertex& move) co
     case EMoveType::Extrude: {
         // use rounding to reduce the number of generated paths
         return type == move.type && extruder_id == move.extruder_id && cp_color_id == move.cp_color_id && role == move.extrusion_role &&
-            move.position.z() <= sub_paths.front().first.position.z() && feedrate == move.feedrate && fan_speed == move.fan_speed &&
-            layer_time == move.layer_duration && elapsed_time == move.time && temperature == move.temperature &&
-            height == round_to_bin(move.height) && width == round_to_bin(move.width) &&
-            matches_percent(volumetric_rate, move.volumetric_rate(), 0.05f) &&
-            matches_percent(volumetric_flow, move.mm3_per_mm, 0.05f);
+            move.position.z() <= sub_paths.front().first.position.z() && 
+            compare.feedrate.is_same_value(feedrate, move.feedrate) &&
+            fan_speed == move.fan_speed &&
+            layer_time == move.layer_duration &&
+            elapsed_time == move.time &&
+            temperature == move.temperature &&
+            compare.height.is_same_value(height, move.height) &&
+            compare.width.is_same_value(width, move.width) &&
+            (compare.volumetric_rate.is_same_value(volumetric_rate, move.volumetric_rate()) || matches_percent(volumetric_rate, move.volumetric_rate(), 0.05f)) &&
+            (compare.volumetric_flow.is_same_value(volumetric_flow, move.mm3_per_mm) || matches_percent(volumetric_flow, move.mm3_per_mm, 0.05f));
     }
     case EMoveType::Travel: {
         return type == move.type && feedrate == move.feedrate && extruder_id == move.extruder_id && cp_color_id == move.cp_color_id;
@@ -186,7 +193,7 @@ void GCodeViewer::TBuffer::add_path(const GCodeProcessorResult::MoveVertex& move
     Path::Endpoint endpoint = { b_id, i_id, s_id, move.position };
     // use rounding to reduce the number of generated paths
     paths.push_back({ move.type, move.extrusion_role, move.delta_extruder,
-        round_to_bin(move.height), round_to_bin(move.width),
+        move.height, move.width,
         move.feedrate, move.fan_speed, move.temperature,
         move.volumetric_rate(), move.mm3_per_mm, move.extruder_id, move.cp_color_id, { { endpoint, endpoint } }, move.layer_duration, move.time });
 }
@@ -199,112 +206,142 @@ namespace quick_pow10
     };
 }
 
-void GCodeViewer::Extrusions::Range::update_from(const float value, const uint8_t decimal_precision)
-{
-    if (has_min_max != max && has_min_max != min && has_min_max < 3)
-        ++has_min_max;
+bool GCodeViewer::Extrusions::Range::is_same_value(float f1, float f2) const { return scale_value(f1) == scale_value(f2); }
 
-    if (full_precision_min > value) {
-        full_precision_min = value;
-        // rounding min to lowest value
-        min = (int32_t(value * quick_pow10::pow10[decimal_precision])) / float(quick_pow10::pow10[decimal_precision]);
-        assert(min <= full_precision_min);
+void GCodeViewer::Extrusions::Range::update_from(const float f_value)
+{
+    int32_t value = scale_value(f_value);
+    if (m_full_precision_min > f_value) {
+        m_full_precision_min = f_value;
+        // rounding min
+        m_min = value;
     }
-    if (full_precision_max < value) {
-        full_precision_max = value;
-        // rounding max to highest value
-        max = (int32_t(value * quick_pow10::pow10[decimal_precision])) / float(quick_pow10::pow10[decimal_precision]);
-        if (max < full_precision_max)
-            max = (int32_t(0.5f + value * quick_pow10::pow10[decimal_precision])) / float(quick_pow10::pow10[decimal_precision]);
-        //assert(max >= full_precision_max);
+    if (m_full_precision_max < f_value) {
+        m_full_precision_max = f_value;
+        // rounding max
+        m_max = value;
     }
 
     // if you want to keep every different values
-    //++values[value];
-    //if (values.size() >= 10000) {
+    // Currenlty, i only need max 20 values, if more then it of no uses.
+    if (m_values_2_counts.size() < Range_Colors_Details.size() * 3)
+        ++m_values_2_counts[value];
+    //if (m_values_2_counts.size() >= 1000) {
     //    // Too many items, remove some
-    //    double min_distance = (max - min) / 1000;
-    //    int min_items = total_count / 1000;
+    //    double min_distance = (max - min) / 100;
+    //    int min_items = total_count / 100;
     //    float prev_value = min;
     //    float midway = min + (max - min) / 2;
-    //    assert(values.begin()->first == min);
-    //    for (auto it = std::next(values.begin()); it != values.end(); ++it) {
+    //    assert(m_values_2_counts.begin()->first == min);
+    //    for (auto it = std::next(m_values_2_counts.begin()); it != m_values_2_counts.end(); ++it) {
     //        if (it->second < min_items && it->first - prev_value < min_distance && it->first != max) {
     //            // too little, too near, eliminate.
     //            if(it->first < midway)
     //                std::prev(it)->second += it->second;
-    //            else
+    //            else {
+    //                assert(std::next(it) != m_values_2_counts.end());
     //                std::next(it)->second += it->second;
-    //            it = values.erase(it);
+    //            }
+    //            it = m_values_2_counts.erase(it);
     //        } else
     //            prev_value = it->first;
     //    }
-    //    BOOST_LOG_TRIVIAL(debug) << "Too many range items, reducing from 10000 to " << values.size();
+    //    BOOST_LOG_TRIVIAL(debug) << "Too many range items, reducing from 1000 to " << m_values_2_counts.size();
     //}
 
     total_count++;
     // don't keep outliers
-    uint8_t idx = std::min(19, std::max(0, int(9 + log2(min))));
+    // from c++20: we can use (std::bit_width(index) - 1) to do the lo2 on an int
+    float log2_val = value <= 1 ? 1 : log2(float(value));
+    assert(log2_val > 0);
+    uint8_t idx = std::min(19, std::max(0, int(log2_val-1)));
     counts[idx]++;
     mins[idx] = std::min(mins[idx], value);
     maxs[idx] = std::max(maxs[idx], value);
+
+    // note: not needed to clear caches, as update isn't called after chache creation and there is always a reset before
 }
+bool GCodeViewer::Extrusions::Range::has_outliers() const
+{
+    bool   has_outliers = false;
+    size_t min_count    = this->m_ratio_outlier * total_count / 20;
+    for (size_t idx = 0; idx < 19; ++idx) {
+        if (counts[idx] > 0) {
+            has_outliers = counts[idx] <= min_count;
+            break;
+        }
+    }
+    if (!has_outliers)
+        for (size_t idx = 19; idx > 0; --idx) {
+            if (counts[idx] > 0) {
+                has_outliers = counts[idx] <= min_count;
+                break;
+            }
+        }
+    return has_outliers;
+}
+
 
 void GCodeViewer::Extrusions::Range::reset()
 {
-    min                = FLT_MAX;
-    max                = -FLT_MAX;
-    full_precision_min = FLT_MAX;
-    full_precision_max = -FLT_MAX;
-    has_min_max        = 0;
+    m_min                = INT_MAX;
+    m_max                = INT_MIN;
+    m_full_precision_min = FLT_MAX;
+    m_full_precision_max = -FLT_MAX;
+    m_values_2_counts.clear();
+    m_user_min = 0;
+    m_user_max = 0;
     total_count = 0;
     for (size_t idx = 0; idx < 20; idx++) {
         counts[idx] = 0;
-        maxs[idx]   = -FLT_MAX;
-        mins[idx]   = FLT_MAX;
+        maxs[idx]   = INT_MIN;
+        mins[idx]   = INT_MAX;
     }
+    m_cache_discrete_count = (-1);
+    m_cache_discrete_colors.clear();
+    m_cache_legend.clear();
 }
 
-float GCodeViewer::Extrusions::Range::get_current_max() const
+int32_t GCodeViewer::Extrusions::Range::get_current_max() const
 {
-    float current_max = max;
-    if (ratio_outlier > 0) {
-        size_t min_number = ratio_outlier * total_count / 20;
+    int32_t current_max = m_max;
+    if (this->m_ratio_outlier > 0) {
+        size_t min_count = this->m_ratio_outlier * total_count / 20;
         for (size_t idx = 19; idx < 20; --idx) {
-            if (counts[idx] > min_number) {
+            if (counts[idx] > min_count) {
                 current_max = maxs[idx];
                 break;
             }
         }
     }
-    if (this->user_max > 0)
-        current_max = std::min(current_max, this->user_max);
+    if (this->m_user_max > 0)
+        current_max = std::min(current_max, this->m_user_max);
     return current_max;
 }
 
-float GCodeViewer::Extrusions::Range::get_current_min() const
+int32_t GCodeViewer::Extrusions::Range::get_current_min() const
 {
-    float current_min = min;
-    if (ratio_outlier > 0) {
-        size_t min_number = this->ratio_outlier * total_count / 20;
+    int32_t current_min = m_min;
+    if (this->m_ratio_outlier > 0) {
+        size_t min_count = this->m_ratio_outlier * total_count / 20;
         for (size_t idx = 0; idx < 20; ++idx) {
-            if (counts[idx] > min_number) {
+            if (counts[idx] > min_count) {
                 current_min = mins[idx];
                 break;
             }
         }
     }
-    if (this->user_min > 0)
-        current_min = std::max(current_min, this->user_min);
+    if (this->m_user_min > 0)
+        current_min = std::max(current_min, this->m_user_min);
     return current_min;
 }
 
-float GCodeViewer::Extrusions::Range::step_size() const
-{
-    return step_size(get_current_min(), get_current_max(), this->log_scale);
-}
+//float GCodeViewer::Extrusions::Range::step_size() const
+//{
+//    return step_size(get_current_min(), get_current_max(), this->log_scale);
+//}
 
-float GCodeViewer::Extrusions::Range::step_size(float min, float max, bool log)
+float GCodeViewer::Extrusions::Range::step_size(int32_t min, int32_t max, bool log)
 {
     if (log)
     {
@@ -316,27 +353,61 @@ float GCodeViewer::Extrusions::Range::step_size(float min, float max, bool log)
         return (max - min) / (static_cast<float>(GCodeViewer::Range_Colors.size()) - 1.0f);
 }
 
-GCodeViewer::Color GCodeViewer::Extrusions::Range::get_color_at(float value) const
+int32_t GCodeViewer::Extrusions::Range::scale_value(float value) const {
+    return int32_t( (value + 0.00001f) * quick_pow10::pow10[decimal_precision] + 0.49f);
+}
+
+float GCodeViewer::Extrusions::Range::unscale_value(int32_t value) const {
+    return value  / float(quick_pow10::pow10[decimal_precision]);
+}
+
+GCodeViewer::Color GCodeViewer::Extrusions::Range::get_color_at(float f_value) const
 {
-    const float current_min = get_current_min();
-    const float current_max = get_current_max();
+
+    const int32_t current_min = get_current_min();
+    const int32_t current_max = get_current_max();
+    const int32_t value       = scale_value(f_value);
     
+    if (current_max <= current_min) {
+        // wrong max: use only min
+        if(value == current_min)
+            return Range_Colors[Range_Colors.size() / 2];
+        else if(value > current_min)
+            return Too_High_Value_Color;
+    }
+
     if (value < current_min)
         return Too_Low_Value_Color;
     if (value > current_max)
         return Too_High_Value_Color;
+    
+    if (count_discrete() == 0) {
+        return Neutral_Color;
+    }
+    if (count_discrete() == 1)
+        return Range_Colors[Range_Colors.size() / 2];
+
+    if (this->m_discrete) {
+        if(m_cache_discrete_colors.empty())
+            compute_discrete_colors();
+        if (auto it = this->m_cache_discrete_colors.find(value); it != this->m_cache_discrete_colors.end()) {
+            return it->second;
+        }
+        assert(false);
+        return Neutral_Color;
+    }
 
     // Input value scaled to the colors range
-    const float step = step_size(current_min, current_max, this->log_scale);
+    const float step = step_size(current_min, current_max, this->m_log_scale);
     float global_t;
-    if (this->log_scale)
+    if (this->m_log_scale)
     {
         float min_range = current_min;
         if (min_range == 0)
-            min_range = 0.001f;
-        global_t = (step != 0.0f) ? std::max(0.0f, std::log(value / min_range)) / step : 0.0f; // lower limit of 0.0f
+            min_range = 1.f;
+        global_t = (step != 0.0f) ? std::max(0.f, std::log(value / min_range)) / step : 0.0f; // lower limit of 0.0f
     } else
-        global_t = (step != 0.0f) ? std::max(0.0f, value - current_min) / step : 0.0f; // lower limit of 0.0f
+        global_t = (step != 0.0f) ? std::max(0, value - current_min) / step : 0.0f; // lower limit of 0.0f
 
     const size_t color_max_idx = Range_Colors.size() - 1;
 
@@ -355,6 +426,183 @@ GCodeViewer::Color GCodeViewer::Extrusions::Range::get_color_at(float value) con
     return ret;
 }
 
+std::string GCodeViewer::Extrusions::Range::string_value(int32_t value) const
+{
+    if (is_time)
+        return get_time_dhms(unscale_value(value));
+    char buf[1024];
+    ::sprintf(buf, "%.*f", decimal_precision, unscale_value(value));
+    return buf;
+}
+
+const std::vector<std::pair<std::string, GCodeViewer::Color>>& GCodeViewer::Extrusions::Range::get_legend_colors()
+{
+    if (m_cache_legend.empty()) {
+        const int32_t current_min = get_current_min();
+        const int32_t current_max = get_current_max();
+        if (count_discrete() == 0 && total_count > 0){
+            if (m_user_max > 0 && m_user_max < m_max)
+                m_cache_legend.emplace_back(string_value(m_max), Too_High_Value_Color);
+            m_cache_legend.emplace_back(string_value(current_min), Neutral_Color);
+            if (current_max > current_min)
+                m_cache_legend.emplace_back(string_value(current_max), Neutral_Color);
+            if (m_user_min > 0 && m_user_min > m_min)
+                m_cache_legend.emplace_back(string_value(m_min), Too_Low_Value_Color);
+        } else if (count_discrete() == 1) {
+            if (m_user_max > 0 && current_max < m_max)
+                m_cache_legend.emplace_back(string_value(m_max), Too_High_Value_Color);
+            // single item use case
+            for (const auto &[value, count] : m_values_2_counts) {
+                if(current_min <= value && value <= current_max)
+                    m_cache_legend.emplace_back(string_value(value), Range_Colors[Range_Colors.size() / 2]);
+            }
+            if (m_user_min > 0 && current_min > m_min)
+                m_cache_legend.emplace_back(string_value(m_min), Too_Low_Value_Color);
+        } else if (count_discrete() == 2) {
+            if (m_user_max > 0 && m_user_max < m_max)
+                m_cache_legend.emplace_back(string_value(m_max), Too_High_Value_Color);
+            std::vector<int32_t> vals;
+            for (const auto &[value, count] : m_values_2_counts) {
+                if(current_min <= value && value <= current_max)
+                    vals.push_back(value);
+            }
+            assert(vals.size() == 2);
+            m_cache_legend.emplace_back(string_value(vals.back()), Range_Colors.back());
+            m_cache_legend.emplace_back(string_value(vals.front()), Range_Colors.front());
+            if (m_user_min > 0 && m_user_min > m_min)
+                m_cache_legend.emplace_back(string_value(m_min), Too_Low_Value_Color);
+        } else if (m_discrete) {
+            if (m_cache_discrete_colors.empty()) {
+                compute_discrete_colors();
+            }
+            if (m_min != get_current_min())
+                m_cache_legend.emplace_back(string_value(m_min), Too_Low_Value_Color);
+            for (const auto &[value, color] : m_cache_discrete_colors) {
+                m_cache_legend.emplace_back(string_value(value), color);
+            }
+            if (m_max != get_current_max())
+                m_cache_legend.emplace_back(string_value(m_max), Too_High_Value_Color);
+            std::reverse(m_cache_legend.begin(), m_cache_legend.end());
+        } else {
+            // wrong max: use only min
+            if (current_max <= current_min) {
+                m_cache_legend = {{string_value(get_current_min()), Range_Colors[Range_Colors.size() / 2]}};
+                return m_cache_legend;
+            }
+            //normal case
+            float   current_step_size = step_size(current_min, current_max, m_log_scale);
+            if (m_max != current_max)
+                m_cache_legend.emplace_back(string_value(m_max), Too_High_Value_Color);
+            m_cache_legend.emplace_back(string_value(current_max), Range_Colors.back());
+            float previous_value = current_max;
+            float current_value = current_max;
+            for (size_t i = Range_Colors.size() - 2; i > 0; --i) {
+                current_value -= current_step_size;
+                //if step < 1, then skip some colors
+                if (scale_value(current_value) == scale_value(previous_value))
+                    continue;
+                if (!m_log_scale)
+                    m_cache_legend.emplace_back(string_value(current_value), Range_Colors[i]);
+                else
+                    m_cache_legend.emplace_back(string_value(std::exp(std::log(current_min) + i * current_step_size)), Range_Colors[i]);
+            }
+            m_cache_legend.emplace_back(string_value(current_min), Range_Colors.front());
+            if (m_min != current_min)
+                m_cache_legend.emplace_back(string_value(m_min), Too_Low_Value_Color);
+        }
+    }
+    return m_cache_legend;
+}
+
+void GCodeViewer::Extrusions::Range::compute_discrete_colors() const
+{
+    const float step = Range_Colors_Details.size() / float(count_discrete());
+    assert(step > 1.f);
+    float  current_pos = 0.1f;
+    size_t idx         = 0;
+    m_cache_discrete_colors.clear();
+    for (const auto &[value, count] : m_values_2_counts) {
+        if ( (m_user_min && value < m_user_min) || (m_user_max && m_user_max < value))
+            continue;
+        if (idx + 1 == m_values_2_counts.size()) {
+            // last is at the last color
+            m_cache_discrete_colors[value] = Range_Colors_Details.back();
+        } else {
+            m_cache_discrete_colors[value] = Range_Colors_Details[size_t(current_pos)];
+        }
+        current_pos += step;
+        idx++;
+    }
+}
+
+size_t GCodeViewer::Extrusions::Range::count_discrete() const {
+    if (m_cache_discrete_count >= 0)
+        return m_cache_discrete_count;
+    if (m_values_2_counts.size() >= Range_Colors_Details.size() * 3)
+        return Range_Colors_Details.size() * 3;
+    const int32_t current_min = get_current_min();
+    const int32_t current_max = get_current_max();
+    int nb = 0;
+    for (const auto &[value, count] : m_values_2_counts) {
+        if(current_min <= value && value <= current_max)
+            nb++;
+    }
+    m_cache_discrete_count = nb;
+    return m_cache_discrete_count;
+}
+
+bool GCodeViewer::Extrusions::Range::set_user_min(float val)
+{
+    int32_t new_value = scale_value(val);
+    if (new_value != m_user_min) {
+        m_user_min = new_value;
+        clear_cache();
+        return true;
+    }
+    return false;
+}
+
+bool GCodeViewer::Extrusions::Range::set_user_max(float val)
+{
+    int32_t new_value = scale_value(val);
+    if (new_value != m_user_max) {
+        m_user_max = new_value;
+        clear_cache();
+        return true;
+    }
+    return false;
+}
+
+bool GCodeViewer::Extrusions::Range::set_log_scale(bool log_scale)
+{
+    if (log_scale != m_log_scale) {
+        m_log_scale = log_scale;
+        clear_cache();
+        return true;
+    }
+    return false;
+}
+
+bool GCodeViewer::Extrusions::Range::set_ratio_outliers(float val)
+{
+    if (val != m_ratio_outlier) {
+        m_ratio_outlier = val;
+        clear_cache();
+        return true;
+    }
+    return false;
+}
+
+bool GCodeViewer::Extrusions::Range::set_discrete_mode(bool is_discrete)
+{
+    if (is_discrete != m_discrete) {
+        m_discrete = is_discrete;
+        clear_cache();
+        return true;
+    }
+    return false;
+}
+
 GCodeViewer::Extrusions::Range* GCodeViewer::Extrusions::Ranges::get(EViewType type){
     switch (type)
     {
@@ -371,6 +619,12 @@ GCodeViewer::Extrusions::Range* GCodeViewer::Extrusions::Ranges::get(EViewType t
     }
 }
 
+
+GCodeViewer::Extrusions::Ranges::Ranges(){
+    for (size_t i = 0; i < size_t(EViewType::Count); i++) {
+        this->min_max_cstr_id[i] = std::pair<std::string, std::string>{std::string("##min") + std::to_string(i), std::string("##max") + std::to_string(i)};
+    }
+}
 
 GCodeViewer::SequentialRangeCap::~SequentialRangeCap() {
     if (ibo > 0)
@@ -682,7 +936,7 @@ const std::vector<GCodeViewer::Color> GCodeViewer::Travel_Colors {{
     { 0.505f, 0.064f, 0.028f, 1.0f }  // Retract
 }};
 
-#if 1
+
 // Normal ranges
 const std::vector<GCodeViewer::Color> GCodeViewer::Range_Colors {{
     { 0.043f, 0.173f, 0.478f, 1.0f }, // bluish
@@ -697,9 +951,9 @@ const std::vector<GCodeViewer::Color> GCodeViewer::Range_Colors {{
     { 0.761f, 0.322f, 0.235f, 1.0f },
     { 0.581f, 0.149f, 0.087f, 1.0f }  // reddish
 }};
-#else
+
 // Detailed ranges
-const std::vector<GCodeViewer::Color> GCodeViewer::Range_Colors{ {
+const std::vector<GCodeViewer::Color> GCodeViewer::Range_Colors_Details{ {
     { 0.043f, 0.173f, 0.478f, 1.0f }, // bluish
     { 0.5f * (0.043f + 0.075f), 0.5f * (0.173f + 0.349f), 0.5f * (0.478f + 0.522f), 1.0f },
     { 0.075f, 0.349f, 0.522f, 1.0f },
@@ -722,7 +976,7 @@ const std::vector<GCodeViewer::Color> GCodeViewer::Range_Colors{ {
     { 0.5f * (0.761f + 0.581f), 0.5f * (0.322f + 0.149f), 0.5f * (0.235f + 0.087f), 1.0f },
     { 0.581f, 0.149f, 0.087f, 1.0f }  // reddishgit 
 } };
-#endif
+//assert(Max_Number_For_Discrete == GCodeViewer::Range_Colors_Details.size());
 
 const GCodeViewer::Color GCodeViewer::Wipe_Color = { 1.0f, 1.0f, 0.0f, 1.0f };
 const GCodeViewer::Color GCodeViewer::Neutral_Color = { 0.25f, 0.25f, 0.25f, 1.0f };
@@ -995,21 +1249,21 @@ void GCodeViewer::refresh(const GCodeProcessorResult& gcode_result, const std::v
         {
         case EMoveType::Extrude:
         {
-            m_extrusions.ranges.height.update_from(curr.height, 3);
-            m_extrusions.ranges.width.update_from(curr.width, 3);
-            m_extrusions.ranges.fan_speed.update_from(curr.fan_speed, 0);
-            m_extrusions.ranges.temperature.update_from(curr.temperature, 0);
-            m_extrusions.ranges.volumetric_rate.update_from(curr.volumetric_rate(), 3);
-            m_extrusions.ranges.volumetric_flow.update_from(curr.mm3_per_mm, 3);
+            m_extrusions.ranges.height.update_from(curr.height);
+            m_extrusions.ranges.width.update_from(curr.width);
+            m_extrusions.ranges.fan_speed.update_from(curr.fan_speed);
+            m_extrusions.ranges.temperature.update_from(curr.temperature);
+            m_extrusions.ranges.volumetric_rate.update_from(curr.volumetric_rate());
+            m_extrusions.ranges.volumetric_flow.update_from(curr.mm3_per_mm);
             if (curr.layer_duration > 0.f)
-                m_extrusions.ranges.layer_duration.update_from(curr.layer_duration, 0);
-            m_extrusions.ranges.elapsed_time.update_from(curr.time, 0);
+                m_extrusions.ranges.layer_duration.update_from(curr.layer_duration);
+            m_extrusions.ranges.elapsed_time.update_from(curr.time);
             [[fallthrough]];
         }
         case EMoveType::Travel:
         {
             if (m_buffers[buffer_id(curr.type)].visible)
-                m_extrusions.ranges.feedrate.update_from(curr.feedrate, 1);
+                m_extrusions.ranges.feedrate.update_from(curr.feedrate);
 
             break;
         }
@@ -1413,9 +1667,9 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
         // add current vertex
         add_vertex(curr);
     };
-    auto add_indices_as_line = [](const GCodeProcessorResult::MoveVertex& prev, const GCodeProcessorResult::MoveVertex& curr, TBuffer& buffer,
+    auto add_indices_as_line = [this](const GCodeProcessorResult::MoveVertex& prev, const GCodeProcessorResult::MoveVertex& curr, TBuffer& buffer,
         unsigned int ibuffer_id, IndexBuffer& indices, size_t move_id) {
-            if (buffer.paths.empty() || prev.type != curr.type || !buffer.paths.back().matches(curr)) {
+            if (buffer.paths.empty() || prev.type != curr.type || !buffer.paths.back().matches(curr, m_extrusions.ranges)) {
                 // add starting index
                 indices.push_back(static_cast<IBufferType>(indices.size()));
                 buffer.add_path(curr, ibuffer_id, indices.size() - 1, move_id - 1);
@@ -1434,8 +1688,8 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
     };
 
     // format data into the buffers to be rendered as solid
-    auto add_vertices_as_solid = [](const GCodeProcessorResult::MoveVertex& prev, const GCodeProcessorResult::MoveVertex& curr, TBuffer& buffer, unsigned int vbuffer_id, VertexBuffer& vertices, size_t move_id) {
-        auto store_vertex = [](VertexBuffer& vertices, const Vec3f& position, const Vec3f& normal) {
+    auto add_vertices_as_solid = [this](const GCodeProcessorResult::MoveVertex& prev, const GCodeProcessorResult::MoveVertex& curr, TBuffer& buffer, unsigned int vbuffer_id, VertexBuffer& vertices, size_t move_id) {
+        auto store_vertex = [this](VertexBuffer& vertices, const Vec3f& position, const Vec3f& normal) {
             // append position
             vertices.push_back(position.x());
             vertices.push_back(position.y());
@@ -1446,7 +1700,7 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
             vertices.push_back(normal.z());
         };
 
-        if (buffer.paths.empty() || prev.type != curr.type || !buffer.paths.back().matches(curr)) {
+        if (buffer.paths.empty() || prev.type != curr.type || !buffer.paths.back().matches(curr, m_extrusions.ranges)) {
             buffer.add_path(curr, vbuffer_id, vertices.size(), move_id - 1);
             buffer.paths.back().sub_paths.back().first.position = prev.position;
         }
@@ -1537,7 +1791,7 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
                 store_triangle(indices, v_offsets[4], v_offsets[5], v_offsets[6]);
             };
 
-            if (buffer.paths.empty() || prev.type != curr.type || !buffer.paths.back().matches(curr)) {
+            if (buffer.paths.empty() || prev.type != curr.type || !buffer.paths.back().matches(curr, m_extrusions.ranges)) {
                 buffer.add_path(curr, ibuffer_id, indices.size(), move_id - 1);
                 buffer.paths.back().sub_paths.back().first.position = prev.position;
             }
@@ -1621,7 +1875,7 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
                 vbuffer_size += 6;
             }
 
-            if (next != nullptr && (curr.type != next->type || !last_path.matches(*next)))
+            if (next != nullptr && (curr.type != next->type || !last_path.matches(*next, m_extrusions.ranges)))
                 // ending cap triangles
                 append_ending_cap_triangles(indices, is_first_segment ? first_seg_v_offsets : non_first_seg_v_offsets);
 
@@ -1788,7 +2042,7 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
             v_multibuffer.push_back(VertexBuffer());
             if (t_buffer.render_primitive_type == TBuffer::ERenderPrimitiveType::Triangle) {
                 Path& last_path = t_buffer.paths.back();
-                if (prev.type == curr.type && last_path.matches(curr))
+                if (prev.type == curr.type && last_path.matches(curr, m_extrusions.ranges))
                     last_path.add_sub_path(prev, static_cast<unsigned int>(v_multibuffer.size()) - 1, 0, move_id - 1);
             }
         }
@@ -3243,6 +3497,8 @@ void GCodeViewer::render_legend(float& legend_height)
         return;
 
     const Size cnv_size = wxGetApp().plater()->get_current_canvas3D()->get_canvas_size();
+    
+    Extrusions::Range *range = m_extrusions.ranges.get(m_view_type);
 
     ImGuiWrapper& imgui = *wxGetApp().imgui();
 
@@ -3265,10 +3521,25 @@ void GCodeViewer::render_legend(float& legend_height)
     const PrintEstimatedStatistics::Mode& time_mode = m_print_statistics.modes[static_cast<size_t>(m_time_estimate_mode)];
     bool show_estimated_time = time_mode.time > 0.0f && (m_view_type == EViewType::FeatureType ||
         (m_view_type == EViewType::ColorPrint && !time_mode.custom_gcode_times.empty()));
-    bool show_switch_show_outliers = (m_view_type == EViewType::VolumetricFlow || m_view_type == EViewType::VolumetricRate);
+    bool show_switch_show_outliers = (m_view_type == EViewType::VolumetricFlow || m_view_type == EViewType::VolumetricRate) && range && range->has_outliers();
     bool show_switch_log_scale = (m_view_type == EViewType::LayerTime);
-    bool show_min_max_field = m_extrusions.ranges.get(m_view_type) != nullptr;
+    bool show_min_max_field = range && (range->get_user_min() || range->get_user_max() || range->count_discrete() > 5);
     bool show_min_max_field_same_line = (m_view_type == EViewType::VolumetricFlow || m_view_type == EViewType::VolumetricRate || m_view_type == EViewType::LayerTime || m_view_type == EViewType::Chronology);
+    bool show_switch_discrete = range && range->count_discrete() > 2 && range->count_discrete() <= Range_Colors_Details.size();
+    
+    bool need_refresh_render_paths = false;
+    if(range){
+        if(!show_switch_show_outliers)
+            need_refresh_render_paths |= range->set_ratio_outliers(0.0f);
+        if(!show_switch_log_scale)
+            need_refresh_render_paths |= range->set_log_scale(false);
+        if (!show_min_max_field) {
+            need_refresh_render_paths |= range->set_user_min(0);
+            need_refresh_render_paths |= range->set_user_max(0);
+        }
+        if(!show_switch_discrete)
+            need_refresh_render_paths |= range->set_discrete_mode(false);
+    }
 
     const float icon_size = ImGui::GetTextLineHeight();
     const float percent_bar_size = 2.0f * ImGui::GetTextLineHeight();
@@ -3367,61 +3638,6 @@ void GCodeViewer::render_legend(float& legend_height)
 
         if (!visible)
             ImGui::PopStyleVar();
-    };
-
-    auto append_range = [append_item](const Extrusions::Range& range, unsigned int decimals) {
-        auto append_range_item = [append_item](const GCodeViewer::Color &color, float value, unsigned int decimals) {
-            char buf[1024];
-            ::sprintf(buf, "%.*f", decimals, value);
-            append_item(EItemType::Rect, color, buf);
-        };
-
-        if (range.has_min_max == 1)
-            // single item use case
-            append_range_item(Range_Colors[0], range.min, decimals);
-        else if (range.has_min_max == 2) {
-            append_range_item(Range_Colors[static_cast<int>(Range_Colors.size()) - 1], range.max, decimals);
-            append_range_item(Range_Colors[0], range.min, decimals);
-        }
-        else {
-            const float step_size = range.step_size();
-            const float current_min = range.get_current_min();
-            const float current_max = range.get_current_max();
-            if( current_max != range.max)
-                append_range_item(Too_High_Value_Color, range.max, decimals);
-            for (int i = static_cast<int>(Range_Colors.size()) - 1; i >= 0; --i) {
-                if (!range.log_scale)
-                    append_range_item(Range_Colors[i], current_min + static_cast<float>(i) * step_size, decimals);
-                else
-                    append_range_item(Range_Colors[i], std::exp(std::log(current_min) + static_cast<float>(i) * step_size), decimals);
-            }
-            if( current_min != range.min)
-                append_range_item(Too_Low_Value_Color, range.min, decimals);
-        }
-    };
-
-    auto append_range_time = [this, append_item](const Extrusions::Range& range) {
-        if (range.has_min_max == 1)
-            // single item use case
-            append_item(EItemType::Rect, Range_Colors[0], get_time_dhms(range.min));
-        else if (range.has_min_max == 2) {
-            append_item(EItemType::Rect, Range_Colors[static_cast<int>(Range_Colors.size()) - 1], get_time_dhms(range.max));
-            append_item(EItemType::Rect, Range_Colors[0], get_time_dhms(range.min));
-        } else {
-            const float step_size = range.step_size();
-            const float current_min = range.get_current_min();
-            const float current_max = range.get_current_max();
-            if( current_max != range.max)
-                append_item(EItemType::Rect, Too_High_Value_Color, get_time_dhms(range.max));
-            for (int i = static_cast<int>(Range_Colors.size()) - 1; i >= 0; --i) {
-                if (!range.log_scale)
-                    append_item(EItemType::Rect, Range_Colors[i], get_time_dhms(range.get_current_min() + static_cast<float>(i) * step_size));
-                else
-                    append_item(EItemType::Rect, Range_Colors[i], get_time_dhms(std::exp(std::log(range.get_current_min()) + static_cast<float>(i) * step_size)));
-            }
-            if( current_min != range.min)
-                append_item(EItemType::Rect, Too_Low_Value_Color, get_time_dhms(range.min));
-        }
     };
 
     auto append_headers = [&imgui](const std::array<std::string, 5>& texts, const std::array<float, 4>& offsets) {
@@ -3619,7 +3835,10 @@ void GCodeViewer::render_legend(float& legend_height)
     }
 
     // extrusion paths section -> items
-    switch (m_view_type)
+    if (range) {
+        for (const auto &[value, color] : range->get_legend_colors()) append_item(EItemType::Rect, color, value);
+    }
+    else switch (m_view_type)
     {
     case EViewType::FeatureType:
     {
@@ -3641,15 +3860,6 @@ void GCodeViewer::render_legend(float& legend_height)
         }
         break;
     }
-    case EViewType::Height:         { append_range(m_extrusions.ranges.height, 3); break; }
-    case EViewType::Width:          { append_range(m_extrusions.ranges.width, 3); break; }
-    case EViewType::Feedrate:       { append_range(m_extrusions.ranges.feedrate, 1); break; }
-    case EViewType::FanSpeed:       { append_range(m_extrusions.ranges.fan_speed, 0); break; }
-    case EViewType::Temperature:    { append_range(m_extrusions.ranges.temperature, 0); break; }
-    case EViewType::LayerTime:      { append_range_time(m_extrusions.ranges.layer_duration); break; }
-    case EViewType::Chronology:     { append_range_time(m_extrusions.ranges.elapsed_time); break; }
-    case EViewType::VolumetricRate: { append_range(m_extrusions.ranges.volumetric_rate, 3); break; }
-    case EViewType::VolumetricFlow: { append_range(m_extrusions.ranges.volumetric_flow, 3); break; }
     case EViewType::Tool:
     {
         // shows only extruders actually used
@@ -4061,12 +4271,10 @@ void GCodeViewer::render_legend(float& legend_height)
     }
     
     if (show_switch_show_outliers) {
-
-        Extrusions::Range *range = m_extrusions.ranges.get(m_view_type);
         assert(range);
 
         ImGui::Spacing();
-        const bool outliers_allowed = range->ratio_outlier > 0.f;
+        const bool outliers_allowed = range->get_ratio_outliers() == 0.f;
         if (!outliers_allowed)
             ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.3333f);
 
@@ -4076,20 +4284,20 @@ void GCodeViewer::render_legend(float& legend_height)
         // draw text
         ImGui::SameLine();
         if (ImGui::MenuItem((_u8L("Allow outliers")).c_str())) {
-            range->ratio_outlier = range->ratio_outlier > 0.f ? 0.f : 0.01f;
-            // update buffers' render paths
-            refresh_render_paths(false, false);
-            wxGetApp().plater()->update_preview_moves_slider();
-            wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
-            wxGetApp().plater()->update_preview_bottom_toolbar();
+            range->set_ratio_outliers(outliers_allowed ? 0.01f : 0.0f);
+            need_refresh_render_paths = true;
         } else {
             // show tooltip
             if (ImGui::IsItemHovered()) {
+                if (!outliers_allowed)
+                    ImGui::PopStyleVar();
                 ImGui::PushStyleColor(ImGuiCol_PopupBg, ImGuiWrapper::COL_WINDOW_BACKGROUND);
                 ImGui::BeginTooltip();
                 imgui.text(outliers_allowed ? _u8L("Click to disable") : _u8L("Click to enable"));
                 ImGui::EndTooltip();
                 ImGui::PopStyleColor();
+                if (!outliers_allowed)
+                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.3333f);
 
                 // to avoid the tooltip to change size when moving the mouse
                 imgui.set_requires_extra_frame();
@@ -4100,27 +4308,18 @@ void GCodeViewer::render_legend(float& legend_height)
     }
     
     if (show_switch_log_scale) {
+        assert(range);
         ImGui::Spacing();
 
-        Extrusions::Range *range = m_extrusions.ranges.get(m_view_type);
-        assert(range);
-
-        const bool log_scale = range->log_scale;
+        const bool log_scale = range->is_log_scale();
         if (!log_scale)
             ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.3333f);
-
-        ImDrawList *draw_list = ImGui::GetWindowDrawList();
-        ImVec2      pos       = ImGui::GetCursorScreenPos();
 
         // draw text
         ImGui::SameLine();
         if (ImGui::MenuItem((_u8L("Use log scale")).c_str())) {
-            range->log_scale = !range->log_scale;
-            // update buffers' render paths
-            refresh_render_paths(false, false);
-            wxGetApp().plater()->update_preview_moves_slider();
-            wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
-            wxGetApp().plater()->update_preview_bottom_toolbar();
+            range->set_log_scale(!range->is_log_scale());
+            need_refresh_render_paths = true;
         } else {
             // show tooltip
             if (ImGui::IsItemHovered()) {
@@ -4143,26 +4342,23 @@ void GCodeViewer::render_legend(float& legend_height)
     }
     
     if (show_min_max_field) {
-
-        ImDrawList *draw_list = ImGui::GetWindowDrawList();
-        ImVec2      pos       = ImGui::GetCursorScreenPos();
-        
-        Extrusions::Range *range = m_extrusions.ranges.get(m_view_type);
         assert(range);
         
-        float old_min = range->user_min;
-        float old_max = range->user_max;
-        float mod_min = range->user_min;
-        float mod_max = range->user_max;
+        float old_min = range->get_user_min();
+        float old_max = range->get_user_max();
+        float mod_min = old_min;
+        float mod_max = old_max;
         // adapt box to values
         std::string format = "%.0f";
-        float size = 36.f;
-        if( (range->min > 0 && range->min < 0.01) || (range->max > 0 && range->max < 0.1)) {
-             format = "%.4f";
-             size = 54.f;
-        }else if( (range->min > 0 && range->min < 1) || (range->max > 0 && range->max < 10)) {
-             format = "%.2f";
-             size = 45.f;
+        float size = 36.f; // 4 char
+        if (range->decimal_precision >= 3) {
+            format = "%.3f";
+            size   = 54.f; // 6 char
+        } else if (range->decimal_precision == 2) {
+            format = "%.2f";
+            size   = 45.f; // 5 char
+        } else if (range->decimal_precision == 1) {
+            format = "%.1f";
         }
         std::string min_label = _u8L("min");
         std::string max_label = _u8L("max");
@@ -4176,7 +4372,7 @@ void GCodeViewer::render_legend(float& legend_height)
         else
             ImGui::SameLine(max_label_size);
         ImGui::PushItemWidth(imgui.get_style_scaling() * size);
-        ImGui::InputFloat("##min", &mod_min, 0.0f, 0.0f, format.c_str(), ImGuiInputTextFlags_CharsDecimal, 0.f);
+        ImGui::InputFloat(m_extrusions.ranges.min_max_cstr_id[size_t(m_view_type)].first.c_str(), &mod_min, 0.0f, 0.0f, format.c_str(), ImGuiInputTextFlags_CharsDecimal, 0.f);
         if (show_min_max_field_same_line)
             ImGui::SameLine();
         else
@@ -4187,25 +4383,49 @@ void GCodeViewer::render_legend(float& legend_height)
         else
             ImGui::SameLine(max_label_size);
         ImGui::PushItemWidth(imgui.get_style_scaling() * size);
-        ImGui::InputFloat("##max", &mod_max, 0.0f, 0.0f, format.c_str(), ImGuiInputTextFlags_CharsDecimal, 0.f);
+        ImGui::InputFloat(m_extrusions.ranges.min_max_cstr_id[size_t(m_view_type)].second.c_str(), &mod_max, 0.0f, 0.0f, format.c_str(), ImGuiInputTextFlags_CharsDecimal, 0.f);
 
-        if (mod_min != old_min) {
-            range->user_min = mod_min;
+        if (mod_min != old_min)
+            if(range->set_user_min(mod_min))
+                need_refresh_render_paths = true;
+        if (mod_max != old_max)
+            if(range->set_user_max(mod_max))
+                need_refresh_render_paths = true;
+    }
+    
+    if (show_switch_discrete) {
+        ImGui::Spacing();
+        assert(range);
+
+        const bool show_discrete = range->is_discrete_mode();
+        if (!show_discrete)
+            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.3333f);
+
+        // draw text
+        ImGui::SameLine();
+        if (ImGui::MenuItem((_u8L("Discrete Values")).c_str())) {
+            range->set_discrete_mode(!range->is_discrete_mode());
+            need_refresh_render_paths = true;
+        } else {
+            // show tooltip
+            if (ImGui::IsItemHovered()) {
+                if (!show_discrete)
+                    ImGui::PopStyleVar();
+                ImGui::PushStyleColor(ImGuiCol_PopupBg, ImGuiWrapper::COL_WINDOW_BACKGROUND);
+                ImGui::BeginTooltip();
+                imgui.text(show_discrete ? _u8L("Click to return to continuous scale") : 
+                    into_u8(format_wxstr(_L("Click to switch to show a different color for each discrete value (%1% different values)."), range->count_discrete())));
+                ImGui::EndTooltip();
+                ImGui::PopStyleColor();
+                if (!show_discrete)
+                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.3333f);
+
+                // to avoid the tooltip to change size when moving the mouse
+                imgui.set_requires_extra_frame();
+            }
         }
-
-        if (mod_max != old_max) {
-            range->user_max = mod_max;
-        }
-
-        if (old_min != range->user_min || old_max != range->user_max) {
-
-            // update buffers' render paths
-            refresh_render_paths(false, false);
-            wxGetApp().plater()->update_preview_moves_slider();
-            wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
-            wxGetApp().plater()->update_preview_bottom_toolbar();
-        }
-
+        if (!show_discrete)
+            ImGui::PopStyleVar();
     }
 
     // total estimated printing time section
@@ -4283,6 +4503,14 @@ void GCodeViewer::render_legend(float& legend_height)
 
     imgui.end();
     ImGui::PopStyleVar();
+
+    if (need_refresh_render_paths) {
+        // update buffers' render paths
+        refresh_render_paths(false, false);
+        wxGetApp().plater()->update_preview_moves_slider();
+        wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
+        wxGetApp().plater()->update_preview_bottom_toolbar();
+    }
 }
 
 #if ENABLE_GCODE_VIEWER_STATISTICS
