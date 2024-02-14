@@ -12,7 +12,7 @@ jobs:
     runs-on: macos-11
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         ref: 'rc'
     - name: build deps & slicer
@@ -61,12 +61,12 @@ jobs:
         codesign -vvv --deep --strict ./build/pack/SuperSlicer/SuperSlicer.app
         codesign -dvv ./build/pack/SuperSlicer/SuperSlicer.app
     - name: Upload artifact
-      uses: actions/upload-artifact@v1.0.0
+      uses: actions/upload-artifact@v3
       with:
         name: rc_macos.app
         path: build/pack/SuperSlicer/SuperSlicer.app
     - name: Upload artifact
-      uses: actions/upload-artifact@v1.0.0
+      uses: actions/upload-artifact@v3
       with:
         name: rc_macos.dmg
         path: build/SuperSlicer.dmg

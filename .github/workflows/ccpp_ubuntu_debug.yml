@@ -8,42 +8,46 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         ref: 'debug_ubuntu'
-    - name: Setup cmake
-      uses: jwlawson/actions-setup-cmake@v1.13
-      with:
-        cmake-version: '3.16.x'
+
+    - name: update apt cache & install packages
+      run: sudo apt update && sudo apt -y install git cmake libgtk-3-dev libglew-dev libudev-dev libdbus-1-dev gettext libssl-dev libcurl4-openssl-dev
+
     - name: update submodule profiles
       working-directory: ./resources/profiles
       run: git submodule update --init
-    - name: change date in version
-      run: sed -i "s/+UNKNOWN/_$(date '+%F')/" version.inc
+
     - name: update clock
       run: sudo hwclock -s
-    - name: update apt
-      run: sudo apt update
-    - name: install gtk2 glew
-      run: sudo apt install libgtk2.0-dev libglew-dev libudev-dev libdbus-1-dev libssl-dev libcurl4-openssl-dev gettext
+
+    - name: change date in version
+      run: sed -i "s/+UNKNOWN/_$(date '+%F')/" version.inc
+
     - name: build deps & slicer
-      run: ./BuildLinux.sh -bdgs
+      run: ./BuildLinux.sh -bds
+
     - name: make .pot
       working-directory: ./build
       run: make gettext_make_pot
+
     - name: build tar & appimage
       working-directory: ./build
       run: src/BuildLinuxImage.sh -i
+
     - name: Upload artifact
-      uses: actions/upload-artifact@v1.0.0
+      uses: actions/upload-artifact@v3
       with:
-        name: nightly_linux_gtk2.tar
+        name: nightly_linux.tar
         path: build/${{ github.event.repository.name }}.tar
+
     - name: Upload appimage
-      uses: actions/upload-artifact@v1.0.0
+      uses: actions/upload-artifact@v3
       with:
-        name: ${{ github.event.repository.name }}-gtk2.AppImage
+        name: ${{ github.event.repository.name }}.AppImage
         path: build/${{ github.event.repository.name }}_ubu64.AppImage
+        

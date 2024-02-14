@@ -26,12 +26,12 @@ jobs:
         hdiutil create -ov -fs HFS+ -volname ${{ github.event.repository.name }} -srcfolder "build/pack/${{ github.event.repository.name }}" temp.dmg
         hdiutil convert temp.dmg -format UDZO -o ${{ github.event.repository.name }}.dmg
     - name: Upload artifact
-      uses: actions/upload-artifact@v1.0.0
+      uses: actions/upload-artifact@v3
       with:
         name: nightly_macos.app
         path: build/pack/${{ github.event.repository.name }}/${{ github.event.repository.name }}.app
     - name: Upload artifact
-      uses: actions/upload-artifact@v1.0.0
+      uses: actions/upload-artifact@v3
       with:
         name: nightly_macos.dmg
         path: ${{ github.event.repository.name }}.dmg
