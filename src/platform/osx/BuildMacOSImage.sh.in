@@ -15,7 +15,7 @@ while getopts ":ih" opt; do
   esac
 done
 
-echo -e "\n[8/9] Generating MacOS app..."
+echo -e "\n[8/9] Generating macOS app..."
 {
     # update Info.plist
     pushd src
@@ -49,20 +49,20 @@ echo -e "\n[8/9] Generating MacOS app..."
     chmod u+x pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/MacOS/@SLIC3R_APP_KEY@
     cp /usr/local/opt/zstd/lib/libzstd.1.dylib pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/MacOS/libzstd.1.dylib
 } &> $ROOT/Build.log # Capture all command output
-echo "done"
+echo -e "\n ...done"
 
 if [[ -n "$BUILD_IMAGE" ]]
 then
-echo -e "\n[9/9] Creating DMG Image for distribution..."
+echo -e "\n[9/9] Creating .tgz archive and DMG image for distribution..."
 {
-    tar -czvf @SLIC3R_APP_KEY@-@SLIC3R_VERSION@-@SLIC3R_BUILD_NR@-macOS.tgz pack/@SLIC3R_APP_KEY@
+    tar -czvf @SLIC3R_APP_KEY@-@SLIC3R_VERSION_FULL@-macOS.tgz pack/@SLIC3R_APP_KEY@
 
     # create dmg
     hdiutil create -ov -fs HFS+ -volname "@SLIC3R_APP_KEY@" -srcfolder "pack/@SLIC3R_APP_KEY@" temp.dmg
-    hdiutil convert temp.dmg -format UDZO -o @SLIC3R_APP_KEY@-@SLIC3R_VERSION@-@SLIC3R_BUILD_NR@-macOS.dmg
+    hdiutil convert temp.dmg -format UDZO -o @SLIC3R_APP_KEY@-@SLIC3R_VERSION_FULL@-macOS.dmg
     rm -f temp.dmg
 
     popd
 } &> $ROOT/Build.log # Capture all command output
-echo "done"
+echo -e "\n ...done"
 fi
