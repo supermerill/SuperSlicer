@@ -5024,9 +5024,10 @@ void PrintConfigDef::init_fff_params()
 
     def = this->add("small_perimeter_speed", coFloatOrPercent);
     def->label = L("Speed");
-    def->full_label = L("Small perimeters speed");
+    def->full_label = L("Small perimeters/radius speed");
     def->category = OptionCategory::speed;
-    def->tooltip = L("This separate setting will affect the speed of perimeters having radius <= 6.5mm (usually holes)."
+    def->tooltip = L("This separate setting will affect the speed of perimeters having small (less then Max length) length (usually holes)."
+                   " If Arc fitting on Printer page is enabled it's also applied to part of long perimeters having radius less then 'Max length/6.28' (2Pi)."
                    "\nIf expressed as percentage (for example: 80%) it will be calculated on the Internal Perimeters speed setting above."
                    "\nSet zero to disable.");
     def->sidetext = L("mm/s or %");

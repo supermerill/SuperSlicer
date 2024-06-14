@@ -680,7 +680,7 @@ std::string GCodeWriter::extrude_to_xy(const Vec2d &point, double dE, const std:
 //BBS: generate G2 or G3 extrude which moves by arc
 //point is end point which means X and Y axis
 //center_offset is I and J axis
-std::string GCodeWriter::extrude_arc_to_xy(const Vec2d& point, const Vec2d& center_offset, double dE, const bool is_ccw, const std::string& comment)
+std::string GCodeWriter::extrude_arc_to_xy(const Vec2d& point, const Vec2d& center_offset, double dE, const bool is_ccw, double speed, const std::string& comment)
 {
     m_pos.x() = point.x();
     m_pos.y() = point.y();
@@ -691,10 +691,17 @@ std::string GCodeWriter::extrude_arc_to_xy(const Vec2d& point, const Vec2d& cent
     GCodeG2G3Formatter w(this->config.gcode_precision_xyz.value, this->config.gcode_precision_e.value, is_ccw);
     w.emit_xy(point);
     w.emit_ij(center_offset);
+    if (speed > 0)
+        w.emit_f(speed * 60);
     if (is_extrude)
         w.emit(m_extrusion_axis, e_str);
     //BBS
     w.emit_comment(this->config.gcode_comments, comment);
+
+    if (speed > 0) {
+        //restore current speed in gcode
+        w.emit_string("\n" + this->set_speed(this->get_speed()));
+    }
     return w.string();
 }
 

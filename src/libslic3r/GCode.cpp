@@ -5786,11 +5786,34 @@ std::string GCode::_extrude(const ExtrusionPath &path, const std::string &descri
                     const Slic3r::Geometry::ArcSegment& arc = fitting_result[fitting_index].arc_data;
                     const double arc_length = fitting_result[fitting_index].arc_data.length * SCALING_FACTOR;
                     const Vec2d center_offset = this->point_to_gcode(arc.center) - this->point_to_gcode(arc.start_point);
+
+                    double arc_speed = 0;
+                    if (m_config.small_perimeter_speed.getFloat() > 0 && is_perimeter(path.role()) && path.role() != erThinWall) {
+
+                        double full_arc_len = 2 * PI * arc.radius * SCALING_FACTOR;
+
+                        coordf_t min_length = (this->m_config.small_perimeter_min_length.get_abs_value(EXTRUDER_CONFIG_WITH_DEFAULT(nozzle_diameter, 0)));
+                        coordf_t max_length = (this->m_config.small_perimeter_max_length.get_abs_value(EXTRUDER_CONFIG_WITH_DEFAULT(nozzle_diameter, 0)));
+                        max_length = std::max(min_length, max_length);
+                        double factor = 0;
+
+                        if (full_arc_len < min_length) {
+                            arc_speed = m_config.small_perimeter_speed.get_abs_value(m_config.perimeter_speed);
+                        }
+                        else {
+                            if (full_arc_len < max_length) {
+                                factor = (full_arc_len - min_length) / (max_length - min_length);
+                                arc_speed = m_config.small_perimeter_speed.get_abs_value(m_config.perimeter_speed) + factor * (m_writer.get_speed() - m_config.small_perimeter_speed);
+                            }
+                        }
+                    }
+
                     gcode += m_writer.extrude_arc_to_xy(
                         this->point_to_gcode(arc.end_point),
                         center_offset,
                         e_per_mm * arc_length,
                         arc.direction == Slic3r::Geometry::ArcDirection::Arc_Dir_CCW,
+                        arc_speed,
                         comment);
                     break;
                 }
