@@ -65,8 +65,8 @@ SET PS_CONFIG_LIST="Debug;MinSizeRel;Release;RelWithDebInfo"
 
 REM The officially supported toolchain version is 16 (Visual Studio 2019)
 REM TODO: Update versions after Boost gets rolled to 1.78 or later
-SET PS_VERSION_SUPPORTED=16
-SET PS_VERSION_EXCEEDED=17
+SET PS_VERSION_SUPPORTED=17
+SET PS_VERSION_EXCEEDED=18
 SET VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe
 IF NOT EXIST "%VSWHERE%" SET VSWHERE=%ProgramFiles%\Microsoft Visual Studio\Installer\vswhere.exe
 FOR /F "tokens=4 USEBACKQ delims=." %%I IN (`"%VSWHERE%" -nologo -property productId`) DO SET PS_PRODUCT_DEFAULT=%%I
