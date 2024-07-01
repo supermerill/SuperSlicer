@@ -489,6 +489,7 @@ group:Output file
 	setting:full_width:output_filename_format
 group:Other
     gcode_substitutions
+	setting:per_objects_gcode
 group:Post-processing script
 	setting:full_width:height$5:post_process
 	post_process_explanation

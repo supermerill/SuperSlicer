@@ -633,6 +633,7 @@ static std::vector<std::string> s_Preset_print_options {
         "gcode_substitutions",
         "infill_extruder", "solid_infill_extruder", "support_material_extruder", "support_material_interface_extruder", 
         "ooze_prevention", "standby_temperature_delta", "interface_shells", 
+        "per_objects_gcode",
         // width & spacing
         "extrusion_spacing", 
         "extrusion_width", 

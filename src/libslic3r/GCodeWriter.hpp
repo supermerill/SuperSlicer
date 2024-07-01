@@ -44,6 +44,8 @@ public:
     void        set_travel_acceleration(uint32_t acceleration);
     uint32_t    get_acceleration() const;
     std::string write_acceleration();
+    void        set_per_object_gcode(std::string per_object);
+    std::string write_per_object_gcode();
     std::string reset_e(bool force = false);
     std::string update_progress(uint32_t num, uint32_t tot, bool allow_100 = false) const;
     // return false if this extruder was already selected
@@ -91,6 +93,8 @@ private:
     std::vector<Extruder> m_extruders;
     std::vector<Mill> m_millers;
     std::string     m_extrusion_axis = "E";
+    std::string     m_current_per_object_gcode;
+    std::string     m_last_per_object_gcode;
     bool            m_single_extruder_multi_material = false;
     Tool*           m_tool = nullptr;
     uint32_t        m_last_acceleration = 0;
@@ -103,6 +107,7 @@ private:
     int16_t         m_last_temperature_with_offset = 0;
     int16_t         m_last_bed_temperature = 0;
     bool            m_last_bed_temperature_reached = true;
+
     // if positive, it's set, and the next lift wil have this extra lift
     double          m_extra_lift = 0;
     // current lift, to remove from m_pos to have the current height.

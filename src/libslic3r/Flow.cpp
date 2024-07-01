@@ -524,7 +524,7 @@ float Flow::rounded_rectangle_extrusion_spacing(float width, float height, float
 #else
     if (width == height && width == 0)
         return 0.f;
-    float out = width - height * float(1. - 0.25 * PI) * m_spacing_ratio;
+    float out = width - height * float(1. - 0.25 * PI) * m_spacing_ratio;//this calculates the real spacing for widths. i need this one.
     if (out <= 0.f)
         throw FlowErrorNegativeSpacing();
     return out;

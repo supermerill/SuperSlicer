@@ -676,6 +676,18 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionString(""));
 
+    def = this->add("per_objects_gcode", coString);
+    def->label = L("Per object G-code");
+    def->category = OptionCategory::customgcode;
+    def->tooltip = L("This code is inserted at the start of every object. it's main advantage is when you use it as a object modifer(right click on a model to add it there)"
+                     "\nadd here the model names you want to insert the gocde for eg:'90_bend.3mf' if you have several seperate them with ',' no spaces in any target file name!"
+                     "\nthe code will search for that object name and insert the custom gcode per that object only.");
+    def->multiline = true;
+    def->full_width = true;
+    def->height = 10;
+    def->mode = comExpert | comPrusa;
+    def->set_default_value(new ConfigOptionString(""));
+
     def = this->add("bottom_solid_layers", coInt);
     //TRN To be shown in Print Settings "Bottom solid layers"
     def->label = L("Bottom");

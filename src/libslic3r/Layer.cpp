@@ -222,6 +222,27 @@ void Layer::make_perimeters()
                 && config.fuzzy_skin                == other_config.fuzzy_skin
                 && config.fuzzy_skin_thickness      == other_config.fuzzy_skin_thickness
                 && config.fuzzy_skin_point_dist     == other_config.fuzzy_skin_point_dist
+
+                && config.bridge_acceleration                      == other_config.bridge_acceleration
+                && config.bridge_internal_acceleration             == other_config.bridge_internal_acceleration
+                && config.brim_acceleration                        == other_config.brim_acceleration
+                && config.default_acceleration                     == other_config.default_acceleration
+                && config.external_perimeter_acceleration          == other_config.external_perimeter_acceleration
+                && config.first_layer_acceleration                 == other_config.first_layer_acceleration
+                && config.gap_fill_acceleration                    == other_config.gap_fill_acceleration
+                && config.infill_acceleration                      == other_config.infill_acceleration
+                && config.ironing_acceleration                     == other_config.ironing_acceleration
+                && config.overhangs_acceleration                   == other_config.overhangs_acceleration
+                && config.perimeter_acceleration                   == other_config.perimeter_acceleration
+                && config.solid_infill_acceleration                == other_config.solid_infill_acceleration
+                && config.support_material_acceleration            == other_config.support_material_acceleration
+                && config.support_material_interface_acceleration  == other_config.support_material_interface_acceleration
+                && config.thin_walls_acceleration                  == other_config.thin_walls_acceleration
+                && config.top_solid_infill_acceleration            == other_config.top_solid_infill_acceleration//compiles fine with moving them here, how to properly test this ?
+                && config.per_objects_gcode                        == other_config.per_objects_gcode
+                && config.external_perimeter_extrusion_spacing     == other_config.external_perimeter_extrusion_spacing
+                && config.perimeter_extrusion_spacing              == other_config.perimeter_extrusion_spacing
+                
                 ) {
                 layerms.push_back(other_layerm);
                 done[it - m_regions.begin()] = true;

@@ -72,6 +72,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "bed_temperature",
         "before_layer_gcode",
         "between_objects_gcode",
+        "per_objects_gcode",
         "bridge_acceleration",
         "bridge_internal_acceleration",
         "bridge_fan_speed",

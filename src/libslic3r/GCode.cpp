@@ -870,6 +870,7 @@ namespace DoExport {
         if (ret.size() < MAX_TAGS_COUNT) check(_(L("Color Change G-code")), GCodeWriter::get_default_color_change_gcode(config));
         if (ret.size() < MAX_TAGS_COUNT) check(_(L("Pause Print G-code")), GCodeWriter::get_default_pause_gcode(config));
         if (ret.size() < MAX_TAGS_COUNT) check(_(L("Template Custom G-code")), config.template_custom_gcode.value);
+        //if (ret.size() < MAX_TAGS_COUNT) check(_(L("Per object G-code")), config.per_objects_gcode.value); //not needed yet ?
         if (ret.size() < MAX_TAGS_COUNT) {
             for (const std::string& value : config.start_filament_gcode.values) {
                 check(_(L("Filament Start G-code")), value);
@@ -1542,6 +1543,55 @@ void GCode::_do_export(Print& print_mod, GCodeOutputStream &file, ThumbnailsGene
             file.write_format("; first layer extrusion width = %.2fmm\n",   region.flow(*first_object, frPerimeter, first_layer_height, 0).width());
         file.write_format("\n");
     }
+
+    size_t nb_parts_per_object = 0;
+    size_t nb_parts_per_target_volume = 0;
+    std::string volume_config_per_object_gcode = "";
+
+    if (print.default_region_config().per_objects_gcode.value != "") {// mabye add check for project name/ base object name ? user doesn't normally add models inside another model.
+
+        std::string per_object_target_name = print.default_region_config().per_objects_gcode.value;// pull main config object names to apply modifer gcode to
+        std::istringstream iss(per_object_target_name);
+        std::vector<std::string> target_objects;
+        
+        file.write("; target object name: " + per_object_target_name + "\n");
+        if (!per_object_target_name.empty() && per_object_target_name.back() != ',') {
+            throw Slic3r::SlicingError(_(L("no ending comma found, fix per object in main print settings config! each object you want to apply settings to much be seperated by a comma!")));
+        }
+        std::string search_for_comma;
+        while (std::getline(iss, search_for_comma, ',')) {
+            target_objects.push_back(search_for_comma);
+        }
+
+        for (PrintObject* print_object : print.objects()) { //loop though main objects
+            std::string volume_name = "";
+            auto part_details = print_object->model_object()->volumes;
+        
+            for (const auto& volume : part_details) {//loop though object volumes - object parts
+                volume_name = volume->name;
+                file.writeln(volume_name);//write file name at start/end of next loop
+
+                for (const auto& target_object : target_objects) {//loop though each volume
+                    if (volume_name == target_object) {
+                        nb_parts_per_target_volume++;
+                        auto volume_config = volume->config.option("per_objects_gcode");//pull per volume config
+                        if (volume_config) {//failsafe check, maybe user forgot to add the manipulator in
+                            volume_config_per_object_gcode = volume->config.opt_serialize("per_objects_gcode");
+                            file.writeln(volume_config_per_object_gcode);
+                            m_writer.set_per_object_gcode(volume_config_per_object_gcode);//need to check if "per_objects_gcode" contains '\n' split string and write it the write new line and write remaining of string till next "\n"
+                        }
+                        break;
+                    }
+                }
+                file.writeln(volume_name);
+                nb_parts_per_object++;
+            }
+        }
+    }
+
+    file.write("; Total parts per object: " + std::to_string(nb_parts_per_object) + "\n");
+    file.write("; Total parts per target volume: " + std::to_string(nb_parts_per_target_volume) + "\n");
+
     BoundingBoxf3 global_bounding_box;
     size_t nb_items = 0;
     std::wregex pattern(L"[^\\w]+", std::regex_constants::ECMAScript);
@@ -1614,6 +1664,7 @@ void GCode::_do_export(Print& print_mod, GCodeOutputStream &file, ThumbnailsGene
         file.write("M486 T" + std::to_string(nb_items) + "\n");
     }
     if (this->config().gcode_label_objects) {
+        file.write("; Total objects to print: " + std::to_string(nb_items) + "\n");
         file.write_format( "; plater:{\"center\":[%f,%f,%f],\"boundingbox_center\":[%f,%f,%f],\"boundingbox_size\":[%f,%f,%f]}\n",
             global_bounding_box.center().x(), global_bounding_box.center().y(), 0.,
             global_bounding_box.center().x(), global_bounding_box.center().y(), global_bounding_box.center().z(),
