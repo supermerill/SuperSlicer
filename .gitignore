@@ -18,6 +18,7 @@ local-lib
 build*
 deps/build*
 deps/deps-*
+cmake/CPackConfig.cmake
 
 # MacOS Ignores
 .DS_Store
