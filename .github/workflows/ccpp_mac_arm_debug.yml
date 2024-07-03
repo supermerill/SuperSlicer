@@ -1,9 +1,7 @@
 name: C/C++ debug arm macos
 
 on:
-  push:
-    branches:
-      - debug_macos
+  workflow_dispatch:
 
 jobs:
   build:
