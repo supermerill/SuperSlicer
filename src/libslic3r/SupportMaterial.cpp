@@ -4142,7 +4142,7 @@ void PrintObjectSupportMaterial::generate_toolpaths(
     float raft_angle_1st_layer  = 0.f;
     float raft_angle_base       = 0.f;
     float raft_angle_interface  = 0.f;
-    size_t raft_top_interface_idx  = m_slicing_params->interface_raft_layers == 0 ? 0 : (m_slicing_params->base_raft_layers + m_slicing_params->interface_raft_layers - 1);
+    size_t raft_top_interface_idx  = m_slicing_params->interface_raft_layers == 0 ? size_t(-1) : (m_slicing_params->base_raft_layers + m_slicing_params->interface_raft_layers - 1);
     if (m_slicing_params->base_raft_layers > 1) {
         // There are all raft layer types (1st layer, base, interface & contact layers) available.
         raft_angle_1st_layer  = m_support_params.interface_angle;
