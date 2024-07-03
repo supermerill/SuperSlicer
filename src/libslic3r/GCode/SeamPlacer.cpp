@@ -607,7 +607,7 @@ PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosit
 // if Custom Seam modifiers are present, oversamples the polyline if necessary to better fit user intentions
 void process_perimeter_polylines(const PolylineWithEnd &orig_polyline, float z_coord, const LayerRegion *region,
         const GlobalModelInfo &global_model_info, PrintObjectSeamData::LayerSeams &result) {
-    if (orig_polyline.size() == 0) {
+    if (orig_polyline.size() <= 1) {
         return;
     }
     PolylineWithEnd polyline = orig_polyline;

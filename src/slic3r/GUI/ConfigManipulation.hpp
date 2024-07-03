@@ -58,6 +58,10 @@ public:
     void    update_print_fff_config(DynamicPrintConfig* config, const bool is_global_config = false);
     void    toggle_print_fff_options(DynamicPrintConfig* config);
 
+    // FFF printer
+    void    update_printer_fff_config(DynamicPrintConfig* config, const bool is_global_config = false);
+    void    toggle_printer_fff_options(DynamicPrintConfig* config, DynamicPrintConfig &full_config);
+
     // SLA print
     void    update_print_sla_config(DynamicPrintConfig* config, const bool is_global_config = false);
     void    toggle_print_sla_options(DynamicPrintConfig* config);
