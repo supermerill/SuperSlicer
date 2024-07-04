@@ -19,7 +19,7 @@
 #include <tbb/parallel_for.h>
 #include <tbb/spin_mutex.h>
 #include <tbb/task_group.h>
-#pragma optimize("", off)
+
 #define SUPPORT_USE_AGG_RASTERIZER
 
 #ifdef SUPPORT_USE_AGG_RASTERIZER

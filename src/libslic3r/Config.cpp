@@ -1,6 +1,7 @@
 #include "Config.hpp"
-#include "Preset.hpp"
+#include "Flow.hpp"
 #include "format.hpp"
+#include "Preset.hpp"
 #include "Utils.hpp"
 #include "LocalesUtils.hpp"
 
@@ -1053,7 +1054,7 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
         if (raw_opt->type() == coFloatOrPercent) {
             auto cofop = static_cast<const ConfigOptionFloatOrPercent*>(raw_opt);
             if (cofop->value == 0 && boost::ends_with(opt_key, "_extrusion_width")) {
-                return this->get_computed_value("extrusion_width");
+                 return Flow::extrusion_width(opt_key, *this, extruder_id);
             }
             if (!cofop->percent)
                 return cofop->value;

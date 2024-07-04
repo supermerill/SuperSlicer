@@ -747,8 +747,13 @@ void process_perimeter_polylines(const PolylineWithEnd &orig_polyline, float z_c
             }
             std::vector<size_t> viable_points_indices;
             std::vector<size_t> large_angle_points_indices;
-            for (size_t point_idx = longest_patch.first; point_idx != longest_patch.second;
-                    point_idx = next_index(point_idx)) {
+            assert(longest_patch.first >= perimeter.start_index && longest_patch.first <= perimeter.end_index);
+            assert(longest_patch.second >= perimeter.start_index && longest_patch.second <= perimeter.end_index);
+            assert(is_polygon || longest_patch.first <= longest_patch.second);
+            for (size_t point_idx = longest_patch.first;
+                 point_idx       != longest_patch.second;
+                 point_idx        = is_polygon ? next_index(point_idx) : (1 + point_idx)) {
+                size_t viable_points_indices_count = viable_points_indices.size();
                 viable_points_indices.push_back(point_idx);
                 if (std::abs(result.points[point_idx].local_ccw_angle)
                         > SeamPlacer::sharp_angle_snapping_threshold) {
