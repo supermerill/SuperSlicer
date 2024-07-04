@@ -43,7 +43,7 @@ group:Fan speed - default
 		setting:id$0:label_width$12:label$Interface:support_material_interface_fan_speed
 	line:Bridges fan speed
 		setting:id$0:label_width$12:label$Bridges:bridge_fan_speed
-		setting:id$0:label_width$12:label$Internal bridges:bridge_internal_fan_speed
+		setting:id$0:label_width$12:label$Internal bridges:internal_bridge_fan_speed
 	line:Overhangs Perimeter fan speed
 		setting:id$0:label_width$12:label$Overhangs:overhangs_fan_speed
 	line:Gap fill fan speed

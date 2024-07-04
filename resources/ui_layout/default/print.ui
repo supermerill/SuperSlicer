@@ -320,16 +320,17 @@ group:Options for support material and raft
 group:Options for support material interface
 	setting:support_material_interface_layer_height
 	line:Pattern
-		setting:support_material_interface_pattern
-		setting:label$Interface spacing:support_material_interface_spacing
+		setting:label$Top:support_material_top_interface_pattern
+		setting:label$Bottom:support_material_bottom_interface_pattern
+		setting:label$Spacing:support_material_interface_spacing
 	end_line
 	line:Pattern Angle
 		setting:label$_:support_material_interface_angle
 		setting:label$Increment:support_material_interface_angle_increment
 	end_line
 	line:Layer count
-		setting:support_material_interface_layers
-		setting:support_material_bottom_interface_layers
+		setting:label$Top:support_material_interface_layers
+		setting:label$Bottom:support_material_bottom_interface_layers
 	end_line
 	setting:support_material_interface_contact_loops
 
@@ -400,7 +401,7 @@ group:label_width$9:sidetext_width$8:Acceleration control (advanced)
 		setting:width$4:brim_acceleration
 	line:Bridge acceleration
 		setting:width$4:bridge_acceleration
-		setting:width$4:bridge_internal_acceleration
+		setting:width$4:internal_bridge_acceleration
 		setting:width$4:overhangs_acceleration
 	line:Other extrusions acceleration
 		setting:width$4:gap_fill_acceleration

@@ -54,7 +54,7 @@ static SettingsFactory::Bundle FREQ_SETTINGS_BUNDLE_FFF =
     { OptionCategory::perimeter     , { "layer_height" , "perimeters", "top_solid_layers", "bottom_solid_layers" } },
     { OptionCategory::infill        , { "fill_density", "fill_pattern", "fill_angle" } },
     { OptionCategory::support       , { "support_material", "support_material_auto", "support_material_threshold",
-                                    "support_material_pattern", "support_material_interface_pattern", "support_material_buildplate_only",
+                                    "support_material_pattern", "support_material_bottom_interface_pattern", "support_material_top_interface_pattern", "support_material_buildplate_only",
                                     "support_material_spacing" } },
     { OptionCategory::wipe          , { "wipe_into_infill", "wipe_into_objects" } }
 };

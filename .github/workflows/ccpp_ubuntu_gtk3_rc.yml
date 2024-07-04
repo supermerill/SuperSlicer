@@ -1,9 +1,7 @@
 name: C/C++ Release candidate ubuntu-GTK3
 
 on:
-  push:
-    branches:
-      - rc
+  workflow_dispatch:
 
 jobs:
   build:

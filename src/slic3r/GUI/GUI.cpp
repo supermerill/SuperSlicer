@@ -172,7 +172,8 @@ static void add_config_substitutions(const ConfigSubstitutions& conf_substitutio
 							 def->opt_key == "bottom_fill_pattern" ||
 							 def->opt_key == "solid_fill_pattern" ||
 							 def->opt_key == "bridge_fill_pattern" ||
-							 def->opt_key == "support_material_interface_pattern" ||
+							 def->opt_key == "support_material_top_interface_pattern" ||
+							 def->opt_key == "support_material_bottom_interface_pattern" ||
 							 def->opt_key == "brim_ears_pattern" ||
 							 def->opt_key == "fill_pattern";
 

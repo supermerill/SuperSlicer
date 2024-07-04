@@ -370,7 +370,7 @@ group:label_width$9:sidetext_width$8:Acceleration control (advanced)
 		setting:width$4:brim_acceleration
 	line:Bridge acceleration
 		setting:width$4:bridge_acceleration
-		setting:width$4:bridge_internal_acceleration
+		setting:width$4:internal_bridge_acceleration
 		setting:width$4:overhangs_acceleration
 	line:Other extrusions acceleration
 		setting:width$4:gap_fill_acceleration

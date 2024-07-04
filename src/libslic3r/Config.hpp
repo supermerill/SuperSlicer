@@ -507,11 +507,13 @@ public:
     virtual ConfigOption*       clone() const = 0;
     // Set a value from a ConfigOption. The two options should be compatible.
     virtual void                set(const ConfigOption *option) = 0;
+    // Getters, idx is ignored if it's a scalar value.
     virtual int32_t             get_int(size_t idx = 0)        const { throw BadOptionTypeException("Calling ConfigOption::get_int on a non-int ConfigOption"); }
     virtual double              get_float(size_t idx = 0)      const { throw BadOptionTypeException("Calling ConfigOption::get_float on a non-float ConfigOption"); }
     virtual bool                is_percent(size_t idx = 0)     const { return false;  }
     virtual bool                get_bool(size_t idx = 0)       const { throw BadOptionTypeException("Calling ConfigOption::get_bool on a non-boolean ConfigOption");  }
     virtual void                set_enum_int(int32_t /* val */) { throw BadOptionTypeException("Calling ConfigOption::set_enum_int on a non-enum ConfigOption"); }
+    // If scalar, idx is ignore, else: if idx < 0 return the vector; if idx >=0 then return the value at theis index; if idx >= size(), then return the first value or a default one.
     virtual boost::any          get_any(int32_t idx = -1)      const { throw BadOptionTypeException("Calling ConfigOption::get_any on a raw ConfigOption"); }
     virtual void                set_any(boost::any, int32_t idx = -1) { throw BadOptionTypeException("Calling ConfigOption::set_any on a raw ConfigOption"); }
     virtual bool                is_enabled(size_t idx = -1)    const { return (flags & FCO_ENABLED) != 0; }
@@ -528,6 +530,8 @@ public:
     virtual size_t              hash()          const throw() = 0;
     bool                        is_scalar()     const { return (int(this->type()) & int(coVectorType)) == 0; }
     bool                        is_vector()     const { return ! this->is_scalar(); }
+    // Size of the vector it contains, or 1 if it's a scalar value.
+    virtual size_t              size()          const = 0;
     // If this option is nullable, then it may have its value or values set to nil.
     virtual bool 				nullable()		const { return false; }
     // A scalar is nil, or all values of a vector are nil if idx < 0.
@@ -564,6 +568,7 @@ public:
     operator T() const { return this->value; }
     boost::any get_any(int32_t idx = -1) const override { return boost::any(value); }
     void       set_any(boost::any anyval, int32_t idx = -1) override { value = boost::any_cast<T>(anyval); }
+    size_t     size() const override { return 1; }
     
     void set(const ConfigOption *rhs) override
     {
@@ -626,8 +631,6 @@ public:
     // currently, it's used to try to have a meaningful value for a Field if the default value is Nil (and to avoid cloning the option, clear it, asking for an item)
     virtual boost::any get_default_value() const = 0;
 
-    // Get size of this vector.
-    virtual size_t size()  const = 0;
     // Is this vector empty?
     virtual bool   empty() const = 0;
     // Get if the size of this vector is/should be the same as nozzle_diameter
@@ -942,6 +945,7 @@ public:
     			return true;
     	return false;
     }
+
     // Apply an override option, possibly a nullable one.
     bool apply_override(const ConfigOption *rhs) override {
         if (this->nullable())
@@ -3147,9 +3151,11 @@ public:
     // Thus the virtual method get_int() is used to retrieve the enum value.
     template<typename ENUM>
     ENUM                opt_enum(const t_config_option_key &opt_key) const                      { return static_cast<ENUM>(this->option(opt_key)->get_int()); }
-
+    
     bool                opt_bool(const t_config_option_key &opt_key) const                      { return this->option<ConfigOptionBool>(opt_key)->value != 0; }
     bool                opt_bool(const t_config_option_key &opt_key, unsigned int idx) const    { return this->option<ConfigOptionBools>(opt_key)->get_at(idx) != 0; }
+    bool&               opt_bool(const t_config_option_key &opt_key)                            { return this->option<ConfigOptionBool>(opt_key)->value; }
+    unsigned char&      opt_bool(const t_config_option_key &opt_key, unsigned int idx)          { return this->option<ConfigOptionBools>(opt_key)->get_at(idx); }
 
     // Command line processing
     bool                read_cli(int argc, const char* const argv[], t_config_option_keys* extra, t_config_option_keys* keys = nullptr);

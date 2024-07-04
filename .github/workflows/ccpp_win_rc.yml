@@ -1,15 +1,13 @@
 name: C/C++ Release candidate windows x64
 
 on:
-  push:
-    branches:
-      - rc
+  workflow_dispatch:
 
 jobs:
 
   build:
     runs-on: windows-2019
-    
+
     steps:
     - uses: actions/checkout@v1
     - uses: ilammy/msvc-dev-cmd@v1

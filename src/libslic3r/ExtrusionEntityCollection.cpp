@@ -86,13 +86,13 @@ void ExtrusionEntityCollection::chained_path_from(const Point &start_near)
     if (this->m_no_sort) {
         if (this->m_can_reverse) {
             if (m_entities.size() > 1) {
-                //can't sort myself, ask first and last thign to sort itself so the first point of each are the best ones
+                //can't sort myself, ask first and last thing to sort itself so the first point of each are the best ones
                 if (m_entities.front()->is_collection()) {
                     assert(dynamic_cast<ExtrusionEntityCollection*>(m_entities.front()) != nullptr);
                     static_cast<ExtrusionEntityCollection*>(m_entities.front())->chained_path_from(start_near);
                 } else if (m_entities.front()->can_reverse() &&
                            m_entities.front()->first_point().distance_to_square(start_near) >
-                               m_entities.front()->first_point().distance_to_square(start_near)) {
+                               m_entities.front()->last_point().distance_to_square(start_near)) {
                     m_entities.front()->reverse();
                 }
                 if (m_entities.back()->is_collection()) {
@@ -100,7 +100,7 @@ void ExtrusionEntityCollection::chained_path_from(const Point &start_near)
                     static_cast<ExtrusionEntityCollection*>(m_entities.back())->chained_path_from(start_near);
                 } else if (m_entities.back()->can_reverse() &&
                            m_entities.back()->first_point().distance_to_square(start_near) >
-                               m_entities.back()->first_point().distance_to_square(start_near)) {
+                               m_entities.back()->last_point().distance_to_square(start_near)) {
                     m_entities.back()->reverse();
                 }
                 //now check if it's better for us to reverse
@@ -110,14 +110,14 @@ void ExtrusionEntityCollection::chained_path_from(const Point &start_near)
                     this->reverse();
                 }
             }
-            // now we are in our good order, update the internals
+            // now we are in our good order, update the internals to the final order
             Point last_point = start_near;
             for (ExtrusionEntity *entity : m_entities) {
                 if (entity->is_collection()) {
                     assert(dynamic_cast<ExtrusionEntityCollection*>(entity) != nullptr);
                     static_cast<ExtrusionEntityCollection*>(entity)->chained_path_from(last_point);
                 } else if (entity->can_reverse() && entity->first_point().distance_to_square(last_point) >
-                                                        entity->first_point().distance_to_square(last_point)) {
+                                                        entity->last_point().distance_to_square(last_point)) {
                     entity->reverse();
                 }
                 last_point = entity->last_point();

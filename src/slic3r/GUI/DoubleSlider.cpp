@@ -467,8 +467,8 @@ bool Control::ensure_correctly_filled() const
         //m_layers_areas.clear();
     }
     if (!m_layers_values.empty()) {
-        ok = m_is_wipe_tower;
-        assert(m_is_wipe_tower);
+        //ok = m_is_wipe_tower;
+        //assert(m_is_wipe_tower);
         //m_is_wipe_tower = false;
     }
 

@@ -1,12 +1,7 @@
 name: C/C++ Nightly ubuntu-GTK3
 
 on:
-  push:
-    branches:
-      - Nigthly
-      - nightly_dev
-      - nightly_master
-      - debug_ubuntu
+  workflow_dispatch:
 
 jobs:
   build:

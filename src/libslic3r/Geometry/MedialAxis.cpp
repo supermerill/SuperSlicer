@@ -3120,7 +3120,7 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
             const coordf_t new_length = prev_line.a.distance_to(line.b);
             assert(sum_length - new_length > -0.0000000001);
             // only merge if the distance is almost the sum (90° = 0.707)
-            if(new_length < sum_length * 0.9)
+            if(new_length < std::max(sum_length * 0.9,  std::max(prev_line_len + line_len/2 , prev_line_len /2 + line_len)))
                 continue;
             assert(new_length > prev_line_len && new_length > line_len);
             coordf_t width = prev_line_len * (prev_line.a_width + prev_line.b_width) / 2;

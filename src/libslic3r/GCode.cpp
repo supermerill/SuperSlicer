@@ -1427,8 +1427,8 @@ void GCode::_do_export(Print& print_mod, GCodeOutputStream &file, ThumbnailsGene
 
     //klipper can hide gcode into a macro, so add guessed init gcode to the processor.
     if (this->config().start_gcode_manual) {
-        std::string gcode = m_writer.preamble();
-        m_processor.process_string(gcode,  this->m_throw_if_canceled);
+        // from m_writer.preamble();
+        m_processor.process_preamble(true/*unit_mm*/, true/*absolute_coords*/, m_writer.config.use_relative_e_distances.value, 0/*G92*/);
     }
 
     if (! print.config().gcode_substitutions.empty()) {
@@ -5718,7 +5718,7 @@ void GCode::_extrude_line_cut_corner(std::string& gcode_str, const Line& line, c
 
 double GCode::compute_e_per_mm(double path_mm3_per_mm) {
     // no e if no extrusion axis
-    if (m_writer.extrusion_axis().empty())
+    if (m_writer.extrusion_axis().empty() || path_mm3_per_mm <= 0)
         return 0;
     // compute
     double e_per_mm = path_mm3_per_mm

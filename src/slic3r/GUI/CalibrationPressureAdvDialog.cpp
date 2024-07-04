@@ -248,7 +248,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
     {"BridgeInfill", "bridge_acceleration"},
     {"ExternalPerimeter", "external_perimeter_acceleration"},
     {"GapFill", "gap_fill_acceleration"},
-    {"InternalBridgeInfill", "bridge_internal_acceleration"},
+    {"InternalBridgeInfill", "internal_bridge_acceleration"},
     {"Ironing", "ironing_acceleration"},
     {"OverhangPerimeter", "overhangs_acceleration"},
     {"Perimeter", "perimeter_acceleration"},
@@ -307,7 +307,7 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
         //{"BridgeInfill", {"placeholder", "bridge_acceleration", "placeholder"}},//special calc required
         {"ExternalPerimeter", {"external_perimeter_extrusion_width", "external_perimeter_acceleration"}},
         //{"GapFill", {"placeholder", "gap_fill_acceleration"}},//special calc required
-        //{"InternalBridgeInfill", {"placeholder", "bridge_internal_acceleration"}},//special calc required
+        //{"InternalBridgeInfill", {"placeholder", "internal_bridge_acceleration"}},//special calc required
         {"Ironing", {"top_infill_extrusion_width", "ironing_acceleration"}},
         {"OverhangPerimeter", {"overhangs_width", "overhangs_acceleration"}},
         {"Perimeter", {"perimeter_extrusion_width", "perimeter_acceleration"}},

@@ -149,7 +149,8 @@ public:
 
 	    InfillPattern           base_fill_pattern;
 	    InfillPattern           interface_fill_pattern;
-	    InfillPattern 			contact_fill_pattern;
+	    InfillPattern 			contact_top_fill_pattern;
+	    InfillPattern 			contact_bottom_fill_pattern;
 	    bool                    with_sheath;
 	};
 

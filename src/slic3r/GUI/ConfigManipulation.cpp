@@ -357,10 +357,11 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
 
     toggle_field("perimeter_bonding", config->opt_bool("external_perimeters_first") && !have_arachne && config->option("perimeter_overlap")->get_float() == 100.f && config->option("external_perimeter_overlap")->get_float() == 100.f);
 
-    for (auto el : {"perimeter_loop", "extra_perimeters_overhangs", "no_perimeter_unsupported_algo",
+    for (auto el : {"perimeter_loop", "extra_perimeters_overhangs",
         "thin_perimeters", "perimeter_round_corners"})
         toggle_field(el, have_perimeters && !have_arachne);
-
+    
+    toggle_field("no_perimeter_unsupported_algo", have_perimeters);
     toggle_field("only_one_perimeter_top", have_perimeters);
     toggle_field("only_one_perimeter_first_layer", config->opt_int("perimeters") > 1);
     toggle_field("overhangs_width", config->option<ConfigOptionFloatOrPercent>("overhangs_width_speed")->value > 0);
@@ -501,7 +502,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
     for (auto el : { "support_material_contact_distance", "support_material_bottom_contact_distance" })
         toggle_field(el, have_support_material && !have_support_soluble);
 
-    for (auto el : { "support_material_interface_pattern", "support_material_interface_spacing", "support_material_interface_extruder",
+    for (auto el : { "support_material_bottom_interface_pattern", "support_material_top_interface_pattern", "support_material_interface_spacing", "support_material_interface_extruder",
                     "support_material_interface_speed", "support_material_interface_contact_loops", "support_material_interface_layer_height"
                     "support_material_interface_angle", "support_material_interface_angle_increment"})
         toggle_field(el, have_support_material && have_support_interface);
@@ -568,7 +569,8 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
         toggle_field(el, (has_top_solid_infill && config->option<ConfigOptionEnum<InfillPattern>>("top_fill_pattern")->value == InfillPattern::ipSmooth)
             || (has_bottom_solid_infill && config->option<ConfigOptionEnum<InfillPattern>>("bottom_fill_pattern")->value == InfillPattern::ipSmooth)
             || (has_solid_infill && config->option<ConfigOptionEnum<InfillPattern>>("solid_fill_pattern")->value == InfillPattern::ipSmooth)
-            || (have_support_material && config->option<ConfigOptionEnum<InfillPattern>>("support_material_interface_pattern")->value == InfillPattern::ipSmooth));
+            || (have_support_material && config->option<ConfigOptionEnum<InfillPattern>>("support_material_top_interface_pattern")->value == InfillPattern::ipSmooth)
+            || (have_support_material && config->option<ConfigOptionEnum<InfillPattern>>("support_material_bottom_interface_pattern")->value == InfillPattern::ipSmooth));
 
     //TODO: can the milling_diameter or the milling_cutter be check to enable/disable this?
     for (auto el : { "milling_after_z", "milling_extra_size", "milling_speed" })
@@ -593,6 +595,145 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
         config->option<ConfigOptionFloatOrPercent>("bridge_speed")->percent || 
         config->option<ConfigOptionFloatOrPercent>("support_material_speed")->percent);
     toggle_field("max_print_speed", config->opt_float("max_volumetric_speed") != 0);
+}
+
+
+void ConfigManipulation::update_printer_fff_config(DynamicPrintConfig *config,
+                                                   const bool          is_global_config)
+{
+    const std::vector<double> &nozzle_sizes = config->option<ConfigOptionFloats>("nozzle_diameter")->get_values();
+    //for each extruder
+    for (size_t extruder_idx = 0; extruder_idx < nozzle_sizes.size(); ++extruder_idx) {
+        double min_lh = config->get_computed_value("min_layer_height", extruder_idx);
+        double max_lh = config->get_computed_value("max_layer_height", extruder_idx);
+        if (max_lh > nozzle_sizes[extruder_idx]) {
+            const wxString msg_text = _(
+                L("Maximum layer height is not valid, it can't be higher than the nozzle diameter.\n\nThe maximum layer height will be set to 100% of the nozzle diameter."));
+            MessageDialog dialog(m_msg_dlg_parent, msg_text, _(L("Maximum layer height")), wxICON_WARNING | wxOK);
+            DynamicPrintConfig new_conf = *config;
+            is_msg_dlg_already_exist    = true;
+            dialog.ShowModal();
+            new_conf.option<ConfigOptionFloatsOrPercents>("max_layer_height")->set_at(FloatOrPercent{100., true}, extruder_idx);
+            apply(config, &new_conf);
+            is_msg_dlg_already_exist = false;
+        }
+        if (min_lh >= max_lh) {
+            const wxString msg_text = _(
+                L("Minimum layer height is not valid, it can't be higher or equal to the maximum layer height.\n\nThe minimum layer height will be set to 0."));
+            MessageDialog dialog(m_msg_dlg_parent, msg_text, _(L("Minimum layer height")), wxICON_WARNING | wxOK);
+            DynamicPrintConfig new_conf = *config;
+            is_msg_dlg_already_exist    = true;
+            dialog.ShowModal();
+            new_conf.option<ConfigOptionFloatsOrPercents>("min_layer_height")->set_at(FloatOrPercent{0.0, false}, extruder_idx);
+            apply(config, &new_conf);
+            is_msg_dlg_already_exist = false;
+        }
+        
+        bool have_retract_length = config->opt_float("retract_length", extruder_idx) > 0;
+        bool use_firmware_retraction = config->opt_bool("use_firmware_retraction");
+        bool wipe = config->opt_bool("wipe", extruder_idx) && have_retract_length;
+        if (use_firmware_retraction && wipe) {
+            DynamicPrintConfig new_conf = *config;
+            //wxMessageDialog dialog(parent(),
+            MessageDialog dialog(m_msg_dlg_parent,
+                _(L("The Wipe option is not available when using the Firmware Retraction mode.\n"
+                "\nShall I disable it in order to enable Firmware Retraction?")),
+                _(L("Firmware Retraction")), wxICON_WARNING | wxYES | wxNO);
+
+            if (dialog.ShowModal() == wxID_YES) {
+                new_conf.opt_bool("wipe", extruder_idx) = false;
+            } else {
+                new_conf.opt_bool("use_firmware_retraction") = false;
+            }
+            apply(config, &new_conf);
+        }
+    }
+}
+void ConfigManipulation::toggle_printer_fff_options(DynamicPrintConfig *config, DynamicPrintConfig &full_config)
+{
+    Field* field;
+
+    size_t extruder_count = config->option("nozzle_diameter")->size();
+    toggle_field("toolchange_gcode", extruder_count > 1);
+    toggle_field("single_extruder_multi_material", extruder_count > 1);
+
+    //thumbnails
+    bool custom_color = config->opt_bool("thumbnails_custom_color");
+    toggle_field("thumbnails_color", custom_color);
+    const ConfigOptionEnum<GCodeThumbnailsFormat>* thumbnails_format = config->option<ConfigOptionEnum<GCodeThumbnailsFormat>>("thumbnails_format");
+    
+    if (thumbnails_format) {
+        toggle_field("thumbnails_end_file", thumbnails_format->value != (GCodeThumbnailsFormat::BIQU));
+        toggle_field("thumbnails_tag_format", thumbnails_format->value != (GCodeThumbnailsFormat::BIQU));
+    }
+
+    //firmware
+    bool have_remaining_times = config->opt_bool("remaining_times");
+    toggle_field("remaining_times_type", have_remaining_times);
+	
+    bool have_arc_fitting = config->opt_bool("arc_fitting");
+    toggle_field("arc_fitting_tolerance", have_arc_fitting);
+
+    auto flavor = config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value;
+    bool is_marlin_flavor = flavor == gcfMarlinLegacy || flavor == gcfMarlinFirmware;
+    // Disable silent mode for non-marlin firmwares.
+    toggle_field("silent_mode", is_marlin_flavor);
+
+    for (size_t i = 0; i < extruder_count; ++i) {
+        
+        bool have_retract_length = config->opt_float("retract_length", i) > 0;
+
+        // when using firmware retraction, firmware decides retraction length
+        bool use_firmware_retraction = config->opt_bool("use_firmware_retraction");
+        toggle_field("retract_length", !use_firmware_retraction, i);
+
+        // retraction only if have retraction length or we're using firmware retraction
+        bool retraction = (have_retract_length || use_firmware_retraction);
+
+        // user can customize other retraction options if retraction is enabled
+        std::vector<std::string> vec = { "retract_lift", "retract_layer_change", "retract_before_travel" };
+        for (auto el : vec) {
+            toggle_field(el, retraction, i);
+        }
+
+        bool has_lift = retraction && config->opt_float("retract_lift", i) > 0;
+        // retract lift above / below only applies if using retract lift
+        vec.resize(0);
+        vec = { "retract_lift_above", "retract_lift_below", "retract_lift_top", "retract_lift_first_layer", "retract_lift_before_travel"};
+        for (auto el : vec) {
+            toggle_field(el, has_lift, i);
+        }
+
+        // some options only apply when not using firmware retraction
+        vec.resize(0);
+        vec = { "retract_speed", "deretract_speed", "retract_before_wipe", "retract_restart_extra", "wipe", "wipe_speed" , "wipe_only_crossing"};
+        for (auto el : vec) {
+            toggle_field(el, retraction && !use_firmware_retraction, i);
+        }
+
+        bool wipe = config->opt_bool("wipe", i) && have_retract_length;
+        vec.resize(0);
+        vec = { "retract_before_wipe", "wipe_only_crossing", "wipe_speed" };
+        for (auto el : vec) {
+            toggle_field(el, wipe, i);
+        }
+
+        // wipe_only_crossing can only work if avoid_crossing_perimeters
+        if (!full_config.option("avoid_crossing_perimeters")->get_bool()) {
+            toggle_field("wipe_only_crossing", false, i);
+        }
+
+        toggle_field("retract_length_toolchange", extruder_count > 1, i);
+
+        bool toolchange_retraction = config->opt_float("retract_length_toolchange", i) > 0;
+        toggle_field("retract_restart_extra_toolchange", extruder_count > 1 && toolchange_retraction, i);
+    }
+    if (config->opt_bool("single_extruder_multi_material") && extruder_count > 1) {
+        bool have_advanced_wipe_volume = config->opt_bool("wipe_advanced");
+        for (auto el : { "wipe_advanced_nozzle_melted_volume", "wipe_advanced_multiplier", "wipe_advanced_algo" }) {
+            toggle_field(el, have_advanced_wipe_volume);
+        }
+    }
 }
 
 void ConfigManipulation::update_print_sla_config(DynamicPrintConfig* config, const bool is_global_config/* = false*/)

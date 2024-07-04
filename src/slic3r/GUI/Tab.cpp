@@ -3606,8 +3606,6 @@ void TabPrinter::toggle_options()
     if (!m_active_page || m_presets->get_edited_preset().printer_technology() != ptFFF)
         return;
 
-    Field* field;
-
     const DynamicPrintConfig& print_config = m_preset_bundle->fff_prints.get_edited_preset().config;
     const DynamicPrintConfig& filament_config = m_preset_bundle->filaments.get_edited_preset().config;
     const DynamicPrintConfig& printer_config = m_preset_bundle->printers.get_edited_preset().config;
@@ -3618,37 +3616,8 @@ void TabPrinter::toggle_options()
     full_print_config.apply(filament_config);
     full_print_config.apply(printer_config);
 
-    bool have_multiple_extruders = m_extruders_count > 1;
-    field = get_field("toolchange_gcode");
-    if (field) field->toggle(have_multiple_extruders);
-    field = get_field("single_extruder_multi_material");
-    if (field) field->toggle(have_multiple_extruders);
-
-    //thumbnails
-    bool custom_color = m_config->opt_bool("thumbnails_custom_color");
-    field = get_field("thumbnails_color");
-    if (field) field->toggle(custom_color);
-    const ConfigOptionEnum<GCodeThumbnailsFormat>* thumbnails_format = m_config->option<ConfigOptionEnum<GCodeThumbnailsFormat>>("thumbnails_format");
-    field = get_field("thumbnails_end_file");
-    if (thumbnails_format && field) field->toggle(thumbnails_format->value != (GCodeThumbnailsFormat::BIQU));
-    field = get_field("thumbnails_tag_format");
-    if (thumbnails_format && field) field->toggle(thumbnails_format->value != (GCodeThumbnailsFormat::BIQU));
-
-    //firmware
-    bool have_remaining_times = m_config->opt_bool("remaining_times");
-    field = get_field("remaining_times_type");
-    if (field) field->toggle(have_remaining_times);
-	
-    bool have_arc_fitting = m_config->opt_bool("arc_fitting");
-    field = get_field("arc_fitting_tolerance");
-    if (field) field->toggle(have_arc_fitting);
-
-    auto flavor = m_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value;
-    bool is_marlin_flavor = flavor == gcfMarlinLegacy || flavor == gcfMarlinFirmware;
-    // Disable silent mode for non-marlin firmwares.
-    field = get_field("silent_mode");
-    if (field) field->toggle(is_marlin_flavor);
-
+    m_config_manipulation.toggle_printer_fff_options(m_config, full_print_config);
+    
     if (m_last_gcode_flavor != uint8_t(m_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value)) {
         m_last_gcode_flavor = uint8_t(m_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value);
         m_rebuild_kinematics_page = true;
@@ -3657,103 +3626,6 @@ void TabPrinter::toggle_options()
     if (m_use_silent_mode != (m_last_gcode_flavor == gcfMarlinLegacy || m_last_gcode_flavor == gcfMarlinFirmware) && m_config->opt_bool("silent_mode")) {
         m_rebuild_kinematics_page = true;
         m_use_silent_mode = (m_last_gcode_flavor == gcfMarlinLegacy || m_last_gcode_flavor == gcfMarlinFirmware) && m_config->opt_bool("silent_mode");
-    }
-
-    wxString extruder_number;
-    long val;
-    if (m_active_page->title().StartsWith("Extruder ", &extruder_number) && extruder_number.ToLong(&val) &&
-        val > 0 && (size_t)val <= m_extruders_count)
-    {
-        size_t i = size_t(val) - 1;
-        bool have_retract_length = m_config->opt_float("retract_length", i) > 0;
-
-        // when using firmware retraction, firmware decides retraction length
-        bool use_firmware_retraction = m_config->opt_bool("use_firmware_retraction");
-        field = get_field("retract_length", i);
-        if (field)
-            field->toggle(!use_firmware_retraction);
-
-        // retraction only if have retraction length or we're using firmware retraction
-        bool retraction = (have_retract_length || use_firmware_retraction);
-
-        // user can customize other retraction options if retraction is enabled
-        std::vector<std::string> vec = { "retract_lift", "retract_layer_change", "retract_before_travel" };
-        for (auto el : vec) {
-            field = get_field(el, i);
-            if (field)
-                field->toggle(retraction);
-        }
-
-        bool has_lift = retraction && m_config->opt_float("retract_lift", i) > 0;
-        // retract lift above / below only applies if using retract lift
-        vec.resize(0);
-        vec = { "retract_lift_above", "retract_lift_below", "retract_lift_top", "retract_lift_first_layer", "retract_lift_before_travel"};
-        for (auto el : vec) {
-            field = get_field(el, i);
-            if (field)
-                field->toggle(has_lift);
-        }
-
-        // some options only apply when not using firmware retraction
-        vec.resize(0);
-        vec = { "retract_speed", "deretract_speed", "retract_before_wipe", "retract_restart_extra", "wipe", "wipe_speed" , "wipe_only_crossing"};
-        for (auto el : vec) {
-            field = get_field(el, i);
-            if (field)
-                field->toggle(retraction && !use_firmware_retraction);
-        }
-
-        bool wipe = m_config->opt_bool("wipe", i) && have_retract_length;
-        vec.resize(0);
-        vec = { "retract_before_wipe", "wipe_only_crossing", "wipe_speed" };
-        for (auto el : vec) {
-            field = get_field(el, i);
-            if (field)
-                field->toggle(wipe);
-        }
-
-        // wipe_only_crossing can only work if avoid_crossing_perimeters
-        if (!full_print_config.opt_bool("avoid_crossing_perimeters")) {
-            field = get_field("wipe_only_crossing", i);
-            if (field)
-                field->toggle(false);
-        }
-
-        if (use_firmware_retraction && wipe) {
-            //wxMessageDialog dialog(parent(),
-            MessageDialog dialog(parent(),
-                _(L("The Wipe option is not available when using the Firmware Retraction mode.\n"
-                "\nShall I disable it in order to enable Firmware Retraction?")),
-                _(L("Firmware Retraction")), wxICON_WARNING | wxYES | wxNO);
-
-            DynamicPrintConfig new_conf = *m_config;
-            if (dialog.ShowModal() == wxID_YES) {
-                auto wipe = static_cast<ConfigOptionBools*>(m_config->option("wipe")->clone());
-                for (size_t w = 0; w < wipe->size(); w++)
-                    wipe->get_at(w) = false;
-                new_conf.set_key_value("wipe", wipe);
-            } else {
-                new_conf.set_key_value("use_firmware_retraction", new ConfigOptionBool(false));
-            }
-            load_config(new_conf);
-        }
-
-        field = get_field("retract_length_toolchange", i);
-        if (field)
-            field->toggle(have_multiple_extruders);
-
-        bool toolchange_retraction = m_config->opt_float("retract_length_toolchange", i) > 0;
-        field = get_field("retract_restart_extra_toolchange", i);
-        if (field)
-            field->toggle(have_multiple_extruders && toolchange_retraction);
-    }
-    if (m_has_single_extruder_MM_page) {
-        bool have_advanced_wipe_volume = m_config->opt_bool("wipe_advanced");
-        for (auto el : { "wipe_advanced_nozzle_melted_volume", "wipe_advanced_multiplier", "wipe_advanced_algo" }) {
-            Field *field = get_field(el);
-            if (field)
-                field->toggle(have_advanced_wipe_volume);
-        }
     }
 
     if (std::find(m_active_page->descriptions.begin(), m_active_page->descriptions.end(), "machine_limits") != m_active_page->descriptions.end() && m_machine_limits_description_line) {
@@ -3810,6 +3682,8 @@ void TabPrinter::update()
     m_update_cnt++;
     m_presets->get_edited_preset().printer_technology() == ptFFF ? update_fff() : update_sla();
     m_update_cnt--;
+
+    m_config_manipulation.update_printer_fff_config(m_config, true);
 
     update_description_lines();
     Layout();

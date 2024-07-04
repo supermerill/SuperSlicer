@@ -477,6 +477,8 @@ PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosit
                 //path.polygons_covered_by_width(*polygons, SCALED_EPSILON);
                 assert(corresponding_regions_out->size() == polylines->size());
                 polylines->emplace_back(path.polyline.get_points(), true, true, PolylineWithEnd::PolyDir::BOTH); // TODO: more point for arcs
+                assert(path.polyline.front() != path.polyline.back());
+                assert(path.polyline.size() > 1);
                 //while (corresponding_regions_out->size() < polylines->size()) {
                     corresponding_regions_out->push_back(current_layer_region);
                 //}
@@ -490,6 +492,7 @@ PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosit
                 loop.collect_points(pts);
                 pts.push_back(pts.front()); //polygon
                 assert(corresponding_regions_out->size() == polylines->size());
+                assert(pts.size() > 1);
                 polylines->emplace_back(std::move(pts), true, false, is_ccw ? PolylineWithEnd::PolyDir::CCW : PolylineWithEnd::PolyDir::CW);
                 corresponding_regions_out->push_back(current_layer_region);
                 return;
@@ -504,6 +507,7 @@ PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosit
                         if(!previous_collected)
                             polys.emplace_back(false, false, is_ccw ? PolylineWithEnd::PolyDir::CCW : PolylineWithEnd::PolyDir::CW);
                         path.collect_points(polys.back().points);
+                        assert(polys.back().size() > 1);
                         count_paths_collected++;
                         current_collected = true;
                     }
@@ -512,6 +516,7 @@ PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosit
                         if(!previous_collected)
                             polys.emplace_back(false, false, is_ccw ? PolylineWithEnd::PolyDir::CCW : PolylineWithEnd::PolyDir::CW);
                         path.collect_points(polys.back().points);
+                        assert(polys.back().size() > 1);
                         count_paths_collected++;
                         current_collected = true;
                     }
@@ -545,6 +550,8 @@ PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosit
                                             idx == 0 ? true : false,
                                             idx + 1 < collection.size() ? false : true,
                                             PolylineWithEnd::PolyDir::BOTH); // TODO: more points for arcs
+                    assert(path.polyline.front() != path.polyline.back());
+                    assert(path.polyline.size() > 1);
                     corresponding_regions_out->push_back(current_layer_region);
                 }
             }
@@ -576,6 +583,7 @@ PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosit
                         // what to do in this case?
                         Points pts;
                         ex_entity->collect_points(pts);
+                        assert(pts.front() != pts.back());
                         polylines.emplace_back(std::move(pts), true, pts.front() != pts.back(), PolylineWithEnd::PolyDir::BOTH);
                         corresponding_regions_out.push_back(layer_region);
                     }
@@ -586,7 +594,7 @@ PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosit
     }
     if (polylines.empty()) { // If there are no perimeter polylines/polygons for whatever reason (disabled perimeters .. ) insert dummy point
         // it is easier than checking everywhere if the layer is not emtpy, no seam will be placed to this layer anyway
-        polylines.emplace_back(std::vector{ Point { 0, 0 } }, true, true, PolylineWithEnd::PolyDir::BOTH);
+        polylines.emplace_back(std::vector<Point>{ /*Point { 0, 0 }*/ }, true, true, PolylineWithEnd::PolyDir::BOTH);
         corresponding_regions_out.push_back(nullptr);
     }
     assert(corresponding_regions_out.size() == polylines.size());
@@ -599,7 +607,7 @@ PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosit
 // if Custom Seam modifiers are present, oversamples the polyline if necessary to better fit user intentions
 void process_perimeter_polylines(const PolylineWithEnd &orig_polyline, float z_coord, const LayerRegion *region,
         const GlobalModelInfo &global_model_info, PrintObjectSeamData::LayerSeams &result) {
-    if (orig_polyline.size() == 0) {
+    if (orig_polyline.size() <= 1) {
         return;
     }
     PolylineWithEnd polyline = orig_polyline;

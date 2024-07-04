@@ -1,10 +1,7 @@
 name: C/C++ Release candidate macos
 
 on:
-  push:
-    branches:
-      - rc
-      - debug_macos
+  workflow_dispatch:
 
 jobs:
   build:

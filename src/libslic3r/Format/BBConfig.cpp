@@ -219,7 +219,7 @@ void init()
     key_translation_map["sparse_infill_pattern"]                    = "fill_pattern";
     key_translation_map["filename_format"]                          = "output_filename_format";
     key_translation_map["support_base_pattern"]                     = "support_material_pattern";
-    key_translation_map["support_interface_pattern"]                = "support_material_interface_pattern";
+    key_translation_map["support_interface_pattern"]                = "support_material_top_interface_pattern";
     key_translation_map["top_surface_pattern"]                      = "top_fill_pattern";
     key_translation_map["support_object_xy_distance"]               = "support_material_xy_spacing";
     key_translation_map["fuzzy_skin_point_distance"]                = "fuzzy_skin_point_dist";
@@ -425,7 +425,7 @@ void init()
 //key_translation_map["single"]="retract_lift_above";
 //key_translation_map["single"]="retract_lift_below";
 //key_translation_map["single"]="wipe";
-    //patern
+    //pattern
     value_translation_map["fill_pattern"]["monotonicline"] = "monotoniclines"; //2.7
     value_translation_map["fill_pattern"]["zig-zag"] = "rectilinear";
     value_translation_map["fill_pattern"]["tri-hexagon"] = "stars";
@@ -435,7 +435,8 @@ void init()
     value_translation_map["solid_fill_pattern"] = value_translation_map["fill_pattern"];
     value_translation_map["brim_ears_pattern"] = value_translation_map["fill_pattern"];
     value_translation_map["bridge_fill_pattern"] = value_translation_map["fill_pattern"];
-    value_translation_map["support_material_interface_pattern"] = value_translation_map["fill_pattern"];
+    value_translation_map["support_material_top_interface_pattern"] = value_translation_map["fill_pattern"];
+    value_translation_map["support_material_bottom_interface_pattern"] = value_translation_map["fill_pattern"];
     //specific
     value_translation_map["fill_pattern"]["default"] = "gyroid";
     value_translation_map["top_fill_pattern"]["default"] = "monotonic";
@@ -443,7 +444,8 @@ void init()
     value_translation_map["solid_fill_pattern"]["default"] = "rectilinear";
     value_translation_map["brim_ears_pattern"]["default"] = "concentric";
     value_translation_map["bridge_fill_pattern"]["default"] = "rectilinear";
-    value_translation_map["support_material_interface_pattern"]["default"] = "auto";
+    value_translation_map["support_material_top_interface_pattern"]["default"] = "auto";
+    value_translation_map["support_material_bottom_interface_pattern"]["default"] = "auto";
     //value_translation_map["support_material_interface_pattern"]["rectilinear_interlaced"] = "???"; //can't convert let the config_substitutions emit the warning
  
     //others
@@ -508,8 +510,12 @@ void complicated_convert(t_config_option_key &opt_key, std::string &value, const
             value = "1";
         }
     }
-    if ("enable_overhang_speed") {
-    
+    //if ("enable_overhang_speed") {
+    //
+    //}
+    if ("support_material_top_interface_pattern" == opt_key || "support_interface_pattern" == opt_key) {
+        output["support_material_top_interface_pattern"] = value;
+        output["support_material_bottom_interface_pattern"] = value;
     }
 }
 

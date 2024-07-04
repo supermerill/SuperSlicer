@@ -199,12 +199,18 @@ then
         cmake .. -DCMAKE_PREFIX_PATH="$PWD/../deps/build/destdir/usr/local" -DSLIC3R_STATIC=1 ${BUILD_ARGS}
         echo "done"
         
+        #make avrdude-slic3r
+        make avrdude-slic3r
+        
         # make Slic3r
         echo "[8/9] Building Slic3r..."
         make -j$NCORES Slic3r
 
         # make .mo
         make gettext_po_to_mo
+        
+        # make OCCTWrapper.so
+        make OCCTWrapper
     
     popd
     echo "done"

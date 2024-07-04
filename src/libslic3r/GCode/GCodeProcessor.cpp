@@ -1373,6 +1373,31 @@ void GCodeProcessor::process_string(const std::string& gcode, std::function<void
         });
 }
 
+void GCodeProcessor::process_preamble(bool unit_mm, bool absolute_coords, bool absolute_extrusion, float set_G92_value)
+{
+    if (unit_mm) {
+        m_units = EUnits::Millimeters;
+    } else {
+        m_units = EUnits::Inches;
+    }
+
+    if (absolute_coords) {
+        m_global_positioning_type = EPositioningType::Absolute;
+    } else {
+        m_global_positioning_type = EPositioningType::Relative;
+    }
+
+    if (absolute_extrusion) {
+        m_e_local_positioning_type = EPositioningType::Absolute;
+    } else {
+        m_e_local_positioning_type = EPositioningType::Relative;
+    }
+    
+    {
+        m_origin[E] = m_end_position[E] = set_G92_value * (m_units == EUnits::Inches) ? INCHES_TO_MM : 1.0f;
+    }
+}
+    
 static inline const char* skip_whitespaces(const char *begin, const char *end) {
     for (; begin != end && (*begin == ' ' || *begin == '\t'); ++ begin);
     return begin;
