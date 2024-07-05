@@ -830,8 +830,7 @@ wxString Control::get_label(int tick, LabelType label_type/* = ltHeightWithLayer
                 nb_lines++;
                 double layer_height = 0;
                 if (value >= m_values.size()) {
-                    const auto st1 = value;
-                    const auto st2 = m_values.size();
+
                     layer_height = m_values.empty() ? m_label_koef : m_values.back() - (m_values.size() > 1 ? m_values[m_values.size() - 2] : 0);
                     assert(value == m_values.size());
                 } else if (value == 0) {

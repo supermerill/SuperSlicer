@@ -1127,12 +1127,6 @@ void Mouse3DController::disconnect_device()
     }
 }
 
-// Convert a signed 16bit word from a 3DConnexion mouse HID packet into a double coordinate, apply a dead zone.
-static double convert_spnav_input(int value)
-{
-    return (double)value/100;
-}
-
 void Mouse3DController::collect_input()
 {
 #ifdef HAVE_SPNAV

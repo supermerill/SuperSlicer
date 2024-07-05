@@ -269,7 +269,7 @@ void CContextMgr::AbortAll()
 
 asIScriptContext *CContextMgr::AddContext(asIScriptEngine *engine, asIScriptFunction *func, bool keepCtxAfterExec)
 {
-	// Use RequestContext instead of CreateContext so we can take 
+	// Use RequestContext instead of CreateContext so we can take
 	// advantage of possible context pooling configured with the engine
 	asIScriptContext *ctx = engine->RequestContext();
 	if( ctx == 0 )
@@ -364,32 +364,29 @@ void CContextMgr::SetSleeping(asIScriptContext *ctx, asUINT milliSeconds)
 
 void CContextMgr::RegisterThreadSupport(asIScriptEngine *engine)
 {
-	int r;
 
 	// Must set the get time callback function for this to work
 	assert( m_getTimeFunc != 0 );
 
 	// Register the sleep function
-	r = engine->RegisterGlobalFunction("void sleep(uint)", asFUNCTION(ScriptSleep), asCALL_CDECL); assert( r >= 0 );
+	engine->RegisterGlobalFunction("void sleep(uint)", asFUNCTION(ScriptSleep), asCALL_CDECL); assert( r >= 0 );
 
 	// TODO: Add support for spawning new threads, waiting for signals, etc
 }
 
 void CContextMgr::RegisterCoRoutineSupport(asIScriptEngine *engine)
 {
-	int r; 
-
 	// The dictionary add-on must have been registered already
 	assert( engine->GetTypeInfoByDecl("dictionary") );
 
 #ifndef AS_MAX_PORTABILITY
-	r = engine->RegisterGlobalFunction("void yield()", asFUNCTION(ScriptYield), asCALL_CDECL); assert( r >= 0 );
-	r = engine->RegisterFuncdef("void coroutine(dictionary@)");
-	r = engine->RegisterGlobalFunction("void createCoRoutine(coroutine @+, dictionary @+)", asFUNCTION(ScriptCreateCoRoutine), asCALL_CDECL); assert( r >= 0 );
+	engine->RegisterGlobalFunction("void yield()", asFUNCTION(ScriptYield), asCALL_CDECL); assert( r >= 0 );
+	engine->RegisterFuncdef("void coroutine(dictionary@)");
+	engine->RegisterGlobalFunction("void createCoRoutine(coroutine @+, dictionary @+)", asFUNCTION(ScriptCreateCoRoutine), asCALL_CDECL); assert( r >= 0 );
 #else
-	r = engine->RegisterGlobalFunction("void yield()", asFUNCTION(ScriptYield_generic), asCALL_GENERIC); assert( r >= 0 );
-	r = engine->RegisterFuncdef("void coroutine(dictionary@)");
-	r = engine->RegisterGlobalFunction("void createCoRoutine(coroutine @+, dictionary @+)", asFUNCTION(ScriptCreateCoRoutine_generic), asCALL_GENERIC); assert( r >= 0 );
+	engine->RegisterGlobalFunction("void yield()", asFUNCTION(ScriptYield_generic), asCALL_GENERIC); assert( r >= 0 );
+	engine->RegisterFuncdef("void coroutine(dictionary@)");
+	engine->RegisterGlobalFunction("void createCoRoutine(coroutine @+, dictionary @+)", asFUNCTION(ScriptCreateCoRoutine_generic), asCALL_GENERIC); assert( r >= 0 );
 #endif
 }
 

@@ -205,22 +205,9 @@ float as_get_float_idx(std::string& key, int idx)
     return val;
 }
 float  as_get_float(std::string &key) { return as_get_float_idx(key, 0); }
+
 double round(float value) {
-    double intpart;
-    if (modf(value, &intpart) == 0.0) {
-        // shortcut for int
-        return value;
-    }
-    std::stringstream ss;
-    //first, get the int part, to see how many digit it takes
-    int long10 = 0;
-    if (intpart > 9)
-        long10 = (int)std::floor(std::log10(std::abs(intpart)));
-        //set the usable precision: there is only ~7 decimal digit in a float (15-16 decimal digit in a double)
-        ss << std::fixed << std::setprecision(7 - long10) << value;
-    double dbl_val;
-    ss >> dbl_val;
-    return dbl_val;
+    return std::round(value);
 }
 
 void _set_float(DynamicPrintConfig& conf, const ConfigOption* opt, std::string& key, int idx, float f_val)
@@ -765,7 +752,7 @@ float as_get_computed_float(std::string& key)
             return (float)fullconfig.get_computed_value(key, 0);
             //return (float)wxGetApp().plater()->fff_print().full_print_config().get_computed_value(key, 0);
         }
-        catch (Exception e) {
+        catch (const Exception& e) {
             if(wxGetApp().initialized())
                 BOOST_LOG_TRIVIAL(error) << "Error, can't compute fff option '" << key << "'";
         }
@@ -780,7 +767,7 @@ float as_get_computed_float(std::string& key)
             return (float)fullconfig.get_computed_value(key, 0);
             //return (float)wxGetApp().plater()->fff_print().full_print_config().get_computed_value(key, 0);
         }
-        catch (Exception e) {
+        catch (const Exception& e) {
             if (wxGetApp().initialized())
                 BOOST_LOG_TRIVIAL(error) << "Error, can't compute sla option '" << key << "'";
         }
@@ -1061,11 +1048,14 @@ void ScriptContainer::call_script_function_set(const ConfigOptionDef& def, const
     }
     case coEnum: {
         int32_t enum_idx = boost::any_cast<std::int32_t>(value);
-        if (enum_idx >= 0 && enum_idx < def.enum_values.size()) {
+        if (enum_idx >= 0 && static_cast<size_t>(enum_idx) < def.enum_values.size()) {
             str_arg = def.enum_values[enum_idx];
             ctx->SetArgAddress(0, &str_arg);
             ctx->SetArgDWord(1, enum_idx);
         }
+        break;
+    }
+    default: {
         break;
     }
     }
@@ -1245,6 +1235,9 @@ boost::any ScriptContainer::call_script_function_get_value(const ConfigOptionDef
     case coString:
     case coStrings:
     case coEnum: ctx->SetArgObject(0, &ret_str); break;
+    default: {
+        break;
+    }
     }
     // init globals for script exec (TODO find a way to change that)
     assert(current_script == nullptr);
@@ -1253,7 +1246,7 @@ boost::any ScriptContainer::call_script_function_get_value(const ConfigOptionDef
         current_script = this;
         m_need_refresh = false;
         // exec
-        int res        = ctx->Execute();
+        ctx->Execute();
         current_script = nullptr;
     }
     int32_t ret_int;
@@ -1304,7 +1297,7 @@ boost::any ScriptContainer::call_script_function_get_value(const ConfigOptionDef
     }
     case coEnum: { 
         ret_int = ctx->GetReturnDWord();
-        if (ret_int >= 0 && ret_int < def.enum_values.size()) {
+        if (ret_int >= 0 && static_cast<size_t>(ret_int) < def.enum_values.size()) {
             opt_val = int32_t(ret_int);
         } else {
             opt_val = int32_t(0);
@@ -1314,6 +1307,9 @@ boost::any ScriptContainer::call_script_function_get_value(const ConfigOptionDef
             }
         }
         break; //Choice
+    }
+        default: {
+        break;
     }
     }
     if (m_need_refresh) {

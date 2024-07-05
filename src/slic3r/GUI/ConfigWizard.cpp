@@ -145,7 +145,7 @@ BundleMap BundleMap::load()
                 }
             }
         }
-        catch (std::exception e) {
+        catch (const std::exception& e) {
             MessageDialog msg(nullptr, format_wxstr(_L("Can't open directory '%1%'. Config bundles from here can't be loaded.\nError: %2%"), vendor_dir.string(), e.what()), _L("Error"), wxOK);
             msg.ShowModal();
         }
@@ -2590,7 +2590,7 @@ bool ConfigWizard::priv::apply_config(AppConfig *app_config, PresetBundle *prese
     wxString header, caption = _L("Configuration is edited in ConfigWizard");
     const auto enabled_vendors = appconfig_new.vendors();
 
-    bool suppress_sla_printer = model_has_multi_part_objects(wxGetApp().model());
+    model_has_multi_part_objects(wxGetApp().model());
     PrinterTechnology preferred_pt = ptAny;
 #ifdef ALLOW_PRUSA_FIRST
     auto get_preferred_printer_technology = [enabled_vendors, suppress_sla_printer](const std::string& bundle_name, const Bundle& bundle) {

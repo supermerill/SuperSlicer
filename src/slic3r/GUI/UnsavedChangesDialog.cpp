@@ -1063,17 +1063,6 @@ static size_t get_id_from_opt_key(std::string opt_key)
     return size_t(-1);
 }
 
-static wxString get_full_label(std::string opt_key, const DynamicPrintConfig& config)
-{
-    opt_key = get_pure_opt_key(opt_key);
-
-    if (config.option(opt_key)->is_nil())
-        return _L("N/A");
-
-    const ConfigOptionDef* opt = config.def()->get(opt_key);
-    return opt->full_label.empty() ? opt->label : opt->full_label;
-}
-
 wxString graph_to_string(const GraphData &graph)
 {
     wxString str = "";
@@ -1081,6 +1070,7 @@ wxString graph_to_string(const GraphData &graph)
     case GraphData::GraphType::SQUARE: str = _L("Square") + ":"; break;
     case GraphData::GraphType::LINEAR: str = _L("Linear") + ":"; break;
     case GraphData::GraphType::SPLINE: str = _L("Spline") + ":"; break;
+    case GraphData::GraphType::COUNT: ; break;
     }
     for (const Vec2d &pt : graph.data()) { str += format_wxstr(" %1%,%2%", pt.x(), pt.y()); }
     return str;
@@ -1196,19 +1186,21 @@ static wxString get_string_value(std::string opt_key, const DynamicPrintConfig& 
                 return out;
             }
             if (opt_key == "gcode_substitutions") {
-                if (!strings->empty())
+                if (!strings->empty()){
                     for (size_t id = 0; id < strings->size(); id += 4)
                         out +=  from_u8(strings->get_at(id))     + ";\t" + 
                                 from_u8(strings->get_at(id + 1)) + ";\t" + 
                                 from_u8(strings->get_at(id + 2)) + ";\t" +
                                 from_u8(strings->get_at(id + 3)) + ";\n";
+                }
                 return out;
             }
-            if (!strings->empty())
+            if (!strings->empty()){
                 if (opt_idx < strings->size())
                     return from_u8(strings->get_at(opt_idx));
                 else
                     return from_u8(strings->serialize());
+            }
         }
         break;
         }
@@ -1220,11 +1212,12 @@ static wxString get_string_value(std::string opt_key, const DynamicPrintConfig& 
     }
     case coFloatsOrPercents: {
         const ConfigOptionFloatsOrPercents* floats_percents = config.opt<ConfigOptionFloatsOrPercents>(opt_key);
-        if (floats_percents)
+        if (floats_percents){
             if(opt_idx < floats_percents->size())
                 return double_to_string(floats_percents->get_at(opt_idx).value, opt->precision) + (floats_percents->get_at(opt_idx).percent ? "%" : "");
             else
                 return from_u8(floats_percents->serialize());
+        }
     }
     case coEnum: {
         return get_string_from_enum(opt_key, config);
@@ -1241,22 +1234,24 @@ static wxString get_string_value(std::string opt_key, const DynamicPrintConfig& 
         }
         
         const ConfigOptionPoints* opt_pts = config.opt<ConfigOptionPoints>(opt_key);
-        if (!opt_pts->empty())
+        if (!opt_pts->empty()){
             if (opt_idx < opt_pts->size())
                 return from_u8((boost::format("[%1%]") % ConfigOptionPoint(opt_pts->get_at(opt_idx)).serialize()).str());
             else
                 return from_u8(opt_pts->serialize());
+        }
     }
     case coGraph: {
         return graph_to_string(config.option<ConfigOptionGraph>(opt_key)->value);
     }
     case coGraphs: {
         const ConfigOptionGraphs* opt_graphs = config.opt<ConfigOptionGraphs>(opt_key);
-        if (!opt_graphs->empty())
+        if (!opt_graphs->empty()){
             if (opt_idx < opt_graphs->size())
                 return graph_to_string(opt_graphs->get_at(opt_idx));
             else
                 return from_u8(opt_graphs->serialize());
+        }
     }
     default:
         break;

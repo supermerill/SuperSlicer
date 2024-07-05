@@ -204,7 +204,7 @@ void ArrangeJob::process()
     
     arrangement::ArrangeParams params = get_arrange_params(m_plater);
     
-    double min_dist_computed = min_object_distance(&m_plater->current_print()->full_print_config());
+    min_object_distance(&m_plater->current_print()->full_print_config());
     
     auto count = unsigned(m_selected.size() + m_unprintable.size());
     Points bedpts = get_bed_shape(*m_plater->config());

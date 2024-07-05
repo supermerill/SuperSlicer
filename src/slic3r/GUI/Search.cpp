@@ -355,7 +355,7 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
         //add "\n" to long tooltip lines
         std::wstring tooltip;
         int length = 0;
-        for (int i = 0; i < opt.tooltip_local.size(); i++) {
+        for (std::wstring::size_type i = 0; i < opt.tooltip_local.size(); i++) {
             if (length >= 80 && opt.tooltip_local[i] == u' ') {
                 tooltip.push_back(u'\n');
             } else {
@@ -384,7 +384,7 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
     try {
         if (view_params.exact)
             pattern = std::wregex(wsearch, std::regex_constants::icase);
-    } catch (std::regex_error reg_err) {
+    } catch (std::regex_error& reg_err) {
         // Happens when std::wregex("]") or similar. => no result //TODO: add warning message 'wrong regexp'
         fail_pattern = true;
     }

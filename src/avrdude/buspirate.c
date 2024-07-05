@@ -490,36 +490,69 @@ static void buspirate_reset_from_binmode(struct programmer_t *pgm)
 
 static int buspirate_start_mode_bin(struct programmer_t *pgm)
 {
-	const struct submode {
-		const char *name;  /* Name of mode for user messages */
-		char enter;  /* Command to enter from base binary mode */
-		const char *entered_format;  /* Response, for "scanf" */
-		char config;  /* Command to setup submode parameters */
-	} *submode;
+	// const struct submode {
+	// 	const char *name;  /* Name of mode for user messages */
+	// 	char enter;  /* Command to enter from base binary mode */
+	// 	const char *entered_format;  /* Response, for "scanf" */
+	// 	char config;  /* Command to setup submode parameters */
+	// } *submode;
 
-	if (pgm->flag & BP_FLAG_XPARM_RAWFREQ) {
-		submode = &(const struct submode){
-			.name = "Raw-wire",
-			.enter = 0x05,
-			.entered_format = "RAW%1d",
-			.config = 0x8C,
-		};
-		pgm->flag |= BP_FLAG_NOPAGEDWRITE;
-		pgm->flag |= BP_FLAG_NOPAGEDREAD;
-	} else {
-		submode = &(const struct submode){
-			.name = "SPI",
-			.enter = 0x01,
-			.entered_format = "SPI%1d",
+	// if (pgm->flag & BP_FLAG_XPARM_RAWFREQ) {
+	// 	submode = &(const struct submode){
+	// 		.name = "Raw-wire",
+	// 		.enter = 0x05,
+	// 		.entered_format = "RAW%1d",
+	// 		.config = 0x8C,
+	// 	};
+	// 	pgm->flag |= BP_FLAG_NOPAGEDWRITE;
+	// 	pgm->flag |= BP_FLAG_NOPAGEDREAD;
+	// } else {
+	// 	submode = &(const struct submode){
+	// 		.name = "SPI",
+	// 		.enter = 0x01,
+	// 		.entered_format = "SPI%1d",
 			
-			/* 1000wxyz - SPI config, w=HiZ(0)/3.3v(1), x=CLK idle, y=CLK edge, z=SMP sample
-			 * we want: 3.3V(1), idle low(0), data change on
-			 *          trailing edge (1), sample in the middle
-			 *          of the pulse (0)
-			 *       => 0b10001010 = 0x8a */
-			.config = 0x8A,
-		};
-	}
+	// 		/* 1000wxyz - SPI config, w=HiZ(0)/3.3v(1), x=CLK idle, y=CLK edge, z=SMP sample
+	// 		 * we want: 3.3V(1), idle low(0), data change on
+	// 		 *          trailing edge (1), sample in the middle
+	// 		 *          of the pulse (0)
+	// 		 *       => 0b10001010 = 0x8a */
+	// 		.config = 0x8A,
+	// 	};
+	// }
+
+const struct submode {
+    const char *name;  /* Name of mode for user messages */
+    char enter;  /* Command to enter from base binary mode */
+    const char *entered_format;  /* Response, for "scanf" */
+    char config;  /* Command to setup submode parameters */
+} *submode;
+
+// Define static submodes
+static const struct submode rawWireSubmode = {
+    .name = "Raw-wire",
+    .enter = 0x05,
+    .entered_format = "RAW%1d",
+    .config = 0x8C,
+};
+
+static const struct submode spiSubmode = {
+    .name = "SPI",
+    .enter = 0x01,
+    .entered_format = "SPI%1d",
+    .config = 0x8A,
+};
+
+// Point to the appropriate submode based on the condition
+if (pgm->flag & BP_FLAG_XPARM_RAWFREQ) {
+    submode = &rawWireSubmode;
+    pgm->flag |= BP_FLAG_NOPAGEDWRITE;
+    pgm->flag |= BP_FLAG_NOPAGEDREAD;
+} else {
+    submode = &spiSubmode;
+}
+
+
 
 	unsigned char buf[20] = { '\0' };
 
