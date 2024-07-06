@@ -170,7 +170,7 @@ bool BridgeDetector::detect_angle(double bridge_direction_override)
                     // is anchored?
                     size_t line_a_anchor_idx = -1;
                     size_t line_b_anchor_idx = -1;
-                    for (int i = 0; i < _anchor_regions.size(); ++i) {
+                    for (std::vector<Slic3r::ExPolygon>::size_type i = 0; i < _anchor_regions.size(); ++i) {
                         ExPolygon &  poly   = this->_anchor_regions[i];
                         BoundingBox &polybb = anchor_bb[i];
                         if (polybb.contains(line.a) &&
@@ -198,7 +198,7 @@ bool BridgeDetector::detect_angle(double bridge_direction_override)
                             // candidates to ~100, here we can have hundreds of lines, so that means dozen of
                             // thousands of calls (or more)! add some points (at least the middle) to test, it's quick
                             Point middle_point = line.midpoint();
-                            for (int i = 0; i < _anchor_regions.size(); ++i) {
+                            for (std::vector<Slic3r::ExPolygon>::size_type i = 0; i < _anchor_regions.size(); ++i) {
                                 ExPolygon &  poly   = this->_anchor_regions[i];
                                 BoundingBox &polybb = anchor_bb[i];
                                 if (!polybb.contains(middle_point) ||
@@ -215,9 +215,8 @@ bool BridgeDetector::detect_angle(double bridge_direction_override)
                                 normal *= coordf_t(spacing / 2);
                                 Point middle_point_right = line.midpoint() + normal;
                                 Point middle_point_left  = line.midpoint() - normal;
-                                for (int i = 0; i < _anchor_regions.size(); ++i) {
+                                for (std::vector<Slic3r::ExPolygon>::size_type i = 0; i < _anchor_regions.size(); ++i) {
                                     ExPolygon &  poly   = this->_anchor_regions[i];
-                                    BoundingBox &polybb = anchor_bb[i];
                                     if (!poly.contains(middle_point_right) || !poly.contains(middle_point_left)) {
                                         fake_bridge = false;
                                         goto stop_fake_bridge_test;
@@ -235,7 +234,7 @@ bool BridgeDetector::detect_angle(double bridge_direction_override)
                                 pts.push_back((line.a + middle_point) / 2 - normal);
                                 pts.push_back((line.b + middle_point) / 2 + normal);
                                 pts.push_back((line.b + middle_point) / 2 - normal);
-                                for (int i = 0; i < _anchor_regions.size(); ++i) {
+                                for (std::vector<Slic3r::ExPolygon>::size_type i = 0; i < _anchor_regions.size(); ++i) {
                                     ExPolygon &  poly   = this->_anchor_regions[i];
                                     BoundingBox &polybb = anchor_bb[i];
                                     for (Point &pt : pts)
@@ -372,10 +371,8 @@ stop_fake_bridge_test: ;
     }
     std::sort(all_median_length.begin(), all_median_length.end());
     std::sort(all_max_length.begin(), all_max_length.end());
-    coordf_t median_max_length = all_max_length[all_max_length.size() / 2];
     coordf_t min_max_length = all_max_length.front();
     coordf_t max_max_length = all_max_length.back();
-    coordf_t median_median_length = all_median_length[all_median_length.size() / 2];
     coordf_t min_median_length = all_median_length.front();
     coordf_t max_median_length = all_median_length.back();
 

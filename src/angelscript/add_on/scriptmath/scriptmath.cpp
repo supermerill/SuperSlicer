@@ -3,6 +3,7 @@
 #include <float.h>
 #include <string.h>
 #include "scriptmath.h"
+#include <cstring> 
 
 #ifdef __BORLANDC__
 #include <cmath>
@@ -76,25 +77,48 @@ double fraction(double v)
 // functions for converting float values to IEEE 754 formatted values etc. This also allow us to 
 // provide a platform agnostic representation to the script so the scripts don't have to worry
 // about whether the CPU uses IEEE 754 floats or some other representation
-float fpFromIEEE(asUINT raw)
-{
-	// TODO: Identify CPU family to provide proper conversion
-	//        if the CPU doesn't natively use IEEE style floats
-	return *reinterpret_cast<float*>(&raw);
+// float fpFromIEEE(asUINT raw)
+// {
+// 	// TODO: Identify CPU family to provide proper conversion
+// 	//        if the CPU doesn't natively use IEEE style floats
+// 	return *reinterpret_cast<float*>(&raw);
+// }
+// asUINT fpToIEEE(float fp)
+// {
+// 	return *reinterpret_cast<asUINT*>(&fp);
+// }
+// double fpFromIEEE(asQWORD raw)
+// {
+// 	return *reinterpret_cast<double*>(&raw);
+// }
+// asQWORD fpToIEEE(double fp)
+// {
+// 	return *reinterpret_cast<asQWORD*>(&fp);
+// }
+// Convert a float to its IEEE representation as an unsigned integer
+asUINT fpToIEEE(float fp) {
+    asUINT value;
+    std::memcpy(&value, &fp, sizeof(asUINT));
+    return value;
 }
-asUINT fpToIEEE(float fp)
-{
-	return *reinterpret_cast<asUINT*>(&fp);
+// Convert an IEEE representation (as an unsigned integer) to a float
+float fpFromIEEE(asUINT raw) {
+    float value;
+    std::memcpy(&value, &raw, sizeof(float));
+    return value;
 }
-double fpFromIEEE(asQWORD raw)
-{
-	return *reinterpret_cast<double*>(&raw);
+// Convert an IEEE representation (as an unsigned 64-bit integer) to a double
+double fpFromIEEE(asQWORD raw) {
+    double value;
+    std::memcpy(&value, &raw, sizeof(double));
+    return value;
 }
-asQWORD fpToIEEE(double fp)
-{
-	return *reinterpret_cast<asQWORD*>(&fp);
+// Convert a double to its IEEE representation as an unsigned 64-bit integer
+asQWORD fpToIEEE(double fp) {
+    asQWORD value;
+    std::memcpy(&value, &fp, sizeof(asQWORD));
+    return value;
 }
-
 // closeTo() is used to determine if the binary representation of two numbers are 
 // relatively close to each other. Numerical errors due to rounding errors build
 // up over many operations, so it is almost impossible to get exact numbers and

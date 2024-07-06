@@ -555,7 +555,7 @@ PagePrinters::PagePrinters(ConfigWizard *parent,
     const t_config_option_keys families = vendor.families();
     for (const std::string &family : families) {
         const auto filter = [&](const VendorProfile::PrinterModel &model) {
-            return (model.technology == technology)
+            return (static_cast<int>(model.technology) == static_cast<int>(technology))
                 && model.family == family;
         };
 

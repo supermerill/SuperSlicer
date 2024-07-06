@@ -28,7 +28,7 @@ FillConcentric::_fill_surface_single(
     Polylines                       &polylines_out) const
 {
     // no rotation is supported for this infill pattern
-    BoundingBox bounding_box = expolygon.contour.bounding_box();
+    expolygon.contour.bounding_box();
     
     coord_t distance = _line_spacing_for_density(params);
     if (params.density > 0.9999f && !params.dont_adjust) {
@@ -110,10 +110,10 @@ FillConcentricWGapFill::fill_surface_extrusion(
         //polylines_out);
         ExPolygon expolygon = expp[i];
 
-        coordf_t init_spacing = this->get_spacing();
+        this->get_spacing();
 
         // no rotation is supported for this infill pattern
-        BoundingBox bounding_box = expolygon.contour.bounding_box();
+        expolygon.contour.bounding_box();
 
         coord_t distance = _line_spacing_for_density(params);
         if (params.density > 0.9999f && !params.dont_adjust) {
@@ -196,7 +196,7 @@ FillConcentricWGapFill::fill_surface_extrusion(
 
         assert(bunch_2_shell_2_loops.size() == bunch_2_gaps.size() || bunch_2_shell_2_loops.size() == bunch_2_gaps.size() + 1);
         //for each "shell" (loop to print before a gap)
-        for (int idx_bunch = 0; idx_bunch < bunch_2_shell_2_loops.size(); idx_bunch++) {
+        for (size_t idx_bunch = 0; idx_bunch < bunch_2_shell_2_loops.size(); idx_bunch++) {
 
             //we have some "starting loops". for each 'shell', we get each loop and find (by searching which one it fit inside) its island.
             // if there is none or multiple, then we have to start again from these new loops.
@@ -289,7 +289,7 @@ FillConcentricWGapFill::fill_surface_extrusion(
             //TODO: move items that are alone in a collection to the upper collection.
 
             //add gapfills
-            if (idx_bunch < bunch_2_gaps.size() && !bunch_2_gaps[idx_bunch].empty() && params.density >= 1) {
+            if (static_cast<size_t>(idx_bunch) < bunch_2_gaps.size() && !bunch_2_gaps[idx_bunch].empty() && params.density >= 1) {
                 // get parameters 
                 coordf_t min = 0.2 * distance * (1 - INSET_OVERLAP_TOLERANCE);
                 //be sure we don't gapfill where the perimeters are already touching each other (negative spacing).
@@ -401,7 +401,7 @@ FillConcentricWGapFill::fill_surface_extrusion(
     if (gapfill_areas.size() > 0 && no_overlap_expolygons.size() > 0) {
         double minarea = double(params.flow.scaled_width()) * double(params.flow.scaled_width());
         if (params.config != nullptr) minarea = scale_d(params.config->gap_fill_min_area.get_abs_value(params.flow.width())) * double(params.flow.scaled_width());
-        for (int i = 0; i < gapfill_areas.size(); i++) {
+        for (size_t i = 0; i < gapfill_areas.size(); i++) {
             if (gapfill_areas[i].area() < minarea) {
                 gapfill_areas.erase(gapfill_areas.begin() + i);
                 i--;
@@ -419,8 +419,6 @@ FillConcentricWGapFill::fill_surface_extrusion(
         // check if not over-extruding
         if (!params.dont_adjust && params.full_infill() && !params.flow.bridge() && params.fill_exactly) {
             // compute the path of the nozzle -> extruded volume
-            double length_tot = 0;
-            int    nb_lines   = 0;
             ExtrusionVolume get_volume;
             for (ExtrusionEntity *ee : out_to_check) ee->visit(get_volume);
             // compute flow to remove spacing_ratio from the equation

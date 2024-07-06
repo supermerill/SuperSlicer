@@ -53,7 +53,6 @@ std::unique_ptr<CompressedImageBuffer> compress_thumbnail_biqu(const ThumbnailDa
     out->size = data.height * (2 + data.width * 4) + 1;
     out->data = malloc(out->size);
 
-    int idx = 0;
     std::stringstream tohex;
     tohex << std::setfill('0') << std::hex;
     for (size_t y = 0; y < data.height; ++y) {

@@ -1141,7 +1141,7 @@ static void connect_segment_intersections_by_contours(
             int iprev = -1;
             int d_prev = std::numeric_limits<int>::max();
             if (il_prev) {
-                for (int i = 0; i < il_prev->intersections.size(); ++i) {
+                for (size_t i = 0; i < il_prev->intersections.size(); ++i) {
                     const SegmentIntersection& itsct2 = il_prev->intersections[i];
                     if (itsct.iContour == itsct2.iContour && itsct.type == itsct2.type) {
                         // The intersection points lie on the same contour and have the same orientation.
@@ -1240,7 +1240,7 @@ static void connect_segment_intersections_by_contours(
             if (same_prev && same_next) {
                 assert(iprev != i_intersection);
                 assert(inext != i_intersection);
-                if ((iprev > i_intersection) == (inext > i_intersection)) {
+                if ((static_cast<size_t>(iprev) > i_intersection) == (static_cast<size_t>(inext) > i_intersection)) {
                     // Both closest intersections of this contour are on the same vertical line and at the same side of this point.
                     // Ignore them when tracing the infill.
                     itsct.prev_on_contour_quality = SegmentIntersection::LinkQuality::Invalid;
@@ -1276,7 +1276,7 @@ static void connect_segment_intersections_by_contours(
             SegmentIntersection& it = il.intersections[i_intersection];
             if (it.has_left_vertical()) {
                 SegmentIntersection& it2 = il.intersections[it.left_vertical()];
-                if (it2.left_vertical() != i_intersection) {
+                if (it2.left_vertical() != static_cast<int>(i_intersection)) {
                     // as it can happen that a vertical connection isn't symetric, if it happens, break the erroneous link
                     it.prev_on_contour = -1;
                     it.prev_on_contour_type = SegmentIntersection::LinkType::Phony;
@@ -1284,7 +1284,7 @@ static void connect_segment_intersections_by_contours(
             }
             if (it.has_right_vertical()) {
                 SegmentIntersection& it2 = il.intersections[it.right_vertical()];
-                if (it2.right_vertical() != i_intersection) {
+                if (it2.right_vertical() != static_cast<int>(i_intersection)) {
                     // as it can happen that a vertical connection isn't symetric, if it happens, break the erroneous link
                     it.next_on_contour = -1;
                     it.next_on_contour_type = SegmentIntersection::LinkType::Phony;
@@ -1337,9 +1337,13 @@ static void pinch_contours_insert_phony_outer_intersections(std::vector<Segmente
                     }
                     idx += 2;
                 } else {
+                    #ifndef NDEBUG // Only in debug builds
                     size_t loidx = idx;
                     const SegmentIntersection& lo = il.intersections[loidx];
                     assert(lo.type == SegmentIntersection::INNER_LOW);
+                    // Example of using lo in a debug statement
+                    std::cerr << "DEBUG: lo.type = " << lo.type << std::endl;
+                    #endif
                     size_t hiidx = ++idx;
                     const SegmentIntersection& hi = il.intersections[hiidx];
                     assert(hi.type == SegmentIntersection::INNER_HIGH);
@@ -1545,10 +1549,10 @@ static void traverse_graph_generate_polylines(
                 bool found = false;
                 while (!found) {
                     //go to next column if we don't found a suitable one in the current column
-                    while (i_intersection >= segs[i_vline].intersections.size()) {
+                    while (static_cast<size_t>(i_intersection) >= segs[i_vline].intersections.size()) {
                         i_vline++;
                         i_intersection = 0;
-                        if (i_vline >= segs.size()) {
+                        if (static_cast<size_t>(i_vline) >= segs.size()) {
                             // nothing to merge
                             return;
                         }
@@ -3522,7 +3526,7 @@ FillRectilinearWGapFill::fill_surface_extrusion(const Surface *surface, const Fi
     gapfill_areas = union_safety_offset_ex(gapfill_areas);
     if (gapfill_areas.size() > 0) {
         const double minarea = scale_d(params.config->gap_fill_min_area.get_abs_value(params.flow.width())) * double(params.flow.scaled_width());
-        for (int i = 0; i < gapfill_areas.size(); i++) {
+        for (auto i = 0u; i < gapfill_areas.size(); i++) {
             if (gapfill_areas[i].area() < minarea) {
                 gapfill_areas.erase(gapfill_areas.begin() + i);
                 i--;

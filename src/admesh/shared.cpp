@@ -103,7 +103,7 @@ void stl_generate_shared_vertices(stl_file *stl, indexed_triangle_set &its)
 					    traversal_reversed    = true;
 				    	facet_in_fan_idx      = facet_idx;
 					}
-				} else if (next_facet == facet_idx) {
+				} else if (next_facet == static_cast<int>(facet_idx)) {
 					// Traversed a closed fan all around.
 //					assert(! traversal_reversed);
 					break;
@@ -139,7 +139,7 @@ bool its_write_off(const indexed_triangle_set &its, const char *file)
 
 	fprintf(fp, "OFF\n");
 	fprintf(fp, "%d %d 0\n", (int)its.vertices.size(), (int)its.indices.size());
-	for (int i = 0; i < its.vertices.size(); ++ i)
+	for (size_t i = 0; i < its.vertices.size(); ++i)
 		fprintf(fp, "\t%f %f %f\n", its.vertices[i](0), its.vertices[i](1), its.vertices[i](2));
 	for (uint32_t i = 0; i < its.indices.size(); ++ i)
 		fprintf(fp, "\t3 %d %d %d\n", its.indices[i][0], its.indices[i][1], its.indices[i][2]);
@@ -172,8 +172,8 @@ bool its_write_vrml(const indexed_triangle_set &its, const char *file)
 	fprintf(fp, "\t\tDEF STLVertices Coordinate3 {\n");
 	fprintf(fp, "\t\t\tpoint [\n");
 
-	int i = 0;
-	for (; i + 1 < its.vertices.size(); ++ i)
+	size_t i = 0;
+	for (; i + 1 < its.vertices.size(); ++i)
 		fprintf(fp, "\t\t\t\t%f %f %f,\n", its.vertices[i](0), its.vertices[i](1), its.vertices[i](2));
 	fprintf(fp, "\t\t\t\t%f %f %f]\n", its.vertices[i](0), its.vertices[i](1), its.vertices[i](2));
 	fprintf(fp, "\t\t}\n");

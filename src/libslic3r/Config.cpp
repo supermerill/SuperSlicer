@@ -378,15 +378,19 @@ double GraphData::interpolate(double x_value) const{
                     std::vector<float> rhs(N + 1);
 
                     // let's fill in inner equations
-                    for (int i = 1 + begin_idx; i <= N + begin_idx; ++i) h[i] = this->graph_points[i].x() - this->graph_points[i - 1].x();
+                    for (size_t i = 1 + begin_idx; i <= static_cast<size_t>(N + begin_idx); ++i) {
+                        h[i] = this->graph_points[i].x() - this->graph_points[i - 1].x();
+                    }
+
                     std::fill(diag.begin(), diag.end(), 2.f);
-                    for (int i = 1 + begin_idx; i <= N + begin_idx - 1; ++i) {
+
+                    for (size_t i = 1 + begin_idx; i <= static_cast<size_t>(N + begin_idx - 1); ++i) {
                         mu[i]     = h[i] / (h[i] + h[i + 1]);
                         lambda[i] = 1.f - mu[i];
                         rhs[i]    = 6 * (float(this->graph_points[i + 1].y() - this->graph_points[i].y()) /
-                                          (h[i + 1] * (this->graph_points[i + 1].x() - this->graph_points[i - 1].x())) -
-                                      float(this->graph_points[i].y() - this->graph_points[i - 1].y()) /
-                                          (h[i] * (this->graph_points[i + 1].x() - this->graph_points[i - 1].x())));
+                                        (h[i + 1] * (this->graph_points[i + 1].x() - this->graph_points[i - 1].x())) -
+                                        float(this->graph_points[i].y() - this->graph_points[i - 1].y()) /
+                                        (h[i] * (this->graph_points[i + 1].x() - this->graph_points[i - 1].x())));
                     }
 
                     // now fill in the first and last equations, according to boundary conditions:
@@ -1087,8 +1091,9 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
                 const ConfigOption* opt_extruder_id = nullptr;
                 if ((opt_extruder_id = this->option("extruder")) == nullptr)
                     if ((opt_extruder_id = this->option("current_extruder")) == nullptr
-                        || opt_extruder_id->get_int() < 0 || opt_extruder_id->get_int() >= vector_opt->size()) {
-                        std::stringstream ss; ss << "ConfigBase::get_abs_value(): " << opt_key << " need to has the extuder id to get the right value, but it's not available";
+                        || opt_extruder_id->get_int() < 0 || static_cast<size_t>(opt_extruder_id->get_int()) >= vector_opt->size()) {
+                        std::stringstream ss;
+                        ss << "ConfigBase::get_abs_value(): " << opt_key << " need to have the extruder id to get the right value, but it's not available";
                         throw ConfigurationError(ss.str());
                     }
                 extruder_id = opt_extruder_id->get_int();
@@ -1330,9 +1335,6 @@ size_t ConfigBase::load_from_gcode_string_legacy(ConfigBase& config, const char*
         return 0;
 
     // Walk line by line in reverse until a non-configuration key appears.
-    const char *data_start = str;
-    // boost::nowide::ifstream seems to cook the text data somehow, so less then the 64k of characters may be retrieved.
-    const char *end = data_start + strlen(str);
     size_t num_key_value_pairs = 0;
     for (auto [key, value] : load_gcode_string_legacy(str)) {
         try {
@@ -1660,7 +1662,7 @@ bool DynamicConfig::read_cli(int argc, const char* const argv[], t_config_option
             opts[t] = oit.first;
     
     bool parse_options = true;
-    for (size_t i = 1; i < argc; ++ i) {
+    for (size_t i = 1; i < static_cast<size_t>(argc); ++i) {
         std::string token = argv[i];
         // Store non-option arguments in the provided vector.
         if (! parse_options || ! boost::starts_with(token, "-")) {
@@ -1714,7 +1716,7 @@ bool DynamicConfig::read_cli(int argc, const char* const argv[], t_config_option
         // If the option type expects a value and it was not already provided,
         // look for it in the next token.
         if (value.empty() && optdef.type != coBool && optdef.type != coBools) {
-            if (i == argc-1) {
+            if (i == static_cast<size_t>(argc) - 1) {
                 boost::nowide::cerr << "No value supplied for --" << token.c_str() << std::endl;
                 return false;
             }

@@ -928,7 +928,7 @@ std::string CoolingBuffer::apply_layer_cooldown(
     {
         int disable_fan_first_layers = EXTRUDER_CONFIG(disable_fan_first_layers);
         // Is the fan speed ramp enabled?
-        int full_fan_speed_layer = EXTRUDER_CONFIG(full_fan_speed_layer);
+        //int full_fan_speed_layer = EXTRUDER_CONFIG(full_fan_speed_layer);
         if (int(layer_id) >= disable_fan_first_layers) {
             int   max_fan_speed             = EXTRUDER_CONFIG(max_fan_speed);
             float slowdown_below_layer_time = float(EXTRUDER_CONFIG(slowdown_below_layer_time));

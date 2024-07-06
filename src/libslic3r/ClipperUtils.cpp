@@ -639,10 +639,10 @@ bool test_path(const ClipperLib::Path &path) {
 }
 
 void remove_small_areas(ClipperLib::Paths& paths) {
-    for (int idx_path = 0; idx_path < paths.size(); ++idx_path) {
+    for (size_t idx_path = 0; idx_path < paths.size(); ++idx_path) {
         if (test_path(paths[idx_path])) {
             paths.erase(paths.begin() + idx_path);
-            --idx_path;
+            --idx_path;  // Adjust index after erase
         }
     }
 }

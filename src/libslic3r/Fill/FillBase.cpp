@@ -324,7 +324,6 @@ Fill::do_gap_fill(const ExPolygons& gapfill_areas, const FillParams& params, Ext
 
     ThickPolylines polylines_gapfill;
     double min = 0.4 * scale_(params.flow.nozzle_diameter()) * (1 - INSET_OVERLAP_TOLERANCE);
-    double max = 2. * params.flow.scaled_width();
     // collapse 
     //be sure we don't gapfill where the perimeters are already touching each other (negative spacing).
     min = std::max(min, double(Flow::new_from_spacing((float)EPSILON, (float)params.flow.nozzle_diameter(), (float)params.flow.height(), 1, false).scaled_width()));
@@ -957,9 +956,8 @@ namespace PrusaSimpleConnect {
                         ContourPointData& bdp = boundary_data[it_contour_and_segment->first][it_contour_and_segment->second];
                         bdp.segment_consumed = true;
                         // There is no need for checking seg_pt2 as it will be checked the next time.
-                        bool point_touching = false;
                         if (segment_point_distance_squared(*this->pt1, *this->pt2, seg_pt1) < this->dist2_max) {
-                            point_touching = true;
+                        // point_touching = true;
                             bdp.point_consumed = true;
                         }
 #if 0
@@ -1155,8 +1153,6 @@ namespace PrusaSimpleConnect {
         std::vector<ConnectionCost> connections_sorted;
         connections_sorted.reserve(infill_ordered.size() * 2 - 2);
         for (size_t idx_chain = 1; idx_chain < infill_ordered.size(); ++idx_chain) {
-            const Polyline& pl1 = infill_ordered[idx_chain - 1];
-            const Polyline& pl2 = infill_ordered[idx_chain];
             const std::pair<size_t, size_t>* cp1 = &map_infill_end_point_to_boundary[(idx_chain - 1) * 2 + 1];
             const std::pair<size_t, size_t>* cp2 = &map_infill_end_point_to_boundary[idx_chain * 2];
             if (cp1->first != boundary_idx_unconnected && cp1->first == cp2->first) {
@@ -1196,7 +1192,6 @@ namespace PrusaSimpleConnect {
         }
         assert(boundary_data.size() == boundary_src.holes.size() + 1);
 
-        size_t idx_chain_last = 0;
         for (ConnectionCost& connection_cost : connections_sorted) {
             const std::pair<size_t, size_t>* cp1 = &map_infill_end_point_to_boundary[connection_cost.idx_first * 2 + 1];
             const std::pair<size_t, size_t>* cp1prev = cp1 - 1;

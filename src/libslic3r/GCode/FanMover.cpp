@@ -266,7 +266,6 @@ void FanMover::_process_T(const std::string_view command)
 void FanMover::_process_ACTIVATE_EXTRUDER(const std::string_view cmd)
 {
     if (size_t cmd_end = cmd.find("ACTIVATE_EXTRUDER"); cmd_end != std::string::npos) {
-        bool   error              = false;
         size_t extruder_pos_start = cmd.find("EXTRUDER", cmd_end + std::string_view("ACTIVATE_EXTRUDER").size()) + std::string_view("EXTRUDER").size();
         assert(cmd[extruder_pos_start - 1] == 'R');
         if (extruder_pos_start != std::string::npos) {
@@ -471,11 +470,13 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                 current_role = ExtrusionEntity::string_to_role(extrusion_string);
             }
             if (line.raw().size() > 16) {
-                if (line.raw().rfind("; custom gcode", 0) != std::string::npos)
-                    if (line.raw().rfind("; custom gcode end", 0) != std::string::npos)
+                if (line.raw().rfind("; custom gcode", 0) != std::string::npos) {
+                    if (line.raw().rfind("; custom gcode end", 0) != std::string::npos) {
                         m_is_custom_gcode = false;
-                    else
+                    } else {
                         m_is_custom_gcode = true;
+                    }
+                }
             }
         }
     }

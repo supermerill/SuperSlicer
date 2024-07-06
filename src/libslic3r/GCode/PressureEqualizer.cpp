@@ -411,7 +411,6 @@ bool PressureEqualizer::process_line(const char *line, const char *line_end, GCo
 void PressureEqualizer::parse_activate_extruder(const std::string &line_str)
 {
     if (size_t cmd_end = line_str.find("CTIVATE_EXTRUDER"); cmd_end != std::string::npos) {
-        bool   error              = false;
         size_t extruder_pos_start = line_str.find("EXTRUDER", cmd_end + std::string_view("CTIVATE_EXTRUDER").size()) +
                                     std::string_view("EXTRUDER").size();
         assert(line_str[extruder_pos_start - 1] == 'R');

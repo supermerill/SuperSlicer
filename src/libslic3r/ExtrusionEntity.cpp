@@ -160,7 +160,7 @@ bool ExtrusionLoop::split_at_vertex(const Point &point, const double scaled_epsi
                     path->polyline.swap(p2); // swap points & fitting result
                 }
             } else if (idx > 0) {
-                if (idx < path->size() - 1) {
+                if (static_cast<size_t>(idx) < path->size() - 1) {
                     // new paths list starts with the second half of current path
                     ExtrusionPaths new_paths;
                     PolylineOrArc  p1, p2;
@@ -466,7 +466,7 @@ std::string looprole_to_code(ExtrusionLoopRole looprole)
 
 void ExtrusionPrinter::use(const ExtrusionPath &path) { 
     ss << (json?"\"":"") << "ExtrusionPath" << (path.can_reverse()?"":"Oriented") << (json?"_":":") << role_to_code(path.role()) << (json?"\":":"") << "[";
-    for (int i = 0; i < path.polyline.size(); i++) {
+    for (size_t i = 0; i < path.polyline.size(); i++) {
         if (i != 0) ss << ",";
         double x = (mult * (path.polyline.get_points()[i].x()));
         double y = (mult * (path.polyline.get_points()[i].y()));
@@ -476,7 +476,7 @@ void ExtrusionPrinter::use(const ExtrusionPath &path) {
 }
 void ExtrusionPrinter::use(const ExtrusionPath3D &path3D) {
     ss << (json?"\"":"") << "ExtrusionPath3D" << (path3D.can_reverse()?"":"Oriented") << (json?"_":":") << role_to_code(path3D.role()) << (json?"\":":"") << "[";
-    for (int i = 0; i < path3D.polyline.size();i++){
+    for (size_t i = 0; i < path3D.polyline.size(); i++) {
         if (i != 0) ss << ",";
         double x = (mult * (path3D.polyline.get_points()[i].x()));
         double y = (mult * (path3D.polyline.get_points()[i].y()));
@@ -487,7 +487,7 @@ void ExtrusionPrinter::use(const ExtrusionPath3D &path3D) {
 }
 void ExtrusionPrinter::use(const ExtrusionMultiPath &multipath) {
     ss << (json?"\"":"") << "ExtrusionMultiPath" << (multipath.can_reverse()?"":"Oriented") << (json?"_":":") << role_to_code(multipath.role()) << (json?"\":":"") << "{";
-    for (int i = 0; i < multipath.paths.size(); i++) {
+    for (size_t i = 0; i < multipath.paths.size(); i++) {
         if (i != 0) ss << ",";
         multipath.paths[i].visit(*this);
     }
@@ -495,7 +495,7 @@ void ExtrusionPrinter::use(const ExtrusionMultiPath &multipath) {
 }
 void ExtrusionPrinter::use(const ExtrusionMultiPath3D &multipath3D) {
     ss << (json?"\"":"") << "multipath3D" << (multipath3D.can_reverse()?"":"Oriented") << (json?"_":":") << role_to_code(multipath3D.role()) << (json?"\":":"") << "{";
-    for (int i = 0; i < multipath3D.paths.size(); i++) {
+    for (size_t i = 0; i < multipath3D.paths.size(); i++) {
         if (i != 0) ss << ",";
         multipath3D.paths[i].visit(*this);
     }
@@ -504,7 +504,7 @@ void ExtrusionPrinter::use(const ExtrusionMultiPath3D &multipath3D) {
 void ExtrusionPrinter::use(const ExtrusionLoop &loop) { 
     ss << (json?"\"":"") << "ExtrusionLoop" << (json?"_":":") << role_to_code(loop.role())<<"_" << looprole_to_code(loop.loop_role()) << (json?"\":":"") << "{";
     if(!loop.can_reverse()) ss << (json?"\"":"") << "oriented" << (json?"\":":"=") << "true,";
-    for (int i = 0; i < loop.paths.size(); i++) {
+    for (size_t i = 0; i < loop.paths.size(); i++) {
         if (i != 0) ss << ",";
         loop.paths[i].visit(*this);
     }
@@ -514,17 +514,16 @@ void ExtrusionPrinter::use(const ExtrusionEntityCollection &collection) {
     ss << (json?"\"":"") << "ExtrusionEntityCollection" << (json?"_":":") << role_to_code(collection.role()) << (json?"\":":"") << "{";
     if(!collection.can_sort()) ss << (json?"\"":"") << "no_sort" << (json?"\":":"=") << "true,";
     if(!collection.can_reverse()) ss << (json?"\"":"") << "oriented" << (json?"\":":"=") << "true,";
-    for (int i = 0; i < collection.entities().size(); i++) {
+    for (size_t i = 0; i < collection.entities().size(); i++) {
         if (i != 0) ss << ",";
         collection.entities()[i]->visit(*this);
     }
     ss << "}";
 }
 
-
 void ExtrusionLength::default_use(const ExtrusionEntity& entity) { dist += entity.length(); };
 void ExtrusionLength::use(const ExtrusionEntityCollection& collection) {
-    for (int i = 0; i < collection.entities().size(); i++) {
+    for (size_t i = 0; i < collection.entities().size(); i++) {
         collection.entities()[i]->visit(*this);
     }
 }

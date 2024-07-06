@@ -193,7 +193,7 @@ IntPoint Centroid(const Path& poly, double area)
     double x_temp = 0;
     double y_temp = 0;
 
-    const int max = poly.size() - 1;
+    const size_t max = poly.size() - 1;
     size_t i = 0;
     for (; i < max; ++i)
     {
@@ -470,6 +470,7 @@ inline void InitEdge(TEdge* e, TEdge* eNext, TEdge* ePrev, const IntPoint& Pt)
   e->Curr = Pt;
   e->OutIdx = Unassigned;
 }
+
 //------------------------------------------------------------------------------
 
 void InitEdge2(TEdge& e, PolyType Pt)

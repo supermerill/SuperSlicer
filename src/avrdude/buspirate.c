@@ -553,7 +553,6 @@ if (pgm->flag & BP_FLAG_XPARM_RAWFREQ) {
 }
 
 
-
 	unsigned char buf[20] = { '\0' };
 
 	/* == Switch to binmode - send 20x '\0' == */

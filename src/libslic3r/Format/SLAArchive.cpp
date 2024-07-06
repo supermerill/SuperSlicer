@@ -5,17 +5,17 @@ using ConfMap = std::map<std::string, std::string>;
 
 namespace {
 
-std::string get_cfg_value(const DynamicPrintConfig &cfg, const std::string &key)
-{
-    std::string ret;
+// std::string get_cfg_value(const DynamicPrintConfig &cfg, const std::string &key)
+// {
+//     std::string ret;
     
-    if (cfg.has(key)) {
-        auto opt = cfg.option(key);
-        if (opt) ret = opt->serialize();
-    }
+//     if (cfg.has(key)) {
+//         auto opt = cfg.option(key);
+//         if (opt) ret = opt->serialize();
+//     }
     
-    return ret;    
-}
+//     return ret;    
+// }
 
 } // namespace
 

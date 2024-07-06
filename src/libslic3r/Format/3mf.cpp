@@ -718,7 +718,7 @@ namespace Slic3r {
         }
 
         // we then loop again the entries to read other files stored in the archive
-        bool print_config_parsed = false, model_config_parsed = false;
+        bool print_config_parsed = false;
         bool read_SLIC3R_LAYER_CONFIG_RANGES_FILE = false;
         for (mz_uint i = 0; i < num_entries; ++i) {
             if (mz_zip_reader_file_stat(&archive, i, &stat)) {
@@ -3023,8 +3023,7 @@ namespace Slic3r {
                                         const ConfigOptionDef* def = nullptr;
                                         try {
                                             def = globalConfig.get_option_def(opt_key);
-                                        }
-                                        catch (Exception) {}
+                                        } catch (const Slic3r::Exception& ex) {}
                                         if (def != nullptr) {
                                             log << "map : " << "\n";
                                             for (const auto& entry : *def->enum_keys_map) {
@@ -3252,14 +3251,14 @@ namespace Slic3r {
                             if (option != nullptr && option->type() == ConfigOptionType::coEnum) {
                                 try{
                                     log << "raw_int_value : " << option->get_int() << "\n";
-                                } catch (std::exception ex) {}
+                                } catch (const std::exception& ex) {}
                                 log << "enum : " << option->get_int();
                                 log << "\n";
                                 const ConfigOptionDef* def = nullptr;
                                 try {
                                     def = print_config.get_option_def(key);
                                 }
-                                catch (Exception) {}
+                                catch (const Slic3r::Exception& ex) {}
                                 if (def != nullptr) {
                                     log << "map : " << "\n";
                                     for (const auto& entry : *def->enum_keys_map) {
@@ -3367,14 +3366,14 @@ namespace Slic3r {
                                         if (option != nullptr && option->type() == ConfigOptionType::coEnum) {
                                             try{
                                                 log << "raw_int_value : " << option->get_int() << "\n";
-                                            } catch (std::exception ex) {}
+                                            } catch (const std::exception& ex) {}
                                             log << "enum : " << option->get_int();
                                             log << "\n";
                                             const ConfigOptionDef* def = nullptr;
                                             try {
                                                 def = print_config.get_option_def(key);
                                             }
-                                            catch (Exception) {}
+                                            catch (const std::exception& ex) {}
                                             if (def != nullptr) {
                                                 log << "map : " << "\n";
                                                 for (const auto& entry : *def->enum_keys_map) {

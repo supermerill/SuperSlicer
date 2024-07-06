@@ -206,7 +206,6 @@ void Chart::mouse_clicked(wxMouseEvent& event) {
 void Chart::mouse_moved(wxMouseEvent& event) {
     wxPoint pos = event.GetPosition();
     wxRect rect = m_rect;
-    size_t button_idx_hover_old = button_idx_hover;
     button_idx_hover = size_t(-1);
     rect.Deflate(side/2.);
     if (!(rect.Contains(pos))) {  // the mouse left chart area
@@ -381,7 +380,7 @@ void Chart::recalculate_line() {
                 m_line_to_draw.push_back(points.back().y);
             } else {
                 assert(curr_idx <= N);
-                if (curr_idx < N && points[curr_idx].x < x) {
+                if (curr_idx < static_cast<size_t>(N) && points[curr_idx].x < x) {
                     ++curr_idx;
                 }
                 if (this->m_type == Slic3r::GraphData::GraphType::SPLINE) {

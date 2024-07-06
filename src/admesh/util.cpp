@@ -323,12 +323,12 @@ void stl_repair(
 		stl->stats.facets_w_3_bad_edge = (stl->stats.number_of_facets - stl->stats.connected_facets_1_edge);
 	}
 
-  	if (nearby_flag || fixall_flag) {
-    	if (! tolerance_flag)
-      		tolerance = stl->stats.shortest_edge;
- 	   	if (! increment_flag)
-      		increment = stl->stats.bounding_diameter / 10000.0;
-    }
+	if (nearby_flag || fixall_flag) {
+		if (!tolerance_flag)
+			tolerance = stl->stats.shortest_edge;
+		if (!increment_flag)
+			increment = stl->stats.bounding_diameter / 10000.0;
+	}
 
 	if (stl->stats.connected_facets_3_edge < int(stl->stats.number_of_facets)) {
 	  	int last_edges_fixed = 0;
