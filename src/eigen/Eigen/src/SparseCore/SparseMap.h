@@ -57,7 +57,7 @@ class SparseMapBase<Derived,ReadOnlyAccessors>
     enum { IsRowMajor = Base::IsRowMajor };
     using Base::operator=;
   protected:
-    
+
     typedef typename internal::conditional<
                          bool(internal::is_lvalue<Derived>::value),
                          Scalar *, const Scalar *>::type ScalarPointer;
@@ -85,7 +85,7 @@ class SparseMapBase<Derived,ReadOnlyAccessors>
     inline Index outerSize() const { return m_outerSize; }
     /** \copydoc SparseCompressedBase::nonZeros */
     inline Index nonZeros() const { return m_zero_nnz[1]; }
-    
+
     /** \copydoc SparseCompressedBase::isCompressed */
     bool isCompressed() const { return m_innerNonZeros==0; }
 
@@ -149,17 +149,17 @@ class SparseMapBase<Derived,WriteAccessors>
   : public SparseMapBase<Derived,ReadOnlyAccessors>
 {
     typedef MapBase<Derived, ReadOnlyAccessors> ReadOnlyMapBase;
-    
+
   public:
     typedef SparseMapBase<Derived, ReadOnlyAccessors> Base;
     typedef typename Base::Scalar Scalar;
     typedef typename Base::StorageIndex StorageIndex;
     enum { IsRowMajor = Base::IsRowMajor };
-    
+
     using Base::operator=;
 
   public:
-    
+
     //----------------------------------------
     // direct access interface
     using Base::valuePtr;
@@ -191,7 +191,7 @@ class SparseMapBase<Derived,WriteAccessors>
       eigen_assert((*r==inner) && (id<end) && "coeffRef cannot be called on a zero coefficient");
       return const_cast<Scalar*>(Base::m_values)[id];
     }
-    
+
     inline SparseMapBase(Index rows, Index cols, Index nnz, StorageIndex* outerIndexPtr, StorageIndex* innerIndexPtr,
                          Scalar* valuePtr, StorageIndex* innerNonZerosPtr = 0)
       : Base(rows, cols, nnz, outerIndexPtr, innerIndexPtr, valuePtr, innerNonZerosPtr)
@@ -283,7 +283,7 @@ struct evaluator<Map<SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, Strid
   : evaluator<SparseCompressedBase<Map<SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, StrideType> > >
 {
   typedef evaluator<SparseCompressedBase<Map<SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, StrideType> > > Base;
-  typedef Map<SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, StrideType> XprType;  
+  typedef Map<SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, StrideType> XprType;
   evaluator() : Base() {}
   explicit evaluator(const XprType &mat) : Base(mat) {}
 };
@@ -293,7 +293,7 @@ struct evaluator<Map<const SparseMatrix<MatScalar,MatOptions,MatIndex>, Options,
   : evaluator<SparseCompressedBase<Map<const SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, StrideType> > >
 {
   typedef evaluator<SparseCompressedBase<Map<const SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, StrideType> > > Base;
-  typedef Map<const SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, StrideType> XprType;  
+  typedef Map<const SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, StrideType> XprType;
   evaluator() : Base() {}
   explicit evaluator(const XprType &mat) : Base(mat) {}
 };

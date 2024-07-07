@@ -58,36 +58,36 @@ using BoxIndexEl = std::pair<Slic3r::BoundingBox, unsigned>;
 
 class BoxIndex {
     class Impl;
-    
+
     // We use Pimpl because it takes a long time to compile boost headers which
     // is the engine of this class. We include it only in the cpp file.
     std::unique_ptr<Impl> m_impl;
 public:
-    
+
     BoxIndex();
     ~BoxIndex();
-    
+
     BoxIndex(const BoxIndex&);
     BoxIndex(BoxIndex&&);
     BoxIndex& operator=(const BoxIndex&);
     BoxIndex& operator=(BoxIndex&&);
-    
+
     void insert(const BoxIndexEl&);
     void insert(const BoundingBox& bb, unsigned idx)
     {
         insert(std::make_pair(bb, unsigned(idx)));
     }
-    
+
     bool remove(const BoxIndexEl&);
 
     enum QueryType { qtIntersects, qtWithin };
 
     std::vector<BoxIndexEl> query(const BoundingBox&, QueryType qt);
-    
+
     // For testing
     size_t size() const;
     bool empty() const { return size() == 0; }
-    
+
     void foreach(std::function<void(const BoxIndexEl& el)> fn);
 };
 

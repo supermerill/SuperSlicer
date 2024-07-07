@@ -11,7 +11,7 @@
 #ifndef EIGEN_HYPERPLANE_H
 #define EIGEN_HYPERPLANE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \geometry_module \ingroup Geometry_Module
   *
@@ -51,7 +51,7 @@ public:
 
   /** Default constructor without initialization */
   EIGEN_DEVICE_FUNC inline Hyperplane() {}
-  
+
   template<int OtherOptions>
   EIGEN_DEVICE_FUNC Hyperplane(const Hyperplane<Scalar,AmbientDimAtCompileTime,OtherOptions>& other)
    : m_coeffs(other.coeffs())

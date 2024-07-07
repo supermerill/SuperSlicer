@@ -18,7 +18,7 @@ EigenMesh triangle_mesh_to_eigen(const TriangleMesh &mesh);
 
 void minus(EigenMesh &A, const EigenMesh &B);
 void self_union(EigenMesh &A);
-    
+
 void minus(TriangleMesh& A, const TriangleMesh& B);
 void self_union(TriangleMesh& mesh);
 
@@ -41,7 +41,7 @@ inline std::unique_ptr<CGALMesh, CGALMeshDeleter> triangle_mesh_to_cgal(const Tr
 }
 
 TriangleMesh cgal_to_triangle_mesh(const CGALMesh &cgalmesh);
-    
+
 // Do boolean mesh difference with CGAL bypassing igl.
 void minus(TriangleMesh &A, const TriangleMesh &B);
 void plus(TriangleMesh &A, const TriangleMesh &B);

@@ -1,14 +1,14 @@
-#include <exception> 
+#include <exception>
 namespace Slic3r {
 
-class ConfigError : public Slic3r::RuntimeError { 
-	using Slic3r::RuntimeError::RuntimeError;
+class ConfigError : public Slic3r::RuntimeError {
+    using Slic3r::RuntimeError::RuntimeError;
 };
 
 namespace GUI {
 
-class ConfigGUITypeError : public ConfigError { 
-	using ConfigError::ConfigError;
+class ConfigGUITypeError : public ConfigError {
+    using ConfigError::ConfigError;
 };
 
 } // namespace GUI

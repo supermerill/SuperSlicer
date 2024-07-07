@@ -3,7 +3,7 @@
 
 #include "CalibrationAbstractDialog.hpp"
 
-namespace Slic3r { 
+namespace Slic3r {
 namespace GUI {
 
 class CalibrationBedDialog : public CalibrationAbstractDialog

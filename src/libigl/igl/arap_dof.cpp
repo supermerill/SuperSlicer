@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "arap_dof.h"
 
@@ -38,7 +38,7 @@
 // matlab function arap_dof.m
 template <typename LbsMatrixType, typename SSCALAR>
 IGL_INLINE bool igl::arap_dof_precomputation(
-  const Eigen::MatrixXd & V, 
+  const Eigen::MatrixXd & V,
   const Eigen::MatrixXi & F,
   const LbsMatrixType & M,
   const Eigen::Matrix<int,Eigen::Dynamic,1> & G,
@@ -128,7 +128,7 @@ IGL_INLINE bool igl::arap_dof_precomputation(
     endl<<"CSM=sparse(CSMIJV(:,1),CSMIJV(:,2),CSMIJV(:,3),"<<
     CSM.rows()<<","<<CSM.cols()<<");"<<endl;
 #endif
-  
+
 
   // Build the covariance matrix "constructor". This is a set of *scatter*
   // matrices that when multiplied on the right by column of the transformation
@@ -319,7 +319,7 @@ namespace igl
     SSCALAR diff2 = fabs(blok(2,2) - value);
     if (diff1 > diff2) mD = diff1;
     else mD = diff2;
-    
+
     for (int v=0; v<3; v++)
     {
       for (int w=0; w<3; w++)
@@ -334,19 +334,19 @@ namespace igl
         }
       }
     }
-    
+
     return mD;
   }
-  
+
   // converts CSM_M_SSCALAR[0], CSM_M_SSCALAR[1], CSM_M_SSCALAR[2] into one
   // "condensed" matrix CSM while checking we're not losing any information by
   // this process; specifically, returns maximal difference from scaled 3x3
   // identity blocks, which should be pretty small number
   template <typename MatrixXS>
   static typename MatrixXS::Scalar condense_CSM(
-    const std::vector<MatrixXS> &CSM_M_SSCALAR, 
-    int numBones, 
-    int dim, 
+    const std::vector<MatrixXS> &CSM_M_SSCALAR,
+    int numBones,
+    int dim,
     MatrixXS &CSM)
   {
     const int numRows = CSM_M_SSCALAR[0].rows();
@@ -355,13 +355,13 @@ namespace igl
     assert(CSM_M_SSCALAR[2].cols() == dim*(dim+1)*numBones);
     assert(CSM_M_SSCALAR[1].rows() == numRows);
     assert(CSM_M_SSCALAR[2].rows() == numRows);
-  
+
     const int numCols = (dim + 1)*numBones;
     CSM.resize(numRows, numCols);
-  
+
     typedef typename MatrixXS::Scalar SSCALAR;
     SSCALAR maxDiff = 0.0f;
-  
+
     for (int r=0; r<numRows; r++)
     {
       for (int coord=0; coord<dim+1; coord++)
@@ -375,42 +375,42 @@ namespace igl
             for (int w=0; w<3; w++)
             {
               blok(v,w) = CSM_M_SSCALAR[v](r, coord*(numBones*dim) + b + w*numBones);
-            }          
+            }
           }
-  
+
           //SSCALAR value[3];
           //for (int v=0; v<3; v++)
           //  CSM_M_SSCALAR[v](r, coord*(numBones*dim) + b + v*numBones);
-  
+
           SSCALAR mD = maxBlokErr<SSCALAR>(blok);
           if (mD > maxDiff) maxDiff = mD;
-  
+
           // use the first value:
           CSM(r, coord*numBones + b) = blok(0,0);
         }
       }
     }
-  
+
     return maxDiff;
   }
-  
+
   // splits x_0, ... , x_dim coordinates in column vector 'L' into a numBones*(dimp1) x dim matrix 'Lsep';
   // assumes 'Lsep' has already been preallocated
   //
   // is this the same as uncolumnize? no.
   template <typename MatL, typename MatLsep>
   static void splitColumns(
-   const MatL &L, 
-   int numBones, 
-   int dim, 
-   int dimp1, 
+   const MatL &L,
+   int numBones,
+   int dim,
+   int dimp1,
    MatLsep &Lsep)
   {
     assert(L.cols() == 1);
     assert(L.rows() == dim*(dimp1)*numBones);
-  
+
     assert(Lsep.rows() == (dimp1)*numBones && Lsep.cols() == dim);
-  
+
     for (int b=0; b<numBones; b++)
     {
       for (int coord=0; coord<dimp1; coord++)
@@ -422,8 +422,8 @@ namespace igl
       }
     }
   }
-  
-  
+
+
   // the inverse of splitColumns, i.e., takes numBones*(dimp1) x dim matrix 'Lsep' and merges the dimensions
   // into columns vector 'L' (which is assumed to be already allocated):
   //
@@ -433,9 +433,9 @@ namespace igl
   {
     assert(L.cols() == 1);
     assert(L.rows() == dim*(dimp1)*numBones);
-  
+
     assert(Lsep.rows() == (dimp1)*numBones && Lsep.cols() == dim);
-  
+
     for (int b=0; b<numBones; b++)
     {
       for (int coord=0; coord<dimp1; coord++)
@@ -447,7 +447,7 @@ namespace igl
       }
     }
   }
-  
+
   // converts "Solve1" the "rotations" part of FullSolve matrix (the first part)
   // into one "condensed" matrix CSolve1 while checking we're not losing any
   // information by this process; specifically, returns maximal difference from
@@ -457,11 +457,11 @@ namespace igl
   {
     assert(Solve1.rows() == dim*(dim + 1)*numBones);
     assert(Solve1.cols() == dim*dim*numGroups);
-  
+
     typedef typename MatrixXS::Scalar SSCALAR;
     SSCALAR maxDiff = 0.0f;
-  
-    CSolve1.resize((dim + 1)*numBones, dim*numGroups);  
+
+    CSolve1.resize((dim + 1)*numBones, dim*numGroups);
     for (int rowCoord=0; rowCoord<dim+1; rowCoord++)
     {
       for (int b=0; b<numBones; b++)
@@ -478,16 +478,16 @@ namespace igl
                 blok(r, c) = Solve1(rowCoord*numBones*dim + r*numBones + b, colCoord*numGroups*dim + c*numGroups + g);
               }
             }
-  
+
             SSCALAR mD = maxBlokErr<SSCALAR>(blok);
             if (mD > maxDiff) maxDiff = mD;
-  
+
             CSolve1(rowCoord*numBones + b, colCoord*numGroups + g) = blok(0,0);
           }
         }
       }
-    }  
-    
+    }
+
     return maxDiff;
   }
 }
@@ -563,8 +563,8 @@ IGL_INLINE bool igl::arap_dof_recomputation(
   data.M_FullSolve.resize(fsRows, fsCols1 + fsCols2);
   // note the magical multiplicative constant "-0.5", I've no idea why it has
   // to be there :)
-  data.M_FullSolve << 
-    (-0.5 * M_Solve.block(0, 0, fsRows, fsRows) * data.M_KG).template cast<SSCALAR>(), 
+  data.M_FullSolve <<
+    (-0.5 * M_Solve.block(0, 0, fsRows, fsRows) * data.M_KG).template cast<SSCALAR>(),
     M_Solve.block(0, fsRows, fsRows, fsCols2).template cast<SSCALAR>();
 
   if(data.with_dynamics)
@@ -583,15 +583,15 @@ IGL_INLINE bool igl::arap_dof_recomputation(
   std::vector<MatrixXS> CSM_M_SSCALAR;
   CSM_M_SSCALAR.resize(data.dim);
   for (int i=0; i<data.dim; i++) CSM_M_SSCALAR[i] = data.CSM_M[i].template cast<SSCALAR>();
-  SSCALAR maxErr1 = condense_CSM(CSM_M_SSCALAR, data.m, data.dim, data.CSM);  
+  SSCALAR maxErr1 = condense_CSM(CSM_M_SSCALAR, data.m, data.dim, data.CSM);
   verbose("condense_CSM maxErr = %.15f (this should be close to zero)\n", maxErr1);
   assert(fabs(maxErr1) < 1e-5);
-  
+
   // and then solveBlock1:
   // number of groups
   const int k = data.CSM_M[0].rows()/data.dim;
   MatrixXS SolveBlock1 = data.M_FullSolve.block(0, 0, data.M_FullSolve.rows(), data.dim * data.dim * k);
-  SSCALAR maxErr2 = condense_Solve1(SolveBlock1, data.m, k, data.dim, data.CSolveBlock1);  
+  SSCALAR maxErr2 = condense_Solve1(SolveBlock1, data.m, k, data.dim, data.CSolveBlock1);
   verbose("condense_Solve1 maxErr = %.15f (this should be close to zero)\n", maxErr2);
   assert(fabs(maxErr2) < 1e-5);
 
@@ -604,7 +604,7 @@ IGL_INLINE bool igl::arap_dof_update(
   const Eigen::Matrix<double,Eigen::Dynamic,1> & B_eq,
   const Eigen::MatrixXd & L0,
   const int max_iters,
-  const double 
+  const double
 #ifdef IGL_ARAP_DOF_FIXED_ITERATIONS_COUNT
   tol,
 #else
@@ -626,12 +626,12 @@ IGL_INLINE bool igl::arap_dof_update(
   assert(tol >= 0);
 
   // timing variables
-  double 
-    sec_start, 
-    sec_covGather, 
-    sec_fitRotations, 
-    //sec_rhs, 
-    sec_prepMult, 
+  double
+    sec_start,
+    sec_covGather,
+    sec_fitRotations,
+    //sec_rhs,
+    sec_prepMult,
     sec_solve, sec_end;
 
   assert(L0.cols() == 1);
@@ -661,7 +661,7 @@ IGL_INLINE bool igl::arap_dof_update(
 
   int iters = 0;
 #ifndef IGL_ARAP_DOF_FIXED_ITERATIONS_COUNT
-  double max_diff = tol+1;  
+  double max_diff = tol+1;
 #endif
 
   MatrixXS S(k*data.dim,data.dim);
@@ -670,18 +670,18 @@ IGL_INLINE bool igl::arap_dof_update(
   Matrix<SSCALAR,Dynamic,1> B_eq_SSCALAR = B_eq.cast<SSCALAR>();
   Matrix<SSCALAR,Dynamic,1> B_eq_fix_SSCALAR;
   Matrix<SSCALAR,Dynamic,1> L0SSCALAR = L0.cast<SSCALAR>();
-  slice(L0SSCALAR, data.fixed_dim, B_eq_fix_SSCALAR);    
-  //MatrixXS rhsFull(Rcol.rows() + B_eq.rows() + B_eq_fix_SSCALAR.rows(), 1); 
+  slice(L0SSCALAR, data.fixed_dim, B_eq_fix_SSCALAR);
+  //MatrixXS rhsFull(Rcol.rows() + B_eq.rows() + B_eq_fix_SSCALAR.rows(), 1);
 
-  MatrixXS Lsep(data.m*(data.dim + 1), 3);  
-  const MatrixXS L_part2 = 
+  MatrixXS Lsep(data.m*(data.dim + 1), 3);
+  const MatrixXS L_part2 =
     data.M_FullSolve.block(0, Rcol.rows(), data.M_FullSolve.rows(), B_eq_SSCALAR.rows()) * B_eq_SSCALAR;
-  const MatrixXS L_part3 = 
+  const MatrixXS L_part3 =
     data.M_FullSolve.block(0, Rcol.rows() + B_eq_SSCALAR.rows(), data.M_FullSolve.rows(), B_eq_fix_SSCALAR.rows()) * B_eq_fix_SSCALAR;
   MatrixXS L_part2and3 = L_part2 + L_part3;
 
   // preallocate workspace variables:
-  MatrixXS Rxyz(k*data.dim, data.dim);  
+  MatrixXS Rxyz(k*data.dim, data.dim);
   MatrixXS L_part1xyz((data.dim + 1) * data.m, data.dim);
   MatrixXS L_part1(data.dim * (data.dim + 1) * data.m, 1);
 
@@ -694,7 +694,7 @@ IGL_INLINE bool igl::arap_dof_update(
 #else
   while(iters < max_iters && max_diff > tol)
 #endif
-  {  
+  {
     if(data.print_timings)
     {
       sec_start = get_seconds_hires();
@@ -705,13 +705,13 @@ IGL_INLINE bool igl::arap_dof_update(
 #endif
     ///////////////////////////////////////////////////////////////////////////
     // Local step: Fix positions, fit rotations
-    ///////////////////////////////////////////////////////////////////////////    
-  
-    // Gather covariance matrices    
+    ///////////////////////////////////////////////////////////////////////////
+
+    // Gather covariance matrices
 
     splitColumns(L_SSCALAR, data.m, data.dim, data.dim + 1, Lsep);
 
-    S = data.CSM * Lsep; 
+    S = data.CSM * Lsep;
     // interestingly, this doesn't seem to be so slow, but
     //MKL is still 2x faster (probably due to AVX)
     //#ifdef IGL_ARAP_DOF_DOUBLE_PRECISION_SOLVE
@@ -719,7 +719,7 @@ IGL_INLINE bool igl::arap_dof_update(
     //#else
     //    MKL_matMatMult_single(S, data.CSM, Lsep);
     //#endif
-    
+
     if(data.print_timings)
     {
       sec_covGather = get_seconds_hires();
@@ -743,13 +743,13 @@ IGL_INLINE bool igl::arap_dof_update(
 
 #ifdef EXTREME_VERBOSE
     cout<<"R=["<<endl<<R<<endl<<"];"<<endl;
-#endif  
+#endif
 
     if(data.print_timings)
     {
       sec_fitRotations = get_seconds_hires();
     }
-  
+
     ///////////////////////////////////////////////////////////////////////////
     // "Global" step: fix rotations per mesh vertex, solve for
     // linear transformations at handles
@@ -761,19 +761,19 @@ IGL_INLINE bool igl::arap_dof_update(
     columnize(R, k, 2, Rcol);
 #ifdef EXTREME_VERBOSE
     cout<<"Rcol=["<<endl<<Rcol<<endl<<"];"<<endl;
-#endif  
+#endif
     splitColumns(Rcol, k, data.dim, data.dim, Rxyz);
-    
+
     if(data.print_timings)
     {
       sec_prepMult = get_seconds_hires();
-    }  
-    
+    }
+
     L_part1xyz = data.CSolveBlock1 * Rxyz;
     //#ifdef IGL_ARAP_DOF_DOUBLE_PRECISION_SOLVE
-    //    MKL_matMatMult_double(L_part1xyz, data.CSolveBlock1, Rxyz);    
+    //    MKL_matMatMult_double(L_part1xyz, data.CSolveBlock1, Rxyz);
     //#else
-    //    MKL_matMatMult_single(L_part1xyz, data.CSolveBlock1, Rxyz);    
+    //    MKL_matMatMult_single(L_part1xyz, data.CSolveBlock1, Rxyz);
     //#endif
     mergeColumns(L_part1xyz, data.m, data.dim, data.dim + 1, L_part1);
 
@@ -782,21 +782,21 @@ IGL_INLINE bool igl::arap_dof_update(
       // Consider reordering or precomputing matrix multiplications
       MatrixXS L_part1_dyn(data.dim * (data.dim + 1) * data.m, 1);
       // Eigen can't parse this:
-      //L_part1_dyn = 
+      //L_part1_dyn =
       //  -(2.0/(data.h*data.h)) * data.Pi_1 * data.Mass_tilde * data.L0 +
       //   (1.0/(data.h*data.h)) * data.Pi_1 * data.Mass_tilde * data.Lm1;
       // -1.0 because we've moved these linear terms to the right hand side
-      //MatrixXS temp = -1.0 * 
-      //    ((-2.0/(data.h*data.h)) * data.L0.array() + 
+      //MatrixXS temp = -1.0 *
+      //    ((-2.0/(data.h*data.h)) * data.L0.array() +
       //      (1.0/(data.h*data.h)) * data.Lm1.array()).matrix();
-      //MatrixXS temp = -1.0 * 
-      //    ( (-1.0/(data.h*data.h)) * data.L0.array() + 
+      //MatrixXS temp = -1.0 *
+      //    ( (-1.0/(data.h*data.h)) * data.L0.array() +
       //      (1.0/(data.h*data.h)) * data.Lm1.array()
-      //      (-1.0/(data.h*data.h)) * data.L0.array() + 
+      //      (-1.0/(data.h*data.h)) * data.L0.array() +
       //      ).matrix();
       //Lvel0 = (1.0/(data.h)) * data.Lm1.array() - data.L0.array();
-      MatrixXS temp = -1.0 * 
-          ( (-1.0/(data.h*data.h)) * data.L0.array() + 
+      MatrixXS temp = -1.0 *
+          ( (-1.0/(data.h*data.h)) * data.L0.array() +
             (1.0/(data.h)) * data.Lvel0.array()
             ).matrix();
       MatrixXd temp_d = temp.template cast<double>();
@@ -820,7 +820,7 @@ IGL_INLINE bool igl::arap_dof_update(
 
 #ifdef EXTREME_VERBOSE
     cout<<"L=["<<endl<<L<<endl<<"];"<<endl;
-#endif  
+#endif
 
     if(data.print_timings)
     {
@@ -831,7 +831,7 @@ IGL_INLINE bool igl::arap_dof_update(
     // Compute maximum absolute difference with last iteration's solution
     max_diff = (L_SSCALAR-L_prev).eval().array().abs().matrix().maxCoeff();
 #endif
-    iters++;  
+    iters++;
 
     if(data.print_timings)
     {
@@ -846,12 +846,12 @@ IGL_INLINE bool igl::arap_dof_update(
         "fitRotations = %f, "
         "global: prep = %f, "
         "solve = %f, "
-        "error = %f [ms]]\n", 
-        (sec_end - sec_start)*1000.0, 
-        (sec_covGather - sec_start)*1000.0, 
-        (sec_fitRotations - sec_covGather)*1000.0, 
-        (sec_prepMult - sec_fitRotations)*1000.0, 
-        (sec_solve - sec_prepMult)*1000.0, 
+        "error = %f [ms]]\n",
+        (sec_end - sec_start)*1000.0,
+        (sec_covGather - sec_start)*1000.0,
+        (sec_fitRotations - sec_covGather)*1000.0,
+        (sec_prepMult - sec_fitRotations)*1000.0,
+        (sec_solve - sec_prepMult)*1000.0,
         (sec_end - sec_solve)*1000.0 );
     }
   }
@@ -864,10 +864,10 @@ IGL_INLINE bool igl::arap_dof_update(
   double timer_finito = get_seconds_hires();
   printf(
     "ARAP preparation = %f, "
-    "all %i iterations = %f [ms]\n", 
-    (timer_prepFinished - timer_start)*1000.0, 
-    max_iters, 
-    (timer_finito - timer_prepFinished)*1000.0);  
+    "all %i iterations = %f [ms]\n",
+    (timer_prepFinished - timer_start)*1000.0,
+    max_iters,
+    (timer_finito - timer_prepFinished)*1000.0);
 #endif
 
   return true;

@@ -139,7 +139,7 @@ rbox(1)                                                   rbox(1)
        d      add a unit diamond to the output.
 
        d Gm   add a diamond made of 0, +m and -m to the output
-       
+
        Cn,r,m add n nearly coincident points within radius r of m points
 
        Pn,m,r add point [n,m,r] to the output first.  Pad coordi-
@@ -185,7 +185,7 @@ SEE ALSO
 AUTHOR
        C. Bradford Barber
        bradb@shore.net
-       
+
 
 
 

@@ -15,11 +15,11 @@
 #include <cassert>
 
 template <
-  typename DerivedV, 
+  typename DerivedV,
   typename DerivedF,
-  typename DerivedCN, 
+  typename DerivedCN,
   typename DerivedFN,
-  typename DerivedTC, 
+  typename DerivedTC,
   typename DerivedFTC>
 IGL_INLINE bool igl::writeOBJ(
   const std::string str,

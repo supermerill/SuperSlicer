@@ -67,7 +67,7 @@ namespace igl
       //
       // Inputs:
       //   V  #V by 3 list of mesh vertex positions
-      //   P  plane 
+      //   P  plane
       // Outputs:
       //   VC  #VC by 3 list of vertex positions of boolean result mesh
       //   FC  #FC by 3 list of triangle indices into VC

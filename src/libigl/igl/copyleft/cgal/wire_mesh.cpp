@@ -46,12 +46,12 @@ IGL_INLINE void igl::copyleft::cgal::wire_mesh(
   //   c  index of endpoint [0,1]
   //   p  index of polygon vertex
   // Returns index of corresponding vertex in V
-  const auto index = 
+  const auto index =
     [&PV,&WV](const int e, const int c, const int p)->int
   {
     return WV.rows() + e*2*PV.rows() + PV.rows()*c + p;
   };
-  const auto unindex = 
+  const auto unindex =
     [&PV,&WV](int v, int & e, int & c, int & p)
   {
     assert(v>=WV.rows());
@@ -90,7 +90,7 @@ IGL_INLINE void igl::copyleft::cgal::wire_mesh(
         // amount of edge
         Scalar dist = std::min(1.*th,len/3.0);
         // Move to endpoint, offset by amount
-        V.row(index(e,c,p)) = 
+        V.row(index(e,c,p)) =
           qp+WV.row(WE(e,c)) + dist*dir*uv;
       }
     }
@@ -98,7 +98,7 @@ IGL_INLINE void igl::copyleft::cgal::wire_mesh(
 
   std::vector<std::vector<typename DerivedF::Index> > vF;
   std::vector<int> vJ;
-  const auto append_hull = 
+  const auto append_hull =
     [&V,&vF,&vJ,&unindex,&WV](const Eigen::VectorXi & I, const int j)
   {
     MatrixX3S Vv;
@@ -117,7 +117,7 @@ IGL_INLINE void igl::copyleft::cgal::wire_mesh(
       //  //
       //  // Q: For convex hulls around vertices, is the correct thing to do:
       //  // check if all corners of face lie *on or _outside_* of plane of "cap"?
-      //  // 
+      //  //
       //  // H: Maybe, but if there's an intersection then the boundary of the
       //  // incoming convex hulls around edges is still not going to match up
       //  // with the boundary on the convex hull around the vertices.
@@ -179,7 +179,7 @@ IGL_INLINE void igl::copyleft::cgal::wire_mesh(
   list_to_matrix(vF,F);
   if(solid)
   {
-    // Self-union to clean up 
+    // Self-union to clean up
     igl::copyleft::cgal::mesh_boolean(
       Eigen::MatrixXd(V),Eigen::MatrixXi(F),Eigen::MatrixXd(),Eigen::MatrixXi(),
       "union",
@@ -210,6 +210,6 @@ IGL_INLINE void igl::copyleft::cgal::wire_mesh(
 }
 
 #ifdef IGL_STATIC_LIBRARY
-// Explicit template instantiation 
+// Explicit template instantiation
 template void igl::copyleft::cgal::wire_mesh<Eigen::Matrix<double, -1, -1, 0, -1, -1>, Eigen::Matrix<int, -1, -1, 0, -1, -1>, Eigen::Matrix<double, -1, -1, 0, -1, -1>, Eigen::Matrix<int, -1, -1, 0, -1, -1>, Eigen::Matrix<int, -1, 1, 0, -1, 1> >(Eigen::MatrixBase<Eigen::Matrix<double, -1, -1, 0, -1, -1> > const&, Eigen::MatrixBase<Eigen::Matrix<int, -1, -1, 0, -1, -1> > const&, double, int, Eigen::PlainObjectBase<Eigen::Matrix<double, -1, -1, 0, -1, -1> >&, Eigen::PlainObjectBase<Eigen::Matrix<int, -1, -1, 0, -1, -1> >&, Eigen::PlainObjectBase<Eigen::Matrix<int, -1, 1, 0, -1, 1> >&);
 #endif

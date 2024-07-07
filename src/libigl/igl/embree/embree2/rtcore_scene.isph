@@ -26,7 +26,7 @@ struct RTCRay;
 struct RTCRaySOA;
 
 /*! scene flags */
-enum RTCSceneFlags 
+enum RTCSceneFlags
 {
   /* dynamic type flags */
   RTC_SCENE_STATIC     = (0 << 0),    //!< specifies static scene
@@ -43,7 +43,7 @@ enum RTCSceneFlags
 };
 
 /*! enabled algorithm flags */
-enum RTCAlgorithmFlags 
+enum RTCAlgorithmFlags
 {
   RTC_INTERSECT_UNIFORM = (1 << 0),    //!< enables the uniform rtcIntersect1 and uniform rtcOccluded1 functions for this scene
   RTC_INTERSECT_VARYING = (1 << 1),    //!< enables the varying rtcIntersect and varying rtcOccluded functions for this scene
@@ -60,7 +60,7 @@ enum RTCRayNFlags
 /*! \brief Defines an opaque scene type */
 typedef uniform struct __RTCScene {}* uniform RTCScene;
 
-/*! Creates a new scene. 
+/*! Creates a new scene.
      WARNING: This function is deprecated, use rtcDeviceNewScene instead.
 */
 RTCORE_DEPRECATED RTCScene rtcNewScene (uniform RTCSceneFlags flags, uniform RTCAlgorithmFlags aflags);
@@ -77,7 +77,7 @@ void rtcSetProgressMonitorFunction(RTCScene scene, RTC_PROGRESS_MONITOR_FUNCTION
 /*! Commits the geometry of the scene. After initializing or modifying
  *  geometries, commit has to get called before tracing
  *  rays. */
-void rtcCommit (RTCScene scene); 
+void rtcCommit (RTCScene scene);
 
 /*! Commits the geometry of the scene. The calling threads will be
  *  used internally as a worker threads on some implementations. The

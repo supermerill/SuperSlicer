@@ -17,7 +17,7 @@ struct PerExtruderAdjustments;
 //
 // The simple it sounds, the actual implementation is significantly more complex.
 // Namely, for a multi-extruder print, each material may require a different cooling logic.
-// For example, some materials may not like to print too slowly, while with some materials 
+// For example, some materials may not like to print too slowly, while with some materials
 // we may slow down significantly.
 //
 class CoolingBuffer {
@@ -30,7 +30,7 @@ public:
     std::string process_layer(std::string &&gcode, size_t layer_id, bool flush, bool append_time_only = false);
 
 private:
-	CoolingBuffer& operator=(const CoolingBuffer&) = delete;
+    CoolingBuffer& operator=(const CoolingBuffer&) = delete;
     std::vector<PerExtruderAdjustments> parse_layer_gcode(const std::string &gcode, std::vector<float> &current_pos) const;
     float       calculate_layer_slowdown(std::vector<PerExtruderAdjustments> &per_extruder_adjustments);
     // Apply slow down over G-code lines stored in per_extruder_adjustments, enable fan if needed.
@@ -55,7 +55,7 @@ private:
     const FullPrintConfig      &m_config;
     uint16_t                    m_current_extruder;
 
-    //saved previous unslowed layer 
+    //saved previous unslowed layer
     std::map<size_t, float> saved_layer_time_support;
     std::map<size_t, float> saved_layer_time_object;
 

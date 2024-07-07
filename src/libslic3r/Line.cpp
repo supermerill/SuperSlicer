@@ -117,13 +117,13 @@ bool Line::intersection(const Line &l2, Point *intersection) const
 
 bool Line::clip_with_bbox(const BoundingBox &bbox)
 {
-	Vec2d x0clip, x1clip;
-	bool result = Geometry::liang_barsky_line_clipping<double>(this->a.cast<double>(), this->b.cast<double>(), BoundingBoxf(bbox.min.cast<double>(), bbox.max.cast<double>()), x0clip, x1clip);
-	if (result) {
-		this->a = x0clip.cast<coord_t>();
-		this->b = x1clip.cast<coord_t>();
-	}
-	return result;
+    Vec2d x0clip, x1clip;
+    bool result = Geometry::liang_barsky_line_clipping<double>(this->a.cast<double>(), this->b.cast<double>(), BoundingBoxf(bbox.min.cast<double>(), bbox.max.cast<double>()), x0clip, x1clip);
+    if (result) {
+        this->a = x0clip.cast<coord_t>();
+        this->b = x1clip.cast<coord_t>();
+    }
+    return result;
 }
 
 void Line::extend(double offset)

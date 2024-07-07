@@ -1947,7 +1947,7 @@ yyreduce:
 
   case 18:
 #line 336 "config_gram.y" /* yacc.c:1646  */
-    { 
+    {
       LNODEID ln;
       AVRMEM * m;
       AVRPART * existing_part;
@@ -1998,8 +1998,8 @@ yyreduce:
         lrmv_d(part_list, existing_part);
         avr_free_part(existing_part);
       }
-      PUSH(part_list, current_part); 
-      current_part = NULL; 
+      PUSH(part_list, current_part);
+      current_part = NULL;
     }
 #line 2005 "config_gram.c" /* yacc.c:1646  */
     break;
@@ -2121,11 +2121,11 @@ yyreduce:
   const struct programmer_type_t * pgm_type = locate_programmer_type((yyvsp[0])->value.string);
     if (pgm_type == NULL) {
         yyerror("programmer type %s not found", (yyvsp[0])->value.string);
-        free_token((yyvsp[0])); 
+        free_token((yyvsp[0]));
         YYABORT;
     }
     current_prog->initpgm = pgm_type->initpgm;
-    free_token((yyvsp[0])); 
+    free_token((yyvsp[0]));
 }
 #line 2131 "config_gram.c" /* yacc.c:1646  */
     break;
@@ -2448,20 +2448,20 @@ yyreduce:
       memset(current_part->controlstack, 0, CTL_STACK_SIZE);
       while (lsize(number_list)) {
         t = lrmv_n(number_list, 1);
-	if (nbytes < CTL_STACK_SIZE)
-	  {
-	    current_part->controlstack[nbytes] = t->value.number;
-	    nbytes++;
-	  }
-	else
-	  {
-	    ok = 0;
-	  }
+    if (nbytes < CTL_STACK_SIZE)
+      {
+        current_part->controlstack[nbytes] = t->value.number;
+        nbytes++;
+      }
+    else
+      {
+        ok = 0;
+      }
         free_token(t);
       }
       if (!ok)
-	{
-	  yywarning("too many bytes in control stack");
+    {
+      yywarning("too many bytes in control stack");
         }
     }
   }
@@ -2483,20 +2483,20 @@ yyreduce:
       memset(current_part->controlstack, 0, CTL_STACK_SIZE);
       while (lsize(number_list)) {
         t = lrmv_n(number_list, 1);
-	if (nbytes < CTL_STACK_SIZE)
-	  {
-	    current_part->controlstack[nbytes] = t->value.number;
-	    nbytes++;
-	  }
-	else
-	  {
-	    ok = 0;
-	  }
+    if (nbytes < CTL_STACK_SIZE)
+      {
+        current_part->controlstack[nbytes] = t->value.number;
+        nbytes++;
+      }
+    else
+      {
+        ok = 0;
+      }
         free_token(t);
       }
       if (!ok)
-	{
-	  yywarning("too many bytes in control stack");
+    {
+      yywarning("too many bytes in control stack");
         }
     }
   }
@@ -2517,20 +2517,20 @@ yyreduce:
       memset(current_part->flash_instr, 0, FLASH_INSTR_SIZE);
       while (lsize(number_list)) {
         t = lrmv_n(number_list, 1);
-	if (nbytes < FLASH_INSTR_SIZE)
-	  {
-	    current_part->flash_instr[nbytes] = t->value.number;
-	    nbytes++;
-	  }
-	else
-	  {
-	    ok = 0;
-	  }
+    if (nbytes < FLASH_INSTR_SIZE)
+      {
+        current_part->flash_instr[nbytes] = t->value.number;
+        nbytes++;
+      }
+    else
+      {
+        ok = 0;
+      }
         free_token(t);
       }
       if (!ok)
-	{
-	  yywarning("too many bytes in flash instructions");
+    {
+      yywarning("too many bytes in flash instructions");
         }
     }
   }
@@ -2551,20 +2551,20 @@ yyreduce:
       memset(current_part->eeprom_instr, 0, EEPROM_INSTR_SIZE);
       while (lsize(number_list)) {
         t = lrmv_n(number_list, 1);
-	if (nbytes < EEPROM_INSTR_SIZE)
-	  {
-	    current_part->eeprom_instr[nbytes] = t->value.number;
-	    nbytes++;
-	  }
-	else
-	  {
-	    ok = 0;
-	  }
+    if (nbytes < EEPROM_INSTR_SIZE)
+      {
+        current_part->eeprom_instr[nbytes] = t->value.number;
+        nbytes++;
+      }
+    else
+      {
+        ok = 0;
+      }
         free_token(t);
       }
       if (!ok)
-	{
-	  yywarning("too many bytes in EEPROM instructions");
+    {
+      yywarning("too many bytes in EEPROM instructions");
         }
     }
   }
@@ -3100,7 +3100,7 @@ yyreduce:
 
   case 161:
 #line 1222 "config_gram.y" /* yacc.c:1646  */
-    { 
+    {
       AVRMEM * existing_mem;
 
       existing_mem = avr_locate_mem(current_part, current_mem->desc);
@@ -3108,8 +3108,8 @@ yyreduce:
         lrmv_d(current_part->mem, existing_mem);
         avr_free_mem(existing_mem);
       }
-      ladd(current_part->mem, current_mem); 
-      current_mem = NULL; 
+      ladd(current_part->mem, current_mem);
+      current_mem = NULL;
     }
 #line 3115 "config_gram.c" /* yacc.c:1646  */
     break;
@@ -3117,7 +3117,7 @@ yyreduce:
   case 162:
 #line 1234 "config_gram.y" /* yacc.c:1646  */
     {
-    { 
+    {
       int opnum;
       OPCODE * op;
 
@@ -3280,7 +3280,7 @@ yyreduce:
   case 182:
 #line 1365 "config_gram.y" /* yacc.c:1646  */
     {
-    { 
+    {
       int opnum;
       OPCODE * op;
 

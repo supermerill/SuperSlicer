@@ -172,12 +172,12 @@ std::array<float, 4> GLGizmoBase::picking_color_component(unsigned int id) const
         id -= m_group_id;
 
     // color components are encoded to match the calculation of volume_id made into GLCanvas3D::_picking_pass()
-    return std::array<float, 4> { 
-		float((id >> 0) & 0xff) * INV_255, // red
-		float((id >> 8) & 0xff) * INV_255, // green
-		float((id >> 16) & 0xff) * INV_255, // blue
-		float(picking_checksum_alpha_channel(id & 0xff, (id >> 8) & 0xff, (id >> 16) & 0xff))* INV_255 // checksum for validating against unwanted alpha blending and multi sampling
-	};
+    return std::array<float, 4> {
+        float((id >> 0) & 0xff) * INV_255, // red
+        float((id >> 8) & 0xff) * INV_255, // green
+        float((id >> 16) & 0xff) * INV_255, // blue
+        float(picking_checksum_alpha_channel(id & 0xff, (id >> 8) & 0xff, (id >> 16) & 0xff))* INV_255 // checksum for validating against unwanted alpha blending and multi sampling
+    };
 }
 
 void GLGizmoBase::render_grabbers(const BoundingBoxf3& box) const
@@ -252,15 +252,15 @@ std::string GLGizmoBase::get_name(bool include_shortcut) const
 // were not interpolated by alpha blending or multi sampling.
 unsigned char picking_checksum_alpha_channel(unsigned char red, unsigned char green, unsigned char blue)
 {
-	// 8 bit hash for the color
-	unsigned char b = ((((37 * red) + green) & 0x0ff) * 37 + blue) & 0x0ff;
-	// Increase enthropy by a bit reversal
-	b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
-	b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
-	b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
-	// Flip every second bit to increase the enthropy even more.
-	b ^= 0x55;
-	return b;
+    // 8 bit hash for the color
+    unsigned char b = ((((37 * red) + green) & 0x0ff) * 37 + blue) & 0x0ff;
+    // Increase enthropy by a bit reversal
+    b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+    b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+    b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+    // Flip every second bit to increase the enthropy even more.
+    b ^= 0x55;
+    return b;
 }
 
 

@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "per_vertex_point_to_plane_quadrics.h"
 #include "quadric_binary_plus_operator.h"
@@ -50,8 +50,8 @@ IGL_INLINE void igl::per_vertex_point_to_plane_quadrics(
     for(int c = 0;c<3;c++)
     {
       if(
-         std::isinf(V(F(f,c),0)) || 
-         std::isinf(V(F(f,c),1)) || 
+         std::isinf(V(F(f,c),0)) ||
+         std::isinf(V(F(f,c),1)) ||
          std::isinf(V(F(f,c),2)))
       {
         assert(infinite_corner == -1 && "Should only be one infinite corner");
@@ -59,7 +59,7 @@ IGL_INLINE void igl::per_vertex_point_to_plane_quadrics(
       }
     }
     // Inputs:
-    //   p  1 by n row point on the subspace 
+    //   p  1 by n row point on the subspace
     //   S  m by n matrix where rows coorespond to orthonormal spanning
     //     vectors of the subspace to which we're measuring distance (usually
     //     a plane, m=2)
@@ -97,7 +97,7 @@ IGL_INLINE void igl::per_vertex_point_to_plane_quadrics(
       Eigen::RowVectorXd r = V.row(F(f,2));
       Eigen::RowVectorXd pq = q-p;
       Eigen::RowVectorXd pr = r-p;
-      // Gram Determinant = squared area of parallelogram 
+      // Gram Determinant = squared area of parallelogram
       double area = sqrt(pq.squaredNorm()*pr.squaredNorm()-pow(pr.dot(pq),2));
       Eigen::RowVectorXd e1 = pq.normalized();
       Eigen::RowVectorXd e2 = (pr-e1.dot(pr)*e1).normalized();
@@ -123,10 +123,10 @@ IGL_INLINE void igl::per_vertex_point_to_plane_quadrics(
       int n =  EF(e,opp);
       int nc = EI(e,opp);
       assert(
-        ((F(f,(infinite_corner+1)%3) == F(n,(nc+1)%3) && 
-          F(f,(infinite_corner+2)%3) == F(n,(nc+2)%3)) || 
-          (F(f,(infinite_corner+1)%3) == F(n,(nc+2)%3) 
-          && F(f,(infinite_corner+2)%3) == F(n,(nc+1)%3))) && 
+        ((F(f,(infinite_corner+1)%3) == F(n,(nc+1)%3) &&
+          F(f,(infinite_corner+2)%3) == F(n,(nc+2)%3)) ||
+          (F(f,(infinite_corner+1)%3) == F(n,(nc+2)%3)
+          && F(f,(infinite_corner+2)%3) == F(n,(nc+1)%3))) &&
         "Edge flaps not agreeing on shared edge");
       // Edge vector on opposite face
       const Eigen::RowVectorXd eu = V.row(F(n,nc)) - p;
@@ -137,7 +137,7 @@ IGL_INLINE void igl::per_vertex_point_to_plane_quadrics(
       // Use QR decomposition to find basis for orthogonal space
       Eigen::HouseholderQR<Eigen::MatrixXd> qr(A);
       const Eigen::MatrixXd Q = qr.householderQ();
-      const Eigen::MatrixXd N = 
+      const Eigen::MatrixXd N =
         Q.topRightCorner(ev.size(),ev.size()-2).transpose();
       assert(N.cols() == ev.size());
       assert(N.rows() == ev.size()-2);

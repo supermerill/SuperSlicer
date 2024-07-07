@@ -381,7 +381,7 @@ void SavePresetDialog::update_physical_printers(const std::string& preset_name)
             physical_printers.save_printer(printer);
 
         physical_printers.select_printer(printer.get_full_name(preset_name));
-    }    
+    }
 }
 
 void SavePresetDialog::accept()

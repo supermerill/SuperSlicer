@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2014 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "complex_to_mesh.h"
 
@@ -18,7 +18,7 @@
 template <typename Tr, typename DerivedV, typename DerivedF>
 IGL_INLINE bool igl::copyleft::cgal::complex_to_mesh(
   const CGAL::Complex_2_in_triangulation_3<Tr> & c2t3,
-  Eigen::PlainObjectBase<DerivedV> & V, 
+  Eigen::PlainObjectBase<DerivedV> & V,
   Eigen::PlainObjectBase<DerivedF> & F)
 {
   using namespace Eigen;
@@ -41,7 +41,7 @@ IGL_INLINE bool igl::copyleft::cgal::complex_to_mesh(
   const int m = c2t3.number_of_facets();
 
   assert(m == number_of_facets_on_surface(tr));
-  
+
   // Finite vertices coordinates.
   std::map<Vertex_handle, int> v2i;
   V.resize(n,3);
@@ -51,9 +51,9 @@ IGL_INLINE bool igl::copyleft::cgal::complex_to_mesh(
         vit != tr.finite_vertices_end();
         ++vit)
     {
-      V(v,0) = vit->point().x(); 
-      V(v,1) = vit->point().y(); 
-      V(v,2) = vit->point().z(); 
+      V(v,0) = vit->point().x();
+      V(v,1) = vit->point().y();
+      V(v,2) = vit->point().z();
       v2i[vit] = v++;
     }
   }
@@ -63,12 +63,12 @@ IGL_INLINE bool igl::copyleft::cgal::complex_to_mesh(
     std::set<Facet> oriented_set;
     std::stack<Facet> stack;
 
-    while ((int)oriented_set.size() != m) 
+    while ((int)oriented_set.size() != m)
     {
       while ( fit->first->is_facet_on_surface(fit->second) == false ||
         oriented_set.find(*fit) != oriented_set.end() ||
         oriented_set.find(c2t3.opposite_facet(*fit)) !=
-        oriented_set.end() ) 
+        oriented_set.end() )
       {
         ++fit;
       }
@@ -85,7 +85,7 @@ IGL_INLINE bool igl::copyleft::cgal::complex_to_mesh(
 
           const typename C2t3::Face_status face_status
             = c2t3.face_status(Edge(f.first, i1, i2));
-          if(face_status == C2t3::REGULAR) 
+          if(face_status == C2t3::REGULAR)
           {
             Facet fn = c2t3.neighbor(f, ih);
             if (oriented_set.find(fn) == oriented_set.end())
@@ -108,7 +108,7 @@ IGL_INLINE bool igl::copyleft::cgal::complex_to_mesh(
 
     F.resize(m,3);
     int f = 0;
-    for(typename std::set<Facet>::const_iterator fit = 
+    for(typename std::set<Facet>::const_iterator fit =
         oriented_set.begin();
         fit != oriented_set.end();
         ++fit)

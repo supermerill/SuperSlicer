@@ -145,7 +145,7 @@ public:
 
     int get_hover_id() const { return m_hover_id; }
     void set_hover_id(int id);
-    
+
     void set_highlight_color(const std::array<float, 4>& color);
 
     void enable_grabber(unsigned int id);

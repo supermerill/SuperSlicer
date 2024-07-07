@@ -1,9 +1,9 @@
-THIS IS A PRUSA3D BRANCH, WORKING AROUND A SPECIFIC PROBLEM 
+THIS IS A PRUSA3D BRANCH, WORKING AROUND A SPECIFIC PROBLEM
 IN THE EARLY I3 MK2 USB COMMUNICATION CHIPS.
 
 Some of the early Prusa3D i3 MK2 printers were shipped with a buggy
 USB communication controller firmware. This fork of avrdude contains
-a workaround inside the stk500v2 protocol implementation. 
+a workaround inside the stk500v2 protocol implementation.
 
 The workaround depends on a specific behavior of the Arduino AVR 2560
 bootloader, which is installed on the i3 MK2 printers:

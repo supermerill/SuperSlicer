@@ -11,7 +11,7 @@
 #ifndef EIGEN_BLOCK_H
 #define EIGEN_BLOCK_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel>
@@ -52,7 +52,7 @@ struct traits<Block<XprType, BlockRows, BlockCols, InnerPanel> > : traits<XprTyp
     FlagsRowMajorBit = IsRowMajor ? RowMajorBit : 0,
     Flags = (traits<XprType>::Flags & (DirectAccessBit | (InnerPanel?CompressedAccessBit:0))) | FlagsLvalueBit | FlagsRowMajorBit,
     // FIXME DirectAccessBit should not be handled by expressions
-    // 
+    //
     // Alignment is needed by MapBase's assertions
     // We can sefely set it to false here. Internal alignment errors will be detected by an eigen_internal_assert in the respective evaluator
     Alignment = 0
@@ -61,7 +61,7 @@ struct traits<Block<XprType, BlockRows, BlockCols, InnerPanel> > : traits<XprTyp
 
 template<typename XprType, int BlockRows=Dynamic, int BlockCols=Dynamic, bool InnerPanel = false,
          bool HasDirectAccess = internal::has_direct_access<XprType>::ret> class BlockImpl_dense;
-         
+
 } // end namespace internal
 
 template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel, typename StorageKind> class BlockImpl;
@@ -109,9 +109,9 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel> class 
     typedef Impl Base;
     EIGEN_GENERIC_PUBLIC_INTERFACE(Block)
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Block)
-    
+
     typedef typename internal::remove_all<XprType>::type NestedExpression;
-  
+
     /** Column or Row constructor
       */
     EIGEN_DEVICE_FUNC
@@ -147,7 +147,7 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel> class 
           && startCol >= 0 && blockCols >= 0 && startCol <= xpr.cols() - blockCols);
     }
 };
-         
+
 // The generic default implementation for dense block simplu forward to the internal::BlockImpl_dense
 // that must be specialized for direct and non-direct access...
 template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel>
@@ -296,23 +296,23 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel, bool H
 
     EIGEN_DEVICE_FUNC
     const typename internal::remove_all<XprTypeNested>::type& nestedExpression() const
-    { 
-      return m_xpr; 
+    {
+      return m_xpr;
     }
 
     EIGEN_DEVICE_FUNC
     XprType& nestedExpression() { return m_xpr; }
-      
+
     EIGEN_DEVICE_FUNC
     StorageIndex startRow() const
-    { 
-      return m_startRow.value(); 
+    {
+      return m_startRow.value();
     }
-      
+
     EIGEN_DEVICE_FUNC
     StorageIndex startCol() const
-    { 
-      return m_startCol.value(); 
+    {
+      return m_startCol.value();
     }
 
   protected:
@@ -344,7 +344,7 @@ class BlockImpl_dense<XprType,BlockRows,BlockCols, InnerPanel,true>
       */
     EIGEN_DEVICE_FUNC
     inline BlockImpl_dense(XprType& xpr, Index i)
-      : Base(xpr.data() + i * (    ((BlockRows==1) && (BlockCols==XprType::ColsAtCompileTime) && (!XprTypeIsRowMajor)) 
+      : Base(xpr.data() + i * (    ((BlockRows==1) && (BlockCols==XprType::ColsAtCompileTime) && (!XprTypeIsRowMajor))
                                 || ((BlockRows==XprType::RowsAtCompileTime) && (BlockCols==1) && ( XprTypeIsRowMajor)) ? xpr.innerStride() : xpr.outerStride()),
              BlockRows==1 ? 1 : xpr.rows(),
              BlockCols==1 ? 1 : xpr.cols()),
@@ -379,13 +379,13 @@ class BlockImpl_dense<XprType,BlockRows,BlockCols, InnerPanel,true>
 
     EIGEN_DEVICE_FUNC
     const typename internal::remove_all<XprTypeNested>::type& nestedExpression() const
-    { 
-      return m_xpr; 
+    {
+      return m_xpr;
     }
 
     EIGEN_DEVICE_FUNC
     XprType& nestedExpression() { return m_xpr; }
-      
+
     /** \sa MapBase::innerStride() */
     EIGEN_DEVICE_FUNC
     inline Index innerStride() const

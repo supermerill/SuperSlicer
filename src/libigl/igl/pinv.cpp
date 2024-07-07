@@ -16,12 +16,12 @@ void igl::pinv(
   if(tol < 0)
   {
     const Scalar smax = S.array().abs().maxCoeff();
-    tol = 
+    tol =
       (Scalar)(std::max(A.rows(),A.cols())) *
       (smax-std::nextafter(smax,std::numeric_limits<Scalar>::epsilon()));
   }
   const int rank = (S.array()>0).count();
-  X = (V.leftCols(rank).array().rowwise() * 
+  X = (V.leftCols(rank).array().rowwise() *
       (1.0/S.head(rank).array()).transpose()).matrix()*
     U.leftCols(rank).transpose();
 }

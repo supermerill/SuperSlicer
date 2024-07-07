@@ -316,7 +316,7 @@ std::vector<float> calculate_polyline_angles_at_vertices(const PolylineWithEnd &
         distance_to_prev += curr_distance;
         distance_to_next -= curr_distance;
     }
-    
+
     // polygon: repeat angle
     if (is_polygon) {
         result.back() = result.front();
@@ -456,7 +456,7 @@ struct GlobalModelInfo {
 //Extract perimeter polylines of the given layer
 PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosition configured_seam_preference,
         std::vector<const LayerRegion*> &corresponding_regions_out, PerimeterGeneratorType perimeter_type) {
-    
+
 
     PolylineWithEnds polylines;
     class PerimeterCopy : public ExtrusionVisitorConst {
@@ -541,7 +541,7 @@ PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosit
             }
         }
         virtual void use(const ExtrusionMultiPath& collection) override {
-            
+
             if (perimeter_type == PerimeterGeneratorType::Arachne) {
                 for (size_t idx = 0; idx < collection.size(); idx++) {
                     const ExtrusionPath &path = collection.paths[idx];
@@ -1407,7 +1407,7 @@ std::optional<std::pair<size_t, size_t>> SeamPlacer::find_next_seam_in_layer(
     return {};
 }
 
-// get the nearests points from layers above & below. stop when the seam_align_tolerable_dist_factor don't allow to jump to a point, 
+// get the nearests points from layers above & below. stop when the seam_align_tolerable_dist_factor don't allow to jump to a point,
 std::vector<std::pair<size_t, size_t>> SeamPlacer::find_seam_string(const PrintObject *po,
         std::pair<size_t, size_t> start_seam, const SeamPlacerImpl::SeamComparator &comparator) const {
     const std::vector<PrintObjectSeamData::LayerSeams> &layers = m_seam_per_object.find(po)->second.layers;
@@ -1586,7 +1586,7 @@ void SeamPlacer::align_seam_points(const PrintObject *po, const SeamPlacerImpl::
                     perimeter.final_seam_position.x() = unscaled(nearest_point.x());
                     perimeter.final_seam_position.y() = unscaled(nearest_point.y());
                     perimeter.finalized = true;
-                } 
+                }
             }
         }
         return;

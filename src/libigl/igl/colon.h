@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_COLON_H
 #define IGL_COLON_H
@@ -16,7 +16,7 @@ namespace igl
   //
   // If step = 1, it's about 5 times faster to use:
   //     X = Eigen::VectorXi::LinSpaced(n,0,n-1);
-  // than 
+  // than
   //     X = igl::colon<int>(0,n-1);
   //
 
@@ -41,20 +41,20 @@ namespace igl
   //   I  list of values from low to hi with step size step
   template <typename L,typename S,typename H,typename T>
   IGL_INLINE void colon(
-    const L low, 
-    const S step, 
-    const H hi, 
+    const L low,
+    const S step,
+    const H hi,
     Eigen::Matrix<T,Eigen::Dynamic,1> & I);
   // Same as above but step == (T)1
   template <typename L,typename H,typename T>
   IGL_INLINE void colon(
-    const L low, 
-    const H hi, 
+    const L low,
+    const H hi,
     Eigen::Matrix<T,Eigen::Dynamic,1> & I);
   // Return output rather than set in reference
   template <typename T,typename L,typename H>
   IGL_INLINE Eigen::Matrix<T,Eigen::Dynamic,1> colon(
-    const L low, 
+    const L low,
     const H hi);
 }
 

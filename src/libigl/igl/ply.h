@@ -19,23 +19,23 @@ chars for red, green and blue.
 ---------------------------------------------------------------
 
 Copyright (c) 1994 The Board of Trustees of The Leland Stanford
-Junior University.  All rights reserved.   
-  
-Permission to use, copy, modify and distribute this software and its   
-documentation for any purpose is hereby granted without fee, provided   
-that the above copyright notice and this permission notice appear in   
-all copies of this software and that you do not sell the software.   
-  
-THE SOFTWARE IS PROVIDED "AS IS" AND WITHOUT WARRANTY OF ANY KIND,   
-EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY   
-WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.   
+Junior University.  All rights reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation for any purpose is hereby granted without fee, provided
+that the above copyright notice and this permission notice appear in
+all copies of this software and that you do not sell the software.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND WITHOUT WARRANTY OF ANY KIND,
+EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY
+WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 
 */
 
 /*
 --------------------------------------------------------------------------------
 Joao Fradinho Oliveira, July 2005
-Copyright (c) 2005 University College London 
+Copyright (c) 2005 University College London
 copyright conditions as above
 
 update for ply reading of multi OS ply files, in any OS (Unix, Macintosh, PC)
@@ -60,12 +60,12 @@ accordingly for the next read.
 NOTES:
 The ply file, has always an ascii part for the header, and a binary or ascii
 part for the data.
-The header part in ascii, dictates that linebreaks are used, this make models 
+The header part in ascii, dictates that linebreaks are used, this make models
 operating system dependent, as a line break in unix is indicated with the escape character \n,
 on a macintosh, with \r, and on a pc with \r\n  <--2 unsigned chars, 2 bytes, instead of 1 byte.
 
 get_words allows reading of any OS, text editors such as BBEdit do not save the linebreaks
-properly to target OSs with binary files.  
+properly to target OSs with binary files.
 
 */
 
@@ -81,13 +81,13 @@ properly to target OSs with binary files.
 
 namespace igl {
     namespace ply {
-    
+
 #define PLY_ASCII         1      /* ascii PLY file */
 #define PLY_BINARY_BE     2      /* binary PLY file, big endian */
 #define PLY_BINARY_LE     3      /* binary PLY file, little endian */
 #define PLY_BINARY_NATIVE 4      /* binary PLY file, same endianness as
-				    current architecture */
-    
+                    current architecture */
+
 #define PLY_OKAY    0           /* ply routine worked okay */
 #define PLY_ERROR  -1           /* error in ply routine */
 
@@ -177,40 +177,40 @@ extern char *my_alloc();
 #define myalloc(mem_size) my_alloc((mem_size), __LINE__, __FILE__)
 
 #ifndef ALLOCN
-#define REALLOCN(PTR,TYPE,OLD_N,NEW_N)							\
-        {										\
-	    if ((OLD_N) == 0)                                           		\
-	    {   ALLOCN((PTR),TYPE,(NEW_N));}                            		\
-	    else									\
-	    {								    		\
-	       (PTR) = (TYPE *)realloc((PTR),(NEW_N)*sizeof(TYPE));			\
-	       if (((PTR) == NULL) && ((NEW_N) != 0))					\
-	       {									\
-		   fprintf(stderr, "Memory reallocation failed on line %d in %s\n", 	\
-		           __LINE__, __FILE__);                             		\
-		   fprintf(stderr, "  tried to reallocate %d->%d\n",       		\
-			   (OLD_N), (NEW_N));                              		\
-		   exit(-1);								\
-	       }									\
-	       if ((NEW_N)>(OLD_N))							\
-		   memset((char *)(PTR)+(OLD_N)*sizeof(TYPE), 0,			\
-		          ((NEW_N)-(OLD_N))*sizeof(TYPE));				\
-	    }										\
-	}
+#define REALLOCN(PTR,TYPE,OLD_N,NEW_N)                            \
+        {                                        \
+        if ((OLD_N) == 0)                                                   \
+        {   ALLOCN((PTR),TYPE,(NEW_N));}                                    \
+        else                                    \
+        {                                            \
+           (PTR) = (TYPE *)realloc((PTR),(NEW_N)*sizeof(TYPE));            \
+           if (((PTR) == NULL) && ((NEW_N) != 0))                    \
+           {                                    \
+           fprintf(stderr, "Memory reallocation failed on line %d in %s\n",     \
+                   __LINE__, __FILE__);                                     \
+           fprintf(stderr, "  tried to reallocate %d->%d\n",               \
+               (OLD_N), (NEW_N));                                      \
+           exit(-1);                                \
+           }                                    \
+           if ((NEW_N)>(OLD_N))                            \
+           memset((char *)(PTR)+(OLD_N)*sizeof(TYPE), 0,            \
+                  ((NEW_N)-(OLD_N))*sizeof(TYPE));                \
+        }                                        \
+    }
 
-#define  ALLOCN(PTR,TYPE,N) 					\
-	{ (PTR) = (TYPE *) calloc(((unsigned)(N)),sizeof(TYPE));\
-	  if ((PTR) == NULL) {    				\
-	  fprintf(stderr, "Memory allocation failed on line %d in %s\n", \
-		 __LINE__, __FILE__);                           \
-	  exit(-1);                                             \
-	  }							\
-	}
+#define  ALLOCN(PTR,TYPE,N)                     \
+    { (PTR) = (TYPE *) calloc(((unsigned)(N)),sizeof(TYPE));\
+      if ((PTR) == NULL) {                    \
+      fprintf(stderr, "Memory allocation failed on line %d in %s\n", \
+         __LINE__, __FILE__);                           \
+      exit(-1);                                             \
+      }                            \
+    }
 
 
 #define FREE(PTR)  { free((PTR)); (PTR) = NULL; }
 #endif
-    
+
 
 /*** delcaration of routines ***/
 
@@ -270,23 +270,23 @@ chars representing red, green and blue.
 ---------------------------------------------------------------
 
 Copyright (c) 1994 The Board of Trustees of The Leland Stanford
-Junior University.  All rights reserved.   
-  
-Permission to use, copy, modify and distribute this software and its   
-documentation for any purpose is hereby granted without fee, provided   
-that the above copyright notice and this permission notice appear in   
-all copies of this software and that you do not sell the software.   
-  
-THE SOFTWARE IS PROVIDED "AS IS" AND WITHOUT WARRANTY OF ANY KIND,   
-EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY   
-WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.   
+Junior University.  All rights reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation for any purpose is hereby granted without fee, provided
+that the above copyright notice and this permission notice appear in
+all copies of this software and that you do not sell the software.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND WITHOUT WARRANTY OF ANY KIND,
+EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY
+WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 
 */
 
 /*
 --------------------------------------------------------------------------------
 Joao Fradinho Oliveira, July 2005
-University College London 
+University College London
 
 update for ply reading of multi OS ply files, in any OS (Unix, Macintosh, PC)
 --------------------------------------------------------------------------------
@@ -310,12 +310,12 @@ accordingly for the next read.
 NOTES:
 The ply file, has always an ascii part for the header, and a binary or ascii
 part for the data.
-The header part in ascii, dictates that linebreaks are used, this make models 
+The header part in ascii, dictates that linebreaks are used, this make models
 operating system dependent, as a line break in unix is indicated with the escape character \n,
 on a macintosh, with \r, and on a pc with \r\n  <--2 unsigned chars, 2 bytes, instead of 1 byte.
 
 get_words allows reading of any OS, text editors such as BBEdit do not save the linebreaks
-properly to target OSs with binary files.  
+properly to target OSs with binary files.
 
 */
 
@@ -341,8 +341,8 @@ const char *type_names[] = {
 "float", "double",
 };
 
-//  names of scalar types 
-const char *alt_type_names[] = { 
+//  names of scalar types
+const char *alt_type_names[] = {
 "invalid",
 "int8", "int16", "int32", "uint8", "uint16", "uint32", "float32", "float64",
 };
@@ -463,14 +463,14 @@ inline PlyFile *ply_write(
   /* check for NULL file pointer */
   if (fp == NULL)
     return (NULL);
-	
-	int native_binary_type = -1;
-	int types_checked = 0;
+
+    int native_binary_type = -1;
+    int types_checked = 0;
   if (native_binary_type == -1)
      native_binary_type = get_native_binary_type2();
   if (!types_checked)
      types_checked = check_types();
-  
+
   /* create a record for this object */
 
   plyfile = (PlyFile *) myalloc (sizeof (PlyFile));
@@ -828,7 +828,7 @@ inline void ply_put_element_setup(PlyFile *plyfile, const char *elem_name)
     fprintf(stderr, "ply_elements_setup: can't find element '%s'\n", elem_name);
     exit (-1);
   }
-	
+
   plyfile->which_elem = elem;
 }
 
@@ -863,9 +863,9 @@ inline void ply_put_element(PlyFile *plyfile, void *elem_ptr, int *native_binary
   other_ptr = (char **) (((char *) elem_ptr) + elem->other_offset);
 
   /* write out either to an ascii or binary file */
-	int ply_type_size[] = {
-	  0, 1, 2, 4, 1, 2, 4, 4, 8
-	};
+    int ply_type_size[] = {
+      0, 1, 2, 4, 1, 2, 4, 4, 8
+    };
 
   if (plyfile->file_type == PLY_ASCII) {
 
@@ -924,7 +924,7 @@ inline void ply_put_element(PlyFile *plyfile, void *elem_ptr, int *native_binary
         get_stored_item ((void *) item, prop->count_internal,
                          &int_val, &uint_val, &double_val);
         write_binary_item (fp, plyfile->file_type, int_val, uint_val,
-			   double_val, prop->count_external, native_binary_type);
+               double_val, prop->count_external, native_binary_type);
         list_count = uint_val;
         item_ptr = (char **) (elem_data + prop->offset);
         item = item_ptr[0];
@@ -933,7 +933,7 @@ inline void ply_put_element(PlyFile *plyfile, void *elem_ptr, int *native_binary
           get_stored_item ((void *) item, prop->internal_type,
                            &int_val, &uint_val, &double_val);
           write_binary_item (fp, plyfile->file_type, int_val, uint_val,
-			     double_val, prop->external_type, native_binary_type);
+                 double_val, prop->external_type, native_binary_type);
           item += item_size;
         }
       }
@@ -943,7 +943,7 @@ inline void ply_put_element(PlyFile *plyfile, void *elem_ptr, int *native_binary
         get_stored_item ((void *) item, prop->internal_type,
                          &int_val, &uint_val, &double_val);
         write_binary_item (fp, plyfile->file_type, int_val, uint_val,
-			   double_val, prop->external_type, native_binary_type);
+               double_val, prop->external_type, native_binary_type);
       }
     }
 
@@ -1034,15 +1034,15 @@ inline PlyFile *ply_read(FILE *fp, int *nelems, char ***elem_names)
   /* check for NULL file pointer */
   if (fp == NULL)
     return (NULL);
-	
-	int native_binary_type = -1;
-	int types_checked = 0;
-	
+
+    int native_binary_type = -1;
+    int types_checked = 0;
+
   if (native_binary_type == -1)
      native_binary_type = get_native_binary_type2();
   if (!types_checked)
      types_checked = check_types();
-  
+
   /* create record for this object */
 
   plyfile = (PlyFile *) myalloc (sizeof (PlyFile));
@@ -1060,20 +1060,20 @@ inline PlyFile *ply_read(FILE *fp, int *nelems, char ***elem_names)
   if (nwords == 0 || !words || !equal_strings (words[0], "ply"))
   {
        if (words)
-	 free(words);
-     
-     
+     free(words);
+
+
       return (NULL);
   }
-  
+
   while (words) {
 
     /* parse words */
 
     if (equal_strings (words[0], "format")) {
       if (nwords != 3) {
-	free(words);
-	return (NULL);
+    free(words);
+    return (NULL);
       }
       if (equal_strings (words[1], "ascii"))
         plyfile->file_type = PLY_ASCII;
@@ -1082,7 +1082,7 @@ inline PlyFile *ply_read(FILE *fp, int *nelems, char ***elem_names)
       else if (equal_strings (words[1], "binary_little_endian"))
         plyfile->file_type = PLY_BINARY_LE;
       else {
-	free(words);
+    free(words);
         return (NULL);
       }
       plyfile->version = atof (words[2]);
@@ -1099,7 +1099,7 @@ inline PlyFile *ply_read(FILE *fp, int *nelems, char ***elem_names)
       free(words);
       break;
     }
-    
+
     /* free up words space */
     free (words);
 
@@ -1157,8 +1157,8 @@ inline PlyFile *ply_open_for_reading(
   FILE *fp;
   PlyFile *plyfile;
   //char *name;
-  
-  
+
+
 
    /* tack on the extension .ply, if necessary */
 
@@ -1172,13 +1172,13 @@ inline PlyFile *ply_open_for_reading(
   /* open the file for reading */
 
   //fp = fopen (name, "r");
-  
+
   //opening file in binary, ascii data can be read in binary with get_words
   fp = fopen (filename, "rb");
 
   if (fp == NULL)
     return (NULL);
-  
+
   /* create the PlyFile data structure */
 
   plyfile = ply_read (fp, nelems, elem_names);
@@ -1411,9 +1411,9 @@ inline void setup_other_props(PlyElement *elem)
   /* Examine each property in decreasing order of size. */
   /* We do this so that all data types will be aligned by */
   /* word, half-word, or whatever within the structure. */
-	int ply_type_size[] = {
-	  0, 1, 2, 4, 1, 2, 4, 4, 8
-	};
+    int ply_type_size[] = {
+      0, 1, 2, 4, 1, 2, 4, 4, 8
+    };
 
   for (type_size = 8; type_size > 0; type_size /= 2) {
 
@@ -1517,7 +1517,7 @@ inline PlyOtherProp *ply_get_other_properties(
 #endif
   other->size = elem->other_size;
   other->props = (PlyProperty **) myalloc (sizeof(PlyProperty) * elem->nprops);
-  
+
   /* save descriptions of each "other" property */
   nprops = 0;
   for (i = 0; i < elem->nprops; i++) {
@@ -1536,7 +1536,7 @@ inline PlyOtherProp *ply_get_other_properties(
     elem->other_offset = NO_OTHER_PROPS;
   }
 #endif
-  
+
   /* return structure */
   return (other);
 }
@@ -1645,7 +1645,7 @@ inline void ply_describe_other_elements (
   int i;
   OtherElem *other;
   PlyElement *elem;
-  
+
   /* ignore this call if there is no other element */
   if (other_elems == NULL)
     return;
@@ -1656,9 +1656,9 @@ inline void ply_describe_other_elements (
   /* describe the other properties of this element */
   /* store them in the main element list as elements with
      only other properties */
-  
+
   REALLOCN(plyfile->elems, PlyElement *,
-	   plyfile->nelems, plyfile->nelems + other_elems->num_elems);
+       plyfile->nelems, plyfile->nelems + other_elems->num_elems);
   for (i = 0; i < other_elems->num_elems; i++) {
       other = &(other_elems->other_list[i]);
       elem = (PlyElement *) myalloc (sizeof (PlyElement));
@@ -1667,7 +1667,7 @@ inline void ply_describe_other_elements (
       elem->num = other->elem_count;
       elem->nprops = 0;
       ply_describe_other_properties (plyfile, other->other_props,
-				     offsetof(OtherData,other_props));
+                     offsetof(OtherData,other_props));
   }
 }
 
@@ -1711,7 +1711,7 @@ Entry:
 
 inline void ply_free_other_elements (PlyOtherElems *other_elems)
 {
-  // Alec: 
+  // Alec:
   //other_elems = other_elems;
   delete(other_elems);
 }
@@ -1841,9 +1841,9 @@ Entry:
 
 inline void ascii_get_element(PlyFile *plyfile, char *elem_ptr)
 {
-	int ply_type_size[] = {
-	  0, 1, 2, 4, 1, 2, 4, 4, 8
-	};
+    int ply_type_size[] = {
+      0, 1, 2, 4, 1, 2, 4, 4, 8
+    };
 
   int j,k;
   PlyElement *elem;
@@ -1924,7 +1924,7 @@ inline void ascii_get_element(PlyFile *plyfile, char *elem_ptr)
       else {
         if (store_it) {
           item_ptr = (char *) myalloc (sizeof (char) * item_size * list_count);
-           
+
           item = item_ptr;
           *store_array = item_ptr;
         }
@@ -1982,10 +1982,10 @@ inline void binary_get_element(PlyFile *plyfile, char *elem_ptr, int *native_bin
   char **store_array;
   char *other_data=NULL;
   int other_flag;
-	
-	int ply_type_size[] = {
-	  0, 1, 2, 4, 1, 2, 4, 4, 8
-	};
+
+    int ply_type_size[] = {
+      0, 1, 2, 4, 1, 2, 4, 4, 8
+    };
 
 
   /* the kind of element we're reading currently */
@@ -2030,7 +2030,7 @@ inline void binary_get_element(PlyFile *plyfile, char *elem_ptr, int *native_bin
 
       /* allocate space for an array of items and store a ptr to the array */
       list_count = int_val;
-       
+
       item_size = ply_type_size[prop->internal_type];
       store_array = (char **) (elem_data + prop->offset);
       if (list_count == 0) {
@@ -2040,12 +2040,12 @@ inline void binary_get_element(PlyFile *plyfile, char *elem_ptr, int *native_bin
       else {
         if (store_it) {
           item_ptr = (char *) myalloc (sizeof (char) * item_size * list_count);
-           
+
           item = item_ptr;
           *store_array = item_ptr;
         }
 
-        // read items and store them into the array  
+        // read items and store them into the array
         for (k = 0; k < list_count; k++) {
           get_binary_item (fp, plyfile->file_type, prop->external_type,
                           &int_val, &uint_val, &double_val, native_binary_type);
@@ -2055,9 +2055,9 @@ inline void binary_get_element(PlyFile *plyfile, char *elem_ptr, int *native_bin
             item += item_size;
           }
         }
-        
-         
-        
+
+
+
       }
 
     }
@@ -2092,12 +2092,12 @@ inline void write_scalar_type (FILE *fp, int code)
   }
 
   /* write the code to a file */
-	const char *type_names[] = {
-	"invalid",
-	"char", "short", "int",
-	"uchar", "ushort", "uint",
-	"float", "double",
-	};
+    const char *type_names[] = {
+    "invalid",
+    "char", "short", "int",
+    "uchar", "ushort", "uint",
+    "float", "double",
+    };
 
 
   fprintf (fp, "%s", type_names[code]);
@@ -2116,12 +2116,12 @@ inline void swap_bytes(char *bytes, int num_bytes)
 {
     int i;
     char temp;
-    
+
     for (i=0; i < num_bytes/2; i++)
     {
-	temp = bytes[i];
-	bytes[i] = bytes[(num_bytes-1)-i];
-	bytes[(num_bytes-1)-i] = temp;
+    temp = bytes[i];
+    bytes[i] = bytes[(num_bytes-1)-i];
+    bytes[(num_bytes-1)-i] = temp;
     }
 }
 
@@ -2137,15 +2137,15 @@ inline void swap_bytes(char *bytes, int num_bytes)
 inline void get_native_binary_type(int *native_binary_type)
 {
     typedef union
-	{
-	      int  int_value;
-	      char byte_values[sizeof(int)];
-	} endian_test_type;
+    {
+          int  int_value;
+          char byte_values[sizeof(int)];
+    } endian_test_type;
 
 
-	endian_test_type test;
-     
-	test.int_value = 0;
+    endian_test_type test;
+
+    test.int_value = 0;
     test.int_value = 1;
     if (test.byte_values[0] == 1)
        *native_binary_type = PLY_BINARY_LE;
@@ -2153,19 +2153,19 @@ inline void get_native_binary_type(int *native_binary_type)
        *native_binary_type = PLY_BINARY_BE;
     else
     {
-	fprintf(stderr, "ply: Couldn't determine machine endianness.\n");
-	fprintf(stderr, "ply: Exiting...\n");
-	exit(1);
+    fprintf(stderr, "ply: Couldn't determine machine endianness.\n");
+    fprintf(stderr, "ply: Exiting...\n");
+    exit(1);
     }
 }
 
 inline int get_native_binary_type2()
 {
-	typedef union
-	{
-	      int  int_value;
-	      char byte_values[sizeof(int)];
-	} endian_test_type;
+    typedef union
+    {
+          int  int_value;
+          char byte_values[sizeof(int)];
+    } endian_test_type;
 
 
     endian_test_type test;
@@ -2178,9 +2178,9 @@ inline int get_native_binary_type2()
        return PLY_BINARY_BE;
     else
     {
-	fprintf(stderr, "ply: Couldn't determine machine endianness.\n");
-	fprintf(stderr, "ply: Exiting...\n");
-	exit(1);
+    fprintf(stderr, "ply: Couldn't determine machine endianness.\n");
+    fprintf(stderr, "ply: Exiting...\n");
+    exit(1);
     }
 }
 
@@ -2192,25 +2192,25 @@ inline int get_native_binary_type2()
 
 inline int check_types()
 {
-	int ply_type_size[] = {
-	  0, 1, 2, 4, 1, 2, 4, 4, 8
-	};
+    int ply_type_size[] = {
+      0, 1, 2, 4, 1, 2, 4, 4, 8
+    };
 
     if ((ply_type_size[PLY_CHAR] != sizeof(char)) ||
-	(ply_type_size[PLY_SHORT] != sizeof(short)) ||	
-	(ply_type_size[PLY_INT] != sizeof(int)) ||	
-	(ply_type_size[PLY_UCHAR] != sizeof(unsigned char)) ||	
-	(ply_type_size[PLY_USHORT] != sizeof(unsigned short)) ||	
-	(ply_type_size[PLY_UINT] != sizeof(unsigned int)) ||	
-	(ply_type_size[PLY_FLOAT] != sizeof(float)) ||	
-	(ply_type_size[PLY_DOUBLE] != sizeof(double)))
+    (ply_type_size[PLY_SHORT] != sizeof(short)) ||
+    (ply_type_size[PLY_INT] != sizeof(int)) ||
+    (ply_type_size[PLY_UCHAR] != sizeof(unsigned char)) ||
+    (ply_type_size[PLY_USHORT] != sizeof(unsigned short)) ||
+    (ply_type_size[PLY_UINT] != sizeof(unsigned int)) ||
+    (ply_type_size[PLY_FLOAT] != sizeof(float)) ||
+    (ply_type_size[PLY_DOUBLE] != sizeof(double)))
     {
-	fprintf(stderr, "ply: Type sizes do not match built-in types\n");
-	fprintf(stderr, "ply: Exiting...\n");
-	exit(1);
+    fprintf(stderr, "ply: Type sizes do not match built-in types\n");
+    fprintf(stderr, "ply: Exiting...\n");
+    exit(1);
     }
 
-	return 1;    
+    return 1;
 }
 
 /******************************************************************************
@@ -2238,7 +2238,7 @@ inline char **get_words(FILE *fp, int *nwords, char **orig_line)
   int num_words = 0;
   char *ptr,*ptr2;
   char *result;
-  
+
   fpos_t pos; //keep track of file pointer
   int nbytes;
   int nonUNIX;
@@ -2275,19 +2275,19 @@ inline char **get_words(FILE *fp, int *nwords, char **orig_line)
       *ptr2 = '\0';
       break;
     }
-    else if (*ptr == '\r') 
-    {	  //MAC line break
+    else if (*ptr == '\r')
+    {      //MAC line break
       nonUNIX=1;
-      if(*(ptr+1)=='\n')		  //actuall PC line break
-      {	
-      	nbytes++;
+      if(*(ptr+1)=='\n')          //actuall PC line break
+      {
+          nbytes++;
       }
-       
-     *ptr = ' '; 
-     
-     *(ptr+1) = '\0';	//when reading mac, best end string here
-     *ptr2 = '\0'; 		//note a pc \r is followed by \n
-      
+
+     *ptr = ' ';
+
+     *(ptr+1) = '\0';    //when reading mac, best end string here
+     *ptr2 = '\0';         //note a pc \r is followed by \n
+
       break;
     }
   }
@@ -2296,8 +2296,8 @@ inline char **get_words(FILE *fp, int *nwords, char **orig_line)
   /*check to see if a PC or MAC header was detected instead of UNIX*/
   if(nonUNIX==1)
   {
-  	fsetpos(fp, &pos);
-  	fseek(fp, nbytes, SEEK_CUR);	
+      fsetpos(fp, &pos);
+      fseek(fp, nbytes, SEEK_CUR);
   }
 
   /* find the words in the line */
@@ -2348,7 +2348,7 @@ char **get_words(FILE *fp, int *nwords, char **orig_line)
 
   words = (char **) myalloc (sizeof (char *) * max_words);
 
-  // read in a line  
+  // read in a line
   result = fgets (str, BIG_STRING, fp);
   if (result == NULL) {
     *nwords = 0;
@@ -2356,9 +2356,9 @@ char **get_words(FILE *fp, int *nwords, char **orig_line)
     return (NULL);
   }
 
-  // convert line-feed and tabs into spaces  
-  // (this guarantees that there will be a space before the  
-  //  null character at the end of the string)  
+  // convert line-feed and tabs into spaces
+  // (this guarantees that there will be a space before the
+  //  null character at the end of the string)
 
   str[BIG_STRING-2] = ' ';
   str[BIG_STRING-1] = '\0';
@@ -2380,35 +2380,35 @@ char **get_words(FILE *fp, int *nwords, char **orig_line)
     }
   }
 
-  // find the words in the line  
+  // find the words in the line
 
   ptr = str;
   while (*ptr != '\0') {
 
-    // jump over leading spaces  
+    // jump over leading spaces
     while (*ptr == ' ')
       ptr++;
 
-    // break if we reach the end  
+    // break if we reach the end
     if (*ptr == '\0')
       break;
 
-    // save pointer to beginning of word  
+    // save pointer to beginning of word
     if (num_words >= max_words) {
       max_words += 10;
       words = (char **) realloc (words, sizeof (char *) * max_words);
     }
     words[num_words++] = ptr;
 
-    // jump over non-spaces  
+    // jump over non-spaces
     while (*ptr != ' ')
       ptr++;
 
-    // place a null character here to mark the end of the word  
+    // place a null character here to mark the end of the word
     *ptr++ = '\0';
   }
 
-  // return the list of words  
+  // return the list of words
   *nwords = num_words;
   *orig_line = str_copy;
   return (words);
@@ -2506,7 +2506,7 @@ inline void write_binary_item(
   short short_val;
   float float_val;
   void  *value;
-  
+
   switch (type) {
     case PLY_CHAR:
       char_val = int_val;
@@ -2541,13 +2541,13 @@ inline void write_binary_item(
       fprintf (stderr, "write_binary_item: bad type = %d\n", type);
       exit (-1);
   }
-	int ply_type_size[] = {
-	  0, 1, 2, 4, 1, 2, 4, 4, 8
-	};
+    int ply_type_size[] = {
+      0, 1, 2, 4, 1, 2, 4, 4, 8
+    };
 
   if ((file_type != *native_binary_type) && (ply_type_size[type] > 1))
      swap_bytes((char *)value, ply_type_size[type]);
-  
+
   if (fwrite (value, ply_type_size[type], 1, fp) != 1)
   {
       fprintf(stderr, "PLY ERROR: fwrite() failed -- aborting.\n");
@@ -2581,8 +2581,8 @@ inline void write_ascii_item(
     case PLY_INT:
       if (fprintf (fp, "%d ", int_val) <= 0)
       {
-	  fprintf(stderr, "PLY ERROR: fprintf() failed -- aborting.\n");
-	  exit(1);
+      fprintf(stderr, "PLY ERROR: fprintf() failed -- aborting.\n");
+      exit(1);
       }
       break;
     case PLY_UCHAR:
@@ -2590,16 +2590,16 @@ inline void write_ascii_item(
     case PLY_UINT:
       if (fprintf (fp, "%u ", uint_val) <= 0)
       {
-	  fprintf(stderr, "PLY ERROR: fprintf() failed -- aborting.\n");
-	  exit(1);
+      fprintf(stderr, "PLY ERROR: fprintf() failed -- aborting.\n");
+      exit(1);
       }
       break;
     case PLY_FLOAT:
     case PLY_DOUBLE:
       if (fprintf (fp, "%g ", double_val) <= 0)
       {
-	  fprintf(stderr, "PLY ERROR: fprintf() failed -- aborting.\n");
-	  exit(1);
+      fprintf(stderr, "PLY ERROR: fprintf() failed -- aborting.\n");
+      exit(1);
       }
       break;
     default:
@@ -2781,16 +2781,16 @@ inline void get_binary_item(
   void *ptr;
 
   ptr = (void *) c;
-	int ply_type_size[] = {
-	  0, 1, 2, 4, 1, 2, 4, 4, 8
-	};
+    int ply_type_size[] = {
+      0, 1, 2, 4, 1, 2, 4, 4, 8
+    };
 
   if (fread (ptr, ply_type_size[type], 1, fp) != 1)
   {
       fprintf(stderr, "PLY ERROR: fread() failed -- aborting.\n");
       exit(1);
   }
-  
+
 
   if ((file_type != *native_binary_type) && (ply_type_size[type] > 1))
      swap_bytes((char *)ptr, ply_type_size[type]);
@@ -3010,17 +3010,17 @@ Exit:
 inline int get_prop_type(char *type_name)
 {
   int i;
-	const char *type_names[] = {
-	"invalid",
-	"char", "short", "int",
-	"uchar", "ushort", "uint",
-	"float", "double",
-	};
-	
-	const char *alt_type_names[] = { 
-	"invalid",
-	"int8", "int16", "int32", "uint8", "uint16", "uint32", "float32", "float64",
-	};
+    const char *type_names[] = {
+    "invalid",
+    "char", "short", "int",
+    "uchar", "ushort", "uint",
+    "float", "double",
+    };
+
+    const char *alt_type_names[] = {
+    "invalid",
+    "int8", "int16", "int32", "uint8", "uint16", "uint32", "float32", "float64",
+    };
 
 
   for (i = PLY_START_TYPE + 1; i < PLY_END_TYPE; i++)

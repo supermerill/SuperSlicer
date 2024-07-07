@@ -195,7 +195,7 @@ BuildVolume::ObjectState object_state_templ(const indexed_triangle_set &its, con
     bool   outside    = false;
     static constexpr const auto world_min_z = float(-BuildVolume::SceneEpsilon);
 
-    if (may_be_below_bed) 
+    if (may_be_below_bed)
     {
         // Slower test, needs to clip the object edges with the print bed plane.
         // 1) Allocate transformed vertices with their position with respect to print bed surface.
@@ -251,7 +251,7 @@ BuildVolume::ObjectState object_state_templ(const indexed_triangle_set &its, con
             }
         }
     }
-    else 
+    else
     {
         // Much simpler and faster code, not clipping the object with the print bed.
         assert(! may_be_below_bed);
@@ -288,14 +288,14 @@ BuildVolume::ObjectState BuildVolume::object_state(const indexed_triangle_set& i
     case Type::Circle:
     {
         Geometry::Circlef circle { unscaled<float>(m_circle.center), unscaled<float>(m_circle.radius + SceneEpsilon) };
-        return m_max_print_height == 0.0 ? 
+        return m_max_print_height == 0.0 ?
             object_state_templ(its, trafo, may_be_below_bed, [circle](const Vec3f &pt) { return circle.contains(to_2d(pt)); }) :
             object_state_templ(its, trafo, may_be_below_bed, [circle, z = m_max_print_height + SceneEpsilon](const Vec3f &pt) { return pt.z() < z && circle.contains(to_2d(pt)); });
     }
     case Type::Convex:
     //FIXME doing test on convex hull until we learn to do test on non-convex polygons efficiently.
     case Type::Custom:
-        return m_max_print_height == 0.0 ? 
+        return m_max_print_height == 0.0 ?
             object_state_templ(its, trafo, may_be_below_bed, [this](const Vec3f &pt) { return Geometry::inside_convex_polygon(m_top_bottom_convex_hull_decomposition_scene, to_2d(pt).cast<double>()); }) :
             object_state_templ(its, trafo, may_be_below_bed, [this, z = m_max_print_height + SceneEpsilon](const Vec3f &pt) { return pt.z() < z && Geometry::inside_convex_polygon(m_top_bottom_convex_hull_decomposition_scene, to_2d(pt).cast<double>()); });
     case Type::Invalid:
@@ -313,7 +313,7 @@ BuildVolume::ObjectState BuildVolume::volume_state_bbox(const BoundingBoxf3& vol
     if (ignore_bottom)
         build_volume.min.z() = -std::numeric_limits<double>::max();
     return build_volume.max.z() <= - SceneEpsilon ? ObjectState::Below :
-           build_volume.contains(volume_bbox) ? ObjectState::Inside : 
+           build_volume.contains(volume_bbox) ? ObjectState::Inside :
            build_volume.intersects(volume_bbox) ? ObjectState::Colliding : ObjectState::Outside;
 }
 
@@ -339,7 +339,7 @@ bool BuildVolume::all_paths_inside(const GCodeProcessorResult& paths, const Boun
         const Vec2f c = unscaled<float>(m_circle.center);
         const float r = unscaled<double>(m_circle.radius) + epsilon;
         const float r2 = sqr(r);
-        return m_max_print_height == 0.0 ? 
+        return m_max_print_height == 0.0 ?
             std::all_of(paths.moves.begin(), paths.moves.end(), [move_valid, c, r2](const GCodeProcessorResult::MoveVertex &move)
                 { return ! move_valid(move) || (to_2d(move.position) - c).squaredNorm() <= r2; }) :
             std::all_of(paths.moves.begin(), paths.moves.end(), [move_valid, c, r2, z = m_max_print_height + epsilon](const GCodeProcessorResult::MoveVertex& move)
@@ -349,7 +349,7 @@ bool BuildVolume::all_paths_inside(const GCodeProcessorResult& paths, const Boun
     //FIXME doing test on convex hull until we learn to do test on non-convex polygons efficiently.
     case Type::Custom:
         return m_max_print_height == 0.0 ?
-            std::all_of(paths.moves.begin(), paths.moves.end(), [move_valid, this](const GCodeProcessorResult::MoveVertex &move) 
+            std::all_of(paths.moves.begin(), paths.moves.end(), [move_valid, this](const GCodeProcessorResult::MoveVertex &move)
                 { return ! move_valid(move) || Geometry::inside_convex_polygon(m_top_bottom_convex_hull_decomposition_bed, to_2d(move.position).cast<double>()); }) :
             std::all_of(paths.moves.begin(), paths.moves.end(), [move_valid, this, z = m_max_print_height + epsilon](const GCodeProcessorResult::MoveVertex &move)
                 { return ! move_valid(move) || (Geometry::inside_convex_polygon(m_top_bottom_convex_hull_decomposition_bed, to_2d(move.position).cast<double>()) && move.position.z() <= z); });

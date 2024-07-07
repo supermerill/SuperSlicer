@@ -89,22 +89,22 @@ void ModeButton::SetState(const bool state)
 
 void ModeButton::focus_button(const bool focus)
 {
-    const wxFont& new_font = focus ? 
-                             Slic3r::GUI::wxGetApp().bold_font() : 
+    const wxFont& new_font = focus ?
+                             Slic3r::GUI::wxGetApp().bold_font() :
                              Slic3r::GUI::wxGetApp().normal_font();
 
     SetFont(new_font);
 #ifdef _WIN32
     GetParent()->Refresh(); // force redraw a background of the selected mode button
 #else
-    SetForegroundColour(wxSystemSettings::GetColour(focus ? wxSYS_COLOUR_BTNTEXT : 
+    SetForegroundColour(wxSystemSettings::GetColour(focus ? wxSYS_COLOUR_BTNTEXT :
 #if defined (__linux__) && defined (__WXGTK3__)
         wxSYS_COLOUR_GRAYTEXT
 #elif defined (__linux__) && defined (__WXGTK2__)
         wxSYS_COLOUR_BTNTEXT
-#else 
+#else
         wxSYS_COLOUR_BTNSHADOW
-#endif    
+#endif
     ));
 #endif /* no _WIN32 */
 
@@ -154,7 +154,7 @@ ModeSizer::ModeSizer(wxWindow *parent, int hgap, int max_col) :
         Slic3r::GUI::wxGetApp().save_mode(this->m_bt_mode[mode_idx]);
         event.Skip();
     };
-    
+
     m_mode_btns.reserve(name_2_color.size());
     this->SetCols(max_col != 0 ? std::min(max_col, (int)name_2_color.size()) : (int)name_2_color.size());
     for (const auto& button : name_2_color) {

@@ -220,17 +220,17 @@ AC_MSG_CHECKING([for a Win32 HID libray])
 SAVED_LIBS="${LIBS}"
 case $target in
         *-*-mingw32* | *-*-cygwin* | *-*-windows*)
-		LIBHID="-lhid -lsetupapi"
-		if test $ac_cv_header_ddk_hidsdi_h = yes
-		then
-			HIDINCLUDE="#include <ddk/hidsdi.h>"
-		else
-			HIDINCLUDE="#include \"my_ddk_hidsdi.h\""
-		fi
-		;;
-	*)
-		LIBHID=""
-		;;
+        LIBHID="-lhid -lsetupapi"
+        if test $ac_cv_header_ddk_hidsdi_h = yes
+        then
+            HIDINCLUDE="#include <ddk/hidsdi.h>"
+        else
+            HIDINCLUDE="#include \"my_ddk_hidsdi.h\""
+        fi
+        ;;
+    *)
+        LIBHID=""
+        ;;
 esac
 LIBS="${LIBS} ${LIBHID}"
 
@@ -267,16 +267,16 @@ AC_CHECK_TYPES([ulong_t], [], [], [#include <sys/types.h>])
 # Checks for misc stuff.
 
 AC_ARG_ENABLE(
-	[versioned-doc],
-	AC_HELP_STRING(
-		[--enable-versioned-doc],
-		[install docs in directory with version name (default)]),
-	[case "${enableval}" in
-		yes) versioned_doc=yes ;;
-		no)  versioned_doc=no ;;
-		*)   AC_MSG_ERROR(bad value ${enableval} for versioned-doc option) ;;
-		esac],
-	[versioned_doc=yes])
+    [versioned-doc],
+    AC_HELP_STRING(
+        [--enable-versioned-doc],
+        [install docs in directory with version name (default)]),
+    [case "${enableval}" in
+        yes) versioned_doc=yes ;;
+        no)  versioned_doc=no ;;
+        *)   AC_MSG_ERROR(bad value ${enableval} for versioned-doc option) ;;
+        esac],
+    [versioned_doc=yes])
 
 if test "$versioned_doc" = "yes"; then
     DOC_INST_DIR='$(DESTDIR)$(datadir)/doc/avrdude-$(VERSION)'
@@ -285,47 +285,47 @@ else
 fi
 
 AC_ARG_ENABLE(
-	[doc],
-	AC_HELP_STRING(
-		[--enable-doc],
-		[Enable building documents]),
-	[case "${enableval}" in
-		yes) enabled_doc=yes ;;
-		no)  enabled_doc=no ;;
-		*)   AC_MSG_ERROR(bad value ${enableval} for disable-doc option) ;;
-		esac],
-	[enabled_doc=no])
+    [doc],
+    AC_HELP_STRING(
+        [--enable-doc],
+        [Enable building documents]),
+    [case "${enableval}" in
+        yes) enabled_doc=yes ;;
+        no)  enabled_doc=no ;;
+        *)   AC_MSG_ERROR(bad value ${enableval} for disable-doc option) ;;
+        esac],
+    [enabled_doc=no])
 
 AC_ARG_ENABLE(
-	[parport],
-	AC_HELP_STRING(
-		[--enable-parport],
-		[Enable accessing parallel ports(default)]),
-	[case "${enableval}" in
-		yes) enabled_parport=yes ;;
-		no)  enabled_parport=no ;;
-		*)   AC_MSG_ERROR(bad value ${enableval} for enable-parport option) ;;
-		esac],
-	[enabled_parport=yes])
-	
+    [parport],
+    AC_HELP_STRING(
+        [--enable-parport],
+        [Enable accessing parallel ports(default)]),
+    [case "${enableval}" in
+        yes) enabled_parport=yes ;;
+        no)  enabled_parport=no ;;
+        *)   AC_MSG_ERROR(bad value ${enableval} for enable-parport option) ;;
+        esac],
+    [enabled_parport=yes])
+
 AC_ARG_ENABLE(
-	[linuxgpio],
-	AC_HELP_STRING(
-		[--enable-linuxgpio],
-		[Enable the Linux sysfs GPIO interface programmer type]),
-	[case "${enableval}" in
-		yes) enabled_linuxgpio=yes ;;
-		no)  enabled_linuxgpio=no ;;
-		*)   AC_MSG_ERROR(bad value ${enableval} for enable-linuxgpio option) ;;
-		esac],
-	[enabled_linuxgpio=no])	
+    [linuxgpio],
+    AC_HELP_STRING(
+        [--enable-linuxgpio],
+        [Enable the Linux sysfs GPIO interface programmer type]),
+    [case "${enableval}" in
+        yes) enabled_linuxgpio=yes ;;
+        no)  enabled_linuxgpio=no ;;
+        *)   AC_MSG_ERROR(bad value ${enableval} for enable-linuxgpio option) ;;
+        esac],
+    [enabled_linuxgpio=no])
 
 DIST_SUBDIRS_AC='doc windows'
 
 if test "$enabled_doc" = "yes"; then
-	SUBDIRS_AC='doc'
+    SUBDIRS_AC='doc'
 else
-	SUBDIRS_AC=''
+    SUBDIRS_AC=''
 fi
 
 AC_SUBST(DOC_INST_DIR, $DOC_INST_DIR)
@@ -336,45 +336,45 @@ AC_SUBST(DIST_SUBDIRS_AC, $DIST_SUBDIRS_AC)
 # Find the parallel serial device files based on target system
 # If a system doesn't have a PC style parallel, mark it as unknown.
 case $target in
-	i[[3456]]86-*-linux*|x86_64-*-linux*)
-		DEFAULT_PAR_PORT="/dev/parport0"
-		DEFAULT_SER_PORT="/dev/ttyS0"
-		;;
-	*-*-linux*)
-		DEFAULT_PAR_PORT="unknown"
-		DEFAULT_SER_PORT="/dev/ttyS0"
-		;;
-	i[[3456]]86-*-*freebsd*|amd64-*-*freebsd*)
-		DEFAULT_PAR_PORT="/dev/ppi0"
-		DEFAULT_SER_PORT="/dev/cuad0"
-		;;
-	*-*-*freebsd*)
-		DEFAULT_PAR_PORT="unknown"
-		DEFAULT_SER_PORT="/dev/cuad0"
-		;;
-	*-*-solaris*)
-		DEFAULT_PAR_PORT="/dev/printers/0"
-		DEFAULT_SER_PORT="/dev/term/a"
-		;;
-	*-*-msdos* | *-*-mingw32* | *-*-cygwin* | *-*-windows*)
-		DEFAULT_PAR_PORT="lpt1"
-		DEFAULT_SER_PORT="com1"
-		;;
-	*)
-		DEFAULT_PAR_PORT="unknown"
-		DEFAULT_SER_PORT="unknown"
-		;;
+    i[[3456]]86-*-linux*|x86_64-*-linux*)
+        DEFAULT_PAR_PORT="/dev/parport0"
+        DEFAULT_SER_PORT="/dev/ttyS0"
+        ;;
+    *-*-linux*)
+        DEFAULT_PAR_PORT="unknown"
+        DEFAULT_SER_PORT="/dev/ttyS0"
+        ;;
+    i[[3456]]86-*-*freebsd*|amd64-*-*freebsd*)
+        DEFAULT_PAR_PORT="/dev/ppi0"
+        DEFAULT_SER_PORT="/dev/cuad0"
+        ;;
+    *-*-*freebsd*)
+        DEFAULT_PAR_PORT="unknown"
+        DEFAULT_SER_PORT="/dev/cuad0"
+        ;;
+    *-*-solaris*)
+        DEFAULT_PAR_PORT="/dev/printers/0"
+        DEFAULT_SER_PORT="/dev/term/a"
+        ;;
+    *-*-msdos* | *-*-mingw32* | *-*-cygwin* | *-*-windows*)
+        DEFAULT_PAR_PORT="lpt1"
+        DEFAULT_SER_PORT="com1"
+        ;;
+    *)
+        DEFAULT_PAR_PORT="unknown"
+        DEFAULT_SER_PORT="unknown"
+        ;;
 esac
 
 if test "$enabled_parport" = "yes"; then
-	AC_MSG_CHECKING([for parallel device])
-	if test "$DEFAULT_PAR_PORT" = "unknown"; then
-		AC_MSG_NOTICE([parallel port access disabled for this system])
-		enabled_parport=no
-	else
-		AC_MSG_RESULT([$DEFAULT_PAR_PORT])
-	fi
-	AC_SUBST(DEFAULT_PAR_PORT, $DEFAULT_PAR_PORT)
+    AC_MSG_CHECKING([for parallel device])
+    if test "$DEFAULT_PAR_PORT" = "unknown"; then
+        AC_MSG_NOTICE([parallel port access disabled for this system])
+        enabled_parport=no
+    else
+        AC_MSG_RESULT([$DEFAULT_PAR_PORT])
+    fi
+    AC_SUBST(DEFAULT_PAR_PORT, $DEFAULT_PAR_PORT)
 fi
 
 AC_MSG_CHECKING([for serial device])
@@ -382,18 +382,18 @@ AC_MSG_RESULT([$DEFAULT_SER_PORT])
 AC_SUBST(DEFAULT_SER_PORT, $DEFAULT_SER_PORT)
 
 if test "$enabled_parport" = "yes"; then
-	AC_DEFINE(HAVE_PARPORT, 1, [parallel port access enabled])
-	confsubst="-e /^@HAVE_PARPORT_/d"
+    AC_DEFINE(HAVE_PARPORT, 1, [parallel port access enabled])
+    confsubst="-e /^@HAVE_PARPORT_/d"
 else
-	confsubst="-e /^@HAVE_PARPORT_BEGIN@/,/^@HAVE_PARPORT_END@/d"
+    confsubst="-e /^@HAVE_PARPORT_BEGIN@/,/^@HAVE_PARPORT_END@/d"
 fi
 
 
 if test "$enabled_linuxgpio" = "yes"; then
-	AC_DEFINE(HAVE_LINUXGPIO, 1, [Linux sysfs GPIO support enabled])
-	confsubst="$confsubst -e /^@HAVE_LINUXGPIO_/d"
+    AC_DEFINE(HAVE_LINUXGPIO, 1, [Linux sysfs GPIO support enabled])
+    confsubst="$confsubst -e /^@HAVE_LINUXGPIO_/d"
 else
-	confsubst="$confsubst -e /^@HAVE_LINUXGPIO_BEGIN@/,/^@HAVE_LINUXGPIO_END@/d"
+    confsubst="$confsubst -e /^@HAVE_LINUXGPIO_BEGIN@/,/^@HAVE_LINUXGPIO_END@/d"
 fi
 
 
@@ -401,77 +401,77 @@ fi
 if test "$GCC" = yes; then
     ENABLE_WARNINGS="-Wall"
 
-	# does this compiler support -Wno-pointer-sign ?
-	AC_MSG_CHECKING([if gcc accepts -Wno-pointer-sign ])
+    # does this compiler support -Wno-pointer-sign ?
+    AC_MSG_CHECKING([if gcc accepts -Wno-pointer-sign ])
 
-	safe_CFLAGS=$CFLAGS
-	CFLAGS="$ENABLE_WARNINGS -Wno-pointer-sign"
+    safe_CFLAGS=$CFLAGS
+    CFLAGS="$ENABLE_WARNINGS -Wno-pointer-sign"
 
-	AC_TRY_COMPILE(, [ int main () { return 0 ; } ], [
-		no_pointer_sign=yes
-		AC_MSG_RESULT([yes]) 
-		], [
-		no_pointer_sign=no
-		AC_MSG_RESULT([no]) 
-		])
-	CFLAGS=$safe_CFLAGS
+    AC_TRY_COMPILE(, [ int main () { return 0 ; } ], [
+        no_pointer_sign=yes
+        AC_MSG_RESULT([yes])
+        ], [
+        no_pointer_sign=no
+        AC_MSG_RESULT([no])
+        ])
+    CFLAGS=$safe_CFLAGS
 
-	if test x$no_pointer_sign = xyes; then
-		ENABLE_WARNINGS="$ENABLE_WARNINGS -Wno-pointer-sign"
-	fi
+    if test x$no_pointer_sign = xyes; then
+        ENABLE_WARNINGS="$ENABLE_WARNINGS -Wno-pointer-sign"
+    fi
 fi
 AC_SUBST(ENABLE_WARNINGS,$ENABLE_WARNINGS)
 
 # See if we need to drop into the windows subdir.
 case $target in
         *-*-mingw32* | *-*-cygwin* | *-*-windows*)
-		if test "$GCC" = yes -a \( "$CC" = "cc" -o "$CC" = "gcc" \); then
-			# does this compiler support -mno-cygwin?
-			AC_MSG_CHECKING([if $CC accepts -mno-cygwin])
+        if test "$GCC" = yes -a \( "$CC" = "cc" -o "$CC" = "gcc" \); then
+            # does this compiler support -mno-cygwin?
+            AC_MSG_CHECKING([if $CC accepts -mno-cygwin])
 
-			safe_CFLAGS="$CFLAGS"
-			CFLAGS="$ENABLE_WARNINGS -mno-cygwin"
+            safe_CFLAGS="$CFLAGS"
+            CFLAGS="$ENABLE_WARNINGS -mno-cygwin"
 
-			AC_TRY_COMPILE(, [ int main () { return 0 ; } ], [
-				no_cygwin=yes
-				AC_MSG_RESULT([yes])
-				], [
-				no_cygwin=no
-				AC_MSG_RESULT([no])
-				])
-			CFLAGS="$safe_CFLAGS"
+            AC_TRY_COMPILE(, [ int main () { return 0 ; } ], [
+                no_cygwin=yes
+                AC_MSG_RESULT([yes])
+                ], [
+                no_cygwin=no
+                AC_MSG_RESULT([no])
+                ])
+            CFLAGS="$safe_CFLAGS"
 
-			if test x$no_cygwin = xyes; then
-				CFLAGS="${CFLAGS} -mno-cygwin"
-			else
-				AC_MSG_NOTICE([Your compiler does not understand the -mno-cygwin option.])
-				AC_MSG_NOTICE([You might want to select an alternative compiler, like])
-				AC_MSG_NOTICE([])
-				AC_MSG_NOTICE([CC=mingw32-gcc ./configure])
-				AC_MSG_NOTICE([])
-			fi
-		fi
+            if test x$no_cygwin = xyes; then
+                CFLAGS="${CFLAGS} -mno-cygwin"
+            else
+                AC_MSG_NOTICE([Your compiler does not understand the -mno-cygwin option.])
+                AC_MSG_NOTICE([You might want to select an alternative compiler, like])
+                AC_MSG_NOTICE([])
+                AC_MSG_NOTICE([CC=mingw32-gcc ./configure])
+                AC_MSG_NOTICE([])
+            fi
+        fi
 
-		AC_MSG_CHECKING([if linker accepts -static])
+        AC_MSG_CHECKING([if linker accepts -static])
 
-		safe_LDFLAGS="$LDFLAGS"
-		LDFLAGS="${LDFLAGS} -static"
-		AC_TRY_LINK(, [ int main () { return 0 ; } ], [
-			can_link_static=yes
-			AC_MSG_RESULT([yes])
-			], [
-			can_link_static_cygwin=no
-			AC_MSG_RESULT([no])
-			])
-		LDFLAGS="$safe_LDFLAGS"
+        safe_LDFLAGS="$LDFLAGS"
+        LDFLAGS="${LDFLAGS} -static"
+        AC_TRY_LINK(, [ int main () { return 0 ; } ], [
+            can_link_static=yes
+            AC_MSG_RESULT([yes])
+            ], [
+            can_link_static_cygwin=no
+            AC_MSG_RESULT([no])
+            ])
+        LDFLAGS="$safe_LDFLAGS"
 
-		if test x$can_link_static = xyes; then
-			LDFLAGS="${LDFLAGS} -static"
-		fi
+        if test x$can_link_static = xyes; then
+            LDFLAGS="${LDFLAGS} -static"
+        fi
 
-		WINDOWS_DIRS="windows"
-		CFLAGS="${CFLAGS} -DWIN32NATIVE"
-		;;
+        WINDOWS_DIRS="windows"
+        CFLAGS="${CFLAGS} -DWIN32NATIVE"
+        ;;
 esac
 AC_SUBST(WINDOWS_DIRS,$WINDOWS_DIRS)
 
@@ -490,8 +490,8 @@ AC_CONFIG_FILES([
 # avrdude.conf file.
 
 AC_CONFIG_FILES([avrdude.conf.tmp:avrdude.conf.in],
-		[sed $confsubst avrdude.conf.tmp > avrdude.conf],
-		[confsubst="$confsubst"])
+        [sed $confsubst avrdude.conf.tmp > avrdude.conf],
+        [confsubst="$confsubst"])
 
 AC_OUTPUT
 

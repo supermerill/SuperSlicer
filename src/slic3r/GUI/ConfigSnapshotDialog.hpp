@@ -8,11 +8,11 @@
 #include <wx/intl.h>
 #include <wx/html/htmlwin.h>
 
-namespace Slic3r { 
+namespace Slic3r {
 namespace GUI {
 
 namespace Config {
-	class SnapshotDB;
+    class SnapshotDB;
 }
 
 class ConfigSnapshotDialog : public DPIDialog

@@ -58,7 +58,7 @@ struct pdata
   unsigned long eeprom_pageaddr;
   unsigned int eeprom_pagesize;
 
-  int prog_enabled;	/* Cached value of PROGRAMMING status. */
+  int prog_enabled;    /* Cached value of PROGRAMMING status. */
 };
 
 #define PDATA(pgm) ((struct pdata *)(pgm->cookie))
@@ -96,14 +96,14 @@ const static struct {
 };
 
 static int jtagmkI_read_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
-			      unsigned long addr, unsigned char * value);
+                  unsigned long addr, unsigned char * value);
 static int jtagmkI_write_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
-			       unsigned long addr, unsigned char data);
+                   unsigned long addr, unsigned char data);
 static int jtagmkI_set_sck_period(PROGRAMMER * pgm, double v);
 static int jtagmkI_getparm(PROGRAMMER * pgm, unsigned char parm,
-			    unsigned char * value);
+                unsigned char * value);
 static int jtagmkI_setparm(PROGRAMMER * pgm, unsigned char parm,
-			    unsigned char value);
+                unsigned char value);
 static void jtagmkI_print_parms1(PROGRAMMER * pgm, const char * p);
 
 static int jtagmkI_resync(PROGRAMMER *pgm, int maxtries, int signon);
@@ -149,9 +149,9 @@ static void jtagmkI_prmsg(PROGRAMMER * pgm, unsigned char * data, size_t len)
     for (i = 0; i < len; i++) {
       avrdude_message(MSG_TRACE, "0x%02x ", data[i]);
       if (i % 16 == 15)
-	putc('\n', stderr);
+    putc('\n', stderr);
       else
-	putc(' ', stderr);
+    putc(' ', stderr);
     }
     if (i % 16 != 0)
       putc('\n', stderr);
@@ -198,18 +198,18 @@ static int jtagmkI_send(PROGRAMMER * pgm, unsigned char * data, size_t len)
   unsigned char *buf;
 
   avrdude_message(MSG_DEBUG, "\n%s: jtagmkI_send(): sending %u bytes\n",
-	    progname, (unsigned int)len);
+        progname, (unsigned int)len);
 
   if ((buf = malloc(len + 2)) == NULL)
     {
       avrdude_message(MSG_INFO, "%s: jtagmkI_send(): out of memory",
-	      progname);
+          progname);
       exit(1);
     }
 
   memcpy(buf, data, len);
-  buf[len] = ' ';		/* "CRC" */
-  buf[len + 1] = ' ';		/* EOP */
+  buf[len] = ' ';        /* "CRC" */
+  buf[len + 1] = ' ';        /* EOP */
 
   if (serial_send(&pgm->fd, buf, len + 2) != 0) {
     avrdude_message(MSG_INFO, "%s: jtagmkI_send(): failed to send command to serial port\n",
@@ -260,7 +260,7 @@ static int jtagmkI_resync(PROGRAMMER * pgm, int maxtries, int signon)
     /* Get the sign-on information. */
     buf[0] = CMD_GET_SYNC;
     avrdude_message(MSG_NOTICE2, "%s: jtagmkI_resync(): Sending sync command: ",
-	      progname);
+          progname);
 
     if (serial_send(&pgm->fd, buf, 1) != 0) {
       avrdude_message(MSG_INFO, "\n%s: jtagmkI_resync(): failed to send command to serial port\n",
@@ -289,17 +289,17 @@ static int jtagmkI_resync(PROGRAMMER * pgm, int maxtries, int signon)
       buf[2] = ' ';
       buf[3] = ' ';
       avrdude_message(MSG_NOTICE2, "%s: jtagmkI_resync(): Sending sign-on command: ",
-		progname);
+        progname);
 
       if (serial_send(&pgm->fd, buf, 4) != 0) {
-	avrdude_message(MSG_INFO, "\n%s: jtagmkI_resync(): failed to send command to serial port\n",
+    avrdude_message(MSG_INFO, "\n%s: jtagmkI_resync(): failed to send command to serial port\n",
                         progname);
-	serial_recv_timeout = otimeout;
-	return -1;
+    serial_recv_timeout = otimeout;
+    return -1;
       }
       if (serial_recv(&pgm->fd, resp, 9) == 0 && resp[0] == RESP_OK) {
         avrdude_message(MSG_NOTICE2, "got RESP_OK\n");
-	break;
+    break;
       }
     }
   }
@@ -327,7 +327,7 @@ static int jtagmkI_getsync(PROGRAMMER * pgm)
   jtagmkI_drain(pgm, 0);
 
   avrdude_message(MSG_NOTICE2, "%s: jtagmkI_getsync(): Sending sign-on command: ",
-	    progname);
+        progname);
 
   buf[0] = CMD_GET_SIGNON;
   jtagmkI_send(pgm, buf, 1);
@@ -350,7 +350,7 @@ static int jtagmkI_chip_erase(PROGRAMMER * pgm, AVRPART * p)
 
   buf[0] = CMD_CHIP_ERASE;
   avrdude_message(MSG_NOTICE2, "%s: jtagmkI_chip_erase(): Sending chip erase command: ",
-	    progname);
+        progname);
   jtagmkI_send(pgm, buf, 1);
   if (jtagmkI_recv(pgm, resp, 2) < 0)
     return -1;
@@ -397,8 +397,8 @@ static void jtagmkI_set_devdescr(PROGRAMMER * pgm, AVRPART * p)
   }
 
   avrdude_message(MSG_NOTICE2, "%s: jtagmkI_set_devdescr(): "
-	    "Sending set device descriptor command: ",
-	    progname);
+        "Sending set device descriptor command: ",
+        progname);
   jtagmkI_send(pgm, (unsigned char *)&sendbuf, sizeof(sendbuf));
 
   if (jtagmkI_recv(pgm, resp, 2) < 0)
@@ -424,7 +424,7 @@ static int jtagmkI_reset(PROGRAMMER * pgm)
 
   buf[0] = CMD_RESET;
   avrdude_message(MSG_NOTICE2, "%s: jtagmkI_reset(): Sending reset command: ",
-	    progname);
+        progname);
   jtagmkI_send(pgm, buf, 1);
 
   if (jtagmkI_recv(pgm, resp, 2) < 0)
@@ -459,8 +459,8 @@ static int jtagmkI_program_enable(PROGRAMMER * pgm)
 
   buf[0] = CMD_ENTER_PROGMODE;
   avrdude_message(MSG_NOTICE2, "%s: jtagmkI_program_enable(): "
-	    "Sending enter progmode command: ",
-	    progname);
+        "Sending enter progmode command: ",
+        progname);
   jtagmkI_send(pgm, buf, 1);
 
   if (jtagmkI_recv(pgm, resp, 2) < 0)
@@ -537,7 +537,7 @@ static int jtagmkI_initialize(PROGRAMMER * pgm, AVRPART * p)
 
   if (!(p->flags & AVRPART_HAS_JTAG)) {
     avrdude_message(MSG_INFO, "%s: jtagmkI_initialize(): part %s has no JTAG interface\n",
-	    progname, p->desc);
+        progname, p->desc);
     return -1;
   }
 
@@ -549,7 +549,7 @@ static int jtagmkI_initialize(PROGRAMMER * pgm, AVRPART * p)
               progname, pgm->baudrate);
     } else {
       avrdude_message(MSG_NOTICE2, "%s: jtagmkI_initialize(): "
-	      "trying to set baudrate to %d\n",
+          "trying to set baudrate to %d\n",
                 progname, pgm->baudrate);
       if (jtagmkI_setparm(pgm, PARM_BITRATE, b) == 0) {
         PDATA(pgm)->initial_baudrate = pgm->baudrate; /* don't adjust again later */
@@ -560,8 +560,8 @@ static int jtagmkI_initialize(PROGRAMMER * pgm, AVRPART * p)
 
   if (pgm->bitclock != 0.0) {
     avrdude_message(MSG_NOTICE2, "%s: jtagmkI_initialize(): "
-	      "trying to set JTAG clock period to %.1f us\n",
-	      progname, pgm->bitclock);
+          "trying to set JTAG clock period to %.1f us\n",
+          progname, pgm->bitclock);
     if (jtagmkI_set_sck_period(pgm, pgm->bitclock) != 0)
       return -1;
   }
@@ -594,12 +594,12 @@ static int jtagmkI_initialize(PROGRAMMER * pgm, AVRPART * p)
   free(PDATA(pgm)->eeprom_pagecache);
   if ((PDATA(pgm)->flash_pagecache = malloc(PDATA(pgm)->flash_pagesize)) == NULL) {
     avrdude_message(MSG_INFO, "%s: jtagmkI_initialize(): Out of memory\n",
-	    progname);
+        progname);
     return -1;
   }
   if ((PDATA(pgm)->eeprom_pagecache = malloc(PDATA(pgm)->eeprom_pagesize)) == NULL) {
     avrdude_message(MSG_INFO, "%s: jtagmkI_initialize(): Out of memory\n",
-	    progname);
+        progname);
     free(PDATA(pgm)->flash_pagecache);
     return -1;
   }
@@ -723,7 +723,7 @@ static int jtagmkI_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
 #define MAXTRIES 3
 
   avrdude_message(MSG_NOTICE2, "%s: jtagmkI_paged_write(.., %s, %d, %d)\n",
-	    progname, m->desc, page_size, n_bytes);
+        progname, m->desc, page_size, n_bytes);
 
   if (jtagmkI_program_enable(pgm) < 0)
     return -1;
@@ -732,13 +732,13 @@ static int jtagmkI_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
 
   if (page_size > 256) {
     avrdude_message(MSG_INFO, "%s: jtagmkI_paged_write(): page size %d too large\n",
-	    progname, page_size);
+        progname, page_size);
     return -1;
   }
 
   if ((datacmd = malloc(page_size + 1)) == NULL) {
     avrdude_message(MSG_INFO, "%s: jtagmkI_paged_write(): Out of memory\n",
-	    progname);
+        progname);
     return -1;
   }
 
@@ -771,8 +771,8 @@ static int jtagmkI_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
     else
       block_size = page_size;
     avrdude_message(MSG_DEBUG, "%s: jtagmkI_paged_write(): "
-	      "block_size at addr %d is %d\n",
-	      progname, addr, block_size);
+          "block_size at addr %d is %d\n",
+          progname, addr, block_size);
 
     /* We always write full pages. */
     send_size = page_size;
@@ -785,8 +785,8 @@ static int jtagmkI_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
     }
 
     avrdude_message(MSG_NOTICE2, "%s: jtagmkI_paged_write(): "
-	      "Sending write memory command: ",
-	      progname);
+          "Sending write memory command: ",
+          progname);
 
     /* First part, send the write command. */
     jtagmkI_send(pgm, cmd, 6);
@@ -799,7 +799,7 @@ static int jtagmkI_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
                       "timeout/error communicating with programmer (resp %c)\n",
                       progname, resp[0]);
       if (tries++ < MAXTRIES)
-	goto again;
+    goto again;
       serial_recv_timeout = otimeout;
       return -1;
     } else {
@@ -828,7 +828,7 @@ static int jtagmkI_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
                       "timeout/error communicating with programmer (resp %c)\n",
                       progname, resp[0]);
       if (tries++ < MAXTRIES)
-	goto again;
+    goto again;
       serial_recv_timeout = otimeout;
       return -1;
     } else {
@@ -845,7 +845,7 @@ static int jtagmkI_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
 }
 
 static int jtagmkI_paged_load(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
-			      unsigned int page_size,
+                  unsigned int page_size,
                               unsigned int addr, unsigned int n_bytes)
 {
   int block_size, read_size, is_flash = 0, tries;
@@ -855,7 +855,7 @@ static int jtagmkI_paged_load(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
 #define MAXTRIES 3
 
   avrdude_message(MSG_NOTICE2, "%s: jtagmkI_paged_load(.., %s, %d, %d)\n",
-	    progname, m->desc, page_size, n_bytes);
+        progname, m->desc, page_size, n_bytes);
 
   if (jtagmkI_program_enable(pgm) < 0)
     return -1;
@@ -872,7 +872,7 @@ static int jtagmkI_paged_load(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
 
   if (page_size > (is_flash? 512: 256)) {
     avrdude_message(MSG_INFO, "%s: jtagmkI_paged_load(): page size %d too large\n",
-	    progname, page_size);
+        progname, page_size);
     return -1;
   }
 
@@ -891,8 +891,8 @@ static int jtagmkI_paged_load(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
     else
       block_size = page_size;
     avrdude_message(MSG_DEBUG, "%s: jtagmkI_paged_load(): "
-	      "block_size at addr %d is %d\n",
-	      progname, addr, block_size);
+          "block_size at addr %d is %d\n",
+          progname, addr, block_size);
 
     if (is_flash) {
       read_size = 2 * ((block_size + 1) / 2); /* round up */
@@ -905,7 +905,7 @@ static int jtagmkI_paged_load(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
     }
 
     avrdude_message(MSG_NOTICE2, "%s: jtagmkI_paged_load(): Sending read memory command: ",
-	      progname);
+          progname);
 
     jtagmkI_send(pgm, cmd, 6);
     if (jtagmkI_recv(pgm, resp, read_size + 3) < 0)
@@ -918,7 +918,7 @@ static int jtagmkI_paged_load(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
                       "timeout/error communicating with programmer (resp %c)\n",
                       progname, resp[read_size + 3 - 1]);
       if (tries++ < MAXTRIES)
-	goto again;
+    goto again;
 
       serial_recv_timeout = otimeout;
       return -1;
@@ -936,7 +936,7 @@ static int jtagmkI_paged_load(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
 }
 
 static int jtagmkI_read_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
-			      unsigned long addr, unsigned char * value)
+                  unsigned long addr, unsigned char * value)
 {
   unsigned char cmd[6];
   unsigned char resp[256 * 2 + 3], *cache_ptr = NULL;
@@ -946,7 +946,7 @@ static int jtagmkI_read_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
   int is_flash = 0;
 
   avrdude_message(MSG_NOTICE2, "%s: jtagmkI_read_byte(.., %s, 0x%lx, ...)\n",
-	    progname, mem->desc, addr);
+        progname, mem->desc, addr);
 
   if (jtagmkI_program_enable(pgm) < 0)
     return -1;
@@ -1052,14 +1052,14 @@ static int jtagmkI_read_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
 }
 
 static int jtagmkI_write_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
-			       unsigned long addr, unsigned char data)
+                   unsigned long addr, unsigned char data)
 {
   unsigned char cmd[6], datacmd[1 * 2 + 1];
   unsigned char resp[1], writedata;
   int len, need_progmode = 1;
 
   avrdude_message(MSG_NOTICE2, "%s: jtagmkI_write_byte(.., %s, 0x%lx, ...)\n",
-	    progname, mem->desc, addr);
+        progname, mem->desc, addr);
 
   writedata = data;
   cmd[0] = CMD_WRITE_MEM;
@@ -1169,7 +1169,7 @@ static int jtagmkI_set_sck_period(PROGRAMMER * pgm, double v)
 {
   unsigned char dur;
 
-  v = 1 / v;			/* convert to frequency */
+  v = 1 / v;            /* convert to frequency */
   if (v >= 1e6)
     dur = JTAG_BITRATE_1_MHz;
   else if (v >= 499e3)
@@ -1189,7 +1189,7 @@ static int jtagmkI_set_sck_period(PROGRAMMER * pgm, double v)
  * their components.
  */
 static int jtagmkI_getparm(PROGRAMMER * pgm, unsigned char parm,
-			    unsigned char * value)
+                unsigned char * value)
 {
   unsigned char buf[2], resp[3];
 
@@ -1199,8 +1199,8 @@ static int jtagmkI_getparm(PROGRAMMER * pgm, unsigned char parm,
   buf[1] = parm;
   if (verbose >= 2)
     avrdude_message(MSG_NOTICE2, "%s: jtagmkI_getparm(): "
-	    "Sending get parameter command (parm 0x%02x): ",
-	    progname, parm);
+        "Sending get parameter command (parm 0x%02x): ",
+        progname, parm);
   jtagmkI_send(pgm, buf, 2);
 
   if (jtagmkI_recv(pgm, resp, 3) < 0)
@@ -1233,7 +1233,7 @@ static int jtagmkI_getparm(PROGRAMMER * pgm, unsigned char parm,
  * Write an emulator parameter.
  */
 static int jtagmkI_setparm(PROGRAMMER * pgm, unsigned char parm,
-			    unsigned char value)
+                unsigned char value)
 {
   unsigned char buf[3], resp[2];
 
@@ -1243,8 +1243,8 @@ static int jtagmkI_setparm(PROGRAMMER * pgm, unsigned char parm,
   buf[1] = parm;
   buf[2] = value;
   avrdude_message(MSG_NOTICE2, "%s: jtagmkI_setparm(): "
-	    "Sending set parameter command (parm 0x%02x): ",
-	    progname, parm);
+        "Sending set parameter command (parm 0x%02x): ",
+        progname, parm);
   jtagmkI_send(pgm, buf, 3);
   if (jtagmkI_recv(pgm, resp, 2) < 0)
     return -1;
@@ -1319,9 +1319,9 @@ static void jtagmkI_print_parms1(PROGRAMMER * pgm, const char * p)
   }
 
   avrdude_message(MSG_INFO, "%sVtarget         : %.1f V\n", p,
-	  6.25 * (unsigned)vtarget / 255.0);
+      6.25 * (unsigned)vtarget / 255.0);
   avrdude_message(MSG_INFO, "%sJTAG clock      : %s (%.1f us)\n", p, clkstr,
-	  1.0e6 / clk);
+      1.0e6 / clk);
 
   return;
 }

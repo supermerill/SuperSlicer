@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_OPENGL2_LENS_FLARE_H
 #define IGL_OPENGL2_LENS_FLARE_H
@@ -38,8 +38,8 @@ namespace igl
         this->color[2] = color[2] * colorScale;
       }
     };
-    
-    
+
+
     // Initialize shared data for lens flates
     //
     // Inputs:
@@ -50,7 +50,7 @@ namespace igl
     IGL_INLINE void lens_flare_load_textures(
       std::vector<GLuint> & shine_ids,
       std::vector<GLuint> & flare_ids);
-    
+
     // Create a set of lens flares
     //
     // Inputs:
@@ -64,7 +64,7 @@ namespace igl
       const float * B,
       const float * C,
       std::vector<Flare> & flares);
-    
+
     // Draw lens flares
     //
     // Inputs:

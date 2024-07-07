@@ -18,18 +18,18 @@ namespace igl {
   {
     typedef typename DerivedCN::Scalar CentersType;
     typedef typename DerivedW::Scalar WidthsType;
-    
+
     typedef Eigen::Matrix<typename DerivedP::Scalar, 1, 3> RowVector3PType;
-    
+
     int n = P.rows();
     const KType real_k = std::min(n,k);
-    
+
     auto distance_to_width_one_cube = [](RowVector3PType point){
       return std::sqrt(std::pow(std::max(std::abs(point(0))-1,0.0),2)
                        + std::pow(std::max(std::abs(point(1))-1,0.0),2)
                        + std::pow(std::max(std::abs(point(2))-1,0.0),2));
     };
-    
+
     auto distance_to_cube = [&distance_to_width_one_cube]
               (RowVector3PType point,
                Eigen::Matrix<CentersType,1,3> cube_center,
@@ -37,18 +37,18 @@ namespace igl {
       RowVector3PType transformed_point = (point-cube_center)/cube_width;
       return cube_width*distance_to_width_one_cube(transformed_point);
     };
-    
+
     I.resize(n,real_k);
-    
+
     igl::parallel_for(n,[&](int i)
     {
       int points_found = 0;
       RowVector3PType point_of_interest = P.row(i);
-      
+
       //To make my priority queue take both points and octree cells,
       //I use the indices 0 to n-1 for the n points,
       // and the indices n to n+m-1 for the m octree cells
-      
+
       // Using lambda to compare elements.
       auto cmp = [&point_of_interest, &P, &CN, &W,
                   &n, &distance_to_cube](int left, int right) {
@@ -60,7 +60,7 @@ namespace igl {
                                             CN.row(left-n),
                                             W(left-n));
         }
-      
+
         if(right < n){ //left is a point index
           rightdistance = (P.row(right) - point_of_interest).norm();
         } else { //left is an octree cell
@@ -70,10 +70,10 @@ namespace igl {
         }
         return leftdistance >= rightdistance;
       };
-      
+
       std::priority_queue<IndexType, std::vector<IndexType>,
         decltype(cmp)> queue(cmp);
-      
+
       queue.push(n); //This is the 0th octree cell (ie the root)
       while(points_found < real_k){
         IndexType curr_cell_or_point = queue.top();

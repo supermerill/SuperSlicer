@@ -14,7 +14,7 @@ public:
         gluTessCallback(m_tesselator, GLU_TESS_END_DATA,     (_GLUfuncptr)tessEndCB);
         gluTessCallback(m_tesselator, GLU_TESS_ERROR_DATA,   (_GLUfuncptr)tessErrorCB);
         gluTessCallback(m_tesselator, GLU_TESS_VERTEX_DATA,  (_GLUfuncptr)tessVertexCB);
-        gluTessCallback(m_tesselator, GLU_TESS_COMBINE_DATA, (_GLUfuncptr)tessCombineCB);        
+        gluTessCallback(m_tesselator, GLU_TESS_COMBINE_DATA, (_GLUfuncptr)tessCombineCB);
     }
     ~GluTessWrapper() {
         gluDeleteTess(m_tesselator);
@@ -197,7 +197,7 @@ std::vector<Vec3d> triangulate_expolygon_3d(const ExPolygon &poly, coordf_t z, b
 
 std::vector<Vec3d> triangulate_expolygons_3d(const ExPolygons &polys, coordf_t z, bool flip)
 {
-	GluTessWrapper tess;
+    GluTessWrapper tess;
     return tess.tesselate3d(polys, z, flip);
 }
 

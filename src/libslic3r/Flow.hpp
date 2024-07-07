@@ -23,8 +23,8 @@ enum FlowRole {
 class FlowError : public Slic3r::InvalidArgument
 {
 public:
-	FlowError(const std::string& what_arg) : Slic3r::InvalidArgument(what_arg) {}
-	FlowError(const char* what_arg) : Slic3r::InvalidArgument(what_arg) {}
+    FlowError(const std::string& what_arg) : Slic3r::InvalidArgument(what_arg) {}
+    FlowError(const char* what_arg) : Slic3r::InvalidArgument(what_arg) {}
 };
 
 class FlowErrorNegativeSpacing : public FlowError
@@ -67,7 +67,7 @@ public:
     float   spacing()         const;// { return m_spacing; } use the compute, as I can't be 100% sure yet that this cachced value is good.
     coord_t scaled_spacing()  const { return scale_t(spacing()); }
     float   spacing_ratio()   const { return m_spacing_ratio; }
-    // Nozzle diameter. 
+    // Nozzle diameter.
     float   nozzle_diameter() const { return m_nozzle_diameter; }
     // Is it a bridge?
     bool    bridge()          const { return m_bridge; }
@@ -87,19 +87,19 @@ public:
     // Here an overlap of 0.2x external perimeter spacing is allowed for by the elephant foot compensation.
     coord_t scaled_elephant_foot_spacing() const { return coord_t(0.5f * float(this->scaled_width() + 0.6f * this->scaled_spacing())); }
 
-    bool operator==(const Flow &rhs) const { 
-        return m_width == rhs.m_width 
+    bool operator==(const Flow &rhs) const {
+        return m_width == rhs.m_width
             && m_height == rhs.m_height
             && m_nozzle_diameter == rhs.m_nozzle_diameter
             && m_spacing_ratio == rhs.m_spacing_ratio
             && m_bridge == rhs.m_bridge; }
 
-    Flow        with_width (float width)  const { 
+    Flow        with_width (float width)  const {
         assert(! m_bridge);
         return Flow(width, m_height, rounded_rectangle_extrusion_spacing(width, m_height, m_spacing_ratio), m_nozzle_diameter, m_spacing_ratio, m_bridge);
     }
-    Flow        with_height(float height) const { 
-        assert(! m_bridge); 
+    Flow        with_height(float height) const {
+        assert(! m_bridge);
         return Flow(m_width, height, rounded_rectangle_extrusion_spacing(m_width, height, m_spacing_ratio), m_nozzle_diameter, m_spacing_ratio, m_bridge);
     }
     // Adjust extrusion flow for new extrusion line spacing, maintaining the old spacing between extrusions.
@@ -123,8 +123,8 @@ public:
     // Extrusion width from full config, taking into account the defaults (when set to zero) and ratios (percentages).
     // Precise value depends on layer index (1st layer vs. other layers vs. variable layer height),
     // on active extruder etc. Therefore the value calculated by this function shall be used as a hint only.
-	static double extrusion_width(const std::string &opt_key, const ConfigOptionFloatOrPercent *opt, const ConfigOptionResolver &config, const unsigned int first_printing_extruder = 0);
-	static double extrusion_width(const std::string &opt_key, const ConfigOptionResolver &config, const unsigned int first_printing_extruder = 0);
+    static double extrusion_width(const std::string &opt_key, const ConfigOptionFloatOrPercent *opt, const ConfigOptionResolver &config, const unsigned int first_printing_extruder = 0);
+    static double extrusion_width(const std::string &opt_key, const ConfigOptionResolver &config, const unsigned int first_printing_extruder = 0);
     static const ConfigOptionFloatOrPercent* extrusion_width_option(std::string opt_key, const ConfigOptionResolver& config);
     static const ConfigOptionFloatOrPercent* extrusion_spacing_option(std::string opt_key, const ConfigOptionResolver& config);
 
@@ -144,11 +144,11 @@ public:
 
 
 private:
-    //Flow(float width, float height, float spacing, float nozzle_diameter, bool bridge) : 
-    //    m_width(width), m_height(height), m_spacing(spacing), m_nozzle_diameter(nozzle_diameter), m_bridge(bridge) 
-    //    { 
+    //Flow(float width, float height, float spacing, float nozzle_diameter, bool bridge) :
+    //    m_width(width), m_height(height), m_spacing(spacing), m_nozzle_diameter(nozzle_diameter), m_bridge(bridge)
+    //    {
     //        // Gap fill violates this condition.
-    //        //assert(width >= height); 
+    //        //assert(width >= height);
     //    }
 
     float       m_width { 0 };

@@ -33,7 +33,7 @@
 #ifndef EIGEN_SAEIGENSOLVER_LAPACKE_H
 #define EIGEN_SAEIGENSOLVER_LAPACKE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \internal Specialization for the data types supported by LAPACKe */
 
@@ -75,7 +75,7 @@ SelfAdjointEigenSolver<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW> >::compute(c
 
 #define EIGEN_LAPACKE_EIG_SELFADJ(EIGTYPE, LAPACKE_TYPE, LAPACKE_RTYPE, LAPACKE_NAME )              \
         EIGEN_LAPACKE_EIG_SELFADJ_2(EIGTYPE, LAPACKE_TYPE, LAPACKE_RTYPE, LAPACKE_NAME, ColMajor )  \
-        EIGEN_LAPACKE_EIG_SELFADJ_2(EIGTYPE, LAPACKE_TYPE, LAPACKE_RTYPE, LAPACKE_NAME, RowMajor ) 
+        EIGEN_LAPACKE_EIG_SELFADJ_2(EIGTYPE, LAPACKE_TYPE, LAPACKE_RTYPE, LAPACKE_NAME, RowMajor )
 
 EIGEN_LAPACKE_EIG_SELFADJ(double,   double,                double, dsyev)
 EIGEN_LAPACKE_EIG_SELFADJ(float,    float,                 float,  ssyev)

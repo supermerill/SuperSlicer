@@ -45,7 +45,7 @@ struct eigen_packet_wrapper
     m_val = v;
     return *this;
   }
-  
+
   T m_val;
 };
 typedef eigen_packet_wrapper<__m128>  Packet4f;
@@ -69,7 +69,7 @@ template<> struct is_arithmetic<__m128d> { enum { value = true }; };
 
 #define vec2d_swizzle1(v,p,q) \
   (_mm_castsi128_pd(_mm_shuffle_epi32( _mm_castpd_si128(v), ((q*2+1)<<6|(q*2)<<4|(p*2+1)<<2|(p*2)))))
-  
+
 #define vec4f_swizzle2(a,b,p,q,r,s) \
   (_mm_shuffle_ps( (a), (b), ((s)<<6|(r)<<4|(q)<<2|(p))))
 
@@ -190,7 +190,7 @@ template<> EIGEN_STRONG_INLINE Packet4f pload1<Packet4f>(const float *from) {
   return vec4f_swizzle1(_mm_load_ss(from),0,0,0,0);
 }
 #endif
-  
+
 template<> EIGEN_STRONG_INLINE Packet4f plset<Packet4f>(const float& a) { return _mm_add_ps(pset1<Packet4f>(a), _mm_set_ps(3,2,1,0)); }
 template<> EIGEN_STRONG_INLINE Packet2d plset<Packet2d>(const double& a) { return _mm_add_pd(pset1<Packet2d>(a),_mm_set_pd(1,0)); }
 template<> EIGEN_STRONG_INLINE Packet4i plset<Packet4i>(const int& a) { return _mm_add_epi32(pset1<Packet4i>(a),_mm_set_epi32(3,2,1,0)); }

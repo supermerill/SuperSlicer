@@ -10,7 +10,7 @@ std::shared_ptr<SLAAbstractArchive> get_output_format(const ConfigBase& config)
         else if (output_format & ofMaskedCWS) {
             return std::make_shared<MaskedCWSArchive>();
         }
-        
+
         // Default to the base class
         return std::make_shared<SL1Archive>();
 }

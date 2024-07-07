@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "snap_rounding.h"
 #include "resolve_intersections.h"
@@ -17,9 +17,9 @@
 #include <algorithm>
 
 template <
-  typename DerivedV, 
-  typename DerivedE, 
-  typename DerivedVI, 
+  typename DerivedV,
+  typename DerivedE,
+  typename DerivedVI,
   typename DerivedEI,
   typename DerivedJ>
 IGL_INLINE void igl::copyleft::cgal::snap_rounding(
@@ -121,7 +121,7 @@ IGL_INLINE void igl::copyleft::cgal::snap_rounding(
   for(const Point_2 & h : hot)
   {
     // North, East, South, West
-    Segment_2 wall[4] = 
+    Segment_2 wall[4] =
     {
       {h+Vector_2(-0.5, 0.5),h+Vector_2( 0.5, 0.5)},
       {h+Vector_2( 0.5, 0.5),h+Vector_2( 0.5,-0.5)},

@@ -14,11 +14,11 @@ bool close_zip_writer(mz_zip_archive *zip);
 class MZ_Archive {
 public:
     mz_zip_archive arch;
-    
+
     MZ_Archive();
-    
+
     static std::string get_errorstr(mz_zip_error mz_err);
-    
+
     std::string get_errorstr() const
     {
         return get_errorstr(arch.m_last_error) + "!";

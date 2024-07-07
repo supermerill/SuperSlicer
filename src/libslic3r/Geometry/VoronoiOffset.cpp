@@ -20,10 +20,10 @@ namespace Voronoi {
 namespace detail {
     // Intersect a circle with a ray, return the two parameters.
     // Currently used for unbounded Voronoi edges only.
-	double first_circle_segment_intersection_parameter(
-		const Vec2d &center, const double r, const Vec2d &pt, const Vec2d &v)
-	{
-		const Vec2d 	d = pt - center;
+    double first_circle_segment_intersection_parameter(
+        const Vec2d &center, const double r, const Vec2d &pt, const Vec2d &v)
+    {
+        const Vec2d     d = pt - center;
 #ifndef NDEBUG
         // Start point should be inside, end point should be outside the circle.
         double          d0 = (pt - center).norm();
@@ -31,32 +31,32 @@ namespace detail {
         assert(d0 < r + SCALED_EPSILON);
         assert(d1 > r - SCALED_EPSILON);
 #endif /* NDEBUG */
-        const double	a = v.squaredNorm();
-		const double 	b = 2. * d.dot(v);
-		const double    c = d.squaredNorm() - r * r;
-		std::pair<int, std::array<double, 2>> out;
+        const double    a = v.squaredNorm();
+        const double     b = 2. * d.dot(v);
+        const double    c = d.squaredNorm() - r * r;
+        std::pair<int, std::array<double, 2>> out;
         double          u = b * b - 4. * a * c;
-		assert(u > - EPSILON);
-		double          t;
-		if (u <= 0) {
-			// Degenerate to a single closest point.
-			t = - b / (2. * a);
-			assert(t >= - EPSILON && t <= 1. + EPSILON);
-			return std::clamp(t, 0., 1.);
-		} else {
-			u = sqrt(u);
-			out.first = 2;
-			double t0 = (- b - u) / (2. * a);
-			double t1 = (- b + u) / (2. * a);
-			// One of the intersections shall be found inside the segment.
-			assert((t0 >= - EPSILON && t0 <= 1. + EPSILON) || (t1 >= - EPSILON && t1 <= 1. + EPSILON));
-			if (t1 < 0.)
-				return 0.;
-			if (t0 > 1.)
-				return 1.;
-			return (t0 > 0.) ? t0 : t1;
-		}
-	}
+        assert(u > - EPSILON);
+        double          t;
+        if (u <= 0) {
+            // Degenerate to a single closest point.
+            t = - b / (2. * a);
+            assert(t >= - EPSILON && t <= 1. + EPSILON);
+            return std::clamp(t, 0., 1.);
+        } else {
+            u = sqrt(u);
+            out.first = 2;
+            double t0 = (- b - u) / (2. * a);
+            double t1 = (- b + u) / (2. * a);
+            // One of the intersections shall be found inside the segment.
+            assert((t0 >= - EPSILON && t0 <= 1. + EPSILON) || (t1 >= - EPSILON && t1 <= 1. + EPSILON));
+            if (t1 < 0.)
+                return 0.;
+            if (t0 > 1.)
+                return 1.;
+            return (t0 > 0.) ? t0 : t1;
+        }
+    }
 
     struct Intersections
     {
@@ -117,7 +117,7 @@ namespace detail {
 
     // Return maximum two points, that are at distance "d" from both the line and point.
     Intersections line_point_equal_distance_points(const Line &line, const Point &ipt, const double d)
-    {   
+    {
         assert(line.a != ipt && line.b != ipt);
         // Calculating two points of distance "d" to a ray and a point.
         // Point.
@@ -670,7 +670,7 @@ void annotate_inside_outside(VD &vd, const Lines &lines)
 #ifndef NDEBUG
         VertexCategory vc = vertex_category(vertex);
         assert(vc == VertexCategory::Unknown || vc == new_vertex_category);
-        assert(new_vertex_category == VertexCategory::Inside || 
+        assert(new_vertex_category == VertexCategory::Inside ||
                new_vertex_category == VertexCategory::Outside ||
                new_vertex_category == VertexCategory::OnContour);
 #endif // NDEBUG
@@ -1405,12 +1405,12 @@ Polygons offset(
 #endif // VORONOI_DEBUG_OUT
 
     auto next_offset_edge = [&edge_points, front_edge](const VD::edge_type *start_edge) -> const VD::edge_type* {
-	    for (const VD::edge_type *edge = start_edge->next(); edge != start_edge; edge = edge->next())
+        for (const VD::edge_type *edge = start_edge->next(); edge != start_edge; edge = edge->next())
             if (edge_offset_has_intersection(edge_points[edge->twin() - front_edge]))
                 return edge->twin();
         // assert(false);
         return nullptr;
-	};
+    };
 
     const bool inside_offset = offset_distance < 0.;
     if (inside_offset)
@@ -1418,17 +1418,17 @@ Polygons offset(
 
     // Track the offset curves.
     Polygons out;
-	double angle_step    = 2. * acos((offset_distance - discretization_error) / offset_distance);
+    double angle_step    = 2. * acos((offset_distance - discretization_error) / offset_distance);
     double cos_threshold = cos(angle_step);
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
-	for (size_t seed_edge_idx = 0; seed_edge_idx < vd.num_edges(); ++ seed_edge_idx) {
+    for (size_t seed_edge_idx = 0; seed_edge_idx < vd.num_edges(); ++ seed_edge_idx) {
         Vec2d last_pt = edge_points[seed_edge_idx];
         if (edge_offset_has_intersection(last_pt)) {
             const VD::edge_type *start_edge = &vd.edges()[seed_edge_idx];
             const VD::edge_type *edge       = start_edge;
-            Polygon  			 poly;
-		    do {
-		        // find the next edge
+            Polygon               poly;
+            do {
+                // find the next edge
                 const VD::edge_type *next_edge = next_offset_edge(edge);
 #ifdef VORONOI_DEBUG_OUT
                 if (next_edge == nullptr) {
@@ -1438,8 +1438,8 @@ Polygons offset(
                 }
 #endif // VORONOI_DEBUG_OUT
                 assert(next_edge);
-		        //std::cout << "offset-output: "; print_edge(edge); std::cout << " to "; print_edge(next_edge); std::cout << "\n";
-		        // Interpolate a circular segment or insert a linear segment between edge and next_edge.
+                //std::cout << "offset-output: "; print_edge(edge); std::cout << " to "; print_edge(next_edge); std::cout << "\n";
+                // Interpolate a circular segment or insert a linear segment between edge and next_edge.
                 const VD::cell_type  *cell      = edge->cell();
                 // Mark the edge / offset curve intersection point as consumed.
                 Vec2d p1 = last_pt;
@@ -1459,36 +1459,36 @@ Polygons offset(
                     assert(std::abs(err2) < SCALED_EPSILON);
                 }
 #endif /* NDEBUG */
-				if (cell->contains_point()) {
-					// Discretize an arc from p1 to p2 with radius = offset_distance and discretization_error.
+                if (cell->contains_point()) {
+                    // Discretize an arc from p1 to p2 with radius = offset_distance and discretization_error.
                     // The extracted contour is CCW oriented, extracted holes are CW oriented.
                     // The extracted arc will have the same orientation. As the Voronoi regions are convex, the angle covered by the arc will be convex as well.
                     const Line  &line0  = lines[cell->source_index()];
-					const Vec2d &center = ((cell->source_category() == boost::polygon::SOURCE_CATEGORY_SEGMENT_START_POINT) ? line0.a : line0.b).cast<double>();
-					const Vec2d  v1 	= p1 - center;
-					const Vec2d  v2 	= p2 - center;
-                    bool 		 ccw    = cross2(v1, v2) > 0;
+                    const Vec2d &center = ((cell->source_category() == boost::polygon::SOURCE_CATEGORY_SEGMENT_START_POINT) ? line0.a : line0.b).cast<double>();
+                    const Vec2d  v1     = p1 - center;
+                    const Vec2d  v2     = p2 - center;
+                    bool          ccw    = cross2(v1, v2) > 0;
                     double       cos_a  = v1.dot(v2);
                     double       norm   = v1.norm() * v2.norm();
                     assert(norm > 0.);
                     if (cos_a < cos_threshold * norm) {
-						// Angle is bigger than the threshold, therefore the arc will be discretized.
+                        // Angle is bigger than the threshold, therefore the arc will be discretized.
                         cos_a /= norm;
                         assert(cos_a > -1. - EPSILON && cos_a < 1. + EPSILON);
                         double angle = acos(std::max(-1., std::min(1., cos_a)));
-						size_t n_steps = size_t(ceil(angle / angle_step));
-						double astep = angle / n_steps;
-						if (! ccw)
-							astep *= -1.;
-						double a = astep;
-						for (size_t i = 1; i < n_steps; ++ i, a += astep) {
-							double c = cos(a);
-							double s = sin(a);
-							Vec2d  p = center + Vec2d(c * v1.x() - s * v1.y(), s * v1.x() + c * v1.y());
+                        size_t n_steps = size_t(ceil(angle / angle_step));
+                        double astep = angle / n_steps;
+                        if (! ccw)
+                            astep *= -1.;
+                        double a = astep;
+                        for (size_t i = 1; i < n_steps; ++ i, a += astep) {
+                            double c = cos(a);
+                            double s = sin(a);
+                            Vec2d  p = center + Vec2d(c * v1.x() - s * v1.y(), s * v1.x() + c * v1.y());
                             poly.points.emplace_back(Point(coord_t(p.x()), coord_t(p.y())));
-						}
+                        }
                     }
-				}
+                }
                 {
                     Point pt_last(coord_t(p2.x()), coord_t(p2.y()));
                     if (poly.empty() || poly.points.back() != pt_last)
@@ -1496,23 +1496,23 @@ Polygons offset(
                 }
                 edge = next_edge;
                 last_pt = p2;
-		    } while (edge != start_edge);
+            } while (edge != start_edge);
 
             while (! poly.empty() && poly.points.front() == poly.points.back())
                 poly.points.pop_back();
             if (poly.size() >= 3)
                 out.emplace_back(std::move(poly));
-		}
+        }
     }
 
-	return out;
+    return out;
 }
 
 Polygons offset(
-	const VD 		&vd, 
-	const Lines 	&lines, 
-	double 			 offset_distance, 
-	double 			 discretization_error)
+    const VD         &vd,
+    const Lines     &lines,
+    double              offset_distance,
+    double              discretization_error)
 {
     annotate_inside_outside(const_cast<VD&>(vd), lines);
     std::vector<double> dist = signed_vertex_distances(vd, lines);
@@ -1528,7 +1528,7 @@ Polygons offset(
 // An infinite Voronoi Edge-Point (parabola) or Point-Point (line) bisector is split into
 // a center part close to the Voronoi sites (not skeleton) and the ends (skeleton),
 // though either part could be clipped by the Voronoi segment.
-// 
+//
 // Further filtering of the skeleton may be necessary.
 std::vector<Vec2d> skeleton_edges_rough(
     const VD                    &vd,
@@ -1583,7 +1583,7 @@ std::vector<Vec2d> skeleton_edges_rough(
             }
         } else {
             // An infinite Voronoi Edge-Point (parabola) or Point-Point (line) bisector, clipped to a finite Voronoi segment.
-            // The infinite bisector has a distance (skeleton radius) minimum, which is also a minimum 
+            // The infinite bisector has a distance (skeleton radius) minimum, which is also a minimum
             // of the skeleton function dr / dt.
             assert(cell->contains_point() || cell2->contains_point());
             if (cell->contains_point() != cell2->contains_point()) {

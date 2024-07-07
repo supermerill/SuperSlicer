@@ -10,7 +10,7 @@
 #ifndef EIGEN_HOMOGENEOUS_H
 #define EIGEN_HOMOGENEOUS_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \geometry_module \ingroup Geometry_Module
   *
@@ -74,7 +74,7 @@ template<typename MatrixType,int _Direction> class Homogeneous
 
     EIGEN_DEVICE_FUNC inline Index rows() const { return m_matrix.rows() + (int(Direction)==Vertical   ? 1 : 0); }
     EIGEN_DEVICE_FUNC inline Index cols() const { return m_matrix.cols() + (int(Direction)==Horizontal ? 1 : 0); }
-    
+
     EIGEN_DEVICE_FUNC const NestedExpression& nestedExpression() const { return m_matrix; }
 
     template<typename Rhs>
@@ -322,7 +322,7 @@ template<typename ArgType,int Direction>
 struct evaluator_traits<Homogeneous<ArgType,Direction> >
 {
   typedef typename storage_kind_to_evaluator_kind<typename ArgType::StorageKind>::Kind Kind;
-  typedef HomogeneousShape Shape;  
+  typedef HomogeneousShape Shape;
 };
 
 template<> struct AssignmentKind<DenseShape,HomogeneousShape> { typedef Dense2Dense Kind; };
@@ -414,7 +414,7 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, Homogeneous
   typedef typename helper::ConstantBlock ConstantBlock;
   typedef typename helper::Xpr RefactoredXpr;
   typedef evaluator<RefactoredXpr> Base;
-  
+
   EIGEN_DEVICE_FUNC explicit product_evaluator(const XprType& xpr)
     : Base(  xpr.lhs().nestedExpression() .lazyProduct(  xpr.rhs().template topRows<helper::Dim>(xpr.lhs().nestedExpression().cols()) )
             + ConstantBlock(xpr.rhs().row(xpr.rhs().rows()-1),xpr.lhs().rows(), 1) )
@@ -467,7 +467,7 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   typedef typename helper::ConstantBlock ConstantBlock;
   typedef typename helper::Xpr RefactoredXpr;
   typedef evaluator<RefactoredXpr> Base;
-  
+
   EIGEN_DEVICE_FUNC explicit product_evaluator(const XprType& xpr)
     : Base(   xpr.lhs().template leftCols<helper::Dim>(xpr.rhs().nestedExpression().rows()) .lazyProduct( xpr.rhs().nestedExpression() )
             + ConstantBlock(xpr.lhs().col(xpr.lhs().cols()-1),1,xpr.rhs().cols()) )

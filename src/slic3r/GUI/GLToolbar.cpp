@@ -898,7 +898,7 @@ GLToolbarItem* GLToolbar::get_item(const std::string& item_name)
 
     for (GLToolbarItem* item : m_items)
     {
-        if (item->get_name() == item_name)   
+        if (item->get_name() == item_name)
         {
             return item;
         }
@@ -941,7 +941,7 @@ int GLToolbar::contains_mouse_horizontal(const Vec2d& mouse_pos, const GLCanvas3
     for (size_t id=0; id<m_items.size(); ++id)
     {
         GLToolbarItem* item = m_items[id];
-        
+
         if (!item->is_visible())
             continue;
 
@@ -974,7 +974,7 @@ int GLToolbar::contains_mouse_horizontal(const Vec2d& mouse_pos, const GLCanvas3
             // mouse inside the icon
             if ((left <= (float)scaled_mouse_pos(0)) && ((float)scaled_mouse_pos(0) <= right) && (bottom <= (float)scaled_mouse_pos(1)) && ((float)scaled_mouse_pos(1) <= top))
                 return id;
-            
+
             left = right;
             right += scaled_gap_size;
 
@@ -988,7 +988,7 @@ int GLToolbar::contains_mouse_horizontal(const Vec2d& mouse_pos, const GLCanvas3
             left = right;
         }
     }
-    
+
     return -1;
 }
 
@@ -1169,7 +1169,7 @@ void GLToolbar::render_arrow(const GLCanvas3D& parent, GLToolbarItem* highlighte
 
         if (item->is_separator())
             left += separator_stride;
-        else {   
+        else {
             if (item->get_name() == highlighted_item->get_name()) {
                 found = true;
                 break;

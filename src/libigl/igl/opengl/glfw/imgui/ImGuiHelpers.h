@@ -25,35 +25,35 @@ namespace ImGui
 
 static auto vector_getter = [](void* vec, int idx, const char** out_text)
 {
-	auto& vector = *static_cast<std::vector<std::string>*>(vec);
-	if (idx < 0 || idx >= static_cast<int>(vector.size())) { return false; }
-	*out_text = vector.at(idx).c_str();
-	return true;
+    auto& vector = *static_cast<std::vector<std::string>*>(vec);
+    if (idx < 0 || idx >= static_cast<int>(vector.size())) { return false; }
+    *out_text = vector.at(idx).c_str();
+    return true;
 };
 
 inline bool Combo(const char* label, int* idx, std::vector<std::string>& values)
 {
-	if (values.empty()) { return false; }
-	return Combo(label, idx, vector_getter,
-		static_cast<void*>(&values), values.size());
+    if (values.empty()) { return false; }
+    return Combo(label, idx, vector_getter,
+        static_cast<void*>(&values), values.size());
 }
 
 inline bool Combo(const char* label, int* idx, std::function<const char *(int)> getter, int items_count)
 {
-	auto func = [](void* data, int i, const char** out_text) {
-		auto &getter = *reinterpret_cast<std::function<const char *(int)> *>(data);
-		const char *s = getter(i);
-		if (s) { *out_text = s; return true; }
-		else { return false; }
-	};
-	return Combo(label, idx, func, reinterpret_cast<void *>(&getter), items_count);
+    auto func = [](void* data, int i, const char** out_text) {
+        auto &getter = *reinterpret_cast<std::function<const char *(int)> *>(data);
+        const char *s = getter(i);
+        if (s) { *out_text = s; return true; }
+        else { return false; }
+    };
+    return Combo(label, idx, func, reinterpret_cast<void *>(&getter), items_count);
 }
 
 inline bool ListBox(const char* label, int* idx, std::vector<std::string>& values)
 {
-	if (values.empty()) { return false; }
-	return ListBox(label, idx, vector_getter,
-		static_cast<void*>(&values), values.size());
+    if (values.empty()) { return false; }
+    return ListBox(label, idx, vector_getter,
+        static_cast<void*>(&values), values.size());
 }
 
 inline bool InputText(const char* label, std::string &str, ImGuiInputTextFlags flags = 0, ImGuiTextEditCallback callback = NULL, void* user_data = NULL)

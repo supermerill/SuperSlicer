@@ -231,18 +231,18 @@ static int butterfly_initialize(PROGRAMMER * pgm, AVRPART * p)
 
       putc('.', stderr);
       butterfly_send(pgm, mk_reset_cmd, sizeof(mk_reset_cmd));
-      usleep(20000); 
+      usleep(20000);
 
       do
-	{
-	  c = 27; 
-	  butterfly_send(pgm, &c, 1);
-	  usleep(20000);
-	  c = 0xaa;
-	  usleep(80000);
-	  butterfly_send(pgm, &c, 1);
-	  if (mk_timeout % 10 == 0) putc('.', stderr);
-	} while (mk_timeout++ < 10);
+    {
+      c = 27;
+      butterfly_send(pgm, &c, 1);
+      usleep(20000);
+      c = 0xaa;
+      usleep(80000);
+      butterfly_send(pgm, &c, 1);
+      if (mk_timeout % 10 == 0) putc('.', stderr);
+    } while (mk_timeout++ < 10);
 
       butterfly_recv(pgm, &c, 1);
       if ( c != 'M' && c != '?')
@@ -252,28 +252,28 @@ static int butterfly_initialize(PROGRAMMER * pgm, AVRPART * p)
         }
       else
         {
-	  id[0] = 'M'; id[1] = 'K'; id[2] = '2'; id[3] = 0;
-	}
+      id[0] = 'M'; id[1] = 'K'; id[2] = '2'; id[3] = 0;
+    }
     }
   else
     {
       do {
-	putc('.', stderr);
-	butterfly_send(pgm, "\033", 1);
-	butterfly_drain(pgm, 0);
-	butterfly_send(pgm, "S", 1);
-	butterfly_recv(pgm, &c, 1);
-	if (c != '?') {
-	    putc('\n', stderr);
-	    /*
-	     * Got a useful response, continue getting the programmer
-	     * identifier. Programmer returns exactly 7 chars _without_
-	     * the null.
-	     */
-	  id[0] = c;
-	  butterfly_recv(pgm, &id[1], sizeof(id)-2);
-	  id[sizeof(id)-1] = '\0';
-	}
+    putc('.', stderr);
+    butterfly_send(pgm, "\033", 1);
+    butterfly_drain(pgm, 0);
+    butterfly_send(pgm, "S", 1);
+    butterfly_recv(pgm, &c, 1);
+    if (c != '?') {
+        putc('\n', stderr);
+        /*
+         * Got a useful response, continue getting the programmer
+         * identifier. Programmer returns exactly 7 chars _without_
+         * the null.
+         */
+      id[0] = c;
+      butterfly_recv(pgm, &id[1], sizeof(id)-2);
+      id[sizeof(id)-1] = '\0';
+    }
       } while (c == '?');
     }
 
@@ -284,7 +284,7 @@ static int butterfly_initialize(PROGRAMMER * pgm, AVRPART * p)
   butterfly_recv(pgm, sw, sizeof(sw));
 
   butterfly_send(pgm, "v", 1);
-  butterfly_recv(pgm, hw, 1);	/* first, read only _one_ byte */
+  butterfly_recv(pgm, hw, 1);    /* first, read only _one_ byte */
   if (hw[0]!='?') {
     butterfly_recv(pgm, &hw[1], 1);/* now, read second byte */
   };
@@ -430,7 +430,7 @@ static void butterfly_set_addr(PROGRAMMER * pgm, unsigned long addr)
   cmd[0] = 'A';
   cmd[1] = (addr >> 8) & 0xff;
   cmd[2] = addr & 0xff;
-  
+
   butterfly_send(pgm, cmd, sizeof(cmd));
   butterfly_vfy_cmd_sent(pgm, "set addr");
 }
@@ -462,11 +462,11 @@ static int butterfly_write_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
   {
     cmd[0] = 'B';
     cmd[1] = 0;
-    if ((cmd[3] = toupper((int)(m->desc[0]))) == 'E') {	/* write to eeprom */
+    if ((cmd[3] = toupper((int)(m->desc[0]))) == 'E') {    /* write to eeprom */
       cmd[2] = 1;
       cmd[4] = value;
       size = 5;
-    } else {						/* write to flash */
+    } else {                        /* write to flash */
       /* @@@ not yet implemented */
       cmd[2] = 2;
       size = 6;
@@ -606,7 +606,7 @@ static int butterfly_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
     return -2;
 
   if (m->desc[0] == 'e')
-    wr_size = blocksize = 1;		/* Write to eeprom single bytes only */
+    wr_size = blocksize = 1;        /* Write to eeprom single bytes only */
 
   if (use_ext_addr) {
     butterfly_set_extaddr(pgm, addr / wr_size);
@@ -661,9 +661,9 @@ static int butterfly_paged_load(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
     return -2;
 
   if (m->desc[0] == 'e')
-    rd_size = blocksize = 1;		/* Read from eeprom single bytes only */
+    rd_size = blocksize = 1;        /* Read from eeprom single bytes only */
 
-  {		/* use buffered mode */
+  {        /* use buffered mode */
     char cmd[4];
 
     cmd[0] = 'g';

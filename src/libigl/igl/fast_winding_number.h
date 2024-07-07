@@ -44,7 +44,7 @@ namespace igl
             Eigen::PlainObjectBase<DerivedCM>& CM,
             Eigen::PlainObjectBase<DerivedR>& R,
             Eigen::PlainObjectBase<DerivedEC>& EC);
-  
+
   // Evaluate the fast winding number for point data, having already done the
   // the precomputation
   //
@@ -85,7 +85,7 @@ namespace igl
             const Eigen::MatrixBase<DerivedQ>& Q,
             const BetaType beta,
             Eigen::PlainObjectBase<DerivedWN>& WN);
-  
+
   // Evaluate the fast winding number for point data, with default expansion
   // order and beta (both are set to 2).
   //

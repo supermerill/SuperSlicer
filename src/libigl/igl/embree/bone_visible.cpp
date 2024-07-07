@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "bone_visible.h"
 #include "../project_to_line.h"
@@ -13,8 +13,8 @@
 #include <iostream>
 
 template <
-  typename DerivedV, 
-  typename DerivedF, 
+  typename DerivedV,
+  typename DerivedF,
   typename DerivedSD,
   typename Derivedflag>
 IGL_INLINE void igl::embree::bone_visible(
@@ -35,8 +35,8 @@ IGL_INLINE void igl::embree::bone_visible(
 }
 
 template <
-  typename DerivedV, 
-  typename DerivedF, 
+  typename DerivedV,
+  typename DerivedF,
   typename DerivedSD,
   typename Derivedflag>
 IGL_INLINE void igl::embree::bone_visible(
@@ -92,7 +92,7 @@ IGL_INLINE void igl::embree::bone_visible(
     const Vector3d dir = (Vv-projv)*1.0;
     if(ei.intersectSegment(
        projv.template cast<float>(),
-       dir.template cast<float>(), 
+       dir.template cast<float>(),
        hit))
     {
       // mod for double sided lighting
@@ -102,8 +102,8 @@ IGL_INLINE void igl::embree::bone_visible(
       //{
       //  Vector3d bc,P;
       //  bc << 1 - hit.u - hit.v, hit.u, hit.v; // barycentric
-      //  P = V.row(F(fi,0))*bc(0) + 
-      //      V.row(F(fi,1))*bc(1) + 
+      //  P = V.row(F(fi,0))*bc(0) +
+      //      V.row(F(fi,1))*bc(1) +
       //      V.row(F(fi,2))*bc(2);
       //  cout<<(fi+1)<<endl;
       //  cout<<bc.transpose()<<endl;

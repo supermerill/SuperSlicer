@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_ANTTWEAKBAR_REANTTWEAKBAR_H
 #define IGL_ANTTWEAKBAR_REANTTWEAKBAR_H
@@ -11,7 +11,7 @@
 // ReAntTweakBar is a minimal wrapper for the AntTweakBar library that allows
 // "bars" to be saved and load from disk. Changing your existing app that uses
 // AntTweakBar to use ReAntTweakBar is trivial.
-// 
+//
 // Many (but not all) variable types are supported. I'll try to keep track them
 // here:
 //   TW_TYPE_BOOLCPP
@@ -30,10 +30,10 @@
 //   TW_TYPE_UINT8
 //   and
 //   custom TwTypes made with TwDefineEnum
-// 
+//
 // I'm working on adding the rest on an as-needed basis. Adding a new type only
 // requires changes in a few places...
-// 
+//
 //
 //
 
@@ -63,11 +63,11 @@ namespace igl
   namespace anttweakbar
   {
     TwType ReTwDefineEnum(
-      const char *name, 
-      const TwEnumVal *enumValues, 
+      const char *name,
+      const TwEnumVal *enumValues,
       unsigned int nbValues);
     TwType ReTwDefineEnumFromString(const char * name,const char * enumString);
-    
+
     struct ReTwRWItem
     {
       //const char * name;
@@ -77,7 +77,7 @@ namespace igl
       // Default constructor
       IGL_INLINE ReTwRWItem(
         const std::string _name,
-        TwType _type, 
+        TwType _type,
         void *_var):
         name(_name),
         type(_type),
@@ -93,7 +93,7 @@ namespace igl
         var(that.var)
       {
       }
-      // Shallow assignment 
+      // Shallow assignment
       // I solemnly swear it's OK to copy var this way
       IGL_INLINE ReTwRWItem & operator=(const ReTwRWItem & that)
       {
@@ -106,7 +106,7 @@ namespace igl
         return *this;
       }
     };
-    
+
     struct ReTwCBItem
     {
       //const char * name;
@@ -118,7 +118,7 @@ namespace igl
       // Default constructor
       IGL_INLINE ReTwCBItem(
         const std::string _name,
-        TwType _type, 
+        TwType _type,
         TwSetVarCallback _setCallback,
         TwGetVarCallback _getCallback,
         void * _clientData):
@@ -153,9 +153,9 @@ namespace igl
         }
         return *this;
       }
-  
+
     };
-    
+
     class ReTwBar
     {
       // VARIABLES
@@ -176,47 +176,47 @@ namespace igl
         IGL_INLINE ReTwBar(const ReTwBar & that);
         // Assignment operator does shallow assignment
         IGL_INLINE ReTwBar &operator=(const ReTwBar & that);
-    
-      // WRAPPERS FOR ANTTWEAKBAR FUNCTIONS 
+
+      // WRAPPERS FOR ANTTWEAKBAR FUNCTIONS
       public:
         IGL_INLINE void TwNewBar(const char *_name);
         IGL_INLINE int TwAddVarRW(
-          const char *name, 
-          TwType type, 
-          void *var, 
+          const char *name,
+          TwType type,
+          void *var,
           const char *def,
           const bool record=true);
         IGL_INLINE int TwAddVarCB(
-          const char *name, 
-          TwType type, 
-          TwSetVarCallback setCallback, 
-          TwGetVarCallback getCallback, 
-          void *clientData, 
+          const char *name,
+          TwType type,
+          TwSetVarCallback setCallback,
+          TwGetVarCallback getCallback,
+          void *clientData,
           const char *def,
           const bool record=true);
         // Wrappers for convenience (not recorded, just passed on)
         IGL_INLINE int TwAddVarRO(const char *name, TwType type, void *var, const char *def);
         IGL_INLINE int TwAddButton(
-          const char *name, 
-          TwButtonCallback buttonCallback, 
-          void *clientData, 
+          const char *name,
+          TwButtonCallback buttonCallback,
+          void *clientData,
           const char *def);
         IGL_INLINE int TwSetParam(
-          const char *varName, 
-          const char *paramName, 
-          TwParamValueType paramValueType, 
-          unsigned int inValueCount, 
+          const char *varName,
+          const char *paramName,
+          TwParamValueType paramValueType,
+          unsigned int inValueCount,
           const void *inValues);
         IGL_INLINE int TwGetParam(
-          const char *varName, 
-          const char *paramName, 
-          TwParamValueType paramValueType, 
-          unsigned int outValueMaxCount, 
+          const char *varName,
+          const char *paramName,
+          TwParamValueType paramValueType,
+          unsigned int outValueMaxCount,
           void *outValues);
         IGL_INLINE int TwRefreshBar();
         IGL_INLINE int TwTerminate();
-    
-    
+
+
       // IO FUNCTIONS
       public:
         // Save current items to file
@@ -227,7 +227,7 @@ namespace igl
         //   true only if there were no (fatal) errors
         IGL_INLINE bool save(const char *file_name);
         std::string get_value_as_string(
-          void * var, 
+          void * var,
           TwType type);
         // Load into current items from file
         // Input:
@@ -237,7 +237,7 @@ namespace igl
         IGL_INLINE bool load(const char *file_name);
         // Get TwType from string
         // Input
-        //   type_str  string of type 
+        //   type_str  string of type
         // Output
         //   type  TwType converted from string
         // Returns
@@ -246,8 +246,8 @@ namespace igl
         // I realize that I mix std::string and const char * all over the place.
         // What can you do...
         IGL_INLINE bool set_value_from_string(
-          const char * name, 
-          TwType type, 
+          const char * name,
+          TwType type,
           const char * value_str);
         IGL_INLINE const std::vector<ReTwRWItem> & get_rw_items();
         IGL_INLINE const std::vector<ReTwCBItem> & get_cb_items();

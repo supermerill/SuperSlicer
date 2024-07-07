@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2014 Stefan Brugger <stefanbrugger@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_PROCRUSTES_H
 #define IGL_PROCRUSTES_H
@@ -43,10 +43,10 @@ namespace igl
   //   MatrixXd Xprime = (X * R).rowwise() + t.transpose();
   //
   template <
-    typename DerivedX, 
-    typename DerivedY, 
-    typename Scalar, 
-    typename DerivedR, 
+    typename DerivedX,
+    typename DerivedY,
+    typename Scalar,
+    typename DerivedR,
     typename DerivedT>
   IGL_INLINE void procrustes(
     const Eigen::PlainObjectBase<DerivedX>& X,
@@ -70,7 +70,7 @@ namespace igl
   //    includeScaling  if scaling should be allowed
   //    includeReflections  if R is allowed to be a reflection
   // Outputs:
-  //    T  transformation that minimizes error    
+  //    T  transformation that minimizes error
   //
   // Example:
   //   MatrixXd X, Y; (containing 3d points as rows)
@@ -78,10 +78,10 @@ namespace igl
   //   igl::procrustes(X,Y,true,false,T);
   //   MatrixXd Xprime = (X * T.linear()).rowwise() + T.translation().transpose();
   template <
-    typename DerivedX, 
-    typename DerivedY, 
-    typename Scalar, 
-    int DIM, 
+    typename DerivedX,
+    typename DerivedY,
+    typename Scalar,
+    int DIM,
     int TType>
   IGL_INLINE void procrustes(
     const Eigen::PlainObjectBase<DerivedX>& X,
@@ -93,9 +93,9 @@ namespace igl
 
   // Convenient wrapper that returns S=scale*R instead of scale and R separately
   template <
-    typename DerivedX, 
-    typename DerivedY, 
-    typename DerivedR, 
+    typename DerivedX,
+    typename DerivedY,
+    typename DerivedR,
     typename DerivedT>
   IGL_INLINE void procrustes(
     const Eigen::PlainObjectBase<DerivedX>& X,
@@ -107,9 +107,9 @@ namespace igl
 
   // Convenient wrapper for rigid case (no scaling, no reflections)
   template <
-    typename DerivedX, 
-    typename DerivedY, 
-    typename DerivedR, 
+    typename DerivedX,
+    typename DerivedY,
+    typename DerivedR,
     typename DerivedT>
   IGL_INLINE void procrustes(
     const Eigen::PlainObjectBase<DerivedX>& X,
@@ -119,9 +119,9 @@ namespace igl
 
   // Convenient wrapper for 2D case.
   template <
-    typename DerivedX, 
-    typename DerivedY, 
-    typename Scalar, 
+    typename DerivedX,
+    typename DerivedY,
+    typename Scalar,
     typename DerivedT>
   IGL_INLINE void procrustes(
     const Eigen::PlainObjectBase<DerivedX>& X,

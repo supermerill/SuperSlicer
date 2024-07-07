@@ -56,7 +56,7 @@ GraphDialog::GraphDialog(wxWindow *parent, const GraphData &parameters, const Gr
     update_ui(static_cast<wxButton *>(this->FindWindowById(wxID_OK, this)));
     update_ui(static_cast<wxButton *>(this->FindWindowById(wxID_CANCEL, this)));
 
-    this->Bind(wxEVT_CLOSE_WINDOW, [this](wxCloseEvent &e) { 
+    this->Bind(wxEVT_CLOSE_WINDOW, [this](wxCloseEvent &e) {
         EndModal(wxCANCEL);
     });
 
@@ -137,7 +137,7 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
     assert(data.validate());
     update_ui(this);
     auto sizer_chart = new wxBoxSizer(wxVERTICAL);
-    
+
     // safe
     if (data.end_idx == 0) {
         if (data.graph_points.size() > 0) {
@@ -159,7 +159,7 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
     //}
     //stream.clear();
     //stream.get();
-    
+
     // min & max
     Pointfs data_points = data.data();
     if (!data_points.empty()) {
@@ -181,7 +181,7 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
         m_last_min_y = settings.min_y;
         m_last_max_y = settings.max_y;
     }
-    
+
     if (!data_points.empty()) {
         if (data_points.size() == 1) {
             m_last_min_x = settings.min_x;
@@ -216,7 +216,7 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
 #else
     m_chart->SetBackgroundColour(parent->GetBackgroundColour()); // see comment in GraphDialog constructor
 #endif
-    sizer_chart->Add(new wxStaticText(this, wxID_ANY, 
+    sizer_chart->Add(new wxStaticText(this, wxID_ANY,
         _(settings.description)));
     sizer_chart->Add(m_chart, 0, wxALL, 5);
 
@@ -230,7 +230,7 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
                                               wxSize(ITEM_WIDTH(), -1), style | wxTE_PROCESS_ENTER, settings.min_x,
                                               settings.max_x, m_last_max_x, settings.step_x);
     // note: wxTE_PROCESS_ENTER allow the wxSpinCtrl to receive wxEVT_TEXT_ENTER events
- 
+
     if (!settings.label_min_y.empty())
         m_widget_min_y = new wxSpinCtrlDouble(this, wxID_ANY, wxEmptyString, wxDefaultPosition,
                                               wxSize(ITEM_WIDTH(), -1), style | wxTE_PROCESS_ENTER, settings.min_y,
@@ -239,7 +239,7 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
         m_widget_max_y = new wxSpinCtrlDouble(this, wxID_ANY, wxEmptyString, wxDefaultPosition,
                                               wxSize(ITEM_WIDTH(), -1), style | wxTE_PROCESS_ENTER, settings.min_y,
                                               settings.max_y, m_last_max_y, settings.step_y);
-    
+
     m_chart->set_xy_range(m_last_min_x, m_last_min_y, m_last_max_x, m_last_max_y);
 
 #ifdef _WIN32
@@ -275,15 +275,15 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
             size_line->Add(m_widget_min_y);
             size_line->AddSpacer(20);
         }
-        
+
         if (!settings.label_max_y.empty()) {
             size_line->Add(new wxStaticText(this, wxID_ANY, wxString(_(settings.label_max_y) + " :")), 0, wxALIGN_CENTER_VERTICAL);
             size_line->Add(m_widget_max_y);
         }
         sizer_chart->Add(size_line);
     }
-    
-    
+
+
     wxBoxSizer *size_line = new wxBoxSizer(wxHORIZONTAL);
     wxButton *bt_reset = new wxButton(this, wxID_ANY, _L("Reset"));
     bt_reset->SetToolTip(_L("Reset all points to defaults."));
@@ -293,7 +293,7 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
     bt_type->SetToolTip(_L("Change the graph type into square, linear or spline."));
     size_line->Add(bt_type);
     sizer_chart->Add(size_line);
-    
+
     sizer_chart->SetSizeHints(this);
     SetSizer(sizer_chart);
 
@@ -305,11 +305,11 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
         m_chart->set_buttons(buttons);
         m_chart->set_xy_range(
             reset_vals.begin_idx >= 0 && reset_vals.begin_idx < reset_vals.graph_points.size() ? reset_vals.graph_points[reset_vals.begin_idx].x() : std::numeric_limits<float>::quiet_NaN(),
-            std::numeric_limits<float>::quiet_NaN(), 
+            std::numeric_limits<float>::quiet_NaN(),
             reset_vals.end_idx >= 0 && reset_vals.end_idx < reset_vals.graph_points.size() ? reset_vals.graph_points[reset_vals.end_idx].x() : std::numeric_limits<float>::quiet_NaN(),
             std::numeric_limits<float>::quiet_NaN());
     }));
-    
+
     bt_type->Bind(wxEVT_BUTTON, ([this, allowed_types = settings.allowed_types](wxCommandEvent& e) {
         if(allowed_types.empty())
             m_chart->set_type(GraphData::GraphType((uint8_t(m_chart->get_type()) + 1) % GraphData::GraphType::COUNT));
@@ -424,14 +424,14 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
         });
     }
     // these work for wxSpinCtrl but not for wxSpinCtrlDouble
-    //m_widget_max_y->Bind(wxEVT_SPINCTRL, [this, settings](wxSpinEvent &evt) { // this one works 
+    //m_widget_max_y->Bind(wxEVT_SPINCTRL, [this, settings](wxSpinEvent &evt) { // this one works
     //m_widget_max_y->Bind(wxEVT_SPIN_UP, [this](wxSpinEvent &evt) {
     //        std::cout<<"up";
     //    });
     //m_widget_max_y->Bind(wxEVT_SPIN_DOWN, [this](wxSpinEvent &evt) {
     //        std::cout<<"down";
     //    });
-    
+
     //m_widget_min_y->Bind(wxEVT_TEXT, [this, settings](wxCommandEvent &) {
     //    double precision = 0.000001f;
     //    while(precision < (m_widget_max_y->GetValue() - m_widget_min_y->GetValue())) precision *= 10;
@@ -465,7 +465,7 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
             }
         });
     }
-    
+
     if (!settings.label_max_y.empty()) {
         m_widget_max_y->Bind(wxEVT_TEXT_ENTER, [this, settings](wxCommandEvent &evt) {
             double new_precision = text_enter_event(m_widget_max_y, m_last_max_y, m_last_min_y, m_last_max_y,

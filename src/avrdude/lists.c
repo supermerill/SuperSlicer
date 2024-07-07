@@ -201,7 +201,7 @@ static int cklmagic ( LIST * l )
 |  offset sizeof(NODEPOOL).
  ------------------------------------------------------------*/
 static
-NODEPOOL * 
+NODEPOOL *
 new_nodepool ( LIST * l )
 {
   NODEPOOL * np;
@@ -287,7 +287,7 @@ new_nodepool ( LIST * l )
 |  that fails, NULL is returned.
  ------------------------------------------------------------*/
 static
-LISTNODE * 
+LISTNODE *
 get_listnode ( LIST * l )
 {
   LISTNODE * ln;
@@ -369,7 +369,7 @@ get_listnode ( LIST * l )
 |  freed one.
  ------------------------------------------------------------*/
 static
-int 
+int
 free_listnode ( LIST * l, LISTNODE * ln )
 {
   CKLMAGIC(l);
@@ -393,8 +393,8 @@ free_listnode ( LIST * l, LISTNODE * ln )
 /*----------------------------------------------------------------------
   lcreat
 
-  Create a new list data structure.  
-  
+  Create a new list data structure.
+
   If liststruct is not NULL, it is used to provide the memory space
   for the list structure instance, otherwise, the necessary memory is
   malloc'd.
@@ -476,7 +476,7 @@ lcreat ( void * liststruct, int elements )
 |  call their function to free up each list element
 |  at the same time.
  --------------------------------------------------*/
-void 
+void
 ldestroy_cb ( LISTID lid, void (*ucleanup)(void * data_ptr) )
 {
   LIST * l;
@@ -505,7 +505,7 @@ ldestroy_cb ( LISTID lid, void (*ucleanup)(void * data_ptr) )
 |  assumes that each data element does not need to
 |  be freed.
  --------------------------------------------------*/
-void 
+void
 ldestroy ( LISTID lid )
 {
   LIST * l;
@@ -543,7 +543,7 @@ ldestroy ( LISTID lid )
 |
 |  add list - add item p to the list
  ------------------------------------------------------------*/
-int 
+int
 ladd ( LISTID lid, void * p )
 {
   LIST * l;
@@ -595,9 +595,9 @@ ladd ( LISTID lid, void * p )
 |  else return 1 indicating a duplicate entry, i.e., the
 |  compare function returned 0 while inserting the element.
  ------------------------------------------------------------*/
-int 
-laddo ( LISTID lid, void * p, int (*compare)(const void *p1,const void *p2), 
-	LNODEID * firstdup )
+int
+laddo ( LISTID lid, void * p, int (*compare)(const void *p1,const void *p2),
+    LNODEID * firstdup )
 {
   LIST * l;
   LISTNODE * ln;
@@ -616,7 +616,7 @@ laddo ( LISTID lid, void * p, int (*compare)(const void *p1,const void *p2),
     if (cmp == 0) {
       dup = 1;
       if (firstdup)
-	*firstdup = ln;
+    *firstdup = ln;
     }
     if (cmp < 0) {
       insert_ln(l,ln,p);
@@ -644,7 +644,7 @@ laddo ( LISTID lid, void * p, int (*compare)(const void *p1,const void *p2),
 |  item.  Return 1 if the item was added, 0 if not.
 |
  --------------------------------------------------------------------------*/
-int 
+int
 laddu ( LISTID lid, void * p, int (*compare)(const void *p1,const void *p2) )
 {
   LIST * l;
@@ -684,7 +684,7 @@ laddu ( LISTID lid, void * p, int (*compare)(const void *p1,const void *p2) )
 
 
 
-LNODEID 
+LNODEID
 lfirst ( LISTID lid )
 {
   CKLMAGIC(((LIST *)lid));
@@ -692,7 +692,7 @@ lfirst ( LISTID lid )
 }
 
 
-LNODEID 
+LNODEID
 llast  ( LISTID lid )
 {
   CKLMAGIC(((LIST *)lid));
@@ -700,7 +700,7 @@ llast  ( LISTID lid )
 }
 
 
-LNODEID 
+LNODEID
 lnext  ( LNODEID lnid )
 {
   CKMAGIC(((LISTNODE *)lnid));
@@ -708,7 +708,7 @@ lnext  ( LNODEID lnid )
 }
 
 
-LNODEID 
+LNODEID
 lprev  ( LNODEID lnid )
 {
   CKMAGIC(((LISTNODE *)lnid));
@@ -716,7 +716,7 @@ lprev  ( LNODEID lnid )
 }
 
 
-void * 
+void *
 ldata ( LNODEID lnid )
 {
   CKMAGIC(((LISTNODE *)lnid));
@@ -762,7 +762,7 @@ lcat ( LISTID lid1, LISTID lid2 )
 |  get from list, last item - return pointer to the data of the last
 |  item in the list, non-destructive
  ----------------------------------------------------------------------*/
-void * 
+void *
 lget ( LISTID lid )
 {
   LIST * l;
@@ -789,10 +789,10 @@ lget ( LISTID lid )
 /*---------------------------------------------------------------
 |  lget_n
 |
-|  get from list, index - return the nth list item, 
+|  get from list, index - return the nth list item,
 |  non-destructive
  ---------------------------------------------------------------*/
-void * 
+void *
 lget_n ( LISTID lid, unsigned int n )
 {
   int i;
@@ -865,7 +865,7 @@ lget_ln ( LISTID lid, unsigned int n )
 /*----------------------------------------------------------------------
 |  insert_ln
 |
-|  insert data, listnode - insert data just before the list item 
+|  insert data, listnode - insert data just before the list item
 |  pointed to by 'ln'.
 |
 |  This routine is not intended to be called directly by the user
@@ -873,8 +873,8 @@ lget_ln ( LISTID lid, unsigned int n )
 |  by list manipulation routines within this module, in which ln is
 |  known to point to a valid list node.
  ----------------------------------------------------------------------*/
-static 
-int 
+static
+int
 insert_ln ( LIST * l, LISTNODE * ln, void * data_ptr )
 {
   LISTNODE * lnptr;
@@ -990,7 +990,7 @@ lins_n ( LISTID lid, void * data_ptr, unsigned int n )
 |
 |  Insert data before the list node pointed to by ln.
  -----------------------------------------------------------------*/
-int 
+int
 lins_ln ( LISTID lid, LNODEID lnid, void * data_ptr )
 {
   LIST * l;
@@ -1038,7 +1038,7 @@ lins_ln ( LISTID lid, LNODEID lnid, void * data_ptr )
 |  valid list node.
  ----------------------------------------------------------------------*/
 static
-void * 
+void *
 remove_ln ( LIST * l, LISTNODE * ln )
 {
   void * r;
@@ -1107,7 +1107,7 @@ remove_ln ( LIST * l, LISTNODE * ln )
 |  remove from list, data - removes the data element from the list,
 |  destructive
  -------------------------------------------------------------------------*/
-void * 
+void *
 lrmv_d ( LISTID lid, void * data_ptr )
 {
   LIST * l;
@@ -1144,7 +1144,7 @@ lrmv_d ( LISTID lid, void * data_ptr )
 |  remove from list, by list node - remove the data element pointed to
 |  by 'ln' from the list, destructive
  -------------------------------------------------------------------------*/
-void * 
+void *
 lrmv_ln ( LISTID lid, LNODEID lnid )
 {
   LIST * l;
@@ -1163,7 +1163,7 @@ lrmv_ln ( LISTID lid, LNODEID lnid )
     CKMAGIC(p);
     p = p->next;
   }
-  
+
   if (p==NULL) {
     CKLMAGIC(l);
     return NULL;
@@ -1182,7 +1182,7 @@ lrmv_ln ( LISTID lid, LNODEID lnid )
 |  remove from list, by item number - remove the nth element from
 |  the list.
  ----------------------------------------------------------------------*/
-void * 
+void *
 lrmv_n ( LISTID lid, unsigned int n )
 {
   int i;
@@ -1222,7 +1222,7 @@ lrmv_n ( LISTID lid, unsigned int n )
 |  remove from list, last item - remove the last item from the list,
 |  destructive
  ----------------------------------------------------------------------*/
-void * 
+void *
 lrmv ( LISTID lid )
 {
   LIST * l;
@@ -1252,7 +1252,7 @@ lrmv ( LISTID lid )
 |  search list - return data element pointed to by 'p', NULL if not
 |  found
  ----------------------------------------------------------------------*/
-void * 
+void *
 lsrch ( LISTID lid, void * p, int (* compare)(void * p1, void * p2) )
 {
   LIST * l;
@@ -1326,13 +1326,13 @@ int lprint ( FILE * f, LISTID lid )
 
   l = (LIST *)lid;
 
-  fprintf ( f, "list id %p internal data structures:\n", 
+  fprintf ( f, "list id %p internal data structures:\n",
             lid );
 #if CHECK_MAGIC
   if ((l->magic1 != MAGIC) || (l->magic2 != MAGIC)) {
     fprintf ( f, "  *** WARNING: LIST MAGIC IS CORRUPT ***\n" );
   }
-  fprintf ( f, 
+  fprintf ( f,
             "  magic1=0x%08x\n"
             "  magic2=0x%08x\n",
             l->magic1, l->magic2 );
@@ -1340,12 +1340,12 @@ int lprint ( FILE * f, LISTID lid )
   fprintf ( f, "   num f pool n_ln        top     bottom    next_ln     np_top  np_bottom\n" );
   fprintf ( f, "  ---- - ---- ---- ---------- ---------- ---------- ---------- ----------\n" );
   fprintf ( f, "  %4d %1d %4d %4d %10p %10p %10p %10p %10p\n",
-            l->num, l->free_on_close, l->poolsize, l->n_ln_pool, 
+            l->num, l->free_on_close, l->poolsize, l->n_ln_pool,
             l->top, l->bottom,
             l->next_ln, l->np_top, l->np_bottom );
-  
 
-  fprintf ( f, 
+
+  fprintf ( f,
             "  node pools:\n"
             "     idx         np     magic1       next       prev     magic2\n"
             "    ---- ---------- ---------- ---------- ---------- ----------\n" );
@@ -1353,14 +1353,14 @@ int lprint ( FILE * f, LISTID lid )
   np = l->np_top;
   while (np != NULL) {
     count++;
-    fprintf ( f, "    %4d %10p 0x%08x %10p %10p 0x%08x\n", 
-              count, np, 
+    fprintf ( f, "    %4d %10p 0x%08x %10p %10p 0x%08x\n",
+              count, np,
 #if CHECK_MAGIC
-              np->magic1, 
+              np->magic1,
 #else
               0,
 #endif
-              np->chain_next, np->chain_prev, 
+              np->chain_next, np->chain_prev,
 #if CHECK_MAGIC
               np->magic2
 #else
@@ -1371,7 +1371,7 @@ int lprint ( FILE * f, LISTID lid )
   }
 
   if (f) {
-    fprintf ( f, 
+    fprintf ( f,
               "  list elements:\n"
               "       n         ln     magic1       next       prev       data     magic2\n"
               "    ---- ---------- ---------- ---------- ---------- ---------- ----------\n" );
@@ -1379,14 +1379,14 @@ int lprint ( FILE * f, LISTID lid )
     ln = l->top;
     while (ln != NULL) {
       count++;
-      fprintf ( f, "    %4d %10p %10x %10p %10p %10p %10x\n", 
-                count, ln, 
+      fprintf ( f, "    %4d %10p %10x %10p %10p %10p %10x\n",
+                count, ln,
 #if CHECK_MAGIC
                 ln->magic1,
 #else
                 0,
 #endif
-                ln->next, ln->prev, ln->data, 
+                ln->next, ln->prev, ln->data,
 #if CHECK_MAGIC
                 ln->magic2
 #else
@@ -1396,9 +1396,9 @@ int lprint ( FILE * f, LISTID lid )
       ln = lnext(ln);
     }
     if (count != l->num) {
-      fprintf ( f, 
+      fprintf ( f,
                 "  *** list count is not correct\n"
-                "  *** list id indicates %d, counted items = %d\n", 
+                "  *** list id indicates %d, counted items = %d\n",
                 l->num, count );
     }
   }

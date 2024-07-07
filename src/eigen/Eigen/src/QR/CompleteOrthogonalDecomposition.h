@@ -41,7 +41,7 @@ struct traits<CompleteOrthogonalDecomposition<_MatrixType> >
   * size rank-by-rank. \b A may be rank deficient.
   *
   * This class supports the \link InplaceDecomposition inplace decomposition \endlink mechanism.
-  * 
+  *
   * \sa MatrixBase::completeOrthogonalDecomposition()
   */
 template <typename _MatrixType>

@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "prepare_lhs.h"
 #include <algorithm>
@@ -17,7 +17,7 @@ IGL_INLINE void igl::matlab::prepare_lhs_double(
   const int m = V.rows();
   const int n = V.cols();
   plhs[0] = mxCreateDoubleMatrix(m,n, mxREAL);
-  Eigen::Map< Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> > 
+  Eigen::Map< Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> >
     map(mxGetPr(plhs[0]),m,n);
   map = V.template cast<double>();
 }
@@ -33,7 +33,7 @@ IGL_INLINE void igl::matlab::prepare_lhs_logical(
   const int n = V.cols();
   plhs[0] = mxCreateLogicalMatrix(m,n);
   mxLogical * Vp = static_cast<mxLogical*>(mxGetData(plhs[0]));
-  Eigen::Map< Eigen::Matrix<mxLogical,Eigen::Dynamic,Eigen::Dynamic> > 
+  Eigen::Map< Eigen::Matrix<mxLogical,Eigen::Dynamic,Eigen::Dynamic> >
     map(static_cast<mxLogical*>(mxGetData(plhs[0])),m,n);
   map = V.template cast<mxLogical>();
 }

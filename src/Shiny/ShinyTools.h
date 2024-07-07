@@ -34,9 +34,9 @@ extern "C" {
 /*---------------------------------------------------------------------------*/
 
 typedef struct {
-	float tickFreq;
-	float invTickFreq;
-	const char* suffix;
+    float tickFreq;
+    float invTickFreq;
+    const char* suffix;
 } ShinyTimeUnit;
 
 

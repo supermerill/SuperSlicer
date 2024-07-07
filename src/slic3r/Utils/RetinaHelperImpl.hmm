@@ -4,8 +4,8 @@ class wxEvtHandler;
 
 @interface RetinaHelperImpl : NSObject
 {
-	NSView *view;
-	wxEvtHandler* handler;
+    NSView *view;
+    wxEvtHandler* handler;
 }
 
 -(id)initWithView:(NSView *)view handler:(wxEvtHandler *)handler;

@@ -27,14 +27,14 @@
    the <termios.h> already included by Boost.ASIO. */
 #define K_NCCS 19
 struct termios2 {
-	tcflag_t c_iflag;
-	tcflag_t c_oflag;
-	tcflag_t c_cflag;
-	tcflag_t c_lflag;
-	cc_t c_line;
-	cc_t c_cc[K_NCCS];
-	speed_t c_ispeed;
-	speed_t c_ospeed;
+    tcflag_t c_iflag;
+    tcflag_t c_oflag;
+    tcflag_t c_cflag;
+    tcflag_t c_lflag;
+    cc_t c_line;
+    cc_t c_cc[K_NCCS];
+    speed_t c_ispeed;
+    speed_t c_ospeed;
 };
 #define BOTHER CBAUDEX
 
@@ -69,21 +69,21 @@ bool
 GCodeSender::connect(std::string devname, unsigned int baud_rate)
 {
     this->disconnect();
-    
+
     this->set_error_status(false);
     try {
         this->serial.open(devname);
-        
+
         this->serial.set_option(boost::asio::serial_port_base::parity(boost::asio::serial_port_base::parity::odd));
         this->serial.set_option(boost::asio::serial_port_base::character_size(boost::asio::serial_port_base::character_size(8)));
         this->serial.set_option(boost::asio::serial_port_base::flow_control(boost::asio::serial_port_base::flow_control::none));
         this->serial.set_option(boost::asio::serial_port_base::stop_bits(boost::asio::serial_port_base::stop_bits::one));
         this->set_baud_rate(baud_rate);
-    
+
         this->serial.close();
         this->serial.open(devname);
         this->serial.set_option(boost::asio::serial_port_base::parity(boost::asio::serial_port_base::parity::none));
-    
+
         // set baud rate again because set_option overwrote it
         this->set_baud_rate(baud_rate);
         this->open = true;
@@ -92,7 +92,7 @@ GCodeSender::connect(std::string devname, unsigned int baud_rate)
         this->set_error_status(true);
         return false;
     }
-    
+
     // a reset firmware expect line numbers to start again from 1
     this->sent = 0;
     this->last_sent.clear();
@@ -101,20 +101,20 @@ GCodeSender::connect(std::string devname, unsigned int baud_rate)
 #ifdef DEBUG_SERIAL
     fs.open("serial.txt", std::fstream::out | std::fstream::trunc);
 #endif
-    
+
     // this gives some work to the io_service before it is started
     // (post() runs the supplied function in its thread)
     this->io.post(boost::bind(&GCodeSender::do_read, this));
-    
+
     // start reading in the background thread
     boost::thread t(boost::bind(&boost::asio::io_service::run, &this->io));
     this->background_thread.swap(t);
-    
+
     // always send a M105 to check for connection because firmware might be silent on connect
     //FIXME Vojtech: This is being sent too early, leading to line number synchronization issues,
     // from which the GCodeSender never recovers.
     // this->send("M105", true);
-    
+
     return true;
 }
 
@@ -145,13 +145,13 @@ GCodeSender::set_baud_rate(unsigned int baud_rate)
         ios.c_cc[VTIME] = 1;
         if (ioctl(handle, TCSETS2, &ios))
             printf("Error in TCSETS2: %s\n", strerror(errno));
-		
+
 #elif __OpenBSD__
-		struct termios ios;
-		::tcgetattr(handle, &ios);
-		::cfsetspeed(&ios, baud_rate);
-		if (::tcsetattr(handle, TCSAFLUSH, &ios) != 0)
-			printf("Failed to set baud rate: %s\n", strerror(errno));
+        struct termios ios;
+        ::tcgetattr(handle, &ios);
+        ::cfsetspeed(&ios, baud_rate);
+        if (::tcsetattr(handle, TCSAFLUSH, &ios) != 0)
+            printf("Failed to set baud rate: %s\n", strerror(errno));
 #else
         //throw Slic3r::InvalidArgument("OS does not currently support custom bauds");
 #endif
@@ -173,7 +173,7 @@ GCodeSender::disconnect()
             "Error while closing the device"));
     }
     */
-    
+
 #ifdef DEBUG_SERIAL
     fs << "DISCONNECTED" << std::endl << std::flush;
     fs.close();
@@ -321,7 +321,7 @@ GCodeSender::on_read(const boost::system::error_code& error,
             return;
         }
         #endif
-    
+
         // printf("ERROR: [%d] %s\n", error.value(), error.message().c_str());
         // error can be true even because the serial port was closed.
         // In this case it is not a real error, so ignore.
@@ -331,7 +331,7 @@ GCodeSender::on_read(const boost::system::error_code& error,
         }
         return;
     }
-    
+
     std::istream is(&this->read_buffer);
     std::string line;
     std::getline(is, line);
@@ -339,7 +339,7 @@ GCodeSender::on_read(const boost::system::error_code& error,
 #ifdef DEBUG_SERIAL
     fs << "<< " << line << std::endl << std::flush;
 #endif
-        
+
         // note that line might contain \r at its end
         // parse incoming line
         if (!this->connected
@@ -364,7 +364,7 @@ GCodeSender::on_read(const boost::system::error_code& error,
             // extract the first number from line
             boost::algorithm::trim_left_if(line, !boost::algorithm::is_digit());
             size_t toresend = boost::lexical_cast<size_t>(line.substr(0, line.find_first_not_of("0123456789")));
-            
+
 #ifdef DEBUG_SERIAL
             fs << "!! line num out of sync: toresend = " << toresend << ", sent = " << sent << ", last_sent.size = " << last_sent.size() << std::endl;
 #endif
@@ -372,7 +372,7 @@ GCodeSender::on_read(const boost::system::error_code& error,
             if (toresend > this->sent - this->last_sent.size() && toresend <= this->sent) {
                 {
                     boost::lock_guard<boost::mutex> l(this->queue_mutex);
-                    
+
                     const auto lines_to_resend = this->sent - toresend + 1;
 #ifdef DEBUG_SERIAL
             fs << "!! resending " << lines_to_resend << " lines" << std::endl;
@@ -383,10 +383,10 @@ GCodeSender::on_read(const boost::system::error_code& error,
                         this->last_sent.begin() + this->last_sent.size() - lines_to_resend,
                         this->last_sent.end()
                     );
-                    
+
                     // we can empty last_sent because it's not useful anymore
                     this->last_sent.clear();
-                    
+
                     // start resending with the requested line number
                     this->sent = toresend - 1;
                     this->can_send = true;
@@ -402,7 +402,7 @@ GCodeSender::on_read(const boost::system::error_code& error,
             boost::lock_guard<boost::mutex> l(this->log_mutex);
             this->log.push(line);
         }
-    
+
         // parse temperature info
         {
             size_t pos = line.find("T:");
@@ -410,7 +410,7 @@ GCodeSender::on_read(const boost::system::error_code& error,
                 // we got temperature info
                 boost::lock_guard<boost::mutex> l(this->log_mutex);
                 this->T = line.substr(pos+2, line.find_first_not_of("0123456789.", pos+2) - (pos+2));
-        
+
                 pos = line.find("B:");
                 if (pos != std::string::npos && line.size() > pos + 2) {
                     // we got bed temperature info
@@ -464,10 +464,10 @@ void
 GCodeSender::do_send()
 {
     boost::lock_guard<boost::mutex> l(this->queue_mutex);
-    
+
     // printer is not connected or we're still waiting for the previous ack
     if (!this->can_send) return;
-    
+
     std::string line;
     while (!this->priqueue.empty() || (!this->queue.empty() && !this->queue_paused)) {
         if (!this->priqueue.empty()) {
@@ -477,19 +477,19 @@ GCodeSender::do_send()
             line = this->queue.front();
             this->queue.pop();
         }
-        
+
         // strip comments
         size_t comment_pos = line.find_first_of(';');
         if (comment_pos != std::string::npos)
             line.erase(comment_pos, std::string::npos);
         boost::algorithm::trim(line);
-        
+
         // if line is not empty, send it
         if (!line.empty()) break;
         // if line is empty, process next item in queue
     }
     if (line.empty()) return;
-    
+
     // compute full line
     ++ this->sent;
 #ifndef DEBUG_SERIAL
@@ -499,28 +499,28 @@ GCodeSender::do_send()
     const auto line_num = std::rand() < RAND_MAX/4 ? 0 : this->sent;
 #endif
     std::string full_line = "N" + boost::lexical_cast<std::string>(line_num) + " " + line;
-    
+
     // calculate checksum
     int cs = 0;
     for (std::string::const_iterator it = full_line.begin(); it != full_line.end(); ++it)
        cs = cs ^ *it;
-    
+
     // write line to device
     full_line += "*";
     full_line += boost::lexical_cast<std::string>(cs);
     full_line += "\n";
-    
+
 #ifdef DEBUG_SERIAL
     fs << ">> " << full_line << std::flush;
 #endif
-    
+
     this->last_sent.push_back(line);
     this->can_send = false;
-    
+
     while (this->last_sent.size() > KEEP_SENT) {
         this->last_sent.pop_front();
     }
-    
+
     // we can't supply boost::asio::buffer(full_line) to async_write() because full_line is on the
     // stack and the buffer would lose its underlying storage causing memory corruption
     std::ostream os(&this->write_buffer);
@@ -541,7 +541,7 @@ GCodeSender::on_write(const boost::system::error_code& error,
         }
         return;
     }
-    
+
     this->do_send();
 }
 

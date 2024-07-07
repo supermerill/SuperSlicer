@@ -182,7 +182,7 @@ indexed_triangle_set DrainHole::to_mesh() const
     Eigen::Quaternionf q;
     q.setFromTwoVectors(Vec3f{0.f, 0.f, 1.f}, normal);
     for(auto& p : hole.vertices) p = q * p + pos;
-    
+
     return hole;
 }
 
@@ -313,17 +313,17 @@ void cut_drainholes(std::vector<ExPolygons> & obj_slices,
     TriangleMesh mesh;
     for (const sla::DrainHole &holept : holes)
         mesh.merge(TriangleMesh{holept.to_mesh()});
-    
+
     if (mesh.empty()) return;
-    
+
     std::vector<ExPolygons> hole_slices = slice_mesh_ex(mesh.its, slicegrid, closing_radius, thr);
-    
+
     if (obj_slices.size() != hole_slices.size())
         BOOST_LOG_TRIVIAL(warning)
             << "Sliced object and drain-holes layer count does not match!";
 
     size_t until = std::min(obj_slices.size(), hole_slices.size());
-    
+
     for (size_t i = 0; i < until; ++i)
         obj_slices[i] = diff_ex(obj_slices[i], hole_slices[i]);
 }

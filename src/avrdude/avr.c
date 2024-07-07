@@ -54,7 +54,7 @@ int avr_tpi_poll_nvmbsy(PROGRAMMER *pgm)
 /* TPI chip erase sequence */
 int avr_tpi_chip_erase(PROGRAMMER * pgm, AVRPART * p)
 {
-	int err;
+    int err;
   AVRMEM *mem;
 
   if (p->flags & AVRPART_HAS_TPI) {
@@ -68,28 +68,28 @@ int avr_tpi_chip_erase(PROGRAMMER * pgm, AVRPART * p)
       return -1;
     }
 
-		unsigned char cmd[] = {
-			/* write pointer register high byte */
-			(TPI_CMD_SSTPR | 0),
-			((mem->offset & 0xFF) | 1),
-			/* and low byte */
-			(TPI_CMD_SSTPR | 1),
-			((mem->offset >> 8) & 0xFF),
-	    /* write CHIP_ERASE command to NVMCMD register */
-			(TPI_CMD_SOUT | TPI_SIO_ADDR(TPI_IOREG_NVMCMD)),
-			TPI_NVMCMD_CHIP_ERASE,
-			/* write dummy value to start erase */
-			TPI_CMD_SST,
-			0xFF
-		};
+        unsigned char cmd[] = {
+            /* write pointer register high byte */
+            (TPI_CMD_SSTPR | 0),
+            ((mem->offset & 0xFF) | 1),
+            /* and low byte */
+            (TPI_CMD_SSTPR | 1),
+            ((mem->offset >> 8) & 0xFF),
+        /* write CHIP_ERASE command to NVMCMD register */
+            (TPI_CMD_SOUT | TPI_SIO_ADDR(TPI_IOREG_NVMCMD)),
+            TPI_NVMCMD_CHIP_ERASE,
+            /* write dummy value to start erase */
+            TPI_CMD_SST,
+            0xFF
+        };
 
     while (avr_tpi_poll_nvmbsy(pgm)){
-      
+
     };
 
-		err = pgm->cmd_tpi(pgm, cmd, sizeof(cmd), NULL, 0);
-		if(err)
-			return err;
+        err = pgm->cmd_tpi(pgm, cmd, sizeof(cmd), NULL, 0);
+        if(err)
+            return err;
 
     while (avr_tpi_poll_nvmbsy(pgm));
 
@@ -97,64 +97,64 @@ int avr_tpi_chip_erase(PROGRAMMER * pgm, AVRPART * p)
 
     return 0;
   } else {
-		avrdude_message(MSG_INFO, "%s called for a part that has no TPI\n", __func__);
-		return -1;
-	}
+        avrdude_message(MSG_INFO, "%s called for a part that has no TPI\n", __func__);
+        return -1;
+    }
 }
 
 /* TPI program enable sequence */
 int avr_tpi_program_enable(PROGRAMMER * pgm, AVRPART * p, unsigned char guard_time)
 {
-	int err, retry;
-	unsigned char cmd[2];
-	unsigned char response;
+    int err, retry;
+    unsigned char cmd[2];
+    unsigned char response;
 
-	if(p->flags & AVRPART_HAS_TPI) {
-		/* set guard time */
-		cmd[0] = (TPI_CMD_SSTCS | TPI_REG_TPIPCR);
-		cmd[1] = guard_time;
+    if(p->flags & AVRPART_HAS_TPI) {
+        /* set guard time */
+        cmd[0] = (TPI_CMD_SSTCS | TPI_REG_TPIPCR);
+        cmd[1] = guard_time;
 
-		err = pgm->cmd_tpi(pgm, cmd, sizeof(cmd), NULL, 0);
+        err = pgm->cmd_tpi(pgm, cmd, sizeof(cmd), NULL, 0);
     if(err)
-			return err;
+            return err;
 
-		/* read TPI ident reg */
+        /* read TPI ident reg */
     cmd[0] = (TPI_CMD_SLDCS | TPI_REG_TPIIR);
-		err = pgm->cmd_tpi(pgm, cmd, 1, &response, sizeof(response));
+        err = pgm->cmd_tpi(pgm, cmd, 1, &response, sizeof(response));
     if (err || response != TPI_IDENT_CODE) {
       avrdude_message(MSG_INFO, "TPIIR not correct\n");
       return -1;
     }
 
-		/* send SKEY command + SKEY */
-		err = pgm->cmd_tpi(pgm, tpi_skey_cmd, sizeof(tpi_skey_cmd), NULL, 0);
-		if(err)
-			return err;
+        /* send SKEY command + SKEY */
+        err = pgm->cmd_tpi(pgm, tpi_skey_cmd, sizeof(tpi_skey_cmd), NULL, 0);
+        if(err)
+            return err;
 
-		/* check if device is ready */
-		for(retry = 0; retry < 10; retry++)
-		{
-			cmd[0] =  (TPI_CMD_SLDCS | TPI_REG_TPISR);
-			err = pgm->cmd_tpi(pgm, cmd, 1, &response, sizeof(response));
-			if(err || !(response & TPI_REG_TPISR_NVMEN))
-				continue;
+        /* check if device is ready */
+        for(retry = 0; retry < 10; retry++)
+        {
+            cmd[0] =  (TPI_CMD_SLDCS | TPI_REG_TPISR);
+            err = pgm->cmd_tpi(pgm, cmd, 1, &response, sizeof(response));
+            if(err || !(response & TPI_REG_TPISR_NVMEN))
+                continue;
 
-			return 0;
-		}
+            return 0;
+        }
 
-		avrdude_message(MSG_INFO, "Error enabling TPI external programming mode:");
-		avrdude_message(MSG_INFO, "Target does not reply\n");
-		return -1;
+        avrdude_message(MSG_INFO, "Error enabling TPI external programming mode:");
+        avrdude_message(MSG_INFO, "Target does not reply\n");
+        return -1;
 
-	} else {
-		avrdude_message(MSG_INFO, "%s called for a part that has no TPI\n", __func__);
-		return -1;
-	}
+    } else {
+        avrdude_message(MSG_INFO, "%s called for a part that has no TPI\n", __func__);
+        return -1;
+    }
 }
 
 /* TPI: setup NVMCMD register and pointer register (PR) for read/write/erase */
 static int avr_tpi_setup_rw(PROGRAMMER * pgm, AVRMEM * mem,
-			    unsigned long addr, unsigned char nvmcmd)
+                unsigned long addr, unsigned char nvmcmd)
 {
   unsigned char cmd[4];
   int rc;
@@ -182,7 +182,7 @@ static int avr_tpi_setup_rw(PROGRAMMER * pgm, AVRMEM * mem,
   return 0;
 }
 
-int avr_read_byte_default(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem, 
+int avr_read_byte_default(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
                           unsigned long addr, unsigned char * value)
 {
   unsigned char cmd[4];
@@ -216,7 +216,7 @@ int avr_read_byte_default(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
     /* load byte */
     cmd[0] = TPI_CMD_SLD;
     r = pgm->cmd_tpi(pgm, cmd, 1, value, 1);
-    if (r == -1) 
+    if (r == -1)
       return -1;
 
     return 0;
@@ -309,7 +309,7 @@ int avr_mem_hiaddr(AVRMEM * mem)
  * If v is non-NULL, verify against v's memory area, only
  * those cells that are tagged TAG_ALLOCATED are verified.
  *
- * Return the number of bytes read, or < 0 if an error occurs.  
+ * Return the number of bytes read, or < 0 if an error occurs.
  */
 int avr_read(PROGRAMMER * pgm, AVRPART * p, char * memtype,
              AVRPART * v)
@@ -442,15 +442,15 @@ int avr_read(PROGRAMMER * pgm, AVRPART * p, char * memtype,
   for (i = 0; i < (unsigned)mem->size; i++) {
     RETURN_IF_CANCEL();
     if (vmem == NULL ||
-	(vmem->tags[i] & TAG_ALLOCATED) != 0)
+    (vmem->tags[i] & TAG_ALLOCATED) != 0)
     {
       rc = pgm->read_byte(pgm, p, mem, i, mem->buf + i);
       if (rc != 0) {
-	avrdude_message(MSG_INFO, "avr_read(): error reading address 0x%04lx\n", i);
-	if (rc == -1)
-	  avrdude_message(MSG_INFO, "    read operation not supported for memory \"%s\"\n",
+    avrdude_message(MSG_INFO, "avr_read(): error reading address 0x%04lx\n", i);
+    if (rc == -1)
+      avrdude_message(MSG_INFO, "    read operation not supported for memory \"%s\"\n",
                           memtype);
-	return -2;
+    return -2;
       }
     }
     report_progress(i, mem->size, NULL);
@@ -469,7 +469,7 @@ int avr_read(PROGRAMMER * pgm, AVRPART * p, char * memtype,
 /*
  * write a page data at the specified address
  */
-int avr_write_page(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem, 
+int avr_write_page(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
                    unsigned long addr)
 {
   unsigned char cmd[4];
@@ -601,7 +601,7 @@ int avr_write_byte_default(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
 
   if (!mem->paged &&
       (p->flags & AVRPART_IS_AT90S1200) == 0) {
-    /* 
+    /*
      * check to see if the write is necessary by reading the existing
      * value and only write if we are changing the value; we can't
      * use this optimization for paged addressing.
@@ -682,7 +682,7 @@ int avr_write_byte_default(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
   if (readok == 0) {
     /*
      * read operation not supported for this memory type, just wait
-     * the max programming time and then return 
+     * the max programming time and then return
      */
     usleep(mem->max_write_delay); /* maximum write delay */
     pgm->pgm_led(pgm, OFF);
@@ -695,7 +695,7 @@ int avr_write_byte_default(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
 
     if ((data == mem->readback[0]) ||
         (data == mem->readback[1])) {
-      /* 
+      /*
        * use an extra long delay when we happen to be writing values
        * used for polled data read-back.  In this case, polling
        * doesn't work, and we need to delay the worst case write time
@@ -715,7 +715,7 @@ int avr_write_byte_default(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
       do {
         /*
          * Do polling, but timeout after max_write_delay.
-	 */
+     */
         rc = pgm->read_byte(pgm, p, mem, addr, &r);
         if (rc != 0) {
           pgm->pgm_led(pgm, OFF);
@@ -732,7 +732,7 @@ int avr_write_byte_default(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
      * At this point we either have a valid readback or the
      * max_write_delay is expired.
      */
-    
+
     if (r == data) {
       ready = 1;
     }
@@ -761,7 +761,7 @@ int avr_write_byte_default(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
                           progname, progname, progname);
           return -3;
         }
-        
+
         avrdude_message(MSG_INFO, "%s: device was successfully re-initialized\n",
                 progname);
         return 0;
@@ -777,7 +777,7 @@ int avr_write_byte_default(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
        */
       pgm->pgm_led(pgm, OFF);
       pgm->err_led(pgm, ON);
-      
+
       return -6;
     }
   }
@@ -814,7 +814,7 @@ int avr_write_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
   if (strcmp(mem->desc, "efuse")==0) {
       safemode_efuse = data;
   }
-  
+
   safemode_memfuses(1, &safemode_lfuse, &safemode_hfuse, &safemode_efuse, &safemode_fuse);
 
   return pgm->write_byte(pgm, p, mem, addr, data);
@@ -830,7 +830,7 @@ int avr_write_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
  *
  * Return the number of bytes written, or -1 if an error occurs.
  */
-int avr_write(PROGRAMMER * pgm, AVRPART * p, char * memtype, int size, 
+int avr_write(PROGRAMMER * pgm, AVRPART * p, char * memtype, int size,
               int auto_erase)
 {
   int              rc;

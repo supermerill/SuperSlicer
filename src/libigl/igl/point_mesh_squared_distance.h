@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2014 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_POINT_MESH_SQUARED_DISTANCE_H
 #define IGL_POINT_MESH_SQUARED_DISTANCE_H
@@ -39,7 +39,7 @@ namespace igl
   IGL_INLINE void point_mesh_squared_distance(
     const Eigen::PlainObjectBase<DerivedP> & P,
     const Eigen::PlainObjectBase<DerivedV> & V,
-    const Eigen::MatrixXi & Ele, 
+    const Eigen::MatrixXi & Ele,
     Eigen::PlainObjectBase<DerivedsqrD> & sqrD,
     Eigen::PlainObjectBase<DerivedI> & I,
     Eigen::PlainObjectBase<DerivedC> & C);

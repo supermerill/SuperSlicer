@@ -67,7 +67,7 @@ void CalibrationCubeDialog::create_geometry(std::string calibration_path) {
 
     assert(objs_idx.size() == 1);
     const DynamicPrintConfig* printerConfig = this->gui_app->get_tab(Preset::TYPE_PRINTER)->get_config();
-    
+
     /// --- scale ---
     //model is created for a 0.4 nozzle, scale xy with nozzle size.
    assert(nozzle_diameter_config->size() > 0);

@@ -30,7 +30,7 @@ int  jtagmkII_recv(PROGRAMMER * pgm, unsigned char **msg);
 void jtagmkII_close(PROGRAMMER * pgm);
 int  jtagmkII_getsync(PROGRAMMER * pgm, int mode);
 int  jtagmkII_getparm(PROGRAMMER * pgm, unsigned char parm,
-		      unsigned char * value);
+              unsigned char * value);
 
 extern const char jtagmkII_desc[];
 extern const char jtagmkII_avr32_desc[];

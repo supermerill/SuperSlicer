@@ -1,6 +1,6 @@
 // This file is part of libigl, a simple c++ geometry processing library.
 //
-// Copyright (C) 2016 Alec Jacobson, Daniele Panozzo, Olga Diamanti 
+// Copyright (C) 2016 Alec Jacobson, Daniele Panozzo, Olga Diamanti
 //
 // This Source Code Form is subject to the terms of the Mozilla Public License
 // v. 2.0. If a copy of the MPL was not distributed with this file, You can
@@ -11,7 +11,7 @@
 
 #include <Eigen/Core>
 
-namespace igl 
+namespace igl
 {
   // Given 2 vectors centered on origin calculate the rotation matrix from
   // first to the second

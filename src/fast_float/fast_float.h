@@ -19,11 +19,11 @@
 // the Software, and to permit persons to whom the Software
 // is furnished to do so, subject to the following
 // conditions:
-// 
+//
 // The above copyright notice and this permission notice
 // shall be included in all copies or substantial portions
 // of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
 // ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
 // TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
@@ -1508,9 +1508,9 @@ namespace detail {
  * where
  *   p = log(5**q)/log(2) = q * log(5)/log(2)
  *
- * For negative values of q in (-400,0), we have that 
+ * For negative values of q in (-400,0), we have that
  *  f = (((152170 + 65536) * q ) >> 16);
- * is equal to 
+ * is equal to
  *   -ceil(p) + q
  * where
  *   p = log(5**-q)/log(2) = -q * log(5)/log(2)
@@ -1558,7 +1558,7 @@ adjusted_mantissa compute_float(int64_t q, uint64_t w)  noexcept  {
     // In some very rare cases, this could happen, in which case we might need a more accurate
     // computation that what we can provide cheaply. This is very, very unlikely.
     //
-    const bool inside_safe_exponent = (q >= -27) && (q <= 55); // always good because 5**q <2**128 when q>=0, 
+    const bool inside_safe_exponent = (q >= -27) && (q <= 55); // always good because 5**q <2**128 when q>=0,
     // and otherwise, for q<0, we have 5**-q<2**64 and the 128-bit reciprocal allows for exact computation.
     if(!inside_safe_exponent) {
       answer.power2 = -1; // This (a negative value) indicates an error condition.
@@ -2093,7 +2093,7 @@ inline uint64_t round(decimal &h) {
   }
   bool round_up = false;
   if (dp < h.num_digits) {
-    round_up = h.digits[dp] >= 5; // normally, we round up  
+    round_up = h.digits[dp] >= 5; // normally, we round up
     // but we may need to round to even!
     if ((h.digits[dp] == 5) && (dp + 1 == h.num_digits)) {
       round_up = h.truncated || ((dp > 0) && (1 & h.digits[dp - 1]));
@@ -2222,7 +2222,7 @@ adjusted_mantissa compute_float(decimal &d) {
     return answer;
   } else if(d.decimal_point >= 310) {
     // We have something at least as large as 0.1e310 which is
-    // always infinite.  
+    // always infinite.
     answer.power2 = binary::infinite_power();
     answer.mantissa = 0;
     return answer;

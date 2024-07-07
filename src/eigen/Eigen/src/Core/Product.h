@@ -23,25 +23,25 @@ struct traits<Product<Lhs, Rhs, Option> >
   typedef typename remove_all<Rhs>::type RhsCleaned;
   typedef traits<LhsCleaned> LhsTraits;
   typedef traits<RhsCleaned> RhsTraits;
-  
+
   typedef MatrixXpr XprKind;
-  
+
   typedef typename ScalarBinaryOpTraits<typename traits<LhsCleaned>::Scalar, typename traits<RhsCleaned>::Scalar>::ReturnType Scalar;
   typedef typename product_promote_storage_type<typename LhsTraits::StorageKind,
                                                 typename RhsTraits::StorageKind,
                                                 internal::product_type<Lhs,Rhs>::ret>::ret StorageKind;
   typedef typename promote_index_type<typename LhsTraits::StorageIndex,
                                       typename RhsTraits::StorageIndex>::type StorageIndex;
-  
+
   enum {
     RowsAtCompileTime    = LhsTraits::RowsAtCompileTime,
     ColsAtCompileTime    = RhsTraits::ColsAtCompileTime,
     MaxRowsAtCompileTime = LhsTraits::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = RhsTraits::MaxColsAtCompileTime,
-    
+
     // FIXME: only needed by GeneralMatrixMatrixTriangular
     InnerSize = EIGEN_SIZE_MIN_PREFER_FIXED(LhsTraits::ColsAtCompileTime, RhsTraits::RowsAtCompileTime),
-    
+
     // The storage order is somewhat arbitrary here. The correct one will be determined through the evaluator.
     Flags = (MaxRowsAtCompileTime==1 && MaxColsAtCompileTime!=1) ? RowMajorBit
           : (MaxColsAtCompileTime==1 && MaxRowsAtCompileTime!=1) ? 0
@@ -74,10 +74,10 @@ class Product : public ProductImpl<_Lhs,_Rhs,Option,
                                                                                    internal::product_type<_Lhs,_Rhs>::ret>::ret>
 {
   public:
-    
+
     typedef _Lhs Lhs;
     typedef _Rhs Rhs;
-    
+
     typedef typename ProductImpl<
         Lhs, Rhs, Option,
         typename internal::product_promote_storage_type<typename internal::traits<Lhs>::StorageKind,
@@ -110,7 +110,7 @@ class Product : public ProductImpl<_Lhs,_Rhs,Option,
 };
 
 namespace internal {
-  
+
 template<typename Lhs, typename Rhs, int Option, int ProductTag = internal::product_type<Lhs,Rhs>::ret>
 class dense_product_base
  : public internal::dense_xpr_base<Product<Lhs,Rhs,Option> >::type
@@ -126,7 +126,7 @@ class dense_product_base<Lhs, Rhs, Option, InnerProduct>
 public:
   using Base::derived;
   typedef typename Base::Scalar Scalar;
-  
+
   EIGEN_STRONG_INLINE operator const Scalar() const
   {
     return internal::evaluator<ProductXpr>(derived()).coeff(0,0);
@@ -148,25 +148,25 @@ class ProductImpl<Lhs,Rhs,Option,Dense>
   : public internal::dense_product_base<Lhs,Rhs,Option>
 {
     typedef Product<Lhs, Rhs, Option> Derived;
-    
+
   public:
-    
+
     typedef typename internal::dense_product_base<Lhs, Rhs, Option> Base;
     EIGEN_DENSE_PUBLIC_INTERFACE(Derived)
   protected:
     enum {
-      IsOneByOne = (RowsAtCompileTime == 1 || RowsAtCompileTime == Dynamic) && 
+      IsOneByOne = (RowsAtCompileTime == 1 || RowsAtCompileTime == Dynamic) &&
                    (ColsAtCompileTime == 1 || ColsAtCompileTime == Dynamic),
       EnableCoeff = IsOneByOne || Option==LazyProduct
     };
-    
+
   public:
-  
+
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index row, Index col) const
     {
       EIGEN_STATIC_ASSERT(EnableCoeff, THIS_METHOD_IS_ONLY_FOR_INNER_OR_LAZY_PRODUCTS);
       eigen_assert( (Option==LazyProduct) || (this->rows() == 1 && this->cols() == 1) );
-      
+
       return internal::evaluator<Derived>(derived()).coeff(row,col);
     }
 
@@ -174,11 +174,11 @@ class ProductImpl<Lhs,Rhs,Option,Dense>
     {
       EIGEN_STATIC_ASSERT(EnableCoeff, THIS_METHOD_IS_ONLY_FOR_INNER_OR_LAZY_PRODUCTS);
       eigen_assert( (Option==LazyProduct) || (this->rows() == 1 && this->cols() == 1) );
-      
+
       return internal::evaluator<Derived>(derived()).coeff(i);
     }
-    
-  
+
+
 };
 
 } // end namespace Eigen

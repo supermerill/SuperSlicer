@@ -9,10 +9,10 @@
 #include "MainFrame.hpp"
 #include "wxExtensions.hpp"
 
-namespace Slic3r { 
+namespace Slic3r {
 namespace GUI {
 
-static wxString format_reason(const Config::Snapshot::Reason reason) 
+static wxString format_reason(const Config::Snapshot::Reason reason)
 {
     switch (reason) {
     case Config::Snapshot::SNAPSHOT_UPGRADE:
@@ -29,7 +29,7 @@ static wxString format_reason(const Config::Snapshot::Reason reason)
     }
 }
 
-static std::string get_color(wxColour colour) 
+static std::string get_color(wxColour colour)
 {
     wxString clr_str = wxString::Format(wxT("#%02X%02X%02X"), colour.Red(), colour.Green(), colour.Blue());
     return clr_str.ToStdString();
@@ -37,22 +37,22 @@ static std::string get_color(wxColour colour)
 
 
 static wxString generate_html_row(const Config::Snapshot &snapshot, bool row_even, bool snapshot_active, bool dark_mode)
-{    
+{
     // Start by declaring a row with an alternating background color.
     wxString text = "<tr bgcolor=\"";
-    text += snapshot_active ? 
-            dark_mode ? "#208a20"  : "#B3FFCB" : 
+    text += snapshot_active ?
+            dark_mode ? "#208a20"  : "#B3FFCB" :
             (row_even ? get_color(wxGetApp().get_window_default_clr()/*wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW)*/) : dark_mode ? "#656565" : "#D5D5D5" );
     text += "\">";
     text += "<td>";
-    
+
     static const constexpr char *LOCALE_TIME_FMT = "%x %X";
     wxString datetime = wxDateTime(snapshot.time_captured).Format(LOCALE_TIME_FMT);
-    
+
     // Format the row header.
     text += wxString("<font size=\"5\"><b>") + (snapshot_active ? _(L("Active")) + ": " : "") +
             datetime + ": " + format_reason(snapshot.reason);
-    
+
     if (! snapshot.comment.empty())
         text += " (" + wxString::FromUTF8(snapshot.comment.data()) + ")";
     text += "</b></font><br>";
@@ -72,8 +72,8 @@ static wxString generate_html_row(const Config::Snapshot &snapshot, bool row_eve
 
     bool compatible = true;
     for (const Config::Snapshot::VendorConfig &vc : snapshot.vendor_configs) {
-        text += _L("vendor") + ": " + vc.name +", " + _L("version") + ": " + vc.version.config_version.to_string() + 
-				", " + wxString::Format(_L("min %s version"), SLIC3R_APP_NAME) + ": " + vc.version.min_slic3r_version.to_string();
+        text += _L("vendor") + ": " + vc.name +", " + _L("version") + ": " + vc.version.config_version.to_string() +
+                ", " + wxString::Format(_L("min %s version"), SLIC3R_APP_NAME) + ": " + vc.version.min_slic3r_version.to_string();
         if (vc.version.max_slic3r_version != Semver::inf())
             text += ", " + wxString::Format(_L("max %s version"), SLIC3R_APP_NAME) + ": " + vc.version.max_slic3r_version.to_string();
         text += "<br>";
@@ -95,14 +95,14 @@ static wxString generate_html_row(const Config::Snapshot &snapshot, bool row_eve
     else if (! snapshot_active)
         text += "<p align=\"right\"><a href=\"" + snapshot.id + "\">" + _L("Activate") + "</a></p>";
     text += "</td>";
-	text += "</tr>";
+    text += "</tr>";
     return text;
 }
 
 static wxString generate_html_page(const Config::SnapshotDB &snapshot_db, const wxString &on_snapshot)
 {
     bool dark_mode = wxGetApp().dark_mode();
-    wxString text = 
+    wxString text =
         "<html>"
         "<body bgcolor=\"" + get_color(wxGetApp().get_window_default_clr()/*wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW)*/) + "\" cellspacing=\"2\" cellpadding=\"0\" border=\"0\" link=\"#800000\">"
         "<font color=\"" + get_color(wxGetApp().get_label_clr_default()) + "\">";
@@ -121,7 +121,7 @@ static wxString generate_html_page(const Config::SnapshotDB &snapshot_db, const 
 
 ConfigSnapshotDialog::ConfigSnapshotDialog(const Config::SnapshotDB &snapshot_db, const wxString &on_snapshot)
     : DPIDialog(static_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY, _(L("Configuration Snapshots")), wxDefaultPosition,
-               wxSize(45 * wxGetApp().em_unit(), 40 * wxGetApp().em_unit()), 
+               wxSize(45 * wxGetApp().em_unit(), 40 * wxGetApp().em_unit()),
                wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER | wxMAXIMIZE_BOX)
 {
     this->SetFont(wxGetApp().normal_font());
@@ -130,7 +130,7 @@ ConfigSnapshotDialog::ConfigSnapshotDialog(const Config::SnapshotDB &snapshot_db
 #else
     this->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
 #endif
-    
+
     wxBoxSizer* vsizer = new wxBoxSizer(wxVERTICAL);
     this->SetSizer(vsizer);
 
@@ -154,7 +154,7 @@ ConfigSnapshotDialog::ConfigSnapshotDialog(const Config::SnapshotDB &snapshot_db
         vsizer->Add(html, 1, wxEXPAND | wxALIGN_LEFT | wxRIGHT | wxBOTTOM, 0);
         html->Bind(wxEVT_HTML_LINK_CLICKED, &ConfigSnapshotDialog::onLinkClicked, this);
     }
-    
+
     wxStdDialogButtonSizer* buttons = this->CreateStdDialogButtonSizer(wxCLOSE);
     wxGetApp().UpdateDarkUI(static_cast<wxButton*>(this->FindWindowById(wxID_CLOSE, this)));
     this->SetEscapeId(wxID_CLOSE);

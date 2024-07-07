@@ -31,18 +31,18 @@ template<typename MatrixType, unsigned int Mode> class TriangularViewImpl<Matrix
            SkipDiag = (Mode&ZeroDiag) ? 1 : 0,
            HasUnitDiag = (Mode&UnitDiag) ? 1 : 0
     };
-    
+
     typedef TriangularView<MatrixType,Mode> TriangularViewType;
-    
+
   protected:
     // dummy solve function to make TriangularView happy.
     void solve() const;
 
     typedef SparseMatrixBase<TriangularViewType> Base;
   public:
-    
+
     EIGEN_SPARSE_PUBLIC_INTERFACE(TriangularViewType)
-    
+
     typedef typename MatrixType::Nested MatrixTypeNested;
     typedef typename internal::remove_reference<MatrixTypeNested>::type MatrixTypeNestedNonRef;
     typedef typename internal::remove_all<MatrixTypeNested>::type MatrixTypeNestedCleaned;
@@ -60,7 +60,7 @@ template<typename MatrixType, unsigned int Mode> class TriangularViewImpl<Matrix
 
     /** Applies the inverse of \c *this to the sparse vector or matrix \a other, "in-place" */
     template<typename OtherDerived> void solveInPlace(SparseMatrixBase<OtherDerived>& other) const;
-  
+
 };
 
 namespace internal {
@@ -70,33 +70,33 @@ struct unary_evaluator<TriangularView<ArgType,Mode>, IteratorBased>
  : evaluator_base<TriangularView<ArgType,Mode> >
 {
   typedef TriangularView<ArgType,Mode> XprType;
-  
+
 protected:
-  
+
   typedef typename XprType::Scalar Scalar;
   typedef typename XprType::StorageIndex StorageIndex;
   typedef typename evaluator<ArgType>::InnerIterator EvalIterator;
-  
+
   enum { SkipFirst = ((Mode&Lower) && !(ArgType::Flags&RowMajorBit))
                     || ((Mode&Upper) &&  (ArgType::Flags&RowMajorBit)),
          SkipLast = !SkipFirst,
          SkipDiag = (Mode&ZeroDiag) ? 1 : 0,
          HasUnitDiag = (Mode&UnitDiag) ? 1 : 0
   };
-  
+
 public:
-  
+
   enum {
     CoeffReadCost = evaluator<ArgType>::CoeffReadCost,
     Flags = XprType::Flags
   };
-    
+
   explicit unary_evaluator(const XprType &xpr) : m_argImpl(xpr.nestedExpression()), m_arg(xpr.nestedExpression()) {}
-  
+
   inline Index nonZerosEstimate() const {
     return m_argImpl.nonZerosEstimate();
   }
-  
+
   class InnerIterator : public EvalIterator
   {
       typedef EvalIterator Base;
@@ -136,7 +136,7 @@ public:
         }
         return *this;
       }
-      
+
       EIGEN_STRONG_INLINE operator bool() const
       {
         if(HasUnitDiag && m_returnOne)
@@ -168,7 +168,7 @@ public:
     private:
       Scalar& valueRef();
   };
-  
+
 protected:
   evaluator<ArgType> m_argImpl;
   const ArgType& m_arg;

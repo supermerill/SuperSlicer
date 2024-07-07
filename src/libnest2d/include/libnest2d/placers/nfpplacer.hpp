@@ -149,9 +149,9 @@ template<class RawShape> class EdgeCache {
     std::vector<ContourCache> holes_;
 
     double accuracy_ = 1.0;
-    
-    static double length(const Edge &e) 
-    { 
+
+    static double length(const Edge &e)
+    {
         return std::sqrt(e.template sqlength<double>());
     }
 
@@ -961,7 +961,7 @@ private:
 
     void setInitialPosition(Item& item) {
         Box bb = item.boundingBox();
-        
+
         Vertex ci, cb;
         auto bbin = sl::boundingBox(bin_);
 

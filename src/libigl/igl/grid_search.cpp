@@ -3,10 +3,10 @@
 #include <cassert>
 
 template <
-  typename Scalar, 
-  typename DerivedX, 
-  typename DerivedLB, 
-  typename DerivedUB, 
+  typename Scalar,
+  typename DerivedX,
+  typename DerivedLB,
+  typename DerivedUB,
   typename DerivedI>
 IGL_INLINE Scalar igl::grid_search(
   const std::function< Scalar (DerivedX &) > f,
@@ -30,7 +30,7 @@ IGL_INLINE Scalar igl::grid_search(
     DerivedX & Xrun)
   {
     assert(d < dim);
-    Eigen::Matrix<Scalar,Eigen::Dynamic,1> vals = 
+    Eigen::Matrix<Scalar,Eigen::Dynamic,1> vals =
       Eigen::Matrix<Scalar,Eigen::Dynamic,1>::LinSpaced(I(d),LB(d),UB(d));
     for(int c = 0;c<I(d);c++)
     {

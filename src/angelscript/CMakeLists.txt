@@ -147,7 +147,7 @@ elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^arm")
 endif()
 
 if(MSVC)
-    set(CMAKE_DEBUG_POSTFIX "d")  
+    set(CMAKE_DEBUG_POSTFIX "d")
 endif()
 
 if(NOT BUILD_FRAMEWORK)
@@ -164,13 +164,13 @@ add_library(${ANGELSCRIPT_LIBRARY_NAME} STATIC ${ANGELSCRIPT_SOURCE} ${ANGELSCRI
 target_include_directories(${ANGELSCRIPT_LIBRARY_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 if(MSVC)
-    target_compile_definitions(${ANGELSCRIPT_LIBRARY_NAME} PRIVATE -D_CRT_SECURE_NO_WARNINGS)    
+    target_compile_definitions(${ANGELSCRIPT_LIBRARY_NAME} PRIVATE -D_CRT_SECURE_NO_WARNINGS)
 endif()
 
 target_compile_definitions(${ANGELSCRIPT_LIBRARY_NAME} PRIVATE -DANGELSCRIPT_EXPORT -D_LIB)
 
 if(AS_NO_EXCEPTIONS)
-	target_compile_definitions(${ANGELSCRIPT_LIBRARY_NAME} PRIVATE AS_NO_EXCEPTIONS)
+    target_compile_definitions(${ANGELSCRIPT_LIBRARY_NAME} PRIVATE AS_NO_EXCEPTIONS)
 endif()
 
 # Fix x64 issues on Linux
@@ -197,7 +197,7 @@ if(BUILD_FRAMEWORK)
 endif()
 
 if(MSVC AND MSVC_COMPILE_FLAGS)
-	target_compile_options(${ANGELSCRIPT_LIBRARY_NAME} PRIVATE "${MSVC_COMPILE_FLAGS}")
+    target_compile_options(${ANGELSCRIPT_LIBRARY_NAME} PRIVATE "${MSVC_COMPILE_FLAGS}")
 endif()
 
 # Don't override the default runtime output path to avoid conflicts when building for multiple target platforms
@@ -205,45 +205,45 @@ endif()
 
 #See https://cmake.org/cmake/help/latest/manual/cmake-packages.7.html#creating-packages for a detailed explanation about this part
 install(TARGETS ${ANGELSCRIPT_LIBRARY_NAME} EXPORT AngelscriptTargets
-	RUNTIME DESTINATION bin
-	LIBRARY DESTINATION lib
-	ARCHIVE DESTINATION lib
-	INCLUDES DESTINATION include
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    INCLUDES DESTINATION include
 )
 
 install(FILES
-	${CMAKE_CURRENT_SOURCE_DIR}/include/angelscript.h
-	DESTINATION include
-	COMPONENT Devel
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/angelscript.h
+    DESTINATION include
+    COMPONENT Devel
 )
 
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
-	"${CMAKE_CURRENT_BINARY_DIR}/Angelscript/AngelscriptConfigVersion.cmake"
-	VERSION ${PROJECT_VERSION}
-	COMPATIBILITY AnyNewerVersion
+    "${CMAKE_CURRENT_BINARY_DIR}/Angelscript/AngelscriptConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY AnyNewerVersion
 )
 
 export(EXPORT AngelscriptTargets
-	FILE "${CMAKE_CURRENT_BINARY_DIR}/Angelscript/AngelscriptTargets.cmake"
-	NAMESPACE Angelscript::
+    FILE "${CMAKE_CURRENT_BINARY_DIR}/Angelscript/AngelscriptTargets.cmake"
+    NAMESPACE Angelscript::
 )
 configure_file(cmake/AngelscriptConfig.cmake
-	"${CMAKE_CURRENT_BINARY_DIR}/Angelscript/AngelscriptConfig.cmake"
-	COPYONLY
+    "${CMAKE_CURRENT_BINARY_DIR}/Angelscript/AngelscriptConfig.cmake"
+    COPYONLY
 )
 
 set(ConfigPackageLocation lib/cmake/Angelscript)
 install(EXPORT AngelscriptTargets
-	FILE AngelscriptTargets.cmake
-	NAMESPACE Angelscript::
-	DESTINATION ${ConfigPackageLocation}
+    FILE AngelscriptTargets.cmake
+    NAMESPACE Angelscript::
+    DESTINATION ${ConfigPackageLocation}
 )
 install(
-	FILES
-		cmake/AngelscriptConfig.cmake
-		"${CMAKE_CURRENT_BINARY_DIR}/Angelscript/AngelscriptConfigVersion.cmake"
-	DESTINATION ${ConfigPackageLocation}
-	COMPONENT Devel
+    FILES
+        cmake/AngelscriptConfig.cmake
+        "${CMAKE_CURRENT_BINARY_DIR}/Angelscript/AngelscriptConfigVersion.cmake"
+    DESTINATION ${ConfigPackageLocation}
+    COMPONENT Devel
 )
 

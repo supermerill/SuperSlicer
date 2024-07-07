@@ -47,20 +47,20 @@ struct plain_array
 
   EIGEN_DEVICE_FUNC
   plain_array()
-  { 
+  {
     check_static_allocation_size<T,Size>();
   }
 
   EIGEN_DEVICE_FUNC
   plain_array(constructor_without_unaligned_array_assert)
-  { 
+  {
     check_static_allocation_size<T,Size>();
   }
 };
 
 #if defined(EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT)
   #define EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(sizemask)
-#elif EIGEN_GNUC_AT_LEAST(4,7) 
+#elif EIGEN_GNUC_AT_LEAST(4,7)
   // GCC 4.7 is too aggressive in its optimizations and remove the alignement test based on the fact the array is declared to be aligned.
   // See this bug report: http://gcc.gnu.org/bugzilla/show_bug.cgi?id=53900
   // Hiding the origin of the array pointer behind a function argument seems to do the trick even if the function is inlined:
@@ -85,15 +85,15 @@ struct plain_array<T, Size, MatrixOrArrayOptions, 8>
   EIGEN_ALIGN_TO_BOUNDARY(8) T array[Size];
 
   EIGEN_DEVICE_FUNC
-  plain_array() 
+  plain_array()
   {
     EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(7);
     check_static_allocation_size<T,Size>();
   }
 
   EIGEN_DEVICE_FUNC
-  plain_array(constructor_without_unaligned_array_assert) 
-  { 
+  plain_array(constructor_without_unaligned_array_assert)
+  {
     check_static_allocation_size<T,Size>();
   }
 };
@@ -104,15 +104,15 @@ struct plain_array<T, Size, MatrixOrArrayOptions, 16>
   EIGEN_ALIGN_TO_BOUNDARY(16) T array[Size];
 
   EIGEN_DEVICE_FUNC
-  plain_array() 
-  { 
+  plain_array()
+  {
     EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(15);
     check_static_allocation_size<T,Size>();
   }
 
   EIGEN_DEVICE_FUNC
-  plain_array(constructor_without_unaligned_array_assert) 
-  { 
+  plain_array(constructor_without_unaligned_array_assert)
+  {
     check_static_allocation_size<T,Size>();
   }
 };
@@ -123,15 +123,15 @@ struct plain_array<T, Size, MatrixOrArrayOptions, 32>
   EIGEN_ALIGN_TO_BOUNDARY(32) T array[Size];
 
   EIGEN_DEVICE_FUNC
-  plain_array() 
+  plain_array()
   {
     EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(31);
     check_static_allocation_size<T,Size>();
   }
 
   EIGEN_DEVICE_FUNC
-  plain_array(constructor_without_unaligned_array_assert) 
-  { 
+  plain_array(constructor_without_unaligned_array_assert)
+  {
     check_static_allocation_size<T,Size>();
   }
 };
@@ -142,15 +142,15 @@ struct plain_array<T, Size, MatrixOrArrayOptions, 64>
   EIGEN_ALIGN_TO_BOUNDARY(64) T array[Size];
 
   EIGEN_DEVICE_FUNC
-  plain_array() 
-  { 
+  plain_array()
+  {
     EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(63);
     check_static_allocation_size<T,Size>();
   }
 
   EIGEN_DEVICE_FUNC
-  plain_array(constructor_without_unaligned_array_assert) 
-  { 
+  plain_array(constructor_without_unaligned_array_assert)
+  {
     check_static_allocation_size<T,Size>();
   }
 };
@@ -190,15 +190,15 @@ template<typename T, int Size, int _Rows, int _Cols, int _Options> class DenseSt
     EIGEN_DEVICE_FUNC
     explicit DenseStorage(internal::constructor_without_unaligned_array_assert)
       : m_data(internal::constructor_without_unaligned_array_assert()) {}
-    EIGEN_DEVICE_FUNC 
+    EIGEN_DEVICE_FUNC
     DenseStorage(const DenseStorage& other) : m_data(other.m_data) {
       EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN(Index size = Size)
     }
-    EIGEN_DEVICE_FUNC 
+    EIGEN_DEVICE_FUNC
     DenseStorage& operator=(const DenseStorage& other)
-    { 
+    {
       if (this != &other) m_data = other.m_data;
-      return *this; 
+      return *this;
     }
     EIGEN_DEVICE_FUNC DenseStorage(Index size, Index rows, Index cols) {
       EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})
@@ -255,15 +255,15 @@ template<typename T, int Size, int _Options> class DenseStorage<T, Size, Dynamic
     EIGEN_DEVICE_FUNC explicit DenseStorage(internal::constructor_without_unaligned_array_assert)
       : m_data(internal::constructor_without_unaligned_array_assert()), m_rows(0), m_cols(0) {}
     EIGEN_DEVICE_FUNC DenseStorage(const DenseStorage& other) : m_data(other.m_data), m_rows(other.m_rows), m_cols(other.m_cols) {}
-    EIGEN_DEVICE_FUNC DenseStorage& operator=(const DenseStorage& other) 
-    { 
+    EIGEN_DEVICE_FUNC DenseStorage& operator=(const DenseStorage& other)
+    {
       if (this != &other)
       {
         m_data = other.m_data;
         m_rows = other.m_rows;
         m_cols = other.m_cols;
       }
-      return *this; 
+      return *this;
     }
     EIGEN_DEVICE_FUNC DenseStorage(Index, Index rows, Index cols) : m_rows(rows), m_cols(cols) {}
     EIGEN_DEVICE_FUNC void swap(DenseStorage& other)
@@ -286,14 +286,14 @@ template<typename T, int Size, int _Cols, int _Options> class DenseStorage<T, Si
     EIGEN_DEVICE_FUNC explicit DenseStorage(internal::constructor_without_unaligned_array_assert)
       : m_data(internal::constructor_without_unaligned_array_assert()), m_rows(0) {}
     EIGEN_DEVICE_FUNC DenseStorage(const DenseStorage& other) : m_data(other.m_data), m_rows(other.m_rows) {}
-    EIGEN_DEVICE_FUNC DenseStorage& operator=(const DenseStorage& other) 
+    EIGEN_DEVICE_FUNC DenseStorage& operator=(const DenseStorage& other)
     {
       if (this != &other)
       {
         m_data = other.m_data;
         m_rows = other.m_rows;
       }
-      return *this; 
+      return *this;
     }
     EIGEN_DEVICE_FUNC DenseStorage(Index, Index rows, Index) : m_rows(rows) {}
     EIGEN_DEVICE_FUNC void swap(DenseStorage& other) { std::swap(m_data,other.m_data); std::swap(m_rows,other.m_rows); }
@@ -446,7 +446,7 @@ template<typename T, int _Rows, int _Options> class DenseStorage<T, Dynamic, _Ro
         this->swap(tmp);
       }
       return *this;
-    }    
+    }
 #if EIGEN_HAS_RVALUE_REFERENCES
     EIGEN_DEVICE_FUNC
     DenseStorage(DenseStorage&& other) EIGEN_NOEXCEPT
@@ -520,7 +520,7 @@ template<typename T, int _Cols, int _Options> class DenseStorage<T, Dynamic, Dyn
         this->swap(tmp);
       }
       return *this;
-    }    
+    }
 #if EIGEN_HAS_RVALUE_REFERENCES
     EIGEN_DEVICE_FUNC
     DenseStorage(DenseStorage&& other) EIGEN_NOEXCEPT

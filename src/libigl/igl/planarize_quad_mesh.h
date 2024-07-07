@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_PLANARIZE_QUAD_MESH_H
 #define IGL_PLANARIZE_QUAD_MESH_H
@@ -22,7 +22,7 @@ namespace igl
   // given threshold (suggested value: 0.01), or a maximum number of iterations
   // is reached.
 
-  
+
   // Inputs:
   //   Vin        #V by 3 eigen Matrix of mesh vertex 3D positions
   //   F          #F by 4 eigen Matrix of face (quad) indices
@@ -31,7 +31,7 @@ namespace igl
   // Output:
   //   Vout       #V by 3 eigen Matrix of planar mesh vertex 3D positions
   //
-  
+
   template <typename DerivedV, typename DerivedF>
   IGL_INLINE void planarize_quad_mesh(const Eigen::PlainObjectBase<DerivedV> &Vin,
                                       const Eigen::PlainObjectBase<DerivedF> &F,

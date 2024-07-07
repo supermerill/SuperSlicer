@@ -42,9 +42,9 @@
 namespace Slic3r {
 
 enum CompleteObjectSort {
-    cosObject, 
-	cosZ, 
-	cosY,
+    cosObject,
+    cosZ,
+    cosY,
 };
 
 enum WipeAlgo {
@@ -115,7 +115,7 @@ enum InfillPattern : uint8_t{
     ipGyroid, ipHilbertCurve, ipArchimedeanChords, ipOctagramSpiral,
     ipAdaptiveCubic, ipSupportCubic, ipSupportBase,
     ipSmooth, ipSmoothHilbert, ipSmoothTriple,
-    ipRectiWithPerimeter, ipScatteredRectilinear, 
+    ipRectiWithPerimeter, ipScatteredRectilinear,
     ipSawtooth,
     ipRectilinearWGapFill,
     ipMonotonic,
@@ -177,7 +177,7 @@ enum SLAMaterial {
     slamHeatResistant,
 };
 enum DenseInfillAlgo {
-    dfaAutomatic, 
+    dfaAutomatic,
     dfaAutoNotFull,
     dfaAutoOrEnlarged,
     dfaAutoOrNothing,
@@ -309,7 +309,7 @@ class PrintConfigDef : public ConfigDef
 {
 public:
     PrintConfigDef();
-    
+
     static void handle_legacy(t_config_option_key& opt_key, std::string& value, bool remove_unkown_keys = true);
     static bool is_defined(t_config_option_key& opt_key);
     static std::map<std::string, std::string> to_prusa(t_config_option_key& opt_key, std::string& value, const DynamicConfig& all_conf);
@@ -409,7 +409,7 @@ class MultiPtrPrintConfig : public virtual ConfigBase
 {
 public:
     MultiPtrPrintConfig() = default;
-    
+
     // Overrides ConfigBase::def(). Static configuration definition. Any value stored into this ConfigBase shall have its definition here.
     const ConfigDef*    def() const override { return &print_config_def; }
 
@@ -420,7 +420,7 @@ public:
     // Overrides ConfigBase::keys(). Collect names of all configuration values maintained by this configuration store.
     t_config_option_keys    keys() const override;
 
-    
+
     std::vector<ConfigBase*> storages;
 private:
 };
@@ -1191,7 +1191,7 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
 
     ((ConfigOptionBool,                 allow_empty_layers))
     ((ConfigOptionBool,                 avoid_crossing_perimeters))
-    ((ConfigOptionBool,                 avoid_crossing_not_first_layer))    
+    ((ConfigOptionBool,                 avoid_crossing_not_first_layer))
     ((ConfigOptionFloatOrPercent,       avoid_crossing_perimeters_max_detour))
     ((ConfigOptionPoints,               bed_shape))
     ((ConfigOptionInts,                 bed_temperature))
@@ -1304,9 +1304,9 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
 
 )
 
-//static inline 
+//static inline
 double min_object_distance(const PrintConfig& config);
-//static inline 
+//static inline
 double min_object_distance(const ConfigBase* config, double height = 0);
 
 // This object is mapped to Perl as Slic3r::Config::Full.
@@ -1355,7 +1355,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     // The percentage of smaller pillars compared to the normal pillar diameter
     // which are used in problematic areas where a normal pilla cannot fit.
     ((ConfigOptionPercent, support_small_pillar_diameter_percent))
-    
+
     // How much bridge (supporting another pinhead) can be placed on a pillar.
     ((ConfigOptionInt,   support_max_bridges_on_pillar))
 
@@ -1445,7 +1445,7 @@ PRINT_CONFIG_CLASS_DEFINE(
 
     // How much should the tiny connectors penetrate into the model body
     ((ConfigOptionFloat, pad_object_connector_penetration))
-    
+
     // /////////////////////////////////////////////////////////////////////////
     // Model hollowing parameters:
     //   - Models can be hollowed out as part of the SLA print process
@@ -1454,17 +1454,17 @@ PRINT_CONFIG_CLASS_DEFINE(
     //   - Additional holes will be drilled into the hollow model to allow for
     //   - resin removal.
     // /////////////////////////////////////////////////////////////////////////
-    
+
     ((ConfigOptionBool, hollowing_enable))
-    
-    // The minimum thickness of the model walls to maintain. Note that the 
+
+    // The minimum thickness of the model walls to maintain. Note that the
     // resulting walls may be thicker due to smoothing out fine cavities where
     // resin could stuck.
     ((ConfigOptionFloat, hollowing_min_thickness))
-    
+
     // Indirectly controls the voxel size (resolution) used by openvdb
     ((ConfigOptionFloat, hollowing_quality))
-   
+
     // Indirectly controls the minimum size of created cavities.
     ((ConfigOptionFloat, hollowing_closing_distance))
 

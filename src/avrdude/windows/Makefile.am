@@ -25,33 +25,33 @@
 #
 
 local_install_list = \
-	giveio.sys \
-	install_giveio.bat \
-	remove_giveio.bat \
-	status_giveio.bat
+    giveio.sys \
+    install_giveio.bat \
+    remove_giveio.bat \
+    status_giveio.bat
 
 EXTRA_DIST   = \
-	giveio.c \
-	$(local_install_list)
+    giveio.c \
+    $(local_install_list)
 
 bin_PROGRAMS = loaddrv
 
 loaddrv_SOURCES = \
-	loaddrv.c \
-	loaddrv.h
+    loaddrv.c \
+    loaddrv.h
 
 install-exec-local:
-	$(mkinstalldirs) $(DESTDIR)$(bindir)
-	@list='$(local_install_list)'; for file in $$list; do \
-		echo " $(INSTALL_PROGRAM_ENV) $(INSTALL_PROGRAM) \
-			$(srcdir)/$$file $(DESTDIR)$(bindir)/$$file"; \
-		$(INSTALL_PROGRAM_ENV) $(INSTALL_PROGRAM) $(srcdir)/$$file \
-			$(DESTDIR)$(bindir)/$$file; \
-	done
+    $(mkinstalldirs) $(DESTDIR)$(bindir)
+    @list='$(local_install_list)'; for file in $$list; do \
+        echo " $(INSTALL_PROGRAM_ENV) $(INSTALL_PROGRAM) \
+            $(srcdir)/$$file $(DESTDIR)$(bindir)/$$file"; \
+        $(INSTALL_PROGRAM_ENV) $(INSTALL_PROGRAM) $(srcdir)/$$file \
+            $(DESTDIR)$(bindir)/$$file; \
+    done
 
 uninstall-local:
-	@for file in $(local_install_list); do \
-		echo " rm -f $(DESTDIR)$(bindir)/$$file"; \
-		rm -f $(DESTDIR)$(bindir)/$$file; \
-	done
+    @for file in $(local_install_list); do \
+        echo " rm -f $(DESTDIR)$(bindir)/$$file"; \
+        rm -f $(DESTDIR)$(bindir)/$$file; \
+    done
 

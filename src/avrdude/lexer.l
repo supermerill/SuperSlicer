@@ -78,7 +78,7 @@ SIGN     [+-]
 "/*" {  /* The following eats multiline C style comments */
         int c;
         int comment_start;
-        
+
         comment_start = lineno;
         while (1) {
           while (((c = input()) != '*') && (c != EOF)) {
@@ -86,14 +86,14 @@ SIGN     [+-]
             if (c == '\n')
               lineno++;
           }
-          
+
           if (c == '*') {
             while ((c = input()) == '*')
               ;
             if (c == '/')
               break;    /* found the end */
           }
-          
+
           if (c == EOF) {
             yyerror("EOF in comment (started on line %d)", comment_start);
             return YYERRCODE;
@@ -110,7 +110,7 @@ SIGN     [+-]
 <strng>\\b  *string_buf_ptr++ = '\b';
 <strng>\\f  *string_buf_ptr++ = '\f';
 <strng>\\(.|\n)  *(string_buf_ptr++) = yytext[1];
-<strng>[^\\\n\"]+ { char *yptr = yytext; while (*yptr) 
+<strng>[^\\\n\"]+ { char *yptr = yytext; while (*yptr)
                                          *(string_buf_ptr++) = *(yptr++); }
 
 <strng>\n { yyerror("unterminated character constant");
@@ -252,7 +252,7 @@ yes              { yylval=new_token(K_YES); return K_YES; }
 [ \r\t]+  { /* ignore whitespace */ }
 
 c: { yyerror("possible old-style config file entry\n"
-             "  Update your config file (see " CONFIG_DIR 
+             "  Update your config file (see " CONFIG_DIR
                "/avrdude.conf.sample for a sample)");
      return YYERRCODE; }
 

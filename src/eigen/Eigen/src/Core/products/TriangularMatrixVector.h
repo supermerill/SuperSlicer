@@ -176,7 +176,7 @@ struct triangular_product_impl<Mode,true,Lhs,false,Rhs,true>
   template<typename Dest> static void run(Dest& dst, const Lhs &lhs, const Rhs &rhs, const typename Dest::Scalar& alpha)
   {
     eigen_assert(dst.rows()==lhs.rows() && dst.cols()==rhs.cols());
-  
+
     internal::trmv_selector<Mode,(int(internal::traits<Lhs>::Flags)&RowMajorBit) ? RowMajor : ColMajor>::run(lhs, rhs, dst, alpha);
   }
 };
@@ -200,7 +200,7 @@ struct triangular_product_impl<Mode,false,Lhs,true,Rhs,false>
 namespace internal {
 
 // TODO: find a way to factorize this piece of code with gemv_selector since the logic is exactly the same.
-  
+
 template<int Mode> struct trmv_selector<Mode,ColMajor>
 {
   template<typename Lhs, typename Rhs, typename Dest>
@@ -210,12 +210,12 @@ template<int Mode> struct trmv_selector<Mode,ColMajor>
     typedef typename Rhs::Scalar      RhsScalar;
     typedef typename Dest::Scalar     ResScalar;
     typedef typename Dest::RealScalar RealScalar;
-    
+
     typedef internal::blas_traits<Lhs> LhsBlasTraits;
     typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
     typedef internal::blas_traits<Rhs> RhsBlasTraits;
     typedef typename RhsBlasTraits::DirectLinearAccessType ActualRhsType;
-    
+
     typedef Map<Matrix<ResScalar,Dynamic,1>, EIGEN_PLAIN_ENUM_MIN(AlignedMax,internal::packet_traits<ResScalar>::size)> MappedDest;
 
     typename internal::add_const_on_value_type<ActualLhsType>::type actualLhs = LhsBlasTraits::extract(lhs);
@@ -292,7 +292,7 @@ template<int Mode> struct trmv_selector<Mode,RowMajor>
     typedef typename Lhs::Scalar      LhsScalar;
     typedef typename Rhs::Scalar      RhsScalar;
     typedef typename Dest::Scalar     ResScalar;
-    
+
     typedef internal::blas_traits<Lhs> LhsBlasTraits;
     typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
     typedef internal::blas_traits<Rhs> RhsBlasTraits;

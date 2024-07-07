@@ -45,8 +45,8 @@ ObjectLayers::ObjectLayers(wxWindow* parent) :
 void ObjectLayers::select_editor(LayerRangeEditor* editor, const bool is_last_edited_range)
 {
     if (is_last_edited_range && m_selection_type == editor->type()) {
-    /* Workaround! Under OSX we should use CallAfter() for SetFocus() after LayerEditors "reorganizations", 
-     * because of selected control's strange behavior: 
+    /* Workaround! Under OSX we should use CallAfter() for SetFocus() after LayerEditors "reorganizations",
+     * because of selected control's strange behavior:
      * cursor is set to the control, but blue border - doesn't.
      * And as a result we couldn't edit this control.
      * */
@@ -58,10 +58,10 @@ void ObjectLayers::select_editor(LayerRangeEditor* editor, const bool is_last_ed
 #ifdef __WXOSX__
         });
 #endif
-    }    
+    }
 }
 
-wxSizer* ObjectLayers::create_layer(const t_layer_height_range& range, PlusMinusButton *delete_button, PlusMinusButton *add_button) 
+wxSizer* ObjectLayers::create_layer(const t_layer_height_range& range, PlusMinusButton *delete_button, PlusMinusButton *add_button)
 {
     const bool is_last_edited_range = range == m_selectable_range;
 
@@ -82,8 +82,8 @@ wxSizer* ObjectLayers::create_layer(const t_layer_height_range& range, PlusMinus
 
     // Add control for the "Min Z"
 
-    auto editor = new LayerRangeEditor(this, double_to_string(range.first), etMinZ, set_focus_data, 
-        [range, update_focus_data, this, delete_button, add_button](coordf_t min_z, bool enter_pressed, bool dont_update_ui) 
+    auto editor = new LayerRangeEditor(this, double_to_string(range.first), etMinZ, set_focus_data,
+        [range, update_focus_data, this, delete_button, add_button](coordf_t min_z, bool enter_pressed, bool dont_update_ui)
     {
         if (fabs(min_z - range.first) < EPSILON) {
             m_selection_type = etUndef;
@@ -107,7 +107,7 @@ wxSizer* ObjectLayers::create_layer(const t_layer_height_range& range, PlusMinus
 
     // Add control for the "Max Z"
 
-    editor = new LayerRangeEditor(this, double_to_string(range.second), etMaxZ, set_focus_data, 
+    editor = new LayerRangeEditor(this, double_to_string(range.second), etMaxZ, set_focus_data,
         [range, update_focus_data, this, delete_button, add_button](coordf_t max_z, bool enter_pressed, bool dont_update_ui)
     {
         if (fabs(max_z - range.second) < EPSILON || range.first > max_z) {
@@ -151,7 +151,7 @@ wxSizer* ObjectLayers::create_layer(const t_layer_height_range& range, PlusMinus
 
     return sizer;
 }
-    
+
 void ObjectLayers::create_layers_list()
 {
     for (const auto &layer : m_object->layer_config_ranges) {
@@ -208,7 +208,7 @@ void ObjectLayers::update_layers_list()
         m_grid_sizer->Remove(idx);
     }
 
-    // Add new control according to the selected item  
+    // Add new control according to the selected item
 
     if (type & itLayerRoot)
         create_layers_list();
@@ -326,7 +326,7 @@ LayerRangeEditor::LayerRangeEditor( ObjectLayers* parent,
     m_valid_value(value),
     m_type(type),
     m_set_focus_data(set_focus_data_fn),
-    wxTextCtrl(parent->m_parent, wxID_ANY, value, wxDefaultPosition, 
+    wxTextCtrl(parent->m_parent, wxID_ANY, value, wxDefaultPosition,
                wxSize(8 * em_unit(parent->m_parent), wxDefaultCoord), wxTE_PROCESS_ENTER
 #ifdef _WIN32
         | wxBORDER_SIMPLE
@@ -338,7 +338,7 @@ LayerRangeEditor::LayerRangeEditor( ObjectLayers* parent,
 
     // Reset m_enter_pressed flag to _false_, when value is editing
     this->Bind(wxEVT_TEXT, [this](wxEvent&) { m_enter_pressed = false; }, this->GetId());
-    
+
     this->Bind(wxEVT_TEXT_ENTER, [this, edit_fn](wxEvent&)
     {
         m_enter_pressed     = true;
@@ -361,7 +361,7 @@ LayerRangeEditor::LayerRangeEditor( ObjectLayers* parent,
             }
 #ifdef __linux__
         });
-#endif 
+#endif
     }, this->GetId());
 
     this->Bind(wxEVT_KILL_FOCUS, [this, edit_fn](wxFocusEvent& e)
@@ -387,7 +387,7 @@ LayerRangeEditor::LayerRangeEditor( ObjectLayers* parent,
             else if (!edit_fn(get_value(), false, dynamic_cast<ObjectLayers::PlusMinusButton*>(e.GetWindow()) != nullptr)) {
                 SetValue(m_valid_value);
                 e.Skip();
-            } 
+            }
         }
         else if (m_call_kill_focus) {
             m_call_kill_focus = false;
@@ -445,4 +445,4 @@ void LayerRangeEditor::msw_rescale()
 }
 
 } //namespace GUI
-} //namespace Slic3r 
+} //namespace Slic3r

@@ -161,7 +161,7 @@ private:
     std::vector<stl_normal> m_normals;
 };
 
-    
+
 } // namespace GUI
 } // namespace Slic3r
 

@@ -25,7 +25,7 @@ public:
         : expolygon(_expolygon), max_width(_max_width), min_width(_min_width) {};
     void build(ThickPolylines* polylines);
     void build(Polylines* polylines);
-    
+
 private:
     using VD = VoronoiDiagram;
     VD vd;
@@ -44,7 +44,7 @@ private:
 /// The ends can enter a boundary area if neded, and can have a taper at each end.
 /// The constructor initialize the mandatory variable.
 /// you must use the setter to add the opptional settings before calling build().
-/// 
+///
 class MedialAxis {
 public:
     //static int staticid;
@@ -94,7 +94,7 @@ private:
     const coord_t m_resolution;
     /// height of the extrusion, used to compute the diufference between width and spacing.
     const coord_t m_height;
-    /// Used to compute the real minimum width we can extrude. if != min_width, it activate grow_to_nozzle_diameter(). 
+    /// Used to compute the real minimum width we can extrude. if != min_width, it activate grow_to_nozzle_diameter().
     coord_t m_nozzle_diameter;
     /// if != , it activates taper_ends(). Can use nozzle_diameter.
     coord_t m_taper_size;

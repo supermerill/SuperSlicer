@@ -41,11 +41,11 @@ class OozePrevention {
 public:
     bool enable;
     Points standby_points;
-    
+
     OozePrevention() : enable(false) {}
     std::string pre_toolchange(GCode &gcodegen);
     std::string post_toolchange(GCode &gcodegen);
-    
+
 private:
     int _get_temp(GCode &gcodegen);
 };
@@ -139,15 +139,15 @@ struct LayerResult {
 };
 
 class GCode : ExtrusionVisitorConst  {
-public:        
-    GCode() : 
-    	m_origin(Vec2d::Zero()),
-        m_enable_loop_clipping(true), 
-        m_enable_cooling_markers(false), 
-        m_enable_extrusion_role_markers(false), 
+public:
+    GCode() :
+        m_origin(Vec2d::Zero()),
+        m_enable_loop_clipping(true),
+        m_enable_cooling_markers(false),
+        m_enable_extrusion_role_markers(false),
         m_last_processor_extrusion_role(erNone),
         m_layer_count(0),
-        m_layer_index(-1), 
+        m_layer_index(-1),
         m_layer(nullptr),
         m_object_layer_over_raft(false),
         m_volumetric_speed(0),
@@ -204,10 +204,10 @@ public:
     struct LayerToPrint
     {
         LayerToPrint() : object_layer(nullptr), support_layer(nullptr) {}
-        const Layer* 		object_layer;
+        const Layer*         object_layer;
         const SupportLayer* support_layer;
-        const Layer* 		layer()   const { return (object_layer != nullptr) ? object_layer : support_layer; }
-        const PrintObject* 	object()  const { return (this->layer() != nullptr) ? this->layer()->object() : nullptr; }
+        const Layer*         layer()   const { return (object_layer != nullptr) ? object_layer : support_layer; }
+        const PrintObject*     object()  const { return (this->layer() != nullptr) ? this->layer()->object() : nullptr; }
         coordf_t            print_z() const { return (object_layer != nullptr && support_layer != nullptr) ? 0.5 * (object_layer->print_z + support_layer->print_z) : this->layer()->print_z; }
     };
 
@@ -227,7 +227,7 @@ private:
 
         bool is_open() const { return f; }
         bool is_error() const;
-        
+
         void flush();
         void close();
 
@@ -235,12 +235,12 @@ private:
         void write(const std::string& what) { this->write(what.c_str()); }
         void write(const char* what);
 
-        // Write a string into a file. 
+        // Write a string into a file.
         // Add a newline, if the string does not end with a newline already.
         // Used to export a custom G-code section processed by the PlaceholderParser.
         void writeln(const std::string& what);
 
-        // Formats and write into a file the given data. 
+        // Formats and write into a file the given data.
         void write_format(const char* format, ...);
 
     private:
@@ -265,10 +265,10 @@ private:
         Print::StatusMonitor            &status_monitor,
         // Set of object & print layers of the same PrintObject and with the same print_z.
         const std::vector<LayerToPrint> &layers,
-        const LayerTools  				&layer_tools,
+        const LayerTools                  &layer_tools,
         const bool                       last_layer,
-		// Pairs of PrintObject index and its instance index.
-		const std::vector<const PrintInstance*> *ordering,
+        // Pairs of PrintObject index and its instance index.
+        const std::vector<const PrintInstance*> *ordering,
         // If set to size_t(-1), then print all copies of all objects.
         // Otherwise print a single copy of a single object.
         size_t                     single_object_idx = size_t(-1)
@@ -336,10 +336,10 @@ private:
         struct Island
         {
             struct Region {
-            	// Non-owned references to LayerRegion::perimeters::entities()
-            	// std::vector<const ExtrusionEntity*> would be better here, but there is no way in C++ to convert from std::vector<T*> std::vector<const T*> without copying.
+                // Non-owned references to LayerRegion::perimeters::entities()
+                // std::vector<const ExtrusionEntity*> would be better here, but there is no way in C++ to convert from std::vector<T*> std::vector<const T*> without copying.
                 ExtrusionEntitiesPtr perimeters;
-            	// Non-owned references to LayerRegion::fills::entities()
+                // Non-owned references to LayerRegion::fills::entities()
                 ExtrusionEntitiesPtr infills;
                 // Non-owned references to LayerRegion::ironing::entities()
                 ExtrusionEntitiesPtr ironings;
@@ -348,11 +348,11 @@ private:
                 std::vector<const WipingExtrusions::ExtruderPerCopy*> perimeters_overrides;
                 std::vector<const WipingExtrusions::ExtruderPerCopy*> ironings_overrides;
 
-	            enum Type {
-	            	PERIMETERS,
+                enum Type {
+                    PERIMETERS,
                     INFILL,
                     IRONING,
-	            };
+                };
 
                 // Appends perimeter/infill entities() and writes don't indices of those that are not to be extruder as part of perimeter/infill wiping
                 void append(const Type type, const ExtrusionEntityCollection* eec, const WipingExtrusions::ExtruderPerCopy* copy_extruders);
@@ -367,28 +367,28 @@ private:
         std::vector<Island>         islands;
     };
 
-	struct InstanceToPrint
-	{
+    struct InstanceToPrint
+    {
         InstanceToPrint(ObjectByExtruder& object_by_extruder, size_t layer_id, const PrintObject& print_object, size_t instance_id) :
             object_by_extruder(object_by_extruder), layer_id(layer_id), print_object(print_object), instance_id(instance_id) {}
 
-		// Repository 
-		ObjectByExtruder		&object_by_extruder;
-		// Index into std::vector<LayerToPrint>, which contains Object and Support layers for the current print_z, collected for a single object, or for possibly multiple objects with multiple instances.
-		const size_t       		 layer_id;
-		const PrintObject 		&print_object;
-		// Instance idx of the copy of a print object.
-		const size_t			 instance_id;
-	};
+        // Repository
+        ObjectByExtruder        &object_by_extruder;
+        // Index into std::vector<LayerToPrint>, which contains Object and Support layers for the current print_z, collected for a single object, or for possibly multiple objects with multiple instances.
+        const size_t                layer_id;
+        const PrintObject         &print_object;
+        // Instance idx of the copy of a print object.
+        const size_t             instance_id;
+    };
 
-	std::vector<InstanceToPrint> sort_print_object_instances(
-		std::vector<ObjectByExtruder> 					&objects_by_extruder,
-		// Object and Support layers for the current print_z, collected for a single object, or for possibly multiple objects with multiple instances.
-		const std::vector<LayerToPrint> 				&layers,
-		// Ordering must be defined for normal (non-sequential print).
-		const std::vector<const PrintInstance*>     	*ordering,
-		// For sequential print, the instance of the object to be printing has to be defined.
-		const size_t                     				 single_object_instance_idx);
+    std::vector<InstanceToPrint> sort_print_object_instances(
+        std::vector<ObjectByExtruder>                     &objects_by_extruder,
+        // Object and Support layers for the current print_z, collected for a single object, or for possibly multiple objects with multiple instances.
+        const std::vector<LayerToPrint>                 &layers,
+        // Ordering must be defined for normal (non-sequential print).
+        const std::vector<const PrintInstance*>         *ordering,
+        // For sequential print, the instance of the object to be printing has to be defined.
+        const size_t                                      single_object_instance_idx);
 
     void            apply_region_config(std::string &gcode);
     std::string     extrude_perimeters(const Print &print, const std::vector<ObjectByExtruder::Island::Region> &by_region);
@@ -534,14 +534,14 @@ private:
     bool                                object_layer_over_raft() const { return m_object_layer_over_raft; }
 
     friend ObjectByExtruder& object_by_extruder(
-        std::map<uint16_t, std::vector<ObjectByExtruder>>      &by_extruder, 
-        uint16_t                                                extruder_id, 
-        size_t                                                  object_idx, 
+        std::map<uint16_t, std::vector<ObjectByExtruder>>      &by_extruder,
+        uint16_t                                                extruder_id,
+        size_t                                                  object_idx,
         size_t                                                  num_objects);
     friend std::vector<ObjectByExtruder::Island>& object_islands_by_extruder(
-        std::map<uint16_t, std::vector<ObjectByExtruder>>      &by_extruder, 
-        uint16_t                                                extruder_id, 
-        size_t                                                  object_idx, 
+        std::map<uint16_t, std::vector<ObjectByExtruder>>      &by_extruder,
+        uint16_t                                                extruder_id,
+        size_t                                                  object_idx,
         size_t                                                  num_objects,
         size_t                                                  num_islands);
 

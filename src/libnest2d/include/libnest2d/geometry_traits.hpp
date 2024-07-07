@@ -15,7 +15,7 @@
 
 namespace libnest2d {
 
-// Meta tags for different geometry concepts. 
+// Meta tags for different geometry concepts.
 struct PointTag {};
 struct PolygonTag {};
 struct PathTag {};
@@ -37,8 +37,8 @@ template<class S>
 using TContour = typename ContourType<remove_cvref_t<S>>::Type;
 
 /// Getting the type of point structure used by a shape.
-template<class Sh> struct PointType { 
-    using Type = typename PointType<TContour<Sh>>::Type; 
+template<class Sh> struct PointType {
+    using Type = typename PointType<TContour<Sh>>::Type;
 };
 
 /// TPoint<ShapeClass> as shorthand for `typename PointType<ShapeClass>::Type`.
@@ -46,7 +46,7 @@ template<class Shape>
 using TPoint = typename PointType<remove_cvref_t<Shape>>::Type;
 
 /// Getting the coordinate data type for a geometry class.
-template<class GeomClass> struct CoordType { 
+template<class GeomClass> struct CoordType {
     using Type = typename CoordType<TPoint<GeomClass>>::Type;
     static const constexpr Type MM_IN_COORDS = Type{1};
 };
@@ -62,7 +62,7 @@ using TCoord = typename CoordType<remove_cvref_t<GeomType>>::Type;
 template<class T, bool = std::is_arithmetic<T>::value> struct ComputeType {};
 
 /// A compute type is introduced to hold the results of computations on
-/// coordinates and points. It should be larger in range than the coordinate 
+/// coordinates and points. It should be larger in range than the coordinate
 /// type or the range of coordinates should be limited to not loose precision.
 template<class GeomClass> struct ComputeType<GeomClass, false> {
     using Type = typename ComputeType<TCoord<GeomClass>>::Type;
@@ -97,13 +97,13 @@ using THolesContainer = typename HolesContainer<remove_cvref_t<S>>::Type;
  * the polygon and (or) the multishape as well. The coordinate type also and
  * including the point type. TCoord<Polygon>, TCoord<Path>, TCoord<Point> are
  * all valid types and derives the coordinate type of template argument Polygon,
- * Path and Point. This is also true for TCompute, but it can also take the 
+ * Path and Point. This is also true for TCompute, but it can also take the
  * coordinate type as argument.
  */
 
 /*
  * A Multi shape concept is also introduced. A multi shape is something that
- * can contain the result of an operation where the input is one polygon and 
+ * can contain the result of an operation where the input is one polygon and
  * the result could be many polygons or path -> paths. The MultiShape should be
  * a container type. If the backend does not specialize the MultiShape template,
  * a default multi shape container will be used.
@@ -120,7 +120,7 @@ template<class S> struct DefaultMultiShape: public std::vector<S> {
 template<class S> struct MultiShape { using Type = DefaultMultiShape<S>; };
 
 /// use TMultiShape<S> instead of `typename MultiShape<S>::Type`
-template<class S> 
+template<class S>
 using TMultiShape = typename MultiShape<remove_cvref_t<S>>::Type;
 
 // A specialization of ContourType to work with the default multishape type
@@ -138,7 +138,7 @@ struct OrientationType {
 };
 
 template<class T> inline constexpr bool is_clockwise() {
-    return OrientationType<TContour<T>>::Value == Orientation::CLOCKWISE; 
+    return OrientationType<TContour<T>>::Value == Orientation::CLOCKWISE;
 }
 
 template<class T>
@@ -179,10 +179,10 @@ public:
 
     inline _Box(const P& center = {TCoord<P>(0), TCoord<P>(0)}):
         _Box(TCoord<P>(0), TCoord<P>(0), center) {}
-    
+
     inline _Box(const P& p, const P& pp):
         PointPair<P>({p, pp}) {}
-    
+
     inline _Box(TCoord<P> width, TCoord<P> height,
                 const P& p = {TCoord<P>(0), TCoord<P>(0)});/*:
         _Box(p, P{width, height}) {}*/
@@ -198,16 +198,16 @@ public:
 
     inline P center() const BP2D_NOEXCEPT;
 
-    template<class Unit = TCompute<P>> 
+    template<class Unit = TCompute<P>>
     inline Unit area() const BP2D_NOEXCEPT {
         return Unit(width())*height();
     }
-    
+
     static inline _Box infinite(const P &center = {TCoord<P>(0), TCoord<P>(0)});
 };
 
-template<class S> struct PointType<_Box<S>> { 
-    using Type = typename _Box<S>::PointType; 
+template<class S> struct PointType<_Box<S>> {
+    using Type = typename _Box<S>::PointType;
 };
 
 template<class P>
@@ -227,7 +227,7 @@ public:
 
     inline double radius() const BP2D_NOEXCEPT { return radius_; }
     inline void radius(double r) { radius_ = r; }
-    
+
     inline double area() const BP2D_NOEXCEPT {
         return Pi_2 * radius_ * radius_;
     }
@@ -280,11 +280,11 @@ public:
 
     /// The length of the segment in the measure of the coordinate system.
     template<class Unit = TCompute<P>> inline Unit sqlength() const;
-    
+
 };
 
-template<class S> struct PointType<_Segment<S>> { 
-    using Type = typename _Circle<S>::PointType; 
+template<class S> struct PointType<_Segment<S>> {
+    using Type = typename _Circle<S>::PointType;
 };
 
 // This struct serves almost as a namespace. The only difference is that is can
@@ -330,27 +330,27 @@ inline double distance(const P& p1, const P& p2)
 }
 
 // create perpendicular vector
-template<class Pt> inline Pt perp(const Pt& p) 
-{ 
+template<class Pt> inline Pt perp(const Pt& p)
+{
     return Pt(y(p), -x(p));
 }
 
-template<class Pt, class Unit = TCompute<Pt>> 
-inline Unit dotperp(const Pt& a, const Pt& b) 
-{ 
-    return Unit(x(a)) * Unit(y(b)) - Unit(y(a)) * Unit(x(b)); 
+template<class Pt, class Unit = TCompute<Pt>>
+inline Unit dotperp(const Pt& a, const Pt& b)
+{
+    return Unit(x(a)) * Unit(y(b)) - Unit(y(a)) * Unit(x(b));
 }
 
 // dot product
-template<class Pt, class Unit = TCompute<Pt>> 
-inline Unit dot(const Pt& a, const Pt& b) 
+template<class Pt, class Unit = TCompute<Pt>>
+inline Unit dot(const Pt& a, const Pt& b)
 {
     return Unit(x(a)) * x(b) + Unit(y(a)) * y(b);
 }
 
 // squared vector magnitude
-template<class Pt, class Unit = TCompute<Pt>> 
-inline Unit magnsq(const Pt& p) 
+template<class Pt, class Unit = TCompute<Pt>>
+inline Unit magnsq(const Pt& p)
 {
     return  Unit(x(p)) * x(p) + Unit(y(p)) * y(p);
 }
@@ -481,15 +481,15 @@ template<class P>
 inline _Box<P> _Box<P>::infinite(const P& center) {
     using C = TCoord<P>;
     _Box<P> ret;
-    
+
     // It is important for Mx and My to be strictly less than half of the
     // range of type C. width(), height() and area() will not overflow this way.
     C Mx = C((std::numeric_limits<C>::lowest() + 2 * getX(center)) / 4.01);
     C My = C((std::numeric_limits<C>::lowest() + 2 * getY(center)) / 4.01);
-    
+
     ret.maxCorner() = center - P{Mx, My};
     ret.minCorner() = center + P{Mx, My};
-    
+
     return ret;
 }
 
@@ -938,10 +938,10 @@ template<class P> _Box<P> boundingBox(const _Box<P>& bb1, const _Box<P>& bb2 )
     auto& iminc = bb2.minCorner();
     auto& imaxc = bb2.maxCorner();
     P minc, maxc;
-    
+
     setX(minc, std::min(getX(pminc), getX(iminc)));
     setY(minc, std::min(getY(pminc), getY(iminc)));
-    
+
     setX(maxc, std::max(getX(pmaxc), getX(imaxc)));
     setY(maxc, std::max(getY(pmaxc), getY(imaxc)));
     return _Box<P>(minc, maxc);
@@ -970,9 +970,9 @@ inline Unit area(const Cntr& poly, const PathTag& )
 {
     namespace sl = shapelike;
     if (sl::cend(poly) - sl::cbegin(poly) < 3) return 0.0;
-  
+
     Unit a = 0;
-    for (auto i = sl::cbegin(poly), j = std::prev(sl::cend(poly)); 
+    for (auto i = sl::cbegin(poly), j = std::prev(sl::cend(poly));
          i < sl::cend(poly); ++i)
     {
         auto xj = Unit(getX(*j)), yj = Unit(getY(*j));
@@ -987,10 +987,10 @@ inline Unit area(const Cntr& poly, const PathTag& )
 template<class S> inline double area(const S& poly, const PolygonTag& )
 {
     auto hls = holes(poly);
-    return std::accumulate(hls.begin(), hls.end(), 
+    return std::accumulate(hls.begin(), hls.end(),
                            area(contour(poly), PathTag()),
                            [](double a, const TContour<S> &h){
-        return a + area(h, PathTag());    
+        return a + area(h, PathTag());
     });
 }
 
@@ -1032,64 +1032,64 @@ inline S convexHull(const S& sh, const PathTag&)
     using Unit = TCompute<S>;
     using Point = TPoint<S>;
     namespace sl = shapelike;
-    
+
     size_t edges = sl::cend(sh) - sl::cbegin(sh);
     if(edges <= 3) return {};
-    
+
     bool closed = false;
     std::vector<Point> U, L;
     U.reserve(1 + edges / 2); L.reserve(1 + edges / 2);
-    
+
     std::vector<Point> pts; pts.reserve(edges);
     std::copy(sl::cbegin(sh), sl::cend(sh), std::back_inserter(pts));
-    
+
     auto fpt = pts.front(), lpt = pts.back();
-    if(getX(fpt) == getX(lpt) && getY(fpt) == getY(lpt)) { 
+    if(getX(fpt) == getX(lpt) && getY(fpt) == getY(lpt)) {
         closed = true; pts.pop_back();
     }
-    
-    std::sort(pts.begin(), pts.end(), 
+
+    std::sort(pts.begin(), pts.end(),
               [](const Point& v1, const Point& v2)
     {
         Unit x1 = getX(v1), x2 = getX(v2), y1 = getY(v1), y2 = getY(v2);
         return x1 == x2 ? y1 < y2 : x1 < x2;
     });
-    
+
     auto dir = [](const Point& p, const Point& q, const Point& r) {
         return (Unit(getY(q)) - getY(p)) * (Unit(getX(r)) - getX(p)) -
                (Unit(getX(q)) - getX(p)) * (Unit(getY(r)) - getY(p));
     };
-    
+
     auto ik = pts.begin();
-    
+
     while(ik != pts.end()) {
-        
-        while(U.size() > 1 && dir(U[U.size() - 2], U.back(), *ik) <= 0) 
+
+        while(U.size() > 1 && dir(U[U.size() - 2], U.back(), *ik) <= 0)
             U.pop_back();
-        while(L.size() > 1 && dir(L[L.size() - 2], L.back(), *ik) >= 0) 
+        while(L.size() > 1 && dir(L[L.size() - 2], L.back(), *ik) >= 0)
             L.pop_back();
-        
+
         U.emplace_back(*ik);
         L.emplace_back(*ik);
-        
+
         ++ik;
     }
-    
+
     S ret; reserve(ret, U.size() + L.size());
     if(is_clockwise<S>()) {
-        for(auto it = U.begin(); it != std::prev(U.end()); ++it) 
-            addVertex(ret, *it);  
-        for(auto it = L.rbegin(); it != std::prev(L.rend()); ++it) 
+        for(auto it = U.begin(); it != std::prev(U.end()); ++it)
+            addVertex(ret, *it);
+        for(auto it = L.rbegin(); it != std::prev(L.rend()); ++it)
             addVertex(ret, *it);
         if(closed) addVertex(ret, *std::prev(L.rend()));
     } else {
-        for(auto it = L.begin(); it != std::prev(L.end()); ++it) 
-            addVertex(ret, *it);  
-        for(auto it = U.rbegin(); it != std::prev(U.rend()); ++it) 
-            addVertex(ret, *it);  
+        for(auto it = L.begin(); it != std::prev(L.end()); ++it)
+            addVertex(ret, *it);
+        for(auto it = U.rbegin(); it != std::prev(U.rend()); ++it)
+            addVertex(ret, *it);
         if(closed) addVertex(ret, *std::prev(U.rend()));
     }
-    
+
     return ret;
 }
 
@@ -1098,10 +1098,10 @@ inline S convexHull(const RawShapes& sh, const MultiPolygonTag&)
 {
     namespace sl = shapelike;
     S cntr;
-    for(auto& poly : sh) 
-        for(auto it = sl::cbegin(poly); it != sl::cend(poly); ++it) 
+    for(auto& poly : sh)
+        for(auto it = sl::cbegin(poly); it != sl::cend(poly); ++it)
             addVertex(cntr, *it);
-    
+
     return convexHull(cntr, Tag<S>());
 }
 

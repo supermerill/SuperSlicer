@@ -44,52 +44,52 @@ struct command {
 
 
 static int cmd_dump  (PROGRAMMER * pgm, struct avrpart * p,
-		      int argc, char *argv[]);
+              int argc, char *argv[]);
 
 static int cmd_write (PROGRAMMER * pgm, struct avrpart * p,
-		      int argc, char *argv[]);
+              int argc, char *argv[]);
 
 static int cmd_erase (PROGRAMMER * pgm, struct avrpart * p,
-		      int argc, char *argv[]);
+              int argc, char *argv[]);
 
 static int cmd_sig   (PROGRAMMER * pgm, struct avrpart * p,
-		      int argc, char *argv[]);
+              int argc, char *argv[]);
 
 static int cmd_part  (PROGRAMMER * pgm, struct avrpart * p,
-		      int argc, char *argv[]);
+              int argc, char *argv[]);
 
 static int cmd_help  (PROGRAMMER * pgm, struct avrpart * p,
-		      int argc, char *argv[]);
+              int argc, char *argv[]);
 
 static int cmd_quit  (PROGRAMMER * pgm, struct avrpart * p,
-		      int argc, char *argv[]);
+              int argc, char *argv[]);
 
 static int cmd_send  (PROGRAMMER * pgm, struct avrpart * p,
-		      int argc, char *argv[]);
+              int argc, char *argv[]);
 
 static int cmd_parms (PROGRAMMER * pgm, struct avrpart * p,
-		      int argc, char *argv[]);
+              int argc, char *argv[]);
 
 static int cmd_vtarg (PROGRAMMER * pgm, struct avrpart * p,
-		      int argc, char *argv[]);
+              int argc, char *argv[]);
 
 static int cmd_varef (PROGRAMMER * pgm, struct avrpart * p,
-		      int argc, char *argv[]);
+              int argc, char *argv[]);
 
 static int cmd_fosc  (PROGRAMMER * pgm, struct avrpart * p,
-		      int argc, char *argv[]);
+              int argc, char *argv[]);
 
 static int cmd_sck   (PROGRAMMER * pgm, struct avrpart * p,
-		      int argc, char *argv[]);
+              int argc, char *argv[]);
 
 static int cmd_spi   (PROGRAMMER * pgm, struct avrpart * p,
-		      int argc, char *argv[]);
+              int argc, char *argv[]);
 
 static int cmd_pgm   (PROGRAMMER * pgm, struct avrpart * p,
-		      int argc, char *argv[]);
+              int argc, char *argv[]);
 
 static int cmd_verbose (PROGRAMMER * pgm, struct avrpart * p,
-		      int argc, char *argv[]);
+              int argc, char *argv[]);
 
 struct command cmd[] = {
   { "dump",  cmd_dump,  "dump memory  : %s <memtype> <addr> <N-Bytes>" },
@@ -229,7 +229,7 @@ static int hexdump_buf(FILE * f, int startaddr, unsigned char * buf, int len)
 
 
 static int cmd_dump(PROGRAMMER * pgm, struct avrpart * p,
-		    int argc, char * argv[])
+            int argc, char * argv[])
 {
   static char prevmem[128] = {0};
   char * e;
@@ -328,7 +328,7 @@ static int cmd_dump(PROGRAMMER * pgm, struct avrpart * p,
 
 
 static int cmd_write(PROGRAMMER * pgm, struct avrpart * p,
-		     int argc, char * argv[])
+             int argc, char * argv[])
 {
   char * e;
   int len, maxsize;
@@ -430,7 +430,7 @@ static int cmd_write(PROGRAMMER * pgm, struct avrpart * p,
 
 
 static int cmd_send(PROGRAMMER * pgm, struct avrpart * p,
-		    int argc, char * argv[])
+            int argc, char * argv[])
 {
   unsigned char cmd[4], res[4];
   char * e;
@@ -492,7 +492,7 @@ static int cmd_send(PROGRAMMER * pgm, struct avrpart * p,
 
 
 static int cmd_erase(PROGRAMMER * pgm, struct avrpart * p,
-		     int argc, char * argv[])
+             int argc, char * argv[])
 {
   avrdude_message(MSG_INFO, "%s: erasing chip\n", progname);
   pgm->chip_erase(pgm, p);
@@ -501,7 +501,7 @@ static int cmd_erase(PROGRAMMER * pgm, struct avrpart * p,
 
 
 static int cmd_part(PROGRAMMER * pgm, struct avrpart * p,
-		    int argc, char * argv[])
+            int argc, char * argv[])
 {
   fprintf(stdout, "\n");
   avr_display(stdout, p, "", 0);
@@ -512,7 +512,7 @@ static int cmd_part(PROGRAMMER * pgm, struct avrpart * p,
 
 
 static int cmd_sig(PROGRAMMER * pgm, struct avrpart * p,
-		   int argc, char * argv[])
+           int argc, char * argv[])
 {
   int i;
   int rc;
@@ -541,14 +541,14 @@ static int cmd_sig(PROGRAMMER * pgm, struct avrpart * p,
 
 
 static int cmd_quit(PROGRAMMER * pgm, struct avrpart * p,
-		    int argc, char * argv[])
+            int argc, char * argv[])
 {
   return 1;
 }
 
 
 static int cmd_parms(PROGRAMMER * pgm, struct avrpart * p,
-		     int argc, char * argv[])
+             int argc, char * argv[])
 {
   if (pgm->print_parms == NULL) {
     avrdude_message(MSG_INFO, "%s (parms): the %s programmer does not support "
@@ -563,7 +563,7 @@ static int cmd_parms(PROGRAMMER * pgm, struct avrpart * p,
 
 
 static int cmd_vtarg(PROGRAMMER * pgm, struct avrpart * p,
-		     int argc, char * argv[])
+             int argc, char * argv[])
 {
   int rc;
   double v;
@@ -581,12 +581,12 @@ static int cmd_vtarg(PROGRAMMER * pgm, struct avrpart * p,
   }
   if (pgm->set_vtarget == NULL) {
     avrdude_message(MSG_INFO, "%s (vtarg): the %s programmer cannot set V[target]\n",
-	    progname, pgm->type);
+        progname, pgm->type);
     return -2;
   }
   if ((rc = pgm->set_vtarget(pgm, v)) != 0) {
     avrdude_message(MSG_INFO, "%s (vtarg): failed to set V[target] (rc = %d)\n",
-	    progname, rc);
+        progname, rc);
     return -3;
   }
   return 0;
@@ -594,7 +594,7 @@ static int cmd_vtarg(PROGRAMMER * pgm, struct avrpart * p,
 
 
 static int cmd_fosc(PROGRAMMER * pgm, struct avrpart * p,
-		    int argc, char * argv[])
+            int argc, char * argv[])
 {
   int rc;
   double v;
@@ -610,7 +610,7 @@ static int cmd_fosc(PROGRAMMER * pgm, struct avrpart * p,
       v = 0.0;
     else {
       avrdude_message(MSG_INFO, "%s (fosc): can't parse frequency \"%s\"\n",
-	      progname, argv[1]);
+          progname, argv[1]);
       return -1;
     }
   }
@@ -625,7 +625,7 @@ static int cmd_fosc(PROGRAMMER * pgm, struct avrpart * p,
   }
   if ((rc = pgm->set_fosc(pgm, v)) != 0) {
     avrdude_message(MSG_INFO, "%s (fosc): failed to set oscillator_frequency (rc = %d)\n",
-	    progname, rc);
+        progname, rc);
     return -3;
   }
   return 0;
@@ -633,7 +633,7 @@ static int cmd_fosc(PROGRAMMER * pgm, struct avrpart * p,
 
 
 static int cmd_sck(PROGRAMMER * pgm, struct avrpart * p,
-		   int argc, char * argv[])
+           int argc, char * argv[])
 {
   int rc;
   double v;
@@ -646,10 +646,10 @@ static int cmd_sck(PROGRAMMER * pgm, struct avrpart * p,
   v = strtod(argv[1], &endp);
   if (endp == argv[1]) {
     avrdude_message(MSG_INFO, "%s (sck): can't parse period \"%s\"\n",
-	    progname, argv[1]);
+        progname, argv[1]);
     return -1;
   }
-  v *= 1e-6;			/* Convert from microseconds to seconds. */
+  v *= 1e-6;            /* Convert from microseconds to seconds. */
   if (pgm->set_sck_period == NULL) {
     avrdude_message(MSG_INFO, "%s (sck): the %s programmer cannot set SCK period\n",
                     progname, pgm->type);
@@ -657,7 +657,7 @@ static int cmd_sck(PROGRAMMER * pgm, struct avrpart * p,
   }
   if ((rc = pgm->set_sck_period(pgm, v)) != 0) {
     avrdude_message(MSG_INFO, "%s (sck): failed to set SCK period (rc = %d)\n",
-	    progname, rc);
+        progname, rc);
     return -3;
   }
   return 0;
@@ -665,7 +665,7 @@ static int cmd_sck(PROGRAMMER * pgm, struct avrpart * p,
 
 
 static int cmd_varef(PROGRAMMER * pgm, struct avrpart * p,
-		     int argc, char * argv[])
+             int argc, char * argv[])
 {
   int rc;
   unsigned int chan;
@@ -700,12 +700,12 @@ static int cmd_varef(PROGRAMMER * pgm, struct avrpart * p,
   }
   if (pgm->set_varef == NULL) {
     avrdude_message(MSG_INFO, "%s (varef): the %s programmer cannot set V[aref]\n",
-	    progname, pgm->type);
+        progname, pgm->type);
     return -2;
   }
   if ((rc = pgm->set_varef(pgm, chan, v)) != 0) {
     avrdude_message(MSG_INFO, "%s (varef): failed to set V[aref] (rc = %d)\n",
-	    progname, rc);
+        progname, rc);
     return -3;
   }
   return 0;
@@ -713,7 +713,7 @@ static int cmd_varef(PROGRAMMER * pgm, struct avrpart * p,
 
 
 static int cmd_help(PROGRAMMER * pgm, struct avrpart * p,
-		    int argc, char * argv[])
+            int argc, char * argv[])
 {
   int i;
 
@@ -723,7 +723,7 @@ static int cmd_help(PROGRAMMER * pgm, struct avrpart * p,
     fprintf(stdout, cmd[i].desc, cmd[i].name);
     fprintf(stdout, "\n");
   }
-  fprintf(stdout, 
+  fprintf(stdout,
           "\nUse the 'part' command to display valid memory types for use with the\n"
           "'dump' and 'write' commands.\n\n");
 
@@ -748,7 +748,7 @@ static int cmd_pgm(PROGRAMMER * pgm, struct avrpart * p,
 }
 
 static int cmd_verbose(PROGRAMMER * pgm, struct avrpart * p,
-		       int argc, char * argv[])
+               int argc, char * argv[])
 {
   int nverb;
   char *endp;
@@ -764,12 +764,12 @@ static int cmd_verbose(PROGRAMMER * pgm, struct avrpart * p,
   nverb = strtol(argv[1], &endp, 0);
   if (endp == argv[2]) {
     avrdude_message(MSG_INFO, "%s: can't parse verbosity level \"%s\"\n",
-	    progname, argv[2]);
+        progname, argv[2]);
     return -1;
   }
   if (nverb < 0) {
     avrdude_message(MSG_INFO, "%s: verbosity level must be positive: %d\n",
-	    progname, nverb);
+        progname, nverb);
     return -1;
   }
   verbose = nverb;
@@ -791,9 +791,9 @@ static int tokenize(char * s, char *** argv)
 
   slen = (int)strlen(s);
 
-  /* 
+  /*
    * initialize allow for 20 arguments, use realloc to grow this if
-   * necessary 
+   * necessary
    */
   nargs   = 20;
   bufsize = slen + 20;
@@ -829,7 +829,7 @@ static int tokenize(char * s, char *** argv)
     }
   }
 
-  /* 
+  /*
    * We have parsed all the args, n == argc, bufv contains an array of
    * pointers to each arg, and buf points to one memory block that
    * contains all the args, back to back, seperated by a nul
@@ -856,7 +856,7 @@ static int tokenize(char * s, char *** argv)
 
 
 static int do_cmd(PROGRAMMER * pgm, struct avrpart * p,
-		  int argc, char * argv[])
+          int argc, char * argv[])
 {
   int i;
   int hold;
@@ -922,7 +922,7 @@ int terminal_mode(PROGRAMMER * pgm, struct avrpart * p)
 
   rc = 0;
   while ((cmdbuf = terminal_get_input("avrdude> ")) != NULL) {
-    /* 
+    /*
      * find the start of the command, skipping any white space
      */
     q = cmdbuf;

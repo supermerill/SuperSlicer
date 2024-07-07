@@ -105,7 +105,7 @@ PresetComboBox::PresetComboBox(wxWindow* parent, Preset::Type preset_type, const
     }
     default: break;
     }
-    
+
     init();
 }
 
@@ -148,7 +148,7 @@ void PresetComboBox::OnSelect(wxCommandEvent& evt)
         // see https://github.com/prusa3d/PrusaSlicer/issues/3889
         // Under OSX: in case of use of a same names written in different case (like "ENDER" and "Ender")
         // m_presets_choice->GetSelection() will return first item, because search in PopupListCtrl is case-insensitive.
-        // So, use GetSelection() from event parameter 
+        // So, use GetSelection() from event parameter
         auto selected_item = evt.GetSelection();
 
         //protected as selected_item is often at a weird value
@@ -438,7 +438,7 @@ wxString PresetComboBox::separator(const std::string& label)
     return wxString::FromUTF8(separator_head()) + _(label) + wxString::FromUTF8(separator_tail());
 }
 
-wxBitmap* PresetComboBox::get_bmp(  std::string bitmap_key, bool wide_icons, const std::string& main_icon_name, 
+wxBitmap* PresetComboBox::get_bmp(  std::string bitmap_key, bool wide_icons, const std::string& main_icon_name,
                                     bool is_compatible/* = true*/, bool is_system/* = false*/, bool is_single_bar/* = false*/,
                                     const std::string& filament_rgb/* = ""*/, const std::string& extruder_rgb/* = ""*/, const std::string& material_rgb/* = ""*/)
 {
@@ -507,7 +507,7 @@ wxBitmap* PresetComboBox::get_bmp(  std::string bitmap_key, const std::string& m
     if (bmp == nullptr) {
         // Create the bitmap with color bars.
         std::vector<wxBitmap> bmps;
-        bmps.emplace_back(m_type == Preset::TYPE_PRINTER ? create_scaled_bitmap(main_icon_name, this, 16, !is_enabled) : 
+        bmps.emplace_back(m_type == Preset::TYPE_PRINTER ? create_scaled_bitmap(main_icon_name, this, 16, !is_enabled) :
                           is_compatible ? m_bitmapCompatible.bmp() : m_bitmapIncompatible.bmp());
         // Paint a lock at the system presets.
         bmps.emplace_back(is_system ? create_scaled_bitmap(next_icon_name, this, 16, !is_enabled) : bitmap_cache().mkclear(norm_icon_width, icon_height));
@@ -542,13 +542,13 @@ bool PresetComboBox::selection_is_changed_according_to_physical_printers()
     }
     else
         old_printer_preset = m_collection->get_edited_preset().name;
-    // Select related printer preset on the Printer Settings Tab 
+    // Select related printer preset on the Printer Settings Tab
     physical_printers.select_printer(selected_string);
     std::string preset_name = physical_printers.get_selected_printer_preset_name();
 
     // if new preset wasn't selected, there is no need to call update preset selection
     if (old_printer_preset == preset_name) {
-        // we need just to update according Plater<->Tab PresetComboBox 
+        // we need just to update according Plater<->Tab PresetComboBox
         if (dynamic_cast<PlaterPresetComboBox*>(this)!=nullptr) {
             wxGetApp().get_tab(m_type)->update_preset_choice();
             // Synchronize config.ini with the current selections.
@@ -656,12 +656,12 @@ void PlaterPresetComboBox::OnSelect(wxCommandEvent &evt)
                     break;
             }
             wxTheApp->CallAfter([sp]() { run_wizard(sp); });
-        }    
+        }
         return;
     }
     else if (marker == LABEL_ITEM_PHYSICAL_PRINTER || m_last_selected != selected_item || m_collection->current_is_dirty())
         m_last_selected = selected_item;
-        
+
             evt.Skip();
         }
 
@@ -830,7 +830,7 @@ void PlaterPresetComboBox::update()
     if (!presets.front().is_visible)
         this->set_label_marker(this->Append(separator(L("System presets")), wxNullBitmap));
 
-    for (size_t i = presets.front().is_visible ? 0 : m_collection->num_default_presets(); i < presets.size(); ++i) 
+    for (size_t i = presets.front().is_visible ? 0 : m_collection->num_default_presets(); i < presets.size(); ++i)
     {
         const Preset& preset = presets[i];
         bool is_selected =  m_type == Preset::TYPE_FFF_FILAMENT ?
@@ -849,7 +849,7 @@ void PlaterPresetComboBox::update()
         if (m_type == Preset::TYPE_FFF_FILAMENT)
         {
             // Assign an extruder color to the selected item if the extruder color is defined.
-            filament_rgb = is_selected ? selected_filament_preset->config.opt_string("filament_colour", 0) : 
+            filament_rgb = is_selected ? selected_filament_preset->config.opt_string("filament_colour", 0) :
                                          preset.config.opt_string("filament_colour", 0);
             extruder_rgb = (is_selected && !extruder_color.empty()) ? extruder_color : filament_rgb;
             single_bar = filament_rgb == extruder_rgb;
@@ -862,8 +862,8 @@ void PlaterPresetComboBox::update()
                 material_rgb = print_config_def.get("material_colour")->get_default_value<ConfigOptionString>()->value;
         }
 
-        wxBitmap* bmp = get_bmp(bitmap_key, wide_icons, bitmap_type_name, 
-                                preset.is_compatible, preset.is_system || preset.is_default, 
+        wxBitmap* bmp = get_bmp(bitmap_key, wide_icons, bitmap_type_name,
+                                preset.is_compatible, preset.is_system || preset.is_default,
                                 single_bar, filament_rgb, extruder_rgb, material_rgb);
         assert(bmp);
 
@@ -978,7 +978,7 @@ void TabPresetComboBox::OnSelect(wxCommandEvent &evt)
         // see https://github.com/prusa3d/PrusaSlicer/issues/3889
         // Under OSX: in case of use of a same names written in different case (like "ENDER" and "Ender")
         // m_presets_choice->GetSelection() will return first item, because search in PopupListCtrl is case-insensitive.
-        // So, use GetSelection() from event parameter 
+        // So, use GetSelection() from event parameter
         auto selected_item = evt.GetSelection();
         if (selected_item >= (int)this->GetCount() || selected_item < 0)
             std::cout << "qfoazfhasuiofh \n";
@@ -1007,7 +1007,7 @@ void TabPresetComboBox::OnSelect(wxCommandEvent &evt)
         // (see https://github.com/prusa3d/PrusaSlicer/issues/5531 ).
         // So, set the focus to the combobox explicitly
         this->SetFocus();
-#endif    
+#endif
 }
 
 wxString TabPresetComboBox::get_preset_name(const Preset& preset)
@@ -1044,7 +1044,7 @@ void TabPresetComboBox::update()
         const Preset& preset = presets[i];
         if (!preset.is_visible || (!show_incompatible && !preset.is_compatible && i != idx_selected))
             continue;
-        
+
         // marker used for disable incompatible printer models for the selected physical printer
         bool is_enabled = true;
 
@@ -1150,7 +1150,7 @@ void TabPresetComboBox::update_dirty()
             ph_printer_name = PhysicalPrinter::get_short_name(preset_name);
             preset_name = PhysicalPrinter::get_preset_name(preset_name);
         }
-            
+
         Preset* preset = m_collection->find_preset(preset_name, false);
         if (preset) {
             std::string new_label = preset->name + suffix(preset);

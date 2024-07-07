@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_POINT_SIMPLEX_SQUARED_DISTANCE_H
 #define IGL_POINT_SIMPLEX_SQUARED_DISTANCE_H
@@ -11,7 +11,7 @@
 #include <Eigen/Core>
 namespace igl
 {
-  // Determine squared distance from a point to linear simplex. 
+  // Determine squared distance from a point to linear simplex.
   //
   // Inputs:
   //   p  d-long query point
@@ -20,7 +20,7 @@ namespace igl
   //   i  index into Ele of simplex
   // Outputs:
   //   sqr_d  squared distance of Ele(i) to p
-  //   c  closest point on Ele(i) 
+  //   c  closest point on Ele(i)
   //
   template <
     int DIM,
@@ -37,7 +37,7 @@ namespace igl
     Derivedsqr_d & sqr_d,
     Eigen::MatrixBase<Derivedc> & c);
   // Determine squared distance from a point to linear simplex.
-  // Also return barycentric coordinate of closest point. 
+  // Also return barycentric coordinate of closest point.
   //
   // Inputs:
   //   p  d-long query point
@@ -46,8 +46,8 @@ namespace igl
   //   i  index into Ele of simplex
   // Outputs:
   //   sqr_d  squared distance of Ele(i) to p
-  //   c  closest point on Ele(i) 
-  //   b  barycentric coordinates of closest point on Ele(i) 
+  //   c  closest point on Ele(i)
+  //   b  barycentric coordinates of closest point on Ele(i)
   //
   template <
     int DIM,

@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2014 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "point_mesh_squared_distance.h"
 #include "mesh_to_cgal_triangle_list.h"
@@ -26,7 +26,7 @@ IGL_INLINE void igl::copyleft::cgal::point_mesh_squared_distance(
         Eigen::PlainObjectBase<DerivedC> & C)
 {
   using namespace std;
-  typedef CGAL::Triangle_3<Kernel> Triangle_3; 
+  typedef CGAL::Triangle_3<Kernel> Triangle_3;
   typedef typename std::vector<Triangle_3>::iterator Iterator;
   typedef CGAL::AABB_triangle_primitive<Kernel, Iterator> Primitive;
   typedef CGAL::AABB_traits<Kernel, Primitive> AABB_triangle_traits;
@@ -42,8 +42,8 @@ IGL_INLINE void igl::copyleft::cgal::point_mesh_squared_distance_precompute(
   const Eigen::PlainObjectBase<DerivedV> & V,
   const Eigen::PlainObjectBase<DerivedF> & F,
   CGAL::AABB_tree<
-    CGAL::AABB_traits<Kernel, 
-      CGAL::AABB_triangle_primitive<Kernel, 
+    CGAL::AABB_traits<Kernel,
+      CGAL::AABB_triangle_primitive<Kernel,
         typename std::vector<CGAL::Triangle_3<Kernel> >::iterator
       >
     >
@@ -52,8 +52,8 @@ IGL_INLINE void igl::copyleft::cgal::point_mesh_squared_distance_precompute(
 {
   using namespace std;
 
-  typedef CGAL::Triangle_3<Kernel> Triangle_3; 
-  typedef CGAL::Point_3<Kernel> Point_3; 
+  typedef CGAL::Triangle_3<Kernel> Triangle_3;
+  typedef CGAL::Point_3<Kernel> Point_3;
   typedef typename std::vector<Triangle_3>::iterator Iterator;
   typedef CGAL::AABB_triangle_primitive<Kernel, Iterator> Primitive;
   typedef CGAL::AABB_traits<Kernel, Primitive> AABB_triangle_traits;
@@ -64,7 +64,7 @@ IGL_INLINE void igl::copyleft::cgal::point_mesh_squared_distance_precompute(
   // Must be triangles
   assert(F.cols() == 3);
 
-  // WTF ALERT!!!! 
+  // WTF ALERT!!!!
   //
   // There's a bug in clang probably or at least in cgal. Without calling this
   // line (I guess invoking some compilation from <vector>), clang will vomit
@@ -94,8 +94,8 @@ template <
 IGL_INLINE void igl::copyleft::cgal::point_mesh_squared_distance(
   const Eigen::PlainObjectBase<DerivedP> & P,
   const CGAL::AABB_tree<
-    CGAL::AABB_traits<Kernel, 
-      CGAL::AABB_triangle_primitive<Kernel, 
+    CGAL::AABB_traits<Kernel,
+      CGAL::AABB_triangle_primitive<Kernel,
         typename std::vector<CGAL::Triangle_3<Kernel> >::iterator
       >
     >
@@ -105,7 +105,7 @@ IGL_INLINE void igl::copyleft::cgal::point_mesh_squared_distance(
   Eigen::PlainObjectBase<DerivedI> & I,
   Eigen::PlainObjectBase<DerivedC> & C)
 {
-  typedef CGAL::Triangle_3<Kernel> Triangle_3; 
+  typedef CGAL::Triangle_3<Kernel> Triangle_3;
   typedef typename std::vector<Triangle_3>::iterator Iterator;
   typedef CGAL::AABB_triangle_primitive<Kernel, Iterator> Primitive;
   typedef CGAL::AABB_traits<Kernel, Primitive> AABB_triangle_traits;

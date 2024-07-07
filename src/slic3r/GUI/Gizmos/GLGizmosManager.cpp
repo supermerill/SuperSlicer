@@ -932,7 +932,7 @@ bool GLGizmosManager::on_key(wxKeyEvent& evt)
             }
         } else if (m_current == Simplify && keyCode == WXK_ESCAPE) {
             GLGizmoSimplify *simplify = dynamic_cast<GLGizmoSimplify *>(get_current());
-            if (simplify != nullptr) 
+            if (simplify != nullptr)
                 processed = simplify->on_esc_key_down();
         }
     }
@@ -1008,7 +1008,7 @@ void GLGizmosManager::render_background(float left, float top, float right, floa
 
 void GLGizmosManager::render_arrow(const GLCanvas3D& parent, EType highlighted_type) const
 {
-    
+
     std::vector<size_t> selectable_idxs = get_selectable_idxs();
     if (selectable_idxs.empty())
         return;
@@ -1025,7 +1025,7 @@ void GLGizmosManager::render_arrow(const GLCanvas3D& parent, EType highlighted_t
     float zoomed_stride_y = m_layout.scaled_stride_y() * inv_zoom;
     for (size_t idx : selectable_idxs)
     {
-        if (idx == highlighted_type) {      
+        if (idx == highlighted_type) {
             int tex_width = m_icons_texture.get_width();
             int tex_height = m_icons_texture.get_height();
             unsigned int tex_id = m_arrow_texture.texture.get_id();
@@ -1036,7 +1036,7 @@ void GLGizmosManager::render_arrow(const GLCanvas3D& parent, EType highlighted_t
             float internal_right_uv = 1.0f - (float)m_arrow_texture.metadata.right * inv_tex_width;
             float internal_top_uv = 1.0f - (float)m_arrow_texture.metadata.top * inv_tex_height;
             float internal_bottom_uv = (float)m_arrow_texture.metadata.bottom * inv_tex_height;
-            
+
             float arrow_sides_ratio = (float)m_arrow_texture.texture.get_height() / (float)m_arrow_texture.texture.get_width();
 
             GLTexture::render_sub_texture(tex_id, zoomed_top_x + zoomed_icons_size * 1.2f, zoomed_top_x + zoomed_icons_size * 1.2f + zoomed_icons_size * 2.2f * arrow_sides_ratio, zoomed_top_y - zoomed_icons_size * 1.6f , zoomed_top_y + zoomed_icons_size * 0.6f, { { internal_left_uv, internal_bottom_uv }, { internal_left_uv, internal_top_uv }, { internal_right_uv, internal_top_uv }, { internal_right_uv, internal_bottom_uv } });
@@ -1154,7 +1154,7 @@ bool GLGizmosManager::generate_icons_texture() const
     std::vector<std::string> filenames;
     for (size_t idx=0; idx<m_gizmos.size(); ++idx)
     {
-        if (m_gizmos[idx] != nullptr)   
+        if (m_gizmos[idx] != nullptr)
         {
             const std::string& icon_filename = m_gizmos[idx]->get_icon_filename();
             if (!icon_filename.empty())

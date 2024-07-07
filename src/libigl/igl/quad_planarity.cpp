@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "quad_planarity.h"
 #include <Eigen/Geometry>
@@ -23,7 +23,7 @@ IGL_INLINE void igl::quad_planarity(
     const Eigen::Matrix<typename DerivedV::Scalar,1,3> &v3 = V.row(F(i,2));
     const Eigen::Matrix<typename DerivedV::Scalar,1,3> &v4 = V.row(F(i,3));
     Eigen::Matrix<typename DerivedV::Scalar,1,3> diagCross=(v3-v1).cross(v4-v2);
-    typename DerivedV::Scalar denom = 
+    typename DerivedV::Scalar denom =
       diagCross.norm()*(((v3-v1).norm()+(v4-v2).norm())/2);
     if (fabs(denom)<1e-8)
       //degenerate quad is still planar

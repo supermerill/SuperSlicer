@@ -49,13 +49,13 @@ struct MeshSlicingParamsEx : public MeshSlicingParams
 };
 
 // All the following slicing functions shall produce consistent results with the same mesh, same transformation matrix and slicing parameters.
-// Namely, slice_mesh_slabs() shall produce consistent results with slice_mesh() and slice_mesh_ex() in the sense, that projections made by 
+// Namely, slice_mesh_slabs() shall produce consistent results with slice_mesh() and slice_mesh_ex() in the sense, that projections made by
 // slice_mesh_slabs() shall fall onto slicing planes produced by slice_mesh().
 //
 // If a slicing plane slices a horizontal face of a mesh exactly,
 // an upward facing horizontal face is is considered on slicing plane,
 // while a downward facing horizontal face is considered not on slicing plane.
-// 
+//
 // slice_mesh_slabs() thus projects an upward facing horizontal slice to the slicing plane,
 // while slice_mesh_slabs() projects a downward facing horizontal slice to the slicing plane above if it exists.
 
@@ -97,7 +97,7 @@ inline std::vector<ExPolygons>  slice_mesh_ex(
 }
 
 // Slice a triangle set with a set of Z slabs (thick layers).
-// The effect is similar to producing the usual top / bottom layers from a sliced mesh by 
+// The effect is similar to producing the usual top / bottom layers from a sliced mesh by
 // subtracting layer[i] from layer[i - 1] for the top surfaces resp.
 // subtracting layer[i] from layer[i + 1] for the bottom surfaces,
 // with the exception that the triangle set this function processes may not cover the whole top resp. bottom surface.

@@ -55,7 +55,7 @@
 
 
 #if defined EIGEN_USE_MKL
-#   include <mkl.h> 
+#   include <mkl.h>
 /*Check IMKL version for compatibility: < 10.3 is not usable with Eigen*/
 #   ifndef INTEL_MKL_VERSION
 #       undef EIGEN_USE_MKL /* INTEL_MKL_VERSION is not even defined on older versions */

@@ -26,35 +26,35 @@ namespace GUI {
 class MsgDialog : public wxDialog
 {
 public:
-	MsgDialog(MsgDialog &&) = delete;
-	MsgDialog(const MsgDialog &) = delete;
-	MsgDialog &operator=(MsgDialog &&) = delete;
-	MsgDialog &operator=(const MsgDialog &) = delete;
-	virtual ~MsgDialog() = default;
+    MsgDialog(MsgDialog &&) = delete;
+    MsgDialog(const MsgDialog &) = delete;
+    MsgDialog &operator=(MsgDialog &&) = delete;
+    MsgDialog &operator=(const MsgDialog &) = delete;
+    virtual ~MsgDialog() = default;
 
-	void SetButtonLabel(wxWindowID btn_id, const wxString& label, bool set_focus = false);
+    void SetButtonLabel(wxWindowID btn_id, const wxString& label, bool set_focus = false);
 
 protected:
-	enum {
-		CONTENT_WIDTH = 70,//50,
-		CONTENT_MAX_HEIGHT = 60,
-		BORDER = 30,
-		VERT_SPACING = 15,
-		HORIZ_SPACING = 5,
-	};
+    enum {
+        CONTENT_WIDTH = 70,//50,
+        CONTENT_MAX_HEIGHT = 60,
+        BORDER = 30,
+        VERT_SPACING = 15,
+        HORIZ_SPACING = 5,
+    };
 
-	MsgDialog(wxWindow *parent, const wxString &title, const wxString &headline, long style = wxOK, wxBitmap bitmap = wxNullBitmap);
-	// returns pointer to created button
-	wxButton* add_button(wxWindowID btn_id, bool set_focus = false, const wxString& label = wxString());
-	// returns pointer to found button or NULL
-	wxButton* get_button(wxWindowID btn_id);
-	void apply_style(long style);
-	void finalize();
+    MsgDialog(wxWindow *parent, const wxString &title, const wxString &headline, long style = wxOK, wxBitmap bitmap = wxNullBitmap);
+    // returns pointer to created button
+    wxButton* add_button(wxWindowID btn_id, bool set_focus = false, const wxString& label = wxString());
+    // returns pointer to found button or NULL
+    wxButton* get_button(wxWindowID btn_id);
+    void apply_style(long style);
+    void finalize();
 
-	wxFont boldfont;
-	wxBoxSizer *content_sizer;
-	wxBoxSizer *btn_sizer;
-	wxStaticBitmap *logo;
+    wxFont boldfont;
+    wxBoxSizer *content_sizer;
+    wxBoxSizer *btn_sizer;
+    wxStaticBitmap *logo;
 };
 
 
@@ -62,17 +62,17 @@ protected:
 class ErrorDialog : public MsgDialog
 {
 public:
-	// If monospaced_font is true, the error message is displayed using html <code><pre></pre></code> tags,
-	// so that the code formatting will be preserved. This is useful for reporting errors from the placeholder parser.
-	ErrorDialog(wxWindow *parent, const wxString &msg, bool courier_font);
-	ErrorDialog(ErrorDialog &&) = delete;
-	ErrorDialog(const ErrorDialog &) = delete;
-	ErrorDialog &operator=(ErrorDialog &&) = delete;
-	ErrorDialog &operator=(const ErrorDialog &) = delete;
-	virtual ~ErrorDialog() = default;
+    // If monospaced_font is true, the error message is displayed using html <code><pre></pre></code> tags,
+    // so that the code formatting will be preserved. This is useful for reporting errors from the placeholder parser.
+    ErrorDialog(wxWindow *parent, const wxString &msg, bool courier_font);
+    ErrorDialog(ErrorDialog &&) = delete;
+    ErrorDialog(const ErrorDialog &) = delete;
+    ErrorDialog &operator=(ErrorDialog &&) = delete;
+    ErrorDialog &operator=(const ErrorDialog &) = delete;
+    virtual ~ErrorDialog() = default;
 
 private:
-	wxString msg;
+    wxString msg;
 };
 
 
@@ -80,15 +80,15 @@ private:
 class WarningDialog : public MsgDialog
 {
 public:
-	WarningDialog(	wxWindow *parent,
-		            const wxString& message,
-		            const wxString& caption = wxEmptyString,
-		            long style = wxOK);
-	WarningDialog(WarningDialog&&) = delete;
-	WarningDialog(const WarningDialog&) = delete;
-	WarningDialog &operator=(WarningDialog&&) = delete;
-	WarningDialog &operator=(const WarningDialog&) = delete;
-	virtual ~WarningDialog() = default;
+    WarningDialog(    wxWindow *parent,
+                    const wxString& message,
+                    const wxString& caption = wxEmptyString,
+                    long style = wxOK);
+    WarningDialog(WarningDialog&&) = delete;
+    WarningDialog(const WarningDialog&) = delete;
+    WarningDialog &operator=(WarningDialog&&) = delete;
+    WarningDialog &operator=(const WarningDialog&) = delete;
+    virtual ~WarningDialog() = default;
 };
 
 wxString get_wraped_wxString(const wxString& text_in, size_t line_len = 80);
@@ -98,213 +98,213 @@ wxString get_wraped_wxString(const wxString& text_in, size_t line_len = 80);
 class StaticLine: public wxTextCtrl
 {
 public:
-	StaticLine( wxWindow* parent,
-				wxWindowID id = wxID_ANY,
-				const wxPoint& pos = wxDefaultPosition,
-				const wxSize& size = wxDefaultSize,
-				long style = wxLI_HORIZONTAL,
-				const wxString& name = wxString::FromAscii(wxTextCtrlNameStr))
-	: wxTextCtrl(parent, id, wxEmptyString, pos, size!=wxDefaultSize ? size : (style == wxLI_HORIZONTAL ? wxSize(10, 1) : wxSize(1, 10)), wxSIMPLE_BORDER, wxDefaultValidator, name)
-	{
-		this->Enable(false);
+    StaticLine( wxWindow* parent,
+                wxWindowID id = wxID_ANY,
+                const wxPoint& pos = wxDefaultPosition,
+                const wxSize& size = wxDefaultSize,
+                long style = wxLI_HORIZONTAL,
+                const wxString& name = wxString::FromAscii(wxTextCtrlNameStr))
+    : wxTextCtrl(parent, id, wxEmptyString, pos, size!=wxDefaultSize ? size : (style == wxLI_HORIZONTAL ? wxSize(10, 1) : wxSize(1, 10)), wxSIMPLE_BORDER, wxDefaultValidator, name)
+    {
+        this->Enable(false);
 }
-	~StaticLine() {}
+    ~StaticLine() {}
 };
 
 // Generic message dialog, used intead of wxMessageDialog
 class MessageDialog : public MsgDialog
 {
 public:
-	// NOTE! Don't change a signature of contsrucor. It have to  be tha same as for wxMessageDialog
-	MessageDialog(	wxWindow *parent,
-		            const wxString& message,
-		            const wxString& caption = wxEmptyString,
-		            long style = wxOK);
-	MessageDialog(MessageDialog&&) = delete;
-	MessageDialog(const MessageDialog&) = delete;
-	MessageDialog &operator=(MessageDialog&&) = delete;
-	MessageDialog &operator=(const MessageDialog&) = delete;
-	virtual ~MessageDialog() = default;
+    // NOTE! Don't change a signature of contsrucor. It have to  be tha same as for wxMessageDialog
+    MessageDialog(    wxWindow *parent,
+                    const wxString& message,
+                    const wxString& caption = wxEmptyString,
+                    long style = wxOK);
+    MessageDialog(MessageDialog&&) = delete;
+    MessageDialog(const MessageDialog&) = delete;
+    MessageDialog &operator=(MessageDialog&&) = delete;
+    MessageDialog &operator=(const MessageDialog&) = delete;
+    virtual ~MessageDialog() = default;
 };
 
 // Generic rich message dialog, used intead of wxRichMessageDialog
 class RichMessageDialog : public MsgDialog
 {
-	wxCheckBox* m_checkBox{ nullptr };
-	wxString	m_checkBoxText;
-	bool		m_checkBoxValue{ false };
+    wxCheckBox* m_checkBox{ nullptr };
+    wxString    m_checkBoxText;
+    bool        m_checkBoxValue{ false };
 
 public:
-	// NOTE! Don't change a signature of contsrucor. It have to  be tha same as for wxRichMessageDialog
-	RichMessageDialog(	wxWindow *parent,
-						const wxString& message,
-						const wxString& caption = wxEmptyString,
-						long style = wxOK);
-	RichMessageDialog(RichMessageDialog&&) = delete;
-	RichMessageDialog(const RichMessageDialog&) = delete;
-	RichMessageDialog &operator=(RichMessageDialog&&) = delete;
-	RichMessageDialog &operator=(const RichMessageDialog&) = delete;
-	virtual ~RichMessageDialog() = default;
+    // NOTE! Don't change a signature of contsrucor. It have to  be tha same as for wxRichMessageDialog
+    RichMessageDialog(    wxWindow *parent,
+                        const wxString& message,
+                        const wxString& caption = wxEmptyString,
+                        long style = wxOK);
+    RichMessageDialog(RichMessageDialog&&) = delete;
+    RichMessageDialog(const RichMessageDialog&) = delete;
+    RichMessageDialog &operator=(RichMessageDialog&&) = delete;
+    RichMessageDialog &operator=(const RichMessageDialog&) = delete;
+    virtual ~RichMessageDialog() = default;
 
-	int  ShowModal() override;
+    int  ShowModal() override;
 
-	void ShowCheckBox(const wxString& checkBoxText, bool checked = false)
-	{
-		m_checkBoxText = checkBoxText;
-		m_checkBoxValue = checked;
+    void ShowCheckBox(const wxString& checkBoxText, bool checked = false)
+    {
+        m_checkBoxText = checkBoxText;
+        m_checkBoxValue = checked;
 }
 
-	wxString	GetCheckBoxText()	const { return m_checkBoxText; }
-	bool		IsCheckBoxChecked() const { return m_checkBoxValue; }
+    wxString    GetCheckBoxText()    const { return m_checkBoxText; }
+    bool        IsCheckBoxChecked() const { return m_checkBoxValue; }
 
 // This part o fcode isported from the "wx\msgdlg.h"
-	using wxMD = wxMessageDialogBase;
-	// customization of the message box buttons
-	virtual bool SetYesNoLabels(const wxMD::ButtonLabel& yes, const wxMD::ButtonLabel& no)
-	{
-		DoSetCustomLabel(m_yes, yes);
-		DoSetCustomLabel(m_no, no);
-		return true;
-	}
+    using wxMD = wxMessageDialogBase;
+    // customization of the message box buttons
+    virtual bool SetYesNoLabels(const wxMD::ButtonLabel& yes, const wxMD::ButtonLabel& no)
+    {
+        DoSetCustomLabel(m_yes, yes);
+        DoSetCustomLabel(m_no, no);
+        return true;
+    }
 
-	virtual bool SetYesNoCancelLabels(const wxMD::ButtonLabel& yes,
-		const wxMD::ButtonLabel& no,
-		const wxMD::ButtonLabel& cancel)
-	{
-		DoSetCustomLabel(m_yes, yes);
-		DoSetCustomLabel(m_no, no);
-		DoSetCustomLabel(m_cancel, cancel);
-		return true;
-	}
+    virtual bool SetYesNoCancelLabels(const wxMD::ButtonLabel& yes,
+        const wxMD::ButtonLabel& no,
+        const wxMD::ButtonLabel& cancel)
+    {
+        DoSetCustomLabel(m_yes, yes);
+        DoSetCustomLabel(m_no, no);
+        DoSetCustomLabel(m_cancel, cancel);
+        return true;
+    }
 
-	virtual bool SetOKLabel(const wxMD::ButtonLabel& ok)
-	{
-		DoSetCustomLabel(m_ok, ok);
-		return true;
+    virtual bool SetOKLabel(const wxMD::ButtonLabel& ok)
+    {
+        DoSetCustomLabel(m_ok, ok);
+        return true;
 }
 
-	virtual bool SetOKCancelLabels(const wxMD::ButtonLabel& ok,
-		const wxMD::ButtonLabel& cancel)
-	{
-		DoSetCustomLabel(m_ok, ok);
-		DoSetCustomLabel(m_cancel, cancel);
-		return true;
-	}
+    virtual bool SetOKCancelLabels(const wxMD::ButtonLabel& ok,
+        const wxMD::ButtonLabel& cancel)
+    {
+        DoSetCustomLabel(m_ok, ok);
+        DoSetCustomLabel(m_cancel, cancel);
+        return true;
+    }
 
-	virtual bool SetHelpLabel(const wxMD::ButtonLabel& help)
-	{
-		DoSetCustomLabel(m_help, help);
-		return true;
-	}
-	// test if any custom labels were set
-	bool HasCustomLabels() const
-	{
-		return !(m_ok.empty() && m_cancel.empty() && m_help.empty() &&
-			m_yes.empty() && m_no.empty());
-	}
+    virtual bool SetHelpLabel(const wxMD::ButtonLabel& help)
+    {
+        DoSetCustomLabel(m_help, help);
+        return true;
+    }
+    // test if any custom labels were set
+    bool HasCustomLabels() const
+    {
+        return !(m_ok.empty() && m_cancel.empty() && m_help.empty() &&
+            m_yes.empty() && m_no.empty());
+    }
 
-	// these functions return the label to be used for the button which is
-	// either a custom label explicitly set by the user or the default label,
-	// i.e. they always return a valid string
-	wxString GetYesLabel() const
-	{
-		return m_yes.empty() ? GetDefaultYesLabel() : m_yes;
-	}
-	wxString GetNoLabel() const
-	{
-		return m_no.empty() ? GetDefaultNoLabel() : m_no;
-	}
-	wxString GetOKLabel() const
-	{
-		return m_ok.empty() ? GetDefaultOKLabel() : m_ok;
-	}
-	wxString GetCancelLabel() const
-	{
-		return m_cancel.empty() ? GetDefaultCancelLabel() : m_cancel;
-	}
-	wxString GetHelpLabel() const
-	{
-		return m_help.empty() ? GetDefaultHelpLabel() : m_help;
-	}
+    // these functions return the label to be used for the button which is
+    // either a custom label explicitly set by the user or the default label,
+    // i.e. they always return a valid string
+    wxString GetYesLabel() const
+    {
+        return m_yes.empty() ? GetDefaultYesLabel() : m_yes;
+    }
+    wxString GetNoLabel() const
+    {
+        return m_no.empty() ? GetDefaultNoLabel() : m_no;
+    }
+    wxString GetOKLabel() const
+    {
+        return m_ok.empty() ? GetDefaultOKLabel() : m_ok;
+    }
+    wxString GetCancelLabel() const
+    {
+        return m_cancel.empty() ? GetDefaultCancelLabel() : m_cancel;
+    }
+    wxString GetHelpLabel() const
+    {
+        return m_help.empty() ? GetDefaultHelpLabel() : m_help;
+    }
 
 protected:
-	// this function is called by our public SetXXXLabels() and should assign
-	// the value to var with possibly some transformation (e.g. Cocoa version
-	// currently uses this to remove any accelerators from the button strings
-	// while GTK+ one handles stock items specifically here)
-	void DoSetCustomLabel(wxString& var, const wxMD::ButtonLabel& label)
-	{
-		var = label.GetAsString();
-	}
+    // this function is called by our public SetXXXLabels() and should assign
+    // the value to var with possibly some transformation (e.g. Cocoa version
+    // currently uses this to remove any accelerators from the button strings
+    // while GTK+ one handles stock items specifically here)
+    void DoSetCustomLabel(wxString& var, const wxMD::ButtonLabel& label)
+    {
+        var = label.GetAsString();
+    }
 
-	// these functions return the custom label or empty string and should be
-	// used only in specific circumstances such as creating the buttons with
-	// these labels (in which case it makes sense to only use a custom label if
-	// it was really given and fall back on stock label otherwise), use the
-	// Get{Yes,No,OK,Cancel}Label() methods above otherwise
-	const wxString& GetCustomYesLabel() const { return m_yes; }
-	const wxString& GetCustomNoLabel() const { return m_no; }
-	const wxString& GetCustomOKLabel() const { return m_ok; }
-	const wxString& GetCustomHelpLabel() const { return m_help; }
-	const wxString& GetCustomCancelLabel() const { return m_cancel; }
+    // these functions return the custom label or empty string and should be
+    // used only in specific circumstances such as creating the buttons with
+    // these labels (in which case it makes sense to only use a custom label if
+    // it was really given and fall back on stock label otherwise), use the
+    // Get{Yes,No,OK,Cancel}Label() methods above otherwise
+    const wxString& GetCustomYesLabel() const { return m_yes; }
+    const wxString& GetCustomNoLabel() const { return m_no; }
+    const wxString& GetCustomOKLabel() const { return m_ok; }
+    const wxString& GetCustomHelpLabel() const { return m_help; }
+    const wxString& GetCustomCancelLabel() const { return m_cancel; }
 
 private:
-	// these functions may be overridden to provide different defaults for the
-	// default button labels (this is used by wxGTK)
-	virtual wxString GetDefaultYesLabel() const { return wxGetTranslation("Yes"); }
-	virtual wxString GetDefaultNoLabel() const { return wxGetTranslation("No"); }
-	virtual wxString GetDefaultOKLabel() const { return wxGetTranslation("OK"); }
-	virtual wxString GetDefaultCancelLabel() const { return wxGetTranslation("Cancel"); }
-	virtual wxString GetDefaultHelpLabel() const { return wxGetTranslation("Help"); }
+    // these functions may be overridden to provide different defaults for the
+    // default button labels (this is used by wxGTK)
+    virtual wxString GetDefaultYesLabel() const { return wxGetTranslation("Yes"); }
+    virtual wxString GetDefaultNoLabel() const { return wxGetTranslation("No"); }
+    virtual wxString GetDefaultOKLabel() const { return wxGetTranslation("OK"); }
+    virtual wxString GetDefaultCancelLabel() const { return wxGetTranslation("Cancel"); }
+    virtual wxString GetDefaultHelpLabel() const { return wxGetTranslation("Help"); }
 
-	// labels for the buttons, initially empty meaning that the defaults should
-	// be used, use GetYes/No/OK/CancelLabel() to access them
-	wxString m_yes,
-		m_no,
-		m_ok,
-		m_cancel,
-		m_help;
+    // labels for the buttons, initially empty meaning that the defaults should
+    // be used, use GetYes/No/OK/CancelLabel() to access them
+    wxString m_yes,
+        m_no,
+        m_ok,
+        m_cancel,
+        m_help;
 };
 #else
 // just a wrapper for wxStaticLine to use the same code on all platforms
 class StaticLine : public wxStaticLine
 {
 public:
-	StaticLine(wxWindow* parent,
-		wxWindowID id = wxID_ANY,
-		const wxPoint& pos = wxDefaultPosition,
-		const wxSize& size = wxDefaultSize,
-		long style = wxLI_HORIZONTAL,
-		const wxString& name = wxString::FromAscii(wxStaticLineNameStr))
-		: wxStaticLine(parent, id, pos, size, style, name) {}
-	~StaticLine() {}
+    StaticLine(wxWindow* parent,
+        wxWindowID id = wxID_ANY,
+        const wxPoint& pos = wxDefaultPosition,
+        const wxSize& size = wxDefaultSize,
+        long style = wxLI_HORIZONTAL,
+        const wxString& name = wxString::FromAscii(wxStaticLineNameStr))
+        : wxStaticLine(parent, id, pos, size, style, name) {}
+    ~StaticLine() {}
 };
 // just a wrapper to wxMessageBox to use the same code on all platforms
 class MessageDialog : public wxMessageDialog
 {
 public:
-	MessageDialog(wxWindow* parent,
-		const wxString& message,
-		const wxString& caption = wxEmptyString,
-		long style = wxOK)
+    MessageDialog(wxWindow* parent,
+        const wxString& message,
+        const wxString& caption = wxEmptyString,
+        long style = wxOK)
     : wxMessageDialog(parent, get_wraped_wxString(message), caption, style) {}
-	~MessageDialog() {}
-	
-	void SetButtonLabel(wxWindowID btn_id, const wxString& label, bool set_focus = false);
+    ~MessageDialog() {}
+
+    void SetButtonLabel(wxWindowID btn_id, const wxString& label, bool set_focus = false);
 };
 
 // just a wrapper to wxRichMessageBox to use the same code on all platforms
 class RichMessageDialog : public wxRichMessageDialog
 {
 public:
-	RichMessageDialog(wxWindow* parent,
-		const wxString& message,
-		const wxString& caption = wxEmptyString,
-		long style = wxOK)
+    RichMessageDialog(wxWindow* parent,
+        const wxString& message,
+        const wxString& caption = wxEmptyString,
+        long style = wxOK)
     : wxRichMessageDialog(parent, get_wraped_wxString(message), caption, style) {
-		this->SetEscapeId(wxID_CANCEL);
-	}
-	~RichMessageDialog() {}
+        this->SetEscapeId(wxID_CANCEL);
+    }
+    ~RichMessageDialog() {}
 };
 #endif
 
@@ -312,15 +312,15 @@ public:
 class InfoDialog : public MsgDialog
 {
 public:
-	InfoDialog(wxWindow *parent, const wxString &title, const wxString &msg, bool is_marked = false, long style = wxOK| wxICON_INFORMATION);
-	InfoDialog(InfoDialog&&) = delete;
-	InfoDialog(const InfoDialog&) = delete;
-	InfoDialog&operator=(InfoDialog&&) = delete;
-	InfoDialog&operator=(const InfoDialog&) = delete;
-	virtual ~InfoDialog() = default;
+    InfoDialog(wxWindow *parent, const wxString &title, const wxString &msg, bool is_marked = false, long style = wxOK| wxICON_INFORMATION);
+    InfoDialog(InfoDialog&&) = delete;
+    InfoDialog(const InfoDialog&) = delete;
+    InfoDialog&operator=(InfoDialog&&) = delete;
+    InfoDialog&operator=(const InfoDialog&) = delete;
+    virtual ~InfoDialog() = default;
 
 private:
-	wxString msg;
+    wxString msg;
 };
 
 

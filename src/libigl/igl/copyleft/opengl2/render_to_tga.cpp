@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2014 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "render_to_tga.h"
 #include "tga.h"
@@ -31,8 +31,8 @@ IGL_INLINE bool igl::opengl::render_to_tga(
   // OpenGL by default tries to read data in multiples of 4, if our data is
   // only RGB or BGR and the width is not divible by 4 then we need to alert
   // opengl
-  if((width % 4) != 0 && 
-   (format == GL_RGB || 
+  if((width % 4) != 0 &&
+   (format == GL_RGB ||
     format == GL_BGR))
   {
     glPixelStorei(GL_PACK_ALIGNMENT, 1);

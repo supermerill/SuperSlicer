@@ -71,7 +71,7 @@ GLGizmoSimplify::GLGizmoSimplify(GLCanvas3D &       parent,
 {}
 
 GLGizmoSimplify::~GLGizmoSimplify()
-{ 
+{
     stop_worker_thread_request();
     if (m_worker.joinable())
         m_worker.join();
@@ -174,10 +174,10 @@ void GLGizmoSimplify::on_render_input_window(float x, float y, float bottom_limi
 
     // Whether to trigger calculation after rendering is done.
     bool start_process = false;
-    
+
 
     // Check selection of new volume
-    // Do not reselect object when processing 
+    // Do not reselect object when processing
     if (act_volume != m_volume) {
         bool change_window_position = (m_volume == nullptr);
         // select different model
@@ -194,13 +194,13 @@ void GLGizmoSimplify::on_render_input_window(float x, float y, float bottom_limi
         // Start processing. If we switched from another object, process will
         // stop the background thread and it will restart itself later.
         start_process = true;
-        
+
         // set window position
         if (m_move_to_center && change_window_position) {
             m_move_to_center = false;
-            auto parent_size = m_parent.get_canvas_size();            
+            auto parent_size = m_parent.get_canvas_size();
             ImVec2 pos(parent_size.get_width() / 2 - m_gui_cfg->window_offset_x,
-                       parent_size.get_height() / 2 - m_gui_cfg->window_offset_y); 
+                       parent_size.get_height() / 2 - m_gui_cfg->window_offset_y);
             ImGui::SetNextWindowPos(pos, ImGuiCond_Always);
         }else if (change_window_position) {
             ImVec2 pos = ImGui::GetMousePos();
@@ -213,7 +213,7 @@ void GLGizmoSimplify::on_render_input_window(float x, float y, float bottom_limi
             // maximal bottom right value
             auto parent_size = m_parent.get_canvas_size();
             ImVec2 br(
-                parent_size.get_width() - (2 * m_gui_cfg->window_offset_x + m_gui_cfg->window_padding), 
+                parent_size.get_width() - (2 * m_gui_cfg->window_offset_x + m_gui_cfg->window_padding),
                 parent_size.get_height() - (2 * m_gui_cfg->window_offset_y + m_gui_cfg->window_padding));
             if (pos.x > br.x) pos.x = br.x;
             if (pos.y > br.y) pos.y = br.y;
@@ -279,7 +279,7 @@ void GLGizmoSimplify::on_render_input_window(float x, float y, float bottom_limi
     // show preview result triangle count (percent)
     if (!m_configuration.use_count) {
         m_configuration.wanted_count = static_cast<uint32_t>(m_triangle_count);
-        m_configuration.decimate_ratio = 
+        m_configuration.decimate_ratio =
             (1.0f - (m_configuration.wanted_count / (float) orig_triangle_count)) * 100.f;
     }
 
@@ -287,7 +287,7 @@ void GLGizmoSimplify::on_render_input_window(float x, float y, float bottom_limi
     ImGui::Text("%s", tr_decimate_ratio.c_str());
     ImGui::SameLine(m_gui_cfg->bottom_left_width);
     ImGui::SetNextItemWidth(m_gui_cfg->input_width);
-    const char * format = (m_configuration.decimate_ratio > 10)? "%.0f %%": 
+    const char * format = (m_configuration.decimate_ratio > 10)? "%.0f %%":
         ((m_configuration.decimate_ratio > 1)? "%.1f %%":"%.2f %%");
 
     if(m_imgui->slider_float("##decimate_ratio",  &m_configuration.decimate_ratio, 0.f, 100.f, format)){
@@ -409,7 +409,7 @@ void GLGizmoSimplify::process()
         m_worker.join();
     }
 
-    // Copy configuration that will be used.    
+    // Copy configuration that will be used.
     m_state.config = m_configuration;
     m_state.mv = m_volume;
     m_state.status = State::running;
@@ -489,7 +489,7 @@ void GLGizmoSimplify::apply_simplify() {
     mv->get_object()->invalidate_bounding_box();
     mv->get_object()->ensure_on_bed(true); // allow negative z
 
-    // fix hollowing, sla support points, modifiers, ...    
+    // fix hollowing, sla support points, modifiers, ...
     plater->changed_mesh(object_idx);
     // Fix warning icon in object list
     wxGetApp().obj_list()->update_item_error_icon(object_idx, -1);
@@ -501,7 +501,7 @@ bool GLGizmoSimplify::on_is_activable() const
     return !m_parent.get_selection().is_empty();
 }
 
-void GLGizmoSimplify::on_set_state() 
+void GLGizmoSimplify::on_set_state()
 {
     // Closing gizmo. e.g. selecting another one
     if (GLGizmoBase::m_state == GLGizmoBase::Off) {
@@ -516,12 +516,12 @@ void GLGizmoSimplify::on_set_state()
     }
 }
 
-void GLGizmoSimplify::create_gui_cfg() { 
+void GLGizmoSimplify::create_gui_cfg() {
     if (m_gui_cfg.has_value()) return;
     int space_size = m_imgui->calc_text_size(":MM").x;
     GuiCfg cfg;
     cfg.top_left_width = std::max(m_imgui->calc_text_size(tr_mesh_name).x,
-                                  m_imgui->calc_text_size(tr_triangles).x) 
+                                  m_imgui->calc_text_size(tr_triangles).x)
         + space_size;
 
     const float radio_size = ImGui::GetFrameHeight();
@@ -533,7 +533,7 @@ void GLGizmoSimplify::create_gui_cfg() {
     cfg.input_width   = cfg.bottom_left_width * 1.5;
     cfg.window_offset_x = (cfg.bottom_left_width + cfg.input_width)/2;
     cfg.window_offset_y = ImGui::GetTextLineHeightWithSpacing() * 5;
-    
+
     m_gui_cfg = cfg;
 }
 
@@ -547,7 +547,7 @@ void GLGizmoSimplify::request_rerender(bool force) {
 }
 
 void GLGizmoSimplify::set_center_position() {
-    m_move_to_center = true; 
+    m_move_to_center = true;
 }
 
 
@@ -561,7 +561,7 @@ void GLGizmoSimplify::init_model(const indexed_triangle_set& its)
     m_parent.toggle_model_objects_visibility(true); // selected volume may have changed
     m_parent.toggle_model_objects_visibility(false, m_c->selection_info()->model_object(),
         m_c->selection_info()->get_active_instance(), m_volume);
-    
+
     if (const Selection&sel = m_parent.get_selection(); sel.get_volume_idxs().size() == 1)
         m_glmodel.set_color(-1, sel.get_volume(*sel.get_volume_idxs().begin())->color);
     m_triangle_count = its.indices.size();

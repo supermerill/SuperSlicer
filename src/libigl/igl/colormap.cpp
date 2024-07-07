@@ -1320,7 +1320,7 @@ template <typename T>
 IGL_INLINE void igl::colormap(
   const ColorMapType cm, const T x_in, T & r, T & g, T & b)
 {
-  switch (cm) 
+  switch (cm)
   {
     case COLOR_MAP_TYPE_INFERNO:
       colormap(inferno_cm, x_in, r, g, b);
@@ -1340,7 +1340,7 @@ IGL_INLINE void igl::colormap(
     case COLOR_MAP_TYPE_VIRIDIS:
       colormap(viridis_cm, x_in, r, g, b);
       break;
-    default: 
+    default:
       throw std::invalid_argument("igl::colormap(): Selected colormap is unsupported!");
       break;
   }

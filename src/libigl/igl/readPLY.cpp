@@ -98,7 +98,7 @@ IGL_INLINE bool igl::readPLY(
     for (int j = 0; j < nprops; j++)
     {
       igl::ply::PlyProperty * prop = plist[j];
-      if (igl::ply::equal_strings ("nx", prop->name) 
+      if (igl::ply::equal_strings ("nx", prop->name)
         || igl::ply::equal_strings ("ny", prop->name)
         || igl::ply::equal_strings ("nz", prop->name))
       {
@@ -117,7 +117,7 @@ IGL_INLINE bool igl::readPLY(
     }
     // Is this call necessary?
     ply_get_other_properties(in_ply,"vertex",
-				     offsetof(Vertex,other_props));
+                     offsetof(Vertex,other_props));
     V.resize(elem_count,std::vector<Vtype>(3));
     if(has_normals)
     {
@@ -133,8 +133,8 @@ IGL_INLINE bool igl::readPLY(
     {
       UV.resize(0);
     }
-   	
-	for(int j = 0;j<elem_count;j++)
+
+    for(int j = 0;j<elem_count;j++)
     {
       Vertex v;
       ply_get_element_setup(in_ply,"vertex",3,vert_props);
@@ -160,7 +160,7 @@ IGL_INLINE bool igl::readPLY(
   {
     F.resize(elem_count);
     ply_get_property(in_ply,"face",&face_props[0]);
-    for (int j = 0; j < elem_count; j++) 
+    for (int j = 0; j < elem_count; j++)
     {
       Face f;
       ply_get_element(in_ply, (void *) &f, &native_binary_type);
@@ -194,7 +194,7 @@ IGL_INLINE bool igl::readPLY(
   {
     return false;
   }
-  return 
+  return
     list_to_matrix(vV,V) &&
     list_to_matrix(vF,F) &&
     list_to_matrix(vN,N) &&

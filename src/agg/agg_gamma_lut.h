@@ -2,8 +2,8 @@
 // Anti-Grain Geometry - Version 2.4
 // Copyright (C) 2002-2005 Maxim Shemanarev (http://www.antigrain.com)
 //
-// Permission to copy, use, modify, sell and distribute this software 
-// is granted provided this copyright notice appears in all copies. 
+// Permission to copy, use, modify, sell and distribute this software
+// is granted provided this copyright notice appears in all copies.
 // This software is provided "as is" without express or implied
 // warranty, and with no claim as to its suitability for any purpose.
 //
@@ -22,9 +22,9 @@
 
 namespace agg
 {
-    template<class LoResT=int8u, 
-             class HiResT=int8u, 
-             unsigned GammaShift=8, 
+    template<class LoResT=int8u,
+             class HiResT=int8u,
+             unsigned GammaShift=8,
              unsigned HiResShift=8> class gamma_lut
     {
     public:
@@ -50,8 +50,8 @@ namespace agg
             pod_allocator<HiResT>::deallocate(m_dir_gamma, gamma_size);
         }
 
-        gamma_lut() : 
-            m_gamma(1.0), 
+        gamma_lut() :
+            m_gamma(1.0),
             m_dir_gamma(pod_allocator<HiResT>::allocate(gamma_size)),
             m_inv_gamma(pod_allocator<LoResT>::allocate(hi_res_size))
         {
@@ -68,14 +68,14 @@ namespace agg
         }
 
         gamma_lut(double g) :
-            m_gamma(1.0), 
+            m_gamma(1.0),
             m_dir_gamma(pod_allocator<HiResT>::allocate(gamma_size)),
             m_inv_gamma(pod_allocator<LoResT>::allocate(hi_res_size))
         {
             gamma(g);
         }
 
-        void gamma(double g) 
+        void gamma(double g)
         {
             m_gamma = g;
 
@@ -99,13 +99,13 @@ namespace agg
             return m_gamma;
         }
 
-        HiResT dir(LoResT v) const 
-        { 
-            return m_dir_gamma[unsigned(v)]; 
+        HiResT dir(LoResT v) const
+        {
+            return m_dir_gamma[unsigned(v)];
         }
 
-        LoResT inv(HiResT v) const 
-        { 
+        LoResT inv(HiResT v) const
+        {
             return m_inv_gamma[unsigned(v)];
         }
 
@@ -131,32 +131,32 @@ namespace agg
     class sRGB_lut<float>
     {
     public:
-		sRGB_lut()
-		{
-			// Generate lookup tables.
-			for (int i = 0; i <= 255; ++i)
-			{
-				m_dir_table[i] = float(sRGB_to_linear(i / 255.0));
-			}
-			for (int i = 0; i <= 65535; ++i)
-			{
-				m_inv_table[i] = uround(255.0 * linear_to_sRGB(i / 65535.0));
-			}
-		}
+        sRGB_lut()
+        {
+            // Generate lookup tables.
+            for (int i = 0; i <= 255; ++i)
+            {
+                m_dir_table[i] = float(sRGB_to_linear(i / 255.0));
+            }
+            for (int i = 0; i <= 65535; ++i)
+            {
+                m_inv_table[i] = uround(255.0 * linear_to_sRGB(i / 65535.0));
+            }
+        }
 
-		float dir(int8u v) const
-		{
-			return m_dir_table[v];
-		}
+        float dir(int8u v) const
+        {
+            return m_dir_table[v];
+        }
 
-		int8u inv(float v) const
-		{
-			return m_inv_table[int16u(0.5 + v * 65535)];
-		}
+        int8u inv(float v) const
+        {
+            return m_inv_table[int16u(0.5 + v * 65535)];
+        }
 
-	private:
-		float m_dir_table[256];
-		int8u m_inv_table[65536];
+    private:
+        float m_dir_table[256];
+        int8u m_inv_table[65536];
     };
 
     template<>
@@ -170,26 +170,26 @@ namespace agg
             {
                 m_dir_table[i] = uround(65535.0 * sRGB_to_linear(i / 255.0));
             }
-			for (int i = 0; i <= 65535; ++i)
-			{
-				m_inv_table[i] = uround(255.0 * linear_to_sRGB(i / 65535.0));
-			}
-		}
+            for (int i = 0; i <= 65535; ++i)
+            {
+                m_inv_table[i] = uround(255.0 * linear_to_sRGB(i / 65535.0));
+            }
+        }
 
-		int16u dir(int8u v) const
-		{
-			return m_dir_table[v];
-		}
+        int16u dir(int8u v) const
+        {
+            return m_dir_table[v];
+        }
 
-		int8u inv(int16u v) const
-		{
-			return m_inv_table[v];
-		}
+        int8u inv(int16u v) const
+        {
+            return m_inv_table[v];
+        }
 
-	private:
-		int16u m_dir_table[256];
-		int8u m_inv_table[65536];
-	};
+    private:
+        int16u m_dir_table[256];
+        int8u m_inv_table[65536];
+    };
 
     template<>
     class sRGB_lut<int8u>
@@ -197,7 +197,7 @@ namespace agg
     public:
         sRGB_lut()
         {
-            // Generate lookup tables. 
+            // Generate lookup tables.
             for (int i = 0; i <= 255; ++i)
             {
                 m_dir_table[i] = uround(255.0 * sRGB_to_linear(i / 255.0));
@@ -205,22 +205,22 @@ namespace agg
             }
         }
 
-		int8u dir(int8u v) const
-		{
-			return m_dir_table[v];
-		}
+        int8u dir(int8u v) const
+        {
+            return m_dir_table[v];
+        }
 
-		int8u inv(int8u v) const
+        int8u inv(int8u v) const
         {
             return m_inv_table[v];
         }
 
-	private:
-		int8u m_dir_table[256];
-		int8u m_inv_table[256];
-	};
+    private:
+        int8u m_dir_table[256];
+        int8u m_inv_table[256];
+    };
 
-    // Common base class for sRGB_conv objects. Defines an internal 
+    // Common base class for sRGB_conv objects. Defines an internal
     // sRGB_lut object so that users don't have to.
     template<class T>
     class sRGB_conv_base
@@ -240,12 +240,12 @@ namespace agg
         static sRGB_lut<T> lut;
     };
 
-    // Definition of sRGB_conv_base::lut. Due to the fact that this a template, 
+    // Definition of sRGB_conv_base::lut. Due to the fact that this a template,
     // we don't need to place the definition in a cpp file. Hurrah.
     template<class T>
     sRGB_lut<T> sRGB_conv_base<T>::lut;
 
-    // Wrapper for sRGB-linear conversion. 
+    // Wrapper for sRGB-linear conversion.
     // Base template is undefined, specializations are provided below.
     template<class T>
     class sRGB_conv;
@@ -256,7 +256,7 @@ namespace agg
     public:
         static float alpha_from_sRGB(int8u x)
         {
-			static const double y = 1 / 255.0;
+            static const double y = 1 / 255.0;
             return float(x * y);
         }
 

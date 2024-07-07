@@ -12,9 +12,9 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
-// This option makes the iterations faster (all except the first) by caching the 
+// This option makes the iterations faster (all except the first) by caching the
 // sparsity pattern of the matrix involved in the assembly. It should be on if you plan to do many iterations, off if you have to change the matrix structure at every iteration.
-#define SLIM_CACHED 
+#define SLIM_CACHED
 
 #ifdef SLIM_CACHED
 #include <igl/AtA_cached.h>
@@ -83,8 +83,8 @@ struct SLIMData
 
 // Compute necessary information to start using SLIM
 // Inputs:
-//		V           #V by 3 list of mesh vertex positions
-//		F           #F by 3/3 list of mesh faces (triangles/tets)
+//        V           #V by 3 list of mesh vertex positions
+//        F           #F by 3/3 list of mesh faces (triangles/tets)
 //    b           list of boundary indices into V
 //    bc          #b by dim list of boundary conditions
 //    soft_p      Soft penalty factor (can be zero)

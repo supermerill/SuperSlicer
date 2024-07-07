@@ -261,12 +261,12 @@ void qh_memfree(qhT *qh, void *object, int insize) {
 
   returns:
     number and size of current long allocations
-  
+
   notes:
-    if qh_NOmem (qh_malloc() for all allocations), 
+    if qh_NOmem (qh_malloc() for all allocations),
        short objects (e.g., facetT) are not recovered.
        use qh_freeqhull(qh, qh_ALL) instead.
- 
+
   see:
     qh_freeqhull(qh, allMem)
     qh_memtotal(qh, curlong, totlong, curshort, totshort, maxlong, totbuffer);

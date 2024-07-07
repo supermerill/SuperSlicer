@@ -17,7 +17,7 @@ namespace Slic3r {
                 best_polyline = polyline;
 
         if (!entrypoints.empty() && best_polyline.size() > 3 ) {
-        
+
 
             //get two pair of points that are at less than max_dist.
             int32_t first_point_extract_idx = 1;
@@ -81,7 +81,7 @@ namespace Slic3r {
 
                 out_coll.append(std::move(contour));
                 return;
-                
+
 
             }
         }

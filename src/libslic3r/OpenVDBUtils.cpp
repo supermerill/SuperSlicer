@@ -2,7 +2,7 @@
 #include "OpenVDBUtils.hpp"
 
 #ifdef _MSC_VER
-// Suppress warning C4146 in OpenVDB: unary minus operator applied to unsigned type, result still unsigned 
+// Suppress warning C4146 in OpenVDB: unary minus operator applied to unsigned type, result still unsigned
 #pragma warning(push)
 #pragma warning(disable : 4146)
 #endif // _MSC_VER

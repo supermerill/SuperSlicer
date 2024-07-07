@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_READOBJ_H
 #define IGL_READOBJ_H
@@ -21,7 +21,7 @@
 #include <vector>
 #include <cstdio>
 
-namespace igl 
+namespace igl
 {
   // Read a mesh from an ascii obj file, filling in vertex positions, normals
   // and texture coordinates. Mesh may have faces of any number of degree
@@ -42,7 +42,7 @@ namespace igl
   // Returns true on success, false on errors
   template <typename Scalar, typename Index>
   IGL_INLINE bool readOBJ(
-    const std::string obj_file_name, 
+    const std::string obj_file_name,
     std::vector<std::vector<Scalar > > & V,
     std::vector<std::vector<Scalar > > & TC,
     std::vector<std::vector<Scalar > > & N,
@@ -50,7 +50,7 @@ namespace igl
     std::vector<std::vector<Index > > & FTC,
     std::vector<std::vector<Index > > & FN);
   // Inputs:
-  //   obj_file  pointer to already opened .obj file 
+  //   obj_file  pointer to already opened .obj file
   // Outputs:
   //   obj_file  closed file
   template <typename Scalar, typename Index>
@@ -65,16 +65,16 @@ namespace igl
   // Just V and F
   template <typename Scalar, typename Index>
   IGL_INLINE bool readOBJ(
-    const std::string obj_file_name, 
+    const std::string obj_file_name,
     std::vector<std::vector<Scalar > > & V,
     std::vector<std::vector<Index > > & F);
   // Eigen Wrappers. These will return true only if the data is perfectly
   // "rectangular": All faces are the same degree, all have the same number of
   // textures/normals etc.
   template <
-    typename DerivedV, 
-    typename DerivedTC, 
-    typename DerivedCN, 
+    typename DerivedV,
+    typename DerivedTC,
+    typename DerivedCN,
     typename DerivedF,
     typename DerivedFTC,
     typename DerivedFN>

@@ -37,7 +37,7 @@ public:
 class ObjectSettings : public OG_Settings
 {
     // sizer for extra Object/Part's settings
-    wxBoxSizer* m_settings_list_sizer{ nullptr };  
+    wxBoxSizer* m_settings_list_sizer{ nullptr };
     // option groups for settings
     std::vector <std::shared_ptr<ConfigOptionsGroup>> m_og_settings;
 

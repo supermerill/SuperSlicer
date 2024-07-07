@@ -1,14 +1,14 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "point_in_poly.h"
 
-bool IGL_INLINE igl::point_in_poly( const std::vector<std::vector<unsigned int > >&poly, 
-            const unsigned int xt, 
+bool IGL_INLINE igl::point_in_poly( const std::vector<std::vector<unsigned int > >&poly,
+            const unsigned int xt,
             const unsigned int yt)
 {
   int npoints= poly.size();
@@ -18,7 +18,7 @@ bool IGL_INLINE igl::point_in_poly( const std::vector<std::vector<unsigned int >
   unsigned int x2,y2;
   int i;
   int inside=0;
-  
+
   if (npoints < 3) {
     return(0);
   }

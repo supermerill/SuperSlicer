@@ -90,7 +90,7 @@ namespace internal {
 // Expression is evaluated in a temporary; default implementation of Assignment is bypassed so that
 // when a ReturnByValue expression is assigned, the evaluator is not constructed.
 // TODO: Finalize port to new regime; ReturnByValue should not exist in the expression world
-  
+
 template<typename Derived>
 struct evaluator<ReturnByValue<Derived> >
   : public evaluator<typename internal::traits<Derived>::ReturnType>
@@ -98,7 +98,7 @@ struct evaluator<ReturnByValue<Derived> >
   typedef ReturnByValue<Derived> XprType;
   typedef typename internal::traits<Derived>::ReturnType PlainObject;
   typedef evaluator<PlainObject> Base;
-  
+
   EIGEN_DEVICE_FUNC explicit evaluator(const XprType& xpr)
     : m_result(xpr.rows(), xpr.cols())
   {

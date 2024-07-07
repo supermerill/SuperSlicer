@@ -37,7 +37,7 @@ IGL_INLINE void grad_tet(const Eigen::PlainObjectBase<DerivedV>&V,
     F.row(3*m + i) << T(i,1), T(i,3), T(i,2);
   }
   // compute volume of each tet
-  Eigen::Matrix<typename DerivedV::Scalar, Eigen::Dynamic, 1> vol; 
+  Eigen::Matrix<typename DerivedV::Scalar, Eigen::Dynamic, 1> vol;
   igl::volume(V,T,vol);
 
   Eigen::Matrix<typename DerivedV::Scalar, Eigen::Dynamic, 1> A(F.rows());

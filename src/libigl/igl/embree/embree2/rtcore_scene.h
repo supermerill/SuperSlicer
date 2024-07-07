@@ -28,7 +28,7 @@ struct RTCRay16;
 struct RTCRaySOA;
 
 /*! scene flags */
-enum RTCSceneFlags 
+enum RTCSceneFlags
 {
   /* dynamic type flags */
   RTC_SCENE_STATIC     = (0 << 0),    //!< specifies static scene
@@ -45,7 +45,7 @@ enum RTCSceneFlags
 };
 
 /*! enabled algorithm flags */
-enum RTCAlgorithmFlags 
+enum RTCAlgorithmFlags
 {
   RTC_INTERSECT1 = (1 << 0),    //!< enables the rtcIntersect1 and rtcOccluded1 functions for this scene
   RTC_INTERSECT4 = (1 << 1),    //!< enables the rtcIntersect4 and rtcOccluded4 functions for this scene
@@ -53,7 +53,7 @@ enum RTCAlgorithmFlags
   RTC_INTERSECT16 = (1 << 3),   //!< enables the rtcIntersect16 and rtcOccluded16 functions for this scene
   RTC_INTERPOLATE = (1 << 4),   //!< enables the rtcInterpolate function for this scene
 
-  RTC_INTERSECTN = (1 << 5),    //!< enables the rtcIntersectN and rtcOccludedN functions for this scene  
+  RTC_INTERSECTN = (1 << 5),    //!< enables the rtcIntersectN and rtcOccludedN functions for this scene
 };
 
 /*! layout flags for ray streams */
@@ -66,7 +66,7 @@ enum RTCRayNFlags
 /*! \brief Defines an opaque scene type */
 typedef struct __RTCScene {}* RTCScene;
 
-/*! Creates a new scene. 
+/*! Creates a new scene.
    WARNING: This function is deprecated, use rtcDeviceNewScene instead.
 */
 RTCORE_API RTCORE_DEPRECATED RTCScene rtcNewScene (RTCSceneFlags flags, RTCAlgorithmFlags aflags);

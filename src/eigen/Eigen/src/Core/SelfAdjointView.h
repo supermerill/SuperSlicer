@@ -10,7 +10,7 @@
 #ifndef EIGEN_SELFADJOINTMATRIX_H
 #define EIGEN_SELFADJOINTMATRIX_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \class SelfAdjointView
   * \ingroup Core_Module
@@ -58,7 +58,7 @@ template<typename _MatrixType, unsigned int UpLo> class SelfAdjointView
     typedef MatrixTypeNestedCleaned NestedExpression;
 
     /** \brief The type of coefficients in this matrix */
-    typedef typename internal::traits<SelfAdjointView>::Scalar Scalar; 
+    typedef typename internal::traits<SelfAdjointView>::Scalar Scalar;
     typedef typename MatrixType::StorageIndex StorageIndex;
     typedef typename internal::remove_all<typename MatrixType::ConjugateReturnType>::type MatrixConjugateReturnType;
 
@@ -131,7 +131,7 @@ template<typename _MatrixType, unsigned int UpLo> class SelfAdjointView
     {
       return Product<OtherDerived,SelfAdjointView>(lhs.derived(),rhs);
     }
-    
+
     friend EIGEN_DEVICE_FUNC
     const SelfAdjointView<const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar,MatrixType,product),UpLo>
     operator*(const Scalar& s, const SelfAdjointView& mat)
@@ -287,17 +287,17 @@ protected:
   using Base::m_src;
   using Base::m_functor;
 public:
-  
+
   typedef typename Base::DstEvaluatorType DstEvaluatorType;
   typedef typename Base::SrcEvaluatorType SrcEvaluatorType;
   typedef typename Base::Scalar Scalar;
   typedef typename Base::AssignmentTraits AssignmentTraits;
-  
-  
+
+
   EIGEN_DEVICE_FUNC triangular_dense_assignment_kernel(DstEvaluatorType &dst, const SrcEvaluatorType &src, const Functor &func, DstXprType& dstExpr)
     : Base(dst, src, func, dstExpr)
   {}
-  
+
   EIGEN_DEVICE_FUNC void assignCoeff(Index row, Index col)
   {
     eigen_internal_assert(row!=col);
@@ -305,12 +305,12 @@ public:
     m_functor.assignCoeff(m_dst.coeffRef(row,col), tmp);
     m_functor.assignCoeff(m_dst.coeffRef(col,row), numext::conj(tmp));
   }
-  
+
   EIGEN_DEVICE_FUNC void assignDiagonalCoeff(Index id)
   {
     Base::assignCoeff(id,id);
   }
-  
+
   EIGEN_DEVICE_FUNC void assignOppositeCoeff(Index, Index)
   { eigen_internal_assert(false && "should never be called"); }
 };

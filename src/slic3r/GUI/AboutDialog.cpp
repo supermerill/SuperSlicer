@@ -9,7 +9,7 @@
 
 #include <wx/clipbrd.h>
 
-namespace Slic3r { 
+namespace Slic3r {
 namespace GUI {
 
 AboutDialogLogo::AboutDialogLogo(wxWindow* parent)
@@ -18,7 +18,7 @@ AboutDialogLogo::AboutDialogLogo(wxWindow* parent)
     this->SetBackgroundColour(*wxWHITE);
     this->logo = wxBitmap(from_u8(Slic3r::var(SLIC3R_APP_KEY"_192px.png")), wxBITMAP_TYPE_PNG);
     this->SetMinSize(this->logo.GetSize());
-    
+
     this->Bind(wxEVT_PAINT, &AboutDialogLogo::onRepaint, this);
 }
 
@@ -49,14 +49,14 @@ CopyrightsDialog::CopyrightsDialog()
 #ifdef _WIN32
     wxGetApp().UpdateDarkUI(this);
 #else
-	this->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+    this->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
 #endif
 
-	auto sizer = new wxBoxSizer(wxVERTICAL);
-    
+    auto sizer = new wxBoxSizer(wxVERTICAL);
+
     fill_entries();
 
-    m_html = new wxHtmlWindow(this, wxID_ANY, wxDefaultPosition, 
+    m_html = new wxHtmlWindow(this, wxID_ANY, wxDefaultPosition,
                               wxSize(40 * em_unit(), 20 * em_unit()), wxHW_SCROLLBAR_AUTO);
 
     wxFont font = get_default_font(this);
@@ -79,7 +79,7 @@ CopyrightsDialog::CopyrightsDialog()
 
     SetSizer(sizer);
     sizer->SetSizeHints(this);
-    
+
 }
 
 void CopyrightsDialog::fill_entries()
@@ -101,7 +101,7 @@ void CopyrightsDialog::fill_entries()
         { "Boost"           , "1998-2005 Beman Dawes, David Abrahams; "
                               "2004 - 2007 Rene Rivera"                     , "https://www.boost.org/" },
         { "Clipper"         , "2010-2015 Angus Johnson "                    , "http://www.angusj.com " },
-        { "GLEW (The OpenGL Extension Wrangler Library)", 
+        { "GLEW (The OpenGL Extension Wrangler Library)",
                               "2002 - 2007, Milan Ikits; "
                               "2002 - 2007, Marcelo E.Magallon; "
                               "2002, Lev Povalahev"                         , "http://glew.sourceforge.net/" },
@@ -117,7 +117,7 @@ void CopyrightsDialog::fill_entries()
                               "2001-2016 Expat maintainers"                 , "http://www.libexpat.org/" },
         { "AVRDUDE"         , "2018  Free Software Foundation, Inc."        , "http://savannah.nongnu.org/projects/avrdude" },
         { "Shinyprofiler"   , "2007-2010 Aidin Abedi"                       , "http://code.google.com/p/shinyprofiler/" },
-        { "Real-Time DXT1/DXT5 C compression library"   
+        { "Real-Time DXT1/DXT5 C compression library"
                                     , "Based on original by fabian \"ryg\" giesen v1.04. "
                               "Custom version, modified by Yann Collet"     , "https://github.com/Cyan4973/RygsDXTc" },
         { "Icons for STL and GCODE files."
@@ -228,18 +228,18 @@ AboutDialog::AboutDialog()
     SetFont(wxGetApp().normal_font());
 
     wxColour bgr_clr = wxGetApp().get_window_default_clr();//wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
-	SetBackgroundColour(bgr_clr);
+    SetBackgroundColour(bgr_clr);
     wxBoxSizer* hsizer = new wxBoxSizer(wxHORIZONTAL);
 
-	auto main_sizer = new wxBoxSizer(wxVERTICAL);
-	main_sizer->Add(hsizer, 0, wxEXPAND | wxALL, 20);
+    auto main_sizer = new wxBoxSizer(wxVERTICAL);
+    main_sizer->Add(hsizer, 0, wxEXPAND | wxALL, 20);
 
     // logo
     m_logo_bitmap = ScalableBitmap(this, wxGetApp().logo_name(), 192);
     m_logo = new wxStaticBitmap(this, wxID_ANY, m_logo_bitmap.bmp());
-	hsizer->Add(m_logo, 1, wxALIGN_CENTER_VERTICAL);
-    
-    wxBoxSizer* vsizer = new wxBoxSizer(wxVERTICAL); 	
+    hsizer->Add(m_logo, 1, wxALIGN_CENTER_VERTICAL);
+
+    wxBoxSizer* vsizer = new wxBoxSizer(wxVERTICAL);
     hsizer->Add(vsizer, 2, wxEXPAND|wxLEFT, 20);
 
     // title
@@ -251,7 +251,7 @@ AboutDialog::AboutDialog()
         title->SetFont(title_font);
         vsizer->Add(title, 0, wxALIGN_LEFT | wxTOP, 10);
     }
-    
+
     // version
     {
         auto version_string = _L("Version")+ " " + std::string(SLIC3R_VERSION_FULL);
@@ -265,17 +265,17 @@ AboutDialog::AboutDialog()
         version->SetFont(version_font);
         vsizer->Add(version, 0, wxALIGN_LEFT | wxBOTTOM, 10);
     }
-    
+
     // text
     m_html = new wxHtmlWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxHW_SCROLLBAR_AUTO/*NEVER*/);
     {
         m_html->SetMinSize(wxSize(-1, 16 * wxGetApp().em_unit()));
         wxFont font = get_default_font(this);
         const auto text_clr = wxGetApp().get_label_clr_default();
-		auto text_clr_str = wxString::Format(wxT("#%02X%02X%02X"), text_clr.Red(), text_clr.Green(), text_clr.Blue());
-		auto bgr_clr_str = wxString::Format(wxT("#%02X%02X%02X"), bgr_clr.Red(), bgr_clr.Green(), bgr_clr.Blue());
+        auto text_clr_str = wxString::Format(wxT("#%02X%02X%02X"), text_clr.Red(), text_clr.Green(), text_clr.Blue());
+        auto bgr_clr_str = wxString::Format(wxT("#%02X%02X%02X"), bgr_clr.Red(), bgr_clr.Green(), bgr_clr.Blue());
 
-		const int fs = font.GetPointSize()-1;
+        const int fs = font.GetPointSize()-1;
         std::array<int, 7> size = {fs,fs,fs,fs,fs,fs,fs};
         m_html->SetFonts(font.GetFaceName(), font.GetFaceName(), size.data());
         m_html->SetBorders(2);
@@ -332,13 +332,13 @@ AboutDialog::AboutDialog()
     copy_version_btn->Bind(wxEVT_BUTTON, &AboutDialog::onCopyToClipboard, this);
 
     wxGetApp().UpdateDlgDarkUI(this, true);
-    
+
     this->SetEscapeId(wxID_CLOSE);
     this->Bind(wxEVT_BUTTON, &AboutDialog::onCloseDialog, this, wxID_CLOSE);
     vsizer->Add(buttons, 0, wxEXPAND | wxRIGHT | wxBOTTOM, 3);
 
-	SetSizer(main_sizer);
-	main_sizer->SetSizeHints(this);
+    SetSizer(main_sizer);
+    main_sizer->SetSizeHints(this);
 }
 
 void AboutDialog::on_dpi_changed(const wxRect &suggested_rect)

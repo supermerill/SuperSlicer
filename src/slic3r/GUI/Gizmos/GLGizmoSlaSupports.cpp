@@ -28,7 +28,7 @@ namespace GUI {
 
 GLGizmoSlaSupports::GLGizmoSlaSupports(GLCanvas3D& parent, const std::string& icon_filename, unsigned int sprite_id)
     : GLGizmoBase(parent, icon_filename, sprite_id)
-{    
+{
 }
 
 
@@ -1086,7 +1086,7 @@ bool GLGizmoSlaSupports::has_backend_supports() const
     // find SlaPrintObject with this ID
     for (const SLAPrintObject* po : m_parent.sla_print()->objects()) {
         if (po->model_object()->id() == mo->id())
-        	return po->is_step_done(slaposSupportPoints);
+            return po->is_step_done(slaposSupportPoints);
     }
     return false;
 }
@@ -1126,8 +1126,8 @@ void GLGizmoSlaSupports::get_data_from_backend()
 
 void GLGizmoSlaSupports::auto_generate()
 {
-    //wxMessageDialog dlg(GUI::wxGetApp().plater(), 
-    MessageDialog dlg(GUI::wxGetApp().plater(), 
+    //wxMessageDialog dlg(GUI::wxGetApp().plater(),
+    MessageDialog dlg(GUI::wxGetApp().plater(),
                         _L("Autogeneration will erase all manually edited points.") + "\n\n" +
                         _L("Are you sure you want to do it?") + "\n",
                         _L("Warning"), wxICON_WARNING | wxYES | wxNO);

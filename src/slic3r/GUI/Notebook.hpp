@@ -98,7 +98,7 @@ public:
         SetSizer(mainSizer);
 
         this->Bind(wxCUSTOMEVT_NOTEBOOK_SEL_CHANGED, [this](wxCommandEvent& evt)
-        {                    
+        {
             if (int page_idx = evt.GetId(); page_idx >= 0)
                 SetBtSelection(page_idx);
         });
@@ -246,7 +246,7 @@ public:
     }
 
     //// get number of pages in the dialog
-    //virtual size_t GetPageCount() const override { 
+    //virtual size_t GetPageCount() const override {
     //    return btidx_to_tabpage.size();
     //}
 

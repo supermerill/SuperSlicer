@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2014 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "signed_distance_isosurface.h"
 #include "point_mesh_squared_distance.h"
@@ -98,7 +98,7 @@ IGL_INLINE bool igl::copyleft::cgal::signed_distance_isosurface(
     default:
       assert(false && "Unknown SignedDistanceType");
     case SIGNED_DISTANCE_TYPE_UNSIGNED:
-      fun = 
+      fun =
         [&tree,&IV,&IF,&level](const Point_3 & q) -> FT
         {
           int i;
@@ -109,7 +109,7 @@ IGL_INLINE bool igl::copyleft::cgal::signed_distance_isosurface(
         };
     case SIGNED_DISTANCE_TYPE_DEFAULT:
     case SIGNED_DISTANCE_TYPE_WINDING_NUMBER:
-      fun = 
+      fun =
         [&tree,&IV,&IF,&hier,&level](const Point_3 & q) -> FT
         {
           const double sd = signed_distance_winding_number(
@@ -120,7 +120,7 @@ IGL_INLINE bool igl::copyleft::cgal::signed_distance_isosurface(
     case SIGNED_DISTANCE_TYPE_PSEUDONORMAL:
       fun = [&tree,&IV,&IF,&FN,&VN,&EN,&EMAP,&level](const Point_3 & q) -> FT
         {
-          const double sd = 
+          const double sd =
             igl::signed_distance_pseudonormal(
               tree,IV,IF,FN,VN,EN,EMAP,RowVector3d(q.x(),q.y(),q.z()));
           return sd- level;
@@ -129,7 +129,7 @@ IGL_INLINE bool igl::copyleft::cgal::signed_distance_isosurface(
   }
   Sphere_3 bounding_sphere(cmid, (r+level)*(r+level));
   Surface_3 surface(fun,bounding_sphere);
-  CGAL::Surface_mesh_default_criteria_3<Tr> 
+  CGAL::Surface_mesh_default_criteria_3<Tr>
     criteria(angle_bound,radius_bound,distance_bound);
   // meshing surface
   CGAL::make_surface_mesh(c2t3, surface, criteria, CGAL::Manifold_tag());

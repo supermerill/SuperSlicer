@@ -167,7 +167,7 @@ void CalibrationPressureAdvDialog::create_buttons(wxStdDialogButtonSizer* button
 
         wxButton* bt = new wxButton(this, wxID_FILE1, _L("Generate"));
         bt->Bind(wxEVT_BUTTON, &CalibrationPressureAdvDialog::create_geometry, this);
-        
+
         vertical->Add(bt);
 
         buttons->Add(vertical);
@@ -190,7 +190,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
     size_t nb_runs = nbRuns->GetSelection();
     nb_runs=nb_runs+1;
     first_pa = firstPa->GetValue().ToDouble(&first_pa);
-    
+
     if (!firstPa->GetValue().ToDouble(&first_pa)) {
         first_pa = 0.025;
     }
@@ -205,7 +205,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
     pa_increment = paIncrement->GetValue().ToDouble(&pa_increment);
     if (!paIncrement->GetValue().ToDouble(&pa_increment)) {
         pa_increment = 0.05;
-    }    
+    }
 
     std::string extrusion_role = erPa->GetValue().ToStdString();
     std::string  choice_extrusion_role[] = {
@@ -317,12 +317,12 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
         {"ThinWall", {"external_perimeter_extrusion_width", "thin_walls_acceleration"}},
         {"TopSolidInfill", {"top_infill_extrusion_width", "top_solid_infill_acceleration"}}
     };*/
-    
+
     int countincrements = 0;
-    int sizeofarray = static_cast<int>((end_pa - start_pa) / pa_increment) + 2;//'+2' needed for odd/even numbers 
+    int sizeofarray = static_cast<int>((end_pa - start_pa) / pa_increment) + 2;//'+2' needed for odd/even numbers
     std::vector<double> pa_values(sizeofarray);
     std::vector<std::string> c_pa_values_c(sizeofarray);
-    
+
     double incremented_pa_value = start_pa;
     while (incremented_pa_value <= end_pa + pa_increment / 2) {//this makes a number to be used to load x number of 90 bend models for the PA test.
         if (incremented_pa_value <= end_pa) {
@@ -332,11 +332,11 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
             countincrements++;
             incremented_pa_value += pa_increment;
         }
-        else { 
+        else {
             pa_values[countincrements] = end_pa;
             countincrements++;//failsafe if werid input numbers are provided that can't add the "ending pa" number to the array.
             break; }
-        
+
     }// is there a limit of how many models SS can load ? might be good to set a failsafe just so it won't load 10k+ models...
 
     bool has_to_arrange = false;
@@ -350,7 +350,7 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
         //disable auto-center for this calibration.
         gui_app->app_config->set("autocenter", "0");
     }
-    
+
     std::vector<std::string> items;
     for (size_t i = 0; i < nb_runs; i++){
         items.emplace_back((boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / "base_plate.3mf").string());
@@ -360,7 +360,7 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
     const DynamicPrintConfig* print_config = this->gui_app->get_tab(Preset::TYPE_FFF_PRINT)->get_config();
     const DynamicPrintConfig* filament_config = this->gui_app->get_tab(Preset::TYPE_FFF_FILAMENT)->get_config();
     const DynamicPrintConfig* printer_config = this->gui_app->get_tab(Preset::TYPE_PRINTER)->get_config();
-    
+
     // --- scale ---
     //models is created for nozzles from 0.1-2mm walls should be nozzle_size*4 spaced, scale xy model by widths down is futher
     const ConfigOptionFloats* nozzle_diameter_config = printer_config->option<ConfigOptionFloats>("nozzle_diameter");
@@ -369,7 +369,7 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
     double first_layer_height = print_config->get_abs_value("first_layer_height", nozzle_diameter);
     double base_layer_height = print_config->get_computed_value("layer_height",0);
     GCodeFlavor flavor = printer_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value;
-    
+
     double er_width = print_config->get_abs_value("solid_infill_extrusion_width", nozzle_diameter);
     double er_accel = print_config->get_abs_value("solid_infill_acceleration", nozzle_diameter);
     double er_speed = print_config->get_abs_value("solid_infill_speed", nozzle_diameter);
@@ -393,7 +393,7 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
     else{
         for (int i = 0; i < static_cast<int>(sizeof(choice_extrusion_role) / sizeof(choice_extrusion_role[0])); i++) {
 
-            
+
             if (er_width_ToOptionKey.find(extrusion_role) != er_width_ToOptionKey.end()) {
 
                 er_width = print_config->get_abs_value(er_width_ToOptionKey[extrusion_role].c_str(), nozzle_diameter);//look at maps at match speed/width ect to the selecter ER role
@@ -406,7 +406,7 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
                 if(er_speed == 0){er_speed =default_er_speed; }
                 if(er_accel == 0){er_accel =default_er_accel; }
                 if(er_spacing == 0){er_spacing = default_er_spacing; }
-                
+
                 er_width = er_width * 100 / nozzle_diameter;
                 er_width = std::round(er_width * 100.0) / 100.0;
             } else {
@@ -415,22 +415,22 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
                 er_width = std::round(er_width * 100.0) / 100.0;  // Change number to percentage and round
 
             }
-        
+
         }
     }
-    
+
 
     //-- magical scaling is done here :)
     //the 90_bend models need to be scaled correctly so there is no 'gapfill' since gapfill will effect results.
     double xyzScale = nozzle_diameter / 0.4;
     double er_width_to_scale = magical_scaling(nozzle_diameter,er_width,filament_max_overlap,spacing_ratio,spacing_ratio_external,base_layer_height,er_spacing);
-    //-- magical scaling 
+    //-- magical scaling
     std::vector < std::vector<ModelObject*>> pressure_tower;
 
     std::string nozzle_diameter_str = std::to_string(nozzle_diameter);
     nozzle_diameter_str.erase(nozzle_diameter_str.find_last_not_of('0') + 2, std::string::npos);
 
-    
+
     if (nozzle_diameter_str.back() == '.') {//if nozzle_diameter_str broke fix it by adding '0' to end, prob not needed?
         nozzle_diameter_str += '0';
     }
@@ -446,7 +446,7 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
     std::string bend_90_nozzle_size_3mf = "90_bend_" + nozzle_diameter_str + ".3mf";
 
     for (size_t id_item = 0; id_item < nb_runs; id_item++) {
-        
+
         pressure_tower.emplace_back();
 
         double initial_model_height = 0.2;
@@ -458,7 +458,7 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
         double initial_point_xy = 0.69;//fusion = 0.687 mm
 
         double z_scaled_model_height = initial_model_height * (first_layer_height / initial_model_height);
-        double xy_scaled_90_bend_x = initial_90_bend_x * er_width_to_scale; 
+        double xy_scaled_90_bend_x = initial_90_bend_x * er_width_to_scale;
         double xy_scaled_90_bend_y = initial_90_bend_y * er_width_to_scale;
         double xy_scaled_x = initial_border_x * er_width_to_scale;
         double xy_scaled_number_x = initial_number_x * xyzScale * er_width_to_scale;
@@ -480,14 +480,14 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
             //      this can cause the numbers to not "show up" on the preview because the z scale is calculated wrong.
             // ie; first_layer_height=0.1 and base_layer_height =0.20
             //BUG: if first/base layer height are both .02 numbers don't show up when sliced. doesn't happen with windows, it did for linux ?
-        
 
-        
+
+
         std::vector<Eigen::Vector3d> bend_90_positions;
         std::vector<Eigen::Vector3d> number_positions;
 
         if (extrusion_role == "Verify") {
-            
+
             int nb_bends = 0;
             for (const std::string& role : choice_extrusion_role) {//dynamic add and scale each 90bend model per extrusion role.
 
@@ -498,11 +498,11 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
                     er_width_to_scale = magical_scaling(nozzle_diameter, er_width, filament_max_overlap, spacing_ratio, spacing_ratio_external, base_layer_height, er_spacing);
                     thickness_offset = nozzle_diameter * er_width_to_scale * 2;
 
-                    add_part(model.objects[objs_idx[id_item]], 
+                    add_part(model.objects[objs_idx[id_item]],
                             (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / "scaled_with_nozzle_size" / bend_90_nozzle_size_3mf).string(),
                             Vec3d{ -0.8, (initial_90_bend_y/2) * nb_bends , xyzScale - base_layer_height }, Vec3d{ er_width_to_scale, er_width_to_scale, z_scale_90_bend });
                     pressure_tower.back().push_back(model.objects[objs_idx[id_item]]);
-                    
+
                     Eigen::Vector3d modelPosition(-0.8, (initial_90_bend_y/2) * nb_bends, xyzScale - base_layer_height );
                     bend_90_positions.push_back(modelPosition);
                     nb_bends++;
@@ -513,27 +513,27 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
                     er_width_to_scale = magical_scaling(nozzle_diameter, er_width, filament_max_overlap, spacing_ratio, spacing_ratio_external, base_layer_height, er_spacing);
                     thickness_offset = nozzle_diameter * er_width_to_scale * 2;
 
-                    add_part(model.objects[objs_idx[id_item]], 
+                    add_part(model.objects[objs_idx[id_item]],
                         (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / "scaled_with_nozzle_size" / bend_90_nozzle_size_3mf).string(),
                         Vec3d{ -0.8, (initial_90_bend_y/2) * nb_bends , xyzScale - base_layer_height }, Vec3d{ er_width_to_scale, er_width_to_scale, z_scale_90_bend });
                     pressure_tower.back().push_back(model.objects[objs_idx[id_item]]);
-                    
+
                     Eigen::Vector3d modelPosition(-0.8, (initial_90_bend_y/2) * nb_bends, xyzScale - base_layer_height );
                     bend_90_positions.push_back(modelPosition);
                     nb_bends++;
-                
+
                 }
-                
+
             }
         }
         else{//not verify
             for (int nb_bends = 0; nb_bends < countincrements; nb_bends++){
                 //const double magical_transformation_y_pos = 10.47;
-                add_part(model.objects[objs_idx[id_item]], 
+                add_part(model.objects[objs_idx[id_item]],
                         (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / "scaled_with_nozzle_size" / bend_90_nozzle_size_3mf).string(),
                         Vec3d{ -0.8, double(nb_bends) * (thickness_offset*2) *2 , xyzScale - base_layer_height }, Vec3d{ er_width_to_scale, er_width_to_scale, z_scale_90_bend });
                 pressure_tower.back().push_back(model.objects[objs_idx[id_item]]);
-                
+
                 Eigen::Vector3d modelPosition(-0.8, (double(nb_bends) * (thickness_offset*2) *2) , xyzScale - base_layer_height );
                 bend_90_positions.push_back(modelPosition);
             }
@@ -562,7 +562,7 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
                 double scaled_tb_border_x = scaled_r_border_x_mm + xy_scaled_90_bend_x;
                 double scaled_tb_border_x_percentage = ((scaled_tb_border_x /* + extra_size_x*/) / initial_border_x) * 100;
 
-                
+
                 double total_height = (bend_pos_last.y() + (xy_scaled_90_bend_y / 2)) - (bend_pos_first.y() - (xy_scaled_90_bend_y / 2));
                 double scaled_border_y_percentage = ((total_height + extra_size_y) / initial_90_bend_y) * 100;
                 double border_scaled_y = (initial_border_x*(xy_scaled_x * 1.5)) / initial_90_bend_y;//need to fix for larger nozzle sizes.
@@ -573,7 +573,7 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
                 double left_border_pos_x = bend_pos_first.x() - (xy_scaled_90_bend_x / 2);
 
                 //----------
-                add_part(model.objects[objs_idx[id_item]], 
+                add_part(model.objects[objs_idx[id_item]],
                     (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / "pa_border.3mf").string(),
                     Vec3d{ left_border_pos_x + magical_transformation_x_pos, bend_pos_mid.y(), new_z_world_coords }, //need to fix to adjust for nozzle_diameter since it breaks bottom_solid_layers
                                     /*scale*/Vec3d{ xy_scaled_x * 1.5, scaled_border_y_percentage*0.01, z_scale_factor }); // Left border
@@ -581,7 +581,7 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
                 add_part(model.objects[objs_idx[id_item]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / "pa_border.3mf").string(),
                     Vec3d{ right_border_pos_x + magical_transformation_x_pos , bend_pos_mid.y(), new_z_world_coords },
                                     /*scale*/Vec3d{ scaled_r_border_x_percentage*0.01 , scaled_border_y_percentage*0.01 , z_scale_factor });// right border
-                
+
                 bool enable_top_bottom = true;
                 if(enable_top_bottom == true){//remove later
                     //----------
@@ -620,14 +620,14 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
 
                 double xpos = xpos_initial;
                 double ypos = ypos_inital;
-                
+
                 std::string pa_values_string = std::to_string(pa_values[nb_bends]);
                 std::string threemf =".3mf";
-            
+
                 for (int j = 0; j < 7; ++j) {//not sure how the code will respond with a positive array list? ie ; 100.2 this moves decimal point thus breaking the code from loading model since "..3mf" not a real file
 
                     std::string numered3mfpath = pa_values_string[j] + threemf;
-                    
+
                     if (pa_values_string[j] == '.') {
 
                         add_part(model.objects[objs_idx[id_item]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / "point.3mf").string(),
@@ -638,10 +638,10 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
                         xpos = xpos + xy_scaled_point_xy + (nozzle_diameter * 2 );
                     }
                     else if (std::isdigit(pa_values_string[j])) {
-                        
+
                         add_part(model.objects[objs_idx[id_item]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / numered3mfpath).string(),
                             Vec3d{ xpos + xy_scaled_number_x + nozzle_diameter, ypos, z_scaled_model_height - magical_transformation_z_pos }, Vec3d{ xyzScale * er_width_to_scale, xyzScale * er_width_to_scale, z_scale_factor });
-                        
+
                         Eigen::Vector3d modelPosition(xpos + xy_scaled_number_x + nozzle_diameter + magical_transformation_num_x_pos, ypos, z_scaled_model_height - magical_transformation_z_pos );
                         number_positions.push_back(modelPosition);
                         xpos = xpos + xy_scaled_number_x + nozzle_diameter;
@@ -661,7 +661,7 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
         Vec2d bed_min = BoundingBoxf(bed_shape->values).min;
         model.objects[objs_idx[0]]->translate({ bed_min.x() + bed_size.x() / 2, bed_min.y() + bed_size.y() / 2, 5 * xyzScale - 5 });
     }*/
-    
+
     std::string set_advance_prefix ="";
     if (gcfKlipper == flavor) {
         if(smooth_time == false){
@@ -795,7 +795,7 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
 }
 
 double CalibrationPressureAdvDialog::magical_scaling(double nozzle_diameter, double er_width, double filament_max_overlap, double spacing_ratio, double spacing_ratio_external, double base_layer_height, double er_spacing ){
-    
+
     double xyzScale = nozzle_diameter / 0.4;
     double er_width_decimal = er_width * nozzle_diameter / 100.0;//models are generated to be default width of x4 lines for the walls ie; 0.4mm nozzle is 1.6mm thick walls
     double er_width_to_scale =1.0;
@@ -813,7 +813,7 @@ double CalibrationPressureAdvDialog::magical_scaling(double nozzle_diameter, dou
     }
     else{
         er_width_to_scale = er_spacing -(nozzle_diameter/2*0.01);//need to scale slightly under to help with models being correct TODO: test more configurations of nozzle sizes/layer heights
-        //if use has the 'wrong' min layer height for a nozzle size, the model will get filled with "gapfill" not a normal extrusion, need to test more for what variables 'break' it                          
+        //if use has the 'wrong' min layer height for a nozzle size, the model will get filled with "gapfill" not a normal extrusion, need to test more for what variables 'break' it
     }
 
     return er_width_to_scale;

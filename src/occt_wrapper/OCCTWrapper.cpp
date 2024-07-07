@@ -86,7 +86,7 @@ try {
     //    if (cb_cancel)
     //        return false;
     //}
-    
+
 
     std::vector<NamedSolid> namedSolids;
     Handle(TDocStd_Document) document;
@@ -118,7 +118,7 @@ try {
         getNamedSolids(TopLoc_Location{}, shapeTool, topLevelShapes.Value(iLabel), namedSolids);
     }
 
-    
+
 
     // Now the object name. Set it to filename without suffix.
     // This will later be changed if only one volume is loaded.
@@ -179,7 +179,7 @@ try {
         res->volumes.back().volume_name = namedSolids[i].name;
 
         if (vertices.empty())
-            res->volumes.pop_back();        
+            res->volumes.pop_back();
     }
 
     shapeTool.reset(nullptr);
@@ -194,7 +194,7 @@ try {
     res->error_str = "An exception was thrown in load_step_internal.";
     return false;
 }
-    
+
     return true;
 }
 

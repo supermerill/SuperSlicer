@@ -85,7 +85,7 @@ Packet2d pexp<Packet2d>(const Packet2d& _x)
   emm0 = emm0 + p2l_1023;
   emm0 = emm0 << reinterpret_cast<Packet2l>(p2ul_52);
 
-  // Altivec's max & min operators just drop silent NaNs. Check NaNs in 
+  // Altivec's max & min operators just drop silent NaNs. Check NaNs in
   // inputs and return them unmodified.
   Packet2ul isnumber_mask = reinterpret_cast<Packet2ul>(vec_cmpeq(_x, _x));
   return vec_sel(_x, pmax(pmul(x, reinterpret_cast<Packet2d>(emm0)), _x),

@@ -167,23 +167,23 @@
 #define EVT_RESULT_PHY_NO_ACTIVITY          0xFB
 
 /* memory types for CMND_{READ,WRITE}_MEMORY */
-#define MTYPE_IO_SHADOW   0x30	/* cached IO registers? */
-#define MTYPE_SRAM        0x20	/* target's SRAM or [ext.] IO registers */
-#define MTYPE_EEPROM      0x22	/* EEPROM, what way? */
-#define MTYPE_EVENT       0x60	/* ICE event memory */
-#define MTYPE_SPM         0xA0	/* flash through LPM/SPM */
-#define MTYPE_FLASH_PAGE  0xB0	/* flash in programming mode */
-#define MTYPE_EEPROM_PAGE 0xB1	/* EEPROM in programming mode */
-#define MTYPE_FUSE_BITS   0xB2	/* fuse bits in programming mode */
-#define MTYPE_LOCK_BITS   0xB3	/* lock bits in programming mode */
-#define MTYPE_SIGN_JTAG   0xB4	/* signature in programming mode */
-#define MTYPE_OSCCAL_BYTE 0xB5	/* osccal cells in programming mode */
-#define MTYPE_CAN         0xB6	/* CAN mailbox */
-#define MTYPE_FLASH       0xc0	/* xmega (app.) flash - undocumented in AVR067 */
-#define MTYPE_BOOT_FLASH  0xc1	/* xmega boot flash - undocumented in AVR067 */
-#define MTYPE_EEPROM_XMEGA 0xc4	/* xmega EEPROM in debug mode - undocumented in AVR067 */
-#define MTYPE_USERSIG     0xc5	/* xmega user signature - undocumented in AVR067 */
-#define MTYPE_PRODSIG     0xc6	/* xmega production signature - undocumented in AVR067 */
+#define MTYPE_IO_SHADOW   0x30    /* cached IO registers? */
+#define MTYPE_SRAM        0x20    /* target's SRAM or [ext.] IO registers */
+#define MTYPE_EEPROM      0x22    /* EEPROM, what way? */
+#define MTYPE_EVENT       0x60    /* ICE event memory */
+#define MTYPE_SPM         0xA0    /* flash through LPM/SPM */
+#define MTYPE_FLASH_PAGE  0xB0    /* flash in programming mode */
+#define MTYPE_EEPROM_PAGE 0xB1    /* EEPROM in programming mode */
+#define MTYPE_FUSE_BITS   0xB2    /* fuse bits in programming mode */
+#define MTYPE_LOCK_BITS   0xB3    /* lock bits in programming mode */
+#define MTYPE_SIGN_JTAG   0xB4    /* signature in programming mode */
+#define MTYPE_OSCCAL_BYTE 0xB5    /* osccal cells in programming mode */
+#define MTYPE_CAN         0xB6    /* CAN mailbox */
+#define MTYPE_FLASH       0xc0    /* xmega (app.) flash - undocumented in AVR067 */
+#define MTYPE_BOOT_FLASH  0xc1    /* xmega boot flash - undocumented in AVR067 */
+#define MTYPE_EEPROM_XMEGA 0xc4    /* xmega EEPROM in debug mode - undocumented in AVR067 */
+#define MTYPE_USERSIG     0xc5    /* xmega user signature - undocumented in AVR067 */
+#define MTYPE_PRODSIG     0xc6    /* xmega production signature - undocumented in AVR067 */
 
 /* (some) ICE parameters, for CMND_{GET,SET}_PARAMETER */
 #define PAR_HW_VERSION                         0x01
@@ -191,7 +191,7 @@
 #define PAR_EMULATOR_MODE                      0x03
 # define EMULATOR_MODE_DEBUGWIRE                 0x00
 # define EMULATOR_MODE_JTAG                      0x01
-# define EMULATOR_MODE_HV                        0x02	/* HVSP or PP mode of AVR Dragon */
+# define EMULATOR_MODE_HV                        0x02    /* HVSP or PP mode of AVR Dragon */
 # define EMULATOR_MODE_SPI                       0x03
 # define EMULATOR_MODE_JTAG_AVR32                0x04
 # define EMULATOR_MODE_JTAG_XMEGA                0x05
@@ -201,7 +201,7 @@
 # define PAR_BAUD_2400                           0x01
 # define PAR_BAUD_4800                           0x02
 # define PAR_BAUD_9600                           0x03
-# define PAR_BAUD_19200                          0x04	/* default */
+# define PAR_BAUD_19200                          0x04    /* default */
 # define PAR_BAUD_38400                          0x05
 # define PAR_BAUD_57600                          0x06
 # define PAR_BAUD_115200                         0x07
@@ -320,13 +320,13 @@ struct device_descriptor
   unsigned char ucIDRAddress; /*IDR address */
   unsigned char ucSPMCRAddress; /*SPMCR Register address and dW BasePC */
   unsigned char ucRAMPZAddress; /*RAMPZ Register address in SRAM I/O */
-				/*space */
+                /*space */
   unsigned char uiFlashPageSize[2]; /*Device Flash Page Size, Size = */
-				/*2 exp ucFlashPageSize */
+                /*2 exp ucFlashPageSize */
   unsigned char ucEepromPageSize; /*Device Eeprom Page Size in bytes */
   unsigned char ulBootAddress[4]; /*Device Boot Loader Start Address */
   unsigned char uiUpperExtIOLoc[2]; /*Topmost (last) extended I/O */
-				/*location, 0 if no external I/O */
+                /*location, 0 if no external I/O */
   unsigned char ulFlashSize[4]; /*Device Flash Size */
   unsigned char ucEepromInst[20]; /*Instructions for W/R EEPROM */
   unsigned char ucFlashInst[3]; /*Instructions for W/R FLASH */
@@ -338,15 +338,15 @@ struct device_descriptor
   unsigned char ucDWBasePC; /* base/mask value of the PC */
   /* new as of 30-04-2004 */
   unsigned char ucAllowFullPageBitstream; /* FALSE on ALL new */
-				/*parts */
+                /*parts */
   unsigned char uiStartSmallestBootLoaderSection[2]; /* */
   /* new as of 18-10-2004 */
   unsigned char EnablePageProgramming; /* For JTAG parts only, */
-				/* default TRUE */
-  unsigned char ucCacheType;	/* CacheType_Normal 0x00, */
-				/* CacheType_CAN 0x01, */
-				/* CacheType_HEIMDALL 0x02 */
-				/* new as of 27-10-2004 */
+                /* default TRUE */
+  unsigned char ucCacheType;    /* CacheType_Normal 0x00, */
+                /* CacheType_CAN 0x01, */
+                /* CacheType_HEIMDALL 0x02 */
+                /* new as of 27-10-2004 */
   unsigned char uiSramStartAddr[2]; /* Start of SRAM */
   unsigned char ucResetType; /* Selects reset type. ResetNormal = 0x00 */
                              /* ResetAT76CXXX = 0x01 */
@@ -359,23 +359,23 @@ struct device_descriptor
 
 /* New Xmega device descriptor, for firmware version 7 and above */
 struct xmega_device_desc {
-    unsigned char whatever[2];		// cannot guess; must be 0x0002
-    unsigned char datalen;		// length of the following data, = 47
-    unsigned char nvm_app_offset[4];	// NVM offset for application flash
-    unsigned char nvm_boot_offset[4];	// NVM offset for boot flash
+    unsigned char whatever[2];        // cannot guess; must be 0x0002
+    unsigned char datalen;        // length of the following data, = 47
+    unsigned char nvm_app_offset[4];    // NVM offset for application flash
+    unsigned char nvm_boot_offset[4];    // NVM offset for boot flash
     unsigned char nvm_eeprom_offset[4]; // NVM offset for EEPROM
-    unsigned char nvm_fuse_offset[4];	// NVM offset for fuses
-    unsigned char nvm_lock_offset[4];	// NVM offset for lock bits
+    unsigned char nvm_fuse_offset[4];    // NVM offset for fuses
+    unsigned char nvm_lock_offset[4];    // NVM offset for lock bits
     unsigned char nvm_user_sig_offset[4]; // NVM offset for user signature row
     unsigned char nvm_prod_sig_offset[4]; // NVM offset for production sign. row
-    unsigned char nvm_data_offset[4];	// NVM offset for data memory (SRAM + IO)
-    unsigned char app_size[4];		// size of application flash
-    unsigned char boot_size[2];		// size of boot flash
-    unsigned char flash_page_size[2];	// flash page size
-    unsigned char eeprom_size[2];	// size of EEPROM
-    unsigned char eeprom_page_size;	// EEPROM page size
-    unsigned char nvm_base_addr[2];	// IO space base address of NVM controller
-    unsigned char mcu_base_addr[2];	// IO space base address of MCU control
+    unsigned char nvm_data_offset[4];    // NVM offset for data memory (SRAM + IO)
+    unsigned char app_size[4];        // size of application flash
+    unsigned char boot_size[2];        // size of boot flash
+    unsigned char flash_page_size[2];    // flash page size
+    unsigned char eeprom_size[2];    // size of EEPROM
+    unsigned char eeprom_page_size;    // EEPROM page size
+    unsigned char nvm_base_addr[2];    // IO space base address of NVM controller
+    unsigned char mcu_base_addr[2];    // IO space base address of MCU control
 };
 #endif /* JTAGMKII_PRIVATE_EXPORTED */
 

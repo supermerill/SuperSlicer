@@ -2,13 +2,13 @@
 /* RESETS */
 html, body, div, span, applet, object, iframe, h1, h2, h3, h4, h5, h6, p, blockquote, pre, a, abbr, acronym, address, big, cite, code, del, dfn, em, font, img, ins, kbd, q, s, samp,
 small, strike, strong, sub, tt, var,b, u, i, center, dl, dt, dd, ol, ul, li, fieldset, form, label, legend, table, caption, tbody, tfoot, thead, tr, th, td { /*  */
-	margin: 				0;
-	padding: 				0;
-	border: 				0;
-	outline: 				0;
-	font-size: 				100%;
-	vertical-align: 		baseline;
-	background: 			transparent;
+    margin:                 0;
+    padding:                 0;
+    border:                 0;
+    outline:                 0;
+    font-size:                 100%;
+    vertical-align:         baseline;
+    background:             transparent;
 }
 
 body { font: 12px Verdana, Geneva, sans-serif; }
@@ -39,18 +39,18 @@ h3, h4, h5, h6 {padding:10px 0px 2px 4px;}
 
 
 p {
-	font-size: 			11px;
-	line-height: 		15px;
-	color: 				#444;
-	/*width: 			100%; Removing width so it's not fixed or floated */
-	padding: 			0px 10px 10px 5px; /* changed padding-right from 5 to 10 and padding-left from 10px to 5px */
-	*padding: 			5px 5px 10px 0px; /* IE7 hack */
+    font-size:             11px;
+    line-height:         15px;
+    color:                 #444;
+    /*width:             100%; Removing width so it's not fixed or floated */
+    padding:             0px 10px 10px 5px; /* changed padding-right from 5 to 10 and padding-left from 10px to 5px */
+    *padding:             5px 5px 10px 0px; /* IE7 hack */
 }
 
 /* Page layout */
 div#content
 {
-    padding: 1em 2em 1em 2em; 
+    padding: 1em 2em 1em 2em;
 }
 
 .navfooter
@@ -66,16 +66,16 @@ div#content
 .mediaobject img
 {
     margin: 0.5em 0.5em 0.5em 0.5em;
-	vertical-align: middle;
-	max-width: 100%;
+    vertical-align: middle;
+    max-width: 100%;
 }
 
 .mediaobject img[align="left"]
 {
-	margin-right:		2em;
+    margin-right:        2em;
 }
 
-.informalfigure	{ margin: 6px; }
+.informalfigure    { margin: 6px; }
 
 /* "Layout" tables should not have borders */
 #content table, #content table td { border: none; }
@@ -103,7 +103,7 @@ div#content
     border: 1px solid #A7A9AB;
 }
 
-#content .footnotes tr td 
+#content .footnotes tr td
 {
     background-color:white;
     border: none;
@@ -122,7 +122,7 @@ div.note, div.caution, div.important, div.tip, div.warning
 div.note *, div.caution *, div.important *, div.tip *, div.warning * {
     background: inherit !important;
     color: inherit !important;
-    border: none;    
+    border: none;
 }
 
 
@@ -155,7 +155,7 @@ ul.square
 }
 ul.circle, ul[type=disk]
 {
-    list-style: disc outside;    
+    list-style: disc outside;
     margin: 0 0 0 1em;
     padding: 0 0 0 0;
 }
@@ -185,9 +185,9 @@ ul ul.square
     margin-top: .3em;
 }
 
-ul, ol { margin-left:	3em; }
+ul, ol { margin-left:    3em; }
 /*
-dl dt { padding: 			0px 10px 0px 5px;}
+dl dt { padding:             0px 10px 0px 5px;}
 */
 div.orderedlist-collapsed
 {
@@ -203,8 +203,8 @@ div.orderedlist-collapsed span.listitem
 
 .variablelist dt
 {
-	font-weight: 		bold;
-	color: 				black;
+    font-weight:         bold;
+    color:                 black;
 }
 
 
@@ -217,8 +217,8 @@ dl.toc
 .guibutton, .guimenu, .guimenuitem, .guisubmenu
 {
     font-family:        Arial, Verdana, Geneva, sans-serif;
-	color: 				black;
-	font-weight: 		bold;
+    color:                 black;
+    font-weight:         bold;
 }
 
 .disclaimer

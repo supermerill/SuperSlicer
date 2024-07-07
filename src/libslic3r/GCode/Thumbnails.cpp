@@ -9,7 +9,7 @@ namespace Slic3r::GCodeThumbnails {
 
 using namespace std::literals;
 
-struct CompressedPNG : CompressedImageBuffer 
+struct CompressedPNG : CompressedImageBuffer
 {
     ~CompressedPNG() override { if (data) mz_free(data); }
     std::string_view tag() const override { return "thumbnail_PNG"sv; }
@@ -136,7 +136,7 @@ std::unique_ptr<CompressedImageBuffer> compress_thumbnail_qoi(const ThumbnailDat
     size_t row_size = data.width * 4;
     for (size_t y = 0; y < data.height; ++ y)
         memcpy(rgba_pixels.data() + (data.height - y - 1) * row_size, data.pixels.data() + y * row_size, row_size);
-    
+
     auto out = std::make_unique<CompressedQOI>();
     int  size;
     out->data = qoi_encode((const void*)rgba_pixels.data(), &desc, &size);

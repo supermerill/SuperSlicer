@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_EDGE_LENGTHS_H
 #define IGL_EDGE_LENGTHS_H
@@ -28,7 +28,7 @@ namespace igl
   //    or
   //   T  #T by 4 list of mesh elements (must be tets)
   // Outputs:
-  //   L  #F by {1|3|6} list of edge lengths 
+  //   L  #F by {1|3|6} list of edge lengths
   //     for edges, column of lengths
   //     for triangles, columns correspond to edges [1,2],[2,0],[0,1]
   //     for tets, columns correspond to edges

@@ -77,18 +77,18 @@ static int usbhid_open(char * port, union pinfo pinfo, union filedescriptor *fd)
       cp2 = ++serno;
 
       while ((cp2 = strchr(cp2, ':')) != NULL)
-	{
-	  x = strlen(cp2) - 1;
-	  memmove(cp2, cp2 + 1, x);
-	  cp2[x] = '\0';
-	}
+    {
+      x = strlen(cp2) - 1;
+      memmove(cp2, cp2 + 1, x);
+      cp2[x] = '\0';
+    }
 
       if (strlen(serno) > 12)
-	{
-	  avrdude_message(MSG_INFO, "%s: usbhid_open(): invalid serial number \"%s\"\n",
+    {
+      avrdude_message(MSG_INFO, "%s: usbhid_open(): invalid serial number \"%s\"\n",
                           progname, serno);
-	  return -1;
-	}
+      return -1;
+    }
 
       wchar_t wserno[15];
       mbstowcs(wserno, serno, 15);
@@ -101,30 +101,30 @@ static int usbhid_open(char * port, union pinfo pinfo, union filedescriptor *fd)
       struct hid_device_info *list, *walk;
       list = hid_enumerate(pinfo.usbinfo.vid, pinfo.usbinfo.pid);
       if (list == NULL)
-	return -1;
+    return -1;
 
       walk = list;
       while (walk)
       {
-	avrdude_message(MSG_NOTICE, "%s: usbhid_open(): Found %ls, serno: %ls\n",
-			progname, walk->product_string, walk->serial_number);
-	size_t slen = wcslen(walk->serial_number);
-	if (slen >= serlen &&
-	    wcscmp(walk->serial_number + slen - serlen, wserno) == 0)
+    avrdude_message(MSG_NOTICE, "%s: usbhid_open(): Found %ls, serno: %ls\n",
+            progname, walk->product_string, walk->serial_number);
+    size_t slen = wcslen(walk->serial_number);
+    if (slen >= serlen &&
+        wcscmp(walk->serial_number + slen - serlen, wserno) == 0)
           {
-	    /* found matching serial number */
-	    break;
+        /* found matching serial number */
+        break;
           }
-	avrdude_message(MSG_DEBUG, "%s: usbhid_open(): serial number doesn't match\n",
+    avrdude_message(MSG_DEBUG, "%s: usbhid_open(): serial number doesn't match\n",
                           progname);
-	walk = walk->next;
+    walk = walk->next;
       }
       if (walk == NULL)
       {
-	avrdude_message(MSG_INFO, "%s: usbhid_open(): No matching device found\n",
-			progname);
-	hid_free_enumeration(list);
-	return -1;
+    avrdude_message(MSG_INFO, "%s: usbhid_open(): No matching device found\n",
+            progname);
+    hid_free_enumeration(list);
+    return -1;
       }
       avrdude_message(MSG_DEBUG, "%s: usbhid_open(): Opening path %s\n",
                       progname, walk->path);
@@ -132,10 +132,10 @@ static int usbhid_open(char * port, union pinfo pinfo, union filedescriptor *fd)
       hid_free_enumeration(list);
       if (dev == NULL)
       {
-	avrdude_message(MSG_INFO,
-			"%s: usbhid_open(): Found device, but hid_open_path() failed\n",
-			progname);
-	return -1;
+    avrdude_message(MSG_INFO,
+            "%s: usbhid_open(): Found device, but hid_open_path() failed\n",
+            progname);
+    return -1;
       }
     }
   else
@@ -146,9 +146,9 @@ static int usbhid_open(char * port, union pinfo pinfo, union filedescriptor *fd)
       dev = hid_open(pinfo.usbinfo.vid, pinfo.usbinfo.pid, NULL);
       if (dev == NULL)
       {
-	avrdude_message(MSG_INFO, "%s: usbhid_open(): No device found\n",
-			progname);
-	return -1;
+    avrdude_message(MSG_INFO, "%s: usbhid_open(): No device found\n",
+            progname);
+    return -1;
       }
     }
 
@@ -183,44 +183,44 @@ static int usbhid_open(char * port, union pinfo pinfo, union filedescriptor *fd)
   if (pinfo.usbinfo.vid == USB_VENDOR_ATMEL)
     {
       avrdude_message(MSG_DEBUG, "%s: usbhid_open(): Probing for max. packet size\n",
-		      progname);
+              progname);
       memset(usbbuf, 0, sizeof usbbuf);
-      usbbuf[0] = 0;		/* no HID reports used */
-      usbbuf[1] = 0;		/* DAP_Info */
-      usbbuf[2] = 0xFF;		/* get max. packet size */
+      usbbuf[0] = 0;        /* no HID reports used */
+      usbbuf[1] = 0;        /* DAP_Info */
+      usbbuf[2] = 0xFF;        /* get max. packet size */
 
       hid_write(dev, usbbuf, 65);
-      fd->usb.max_xfer = 64;	/* first guess */
+      fd->usb.max_xfer = 64;    /* first guess */
 
       memset(usbbuf, 0, sizeof usbbuf);
       int res = hid_read_timeout(dev, usbbuf, 10 /* bytes */, 50 /* milliseconds */);
       if (res == 0) {
-	/* no timely response, assume 512 byte size */
-	hid_write(dev, usbbuf, (512 - 64) + 1);
-	fd->usb.max_xfer = 512;
-	res = hid_read_timeout(dev, usbbuf, 10, 50);
+    /* no timely response, assume 512 byte size */
+    hid_write(dev, usbbuf, (512 - 64) + 1);
+    fd->usb.max_xfer = 512;
+    res = hid_read_timeout(dev, usbbuf, 10, 50);
       }
       if (res <= 0) {
-	avrdude_message(MSG_INFO, "%s: usbhid_open(): No response from device\n",
-			progname);
-	hid_close(dev);
-	return -1;
+    avrdude_message(MSG_INFO, "%s: usbhid_open(): No response from device\n",
+            progname);
+    hid_close(dev);
+    return -1;
       }
       if (usbbuf[0] != 0 || usbbuf[1] != 2) {
-	avrdude_message(MSG_INFO,
-			"%s: usbhid_open(): Unexpected reply to DAP_Info: 0x%02x 0x%02x\n",
-			progname, usbbuf[0], usbbuf[1]);
+    avrdude_message(MSG_INFO,
+            "%s: usbhid_open(): Unexpected reply to DAP_Info: 0x%02x 0x%02x\n",
+            progname, usbbuf[0], usbbuf[1]);
       } else {
-	fd->usb.max_xfer = usbbuf[2] + (usbbuf[3] << 8);
-	avrdude_message(MSG_DEBUG,
-			"%s: usbhid_open(): Setting max_xfer from DAP_Info response to %d\n",
-			progname, fd->usb.max_xfer);
+    fd->usb.max_xfer = usbbuf[2] + (usbbuf[3] << 8);
+    avrdude_message(MSG_DEBUG,
+            "%s: usbhid_open(): Setting max_xfer from DAP_Info response to %d\n",
+            progname, fd->usb.max_xfer);
       }
     }
   if (fd->usb.max_xfer > USBDEV_MAX_XFER_3) {
     avrdude_message(MSG_INFO,
-		    "%s: usbhid_open(): Unexpected max size %d, reducing to %d\n",
-		    progname, fd->usb.max_xfer, USBDEV_MAX_XFER_3);
+            "%s: usbhid_open(): Unexpected max size %d, reducing to %d\n",
+            progname, fd->usb.max_xfer, USBDEV_MAX_XFER_3);
     fd->usb.max_xfer = USBDEV_MAX_XFER_3;
   }
 
@@ -253,17 +253,17 @@ static int usbhid_send(union filedescriptor *fd, const unsigned char *bp, size_t
     return -1;
 
   tx_size = (mlen < USBDEV_MAX_XFER_3)? mlen: USBDEV_MAX_XFER_3;
-  usbbuf[0] = 0;		/* no report ID used */
+  usbbuf[0] = 0;        /* no report ID used */
   memcpy(usbbuf + 1, bp, tx_size);
   rv = hid_write(udev, usbbuf, tx_size + 1);
   if (rv < 0) {
     avrdude_message(MSG_INFO, "%s: Failed to write %d bytes to USB\n",
-		    progname, tx_size);
+            progname, tx_size);
     return -1;
   }
   if (rv != tx_size + 1)
     avrdude_message(MSG_INFO, "%s: Short write to USB: %d bytes out of %d written\n",
-		    progname, rv, tx_size + 1);
+            progname, rv, tx_size + 1);
 
   if (verbose > 4)
   {
@@ -299,8 +299,8 @@ static int usbhid_recv(union filedescriptor *fd, unsigned char *buf, size_t nbyt
   rv = i = hid_read_timeout(udev, buf, nbytes, 300);
   if (i != nbytes)
     avrdude_message(MSG_INFO,
-		    "%s: Short read, read only %d out of %u bytes\n",
-		    progname, i, nbytes);
+            "%s: Short read, read only %d out of %u bytes\n",
+            progname, i, nbytes);
 
   if (verbose > 4)
   {

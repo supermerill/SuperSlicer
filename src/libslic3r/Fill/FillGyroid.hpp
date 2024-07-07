@@ -24,10 +24,10 @@ protected:
     float _layer_angle(size_t idx) const override { return this->can_angle_cross ? float(Geometry::deg2rad(-45.)) : 0.f; }
 
     void _fill_surface_single(
-        const FillParams                &params, 
+        const FillParams                &params,
         unsigned int                     thickness_layers,
-        const std::pair<float, Point>   &direction, 
-        ExPolygon                        expolygon, 
+        const std::pair<float, Point>   &direction,
+        ExPolygon                        expolygon,
         Polylines                       &polylines_out) const override;
 };
 

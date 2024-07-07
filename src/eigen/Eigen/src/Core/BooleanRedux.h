@@ -10,7 +10,7 @@
 #ifndef EIGEN_ALLANDANY_H
 #define EIGEN_ALLANDANY_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -49,7 +49,7 @@ struct any_unroller
     col = (UnrollCount-1) / Traits::RowsAtCompileTime,
     row = (UnrollCount-1) % Traits::RowsAtCompileTime
   };
-  
+
   static inline bool run(const Derived &mat)
   {
     return any_unroller<Derived, UnrollCount-1>::run(mat) || mat.coeff(row, col);
@@ -158,7 +158,7 @@ inline bool DenseBase<Derived>::allFinite() const
   return !((derived()-derived()).hasNaN());
 #endif
 }
-    
+
 } // end namespace Eigen
 
 #endif // EIGEN_ALLANDANY_H

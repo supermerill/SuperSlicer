@@ -39,7 +39,7 @@ public:
 
     virtual Polylines fill_surface(const Surface *surface, const FillParams &params) const override;
     virtual void fill_surface_extrusion(const Surface *surface, const FillParams &params, ExtrusionEntitiesPtr &out) const override;
-    
+
 protected:
     int nbPass=2;
     // this parameter is now erased by fill_smooth_width when available.

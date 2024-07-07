@@ -114,7 +114,7 @@ IGL_INLINE void igl::upsample(
 {
   NV = V;
   NF = F;
-  for(int i=0; i<number_of_subdivs; ++i) 
+  for(int i=0; i<number_of_subdivs; ++i)
   {
     DerivedNF tempF = NF;
     Eigen::SparseMatrix<typename DerivedV::Scalar >S;

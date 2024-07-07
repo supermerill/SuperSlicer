@@ -46,12 +46,12 @@
   }
 
 #define DO_PPI_READ(fd, reg, valp) \
-	(void)ioctl(fd, \
-		(reg) == PPIDATA? PPRDATA: ((reg) == PPICTRL? PPRCONTROL: PPRSTATUS), \
-		    valp)
+    (void)ioctl(fd, \
+        (reg) == PPIDATA? PPRDATA: ((reg) == PPICTRL? PPRCONTROL: PPRSTATUS), \
+            valp)
 #define DO_PPI_WRITE(fd, reg, valp) \
-	(void)ioctl(fd, \
-		(reg) == PPIDATA? PPWDATA: ((reg) == PPICTRL? PPWCONTROL: PPWSTATUS), \
-		    valp)
+    (void)ioctl(fd, \
+        (reg) == PPIDATA? PPWDATA: ((reg) == PPICTRL? PPWCONTROL: PPWSTATUS), \
+            valp)
 
 #endif /* linux_ppdev_h */

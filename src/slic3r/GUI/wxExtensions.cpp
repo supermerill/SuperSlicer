@@ -27,22 +27,22 @@ static std::map<int, std::string> msw_menuitem_bitmaps;
 #ifdef __WXMSW__
 void msw_rescale_menu(wxMenu* menu)
 {
-	struct update_icons {
-		static void run(wxMenuItem* item) {
-			const auto it = msw_menuitem_bitmaps.find(item->GetId());
-			if (it != msw_menuitem_bitmaps.end()) {
-				const wxBitmap& item_icon = create_menu_bitmap(it->second);
-				if (item_icon.IsOk())
-					item->SetBitmap(item_icon);
-			}
-			if (item->IsSubMenu())
-				for (wxMenuItem *sub_item : item->GetSubMenu()->GetMenuItems())
-					update_icons::run(sub_item);
-		}
-	};
+    struct update_icons {
+        static void run(wxMenuItem* item) {
+            const auto it = msw_menuitem_bitmaps.find(item->GetId());
+            if (it != msw_menuitem_bitmaps.end()) {
+                const wxBitmap& item_icon = create_menu_bitmap(it->second);
+                if (item_icon.IsOk())
+                    item->SetBitmap(item_icon);
+            }
+            if (item->IsSubMenu())
+                for (wxMenuItem *sub_item : item->GetSubMenu()->GetMenuItems())
+                    update_icons::run(sub_item);
+        }
+    };
 
-	for (wxMenuItem *item : menu->GetMenuItems())
-		update_icons::run(item);
+    for (wxMenuItem *item : menu->GetMenuItems())
+        update_icons::run(item);
 }
 #endif /* __WXMSW__ */
 #endif /* no __WXGTK__ */
@@ -321,7 +321,7 @@ void wxCheckListBoxComboPopup::OnCheckListBox(wxCommandEvent& evt)
 
 void wxCheckListBoxComboPopup::OnListBoxSelection(wxCommandEvent& evt)
 {
-    // transforms list box item selection event into checklistbox item toggle event 
+    // transforms list box item selection event into checklistbox item toggle event
 
     int selId = GetSelection();
     if (selId != wxNOT_FOUND)
@@ -350,51 +350,51 @@ const unsigned int wxDataViewTreeCtrlComboPopup::DefaultItemHeight = 22;
 
 bool wxDataViewTreeCtrlComboPopup::Create(wxWindow* parent)
 {
-	return wxDataViewTreeCtrl::Create(parent, wxID_ANY/*HIGHEST + 1*/, wxPoint(0, 0), wxDefaultSize/*wxSize(270, -1)*/, wxDV_NO_HEADER);
+    return wxDataViewTreeCtrl::Create(parent, wxID_ANY/*HIGHEST + 1*/, wxPoint(0, 0), wxDefaultSize/*wxSize(270, -1)*/, wxDV_NO_HEADER);
 }
 /*
 wxSize wxDataViewTreeCtrlComboPopup::GetAdjustedSize(int minWidth, int prefHeight, int maxHeight)
 {
-	// matches owner wxComboCtrl's width
-	// and sets height dinamically in dependence of contained items count
-	wxComboCtrl* cmb = GetComboCtrl();
-	if (cmb != nullptr)
-	{
-		wxSize size = GetComboCtrl()->GetSize();
-		if (m_cnt_open_items > 0)
-			size.SetHeight(m_cnt_open_items * DefaultItemHeight);
-		else
-			size.SetHeight(DefaultHeight);
+    // matches owner wxComboCtrl's width
+    // and sets height dinamically in dependence of contained items count
+    wxComboCtrl* cmb = GetComboCtrl();
+    if (cmb != nullptr)
+    {
+        wxSize size = GetComboCtrl()->GetSize();
+        if (m_cnt_open_items > 0)
+            size.SetHeight(m_cnt_open_items * DefaultItemHeight);
+        else
+            size.SetHeight(DefaultHeight);
 
-		return size;
-	}
-	else
-		return wxSize(DefaultWidth, DefaultHeight);
+        return size;
+    }
+    else
+        return wxSize(DefaultWidth, DefaultHeight);
 }
 */
 void wxDataViewTreeCtrlComboPopup::OnKeyEvent(wxKeyEvent& evt)
 {
-	// filters out all the keys which are not working properly
-	if (evt.GetKeyCode() == WXK_UP)
-	{
-		return;
-	}
-	else if (evt.GetKeyCode() == WXK_DOWN)
-	{
-		return;
-	}
-	else
-	{
-		evt.Skip();
-		return;
-	}
+    // filters out all the keys which are not working properly
+    if (evt.GetKeyCode() == WXK_UP)
+    {
+        return;
+    }
+    else if (evt.GetKeyCode() == WXK_DOWN)
+    {
+        return;
+    }
+    else
+    {
+        evt.Skip();
+        return;
+    }
 }
 
 void wxDataViewTreeCtrlComboPopup::OnDataViewTreeCtrlSelection(wxCommandEvent& evt)
 {
-	wxComboCtrl* cmb = GetComboCtrl();
-	auto selected = GetItemText(GetSelection());
-	cmb->SetText(selected);
+    wxComboCtrl* cmb = GetComboCtrl();
+    auto selected = GetItemText(GetSelection());
+    cmb->SetText(selected);
 }
 
 // edit tooltip : change Slic3r to SLIC3R_APP_KEY
@@ -422,8 +422,8 @@ void msw_buttons_rescale(wxDialog* dlg, const int em_unit, const std::vector<int
 
 /* Function for getting of em_unit value from correct parent.
  * In most of cases it is m_em_unit value from GUI_App,
- * but for DPIDialogs it's its own value. 
- * This value will be used to correct rescale after moving between 
+ * but for DPIDialogs it's its own value.
+ * This value will be used to correct rescale after moving between
  * Displays with different HDPI */
 int em_unit(wxWindow* win)
 {
@@ -437,7 +437,7 @@ int em_unit(wxWindow* win)
         if (frame)
             return frame->em_unit();
     }
-    
+
     return Slic3r::GUI::wxGetApp().em_unit();
 }
 
@@ -449,9 +449,9 @@ wxBitmap create_menu_bitmap(const std::string& bmp_name)
 // win is used to get a correct em_unit value
 // It's important for bitmaps of dialogs.
 // if win == nullptr, em_unit value of MainFrame will be used
-wxBitmap create_scaled_bitmap(  const std::string& bmp_name_in, 
+wxBitmap create_scaled_bitmap(  const std::string& bmp_name_in,
                                 wxWindow *win/* = nullptr*/,
-                                const int px_cnt/* = 16*/, 
+                                const int px_cnt/* = 16*/,
                                 const bool grayscale/* = false*/,
                                 const std::string& new_color/* = std::string()*/, // color witch will used instead of orange <- is it used? i'll make it higher priority than the setting... for now
                                 const bool menu_bitmap/* = false*/)
@@ -464,7 +464,7 @@ wxBitmap create_scaled_bitmap(  const std::string& bmp_name_in,
     std::string bmp_name = bmp_name_in;
     boost::replace_last(bmp_name, ".png", "");
 
-    bool dark_mode = 
+    bool dark_mode =
 #ifdef _WIN32
     menu_bitmap ? Slic3r::GUI::check_dark_mode() :
 #endif
@@ -541,9 +541,9 @@ std::vector<wxBitmap*> get_extruder_color_icons(bool thin_icon/* = false*/)
 }
 
 
-void apply_extruder_selector(Slic3r::GUI::BitmapComboBox** ctrl, 
+void apply_extruder_selector(Slic3r::GUI::BitmapComboBox** ctrl,
                              wxWindow* parent,
-                             const std::string& first_item/* = ""*/, 
+                             const std::string& first_item/* = ""*/,
                              wxPoint pos/* = wxDefaultPosition*/,
                              wxSize size/* = wxDefaultSize*/,
                              bool use_thin_icon/* = false*/)
@@ -594,9 +594,9 @@ void apply_extruder_selector(Slic3r::GUI::BitmapComboBox** ctrl,
 // LockButton
 // ----------------------------------------------------------------------------
 
-LockButton::LockButton( wxWindow *parent, 
-                        wxWindowID id, 
-                        const wxPoint& pos /*= wxDefaultPosition*/, 
+LockButton::LockButton( wxWindow *parent,
+                        wxWindowID id,
+                        const wxPoint& pos /*= wxDefaultPosition*/,
                         const wxSize& size /*= wxDefaultSize*/):
                         wxButton(parent, id, wxEmptyString, pos, size, wxBU_EXACTFIT | wxNO_BORDER)
 {
@@ -682,9 +682,9 @@ void MenuWithSeparators::SetSecondSeparator()
 // ----------------------------------------------------------------------------
 // PrusaBitmap
 // ----------------------------------------------------------------------------
-ScalableBitmap::ScalableBitmap( wxWindow *parent, 
+ScalableBitmap::ScalableBitmap( wxWindow *parent,
                                 const std::string& icon_name/* = ""*/,
-                                const int px_cnt/* = 16*/, 
+                                const int px_cnt/* = 16*/,
                                 const bool grayscale/* = false*/):
     m_parent(parent), m_icon_name(icon_name),
     m_px_cnt(px_cnt)
@@ -764,10 +764,10 @@ ScalableButton::ScalableButton( wxWindow *          parent,
 }
 
 
-ScalableButton::ScalableButton( wxWindow *          parent, 
+ScalableButton::ScalableButton( wxWindow *          parent,
                                 wxWindowID          id,
                                 const ScalableBitmap&  bitmap,
-                                const wxString&     label /*= wxEmptyString*/, 
+                                const wxString&     label /*= wxEmptyString*/,
                                 long                style /*= wxBU_EXACTFIT | wxNO_BORDER*/) :
     m_parent(parent),
     m_current_icon_name(bitmap.name()),

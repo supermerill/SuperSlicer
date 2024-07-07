@@ -35,12 +35,12 @@ extern "C" {
 
 typedef struct _ShinyNodePool {
 
-	struct _ShinyNodePool* nextPool;
+    struct _ShinyNodePool* nextPool;
 
-	ShinyNode *_nextItem;
-	ShinyNode *endOfItems;
+    ShinyNode *_nextItem;
+    ShinyNode *endOfItems;
 
-	ShinyNode _items[1];
+    ShinyNode _items[1];
 
 } ShinyNodePool;
 
@@ -48,11 +48,11 @@ typedef struct _ShinyNodePool {
 /*---------------------------------------------------------------------------*/
 
 SHINY_INLINE ShinyNode* ShinyNodePool_firstItem(ShinyNodePool *self) {
-	return &(self->_items[0]);
+    return &(self->_items[0]);
 }
 
 SHINY_INLINE ShinyNode* ShinyNodePool_newItem(ShinyNodePool *self) {
-	return self->_nextItem++;
+    return self->_nextItem++;
 }
 
 ShinyNodePool* ShinyNodePool_create(uint32_t a_items);

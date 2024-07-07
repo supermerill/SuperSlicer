@@ -176,7 +176,7 @@ class GCodeViewer
 
         void reset();
     };
-    
+
 
     public:
     enum class EViewType : unsigned char
@@ -217,7 +217,7 @@ class GCodeViewer
             uint32_t counts[20];
             int32_t maxs[20];
             int32_t mins[20];
-            
+
             // set 0 or lower to disable
             int32_t m_user_min = 0;
             int32_t m_user_max = 0;
@@ -271,7 +271,7 @@ class GCodeViewer
             bool   is_discrete_mode() const { return m_discrete; }
             bool   set_discrete_mode(bool is_discrete);
             const std::vector<std::pair<std::string, GCodeViewer::Color>>& get_legend_colors();
-            
+
             bool is_same_value(float f1, float f2) const;
         };
 
@@ -297,7 +297,7 @@ class GCodeViewer
             Range elapsed_time;
 
             Range* get(EViewType type);
-            
+
             std::pair<std::string, std::string> min_max_cstr_id[size_t(EViewType::Count)];
 
             Ranges(uint8_t max_decimals);

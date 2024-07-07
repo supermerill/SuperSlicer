@@ -201,19 +201,19 @@ const unsigned int HereditaryBits = RowMajorBit
   * MatrixBase::selfadjointView() and MatrixBase::triangularView(), and selfadjoint solvers. */
 enum UpLoType {
   /** View matrix as a lower triangular matrix. */
-  Lower=0x1,                      
+  Lower=0x1,
   /** View matrix as an upper triangular matrix. */
-  Upper=0x2,                      
+  Upper=0x2,
   /** %Matrix has ones on the diagonal; to be used in combination with #Lower or #Upper. */
-  UnitDiag=0x4, 
+  UnitDiag=0x4,
   /** %Matrix has zeros on the diagonal; to be used in combination with #Lower or #Upper. */
   ZeroDiag=0x8,
   /** View matrix as a lower triangular matrix with ones on the diagonal. */
-  UnitLower=UnitDiag|Lower, 
+  UnitLower=UnitDiag|Lower,
   /** View matrix as an upper triangular matrix with ones on the diagonal. */
   UnitUpper=UnitDiag|Upper,
   /** View matrix as a lower triangular matrix with zeros on the diagonal. */
-  StrictlyLower=ZeroDiag|Lower, 
+  StrictlyLower=ZeroDiag|Lower,
   /** View matrix as an upper triangular matrix with zeros on the diagonal. */
   StrictlyUpper=ZeroDiag|Upper,
   /** Used in BandMatrix and SelfAdjointView to indicate that the matrix is self-adjoint. */
@@ -259,16 +259,16 @@ enum CornerType { TopLeft, TopRight, BottomLeft, BottomRight };
 /** \ingroup enums
   * Enum containing possible values for the \p Direction parameter of
   * Reverse, PartialReduxExpr and VectorwiseOp. */
-enum DirectionType { 
-  /** For Reverse, all columns are reversed; 
+enum DirectionType {
+  /** For Reverse, all columns are reversed;
     * for PartialReduxExpr and VectorwiseOp, act on columns. */
-  Vertical, 
-  /** For Reverse, all rows are reversed; 
+  Vertical,
+  /** For Reverse, all rows are reversed;
     * for PartialReduxExpr and VectorwiseOp, act on rows. */
-  Horizontal, 
-  /** For Reverse, both rows and columns are reversed; 
+  Horizontal,
+  /** For Reverse, both rows and columns are reversed;
     * not used for PartialReduxExpr and VectorwiseOp. */
-  BothDirections 
+  BothDirections
 };
 
 /** \internal \ingroup enums
@@ -300,7 +300,7 @@ enum UnrollingType {
   NoUnrolling,
   /** \internal Unroll only the inner loop, but not the outer loop. */
   InnerUnrolling,
-  /** \internal Unroll both the inner and the outer loop. If there is only one loop, 
+  /** \internal Unroll both the inner and the outer loop. If there is only one loop,
     * because linear traversal is used, then unroll that loop. */
   CompleteUnrolling
 };
@@ -330,9 +330,9 @@ enum StorageOptions {
   * Enum for specifying whether to apply or solve on the left or right. */
 enum SideType {
   /** Apply transformation on the left. */
-  OnTheLeft = 1,  
+  OnTheLeft = 1,
   /** Apply transformation on the right. */
-  OnTheRight = 2  
+  OnTheRight = 2
 };
 
 /* the following used to be written as:
@@ -342,7 +342,7 @@ enum SideType {
  *     EIGEN_UNUSED NoChange_t NoChange;
  *   }
  *
- * on the ground that it feels dangerous to disambiguate overloaded functions on enum/integer types.  
+ * on the ground that it feels dangerous to disambiguate overloaded functions on enum/integer types.
  * However, this leads to "variable declared but never referenced" warnings on Intel Composer XE,
  * and we do not know how to get rid of them (bug 450).
  */
@@ -359,15 +359,15 @@ enum AmbiVectorMode {
 };
 
 /** \ingroup enums
-  * Used as template parameter in DenseCoeffBase and MapBase to indicate 
+  * Used as template parameter in DenseCoeffBase and MapBase to indicate
   * which accessors should be provided. */
 enum AccessorLevels {
   /** Read-only access via a member function. */
-  ReadOnlyAccessors, 
+  ReadOnlyAccessors,
   /** Read/write access via member functions. */
-  WriteAccessors, 
+  WriteAccessors,
   /** Direct read-only access to the coefficients. */
-  DirectAccessors, 
+  DirectAccessors,
   /** Direct read/write access to the coefficients. */
   DirectWriteAccessors
 };
@@ -376,9 +376,9 @@ enum AccessorLevels {
   * Enum with options to give to various decompositions. */
 enum DecompositionOptions {
   /** \internal Not used (meant for LDLT?). */
-  Pivoting            = 0x01, 
+  Pivoting            = 0x01,
   /** \internal Not used (meant for LDLT?). */
-  NoPivoting          = 0x02, 
+  NoPivoting          = 0x02,
   /** Used in JacobiSVD to indicate that the square matrix U is to be computed. */
   ComputeFullU        = 0x04,
   /** Used in JacobiSVD to indicate that the thin matrix U is to be computed. */
@@ -429,9 +429,9 @@ enum QRPreconditioners {
   * Enum for reporting the status of a computation. */
 enum ComputationInfo {
   /** Computation was successful. */
-  Success = 0,        
+  Success = 0,
   /** The provided data did not satisfy the prerequisites. */
-  NumericalIssue = 1, 
+  NumericalIssue = 1,
   /** Iterative procedure did not converge. */
   NoConvergence = 2,
   /** The inputs are invalid, or the algorithm has been improperly called.
@@ -445,7 +445,7 @@ enum ComputationInfo {
 enum TransformTraits {
   /** Transformation is an isometry. */
   Isometry      = 0x1,
-  /** Transformation is an affine transformation stored as a (Dim+1)^2 matrix whose last row is 
+  /** Transformation is an affine transformation stored as a (Dim+1)^2 matrix whose last row is
     * assumed to be [0 ... 0 1]. */
   Affine        = 0x2,
   /** Transformation is an affine transformation stored as a (Dim) x (Dim+1) matrix. */
@@ -525,7 +525,7 @@ namespace internal {
   // random access iterators based on coeff*() accessors.
 struct IndexBased {};
 
-// evaluator based on iterators to access coefficients. 
+// evaluator based on iterators to access coefficients.
 struct IteratorBased {};
 
 /** \internal

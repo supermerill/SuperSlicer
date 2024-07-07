@@ -28,7 +28,7 @@ IGL_INLINE bool igl::png::texture_from_file(const std::string filename, GLuint &
   //if(ext == "tga")
   //{
   //  return texture_from_tga(filename,id);
-  //}else 
+  //}else
   if(ext == "png")
   {
     return texture_from_png(filename,id);

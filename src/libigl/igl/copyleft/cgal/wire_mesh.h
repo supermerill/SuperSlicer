@@ -14,7 +14,7 @@ namespace igl
       // Inputs:
       //   WV  #WV by 3 list of vertex positions
       //   WE  #WE by 2 list of edge indices into WV
-      //   th  diameter thickness of wire 
+      //   th  diameter thickness of wire
       //   poly_size  number of sides on each wire (e.g., 4 would produce wires by
       //     connecting rectangular prisms).
       //   solid  whether to resolve self-intersections to

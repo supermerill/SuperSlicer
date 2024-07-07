@@ -11,17 +11,17 @@
 #ifndef EIGEN_ORTHOMETHODS_H
 #define EIGEN_ORTHOMETHODS_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \geometry_module \ingroup Geometry_Module
   *
   * \returns the cross product of \c *this and \a other
   *
   * Here is a very good explanation of cross-product: http://xkcd.com/199/
-  * 
+  *
   * With complex numbers, the cross product is implemented as
   * \f$ (\mathbf{a}+i\mathbf{b}) \times (\mathbf{c}+i\mathbf{d}) = (\mathbf{a} \times \mathbf{c} - \mathbf{b} \times \mathbf{d}) - i(\mathbf{a} \times \mathbf{d} - \mathbf{b} \times \mathbf{c})\f$
-  * 
+  *
   * \sa MatrixBase::cross3()
   */
 template<typename Derived>
@@ -105,14 +105,14 @@ MatrixBase<Derived>::cross3(const MatrixBase<OtherDerived>& other) const
   * \sa MatrixBase::cross() */
 template<typename ExpressionType, int Direction>
 template<typename OtherDerived>
-EIGEN_DEVICE_FUNC 
+EIGEN_DEVICE_FUNC
 const typename VectorwiseOp<ExpressionType,Direction>::CrossReturnType
 VectorwiseOp<ExpressionType,Direction>::cross(const MatrixBase<OtherDerived>& other) const
 {
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived,3)
   EIGEN_STATIC_ASSERT((internal::is_same<Scalar, typename OtherDerived::Scalar>::value),
     YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
-  
+
   typename internal::nested_eval<ExpressionType,2>::type mat(_expression());
   typename internal::nested_eval<OtherDerived,2>::type vec(other.derived());
 

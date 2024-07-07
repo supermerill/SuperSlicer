@@ -47,40 +47,40 @@ namespace Slic3r {
 
 bool SlicingProcessCompletedEvent::critical_error() const
 {
-	try {
-		this->rethrow_exception();
-	} catch (const Slic3r::SlicingError &) {
-		// Exception derived from SlicingError is non-critical.
-		return false;
-	} catch (...) {
-	}
-	return true;
+    try {
+        this->rethrow_exception();
+    } catch (const Slic3r::SlicingError &) {
+        // Exception derived from SlicingError is non-critical.
+        return false;
+    } catch (...) {
+    }
+    return true;
 }
 
 bool SlicingProcessCompletedEvent::invalidate_plater() const
 {
-	if (critical_error())
-	{
-		try {
-			this->rethrow_exception();
-		}
-		catch (const Slic3r::ExportError&) {
-			// Exception thrown by copying file does not ivalidate plater
-			return false;
-		}
-		catch (...) {
-		}
-		return true;
-	}
-	return false;
+    if (critical_error())
+    {
+        try {
+            this->rethrow_exception();
+        }
+        catch (const Slic3r::ExportError&) {
+            // Exception thrown by copying file does not ivalidate plater
+            return false;
+        }
+        catch (...) {
+        }
+        return true;
+    }
+    return false;
 }
 
 std::pair<std::string, bool> SlicingProcessCompletedEvent::format_error_message() const
 {
-	std::string error;
-	bool        monospace = false;
-	try {
-		this->rethrow_exception();
+    std::string error;
+    bool        monospace = false;
+    try {
+        this->rethrow_exception();
     } catch (const std::bad_alloc& ex) {
         std::string errmsg = GUI::format(_u8L("%1% has encountered an error. It was likely caused by running out of memory. "
                               "If you are sure you have enough RAM on your system, this may also be a bug and we would "
@@ -98,56 +98,56 @@ std::pair<std::string, bool> SlicingProcessCompletedEvent::format_error_message(
         error += " \nPlease join the 'crash_log.txt' file (if it exists) content to your report.";
 #endif
     } catch (PlaceholderParserError &ex) {
-		error = ex.what();
-		monospace = true;
+        error = ex.what();
+        monospace = true;
     } catch (std::exception &ex) {
-		error = ex.what();
-	} catch (...) {
-		error = "Unknown C++ exception.";
-	}
-	return std::make_pair(std::move(error), monospace);
+        error = ex.what();
+    } catch (...) {
+        error = "Unknown C++ exception.";
+    }
+    return std::make_pair(std::move(error), monospace);
 }
 
 BackgroundSlicingProcess::BackgroundSlicingProcess()
 {
     boost::filesystem::path temp_path(wxStandardPaths::Get().GetTempDir().utf8_str().data());
     temp_path /= (boost::format(".%1%.gcode") % get_current_pid()).str();
-	m_temp_output_path = temp_path.string();
+    m_temp_output_path = temp_path.string();
 }
 
-BackgroundSlicingProcess::~BackgroundSlicingProcess() 
-{ 
-	this->stop();
-	this->join_background_thread();
-	boost::nowide::remove(m_temp_output_path.c_str());
+BackgroundSlicingProcess::~BackgroundSlicingProcess()
+{
+    this->stop();
+    this->join_background_thread();
+    boost::nowide::remove(m_temp_output_path.c_str());
 }
 
 bool BackgroundSlicingProcess::select_technology(PrinterTechnology tech)
 {
-	bool changed = false;
-	if (m_print == nullptr || m_print->technology() != tech) {
-		if (m_print != nullptr)
-			this->reset();
-		switch (tech) {
-		case ptFFF: m_print = m_fff_print; break;
-		case ptSLA: m_print = m_sla_print; break;
+    bool changed = false;
+    if (m_print == nullptr || m_print->technology() != tech) {
+        if (m_print != nullptr)
+            this->reset();
+        switch (tech) {
+        case ptFFF: m_print = m_fff_print; break;
+        case ptSLA: m_print = m_sla_print; break;
         case ptSLS: m_print = m_fff_print; break;
         default: assert(false); break;
-		}
-		changed = true;
-	}
-	assert(m_print != nullptr);
-	return changed;
+        }
+        changed = true;
+    }
+    assert(m_print != nullptr);
+    return changed;
 }
 
 PrinterTechnology BackgroundSlicingProcess::current_printer_technology() const
 {
-	return m_print->technology();
+    return m_print->technology();
 }
 
 std::string BackgroundSlicingProcess::output_filepath_for_project(const boost::filesystem::path &project_path)
 {
-	assert(m_print != nullptr);
+    assert(m_print != nullptr);
     if (project_path.empty())
         return m_print->output_filepath("");
     return m_print->output_filepath(project_path.parent_path().string(), project_path.stem().string());
@@ -157,28 +157,28 @@ std::string BackgroundSlicingProcess::output_filepath_for_project(const boost::f
 // from the G-code generator.
 void BackgroundSlicingProcess::process_fff()
 {
-	assert(m_print == m_fff_print);
+    assert(m_print == m_fff_print);
     m_print->process();
-	wxCommandEvent evt(m_event_slicing_completed_id);
-	// Post the Slicing Finished message for the G-code viewer to update.
-	// Passing the timestamp 
-	evt.SetInt((int)(m_fff_print->step_state_with_timestamp(PrintStep::psSlicingFinished).timestamp));
-	wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, evt.Clone());
-	m_fff_print->export_gcode(m_temp_output_path, m_gcode_result, [this](const ThumbnailsParams& params) { return this->render_thumbnails(params); });
-	if (this->set_step_started(bspsGCodeFinalize)) {
-	    if (! m_export_path.empty()) {
-			wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));
-			finalize_gcode();
-	    } else if (! m_upload_job.empty()) {
-			wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));
-			prepare_upload();
-	    } else {
-			// m_print->set_status(60, _utf8(L("Slicing complete")));
-	    }
-		this->set_step_done(bspsGCodeFinalize);
-	}
-	evt.SetInt((int)(m_fff_print->step_state_with_timestamp(PrintStep::psGCodeExport).timestamp));
-	wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, evt.Clone());
+    wxCommandEvent evt(m_event_slicing_completed_id);
+    // Post the Slicing Finished message for the G-code viewer to update.
+    // Passing the timestamp
+    evt.SetInt((int)(m_fff_print->step_state_with_timestamp(PrintStep::psSlicingFinished).timestamp));
+    wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, evt.Clone());
+    m_fff_print->export_gcode(m_temp_output_path, m_gcode_result, [this](const ThumbnailsParams& params) { return this->render_thumbnails(params); });
+    if (this->set_step_started(bspsGCodeFinalize)) {
+        if (! m_export_path.empty()) {
+            wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));
+            finalize_gcode();
+        } else if (! m_upload_job.empty()) {
+            wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));
+            prepare_upload();
+        } else {
+            // m_print->set_status(60, _utf8(L("Slicing complete")));
+        }
+        this->set_step_done(bspsGCodeFinalize);
+    }
+    evt.SetInt((int)(m_fff_print->step_state_with_timestamp(PrintStep::psGCodeExport).timestamp));
+    wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, evt.Clone());
 }
 
 static void write_thumbnail(Zipper& zipper, const ThumbnailData& data)
@@ -196,14 +196,14 @@ void BackgroundSlicingProcess::process_sla()
 {
     assert(m_print == m_sla_print);
     m_print->process();
-	wxCommandEvent evt(m_event_slicing_completed_id);
-	evt.SetInt((int)(m_sla_print->step_state_with_timestamp(SLAPrintStep::slapsRasterize).timestamp));
-	wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, evt.Clone());
+    wxCommandEvent evt(m_event_slicing_completed_id);
+    evt.SetInt((int)(m_sla_print->step_state_with_timestamp(SLAPrintStep::slapsRasterize).timestamp));
+    wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, evt.Clone());
     if (this->set_step_started(bspsGCodeFinalize)) {
         if (! m_export_path.empty()) {
-			wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));
+            wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));
 
-        	const std::string export_path = m_sla_print->print_statistics().finalize_output_path(m_export_path);
+            const std::string export_path = m_sla_print->print_statistics().finalize_output_path(m_export_path);
 
             ThumbnailsList thumbnails = this->render_thumbnails(
                 ThumbnailsParams{current_print()->full_print_config().option<ConfigOptionPoints>("thumbnails")->get_values(), true, true, true, true});
@@ -217,10 +217,10 @@ void BackgroundSlicingProcess::process_sla()
 
             m_print->set_status(100, (boost::format(_utf8(L("Masked SLA file exported to %1%"))) % export_path).str());
         } else if (! m_upload_job.empty()) {
-			wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));
+            wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));
             prepare_upload();
         } else {
-			m_print->set_status(100, _utf8(L("Slicing complete")));
+            m_print->set_status(100, _utf8(L("Slicing complete")));
         }
         this->set_step_done(bspsGCodeFinalize);
     }
@@ -231,119 +231,119 @@ void BackgroundSlicingProcess::thread_proc()
     set_current_thread_name("slic3r_BgSlcPcs");
     name_tbb_thread_pool_threads_set_locale();
 
-	assert(m_print != nullptr);
-	assert(m_print == m_fff_print || m_print == m_sla_print);
-	std::unique_lock<std::mutex> lck(m_mutex);
-	// Let the caller know we are ready to run the background processing task.
-	m_state = STATE_IDLE;
-	lck.unlock();
-	m_condition.notify_one();
-	for (;;) {
-		//assert(m_state == STATE_IDLE || m_state == STATE_CANCELED || m_state == STATE_FINISHED);
-		// Wait until a new task is ready to be executed, or this thread should be finished.
-		lck.lock();
-		m_condition.wait(lck, [this](){ return m_state == STATE_STARTED || m_state == STATE_EXIT; });
-		if (m_state == STATE_EXIT)
-			// Exiting this thread.
-			break;
-		// Process the background slicing task.
-		m_state = STATE_RUNNING;
-		lck.unlock();
-		std::exception_ptr exception;
+    assert(m_print != nullptr);
+    assert(m_print == m_fff_print || m_print == m_sla_print);
+    std::unique_lock<std::mutex> lck(m_mutex);
+    // Let the caller know we are ready to run the background processing task.
+    m_state = STATE_IDLE;
+    lck.unlock();
+    m_condition.notify_one();
+    for (;;) {
+        //assert(m_state == STATE_IDLE || m_state == STATE_CANCELED || m_state == STATE_FINISHED);
+        // Wait until a new task is ready to be executed, or this thread should be finished.
+        lck.lock();
+        m_condition.wait(lck, [this](){ return m_state == STATE_STARTED || m_state == STATE_EXIT; });
+        if (m_state == STATE_EXIT)
+            // Exiting this thread.
+            break;
+        // Process the background slicing task.
+        m_state = STATE_RUNNING;
+        lck.unlock();
+        std::exception_ptr exception;
 #ifdef _WIN32
-		this->call_process_seh_throw(exception);
+        this->call_process_seh_throw(exception);
 #else
-		this->call_process(exception);
+        this->call_process(exception);
 #endif
-		m_print->finalize();
-		lck.lock();
-		m_state = m_print->canceled() ? STATE_CANCELED : STATE_FINISHED;
-		if (m_print->cancel_status() != Print::CANCELED_INTERNAL) {
-			// Only post the canceled event, if canceled by user.
-			// Don't post the canceled event, if canceled from Print::apply().
-			SlicingProcessCompletedEvent evt(m_event_finished_id, 0, 
-				(m_state == STATE_CANCELED) ? SlicingProcessCompletedEvent::Cancelled :
-				exception ? SlicingProcessCompletedEvent::Error : SlicingProcessCompletedEvent::Finished, exception);
-        	wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, evt.Clone());
+        m_print->finalize();
+        lck.lock();
+        m_state = m_print->canceled() ? STATE_CANCELED : STATE_FINISHED;
+        if (m_print->cancel_status() != Print::CANCELED_INTERNAL) {
+            // Only post the canceled event, if canceled by user.
+            // Don't post the canceled event, if canceled from Print::apply().
+            SlicingProcessCompletedEvent evt(m_event_finished_id, 0,
+                (m_state == STATE_CANCELED) ? SlicingProcessCompletedEvent::Cancelled :
+                exception ? SlicingProcessCompletedEvent::Error : SlicingProcessCompletedEvent::Finished, exception);
+            wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, evt.Clone());
         }
-	    m_print->restart();
-		lck.unlock();
-		// Let the UI thread wake up if it is waiting for the background task to finish.
-	    m_condition.notify_one();
-	    // Let the UI thread see the result.
-	}
-	m_state = STATE_EXITED;
-	lck.unlock();
-	// End of the background processing thread. The UI thread should join m_thread now.
+        m_print->restart();
+        lck.unlock();
+        // Let the UI thread wake up if it is waiting for the background task to finish.
+        m_condition.notify_one();
+        // Let the UI thread see the result.
+    }
+    m_state = STATE_EXITED;
+    lck.unlock();
+    // End of the background processing thread. The UI thread should join m_thread now.
 }
 
 #ifdef _WIN32
 // Only these SEH exceptions will be catched and turned into Slic3r::HardCrash C++ exceptions.
 static bool is_win32_seh_harware_exception(unsigned long ex) throw() {
-	return
-		ex == STATUS_ACCESS_VIOLATION ||
-		ex == STATUS_DATATYPE_MISALIGNMENT ||
-		ex == STATUS_FLOAT_DIVIDE_BY_ZERO ||
-		ex == STATUS_FLOAT_OVERFLOW ||
-		ex == STATUS_FLOAT_UNDERFLOW ||
+    return
+        ex == STATUS_ACCESS_VIOLATION ||
+        ex == STATUS_DATATYPE_MISALIGNMENT ||
+        ex == STATUS_FLOAT_DIVIDE_BY_ZERO ||
+        ex == STATUS_FLOAT_OVERFLOW ||
+        ex == STATUS_FLOAT_UNDERFLOW ||
 #ifdef STATUS_FLOATING_RESEVERED_OPERAND
-		ex == STATUS_FLOATING_RESEVERED_OPERAND ||
+        ex == STATUS_FLOATING_RESEVERED_OPERAND ||
 #endif // STATUS_FLOATING_RESEVERED_OPERAND
-		ex == STATUS_ILLEGAL_INSTRUCTION ||
-		ex == STATUS_PRIVILEGED_INSTRUCTION ||
-		ex == STATUS_INTEGER_DIVIDE_BY_ZERO ||
-		ex == STATUS_INTEGER_OVERFLOW ||
-		ex == STATUS_STACK_OVERFLOW;
+        ex == STATUS_ILLEGAL_INSTRUCTION ||
+        ex == STATUS_PRIVILEGED_INSTRUCTION ||
+        ex == STATUS_INTEGER_DIVIDE_BY_ZERO ||
+        ex == STATUS_INTEGER_OVERFLOW ||
+        ex == STATUS_STACK_OVERFLOW;
 }
 
 // Rethrow some SEH exceptions as Slic3r::HardCrash C++ exceptions.
 static void rethrow_seh_exception(unsigned long win32_seh_catched)
 {
-	if (win32_seh_catched) {
-		// Rethrow SEH exception as Slicer::HardCrash.
-		if (win32_seh_catched == STATUS_ACCESS_VIOLATION)
-			throw Slic3r::HardCrash(_u8L("Access (status) violation"));
-		if (win32_seh_catched == STATUS_DATATYPE_MISALIGNMENT)
-			throw Slic3r::HardCrash(_u8L("Access violation (misalignement)"));
-		if (win32_seh_catched == STATUS_ILLEGAL_INSTRUCTION || win32_seh_catched == STATUS_PRIVILEGED_INSTRUCTION)
-			throw Slic3r::HardCrash(_u8L("Illegal instruction"));
-		if (win32_seh_catched == STATUS_FLOAT_DIVIDE_BY_ZERO || win32_seh_catched == STATUS_INTEGER_DIVIDE_BY_ZERO)
-			throw Slic3r::HardCrash(_u8L("Divide by zero"));
-		if (win32_seh_catched == STATUS_FLOAT_OVERFLOW || win32_seh_catched == STATUS_INTEGER_OVERFLOW)
-			throw Slic3r::HardCrash(_u8L("Overflow"));
-		if (win32_seh_catched == STATUS_FLOAT_UNDERFLOW)
-			throw Slic3r::HardCrash(_u8L("Underflow"));
+    if (win32_seh_catched) {
+        // Rethrow SEH exception as Slicer::HardCrash.
+        if (win32_seh_catched == STATUS_ACCESS_VIOLATION)
+            throw Slic3r::HardCrash(_u8L("Access (status) violation"));
+        if (win32_seh_catched == STATUS_DATATYPE_MISALIGNMENT)
+            throw Slic3r::HardCrash(_u8L("Access violation (misalignement)"));
+        if (win32_seh_catched == STATUS_ILLEGAL_INSTRUCTION || win32_seh_catched == STATUS_PRIVILEGED_INSTRUCTION)
+            throw Slic3r::HardCrash(_u8L("Illegal instruction"));
+        if (win32_seh_catched == STATUS_FLOAT_DIVIDE_BY_ZERO || win32_seh_catched == STATUS_INTEGER_DIVIDE_BY_ZERO)
+            throw Slic3r::HardCrash(_u8L("Divide by zero"));
+        if (win32_seh_catched == STATUS_FLOAT_OVERFLOW || win32_seh_catched == STATUS_INTEGER_OVERFLOW)
+            throw Slic3r::HardCrash(_u8L("Overflow"));
+        if (win32_seh_catched == STATUS_FLOAT_UNDERFLOW)
+            throw Slic3r::HardCrash(_u8L("Underflow"));
 #ifdef STATUS_FLOATING_RESEVERED_OPERAND
-		if (win32_seh_catched == STATUS_FLOATING_RESEVERED_OPERAND)
-			throw Slic3r::HardCrash(_u8L("Floating reserved operand"));
+        if (win32_seh_catched == STATUS_FLOATING_RESEVERED_OPERAND)
+            throw Slic3r::HardCrash(_u8L("Floating reserved operand"));
 #endif // STATUS_FLOATING_RESEVERED_OPERAND
-		if (win32_seh_catched == STATUS_STACK_OVERFLOW)
-			throw Slic3r::HardCrash(_u8L("Stack overflow"));
-	}
+        if (win32_seh_catched == STATUS_STACK_OVERFLOW)
+            throw Slic3r::HardCrash(_u8L("Stack overflow"));
+    }
 }
 
 // Wrapper for Win32 structured exceptions. Win32 structured exception blocks and C++ exception blocks cannot be mixed in the same function.
 unsigned long BackgroundSlicingProcess::call_process_seh(std::exception_ptr &ex) throw()
 {
-	unsigned long win32_seh_catched = 0;
-	__try {
-		this->call_process(ex);
-	} __except (is_win32_seh_harware_exception(GetExceptionCode())) {
-		win32_seh_catched = GetExceptionCode();
-	}
-	return win32_seh_catched;
+    unsigned long win32_seh_catched = 0;
+    __try {
+        this->call_process(ex);
+    } __except (is_win32_seh_harware_exception(GetExceptionCode())) {
+        win32_seh_catched = GetExceptionCode();
+    }
+    return win32_seh_catched;
 }
 void BackgroundSlicingProcess::call_process_seh_throw(std::exception_ptr &ex) throw()
 {
-	unsigned long win32_seh_catched = this->call_process_seh(ex);
-	if (win32_seh_catched) {
-		// Rethrow SEH exception as Slicer::HardCrash.
-	try {
-			rethrow_seh_exception(win32_seh_catched);
-		} catch (...) {
-			ex = std::current_exception();
-		}
-	}
+    unsigned long win32_seh_catched = this->call_process_seh(ex);
+    if (win32_seh_catched) {
+        // Rethrow SEH exception as Slicer::HardCrash.
+    try {
+            rethrow_seh_exception(win32_seh_catched);
+        } catch (...) {
+            ex = std::current_exception();
+        }
+    }
 }
 
 class StackWalker2 : public StackWalker {
@@ -359,155 +359,155 @@ public:
 
 void BackgroundSlicingProcess::call_process(std::exception_ptr &ex) throw()
 {
-	try {
-		assert(m_print != nullptr);
-		switch (m_print->technology()) {
-		case ptFFF: this->process_fff(); break;
-		case ptSLA: this->process_sla(); break;
-		default: m_print->process(); break;
-		}
-	} catch (CanceledException& /* ex */) {
-		// Canceled, this is all right.
-		assert(m_print->canceled());
-		ex = std::current_exception();
-	} catch (...) {
+    try {
+        assert(m_print != nullptr);
+        switch (m_print->technology()) {
+        case ptFFF: this->process_fff(); break;
+        case ptSLA: this->process_sla(); break;
+        default: m_print->process(); break;
+        }
+    } catch (CanceledException& /* ex */) {
+        // Canceled, this is all right.
+        assert(m_print->canceled());
+        ex = std::current_exception();
+    } catch (...) {
 #ifdef _WIN32
-		StackWalker2 sw(StackWalker::AfterCatch);
-		sw.ShowCallstack();
-		BOOST_LOG_TRIVIAL(error) << "EXCEPTION during the print->process():" << sw.output;
-		// also wrote it on disk
-		try {
-			std::ofstream myfile;
-			myfile.open("crash_log.txt", std::ofstream::out | std::ofstream::app);
-			myfile << "\nEXCEPTION during the print->process():\n";
-			myfile << sw.output << "\n";
-			myfile.close();
-		} catch (...) {}
+        StackWalker2 sw(StackWalker::AfterCatch);
+        sw.ShowCallstack();
+        BOOST_LOG_TRIVIAL(error) << "EXCEPTION during the print->process():" << sw.output;
+        // also wrote it on disk
+        try {
+            std::ofstream myfile;
+            myfile.open("crash_log.txt", std::ofstream::out | std::ofstream::app);
+            myfile << "\nEXCEPTION during the print->process():\n";
+            myfile << sw.output << "\n";
+            myfile.close();
+        } catch (...) {}
 #endif // _WIN32
-		ex = std::current_exception();
-	}
+        ex = std::current_exception();
+    }
 }
 
 #ifdef _WIN32
 unsigned long BackgroundSlicingProcess::thread_proc_safe_seh() throw()
 {
-	unsigned long win32_seh_catched = 0;
-	__try {
-		this->thread_proc_safe();
-	} __except (is_win32_seh_harware_exception(GetExceptionCode())) {
-		win32_seh_catched = GetExceptionCode();
-	}
-	return win32_seh_catched;
+    unsigned long win32_seh_catched = 0;
+    __try {
+        this->thread_proc_safe();
+    } __except (is_win32_seh_harware_exception(GetExceptionCode())) {
+        win32_seh_catched = GetExceptionCode();
+    }
+    return win32_seh_catched;
 }
 void BackgroundSlicingProcess::thread_proc_safe_seh_throw() throw()
 {
-	unsigned long win32_seh_catched = this->thread_proc_safe_seh();
-	if (win32_seh_catched) {
-		// Rethrow SEH exception as Slicer::HardCrash.
-		try {
-			rethrow_seh_exception(win32_seh_catched);
-		} catch (...) {
-			wxTheApp->OnUnhandledException();
-		}
-	}
+    unsigned long win32_seh_catched = this->thread_proc_safe_seh();
+    if (win32_seh_catched) {
+        // Rethrow SEH exception as Slicer::HardCrash.
+        try {
+            rethrow_seh_exception(win32_seh_catched);
+        } catch (...) {
+            wxTheApp->OnUnhandledException();
+        }
+    }
 }
 #endif // _WIN32
 
 void BackgroundSlicingProcess::thread_proc_safe() throw()
 {
-	try {
-		this->thread_proc();
-	} catch (...) {
-		wxTheApp->OnUnhandledException();
-   	}
+    try {
+        this->thread_proc();
+    } catch (...) {
+        wxTheApp->OnUnhandledException();
+       }
 }
 
 void BackgroundSlicingProcess::join_background_thread()
 {
-	std::unique_lock<std::mutex> lck(m_mutex);
-	if (m_state == STATE_INITIAL) {
-		// Worker thread has not been started yet.
-		assert(! m_thread.joinable());
-	} else {
-		assert(m_state == STATE_IDLE);
-		assert(m_thread.joinable());
-		// Notify the worker thread to exit.
-		m_state = STATE_EXIT;
-		lck.unlock();
-		m_condition.notify_one();
-		// Wait until the worker thread exits.
-		m_thread.join();
-	}
+    std::unique_lock<std::mutex> lck(m_mutex);
+    if (m_state == STATE_INITIAL) {
+        // Worker thread has not been started yet.
+        assert(! m_thread.joinable());
+    } else {
+        assert(m_state == STATE_IDLE);
+        assert(m_thread.joinable());
+        // Notify the worker thread to exit.
+        m_state = STATE_EXIT;
+        lck.unlock();
+        m_condition.notify_one();
+        // Wait until the worker thread exits.
+        m_thread.join();
+    }
 }
 
 bool BackgroundSlicingProcess::start()
 {
-	if (m_print->empty())
-		// The print is empty (no object in Model, or all objects are out of the print bed).
-		return false;
+    if (m_print->empty())
+        // The print is empty (no object in Model, or all objects are out of the print bed).
+        return false;
 
-	std::unique_lock<std::mutex> lck(m_mutex);
-	if (m_state == STATE_INITIAL) {
-		// The worker thread is not running yet. Start it.
-		assert(! m_thread.joinable());
-		m_thread = create_thread([this]{
+    std::unique_lock<std::mutex> lck(m_mutex);
+    if (m_state == STATE_INITIAL) {
+        // The worker thread is not running yet. Start it.
+        assert(! m_thread.joinable());
+        m_thread = create_thread([this]{
 #ifdef _WIN32
-			this->thread_proc_safe_seh_throw();
+            this->thread_proc_safe_seh_throw();
 #else // _WIN32
-			this->thread_proc_safe();
+            this->thread_proc_safe();
 #endif // _WIN32
-		});
-		// Wait until the worker thread is ready to execute the background processing task.
-		m_condition.wait(lck, [this](){ return m_state == STATE_IDLE; });
-	}
-	assert(m_state == STATE_IDLE || this->running());
-	if (this->running())
-		// The background processing thread is already running.
-		return false;
-	if (! this->idle())
-		throw Slic3r::RuntimeError("Cannot start a background task, the worker thread is not idle.");
-	m_state = STATE_STARTED;
-	m_print->set_cancel_callback([this](){ this->stop_internal(); });
-	lck.unlock();
-	m_condition.notify_one();
-	return true;
+        });
+        // Wait until the worker thread is ready to execute the background processing task.
+        m_condition.wait(lck, [this](){ return m_state == STATE_IDLE; });
+    }
+    assert(m_state == STATE_IDLE || this->running());
+    if (this->running())
+        // The background processing thread is already running.
+        return false;
+    if (! this->idle())
+        throw Slic3r::RuntimeError("Cannot start a background task, the worker thread is not idle.");
+    m_state = STATE_STARTED;
+    m_print->set_cancel_callback([this](){ this->stop_internal(); });
+    lck.unlock();
+    m_condition.notify_one();
+    return true;
 }
 
 // To be called on the UI thread.
 bool BackgroundSlicingProcess::stop()
 {
-	// m_print->state_mutex() shall NOT be held. Unfortunately there is no interface to test for it.
-	std::unique_lock<std::mutex> lck(m_mutex);
-	if (m_state == STATE_INITIAL) {
-//		m_export_path.clear();
-		return false;
-	}
-//	assert(this->running());
-	if (m_state == STATE_STARTED || m_state == STATE_RUNNING) {
-		// Cancel any task planned by the background thread on UI thread.
-		cancel_ui_task(m_ui_task);
-		m_print->cancel();
-		// Wait until the background processing stops by being canceled.
-		m_condition.wait(lck, [this](){ return m_state == STATE_CANCELED; });
-		// In the "Canceled" state. Reset the state to "Idle".
-		m_state = STATE_IDLE;
-		m_print->set_cancel_callback([](){});
-	} else if (m_state == STATE_FINISHED || m_state == STATE_CANCELED) {
-		// In the "Finished" or "Canceled" state. Reset the state to "Idle".
-		m_state = STATE_IDLE;
-		m_print->set_cancel_callback([](){});
-	}
-//	m_export_path.clear();
-	return true;
+    // m_print->state_mutex() shall NOT be held. Unfortunately there is no interface to test for it.
+    std::unique_lock<std::mutex> lck(m_mutex);
+    if (m_state == STATE_INITIAL) {
+//        m_export_path.clear();
+        return false;
+    }
+//    assert(this->running());
+    if (m_state == STATE_STARTED || m_state == STATE_RUNNING) {
+        // Cancel any task planned by the background thread on UI thread.
+        cancel_ui_task(m_ui_task);
+        m_print->cancel();
+        // Wait until the background processing stops by being canceled.
+        m_condition.wait(lck, [this](){ return m_state == STATE_CANCELED; });
+        // In the "Canceled" state. Reset the state to "Idle".
+        m_state = STATE_IDLE;
+        m_print->set_cancel_callback([](){});
+    } else if (m_state == STATE_FINISHED || m_state == STATE_CANCELED) {
+        // In the "Finished" or "Canceled" state. Reset the state to "Idle".
+        m_state = STATE_IDLE;
+        m_print->set_cancel_callback([](){});
+    }
+//    m_export_path.clear();
+    return true;
 }
 
 bool BackgroundSlicingProcess::reset()
 {
-	bool stopped = this->stop();
-	this->reset_export();
-	m_print->clear();
-	this->invalidate_all_steps();
-	return stopped;
+    bool stopped = this->stop();
+    this->reset_export();
+    m_print->clear();
+    this->invalidate_all_steps();
+    return stopped;
 }
 
 // To be called by Print::apply() on the UI thread through the Print::m_cancel_callback to stop the background
@@ -515,94 +515,94 @@ bool BackgroundSlicingProcess::reset()
 // This function shall not trigger any UI update through the wxWidgets event.
 void BackgroundSlicingProcess::stop_internal()
 {
-	// m_print->state_mutex() shall be held. Unfortunately there is no interface to test for it.
-	if (m_state == STATE_IDLE)
-		// The worker thread is waiting on m_mutex/m_condition for wake up. The following lock of the mutex would block.
-		return;
-	std::unique_lock<std::mutex> lck(m_mutex);
-	assert(m_state == STATE_STARTED || m_state == STATE_RUNNING || m_state == STATE_FINISHED || m_state == STATE_CANCELED);
-	if (m_state == STATE_STARTED || m_state == STATE_RUNNING) {
-		// Cancel any task planned by the background thread on UI thread.
-		cancel_ui_task(m_ui_task);
-		// At this point of time the worker thread may be blocking on m_print->state_mutex().
-		// Set the print state to canceled before unlocking the state_mutex(), so when the worker thread wakes up,
-		// it throws the CanceledException().
-		m_print->cancel_internal();
-		// Allow the worker thread to wake up if blocking on a milestone.
-		m_print->state_mutex().unlock();
-		// Wait until the background processing stops by being canceled.
-		m_condition.wait(lck, [this](){ return m_state == STATE_CANCELED; });
-		// Lock it back to be in a consistent state.
-		m_print->state_mutex().lock();
-	}
-	// In the "Canceled" state. Reset the state to "Idle".
-	m_state = STATE_IDLE;
-	m_print->set_cancel_callback([](){});
+    // m_print->state_mutex() shall be held. Unfortunately there is no interface to test for it.
+    if (m_state == STATE_IDLE)
+        // The worker thread is waiting on m_mutex/m_condition for wake up. The following lock of the mutex would block.
+        return;
+    std::unique_lock<std::mutex> lck(m_mutex);
+    assert(m_state == STATE_STARTED || m_state == STATE_RUNNING || m_state == STATE_FINISHED || m_state == STATE_CANCELED);
+    if (m_state == STATE_STARTED || m_state == STATE_RUNNING) {
+        // Cancel any task planned by the background thread on UI thread.
+        cancel_ui_task(m_ui_task);
+        // At this point of time the worker thread may be blocking on m_print->state_mutex().
+        // Set the print state to canceled before unlocking the state_mutex(), so when the worker thread wakes up,
+        // it throws the CanceledException().
+        m_print->cancel_internal();
+        // Allow the worker thread to wake up if blocking on a milestone.
+        m_print->state_mutex().unlock();
+        // Wait until the background processing stops by being canceled.
+        m_condition.wait(lck, [this](){ return m_state == STATE_CANCELED; });
+        // Lock it back to be in a consistent state.
+        m_print->state_mutex().lock();
+    }
+    // In the "Canceled" state. Reset the state to "Idle".
+    m_state = STATE_IDLE;
+    m_print->set_cancel_callback([](){});
 }
 
-// Execute task from background thread on the UI thread. Returns true if processed, false if cancelled. 
+// Execute task from background thread on the UI thread. Returns true if processed, false if cancelled.
 bool BackgroundSlicingProcess::execute_ui_task(std::function<void()> task)
 {
-	bool running = false;
-	if (m_mutex.try_lock()) {
-		// Cancellation is either not in process, or already canceled and waiting for us to finish.
-		// There must be no UI task planned.
-		assert(! m_ui_task);
-		if (! m_print->canceled()) {
-			running = true;
-			m_ui_task = std::make_shared<UITask>();
-		}
-		m_mutex.unlock();
-	} else {
-		// Cancellation is in process.
-	}
+    bool running = false;
+    if (m_mutex.try_lock()) {
+        // Cancellation is either not in process, or already canceled and waiting for us to finish.
+        // There must be no UI task planned.
+        assert(! m_ui_task);
+        if (! m_print->canceled()) {
+            running = true;
+            m_ui_task = std::make_shared<UITask>();
+        }
+        m_mutex.unlock();
+    } else {
+        // Cancellation is in process.
+    }
 
-	bool result = false;
-	if (running) {
-		std::shared_ptr<UITask> ctx = m_ui_task;
-		GUI::wxGetApp().mainframe->m_plater->CallAfter([task, ctx]() {
-			// Running on the UI thread, thus ctx->state does not need to be guarded with mutex against ::cancel_ui_task().
-			assert(ctx->state == UITask::Planned || ctx->state == UITask::Canceled);
-			if (ctx->state == UITask::Planned) {
-				task();
-				std::unique_lock<std::mutex> lck(ctx->mutex);
-	    		ctx->state = UITask::Finished;
-	    	}
-	    	// Wake up the worker thread from the UI thread.
-    		ctx->condition.notify_all();
-	    });
+    bool result = false;
+    if (running) {
+        std::shared_ptr<UITask> ctx = m_ui_task;
+        GUI::wxGetApp().mainframe->m_plater->CallAfter([task, ctx]() {
+            // Running on the UI thread, thus ctx->state does not need to be guarded with mutex against ::cancel_ui_task().
+            assert(ctx->state == UITask::Planned || ctx->state == UITask::Canceled);
+            if (ctx->state == UITask::Planned) {
+                task();
+                std::unique_lock<std::mutex> lck(ctx->mutex);
+                ctx->state = UITask::Finished;
+            }
+            // Wake up the worker thread from the UI thread.
+            ctx->condition.notify_all();
+        });
 
-	    {
-			std::unique_lock<std::mutex> lock(ctx->mutex);
-	    	ctx->condition.wait(lock, [&ctx]{ return ctx->state == UITask::Finished || ctx->state == UITask::Canceled; });
-	    }
-	    result = ctx->state == UITask::Finished;
-		m_ui_task.reset();
-	}
+        {
+            std::unique_lock<std::mutex> lock(ctx->mutex);
+            ctx->condition.wait(lock, [&ctx]{ return ctx->state == UITask::Finished || ctx->state == UITask::Canceled; });
+        }
+        result = ctx->state == UITask::Finished;
+        m_ui_task.reset();
+    }
 
-	return result;
+    return result;
 }
 
 // To be called on the UI thread from ::stop() and ::stop_internal().
 void BackgroundSlicingProcess::cancel_ui_task(std::shared_ptr<UITask> task)
 {
-	if (task) {
-		std::unique_lock<std::mutex> lck(task->mutex);
-		task->state = UITask::Canceled;
-		lck.unlock();
-		task->condition.notify_all();
-	}
+    if (task) {
+        std::unique_lock<std::mutex> lck(task->mutex);
+        task->state = UITask::Canceled;
+        lck.unlock();
+        task->condition.notify_all();
+    }
 }
 
 bool BackgroundSlicingProcess::empty() const
 {
-	assert(m_print != nullptr);
-	return m_print->empty();
+    assert(m_print != nullptr);
+    return m_print->empty();
 }
 
 std::pair<PrintBase::PrintValidationError, std::string> BackgroundSlicingProcess::validate(std::string* warning)
 {
-	assert(m_print != nullptr);
+    assert(m_print != nullptr);
     return m_print->validate(warning);
 }
 
@@ -610,10 +610,10 @@ std::pair<PrintBase::PrintValidationError, std::string> BackgroundSlicingProcess
 // processed steps to be invalidated, therefore the task will need to be restarted.
 Print::ApplyStatus BackgroundSlicingProcess::apply(const Model &model, const DynamicPrintConfig &config, const DynamicPrintConfig *physical_printer_config)
 {
-	assert(m_print != nullptr);
-	assert(config.opt_enum<PrinterTechnology>("printer_technology") == m_print->technology());
-	Print::ApplyStatus invalidated = m_print->apply(model, config);
-    if (physical_printer_config && 
+    assert(m_print != nullptr);
+    assert(config.opt_enum<PrinterTechnology>("printer_technology") == m_print->technology());
+    Print::ApplyStatus invalidated = m_print->apply(model, config);
+    if (physical_printer_config &&
         (m_print->physical_printer_config().diff(*physical_printer_config).size() != 0 || m_print->physical_printer_config().keys() != physical_printer_config->keys()) ) {
         m_print->physical_printer_config().clear();
         m_print->physical_printer_config().apply(*physical_printer_config);
@@ -623,86 +623,86 @@ Print::ApplyStatus BackgroundSlicingProcess::apply(const Model &model, const Dyn
             this->m_fff_print->invalidate_step(psGCodeExport);
         }
     }
-	if ((invalidated & PrintBase::APPLY_STATUS_INVALIDATED) != 0 && m_print->technology() == ptFFF &&
-		!m_fff_print->is_step_done(psGCodeExport)) {
-		// Some FFF status was invalidated, and the G-code was not exported yet.
-		// Let the G-code preview UI know that the final G-code preview is not valid.
-		// In addition, this early memory deallocation reduces memory footprint.
-		if (m_gcode_result != nullptr)
-			m_gcode_result->reset();
-	}
-	if (invalidated && m_print->technology() == ptSLA) {
-			m_sla_archive = Slic3r::get_output_format(config);
-			m_sla_print->set_printer(m_sla_archive);
-	}
-	return invalidated;
+    if ((invalidated & PrintBase::APPLY_STATUS_INVALIDATED) != 0 && m_print->technology() == ptFFF &&
+        !m_fff_print->is_step_done(psGCodeExport)) {
+        // Some FFF status was invalidated, and the G-code was not exported yet.
+        // Let the G-code preview UI know that the final G-code preview is not valid.
+        // In addition, this early memory deallocation reduces memory footprint.
+        if (m_gcode_result != nullptr)
+            m_gcode_result->reset();
+    }
+    if (invalidated && m_print->technology() == ptSLA) {
+            m_sla_archive = Slic3r::get_output_format(config);
+            m_sla_print->set_printer(m_sla_archive);
+    }
+    return invalidated;
 }
 
 void BackgroundSlicingProcess::set_task(const PrintBase::TaskParams &params)
 {
-	assert(m_print != nullptr);
-	m_print->set_task(params);
+    assert(m_print != nullptr);
+    m_print->set_task(params);
 }
 
 // Set the output path of the G-code.
 void BackgroundSlicingProcess::schedule_export(const std::string &path, bool export_path_on_removable_media)
-{ 
-	assert(m_export_path.empty());
-	if (! m_export_path.empty())
-		return;
+{
+    assert(m_export_path.empty());
+    if (! m_export_path.empty())
+        return;
 
-	// Guard against entering the export step before changing the export path.
-	std::scoped_lock<std::mutex> lock(m_print->state_mutex());
-	this->invalidate_step(bspsGCodeFinalize);
-	m_export_path = path;
-	m_export_path_on_removable_media = export_path_on_removable_media;
+    // Guard against entering the export step before changing the export path.
+    std::scoped_lock<std::mutex> lock(m_print->state_mutex());
+    this->invalidate_step(bspsGCodeFinalize);
+    m_export_path = path;
+    m_export_path_on_removable_media = export_path_on_removable_media;
 }
 
 void BackgroundSlicingProcess::schedule_upload(Slic3r::PrintHostJob upload_job)
 {
-	assert(m_export_path.empty());
-	if (! m_export_path.empty())
-		return;
+    assert(m_export_path.empty());
+    if (! m_export_path.empty())
+        return;
 
-	// Guard against entering the export step before changing the export path.
-	std::scoped_lock<std::mutex> lock(m_print->state_mutex());
-	this->invalidate_step(bspsGCodeFinalize);
-	m_export_path.clear();
-	m_upload_job = std::move(upload_job);
+    // Guard against entering the export step before changing the export path.
+    std::scoped_lock<std::mutex> lock(m_print->state_mutex());
+    this->invalidate_step(bspsGCodeFinalize);
+    m_export_path.clear();
+    m_upload_job = std::move(upload_job);
 }
 
 void BackgroundSlicingProcess::reset_export()
 {
-	bool running = true;
-	{
-		// I don't know if it's safe to let m_mutex be lock while doing invalidate_step.
-		// if so, please remove the braces.
-		std::unique_lock<std::mutex> lck(m_mutex);
-		running = this->running();
-		//assert(!running);
-	}
-	if (!running) {
-		m_export_path.clear();
-		m_export_path_on_removable_media = false;
-		// invalidate_step expects the mutex to be locked.
-		std::scoped_lock<std::mutex> lock(m_print->state_mutex());
-		this->invalidate_step(bspsGCodeFinalize);
-	}
+    bool running = true;
+    {
+        // I don't know if it's safe to let m_mutex be lock while doing invalidate_step.
+        // if so, please remove the braces.
+        std::unique_lock<std::mutex> lck(m_mutex);
+        running = this->running();
+        //assert(!running);
+    }
+    if (!running) {
+        m_export_path.clear();
+        m_export_path_on_removable_media = false;
+        // invalidate_step expects the mutex to be locked.
+        std::scoped_lock<std::mutex> lock(m_print->state_mutex());
+        this->invalidate_step(bspsGCodeFinalize);
+    }
 }
 
 bool BackgroundSlicingProcess::set_step_started(BackgroundSlicingProcessStep step)
-{ 
-	return m_step_state.set_started(step, m_print->state_mutex(), [this](){ this->throw_if_canceled(); });
+{
+    return m_step_state.set_started(step, m_print->state_mutex(), [this](){ this->throw_if_canceled(); });
 }
 
 void BackgroundSlicingProcess::set_step_done(BackgroundSlicingProcessStep step)
-{ 
-	m_step_state.set_done(step, m_print->state_mutex(), [this](){ this->throw_if_canceled(); });
+{
+    m_step_state.set_done(step, m_print->state_mutex(), [this](){ this->throw_if_canceled(); });
 }
 
 bool BackgroundSlicingProcess::is_step_done(BackgroundSlicingProcessStep step) const
-{ 
-	return m_step_state.is_done(step, m_print->state_mutex());
+{
+    return m_step_state.is_done(step, m_print->state_mutex());
 }
 
 bool BackgroundSlicingProcess::invalidate_step(BackgroundSlicingProcessStep step)
@@ -712,8 +712,8 @@ bool BackgroundSlicingProcess::invalidate_step(BackgroundSlicingProcessStep step
 }
 
 bool BackgroundSlicingProcess::invalidate_all_steps()
-{ 
-	return m_step_state.invalidate_all([this](){ this->stop_internal(); });
+{
+    return m_step_state.invalidate_all([this](){ this->stop_internal(); });
 }
 
 // G-code is generated in m_temp_output_path.
@@ -721,92 +721,92 @@ bool BackgroundSlicingProcess::invalidate_all_steps()
 // Copy the final G-code to target location (possibly a SD card, if it is a removable media, then verify that the file was written without an error).
 void BackgroundSlicingProcess::finalize_gcode()
 {
-	m_print->set_status(95, _utf8(L("Running post-processing scripts")));
+    m_print->set_status(95, _utf8(L("Running post-processing scripts")));
 
-	// Perform the final post-processing of the export path by applying the print statistics over the file name.
-	std::string export_path = m_fff_print->print_statistics().finalize_output_path(m_export_path);
-	std::string output_path = m_temp_output_path;
-	// Both output_path and export_path ar in-out parameters.
-	// If post processed, output_path will differ from m_temp_output_path as run_post_process_scripts() will make a copy of the G-code to not
-	// collide with the G-code viewer memory mapping of the unprocessed G-code. G-code viewer maps unprocessed G-code, because m_gcode_result 
-	// is calculated for the unprocessed G-code and it references lines in the memory mapped G-code file by line numbers.
-	// export_path may be changed by the post-processing script as well if the post processing script decides so, see GH #6042.
-	DynamicPrintConfig conf_for_script = m_fff_print->full_print_config();
-	conf_for_script.apply(m_fff_print->physical_printer_config()); // add physical printer options for use in the script.
-	bool post_processed = run_post_process_scripts(output_path, true, "File", export_path, conf_for_script);
-	auto remove_post_processed_temp_file = [post_processed, &output_path]() {
-		if (post_processed)
-			try {
-				boost::filesystem::remove(output_path);
-			} catch (const std::exception &ex) {
-				BOOST_LOG_TRIVIAL(error) << "Failed to remove temp file " << output_path << ": " << ex.what();
-			}
-	};
+    // Perform the final post-processing of the export path by applying the print statistics over the file name.
+    std::string export_path = m_fff_print->print_statistics().finalize_output_path(m_export_path);
+    std::string output_path = m_temp_output_path;
+    // Both output_path and export_path ar in-out parameters.
+    // If post processed, output_path will differ from m_temp_output_path as run_post_process_scripts() will make a copy of the G-code to not
+    // collide with the G-code viewer memory mapping of the unprocessed G-code. G-code viewer maps unprocessed G-code, because m_gcode_result
+    // is calculated for the unprocessed G-code and it references lines in the memory mapped G-code file by line numbers.
+    // export_path may be changed by the post-processing script as well if the post processing script decides so, see GH #6042.
+    DynamicPrintConfig conf_for_script = m_fff_print->full_print_config();
+    conf_for_script.apply(m_fff_print->physical_printer_config()); // add physical printer options for use in the script.
+    bool post_processed = run_post_process_scripts(output_path, true, "File", export_path, conf_for_script);
+    auto remove_post_processed_temp_file = [post_processed, &output_path]() {
+        if (post_processed)
+            try {
+                boost::filesystem::remove(output_path);
+            } catch (const std::exception &ex) {
+                BOOST_LOG_TRIVIAL(error) << "Failed to remove temp file " << output_path << ": " << ex.what();
+            }
+    };
 
-	//FIXME localize the messages
-	std::string error_message;
-	int copy_ret_val = CopyFileResult::SUCCESS;
-	try
-	{
-		copy_ret_val = copy_file(output_path, export_path, error_message, m_export_path_on_removable_media);
-		remove_post_processed_temp_file();
-	}
-	catch (...)
-	{
-		remove_post_processed_temp_file();
-		throw Slic3r::ExportError(_utf8(L("Unknown error occured during exporting G-code.")));
-	}
-	switch (copy_ret_val) {
-	case CopyFileResult::SUCCESS: break; // no error
-	case CopyFileResult::FAIL_COPY_FILE:
-		throw Slic3r::ExportError((boost::format(_utf8(L("Copying of the temporary G-code to the output G-code failed. Maybe the SD card is write locked?\nError message: %1%"))) % error_message).str());
-		break;
-	case CopyFileResult::FAIL_FILES_DIFFERENT:
-		throw Slic3r::ExportError((boost::format(_utf8(L("Copying of the temporary G-code to the output G-code failed. There might be problem with target device, please try exporting again or using different device. The corrupted output G-code is at %1%.tmp."))) % export_path).str());
-		break;
-	case CopyFileResult::FAIL_RENAMING:
-		throw Slic3r::ExportError((boost::format(_utf8(L("Renaming of the G-code after copying to the selected destination folder has failed. Current path is %1%.tmp. Please try exporting again."))) % export_path).str());
-		break;
-	case CopyFileResult::FAIL_CHECK_ORIGIN_NOT_OPENED:
-		throw Slic3r::ExportError((boost::format(_utf8(L("Copying of the temporary G-code has finished but the original code at %1% couldn't be opened during copy check. The output G-code is at %2%.tmp."))) % output_path % export_path).str());
-		break;
-	case CopyFileResult::FAIL_CHECK_TARGET_NOT_OPENED:
-		throw Slic3r::ExportError((boost::format(_utf8(L("Copying of the temporary G-code has finished but the exported code couldn't be opened during copy check. The output G-code is at %1%.tmp."))) % export_path).str());
-		break;
-	default:
-		throw Slic3r::ExportError(_utf8(L("Unknown error occured during exporting G-code.")));
-		BOOST_LOG_TRIVIAL(error) << "Unexpected fail code(" << (int)copy_ret_val << ") durring copy_file() to " << export_path << ".";
-		break;
-	}
+    //FIXME localize the messages
+    std::string error_message;
+    int copy_ret_val = CopyFileResult::SUCCESS;
+    try
+    {
+        copy_ret_val = copy_file(output_path, export_path, error_message, m_export_path_on_removable_media);
+        remove_post_processed_temp_file();
+    }
+    catch (...)
+    {
+        remove_post_processed_temp_file();
+        throw Slic3r::ExportError(_utf8(L("Unknown error occured during exporting G-code.")));
+    }
+    switch (copy_ret_val) {
+    case CopyFileResult::SUCCESS: break; // no error
+    case CopyFileResult::FAIL_COPY_FILE:
+        throw Slic3r::ExportError((boost::format(_utf8(L("Copying of the temporary G-code to the output G-code failed. Maybe the SD card is write locked?\nError message: %1%"))) % error_message).str());
+        break;
+    case CopyFileResult::FAIL_FILES_DIFFERENT:
+        throw Slic3r::ExportError((boost::format(_utf8(L("Copying of the temporary G-code to the output G-code failed. There might be problem with target device, please try exporting again or using different device. The corrupted output G-code is at %1%.tmp."))) % export_path).str());
+        break;
+    case CopyFileResult::FAIL_RENAMING:
+        throw Slic3r::ExportError((boost::format(_utf8(L("Renaming of the G-code after copying to the selected destination folder has failed. Current path is %1%.tmp. Please try exporting again."))) % export_path).str());
+        break;
+    case CopyFileResult::FAIL_CHECK_ORIGIN_NOT_OPENED:
+        throw Slic3r::ExportError((boost::format(_utf8(L("Copying of the temporary G-code has finished but the original code at %1% couldn't be opened during copy check. The output G-code is at %2%.tmp."))) % output_path % export_path).str());
+        break;
+    case CopyFileResult::FAIL_CHECK_TARGET_NOT_OPENED:
+        throw Slic3r::ExportError((boost::format(_utf8(L("Copying of the temporary G-code has finished but the exported code couldn't be opened during copy check. The output G-code is at %1%.tmp."))) % export_path).str());
+        break;
+    default:
+        throw Slic3r::ExportError(_utf8(L("Unknown error occured during exporting G-code.")));
+        BOOST_LOG_TRIVIAL(error) << "Unexpected fail code(" << (int)copy_ret_val << ") durring copy_file() to " << export_path << ".";
+        break;
+    }
 
-	m_print->set_status(100, (boost::format(_utf8(L("G-code file exported to %1%"))) % export_path).str());
+    m_print->set_status(100, (boost::format(_utf8(L("G-code file exported to %1%"))) % export_path).str());
 }
 
 // A print host upload job has been scheduled, enqueue it to the printhost job queue
 void BackgroundSlicingProcess::prepare_upload()
 {
-	// Generate a unique temp path to which the gcode/zip file is copied/exported
-	boost::filesystem::path source_path = boost::filesystem::temp_directory_path()
-		/ boost::filesystem::unique_path("." SLIC3R_APP_KEY ".upload.%%%%-%%%%-%%%%-%%%%");
+    // Generate a unique temp path to which the gcode/zip file is copied/exported
+    boost::filesystem::path source_path = boost::filesystem::temp_directory_path()
+        / boost::filesystem::unique_path("." SLIC3R_APP_KEY ".upload.%%%%-%%%%-%%%%-%%%%");
 
-	if (m_print == m_fff_print) {
-		m_print->set_status(90, _utf8(L("Running post-processing scripts")));
-		std::string error_message;
-		if (copy_file(m_temp_output_path, source_path.string(), error_message) != SUCCESS)
-			throw Slic3r::RuntimeError(_utf8(L("Copying of the temporary G-code to the output G-code failed")));
-		m_upload_job.upload_data.upload_path = m_fff_print->print_statistics().finalize_output_path(m_upload_job.upload_data.upload_path.string());
+    if (m_print == m_fff_print) {
+        m_print->set_status(90, _utf8(L("Running post-processing scripts")));
+        std::string error_message;
+        if (copy_file(m_temp_output_path, source_path.string(), error_message) != SUCCESS)
+            throw Slic3r::RuntimeError(_utf8(L("Copying of the temporary G-code to the output G-code failed")));
+        m_upload_job.upload_data.upload_path = m_fff_print->print_statistics().finalize_output_path(m_upload_job.upload_data.upload_path.string());
         // Make a copy of the source path, as run_post_process_scripts() is allowed to change it when making a copy of the source file
-        // (not here, but when the final target is a file). 
+        // (not here, but when the final target is a file).
         std::string source_path_str = source_path.string();
         std::string output_name_str = m_upload_job.upload_data.upload_path.string();
-		if (run_post_process_scripts(source_path_str, false, m_upload_job.printhost->get_name(), output_name_str, m_fff_print->full_print_config()))
-			m_upload_job.upload_data.upload_path = output_name_str;
+        if (run_post_process_scripts(source_path_str, false, m_upload_job.printhost->get_name(), output_name_str, m_fff_print->full_print_config()))
+            m_upload_job.upload_data.upload_path = output_name_str;
     } else if (m_print == m_sla_print) {
-		m_upload_job.upload_data.upload_path = m_sla_print->print_statistics().finalize_output_path(m_upload_job.upload_data.upload_path.string());
-        
+        m_upload_job.upload_data.upload_path = m_sla_print->print_statistics().finalize_output_path(m_upload_job.upload_data.upload_path.string());
+
         ThumbnailsList thumbnails = this->render_thumbnails(
-        	ThumbnailsParams{current_print()->full_print_config().option<ConfigOptionPoints>("thumbnails")->get_values(), true, true, true, true});
-																												 // true, false, true, true); // renders also supports and pad
+            ThumbnailsParams{current_print()->full_print_config().option<ConfigOptionPoints>("thumbnails")->get_values(), true, true, true, true});
+                                                                                                                 // true, false, true, true); // renders also supports and pad
         Zipper zipper{source_path.string()};
         m_sla_archive->export_print(zipper, *m_sla_print, m_upload_job.upload_data.upload_path.string());
             for (const ThumbnailData& data : thumbnails)
@@ -815,20 +815,20 @@ void BackgroundSlicingProcess::prepare_upload()
         zipper.finalize();
     }
 
-	m_print->set_status(100, (boost::format(_utf8(L("Scheduling upload to `%1%`. See Window -> Print Host Upload Queue"))) % m_upload_job.printhost->get_host()).str());
+    m_print->set_status(100, (boost::format(_utf8(L("Scheduling upload to `%1%`. See Window -> Print Host Upload Queue"))) % m_upload_job.printhost->get_host()).str());
 
-	m_upload_job.upload_data.source_path = std::move(source_path);
+    m_upload_job.upload_data.source_path = std::move(source_path);
 
-	GUI::wxGetApp().printhost_job_queue().enqueue(std::move(m_upload_job));
+    GUI::wxGetApp().printhost_job_queue().enqueue(std::move(m_upload_job));
 }
 
 // Executed by the background thread, to start a task on the UI thread.
 ThumbnailsList BackgroundSlicingProcess::render_thumbnails(const ThumbnailsParams &params)
 {
-	ThumbnailsList thumbnails;
-	if (m_thumbnail_cb)
-		this->execute_ui_task([this, &params, &thumbnails](){ thumbnails = m_thumbnail_cb(params); });
-	return thumbnails;
+    ThumbnailsList thumbnails;
+    if (m_thumbnail_cb)
+        this->execute_ui_task([this, &params, &thumbnails](){ thumbnails = m_thumbnail_cb(params); });
+    return thumbnails;
 }
 
 }; // namespace Slic3r

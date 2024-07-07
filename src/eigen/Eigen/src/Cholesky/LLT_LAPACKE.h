@@ -33,7 +33,7 @@
 #ifndef EIGEN_LLT_LAPACKE_H
 #define EIGEN_LLT_LAPACKE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 

@@ -15,7 +15,7 @@
 //#####################################################################
 
 //###########################################################
-// Compute the Givens angle (and half-angle) 
+// Compute the Givens angle (and half-angle)
 //###########################################################
 
 ENABLE_SCALAR_IMPLEMENTATION(Ssh.f=SS21.f*Sone_half.f;)                                   ENABLE_SSE_IMPLEMENTATION(Vsh=_mm_mul_ps(VS21,Vone_half);)                                ENABLE_AVX_IMPLEMENTATION(Vsh=_mm256_mul_ps(VS21,Vone_half);)
@@ -80,7 +80,7 @@ ENABLE_SCALAR_IMPLEMENTATION(SS32.f=Sc.f*SS32.f;)                               
 ENABLE_SCALAR_IMPLEMENTATION(SS31.f=Stmp2.f+SS31.f;)                                      ENABLE_SSE_IMPLEMENTATION(VS31=_mm_add_ps(Vtmp2,VS31);)                                   ENABLE_AVX_IMPLEMENTATION(VS31=_mm256_add_ps(Vtmp2,VS31);)
 ENABLE_SCALAR_IMPLEMENTATION(SS32.f=SS32.f-Stmp1.f;)                                      ENABLE_SSE_IMPLEMENTATION(VS32=_mm_sub_ps(VS32,Vtmp1);)                                   ENABLE_AVX_IMPLEMENTATION(VS32=_mm256_sub_ps(VS32,Vtmp1);)
 
-ENABLE_SCALAR_IMPLEMENTATION(Stmp2.f=Ss.f*Ss.f;)                                          ENABLE_SSE_IMPLEMENTATION(Vtmp2=_mm_mul_ps(Vs,Vs);)                                       ENABLE_AVX_IMPLEMENTATION(Vtmp2=_mm256_mul_ps(Vs,Vs);)         
+ENABLE_SCALAR_IMPLEMENTATION(Stmp2.f=Ss.f*Ss.f;)                                          ENABLE_SSE_IMPLEMENTATION(Vtmp2=_mm_mul_ps(Vs,Vs);)                                       ENABLE_AVX_IMPLEMENTATION(Vtmp2=_mm256_mul_ps(Vs,Vs);)
 ENABLE_SCALAR_IMPLEMENTATION(Stmp1.f=SS22.f*Stmp2.f;)                                     ENABLE_SSE_IMPLEMENTATION(Vtmp1=_mm_mul_ps(VS22,Vtmp2);)                                  ENABLE_AVX_IMPLEMENTATION(Vtmp1=_mm256_mul_ps(VS22,Vtmp2);)
 ENABLE_SCALAR_IMPLEMENTATION(Stmp3.f=SS11.f*Stmp2.f;)                                     ENABLE_SSE_IMPLEMENTATION(Vtmp3=_mm_mul_ps(VS11,Vtmp2);)                                  ENABLE_AVX_IMPLEMENTATION(Vtmp3=_mm256_mul_ps(VS11,Vtmp2);)
 ENABLE_SCALAR_IMPLEMENTATION(Stmp4.f=Sc.f*Sc.f;)                                          ENABLE_SSE_IMPLEMENTATION(Vtmp4=_mm_mul_ps(Vc,Vc);)                                       ENABLE_AVX_IMPLEMENTATION(Vtmp4=_mm256_mul_ps(Vc,Vc);)

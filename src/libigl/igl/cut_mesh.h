@@ -48,10 +48,10 @@ namespace igl
   //     will be redirected to point to the newly duplicated vertices.
   //
   template <
-    typename DerivedV, 
-    typename DerivedF, 
-    typename VFType, 
-    typename DerivedTT, 
+    typename DerivedV,
+    typename DerivedF,
+    typename VFType,
+    typename DerivedTT,
     typename DerivedC>
   IGL_INLINE void cut_mesh(
     const Eigen::PlainObjectBase<DerivedV> &V,

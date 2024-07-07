@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "file_contents_as_string.h"
 
@@ -37,7 +37,7 @@ IGL_INLINE std::string igl::file_contents_as_string(
 {
   std::string content;
 #ifndef NDEBUG
-  bool ret = 
+  bool ret =
 #endif
     file_contents_as_string(file_name,content);
   assert(ret && "file_contents_as_string failed to read string from file");

@@ -217,7 +217,7 @@ public:
         bool            operator>(const const_iterator &other) const { return i>other.i; }
         bool            operator>=(const const_iterator &other) const { return i>=other.i; }
 
-        const_iterator & operator++() { ++i; return *this; } 
+        const_iterator & operator++() { ++i; return *this; }
         const_iterator  operator++(int) { return const_iterator(i++); }
         const_iterator & operator--() { --i; return *this; }
         const_iterator  operator--(int) { return const_iterator(i--); }

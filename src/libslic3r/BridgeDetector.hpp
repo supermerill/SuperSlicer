@@ -10,7 +10,7 @@ namespace Slic3r {
 // The bridge detector optimizes a direction of bridges over a region or a set of regions.
 // A bridge direction is considered optimal, if the length of the lines strang over the region is maximal.
 // This is optimal if the bridge is supported in a single direction only, but
-// it may not likely be optimal, if the bridge region is supported from all sides. Then an optimal 
+// it may not likely be optimal, if the bridge region is supported from all sides. Then an optimal
 // solution would find a direction with shortest bridges.
 // The bridge orientation is measured CCW from the X axis.
 class BridgeDetector {
@@ -20,7 +20,7 @@ public:
     // In case the caller gaves us the input polygons by a value, make a copy.
     ExPolygons                   expolygons_owned;
     // Lower slices, all regions.
-    const ExPolygons   			&lower_slices;
+    const ExPolygons               &lower_slices;
     // Scaled extrusion width of the infill.
     const coord_t                spacing;
     // precision, number of lines to use.
@@ -34,7 +34,7 @@ public:
 
 
     int layer_id = -1;
-    
+
     BridgeDetector(ExPolygon _expolygon, const ExPolygons &_lower_slices, coord_t _extrusion_spacing, coord_t _precision, int layer_id);
     BridgeDetector(const ExPolygons &_expolygons, const ExPolygons &_lower_slices, coord_t _extrusion_spacing, coord_t _precision, int layer_id);
     // If bridge_direction_override != 0, then the angle is used instead of auto-detect.
@@ -42,7 +42,7 @@ public:
     Polygons coverage(double angle = -1) const;
     void unsupported_edges(double angle, Polylines* unsupported) const;
     Polylines unsupported_edges(double angle = -1) const;
-    
+
 private:
     // Suppress warning "assignment operator could not be generated"
     BridgeDetector& operator=(const BridgeDetector &);

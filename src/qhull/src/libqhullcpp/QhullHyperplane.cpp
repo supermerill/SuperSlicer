@@ -22,7 +22,7 @@ namespace orgQhull {
 #//!\name Constructors
 
 QhullHyperplane::
-QhullHyperplane(const Qhull &q) 
+QhullHyperplane(const Qhull &q)
 : hyperplane_coordinates(0)
 , qh_qh(q.qh())
 , hyperplane_offset(0.0)
@@ -31,7 +31,7 @@ QhullHyperplane(const Qhull &q)
 }
 
 QhullHyperplane::
-QhullHyperplane(const Qhull &q, int hyperplaneDimension, coordT *c, coordT hyperplaneOffset) 
+QhullHyperplane(const Qhull &q, int hyperplaneDimension, coordT *c, coordT hyperplaneOffset)
 : hyperplane_coordinates(c)
 , qh_qh(q.qh())
 , hyperplane_offset(hyperplaneOffset)

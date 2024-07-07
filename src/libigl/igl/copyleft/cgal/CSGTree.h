@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_COPYLEFT_CGAL_CSG_TREE_H
 #define IGL_COPYLEFT_CGAL_CSG_TREE_H
@@ -79,7 +79,7 @@ namespace igl
           }
           CSGTree(CSGTree&& other):
             // initialize via default constructor
-            CSGTree() 
+            CSGTree()
           {
             swap(*this,other);
           }
@@ -88,7 +88,7 @@ namespace igl
           // Inputs:
           //   A  Solid result of previous CSG operation (or identity, see below)
           //   B  Solid result of previous CSG operation (or identity, see below)
-          //   type  type of mesh boolean to compute 
+          //   type  type of mesh boolean to compute
           CSGTree(
             const CSGTree & A,
             const CSGTree & B,
@@ -109,7 +109,7 @@ namespace igl
                   j = A.number_of_birth_faces()+(B.J()(j-A.F().rows()));
                 }
               });
-            m_number_of_birth_faces = 
+            m_number_of_birth_faces =
               A.number_of_birth_faces() + B.number_of_birth_faces();
           }
           // Overload using string for type

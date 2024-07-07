@@ -1,5 +1,5 @@
 // loaddrv.c - Dynamic driver install/start/stop/remove
-// based on Paula Tomlinson's LOADDRV program. 
+// based on Paula Tomlinson's LOADDRV program.
 // She describes it in her May 1995 article in Windows/DOS Developer's
 // Journal (now Windows Developer's Journal).
 // Modified by Chris Liechti <cliechti@gmx.net>
@@ -20,11 +20,11 @@ SC_HANDLE hSCMan = NULL;
 void DisplayErrorText(DWORD dwLastError) {
     LPSTR MessageBuffer;
     DWORD dwBufferLength;
-    
+
     DWORD dwFormatFlags = FORMAT_MESSAGE_ALLOCATE_BUFFER |
         FORMAT_MESSAGE_IGNORE_INSERTS |
         FORMAT_MESSAGE_FROM_SYSTEM;
-    
+
     dwBufferLength = FormatMessageA(
         dwFormatFlags,
         NULL, // module to get message from (NULL == system)
@@ -180,7 +180,7 @@ int main(int argc, char *argv[]) {
 
 DWORD LoadDriverInit(void) {
     // connect to local service control manager
-    if ((hSCMan = OpenSCManager(NULL, NULL, 
+    if ((hSCMan = OpenSCManager(NULL, NULL,
         SC_MANAGER_ALL_ACCESS)) == NULL) {
         return -1;
     }
@@ -197,9 +197,9 @@ DWORD DriverInstall(LPSTR lpPath, LPSTR lpDriver) {
    SC_HANDLE hService = NULL;
 
    // add to service control manager's database
-   if ((hService = CreateService(hSCMan, lpDriver, 
+   if ((hService = CreateService(hSCMan, lpDriver,
       lpDriver, SERVICE_ALL_ACCESS, SERVICE_KERNEL_DRIVER,
-      SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL, lpPath, 
+      SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL, lpPath,
       NULL, NULL, NULL, NULL, NULL)) == NULL)
          dwStatus = GetLastError();
    else CloseServiceHandle(hService);
@@ -213,8 +213,8 @@ DWORD DriverStart(LPSTR lpDriver) {
    SC_HANDLE hService = NULL;
 
    // get a handle to the service
-   if ((hService = OpenService(hSCMan, lpDriver, 
-      SERVICE_ALL_ACCESS)) != NULL) 
+   if ((hService = OpenService(hSCMan, lpDriver,
+      SERVICE_ALL_ACCESS)) != NULL)
    {
       // start the driver
       if (!StartService(hService, 0, NULL))
@@ -233,8 +233,8 @@ DWORD DriverStop(LPSTR lpDriver)
    SERVICE_STATUS serviceStatus;
 
    // get a handle to the service
-   if ((hService = OpenService(hSCMan, lpDriver, 
-      SERVICE_ALL_ACCESS)) != NULL) 
+   if ((hService = OpenService(hSCMan, lpDriver,
+      SERVICE_ALL_ACCESS)) != NULL)
    {
       // stop the driver
       if (!ControlService(hService, SERVICE_CONTROL_STOP,
@@ -253,8 +253,8 @@ DWORD DriverRemove(LPSTR lpDriver)
    SC_HANDLE hService = NULL;
 
    // get a handle to the service
-   if ((hService = OpenService(hSCMan, lpDriver, 
-      SERVICE_ALL_ACCESS)) != NULL) 
+   if ((hService = OpenService(hSCMan, lpDriver,
+      SERVICE_ALL_ACCESS)) != NULL)
    {  // remove the driver
       if (!DeleteService(hService))
          dwStatus = GetLastError();
@@ -273,33 +273,33 @@ DWORD DriverStatus(LPSTR lpDriver) {
     DWORD dwBytesNeeded;
 
     // get a handle to the service
-    if ((hService = OpenService(hSCMan, lpDriver, 
-                                SERVICE_ALL_ACCESS)) != NULL) 
+    if ((hService = OpenService(hSCMan, lpDriver,
+                                SERVICE_ALL_ACCESS)) != NULL)
     {
         LPQUERY_SERVICE_CONFIG lpqscBuf;
         //~ LPSERVICE_DESCRIPTION lpqscBuf2;
-        // Allocate a buffer for the configuration information. 
-        if ((lpqscBuf = (LPQUERY_SERVICE_CONFIG) LocalAlloc( 
+        // Allocate a buffer for the configuration information.
+        if ((lpqscBuf = (LPQUERY_SERVICE_CONFIG) LocalAlloc(
             LPTR, 4096)) != NULL)
         {
-            //~ if ((lpqscBuf2 = (LPSERVICE_DESCRIPTION) LocalAlloc( 
+            //~ if ((lpqscBuf2 = (LPSERVICE_DESCRIPTION) LocalAlloc(
                 //~ LPTR, 4096)) != NULL)
             {
-                // Get the configuration information. 
+                // Get the configuration information.
                 if (QueryServiceConfig(
                         hService,
                         lpqscBuf,
                         4096,
                         &dwBytesNeeded) //&&
-                    //~ QueryServiceConfig2( 
+                    //~ QueryServiceConfig2(
                         //~ hService,
                         //~ SERVICE_CONFIG_DESCRIPTION,
                         //~ lpqscBuf2,
-                        //~ 4096, 
+                        //~ 4096,
                         //~ &dwBytesNeeded
                 )
                 {
-                    // Print the configuration information. 
+                    // Print the configuration information.
                     printf("Type:           [0x%02lx] ", lpqscBuf->dwServiceType);
                     switch (lpqscBuf->dwServiceType) {
                         case SERVICE_WIN32_OWN_PROCESS:
@@ -320,7 +320,7 @@ DWORD DriverStatus(LPSTR lpDriver) {
                         default:
                             printf("Unknown type.");
                     }
-                    printf("\nStart Type:     [0x%02lx] ", lpqscBuf->dwStartType); 
+                    printf("\nStart Type:     [0x%02lx] ", lpqscBuf->dwStartType);
                     switch (lpqscBuf->dwStartType) {
                         case SERVICE_BOOT_START:
                             printf("Boot");
@@ -340,7 +340,7 @@ DWORD DriverStatus(LPSTR lpDriver) {
                         default:
                             printf("Unknown.");
                     }
-                    printf("\nError Control:  [0x%02lx] ", lpqscBuf->dwErrorControl); 
+                    printf("\nError Control:  [0x%02lx] ", lpqscBuf->dwErrorControl);
                     switch (lpqscBuf->dwErrorControl) {
                         case SERVICE_ERROR_IGNORE:
                             printf("IGNORE: Ignore.");
@@ -357,18 +357,18 @@ DWORD DriverStatus(LPSTR lpDriver) {
                         default:
                             printf("Unknown.");
                     }
-                    printf("\nBinary path:    %s\n", lpqscBuf->lpBinaryPathName); 
-                    
-                    if (lpqscBuf->lpLoadOrderGroup != NULL) 
-                        printf("Load order grp: %s\n", lpqscBuf->lpLoadOrderGroup); 
-                    if (lpqscBuf->dwTagId != 0) 
-                        printf("Tag ID:         %ld\n", lpqscBuf->dwTagId); 
-                    if (lpqscBuf->lpDependencies != NULL) 
-                        printf("Dependencies:   %s\n", lpqscBuf->lpDependencies); 
-                    if (lpqscBuf->lpServiceStartName != NULL) 
-                        printf("Start Name:     %s\n", lpqscBuf->lpServiceStartName); 
-                    //~ if (lpqscBuf2->lpDescription != NULL) 
-                        //~ printf("Description:    %s\n", lpqscBuf2->lpDescription); 
+                    printf("\nBinary path:    %s\n", lpqscBuf->lpBinaryPathName);
+
+                    if (lpqscBuf->lpLoadOrderGroup != NULL)
+                        printf("Load order grp: %s\n", lpqscBuf->lpLoadOrderGroup);
+                    if (lpqscBuf->dwTagId != 0)
+                        printf("Tag ID:         %ld\n", lpqscBuf->dwTagId);
+                    if (lpqscBuf->lpDependencies != NULL)
+                        printf("Dependencies:   %s\n", lpqscBuf->lpDependencies);
+                    if (lpqscBuf->lpServiceStartName != NULL)
+                        printf("Start Name:     %s\n", lpqscBuf->lpServiceStartName);
+                    //~ if (lpqscBuf2->lpDescription != NULL)
+                        //~ printf("Description:    %s\n", lpqscBuf2->lpDescription);
                 }
                 //~ LocalFree(lpqscBuf2);
             }
@@ -392,7 +392,7 @@ DWORD DriverStartType(LPSTR lpDriver, DWORD dwStartType) {
     SC_LOCK sclLock;
     LPQUERY_SERVICE_LOCK_STATUS lpqslsBuf;
     DWORD dwBytesNeeded;
-    
+
     // Need to acquire database lock before reconfiguring.
     sclLock = LockServiceDatabase(hSCMan);
 
@@ -400,7 +400,7 @@ DWORD DriverStartType(LPSTR lpDriver, DWORD dwStartType) {
     if (sclLock == NULL) {
         // Exit if the database is not locked by another process.
         if (GetLastError() == ERROR_SERVICE_DATABASE_LOCKED) {
-            
+
             // Allocate a buffer to get details about the lock.
             lpqslsBuf = (LPQUERY_SERVICE_LOCK_STATUS) LocalAlloc(
                 LPTR, sizeof(QUERY_SERVICE_LOCK_STATUS)+256);

@@ -78,17 +78,17 @@ public:
         assert(rhs.vertices_and_normals_interleaved_VBO_id == 0);
         assert(rhs.triangle_indices_VBO_id == 0);
         assert(rhs.quad_indices_VBO_id == 0);
-        this->vertices_and_normals_interleaved 		 = rhs.vertices_and_normals_interleaved;
-        this->triangle_indices                 		 = rhs.triangle_indices;
-        this->quad_indices                     		 = rhs.quad_indices;
-        this->m_bounding_box                   		 = rhs.m_bounding_box;
+        this->vertices_and_normals_interleaved          = rhs.vertices_and_normals_interleaved;
+        this->triangle_indices                          = rhs.triangle_indices;
+        this->quad_indices                              = rhs.quad_indices;
+        this->m_bounding_box                            = rhs.m_bounding_box;
         this->vertices_and_normals_interleaved_size  = rhs.vertices_and_normals_interleaved_size;
         this->triangle_indices_size                  = rhs.triangle_indices_size;
         this->quad_indices_size                      = rhs.quad_indices_size;
         return *this;
     }
 
-    GLIndexedVertexArray& operator=(GLIndexedVertexArray &&rhs) 
+    GLIndexedVertexArray& operator=(GLIndexedVertexArray &&rhs)
     {
         assert(vertices_and_normals_interleaved_VBO_id == 0);
         assert(triangle_indices_VBO_id == 0);
@@ -96,10 +96,10 @@ public:
         assert(rhs.vertices_and_normals_interleaved_VBO_id == 0);
         assert(rhs.triangle_indices_VBO_id == 0);
         assert(rhs.quad_indices_VBO_id == 0);
-        this->vertices_and_normals_interleaved 		 = std::move(rhs.vertices_and_normals_interleaved);
-        this->triangle_indices                 		 = std::move(rhs.triangle_indices);
-        this->quad_indices                     		 = std::move(rhs.quad_indices);
-        this->m_bounding_box                   		 = rhs.m_bounding_box;
+        this->vertices_and_normals_interleaved          = std::move(rhs.vertices_and_normals_interleaved);
+        this->triangle_indices                          = std::move(rhs.triangle_indices);
+        this->quad_indices                              = std::move(rhs.quad_indices);
+        this->m_bounding_box                            = rhs.m_bounding_box;
         this->vertices_and_normals_interleaved_size  = rhs.vertices_and_normals_interleaved_size;
         this->triangle_indices_size                  = rhs.triangle_indices_size;
         this->quad_indices_size                      = rhs.quad_indices_size;
@@ -232,14 +232,14 @@ public:
     // Return an estimate of the memory held by GPU vertex buffers.
     size_t gpu_memory_used() const
     {
-    	size_t memsize = 0;
-    	if (this->vertices_and_normals_interleaved_VBO_id != 0)
-    		memsize += this->vertices_and_normals_interleaved_size * 4;
-    	if (this->triangle_indices_VBO_id != 0)
-    		memsize += this->triangle_indices_size * 4;
-    	if (this->quad_indices_VBO_id != 0)
-    		memsize += this->quad_indices_size * 4;
-    	return memsize;
+        size_t memsize = 0;
+        if (this->vertices_and_normals_interleaved_VBO_id != 0)
+            memsize += this->vertices_and_normals_interleaved_size * 4;
+        if (this->triangle_indices_VBO_id != 0)
+            memsize += this->triangle_indices_size * 4;
+        if (this->quad_indices_VBO_id != 0)
+            memsize += this->quad_indices_size * 4;
+        return memsize;
     }
     size_t total_memory_used() const { return this->cpu_memory_used() + this->gpu_memory_used(); }
 
@@ -322,46 +322,46 @@ public:
         int             volume_id;
         // Instance ID, which is equal to the index of the respective ModelInstance in ModelObject.instances array.
         int             instance_id;
-		bool operator==(const CompositeID &rhs) const { return object_id == rhs.object_id && volume_id == rhs.volume_id && instance_id == rhs.instance_id; }
-		bool operator!=(const CompositeID &rhs) const { return ! (*this == rhs); }
-		bool operator< (const CompositeID &rhs) const 
-			{ return object_id < rhs.object_id || (object_id == rhs.object_id && (volume_id < rhs.volume_id || (volume_id == rhs.volume_id && instance_id < rhs.instance_id))); }
+        bool operator==(const CompositeID &rhs) const { return object_id == rhs.object_id && volume_id == rhs.volume_id && instance_id == rhs.instance_id; }
+        bool operator!=(const CompositeID &rhs) const { return ! (*this == rhs); }
+        bool operator< (const CompositeID &rhs) const
+            { return object_id < rhs.object_id || (object_id == rhs.object_id && (volume_id < rhs.volume_id || (volume_id == rhs.volume_id && instance_id < rhs.instance_id))); }
     };
     CompositeID         composite_id;
-    // Fingerprint of the source geometry. For ModelVolumes, it is the ModelVolume::ID and ModelInstanceID, 
+    // Fingerprint of the source geometry. For ModelVolumes, it is the ModelVolume::ID and ModelInstanceID,
     // for generated volumes it is the timestamp generated by PrintState::invalidate() or PrintState::set_done(),
     // and the associated ModelInstanceID.
     // Valid geometry_id should always be positive.
     std::pair<size_t, size_t> geometry_id;
     // An ID containing the extruder ID (used to select color).
-    int                 	extruder_id;
+    int                     extruder_id;
 
     // Various boolean flags.
     struct {
-	    // Is this object selected?
-	    bool                selected : 1;
-	    // Is this object disabled from selection?
-	    bool                disabled : 1;
-	    // Is this object printable?
-	    bool                printable : 1;
-	    // Whether or not this volume is active for rendering
-	    bool                is_active : 1;
-	    // Whether or not to use this volume when applying zoom_to_volumes()
-	    bool                zoom_to_volumes : 1;
-	    // Wheter or not this volume is enabled for outside print volume detection in shader.
-	    bool                shader_outside_printer_detection_enabled : 1;
-	    // Wheter or not this volume is outside print volume.
-	    bool                is_outside : 1;
-	    // Wheter or not this volume has been generated from a modifier
-	    bool                is_modifier : 1;
-	    // Wheter or not this volume has been generated from the wipe tower
-	    bool                is_wipe_tower : 1;
-	    // Wheter or not this volume has been generated from an extrusion path
-	    bool                is_extrusion_path : 1;
-	    // Wheter or not to always render this volume using its own alpha 
-	    bool                force_transparent : 1;
-	    // Whether or not always use the volume's own color (not using SELECTED/HOVER/DISABLED/OUTSIDE)
-	    bool                force_native_color : 1;
+        // Is this object selected?
+        bool                selected : 1;
+        // Is this object disabled from selection?
+        bool                disabled : 1;
+        // Is this object printable?
+        bool                printable : 1;
+        // Whether or not this volume is active for rendering
+        bool                is_active : 1;
+        // Whether or not to use this volume when applying zoom_to_volumes()
+        bool                zoom_to_volumes : 1;
+        // Wheter or not this volume is enabled for outside print volume detection in shader.
+        bool                shader_outside_printer_detection_enabled : 1;
+        // Wheter or not this volume is outside print volume.
+        bool                is_outside : 1;
+        // Wheter or not this volume has been generated from a modifier
+        bool                is_modifier : 1;
+        // Wheter or not this volume has been generated from the wipe tower
+        bool                is_wipe_tower : 1;
+        // Wheter or not this volume has been generated from an extrusion path
+        bool                is_extrusion_path : 1;
+        // Wheter or not to always render this volume using its own alpha
+        bool                force_transparent : 1;
+        // Whether or not always use the volume's own color (not using SELECTED/HOVER/DISABLED/OUTSIDE)
+        bool                force_native_color : 1;
         // Whether or not render this volume in neutral
         bool                force_neutral_color : 1;
         // Whether or not to force rendering of sinking contours
@@ -369,7 +369,7 @@ public:
     };
 
     // Is mouse or rectangle selection over this object to select/deselect it ?
-    EHoverState         	hover;
+    EHoverState             hover;
 
     // Interleaved triangles & normals with indexed triangles & quads.
     GLIndexedVertexArray        indexed_vertex_array;
@@ -384,7 +384,7 @@ public:
     std::vector<size_t>         offsets;
 
     // Bounding box of this volume, in unscaled coordinates.
-    BoundingBoxf3 bounding_box() const { 
+    BoundingBoxf3 bounding_box() const {
         BoundingBoxf3 out;
         if (! this->indexed_vertex_array.bounding_box().isEmpty()) {
             out.min = this->indexed_vertex_array.bounding_box().min().cast<double>();
@@ -455,7 +455,7 @@ public:
 
     void set_volume_mirror(const Vec3d& mirror) { m_volume_transformation.set_mirror(mirror); set_bounding_boxes_as_dirty(); }
     void set_volume_mirror(Axis axis, double mirror) { m_volume_transformation.set_mirror(axis, mirror); set_bounding_boxes_as_dirty(); }
-     
+
     double get_sla_shift_z() const { return m_sla_shift_z; }
     void set_sla_shift_z(double z) { m_sla_shift_z = z; }
 
@@ -505,13 +505,13 @@ public:
     void                render_sinking_contours();
 
     // Return an estimate of the memory consumed by this class.
-    size_t 				cpu_memory_used() const { 
-    	//FIXME what to do wih m_convex_hull?
-    	return sizeof(*this) - sizeof(this->indexed_vertex_array) + this->indexed_vertex_array.cpu_memory_used() + this->print_zs.capacity() * sizeof(coordf_t) + this->offsets.capacity() * sizeof(size_t);
+    size_t                 cpu_memory_used() const {
+        //FIXME what to do wih m_convex_hull?
+        return sizeof(*this) - sizeof(this->indexed_vertex_array) + this->indexed_vertex_array.cpu_memory_used() + this->print_zs.capacity() * sizeof(coordf_t) + this->offsets.capacity() * sizeof(size_t);
     }
     // Return an estimate of the memory held by GPU vertex buffers.
-    size_t 				gpu_memory_used() const { return this->indexed_vertex_array.gpu_memory_used(); }
-    size_t 				total_memory_used() const { return this->cpu_memory_used() + this->gpu_memory_used(); }
+    size_t                 gpu_memory_used() const { return this->indexed_vertex_array.gpu_memory_used(); }
+    size_t                 total_memory_used() const { return this->cpu_memory_used() + this->gpu_memory_used(); }
 };
 
 typedef std::vector<GLVolume*> GLVolumePtrs;
@@ -553,7 +553,7 @@ private:
 
     struct Slope
     {
-        // toggle for slope rendering 
+        // toggle for slope rendering
         bool active{ false };
         float normal_z;
     };
@@ -568,11 +568,11 @@ public:
     ~GLVolumeCollection() { clear(); }
 
     std::vector<int> load_object(
-        const ModelObject 		*model_object,
+        const ModelObject         *model_object,
         int                      obj_idx,
-        const std::vector<int>	&instance_idxs,
-        const std::string 		&color_by,
-        bool 					 opengl_initialized);
+        const std::vector<int>    &instance_idxs,
+        const std::string         &color_by,
+        bool                      opengl_initialized);
 
     int load_object_volume(
         const ModelObject *model_object,
@@ -580,7 +580,7 @@ public:
         int                volume_idx,
         int                instance_idx,
         const std::string &color_by,
-        bool 			   opengl_initialized);
+        bool                opengl_initialized);
 
     // Load SLA auxiliary GLVolumes (for support trees or pad).
     void load_object_auxiliary(
@@ -591,7 +591,7 @@ public:
         SLAPrintObjectStep              milestone,
         // Timestamp of the last change of the milestone
         size_t                          timestamp,
-        bool 			   				opengl_initialized);
+        bool                                opengl_initialized);
 
     int load_wipe_tower_preview(
         int obj_idx, float pos_x, float pos_y, float width, float depth, float height, float rotation_angle, bool size_unknown, float brim_width, bool opengl_initialized);
@@ -639,10 +639,10 @@ public:
     std::vector<double> get_current_print_zs(bool active_only) const;
 
     // Return an estimate of the memory consumed by this class.
-    size_t 				cpu_memory_used() const;
+    size_t                 cpu_memory_used() const;
     // Return an estimate of the memory held by GPU vertex buffers.
-    size_t 				gpu_memory_used() const;
-    size_t 				total_memory_used() const { return this->cpu_memory_used() + this->gpu_memory_used(); }
+    size_t                 gpu_memory_used() const;
+    size_t                 total_memory_used() const { return this->cpu_memory_used() + this->gpu_memory_used(); }
     // Return CPU, GPU and total memory log line.
     std::string         log_memory_info() const;
 

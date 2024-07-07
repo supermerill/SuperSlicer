@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "point_simplex_squared_distance.h"
 #include "project_to_line_segment.h"
@@ -42,8 +42,8 @@ IGL_INLINE void igl::point_simplex_squared_distance(
     return a.dot(b);
   };
   // Real-time collision detection, Ericson, Chapter 5
-  const auto & ClosestBaryPtPointTriangle = 
-    [&Dot](const Point &p, const Point &a, const Point &b, const Point &c, BaryPoint& bary_out )->Point 
+  const auto & ClosestBaryPtPointTriangle =
+    [&Dot](const Point &p, const Point &a, const Point &b, const Point &c, BaryPoint& bary_out )->Point
   {
     // Check if P in vertex region outside A
     Vector ab = b - a;

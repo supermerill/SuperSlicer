@@ -199,16 +199,16 @@ void OptionsSearcher::append_options(DynamicPrintConfig* config, Preset::Type ty
         if ( (type == Preset::TYPE_SLA_MATERIAL || type == Preset::TYPE_FFF_FILAMENT || type == Preset::TYPE_PRINTER) && opt_key != "bed_shape")
             switch (config->option(opt_key)->type())
             {
-            case coInts:	change_opt_key<ConfigOptionInts		>(opt_key, config, cnt);	break;
-            case coBools:	change_opt_key<ConfigOptionBools	>(opt_key, config, cnt);	break;
-            case coFloats:	change_opt_key<ConfigOptionFloats	>(opt_key, config, cnt);	break;
-            case coStrings:	change_opt_key<ConfigOptionStrings	>(opt_key, config, cnt);	break;
-            case coPercents:change_opt_key<ConfigOptionPercents	>(opt_key, config, cnt);	break;
-            //case coFloatsOrPercents:change_opt_key<ConfigOptionFloatsOrPercents	>(opt_key, config, cnt);	break;
-            case coFloatsOrPercents:change_opt_keyFoP(opt_key, config, cnt);	break;
-            case coPoints:	change_opt_key<ConfigOptionPoints	>(opt_key, config, cnt);	break;
-            case coGraphs:	change_opt_key<ConfigOptionGraphs	>(opt_key, config, cnt);	break;
-            default:		break;
+            case coInts:    change_opt_key<ConfigOptionInts        >(opt_key, config, cnt);    break;
+            case coBools:    change_opt_key<ConfigOptionBools    >(opt_key, config, cnt);    break;
+            case coFloats:    change_opt_key<ConfigOptionFloats    >(opt_key, config, cnt);    break;
+            case coStrings:    change_opt_key<ConfigOptionStrings    >(opt_key, config, cnt);    break;
+            case coPercents:change_opt_key<ConfigOptionPercents    >(opt_key, config, cnt);    break;
+            //case coFloatsOrPercents:change_opt_key<ConfigOptionFloatsOrPercents    >(opt_key, config, cnt);    break;
+            case coFloatsOrPercents:change_opt_keyFoP(opt_key, config, cnt);    break;
+            case coPoints:    change_opt_key<ConfigOptionPoints    >(opt_key, config, cnt);    break;
+            case coGraphs:    change_opt_key<ConfigOptionGraphs    >(opt_key, config, cnt);    break;
+            default:        break;
             }
 
         //wxString label = opt.full_label.empty() ? opt.label : opt.full_label;
@@ -231,31 +231,31 @@ void OptionsSearcher::append_options(DynamicPrintConfig* config, Preset::Type ty
 // Mark a string using ColorMarkerStart and ColorMarkerEnd symbols
 static std::wstring mark_string(const std::wstring &str, const std::vector<uint16_t> &matches, Preset::Type type, PrinterTechnology pt)
 {
-	std::wstring out;
+    std::wstring out;
     out += marker_by_type(type, pt);
-	if (matches.empty())
-		out += str;
-	else {
-		out.reserve(str.size() * 2);
-		if (matches.front() > 0)
-			out += str.substr(0, matches.front());
-		for (size_t i = 0;;) {
-			// Find the longest string of successive indices.
-			size_t j = i + 1;
+    if (matches.empty())
+        out += str;
+    else {
+        out.reserve(str.size() * 2);
+        if (matches.front() > 0)
+            out += str.substr(0, matches.front());
+        for (size_t i = 0;;) {
+            // Find the longest string of successive indices.
+            size_t j = i + 1;
             while (j < matches.size() && matches[j] == matches[j - 1] + 1)
                 ++ j;
             out += ImGui::ColorMarkerStart;
             out += str.substr(matches[i], matches[j - 1] - matches[i] + 1);
             out += ImGui::ColorMarkerEnd;
             if (j == matches.size()) {
-				out += str.substr(matches[j - 1] + 1);
-				break;
-			}
+                out += str.substr(matches[j - 1] + 1);
+                break;
+            }
             out += str.substr(matches[j - 1] + 1, matches[j] - matches[j - 1] - 1);
             i = j;
-		}
-	}
-	return out;
+        }
+    }
+    return out;
 }
 
 bool OptionsSearcher::search()
@@ -268,13 +268,13 @@ static bool fuzzy_match(const std::wstring &search_pattern, const std::wstring &
     uint16_t matches[fts::max_matches + 1]; // +1 for the stopper
     int score;
     if (fts::fuzzy_match(search_pattern.c_str(), label.c_str(), score, matches)) {
-	    size_t cnt = 0;
-	    for (; matches[cnt] != fts::stopper; ++cnt);
-	    out_matches.assign(matches, matches + cnt);
-		out_score = score;
-		return true;
-	} else
-		return false;
+        size_t cnt = 0;
+        for (; matches[cnt] != fts::stopper; ++cnt);
+        out_matches.assign(matches, matches + cnt);
+        out_score = score;
+        return true;
+    } else
+        return false;
 }
 
 static bool strong_match(const std::wregex& search_pattern, const std::wstring& label, int& out_score, std::vector<uint16_t>& out_matches) {
@@ -420,7 +420,7 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
         int score2;
         matches.clear();
 
-        
+
         //search for label
         if (!fail_pattern) {
             if (view_params.exact)
@@ -467,7 +467,7 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
                     ? score + int( (90.-score) * std::min(1., find_in_tooltip / 300.))
                     : int(90. * std::min(1., find_in_tooltip / 300.));
             }
-		    label = mark_string(label, matches, opt.type, printer_technology);
+            label = mark_string(label, matches, opt.type, printer_technology);
             label += L"  [" + std::to_wstring(score) + L"]";// add score value
             if (view_params.all_mode && (opt.tags & current_tags) == 0) {
                 label += L" " + _L("tags") + L":{";
@@ -477,8 +477,8 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
                 }
                 label += L"}";
             }
-	        std::string label_u8 = into_u8(label);
-	        std::string label_plain = label_u8;
+            std::string label_u8 = into_u8(label);
+            std::string label_plain = label_u8;
 
 #ifdef SUPPORTS_MARKUP
             boost::replace_all(label_plain, std::string(1, char(ImGui::ColorMarkerStart)), "<b>");
@@ -487,13 +487,13 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
             boost::erase_all(label_plain, std::string(1, char(ImGui::ColorMarkerStart)));
             boost::erase_all(label_plain, std::string(1, char(ImGui::ColorMarkerEnd)));
 #endif
-	        found.emplace_back(FoundOption{ label_plain, label_u8, boost::nowide::narrow(get_tooltip(opt)), i, score });
+            found.emplace_back(FoundOption{ label_plain, label_u8, boost::nowide::narrow(get_tooltip(opt)), i, score });
         }
     }
 
     if (!full_list)
         sort_found();
- 
+
     if (search_line != search)
         search_line = search;
 
@@ -531,7 +531,7 @@ void OptionsSearcher::check_and_update(PrinterTechnology pt_in, ConfigOptionMode
         if (Preset::get_tech(opt.type))
             options.insert(options.end(), opt);
     }
-    
+
     sort_options();
 
     search(search_line, true);
@@ -627,7 +627,7 @@ Option OptionsSearcher::get_option_names(const std::string& opt_key, Preset::Typ
         return create_option(opt_key, idx, type, get_group_and_category(zero_opt_key, ConfigOptionMode::comNone));
     }
 
-    
+
     const GroupAndCategory& gc = get_group_and_category(key, ConfigOptionMode::comNone);
     if (gc.group.IsEmpty() || gc.category.IsEmpty())
         return *it;
@@ -816,7 +816,7 @@ void SearchDialog::ProcessSelection(wxDataViewItem selection)
     // then mainframe will not have focus and found option will not be "active" (have cursor) as a result
     // SearchDialog have to be closed and have to lose a focus
     // and only after that jump_to_option() function can be called
-    // So, post event to plater: 
+    // So, post event to plater:
     wxCommandEvent event(wxCUSTOMEVT_JUMP_TO_OPTION);
     event.SetInt(search_list_model->GetRow(selection));
     wxPostEvent(GUI::wxGetApp().plater(), event);
@@ -884,7 +884,7 @@ void SearchDialog::OnSelect(wxDataViewEvent& event)
 {
     // To avoid selection update from Select() under osx
     if (prevent_list_events)
-        return;    
+        return;
 
     // Under OSX mouse and key states didn't fill after wxEVT_DATAVIEW_SELECTION_CHANGED call
     // As a result, we can't to identify what kind of actions was done
@@ -893,7 +893,7 @@ void SearchDialog::OnSelect(wxDataViewEvent& event)
     // wxEVT_DATAVIEW_SELECTION_CHANGED is processed, when selection is changed after mouse click or press the Up/Down arrows
     // But this two cases should be processed in different way:
     // Up/Down arrows   -> leave it as it is (just a navigation)
-    // LeftMouseClick   -> call the ProcessSelection function  
+    // LeftMouseClick   -> call the ProcessSelection function
     if (wxGetMouseState().LeftIsDown())
 #endif //__APPLE__
         ProcessSelection(search_list->GetSelection());
@@ -902,7 +902,7 @@ void SearchDialog::OnSelect(wxDataViewEvent& event)
 void SearchDialog::update_list()
 {
     // Under OSX model->Clear invoke wxEVT_DATAVIEW_SELECTION_CHANGED, so
-    // set prevent_list_events to true already here 
+    // set prevent_list_events to true already here
     prevent_list_events = true;
     search_list_model->Clear();
 
@@ -993,7 +993,7 @@ SearchListModel::SearchListModel(wxWindow* parent) : wxDataViewVirtualListModel(
 {
     int icon_id = 0;
     for (const std::string icon : { "cog", "printer", "sla_printer", "spool", "resin" })
-        m_icon[icon_id++] = ScalableBitmap(parent, icon);    
+        m_icon[icon_id++] = ScalableBitmap(parent, icon);
 }
 
 void SearchListModel::Clear()
@@ -1007,7 +1007,7 @@ void SearchListModel::Prepend(const std::string& label)
     const char icon_c = label.at(0);
     wxString   str    = from_u8(label).Remove(0, 1);
 
-    int        icon_idx = 0; 
+    int        icon_idx = 0;
     if(auto it = icon_idxs.find(icon_c); it != icon_idxs.end())
         icon_idx = it->second;
     m_values.emplace_back(str, icon_idx);
@@ -1021,7 +1021,7 @@ void SearchListModel::msw_rescale()
         bmp.msw_rescale();
 }
 
-wxString SearchListModel::GetColumnType(unsigned int col) const 
+wxString SearchListModel::GetColumnType(unsigned int col) const
 {
     if (col == colIcon)
         return "wxBitmap";
@@ -1033,7 +1033,7 @@ void SearchListModel::GetValueByRow(wxVariant& variant,
 {
     switch (col)
     {
-    case colIcon: 
+    case colIcon:
         variant << m_icon[m_values[row].second].bmp();
         break;
     case colMarkedText:

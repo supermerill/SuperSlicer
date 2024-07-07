@@ -55,7 +55,7 @@ typedef void (*RTCIntersectFunc16)(const void* valid, /*!< pointer to valid mask
                                    size_t item        /*!< item to intersect */);
 
 /*! Type of occlusion function pointer for single rays. */
-typedef void (*RTCOccludedFunc) (void* ptr,           /*!< pointer to user data */ 
+typedef void (*RTCOccludedFunc) (void* ptr,           /*!< pointer to user data */
                                  RTCRay& ray,         /*!< ray to test occlusion */
                                  size_t item          /*!< item to test for occlusion */);
 

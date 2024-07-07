@@ -1386,13 +1386,13 @@ template<> struct random_impl<bool>
 template<> struct scalar_fuzzy_impl<bool>
 {
   typedef bool RealScalar;
-  
+
   template<typename OtherScalar> EIGEN_DEVICE_FUNC
   static inline bool isMuchSmallerThan(const bool& x, const bool&, const bool&)
   {
     return !x;
   }
-  
+
   EIGEN_DEVICE_FUNC
   static inline bool isApprox(bool x, bool y, bool)
   {
@@ -1404,10 +1404,10 @@ template<> struct scalar_fuzzy_impl<bool>
   {
     return (!x) || y;
   }
-  
+
 };
 
-  
+
 } // end namespace internal
 
 } // end namespace Eigen

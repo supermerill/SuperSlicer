@@ -1,4 +1,4 @@
-tr th .added { color: #E6E6FA; } 
+tr th .added { color: #E6E6FA; }
 tr th .changed {color: #99ff99; }
 div.added tr, div.added    { background-color: #E6E6FA; }
 div.deleted tr, div.deleted  { text-decoration: line-through;
@@ -43,7 +43,7 @@ h2 { font: normal 12pt Arial, Helvetica, geneva; }
 
 
 #header h1 {
-	margin-top: 2px;
+    margin-top: 2px;
 }
 
 
@@ -106,7 +106,7 @@ p.breadcrumbs {
 #content {
     position: relative;
     top: 90px;  /*left: 240px;*/
-    right: auto;   bottom: 20px;  
+    right: auto;   bottom: 20px;
     /*margin: 0px 0px 0px 280px;*/
     width: auto;
     height: inherit;
@@ -116,7 +116,7 @@ p.breadcrumbs {
     overflow :scroll;
     overflow-x:auto;
     z-index: 1000;
- 
+
 }
 
 #navheader {
@@ -128,8 +128,8 @@ p.breadcrumbs {
     text-align: right;
 }
 
-#content h1, #content h2 { 
-color: #404040 !important; 
+#content h1, #content h2 {
+color: #404040 !important;
 font-size: 170%;
 font-weight: normal;
 }
@@ -174,84 +174,84 @@ font-weight: normal;
 }
 .searchFieldSet {}
 
-.title, div.toc>p{ font-weight: bold; }	
+.title, div.toc>p{ font-weight: bold; }
 
 p.breadcrumbs {
         display: inline;
-	margin-bottom: 0px;
-	margin-top: 33px;
+    margin-bottom: 0px;
+    margin-top: 33px;
 }
 
 p.breadcrumbs a {
-	padding-right: 12px;
-	margin-right: 5px;
-	text-decoration: none;
-	color: #575757;
-	text-transform: uppercase;
-	font-size: 10px;
+    padding-right: 12px;
+    margin-right: 5px;
+    text-decoration: none;
+    color: #575757;
+    text-transform: uppercase;
+    font-size: 10px;
 }
 
 p.breadcrumbs a:first-child {background: url(../images/breadcrumb-arrow-white.png) no-repeat right center;}
 
 p.breadcrumbs a:hover {text-decoration: underline;}
 
-#star ul.star { 
-    LIST-STYLE: none; 
-    MARGIN: 0; 
-    PADDING: 0; 
-    WIDTH: 85px;
-    /* was 100 */ 
-    HEIGHT: 20px;
-    LEFT: 1px; 
-    TOP: -5px; 
-    POSITION: relative; 
-    FLOAT: right; 
-    BACKGROUND: url('../images/starsSmall.png') repeat-x 0 -25px;
-}
-#star li { 
-    PADDING: 0; 
-    MARGIN: 0; 
-    FLOAT: right; 
-    DISPLAY: block; 
+#star ul.star {
+    LIST-STYLE: none;
+    MARGIN: 0;
+    PADDING: 0;
     WIDTH: 85px;
     /* was 100 */
-    HEIGHT: 20px; 
-    TEXT-DECORATION: none; 
-    text-indent: -9000px; 
-    Z-INDEX: 20; 
-    POSITION: absolute; 
-    PADDING: 0; 
+    HEIGHT: 20px;
+    LEFT: 1px;
+    TOP: -5px;
+    POSITION: relative;
+    FLOAT: right;
+    BACKGROUND: url('../images/starsSmall.png') repeat-x 0 -25px;
 }
-#star li.curr { 
-    BACKGROUND: url('../images/starsSmall.png') left 25px; 
-    FONT-SIZE: 1px; 
+#star li {
+    PADDING: 0;
+    MARGIN: 0;
+    FLOAT: right;
+    DISPLAY: block;
+    WIDTH: 85px;
+    /* was 100 */
+    HEIGHT: 20px;
+    TEXT-DECORATION: none;
+    text-indent: -9000px;
+    Z-INDEX: 20;
+    POSITION: absolute;
+    PADDING: 0;
+}
+#star li.curr {
+    BACKGROUND: url('../images/starsSmall.png') left 25px;
+    FONT-SIZE: 1px;
 }
 
 table.navLinks {margin-right: 20px;}
 
 table.navLinks td a {
-	text-decoration: none;
-	text-transform: uppercase;
-	color: black;
-	font-size: 11px;
+    text-decoration: none;
+    text-transform: uppercase;
+    color: black;
+    font-size: 11px;
 }
 
 a.navLinkPrevious {
-	padding-left: 12px;
-	background: url(../images/previous-arrow.png) no-repeat left center;
+    padding-left: 12px;
+    background: url(../images/previous-arrow.png) no-repeat left center;
 }
 
 a.navLinkNext {
-	padding-right: 12px;
-	background: url(../images/next-arrow.png) no-repeat right center;
+    padding-right: 12px;
+    background: url(../images/next-arrow.png) no-repeat right center;
 }
 
 a#showHideButton {
-	padding-left: 20px;
-	background: url(../images/sidebar.png) no-repeat left center;
+    padding-left: 20px;
+    background: url(../images/sidebar.png) no-repeat left center;
 }
 
-	
+
 .filetree li span a { color: #777; }
 
 #treediv { -webkit-box-shadow: #CCC 0px 1px 2px 0px inset; }
@@ -266,13 +266,13 @@ a#showHideButton {
 
 .writeronly {color : red;}
 
-.remark, .remark .added, .remark .changed, .remark .deleted{ background: yellow;} 
+.remark, .remark .added, .remark .changed, .remark .deleted{ background: yellow;}
 
 tr th, tr th .internal, tr th .added, tr th .changed {
-	background: #00589E;
-	color: white;
-	font-weight: bold;
-	text-align: left;
+    background: #00589E;
+    color: white;
+    font-weight: bold;
+    text-align: left;
 }
 
 .statustext{
@@ -292,32 +292,32 @@ tr th, tr th .internal, tr th .added, tr th .changed {
 }
 
 #toolbar {
-	width: 100%;
-	height: 33px;
-	position: fixed;
-	top: 93px;
-	z-index: 99;
-	left: 280px;
-	color: #333;
-	line-height: 28px;
-	padding-left: 10px;
+    width: 100%;
+    height: 33px;
+    position: fixed;
+    top: 93px;
+    z-index: 99;
+    left: 280px;
+    color: #333;
+    line-height: 28px;
+    padding-left: 10px;
 }
 
 #toolbar-left {
-	position: relative;
-	left: 0px;
+    position: relative;
+    left: 0px;
 }
- 
+
 body p.breadcrumbs {
-	margin: 0px;
-	padding: 0px;
-	line-height: 28px;
+    margin: 0px;
+    padding: 0px;
+    line-height: 28px;
 }
 
 /*body #content {
-	position: static;
-	margin-top: 126px;
-	top: 0px;
+    position: static;
+    margin-top: 126px;
+    top: 0px;
 }*/
 
 body.sidebar #toolbar{left: 0px;}
@@ -329,7 +329,7 @@ div#toolbar-left img {vertical-align: text-top;}
 div.note *, div.caution *, div.important *, div.tip *, div.warning * {
     background: inherit !important;
     color: inherit !important;
-    border: inherit  /*!important*/;    
+    border: inherit  /*!important*/;
 }
 
 #content table thead, #content table th, #content table th p{
@@ -351,8 +351,8 @@ div.note *, div.caution *, div.important *, div.tip *, div.warning * {
     border: 0px solid;
 }
 
-#sidebar 
-{ 
+#sidebar
+{
     position: fixed;
     margin: 0px;
     left: 0px;
@@ -381,7 +381,7 @@ div.note *, div.caution *, div.important *, div.tip *, div.warning * {
    }
 
    #content {
-	margin: 0 0 0 0;
+    margin: 0 0 0 0;
     }
 
 }
@@ -392,11 +392,11 @@ div.note *, div.caution *, div.important *, div.tip *, div.warning * {
     padding-bottom: 1em;
 }
 
-#expanders dt {        
+#expanders dt {
     padding-bottom: 4px;
     border-bottom: 2px solid #cccccc;
     margin-top: 1em;
-    margin-bottom: 1em;  
+    margin-bottom: 1em;
     background: url(../images/plus.png) 0px 7px no-repeat;
     /*background: pink;*/
     cursor: pointer;
@@ -419,23 +419,23 @@ div.note *, div.caution *, div.important *, div.tip *, div.warning * {
 }
 
 
-#expanders dd {    
+#expanders dd {
     display: none;
     margin-bottom: 3em;
     /*background: yellow;*/
 }
 
 #expanders .hitarea {
-	background: url(../images/ui-icons_217bc0_256x240.png) 0 -208px no-repeat;
-	height: 16px;
-	width: 16px;	
-	float: left;
-	cursor: pointer;
+    background: url(../images/ui-icons_217bc0_256x240.png) 0 -208px no-repeat;
+    height: 16px;
+    width: 16px;
+    float: left;
+    cursor: pointer;
 }
 /* fix for IE6 */
 /** html .hitarea {
-	display: inline;
-	float:none;
+    display: inline;
+    float:none;
 }*/
 
 
@@ -489,5 +489,5 @@ div.note *, div.caution *, div.important *, div.tip *, div.warning * {
 
 a.external {
     background: url("../images/external_link.gif") no-repeat scroll right top transparent;
-    padding:    0 13px 0 0;   
+    padding:    0 13px 0 0;
 }

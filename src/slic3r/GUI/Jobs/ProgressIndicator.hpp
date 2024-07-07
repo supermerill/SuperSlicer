@@ -11,12 +11,12 @@ namespace Slic3r {
  */
 class ProgressIndicator {
 public:
-    
+
     /// Cancel callback function type
     using CancelFn = std::function<void()>;
-    
+
     virtual ~ProgressIndicator() = default;
-    
+
     virtual void set_range(int range) = 0;
     virtual void set_cancel_callback(CancelFn = CancelFn()) = 0;
     virtual void set_progress(int pr) = 0;

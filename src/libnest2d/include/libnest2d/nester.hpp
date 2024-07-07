@@ -67,7 +67,7 @@ class _Item {
         Box bb; bool valid;
         BBCache(): valid(false) {}
     } bb_cache_;
-    
+
     int binid_{BIN_ID_UNSET}, priority_{0};
     bool fixed_{false};
 
@@ -127,7 +127,7 @@ public:
     inline _Item(TContour<RawShape>&& contour,
                  THolesContainer<RawShape>&& holes):
         sh_(sl::create<RawShape>(std::move(contour), std::move(holes))) {}
-    
+
     inline bool isFixed() const noexcept { return fixed_; }
     inline void markAsFixedInBin(int binid)
     {
@@ -137,7 +137,7 @@ public:
 
     inline void binId(int idx) { binid_ = idx; }
     inline int binId() const noexcept { return binid_; }
-    
+
     inline void priority(int p) { priority_ = p; }
     inline int priority() const noexcept { return priority_; }
 
@@ -288,18 +288,18 @@ public:
     {
         rotation(rotation() + rads);
     }
-    
+
     inline void inflation(Coord distance) BP2D_NOEXCEPT
     {
         inflation_ = distance;
         has_inflation_ = true;
         invalidateCache();
     }
-    
+
     inline Coord inflation() const BP2D_NOEXCEPT {
         return inflation_;
     }
-    
+
     inline void inflate(Coord distance) BP2D_NOEXCEPT
     {
         inflation(inflation() + distance);
@@ -744,7 +744,7 @@ template<class PlacementStrategy, class SelectionStrategy >
 class _Nester {
     using TSel = SelectionStrategyLike<SelectionStrategy>;
     TSel selector_;
-    
+
 public:
     using Item = typename PlacementStrategy::Item;
     using ShapeType = typename Item::ShapeType;
@@ -769,7 +769,7 @@ private:
     StopCondition stopfn_;
 
     template<class It> using TVal = remove_ref_t<typename It::value_type>;
-    
+
     template<class It, class Out>
     using ItemIteratorOnly =
         enable_if_t<std::is_convertible<TVal<It>&, TPItem&>::value, Out>;
@@ -827,14 +827,14 @@ public:
         if(infl > 0) std::for_each(from, to, [infl](Item& item) {
             item.inflate(infl);
         });
-        
+
         selector_.template packItems<PlacementStrategy>(
             from, to, bin_, pconfig_);
-        
+
         if(min_obj_distance_ > 0) std::for_each(from, to, [infl](Item& item) {
             item.inflate(-infl);
         });
-        
+
         return selector_.getResult().size();
     }
 

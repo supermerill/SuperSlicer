@@ -1016,7 +1016,7 @@ qhull(1)                                                 qhull(1)
        Q11    With 'Q11', Qhull copies normals and recomputes
               centrums for tricoplanar facets.
 
-       Q12    With 'Q12', Qhull does not report a very wide merge due 
+       Q12    With 'Q12', Qhull does not report a very wide merge due
               to a duplicated ridge with nearly coincident vertices
 
        Trace options

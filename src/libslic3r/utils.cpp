@@ -12,17 +12,17 @@
 #include "libslic3r.h"
 
 #ifdef WIN32
-	#include <windows.h>
-	#include <psapi.h>
+    #include <windows.h>
+    #include <psapi.h>
 #else
-	#include <unistd.h>
-	#include <sys/types.h>
-	#include <sys/param.h>
+    #include <unistd.h>
+    #include <sys/types.h>
+    #include <sys/param.h>
     #include <sys/resource.h>
-	#ifdef BSD
-		#include <sys/sysctl.h>
-	#endif
-	#ifdef __APPLE__
+    #ifdef BSD
+        #include <sys/sysctl.h>
+    #endif
+    #ifdef __APPLE__
         #include <mach/mach.h>
 // for _NSGetExecutablePath
         #include <mach-o/dyld.h>
@@ -69,18 +69,18 @@
 #include <strings.h>
 #endif /* __linux__ */
 
-#ifdef _MSC_VER 
+#ifdef _MSC_VER
     #define strcasecmp _stricmp
 #endif
 
 #include <cstdlib>   // getenv()
 #ifdef WIN32
-	// The standard Windows includes.
+    // The standard Windows includes.
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <shellapi.h>
 #else
-	// POSIX
+    // POSIX
 #include <sstream>
 #include <boost/process.hpp>
 #include <unistd.h>     //readlink
@@ -135,14 +135,14 @@ unsigned get_logging_level()
 // This is currently only needed if libslic3r is loaded as a shared library into Perl interpreter
 // to perform unit and integration tests.
 static struct RunOnInit {
-    RunOnInit() { 
+    RunOnInit() {
         set_logging_level(1);
     }
 } g_RunOnInit;
 
 void trace(unsigned int level, const std::string& message)
 {
-	trace(level, message.c_str());
+    trace(level, message.c_str());
 }
 void trace(unsigned int level, const char *message)
 {
@@ -202,7 +202,7 @@ void set_local_dir(const std::string &dir)
 
 const std::string& localization_dir()
 {
-	return g_local_dir;
+    return g_local_dir;
 }
 
 static std::string g_sys_shapes_dir;
@@ -214,7 +214,7 @@ void set_sys_shapes_dir(const std::string &dir)
 
 const std::string& sys_shapes_dir()
 {
-	return g_sys_shapes_dir;
+    return g_sys_shapes_dir;
 }
 
 // Translate function callback, to call wxWidgets translate function to convert non-localized UTF8 string to a localized one.
@@ -224,9 +224,9 @@ static std::string g_data_dir;
 
 void set_data_dir(const std::string &dir)
 {
-	// make sure the path is well formed for the os.
-	boost::filesystem::path fixpath(dir);
-	g_data_dir = fixpath.make_preferred().string();
+    // make sure the path is well formed for the os.
+    boost::filesystem::path fixpath(dir);
+    g_data_dir = fixpath.make_preferred().string();
 }
 
 const std::string& data_dir()
@@ -243,273 +243,273 @@ static std::atomic<bool> debug_out_path_called(false);
 
 std::string debug_out_path(const char *name, ...)
 {
-	static constexpr const char *SLIC3R_DEBUG_OUT_PATH_PREFIX = "out/";
+    static constexpr const char *SLIC3R_DEBUG_OUT_PATH_PREFIX = "out/";
     if (! debug_out_path_called.exchange(true)) {
-		std::string path = boost::filesystem::system_complete(SLIC3R_DEBUG_OUT_PATH_PREFIX).string();
+        std::string path = boost::filesystem::system_complete(SLIC3R_DEBUG_OUT_PATH_PREFIX).string();
         printf("Debugging output files will be written to %s\n", path.c_str());
     }
-	char buffer[2048];
-	va_list args;
-	va_start(args, name);
-	std::vsprintf(buffer, name, args);
-	va_end(args);
-	return std::string(SLIC3R_DEBUG_OUT_PATH_PREFIX) + std::string(buffer);
+    char buffer[2048];
+    va_list args;
+    va_start(args, name);
+    std::vsprintf(buffer, name, args);
+    va_end(args);
+    return std::string(SLIC3R_DEBUG_OUT_PATH_PREFIX) + std::string(buffer);
 }
 
 #ifdef _WIN32
 // The following helpers are borrowed from the LLVM project https://github.com/llvm
 namespace WindowsSupport
 {
-	template <typename HandleTraits>
-	class ScopedHandle {
-		typedef typename HandleTraits::handle_type handle_type;
-		handle_type Handle;
-		ScopedHandle(const ScopedHandle &other) = delete;
-		void operator=(const ScopedHandle &other) = delete;
-	public:
-		ScopedHandle() : Handle(HandleTraits::GetInvalid()) {}
-	  	explicit ScopedHandle(handle_type h) : Handle(h) {}
-	  	~ScopedHandle() { if (HandleTraits::IsValid(Handle)) HandleTraits::Close(Handle); }
-	  	handle_type take() {
-	    	handle_type t = Handle;
-	    	Handle = HandleTraits::GetInvalid();
-	    	return t;
-	  	}
-	  	ScopedHandle &operator=(handle_type h) {
-	    	if (HandleTraits::IsValid(Handle))
-	      		HandleTraits::Close(Handle);
-	    	Handle = h;
-	    	return *this;
-	  	}
-	  	// True if Handle is valid.
-	  	explicit operator bool() const { return HandleTraits::IsValid(Handle) ? true : false; }
-	  	operator handle_type() const { return Handle; }
-	};
+    template <typename HandleTraits>
+    class ScopedHandle {
+        typedef typename HandleTraits::handle_type handle_type;
+        handle_type Handle;
+        ScopedHandle(const ScopedHandle &other) = delete;
+        void operator=(const ScopedHandle &other) = delete;
+    public:
+        ScopedHandle() : Handle(HandleTraits::GetInvalid()) {}
+          explicit ScopedHandle(handle_type h) : Handle(h) {}
+          ~ScopedHandle() { if (HandleTraits::IsValid(Handle)) HandleTraits::Close(Handle); }
+          handle_type take() {
+            handle_type t = Handle;
+            Handle = HandleTraits::GetInvalid();
+            return t;
+          }
+          ScopedHandle &operator=(handle_type h) {
+            if (HandleTraits::IsValid(Handle))
+                  HandleTraits::Close(Handle);
+            Handle = h;
+            return *this;
+          }
+          // True if Handle is valid.
+          explicit operator bool() const { return HandleTraits::IsValid(Handle) ? true : false; }
+          operator handle_type() const { return Handle; }
+    };
 
-	struct CommonHandleTraits {
-	  	typedef HANDLE handle_type;
-	  	static handle_type GetInvalid() { return INVALID_HANDLE_VALUE; }
-	  	static void Close(handle_type h) { ::CloseHandle(h); }
-	  	static bool IsValid(handle_type h) { return h != GetInvalid(); }
-	};
+    struct CommonHandleTraits {
+          typedef HANDLE handle_type;
+          static handle_type GetInvalid() { return INVALID_HANDLE_VALUE; }
+          static void Close(handle_type h) { ::CloseHandle(h); }
+          static bool IsValid(handle_type h) { return h != GetInvalid(); }
+    };
 
-	typedef ScopedHandle<CommonHandleTraits> ScopedFileHandle;
+    typedef ScopedHandle<CommonHandleTraits> ScopedFileHandle;
 
-	std::error_code map_windows_error(unsigned windows_error_code)
-	{
-		#define MAP_ERR_TO_COND(x, y) case x: return std::make_error_code(std::errc::y)
-		switch (windows_error_code) {
-			MAP_ERR_TO_COND(ERROR_ACCESS_DENIED, permission_denied);
-			MAP_ERR_TO_COND(ERROR_ALREADY_EXISTS, file_exists);
-			MAP_ERR_TO_COND(ERROR_BAD_UNIT, no_such_device);
-			MAP_ERR_TO_COND(ERROR_BUFFER_OVERFLOW, filename_too_long);
-			MAP_ERR_TO_COND(ERROR_BUSY, device_or_resource_busy);
-			MAP_ERR_TO_COND(ERROR_BUSY_DRIVE, device_or_resource_busy);
-			MAP_ERR_TO_COND(ERROR_CANNOT_MAKE, permission_denied);
-			MAP_ERR_TO_COND(ERROR_CANTOPEN, io_error);
-			MAP_ERR_TO_COND(ERROR_CANTREAD, io_error);
-			MAP_ERR_TO_COND(ERROR_CANTWRITE, io_error);
-			MAP_ERR_TO_COND(ERROR_CURRENT_DIRECTORY, permission_denied);
-			MAP_ERR_TO_COND(ERROR_DEV_NOT_EXIST, no_such_device);
-			MAP_ERR_TO_COND(ERROR_DEVICE_IN_USE, device_or_resource_busy);
-			MAP_ERR_TO_COND(ERROR_DIR_NOT_EMPTY, directory_not_empty);
-			MAP_ERR_TO_COND(ERROR_DIRECTORY, invalid_argument);
-			MAP_ERR_TO_COND(ERROR_DISK_FULL, no_space_on_device);
-			MAP_ERR_TO_COND(ERROR_FILE_EXISTS, file_exists);
-			MAP_ERR_TO_COND(ERROR_FILE_NOT_FOUND, no_such_file_or_directory);
-			MAP_ERR_TO_COND(ERROR_HANDLE_DISK_FULL, no_space_on_device);
-			MAP_ERR_TO_COND(ERROR_INVALID_ACCESS, permission_denied);
-			MAP_ERR_TO_COND(ERROR_INVALID_DRIVE, no_such_device);
-			MAP_ERR_TO_COND(ERROR_INVALID_FUNCTION, function_not_supported);
-			MAP_ERR_TO_COND(ERROR_INVALID_HANDLE, invalid_argument);
-			MAP_ERR_TO_COND(ERROR_INVALID_NAME, invalid_argument);
-			MAP_ERR_TO_COND(ERROR_LOCK_VIOLATION, no_lock_available);
-			MAP_ERR_TO_COND(ERROR_LOCKED, no_lock_available);
-			MAP_ERR_TO_COND(ERROR_NEGATIVE_SEEK, invalid_argument);
-			MAP_ERR_TO_COND(ERROR_NOACCESS, permission_denied);
-			MAP_ERR_TO_COND(ERROR_NOT_ENOUGH_MEMORY, not_enough_memory);
-			MAP_ERR_TO_COND(ERROR_NOT_READY, resource_unavailable_try_again);
-			MAP_ERR_TO_COND(ERROR_OPEN_FAILED, io_error);
-			MAP_ERR_TO_COND(ERROR_OPEN_FILES, device_or_resource_busy);
-			MAP_ERR_TO_COND(ERROR_OUTOFMEMORY, not_enough_memory);
-			MAP_ERR_TO_COND(ERROR_PATH_NOT_FOUND, no_such_file_or_directory);
-			MAP_ERR_TO_COND(ERROR_BAD_NETPATH, no_such_file_or_directory);
-			MAP_ERR_TO_COND(ERROR_READ_FAULT, io_error);
-			MAP_ERR_TO_COND(ERROR_RETRY, resource_unavailable_try_again);
-			MAP_ERR_TO_COND(ERROR_SEEK, io_error);
-			MAP_ERR_TO_COND(ERROR_SHARING_VIOLATION, permission_denied);
-			MAP_ERR_TO_COND(ERROR_TOO_MANY_OPEN_FILES, too_many_files_open);
-			MAP_ERR_TO_COND(ERROR_WRITE_FAULT, io_error);
-			MAP_ERR_TO_COND(ERROR_WRITE_PROTECT, permission_denied);
-			MAP_ERR_TO_COND(WSAEACCES, permission_denied);
-			MAP_ERR_TO_COND(WSAEBADF, bad_file_descriptor);
-			MAP_ERR_TO_COND(WSAEFAULT, bad_address);
-			MAP_ERR_TO_COND(WSAEINTR, interrupted);
-			MAP_ERR_TO_COND(WSAEINVAL, invalid_argument);
-			MAP_ERR_TO_COND(WSAEMFILE, too_many_files_open);
-			MAP_ERR_TO_COND(WSAENAMETOOLONG, filename_too_long);
-		default:
-			return std::error_code(windows_error_code, std::system_category());
-		}
-		#undef MAP_ERR_TO_COND
-	}
+    std::error_code map_windows_error(unsigned windows_error_code)
+    {
+        #define MAP_ERR_TO_COND(x, y) case x: return std::make_error_code(std::errc::y)
+        switch (windows_error_code) {
+            MAP_ERR_TO_COND(ERROR_ACCESS_DENIED, permission_denied);
+            MAP_ERR_TO_COND(ERROR_ALREADY_EXISTS, file_exists);
+            MAP_ERR_TO_COND(ERROR_BAD_UNIT, no_such_device);
+            MAP_ERR_TO_COND(ERROR_BUFFER_OVERFLOW, filename_too_long);
+            MAP_ERR_TO_COND(ERROR_BUSY, device_or_resource_busy);
+            MAP_ERR_TO_COND(ERROR_BUSY_DRIVE, device_or_resource_busy);
+            MAP_ERR_TO_COND(ERROR_CANNOT_MAKE, permission_denied);
+            MAP_ERR_TO_COND(ERROR_CANTOPEN, io_error);
+            MAP_ERR_TO_COND(ERROR_CANTREAD, io_error);
+            MAP_ERR_TO_COND(ERROR_CANTWRITE, io_error);
+            MAP_ERR_TO_COND(ERROR_CURRENT_DIRECTORY, permission_denied);
+            MAP_ERR_TO_COND(ERROR_DEV_NOT_EXIST, no_such_device);
+            MAP_ERR_TO_COND(ERROR_DEVICE_IN_USE, device_or_resource_busy);
+            MAP_ERR_TO_COND(ERROR_DIR_NOT_EMPTY, directory_not_empty);
+            MAP_ERR_TO_COND(ERROR_DIRECTORY, invalid_argument);
+            MAP_ERR_TO_COND(ERROR_DISK_FULL, no_space_on_device);
+            MAP_ERR_TO_COND(ERROR_FILE_EXISTS, file_exists);
+            MAP_ERR_TO_COND(ERROR_FILE_NOT_FOUND, no_such_file_or_directory);
+            MAP_ERR_TO_COND(ERROR_HANDLE_DISK_FULL, no_space_on_device);
+            MAP_ERR_TO_COND(ERROR_INVALID_ACCESS, permission_denied);
+            MAP_ERR_TO_COND(ERROR_INVALID_DRIVE, no_such_device);
+            MAP_ERR_TO_COND(ERROR_INVALID_FUNCTION, function_not_supported);
+            MAP_ERR_TO_COND(ERROR_INVALID_HANDLE, invalid_argument);
+            MAP_ERR_TO_COND(ERROR_INVALID_NAME, invalid_argument);
+            MAP_ERR_TO_COND(ERROR_LOCK_VIOLATION, no_lock_available);
+            MAP_ERR_TO_COND(ERROR_LOCKED, no_lock_available);
+            MAP_ERR_TO_COND(ERROR_NEGATIVE_SEEK, invalid_argument);
+            MAP_ERR_TO_COND(ERROR_NOACCESS, permission_denied);
+            MAP_ERR_TO_COND(ERROR_NOT_ENOUGH_MEMORY, not_enough_memory);
+            MAP_ERR_TO_COND(ERROR_NOT_READY, resource_unavailable_try_again);
+            MAP_ERR_TO_COND(ERROR_OPEN_FAILED, io_error);
+            MAP_ERR_TO_COND(ERROR_OPEN_FILES, device_or_resource_busy);
+            MAP_ERR_TO_COND(ERROR_OUTOFMEMORY, not_enough_memory);
+            MAP_ERR_TO_COND(ERROR_PATH_NOT_FOUND, no_such_file_or_directory);
+            MAP_ERR_TO_COND(ERROR_BAD_NETPATH, no_such_file_or_directory);
+            MAP_ERR_TO_COND(ERROR_READ_FAULT, io_error);
+            MAP_ERR_TO_COND(ERROR_RETRY, resource_unavailable_try_again);
+            MAP_ERR_TO_COND(ERROR_SEEK, io_error);
+            MAP_ERR_TO_COND(ERROR_SHARING_VIOLATION, permission_denied);
+            MAP_ERR_TO_COND(ERROR_TOO_MANY_OPEN_FILES, too_many_files_open);
+            MAP_ERR_TO_COND(ERROR_WRITE_FAULT, io_error);
+            MAP_ERR_TO_COND(ERROR_WRITE_PROTECT, permission_denied);
+            MAP_ERR_TO_COND(WSAEACCES, permission_denied);
+            MAP_ERR_TO_COND(WSAEBADF, bad_file_descriptor);
+            MAP_ERR_TO_COND(WSAEFAULT, bad_address);
+            MAP_ERR_TO_COND(WSAEINTR, interrupted);
+            MAP_ERR_TO_COND(WSAEINVAL, invalid_argument);
+            MAP_ERR_TO_COND(WSAEMFILE, too_many_files_open);
+            MAP_ERR_TO_COND(WSAENAMETOOLONG, filename_too_long);
+        default:
+            return std::error_code(windows_error_code, std::system_category());
+        }
+        #undef MAP_ERR_TO_COND
+    }
 
-	static std::error_code rename_internal(HANDLE from_handle, const std::wstring &wide_to, bool replace_if_exists)
-	{
-		std::vector<char> rename_info_buf(sizeof(FILE_RENAME_INFO) - sizeof(wchar_t) + (wide_to.size() * sizeof(wchar_t)));
-		FILE_RENAME_INFO &rename_info = *reinterpret_cast<FILE_RENAME_INFO*>(rename_info_buf.data());
-		rename_info.ReplaceIfExists = replace_if_exists;
-		rename_info.RootDirectory = 0;
-		rename_info.FileNameLength = DWORD(wide_to.size() * sizeof(wchar_t));
-		std::copy(wide_to.begin(), wide_to.end(), &rename_info.FileName[0]);
+    static std::error_code rename_internal(HANDLE from_handle, const std::wstring &wide_to, bool replace_if_exists)
+    {
+        std::vector<char> rename_info_buf(sizeof(FILE_RENAME_INFO) - sizeof(wchar_t) + (wide_to.size() * sizeof(wchar_t)));
+        FILE_RENAME_INFO &rename_info = *reinterpret_cast<FILE_RENAME_INFO*>(rename_info_buf.data());
+        rename_info.ReplaceIfExists = replace_if_exists;
+        rename_info.RootDirectory = 0;
+        rename_info.FileNameLength = DWORD(wide_to.size() * sizeof(wchar_t));
+        std::copy(wide_to.begin(), wide_to.end(), &rename_info.FileName[0]);
 
-		::SetLastError(ERROR_SUCCESS);
-		if (! ::SetFileInformationByHandle(from_handle, FileRenameInfo, &rename_info, (DWORD)rename_info_buf.size())) {
-			unsigned Error = GetLastError();
-			if (Error == ERROR_SUCCESS)
-		  		Error = ERROR_CALL_NOT_IMPLEMENTED; // Wine doesn't always set error code.
-			return map_windows_error(Error);
-		}
+        ::SetLastError(ERROR_SUCCESS);
+        if (! ::SetFileInformationByHandle(from_handle, FileRenameInfo, &rename_info, (DWORD)rename_info_buf.size())) {
+            unsigned Error = GetLastError();
+            if (Error == ERROR_SUCCESS)
+                  Error = ERROR_CALL_NOT_IMPLEMENTED; // Wine doesn't always set error code.
+            return map_windows_error(Error);
+        }
 
-		return std::error_code();
-	}
+        return std::error_code();
+    }
 
-	static std::error_code real_path_from_handle(HANDLE H, std::wstring &buffer)
-	{
-		buffer.resize(MAX_PATH + 1);
-		DWORD CountChars = ::GetFinalPathNameByHandleW(H, (LPWSTR)buffer.data(), (DWORD)buffer.size() - 1, FILE_NAME_NORMALIZED);
-	  	if (CountChars > buffer.size()) {
-	    	// The buffer wasn't big enough, try again.  In this case the return value *does* indicate the size of the null terminator.
-	    	buffer.resize((size_t)CountChars);
-	    	CountChars = ::GetFinalPathNameByHandleW(H, (LPWSTR)buffer.data(), (DWORD)buffer.size() - 1, FILE_NAME_NORMALIZED);
-	  	}
-	  	if (CountChars == 0)
-	    	return map_windows_error(GetLastError());
-	  	buffer.resize(CountChars);
-	  	return std::error_code();
-	}
+    static std::error_code real_path_from_handle(HANDLE H, std::wstring &buffer)
+    {
+        buffer.resize(MAX_PATH + 1);
+        DWORD CountChars = ::GetFinalPathNameByHandleW(H, (LPWSTR)buffer.data(), (DWORD)buffer.size() - 1, FILE_NAME_NORMALIZED);
+          if (CountChars > buffer.size()) {
+            // The buffer wasn't big enough, try again.  In this case the return value *does* indicate the size of the null terminator.
+            buffer.resize((size_t)CountChars);
+            CountChars = ::GetFinalPathNameByHandleW(H, (LPWSTR)buffer.data(), (DWORD)buffer.size() - 1, FILE_NAME_NORMALIZED);
+          }
+          if (CountChars == 0)
+            return map_windows_error(GetLastError());
+          buffer.resize(CountChars);
+          return std::error_code();
+    }
 
-	std::error_code rename(const std::string &from, const std::string &to)
-	{
-		// Convert to utf-16.
-		std::wstring wide_from = boost::nowide::widen(from);
-		std::wstring wide_to   = boost::nowide::widen(to);
+    std::error_code rename(const std::string &from, const std::string &to)
+    {
+        // Convert to utf-16.
+        std::wstring wide_from = boost::nowide::widen(from);
+        std::wstring wide_to   = boost::nowide::widen(to);
 
-		ScopedFileHandle from_handle;
-		// Retry this a few times to defeat badly behaved file system scanners.
-		for (unsigned retry = 0; retry != 200; ++ retry) {
+        ScopedFileHandle from_handle;
+        // Retry this a few times to defeat badly behaved file system scanners.
+        for (unsigned retry = 0; retry != 200; ++ retry) {
             if (retry != 0) {
                 BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: retry to open file";
                 ::Sleep(10);
             }
-			from_handle = ::CreateFileW((LPWSTR)wide_from.data(), GENERIC_READ | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-			if (from_handle)
-		  		break;
+            from_handle = ::CreateFileW((LPWSTR)wide_from.data(), GENERIC_READ | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (from_handle)
+                  break;
             BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: failed to open file '" << wide_from << "'";
         }
-		if (! from_handle)
-			return map_windows_error(GetLastError());
+        if (! from_handle)
+            return map_windows_error(GetLastError());
         BOOST_LOG_TRIVIAL(debug) << "Rename: Succeed to open source file '" << wide_from << "'";
 
-		// We normally expect this loop to succeed after a few iterations. If it
-		// requires more than 200 tries, it's more likely that the failures are due to
-		// a true error, so stop trying.
-		for (unsigned retry = 0; retry != 200; ++ retry) {
+        // We normally expect this loop to succeed after a few iterations. If it
+        // requires more than 200 tries, it's more likely that the failures are due to
+        // a true error, so stop trying.
+        for (unsigned retry = 0; retry != 200; ++ retry) {
             if (retry != 0) {
                 BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: retry to rename file";
                 ::Sleep(10);
             }
-			auto errcode = rename_internal(from_handle, wide_to, true);
+            auto errcode = rename_internal(from_handle, wide_to, true);
 
-			if (errcode == std::error_code(ERROR_CALL_NOT_IMPLEMENTED, std::system_category())) {
+            if (errcode == std::error_code(ERROR_CALL_NOT_IMPLEMENTED, std::system_category())) {
                 BOOST_LOG_TRIVIAL(debug) << "Rename: No support for SetFileInformationByHandle";
-		  		// Wine doesn't support SetFileInformationByHandle in rename_internal.
-		  		// Fall back to MoveFileEx.
-		  		if (std::error_code errcode2 = real_path_from_handle(from_handle, wide_from))
-		    		return errcode2;
-		  		if (::MoveFileExW((LPCWSTR)wide_from.data(), (LPCWSTR)wide_to.data(), MOVEFILE_REPLACE_EXISTING))
-		    		return std::error_code();
+                  // Wine doesn't support SetFileInformationByHandle in rename_internal.
+                  // Fall back to MoveFileEx.
+                  if (std::error_code errcode2 = real_path_from_handle(from_handle, wide_from))
+                    return errcode2;
+                  if (::MoveFileExW((LPCWSTR)wide_from.data(), (LPCWSTR)wide_to.data(), MOVEFILE_REPLACE_EXISTING))
+                    return std::error_code();
                 BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: failed to move file from '" << wide_from << "' to '" << wide_to << "'";
-		  		return map_windows_error(GetLastError());
-			}
+                  return map_windows_error(GetLastError());
+            }
 
-			if (! errcode || errcode != std::errc::permission_denied)
-		  		return errcode;
+            if (! errcode || errcode != std::errc::permission_denied)
+                  return errcode;
 
-			// The destination file probably exists and is currently open in another
-			// process, either because the file was opened without FILE_SHARE_DELETE or
-			// it is mapped into memory (e.g. using MemoryBuffer). Rename it in order to
-			// move it out of the way of the source file. Use FILE_FLAG_DELETE_ON_CLOSE
-			// to arrange for the destination file to be deleted when the other process
-			// closes it.
-			ScopedFileHandle to_handle(::CreateFileW((LPCWSTR)wide_to.data(), GENERIC_READ | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, NULL));
-			if (! to_handle) {
-				auto errcode = map_windows_error(GetLastError());
-				// Another process might have raced with us and moved the existing file
-				// out of the way before we had a chance to open it. If that happens, try
-				// to rename the source file again.
+            // The destination file probably exists and is currently open in another
+            // process, either because the file was opened without FILE_SHARE_DELETE or
+            // it is mapped into memory (e.g. using MemoryBuffer). Rename it in order to
+            // move it out of the way of the source file. Use FILE_FLAG_DELETE_ON_CLOSE
+            // to arrange for the destination file to be deleted when the other process
+            // closes it.
+            ScopedFileHandle to_handle(::CreateFileW((LPCWSTR)wide_to.data(), GENERIC_READ | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, NULL));
+            if (! to_handle) {
+                auto errcode = map_windows_error(GetLastError());
+                // Another process might have raced with us and moved the existing file
+                // out of the way before we had a chance to open it. If that happens, try
+                // to rename the source file again.
                 if (errcode == std::errc::no_such_file_or_directory) {
                     BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: failed to create/open file '" << wide_to << "'";
                     continue;
                 }
-				return errcode;
-			}
+                return errcode;
+            }
             BOOST_LOG_TRIVIAL(debug) << "Rename: Succeed to create/open destination file '" << wide_to << "'";
 
-			BY_HANDLE_FILE_INFORMATION FI;
+            BY_HANDLE_FILE_INFORMATION FI;
             if (! ::GetFileInformationByHandle(to_handle, &FI)) {
                 BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: failed to access file '" << wide_to << "' informations";
                 return map_windows_error(GetLastError());
             }
 
-			// Try to find a unique new name for the destination file.
-			for (unsigned unique_id = 0; unique_id != 200; ++ unique_id) {
-				if (retry != 0) {
-					BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: retry to create destination file";
-					::Sleep(10);
-				}
-				std::wstring tmp_filename = wide_to + L".tmp" + std::to_wstring(unique_id);
-				std::error_code errcode = rename_internal(to_handle, tmp_filename, false);
-				if (errcode) {
-					BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: error (" << errcode.value() << ") while renaming '" << wide_from << "' to '" << wide_to << "'";
-					if (errcode == std::make_error_code(std::errc::file_exists) || errcode == std::make_error_code(std::errc::permission_denied)) {
-						// Again, another process might have raced with us and moved the file
-						// before we could move it. Check whether this is the case, as it
-						// might have caused the permission denied error. If that was the
-						// case, we don't need to move it ourselves.
-						ScopedFileHandle to_handle2(::CreateFileW((LPCWSTR)wide_to.data(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL));
-						if (! to_handle2) {
-							auto errcode = map_windows_error(GetLastError());
-							if (errcode == std::errc::no_such_file_or_directory)
-						  		break;
-							BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: access to '" << wide_to << "' is impossible (" << errcode.value() << ")";
-							return errcode;
-						}
-						BY_HANDLE_FILE_INFORMATION FI2;
+            // Try to find a unique new name for the destination file.
+            for (unsigned unique_id = 0; unique_id != 200; ++ unique_id) {
+                if (retry != 0) {
+                    BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: retry to create destination file";
+                    ::Sleep(10);
+                }
+                std::wstring tmp_filename = wide_to + L".tmp" + std::to_wstring(unique_id);
+                std::error_code errcode = rename_internal(to_handle, tmp_filename, false);
+                if (errcode) {
+                    BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: error (" << errcode.value() << ") while renaming '" << wide_from << "' to '" << wide_to << "'";
+                    if (errcode == std::make_error_code(std::errc::file_exists) || errcode == std::make_error_code(std::errc::permission_denied)) {
+                        // Again, another process might have raced with us and moved the file
+                        // before we could move it. Check whether this is the case, as it
+                        // might have caused the permission denied error. If that was the
+                        // case, we don't need to move it ourselves.
+                        ScopedFileHandle to_handle2(::CreateFileW((LPCWSTR)wide_to.data(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL));
+                        if (! to_handle2) {
+                            auto errcode = map_windows_error(GetLastError());
+                            if (errcode == std::errc::no_such_file_or_directory)
+                                  break;
+                            BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: access to '" << wide_to << "' is impossible (" << errcode.value() << ")";
+                            return errcode;
+                        }
+                        BY_HANDLE_FILE_INFORMATION FI2;
                         if (! ::GetFileInformationByHandle(to_handle2, &FI2)) {
                             BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: failed to access file '" << wide_to << "' informations";
                             return map_windows_error(GetLastError());
                         }
-						if (FI.nFileIndexHigh != FI2.nFileIndexHigh || FI.nFileIndexLow != FI2.nFileIndexLow || FI.dwVolumeSerialNumber != FI2.dwVolumeSerialNumber)
-							break;
-						// retry
-						continue;
-					}
-					return errcode;
-				}
-				break;
-			}
+                        if (FI.nFileIndexHigh != FI2.nFileIndexHigh || FI.nFileIndexLow != FI2.nFileIndexLow || FI.dwVolumeSerialNumber != FI2.dwVolumeSerialNumber)
+                            break;
+                        // retry
+                        continue;
+                    }
+                    return errcode;
+                }
+                break;
+            }
 
-			// Okay, the old destination file has probably been moved out of the way at
-			// this point, so try to rename the source file again. Still, another
-			// process might have raced with us to create and open the destination
-			// file, so we need to keep doing this until we succeed.
-		}
+            // Okay, the old destination file has probably been moved out of the way at
+            // this point, so try to rename the source file again. Still, another
+            // process might have raced with us to create and open the destination
+            // file, so we need to keep doing this until we succeed.
+        }
 
         BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: failed to rename the file, abord operation.";
-		// The most likely root cause.
-		return std::make_error_code(std::errc::permission_denied);
-	}
+        // The most likely root cause.
+        return std::make_error_code(std::errc::permission_denied);
+    }
 } // namespace WindowsSupport
 #endif /* _WIN32 */
 
@@ -523,7 +523,7 @@ boost::filesystem::path find_full_path(const boost::filesystem::path filename, c
     if (filename.empty()) return return_fail;
     boost::filesystem::path ret = filename;
     if (!boost::filesystem::exists(filename)) {
-        // try from our install directory 
+        // try from our install directory
 #ifdef WIN32
         wchar_t wpath_exe[_MAX_PATH + 1];
         ::GetModuleFileNameW(nullptr, wpath_exe, _MAX_PATH);
@@ -565,7 +565,7 @@ boost::filesystem::path find_full_path(const boost::filesystem::path filename, c
 boost::filesystem::path shorten_path(const boost::filesystem::path filename) {
     if (filename.empty()) return filename;
     std::string current_filename = filename.generic_string();
-    // try from our install directory 
+    // try from our install directory
 #ifdef WIN32
     wchar_t wpath_exe[_MAX_PATH + 1];
     ::GetModuleFileNameW(nullptr, wpath_exe, _MAX_PATH);
@@ -608,27 +608,27 @@ boost::filesystem::path shorten_path(const boost::filesystem::path filename) {
 std::error_code rename_file(const std::string &from, const std::string &to)
 {
 #ifdef _WIN32
-	return WindowsSupport::rename(from, to);
+    return WindowsSupport::rename(from, to);
 #else
-	boost::nowide::remove(to.c_str());
-	return std::make_error_code(static_cast<std::errc>(boost::nowide::rename(from.c_str(), to.c_str())));
+    boost::nowide::remove(to.c_str());
+    return std::make_error_code(static_cast<std::errc>(boost::nowide::rename(from.c_str(), to.c_str())));
 #endif
 }
 
 #ifdef __linux__
-// Copied from boost::filesystem. 
+// Copied from boost::filesystem.
 // Called by copy_file_linux() in case linux sendfile() API is not supported.
 int copy_file_linux_read_write(int infile, int outfile, uintmax_t file_size)
 {
     std::vector<char> buf(
-	    // Prefer the buffer to be larger than the file size so that we don't have
-	    // to perform an extra read if the file fits in the buffer exactly.
-    	std::clamp<size_t>(file_size + (file_size < ~static_cast<uintmax_t >(0u)),
-		// Min and max buffer sizes are selected to minimize the overhead from system calls.
-		// The values are picked based on coreutils cp(1) benchmarking data described here:
-		// https://github.com/coreutils/coreutils/blob/d1b0257077c0b0f0ee25087efd46270345d1dd1f/src/ioblksize.h#L23-L72
-    			   		   8u * 1024u, 256u * 1024u),
-    	0);
+        // Prefer the buffer to be larger than the file size so that we don't have
+        // to perform an extra read if the file fits in the buffer exactly.
+        std::clamp<size_t>(file_size + (file_size < ~static_cast<uintmax_t >(0u)),
+        // Min and max buffer sizes are selected to minimize the overhead from system calls.
+        // The values are picked based on coreutils cp(1) benchmarking data described here:
+        // https://github.com/coreutils/coreutils/blob/d1b0257077c0b0f0ee25087efd46270345d1dd1f/src/ioblksize.h#L23-L72
+                              8u * 1024u, 256u * 1024u),
+        0);
 
 #if defined(POSIX_FADV_SEQUENTIAL)
     ::posix_fadvise(infile, 0, 0, POSIX_FADV_SEQUENTIAL);
@@ -669,232 +669,232 @@ int copy_file_linux_read_write(int infile, int outfile, uintmax_t file_size)
 // and only features supported by Linux 3.10 (on our build server with CentOS 7) are kept, namely sendfile with ranges and statx() are not supported.
 bool copy_file_linux(const boost::filesystem::path &from, const boost::filesystem::path &to, boost::system::error_code &ec)
 {
-	using namespace boost::filesystem;
+    using namespace boost::filesystem;
 
-	struct fd_wrapper
-	{
-		int fd { -1 };
-		fd_wrapper() = default;
-		explicit fd_wrapper(int fd) throw() : fd(fd) {}
-		~fd_wrapper() throw() { if (fd >= 0) ::close(fd); }
-	};
+    struct fd_wrapper
+    {
+        int fd { -1 };
+        fd_wrapper() = default;
+        explicit fd_wrapper(int fd) throw() : fd(fd) {}
+        ~fd_wrapper() throw() { if (fd >= 0) ::close(fd); }
+    };
 
-	ec.clear();
-  	int err = 0;
+    ec.clear();
+      int err = 0;
 
-  	// Note: Declare fd_wrappers here so that errno is not clobbered by close() that may be called in fd_wrapper destructors
-  	fd_wrapper infile, outfile;
+      // Note: Declare fd_wrappers here so that errno is not clobbered by close() that may be called in fd_wrapper destructors
+      fd_wrapper infile, outfile;
 
-  	while (true) {
-    	infile.fd = ::open(from.c_str(), O_RDONLY | O_CLOEXEC);
-    	if (infile.fd < 0) {
-      		err = errno;
-      		if (err == EINTR)
-        		continue;
-		fail:
-			ec.assign(err, boost::system::system_category());
-  			return false;
-    	}
-    	break;
-  	}
+      while (true) {
+        infile.fd = ::open(from.c_str(), O_RDONLY | O_CLOEXEC);
+        if (infile.fd < 0) {
+              err = errno;
+              if (err == EINTR)
+                continue;
+        fail:
+            ec.assign(err, boost::system::system_category());
+              return false;
+        }
+        break;
+      }
 
-	struct ::stat from_stat;
-	if (::fstat(infile.fd, &from_stat) != 0) {
-		fail_errno:
-		err = errno;
-		goto fail;
-	}
+    struct ::stat from_stat;
+    if (::fstat(infile.fd, &from_stat) != 0) {
+        fail_errno:
+        err = errno;
+        goto fail;
+    }
 
-  	const mode_t from_mode = from_stat.st_mode;
-  	if (!S_ISREG(from_mode)) {
-    	err = ENOSYS;
-    	goto fail;
-  	}
+      const mode_t from_mode = from_stat.st_mode;
+      if (!S_ISREG(from_mode)) {
+        err = ENOSYS;
+        goto fail;
+      }
 
-  	// Enable writing for the newly created files. Having write permission set is important e.g. for NFS,
-  	// which checks the file permission on the server, even if the client's file descriptor supports writing.
-  	mode_t to_mode = from_mode | S_IWUSR;
-  	int oflag = O_WRONLY | O_CLOEXEC | O_CREAT | O_TRUNC;
+      // Enable writing for the newly created files. Having write permission set is important e.g. for NFS,
+      // which checks the file permission on the server, even if the client's file descriptor supports writing.
+      mode_t to_mode = from_mode | S_IWUSR;
+      int oflag = O_WRONLY | O_CLOEXEC | O_CREAT | O_TRUNC;
 
-	while (true) {
-	  	outfile.fd = ::open(to.c_str(), oflag, to_mode);
-	  	if (outfile.fd < 0) {
-	    	err = errno;
-	    	if (err == EINTR)
-	      		continue;
-	    	goto fail;
-	  	}
-	  	break;
-	}
+    while (true) {
+          outfile.fd = ::open(to.c_str(), oflag, to_mode);
+          if (outfile.fd < 0) {
+            err = errno;
+            if (err == EINTR)
+                  continue;
+            goto fail;
+          }
+          break;
+    }
 
-	struct ::stat to_stat;
-	if (::fstat(outfile.fd, &to_stat) != 0)
-		goto fail_errno;
+    struct ::stat to_stat;
+    if (::fstat(outfile.fd, &to_stat) != 0)
+        goto fail_errno;
 
-	to_mode = to_stat.st_mode;
-	if (!S_ISREG(to_mode)) {
-		err = ENOSYS;
-		goto fail;
-	}
+    to_mode = to_stat.st_mode;
+    if (!S_ISREG(to_mode)) {
+        err = ENOSYS;
+        goto fail;
+    }
 
-	if (from_stat.st_dev == to_stat.st_dev && from_stat.st_ino == to_stat.st_ino) {
-		err = EEXIST;
-		goto fail;
-	}
+    if (from_stat.st_dev == to_stat.st_dev && from_stat.st_ino == to_stat.st_ino) {
+        err = EEXIST;
+        goto fail;
+    }
 
-	//! copy_file implementation that uses sendfile loop. Requires sendfile to support file descriptors.
-	//FIXME Vojtech: This is a copy loop valid for Linux 2.6.33 and newer.
-	// copy_file_data_copy_file_range() supports cross-filesystem copying since 5.3, but Vojtech did not want to polute this
-	// function with that, we don't think the performance gain is worth it for the types of files we are copying,
-	// and our build server based on CentOS 7 with Linux 3.10 does not support that anyways.
-	{
-		// sendfile will not send more than this amount of data in one call
-		constexpr std::size_t max_send_size = 0x7ffff000u;
-		uintmax_t offset = 0u;
-		while (off_t(offset) < from_stat.st_size) {
-			uintmax_t size_left = from_stat.st_size - offset;
-			std::size_t size_to_copy = max_send_size;
-			if (size_left < static_cast<uintmax_t>(max_send_size))
-				size_to_copy = static_cast<std::size_t>(size_left);
-			ssize_t sz = ::sendfile(outfile.fd, infile.fd, nullptr, size_to_copy);
-			if (sz < 0) {
-				err = errno;
-	            if (offset == 0u) {
-	                // sendfile may fail with EINVAL if the underlying filesystem does not support it.
-	                // See https://patchwork.kernel.org/project/linux-nfs/patch/20190411183418.4510-1-olga.kornievskaia@gmail.com/
-	                // https://bugzilla.redhat.com/show_bug.cgi?id=1783554.
-	                // https://github.com/boostorg/filesystem/commit/4b9052f1e0b2acf625e8247582f44acdcc78a4ce
-	                if (err == EINVAL || err == EOPNOTSUPP) {
-						err = copy_file_linux_read_write(infile.fd, outfile.fd, from_stat.st_size);
-						if (err < 0)
-							goto fail;
-						// Succeeded.
-	                	break;
-	                }
-	            }
-				if (err == EINTR)
-					continue;
-				if (err == 0)
-					break;
-				goto fail; // err already contains the error code
-			}
-			offset += sz;
-		}
-	}
+    //! copy_file implementation that uses sendfile loop. Requires sendfile to support file descriptors.
+    //FIXME Vojtech: This is a copy loop valid for Linux 2.6.33 and newer.
+    // copy_file_data_copy_file_range() supports cross-filesystem copying since 5.3, but Vojtech did not want to polute this
+    // function with that, we don't think the performance gain is worth it for the types of files we are copying,
+    // and our build server based on CentOS 7 with Linux 3.10 does not support that anyways.
+    {
+        // sendfile will not send more than this amount of data in one call
+        constexpr std::size_t max_send_size = 0x7ffff000u;
+        uintmax_t offset = 0u;
+        while (off_t(offset) < from_stat.st_size) {
+            uintmax_t size_left = from_stat.st_size - offset;
+            std::size_t size_to_copy = max_send_size;
+            if (size_left < static_cast<uintmax_t>(max_send_size))
+                size_to_copy = static_cast<std::size_t>(size_left);
+            ssize_t sz = ::sendfile(outfile.fd, infile.fd, nullptr, size_to_copy);
+            if (sz < 0) {
+                err = errno;
+                if (offset == 0u) {
+                    // sendfile may fail with EINVAL if the underlying filesystem does not support it.
+                    // See https://patchwork.kernel.org/project/linux-nfs/patch/20190411183418.4510-1-olga.kornievskaia@gmail.com/
+                    // https://bugzilla.redhat.com/show_bug.cgi?id=1783554.
+                    // https://github.com/boostorg/filesystem/commit/4b9052f1e0b2acf625e8247582f44acdcc78a4ce
+                    if (err == EINVAL || err == EOPNOTSUPP) {
+                        err = copy_file_linux_read_write(infile.fd, outfile.fd, from_stat.st_size);
+                        if (err < 0)
+                            goto fail;
+                        // Succeeded.
+                        break;
+                    }
+                }
+                if (err == EINTR)
+                    continue;
+                if (err == 0)
+                    break;
+                goto fail; // err already contains the error code
+            }
+            offset += sz;
+        }
+    }
 
-	// If we created a new file with an explicitly added S_IWUSR permission,
-	// we may need to update its mode bits to match the source file.
-	if (to_mode != from_mode && ::fchmod(outfile.fd, from_mode) != 0) {
-		if (platform_flavor() == PlatformFlavor::LinuxOnChromium) {
-			// Ignore that. 9p filesystem does not allow fmod().
-			BOOST_LOG_TRIVIAL(info) << "copy_file_linux() failed to fchmod() the output file \"" << to.string() << "\" to " << from_mode << ": " << ec.message() << 
-				" This may be expected when writing to a 9p filesystem.";
-		} else {
-			// Generic linux. Write out an error to console. At least we may get some feedback.
-			BOOST_LOG_TRIVIAL(error) << "copy_file_linux() failed to fchmod() the output file \"" << to.string() << "\" to " << from_mode << ": " << ec.message();
-		}
-	}
+    // If we created a new file with an explicitly added S_IWUSR permission,
+    // we may need to update its mode bits to match the source file.
+    if (to_mode != from_mode && ::fchmod(outfile.fd, from_mode) != 0) {
+        if (platform_flavor() == PlatformFlavor::LinuxOnChromium) {
+            // Ignore that. 9p filesystem does not allow fmod().
+            BOOST_LOG_TRIVIAL(info) << "copy_file_linux() failed to fchmod() the output file \"" << to.string() << "\" to " << from_mode << ": " << ec.message() <<
+                " This may be expected when writing to a 9p filesystem.";
+        } else {
+            // Generic linux. Write out an error to console. At least we may get some feedback.
+            BOOST_LOG_TRIVIAL(error) << "copy_file_linux() failed to fchmod() the output file \"" << to.string() << "\" to " << from_mode << ": " << ec.message();
+        }
+    }
 
-	// Note: Use fsync/fdatasync followed by close to avoid dealing with the possibility of close failing with EINTR.
-	// Even if close fails, including with EINTR, most operating systems (presumably, except HP-UX) will close the
-	// file descriptor upon its return. This means that if an error happens later, when the OS flushes data to the
-	// underlying media, this error will go unnoticed and we have no way to receive it from close. Calling fsync/fdatasync
-	// ensures that all data have been written, and even if close fails for some unfathomable reason, we don't really
-	// care at that point.
-	err = ::fdatasync(outfile.fd);
-	if (err != 0)
-		goto fail_errno;
+    // Note: Use fsync/fdatasync followed by close to avoid dealing with the possibility of close failing with EINTR.
+    // Even if close fails, including with EINTR, most operating systems (presumably, except HP-UX) will close the
+    // file descriptor upon its return. This means that if an error happens later, when the OS flushes data to the
+    // underlying media, this error will go unnoticed and we have no way to receive it from close. Calling fsync/fdatasync
+    // ensures that all data have been written, and even if close fails for some unfathomable reason, we don't really
+    // care at that point.
+    err = ::fdatasync(outfile.fd);
+    if (err != 0)
+        goto fail_errno;
 
-	return true;
+    return true;
 }
 #endif // __linux__
 
 CopyFileResult copy_file_inner(const std::string& from, const std::string& to, std::string& error_message)
 {
-	const boost::filesystem::path source(from);
-	const boost::filesystem::path target(to);
-	return copy_file_inner(source, target, error_message);
+    const boost::filesystem::path source(from);
+    const boost::filesystem::path target(to);
+    return copy_file_inner(source, target, error_message);
 }
 
 CopyFileResult copy_file_inner(const boost::filesystem::path& source, const boost::filesystem::path& target, std::string& error_message)
 {
-	static const auto perms = boost::filesystem::owner_read | boost::filesystem::owner_write | boost::filesystem::group_read | boost::filesystem::others_read;   // aka 644
+    static const auto perms = boost::filesystem::owner_read | boost::filesystem::owner_write | boost::filesystem::group_read | boost::filesystem::others_read;   // aka 644
 
-	// Make sure the file has correct permission both before and after we copy over it.
-	// NOTE: error_code variants are used here to supress expception throwing.
-	// Error code of permission() calls is ignored on purpose - if they fail,
-	// the copy_file() function will fail appropriately and we don't want the permission()
-	// calls to cause needless failures on permissionless filesystems (ie. FATs on SD cards etc.)
-	// or when the target file doesn't exist.
-	boost::system::error_code ec;
-	boost::filesystem::permissions(target, perms, ec);
-	if (ec)
-		BOOST_LOG_TRIVIAL(debug) << "boost::filesystem::permisions before copy error message (this could be irrelevant message based on file system): " << ec.message();
-	ec.clear();
+    // Make sure the file has correct permission both before and after we copy over it.
+    // NOTE: error_code variants are used here to supress expception throwing.
+    // Error code of permission() calls is ignored on purpose - if they fail,
+    // the copy_file() function will fail appropriately and we don't want the permission()
+    // calls to cause needless failures on permissionless filesystems (ie. FATs on SD cards etc.)
+    // or when the target file doesn't exist.
+    boost::system::error_code ec;
+    boost::filesystem::permissions(target, perms, ec);
+    if (ec)
+        BOOST_LOG_TRIVIAL(debug) << "boost::filesystem::permisions before copy error message (this could be irrelevant message based on file system): " << ec.message();
+    ec.clear();
 #ifdef __linux__
-	// We want to allow copying files on Linux to succeed even if changing the file attributes fails.
-	// That may happen when copying on some exotic file system, for example Linux on Chrome.
-	copy_file_linux(source, target, ec);
+    // We want to allow copying files on Linux to succeed even if changing the file attributes fails.
+    // That may happen when copying on some exotic file system, for example Linux on Chrome.
+    copy_file_linux(source, target, ec);
 #else // __linux__
-	boost::filesystem::copy_file(source, target, boost::filesystem::copy_options::overwrite_existing, ec);
+    boost::filesystem::copy_file(source, target, boost::filesystem::copy_options::overwrite_existing, ec);
 #endif // __linux__
-	if (ec) {
-		error_message = ec.message();
-		return FAIL_COPY_FILE;
-	}
-	ec.clear();
-	boost::filesystem::permissions(target, perms, ec);
-	if (ec)
-		BOOST_LOG_TRIVIAL(debug) << "boost::filesystem::permisions after copy error message (this could be irrelevant message based on file system): " << ec.message();
-	return SUCCESS;
+    if (ec) {
+        error_message = ec.message();
+        return FAIL_COPY_FILE;
+    }
+    ec.clear();
+    boost::filesystem::permissions(target, perms, ec);
+    if (ec)
+        BOOST_LOG_TRIVIAL(debug) << "boost::filesystem::permisions after copy error message (this could be irrelevant message based on file system): " << ec.message();
+    return SUCCESS;
 }
 
 CopyFileResult copy_file(const std::string &from, const std::string &to, std::string& error_message, const bool with_check)
 {
-	std::string to_temp = to + ".tmp";
-	CopyFileResult ret_val = copy_file_inner(from, to_temp, error_message);
+    std::string to_temp = to + ".tmp";
+    CopyFileResult ret_val = copy_file_inner(from, to_temp, error_message);
     if(ret_val == SUCCESS)
-	{
+    {
         if (with_check)
             ret_val = check_copy(from, to_temp);
 
         if (ret_val == 0 && rename_file(to_temp, to))
-        	ret_val = FAIL_RENAMING;
-	}
-	return ret_val;
+            ret_val = FAIL_RENAMING;
+    }
+    return ret_val;
 }
 
 CopyFileResult check_copy(const std::string &origin, const std::string &copy)
 {
-	boost::nowide::ifstream f1(origin, std::ifstream::in | std::ifstream::binary | std::ifstream::ate);
-	boost::nowide::ifstream f2(copy, std::ifstream::in | std::ifstream::binary | std::ifstream::ate);
+    boost::nowide::ifstream f1(origin, std::ifstream::in | std::ifstream::binary | std::ifstream::ate);
+    boost::nowide::ifstream f2(copy, std::ifstream::in | std::ifstream::binary | std::ifstream::ate);
 
-	if (f1.fail())
-		return FAIL_CHECK_ORIGIN_NOT_OPENED;
-	if (f2.fail())
-		return FAIL_CHECK_TARGET_NOT_OPENED;
+    if (f1.fail())
+        return FAIL_CHECK_ORIGIN_NOT_OPENED;
+    if (f2.fail())
+        return FAIL_CHECK_TARGET_NOT_OPENED;
 
-	std::streampos fsize = f1.tellg();
-	if (fsize != f2.tellg())
-		return FAIL_FILES_DIFFERENT;
+    std::streampos fsize = f1.tellg();
+    if (fsize != f2.tellg())
+        return FAIL_FILES_DIFFERENT;
 
-	f1.seekg(0, std::ifstream::beg);
-	f2.seekg(0, std::ifstream::beg);
+    f1.seekg(0, std::ifstream::beg);
+    f2.seekg(0, std::ifstream::beg);
 
-	// Compare by reading 8 MiB buffers one at a time.
-	size_t 			  buffer_size = 8 * 1024 * 1024;
-	std::vector<char> buffer_origin(buffer_size, 0);
-	std::vector<char> buffer_copy(buffer_size, 0);
-	do {
-		f1.read(buffer_origin.data(), buffer_size);
+    // Compare by reading 8 MiB buffers one at a time.
+    size_t               buffer_size = 8 * 1024 * 1024;
+    std::vector<char> buffer_origin(buffer_size, 0);
+    std::vector<char> buffer_copy(buffer_size, 0);
+    do {
+        f1.read(buffer_origin.data(), buffer_size);
         f2.read(buffer_copy.data(), buffer_size);
-		std::streampos origin_cnt = f1.gcount();
-		std::streampos copy_cnt   = f2.gcount();
-		if (origin_cnt != copy_cnt ||
-			(origin_cnt > 0 && std::memcmp(buffer_origin.data(), buffer_copy.data(), origin_cnt) != 0))
-			// Files are different.
-			return FAIL_FILES_DIFFERENT;
-		fsize -= origin_cnt;
+        std::streampos origin_cnt = f1.gcount();
+        std::streampos copy_cnt   = f2.gcount();
+        if (origin_cnt != copy_cnt ||
+            (origin_cnt > 0 && std::memcmp(buffer_origin.data(), buffer_copy.data(), origin_cnt) != 0))
+            // Files are different.
+            return FAIL_FILES_DIFFERENT;
+        fsize -= origin_cnt;
     } while (f1.good() && f2.good());
 
     // All data has been read and compared equal.
@@ -922,33 +922,33 @@ bool is_ini_file(const boost::filesystem::directory_entry &dir_entry)
 
 bool is_idx_file(const boost::filesystem::directory_entry &dir_entry)
 {
-	return is_plain_file(dir_entry) && strcasecmp(dir_entry.path().extension().string().c_str(), ".idx") == 0;
+    return is_plain_file(dir_entry) && strcasecmp(dir_entry.path().extension().string().c_str(), ".idx") == 0;
 }
 
 bool is_gcode_file(const std::string &path)
 {
-	return boost::iends_with(path, ".gcode") || boost::iends_with(path, ".gco") ||
-		   boost::iends_with(path, ".g")     || boost::iends_with(path, ".ngc");
+    return boost::iends_with(path, ".gcode") || boost::iends_with(path, ".gco") ||
+           boost::iends_with(path, ".g")     || boost::iends_with(path, ".ngc");
 }
 
 bool is_img_file(const std::string &path)
 {
-	return boost::iends_with(path, ".png") || boost::iends_with(path, ".svg");
+    return boost::iends_with(path, ".png") || boost::iends_with(path, ".svg");
 }
 
 bool is_gallery_file(const boost::filesystem::directory_entry& dir_entry, char const* type)
 {
-	return is_plain_file(dir_entry) && strcasecmp(dir_entry.path().extension().string().c_str(), type) == 0;
+    return is_plain_file(dir_entry) && strcasecmp(dir_entry.path().extension().string().c_str(), type) == 0;
 }
 
 bool is_gallery_file(const std::string &path, char const* type)
 {
-	return boost::iends_with(path, type);
+    return boost::iends_with(path, type);
 }
 
 bool is_shapes_dir(const std::string& dir)
 {
-	return dir == sys_shapes_dir() || dir == custom_shapes_dir();
+    return dir == sys_shapes_dir() || dir == custom_shapes_dir();
 }
 
 } // namespace Slic3r
@@ -964,7 +964,7 @@ namespace Slic3r {
 
 // Encode an UTF-8 string to the local code page.
 std::string encode_path(const char *src)
-{    
+{
 #ifdef WIN32
     // Convert the source utf8 encoded string to a wide string.
     std::wstring wstr_src = boost::nowide::widen(src);
@@ -983,7 +983,7 @@ std::string encode_path(const char *src)
 // Encode an 8-bit string from a local code page to UTF-8.
 // Multibyte to utf8
 std::string decode_path(const char *src)
-{  
+{
 #ifdef WIN32
     int len = int(strlen(src));
     if (len == 0)
@@ -1007,72 +1007,72 @@ std::string normalize_utf8_nfc(const char *src)
 
 size_t get_utf8_sequence_length(const std::string& text, size_t pos)
 {
-	assert(pos < text.size());
-	return get_utf8_sequence_length(text.c_str() + pos, text.size() - pos);
+    assert(pos < text.size());
+    return get_utf8_sequence_length(text.c_str() + pos, text.size() - pos);
 }
 
 size_t get_utf8_sequence_length(const char *seq, size_t size)
 {
-	size_t length = 0;
-	unsigned char c = seq[0];
-	if (c < 0x80) { // 0x00-0x7F
-		// is ASCII letter
-		length++;
-	}
-	// Bytes 0x80 to 0xBD are trailer bytes in a multibyte sequence.
-	// pos is in the middle of a utf-8 sequence. Add the utf-8 trailer bytes.
-	else if (c < 0xC0) { // 0x80-0xBF
-		length++;
-		while (length < size) {
-			c = seq[length];
-			if (c < 0x80 || c >= 0xC0) {
-				break; // prevent overrun
-			}
-			length++; // add a utf-8 trailer byte
-		}
-	}
-	// Bytes 0xC0 to 0xFD are header bytes in a multibyte sequence.
-	// The number of one bits above the topmost zero bit indicates the number of bytes (including this one) in the whole sequence.
-	else if (c < 0xE0) { // 0xC0-0xDF
-	 // add a utf-8 sequence (2 bytes)
-		if (2 > size) {
-			return size; // prevent overrun
-		}
-		length += 2;
-	}
-	else if (c < 0xF0) { // 0xE0-0xEF
-	 // add a utf-8 sequence (3 bytes)
-		if (3 > size) {
-			return size; // prevent overrun
-		}
-		length += 3;
-	}
-	else if (c < 0xF8) { // 0xF0-0xF7
-	 // add a utf-8 sequence (4 bytes)
-		if (4 > size) {
-			return size; // prevent overrun
-		}
-		length += 4;
-	}
-	else if (c < 0xFC) { // 0xF8-0xFB
-	 // add a utf-8 sequence (5 bytes)
-		if (5 > size) {
-			return size; // prevent overrun
-		}
-		length += 5;
-	}
-	else if (c < 0xFE) { // 0xFC-0xFD
-	 // add a utf-8 sequence (6 bytes)
-		if (6 > size) {
-			return size; // prevent overrun
-		}
-		length += 6;
-	}
-	else { // 0xFE-0xFF
-	 // not a utf-8 sequence
-		length++;
-	}
-	return length;
+    size_t length = 0;
+    unsigned char c = seq[0];
+    if (c < 0x80) { // 0x00-0x7F
+        // is ASCII letter
+        length++;
+    }
+    // Bytes 0x80 to 0xBD are trailer bytes in a multibyte sequence.
+    // pos is in the middle of a utf-8 sequence. Add the utf-8 trailer bytes.
+    else if (c < 0xC0) { // 0x80-0xBF
+        length++;
+        while (length < size) {
+            c = seq[length];
+            if (c < 0x80 || c >= 0xC0) {
+                break; // prevent overrun
+            }
+            length++; // add a utf-8 trailer byte
+        }
+    }
+    // Bytes 0xC0 to 0xFD are header bytes in a multibyte sequence.
+    // The number of one bits above the topmost zero bit indicates the number of bytes (including this one) in the whole sequence.
+    else if (c < 0xE0) { // 0xC0-0xDF
+     // add a utf-8 sequence (2 bytes)
+        if (2 > size) {
+            return size; // prevent overrun
+        }
+        length += 2;
+    }
+    else if (c < 0xF0) { // 0xE0-0xEF
+     // add a utf-8 sequence (3 bytes)
+        if (3 > size) {
+            return size; // prevent overrun
+        }
+        length += 3;
+    }
+    else if (c < 0xF8) { // 0xF0-0xF7
+     // add a utf-8 sequence (4 bytes)
+        if (4 > size) {
+            return size; // prevent overrun
+        }
+        length += 4;
+    }
+    else if (c < 0xFC) { // 0xF8-0xFB
+     // add a utf-8 sequence (5 bytes)
+        if (5 > size) {
+            return size; // prevent overrun
+        }
+        length += 5;
+    }
+    else if (c < 0xFE) { // 0xFC-0xFD
+     // add a utf-8 sequence (6 bytes)
+        if (6 > size) {
+            return size; // prevent overrun
+        }
+        length += 6;
+    }
+    else { // 0xFE-0xFF
+     // not a utf-8 sequence
+        length++;
+    }
+    return length;
 }
 
 namespace PerlUtils {
@@ -1093,19 +1093,19 @@ std::string string_printf(const char *format, ...)
     va_start(args1, format);
     va_list args2;
     va_copy(args2, args1);
-    
+
     static const size_t INITIAL_LEN = 200;
     std::string buffer(INITIAL_LEN, '\0');
-    
+
     int bufflen = ::vsnprintf(buffer.data(), INITIAL_LEN - 1, format, args1);
-    
+
     if (bufflen >= int(INITIAL_LEN)) {
         buffer.resize(size_t(bufflen) + 1);
         ::vsnprintf(buffer.data(), buffer.size(), format, args2);
     }
-    
+
     buffer.resize(bufflen);
-    
+
     return buffer;
 }
 
@@ -1114,23 +1114,23 @@ bool config_file_header_with_date = true;
 
 void set_header_generate_with_date(bool with_date)
 {
-	config_file_header_with_date = with_date;
+    config_file_header_with_date = with_date;
 }
 
 std::string header_slic3r_generated()
 {
-	if (config_file_header_with_date)
-		return std::string("generated by " SLIC3R_APP_KEY " " SLIC3R_VERSION_FULL " on ") + Utils::utc_timestamp();
-	else
-		return std::string("generated by " SLIC3R_APP_KEY " " SLIC3R_VERSION " on");
+    if (config_file_header_with_date)
+        return std::string("generated by " SLIC3R_APP_KEY " " SLIC3R_VERSION_FULL " on ") + Utils::utc_timestamp();
+    else
+        return std::string("generated by " SLIC3R_APP_KEY " " SLIC3R_VERSION " on");
 }
 
 std::string header_gcodeviewer_generated()
 {
-	if (config_file_header_with_date)
-		return std::string("generated by " GCODEVIEWER_APP_KEY " " SLIC3R_VERSION_FULL " on ") + Utils::utc_timestamp();
-	else
-		return std::string("generated by " GCODEVIEWER_APP_KEY " " SLIC3R_VERSION " on");
+    if (config_file_header_with_date)
+        return std::string("generated by " GCODEVIEWER_APP_KEY " " SLIC3R_VERSION_FULL " on ") + Utils::utc_timestamp();
+    else
+        return std::string("generated by " GCODEVIEWER_APP_KEY " " SLIC3R_VERSION " on");
 }
 
 unsigned get_current_pid()
@@ -1170,7 +1170,7 @@ std::string xml_escape(std::string text, bool is_marked/* = false*/)
     return text;
 }
 
-std::string format_memsize_MB(size_t n) 
+std::string format_memsize_MB(size_t n)
 {
     std::string out;
     size_t n2 = 0;
@@ -1272,69 +1272,69 @@ std::string log_memory_info(bool ignore_loglevel)
 size_t total_physical_memory()
 {
 #if defined(_WIN32) && (defined(__CYGWIN__) || defined(__CYGWIN32__))
-	// Cygwin under Windows. ------------------------------------
-	// New 64-bit MEMORYSTATUSEX isn't available.  Use old 32.bit
-	MEMORYSTATUS status;
-	status.dwLength = sizeof(status);
-	GlobalMemoryStatus( &status );
-	return (size_t)status.dwTotalPhys;
+    // Cygwin under Windows. ------------------------------------
+    // New 64-bit MEMORYSTATUSEX isn't available.  Use old 32.bit
+    MEMORYSTATUS status;
+    status.dwLength = sizeof(status);
+    GlobalMemoryStatus( &status );
+    return (size_t)status.dwTotalPhys;
 #elif defined(_WIN32)
-	// Windows. -------------------------------------------------
-	// Use new 64-bit MEMORYSTATUSEX, not old 32-bit MEMORYSTATUS
-	MEMORYSTATUSEX status;
-	status.dwLength = sizeof(status);
-	GlobalMemoryStatusEx( &status );
-	return (size_t)status.ullTotalPhys;
+    // Windows. -------------------------------------------------
+    // Use new 64-bit MEMORYSTATUSEX, not old 32-bit MEMORYSTATUS
+    MEMORYSTATUSEX status;
+    status.dwLength = sizeof(status);
+    GlobalMemoryStatusEx( &status );
+    return (size_t)status.ullTotalPhys;
 #elif defined(__unix__) || defined(__unix) || defined(unix) || (defined(__APPLE__) && defined(__MACH__))
-	// UNIX variants. -------------------------------------------
-	// Prefer sysctl() over sysconf() except sysctl() HW_REALMEM and HW_PHYSMEM
+    // UNIX variants. -------------------------------------------
+    // Prefer sysctl() over sysconf() except sysctl() HW_REALMEM and HW_PHYSMEM
 
 #if defined(CTL_HW) && (defined(HW_MEMSIZE) || defined(HW_PHYSMEM64))
-	int mib[2];
-	mib[0] = CTL_HW;
+    int mib[2];
+    mib[0] = CTL_HW;
 #if defined(HW_MEMSIZE)
-	mib[1] = HW_MEMSIZE;            // OSX. ---------------------
+    mib[1] = HW_MEMSIZE;            // OSX. ---------------------
 #elif defined(HW_PHYSMEM64)
-	mib[1] = HW_PHYSMEM64;          // NetBSD, OpenBSD. ---------
+    mib[1] = HW_PHYSMEM64;          // NetBSD, OpenBSD. ---------
 #endif
-	int64_t size = 0;               // 64-bit
-	size_t len = sizeof( size );
-	if ( sysctl( mib, 2, &size, &len, NULL, 0 ) == 0 )
-		return (size_t)size;
-	return 0L;			// Failed?
+    int64_t size = 0;               // 64-bit
+    size_t len = sizeof( size );
+    if ( sysctl( mib, 2, &size, &len, NULL, 0 ) == 0 )
+        return (size_t)size;
+    return 0L;            // Failed?
 
 #elif defined(_SC_AIX_REALMEM)
-	// AIX. -----------------------------------------------------
-	return (size_t)sysconf( _SC_AIX_REALMEM ) * (size_t)1024L;
+    // AIX. -----------------------------------------------------
+    return (size_t)sysconf( _SC_AIX_REALMEM ) * (size_t)1024L;
 
 #elif defined(_SC_PHYS_PAGES) && defined(_SC_PAGESIZE)
-	// FreeBSD, Linux, OpenBSD, and Solaris. --------------------
-	return (size_t)sysconf( _SC_PHYS_PAGES ) *
-		(size_t)sysconf( _SC_PAGESIZE );
+    // FreeBSD, Linux, OpenBSD, and Solaris. --------------------
+    return (size_t)sysconf( _SC_PHYS_PAGES ) *
+        (size_t)sysconf( _SC_PAGESIZE );
 
 #elif defined(_SC_PHYS_PAGES) && defined(_SC_PAGE_SIZE)
-	// Legacy. --------------------------------------------------
-	return (size_t)sysconf( _SC_PHYS_PAGES ) *
-		(size_t)sysconf( _SC_PAGE_SIZE );
+    // Legacy. --------------------------------------------------
+    return (size_t)sysconf( _SC_PHYS_PAGES ) *
+        (size_t)sysconf( _SC_PAGE_SIZE );
 
 #elif defined(CTL_HW) && (defined(HW_PHYSMEM) || defined(HW_REALMEM))
-	// DragonFly BSD, FreeBSD, NetBSD, OpenBSD, and OSX. --------
-	int mib[2];
-	mib[0] = CTL_HW;
+    // DragonFly BSD, FreeBSD, NetBSD, OpenBSD, and OSX. --------
+    int mib[2];
+    mib[0] = CTL_HW;
 #if defined(HW_REALMEM)
-	mib[1] = HW_REALMEM;		// FreeBSD. -----------------
+    mib[1] = HW_REALMEM;        // FreeBSD. -----------------
 #elif defined(HW_PYSMEM)
-	mib[1] = HW_PHYSMEM;		// Others. ------------------
+    mib[1] = HW_PHYSMEM;        // Others. ------------------
 #endif
-	unsigned int size = 0;		// 32-bit
-	size_t len = sizeof( size );
-	if ( sysctl( mib, 2, &size, &len, NULL, 0 ) == 0 )
-		return (size_t)size;
-	return 0L;			// Failed?
+    unsigned int size = 0;        // 32-bit
+    size_t len = sizeof( size );
+    if ( sysctl( mib, 2, &size, &len, NULL, 0 ) == 0 )
+        return (size_t)size;
+    return 0L;            // Failed?
 #endif // sysctl and sysconf variants
 
 #else
-	return 0L;			// Unknown OS.
+    return 0L;            // Unknown OS.
 #endif
 }
 

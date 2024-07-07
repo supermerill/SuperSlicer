@@ -79,7 +79,7 @@ RealScalar positive_real_hypot(const RealScalar& x, const RealScalar& y)
   RealScalar p, qp;
   p = numext::maxi(x,y);
   if(p==RealScalar(0)) return RealScalar(0);
-  qp = numext::mini(y,x) / p;    
+  qp = numext::mini(y,x) / p;
   return p * sqrt(RealScalar(1) + qp*qp);
 }
 

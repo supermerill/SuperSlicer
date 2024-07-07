@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "order_facets_around_edges.h"
 #include "order_facets_around_edge.h"
@@ -160,7 +160,7 @@ template<
     typename uE2EType,
     typename uE2oEType,
     typename uE2CType >
-IGL_INLINE 
+IGL_INLINE
 typename std::enable_if<std::is_same<typename DerivedV::Scalar,
 typename CGAL::Exact_predicates_exact_constructions_kernel::FT>::value, void>::type
 igl::copyleft::cgal::order_facets_around_edges(

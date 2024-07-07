@@ -48,7 +48,7 @@ void ButtonsListCtrl::OnPaint(wxPaintEvent&)
 
     if (m_selection < 0 || m_selection >= (int)m_pageButtons.size())
         return;
-    
+
     const wxColour& selected_btn_bg  = Slic3r::GUI::wxGetApp().get_color_selected_btn_bg();
     const wxColour& default_btn_bg   = Slic3r::GUI::wxGetApp().get_highlight_default_clr();
     const wxColour& btn_marker_color = Slic3r::GUI::wxGetApp().get_color_hovered_btn(); //Slic3r::GUI::wxGetApp().get_color_hovered_btn_label();

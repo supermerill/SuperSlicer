@@ -79,19 +79,19 @@ static std::vector<Pointfs> makeNormalisedGrid(coordf_t z, size_t gridWidth, siz
 {
     // offset required to create a regular octagram
     coordf_t octagramGap = coordf_t(0.5);
-    
+
     // sawtooth wave function for range f($z) = [-$octagramGap .. $octagramGap]
     coordf_t a = std::sqrt(coordf_t(2.));  // period
     coordf_t wave = fabs(fmod(z, a) - a/2.)/a*4. - 1.;
     coordf_t offset = wave * octagramGap;
-    
+
     std::vector<Pointfs> points;
     if ((curveType & 1) != 0) {
         for (size_t x = 0; x <= gridWidth; ++x) {
             points.push_back(Pointfs());
             Pointfs &newPoints = points.back();
             newPoints = zip(
-                perpendPoints(offset, x, gridHeight), 
+                perpendPoints(offset, x, gridHeight),
                 colinearPoints(offset, 0, gridHeight));
             // trim points to grid edges
             trim(newPoints, coordf_t(0.), coordf_t(0.), coordf_t(gridWidth), coordf_t(gridHeight));
@@ -135,9 +135,9 @@ static Polylines makeGrid(coord_t z, coord_t gridSize, size_t gridWidth, size_t 
 }
 
 void Fill3DHoneycomb::_fill_surface_single(
-    const FillParams                &params, 
+    const FillParams                &params,
     unsigned int                     thickness_layers,
-    const std::pair<float, Point>   &direction, 
+    const std::pair<float, Point>   &direction,
     ExPolygon                        expolygon,
     Polylines                       &polylines_out) const
 {
@@ -146,22 +146,22 @@ void Fill3DHoneycomb::_fill_surface_single(
     coord_t     distance = _line_spacing_for_density(params);
 
     // align bounding box to a multiple of our honeycomb grid module
-    // (a module is 2*$distance since one $distance half-module is 
+    // (a module is 2*$distance since one $distance half-module is
     // growing while the other $distance half-module is shrinking)
     bb.merge(align_to_grid(bb.min, Point(2*distance, 2*distance)));
-    
+
     // generate pattern
     Polylines   polylines = makeGrid(
         scale_(this->z),
         distance,
         (size_t)ceil(bb.size().x() / distance) + 1,
         (size_t)ceil(bb.size().y() / distance) + 1,
-		size_t((this->layer_id / thickness_layers) % 2) + 1);
-	//makeGrid(coord_t z, coord_t gridSize, size_t gridWidth, size_t gridHeight, size_t curveType)
-    
+        size_t((this->layer_id / thickness_layers) % 2) + 1);
+    //makeGrid(coord_t z, coord_t gridSize, size_t gridWidth, size_t gridHeight, size_t curveType)
+
     // move pattern in place
-	for (Polyline &pl : polylines)
-		pl.translate(bb.min);
+    for (Polyline &pl : polylines)
+        pl.translate(bb.min);
 
     // clip pattern to boundaries, chain the clipped polylines
     polylines = intersection_pl(polylines, expolygon);

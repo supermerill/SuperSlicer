@@ -126,7 +126,7 @@ DenseBase<Derived>::NullaryExpr(Index rows, Index cols, const CustomNullaryOp& f
   *
   * Here is an example with C++11 random generators: \include random_cpp11.cpp
   * Output: \verbinclude random_cpp11.out
-  * 
+  *
   * \sa class CwiseNullaryOp
   */
 template<typename Derived>

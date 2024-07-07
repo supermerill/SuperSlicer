@@ -24,7 +24,7 @@ class Layer;
 
 namespace DoubleSlider {
 
-/* For exporting GCode in GCodeWriter is used XYZF_NUM(val) = PRECISION(val, 3) for XYZ values. 
+/* For exporting GCode in GCodeWriter is used XYZF_NUM(val) = PRECISION(val, 3) for XYZ values.
  * So, let use same value as a permissible error for layer height.
  */
 constexpr double epsilon() { return 0.0011; }
@@ -189,13 +189,13 @@ struct ExtrudersSequence
     }
 
     void delete_extruder(size_t pos)
-    {            
+    {
         if (extruders.size() == 1)
             return;// last item can't be deleted
         extruders.erase(extruders.begin() + pos);
     }
 
-    void init(size_t extruders_count) 
+    void init(size_t extruders_count)
     {
         extruders.clear();
         for (size_t extruder = 0; extruder < extruders_count; extruder++)
@@ -362,8 +362,8 @@ private:
     std::string get_color_for_color_change_tick(std::set<TickCode>::const_iterator it) const;
     wxRect      get_colored_band_rect();
 
-    // Get active extruders for tick. 
-    // Means one current extruder for not existing tick OR 
+    // Get active extruders for tick.
+    // Means one current extruder for not existing tick OR
     // 2 extruders - for existing tick (extruder before ToolChangeCode and extruder of current existing tick)
     // Use those values to disable selection of active extruders
     std::array<int, 2> get_active_extruders_for_tick(int tick) const;
@@ -435,7 +435,7 @@ private:
 
     // lock for avoiding render & callbacks while data is updating
     std::recursive_mutex m_lock_data;
-    
+
     std::vector<double> m_values;
     TickCodeInfo        m_ticks;
     std::vector<double> m_layers_times;

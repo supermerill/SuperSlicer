@@ -221,7 +221,7 @@ TOKEN * hexnumber(char * text)
     yyerror("can't scan hex number \"%s\"", text);
     return NULL;
   }
-  
+
 #if DEBUG
   avrdude_message(MSG_INFO, "HEXNUMBER(%g)\n", tkn->value.number);
 #endif

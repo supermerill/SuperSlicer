@@ -390,7 +390,7 @@ void Selection::add_all()
 
     if ((unsigned int)m_list.size() == count)
         return;
-    
+
     wxGetApp().plater()->take_snapshot(_(L("Selection-Add All")), UndoRedo::SnapshotType::Selection);
 
     m_mode = Instance;
@@ -412,7 +412,7 @@ void Selection::remove_all()
 
     if (is_empty())
         return;
-  
+
 // Not taking the snapshot with non-empty Redo stack will likely be more confusing than losing the Redo stack.
 // Let's wait for user feedback.
 //    if (!wxGetApp().plater()->can_redo())
@@ -432,8 +432,8 @@ void Selection::set_deserialized(EMode mode, const std::vector<std::pair<size_t,
         (*m_volumes)[i]->selected = false;
     m_list.clear();
     for (unsigned int i = 0; i < (unsigned int)m_volumes->size(); ++ i)
-		if (std::binary_search(volumes_and_instances.begin(), volumes_and_instances.end(), (*m_volumes)[i]->geometry_id))
-			do_add_volume(i);
+        if (std::binary_search(volumes_and_instances.begin(), volumes_and_instances.end(), (*m_volumes)[i]->geometry_id))
+            do_add_volume(i);
     update_type();
     set_bounding_boxes_dirty();
 }
@@ -483,7 +483,7 @@ void Selection::instances_changed(const std::vector<size_t> &instance_ids_select
     for (unsigned int volume_idx = 0; volume_idx < (unsigned int)m_volumes->size(); ++ volume_idx) {
         const GLVolume *volume = (*m_volumes)[volume_idx];
         auto it = std::lower_bound(instance_ids_selected.begin(), instance_ids_selected.end(), volume->geometry_id.second);
-		if (it != instance_ids_selected.end() && *it == volume->geometry_id.second)
+        if (it != instance_ids_selected.end() && *it == volume->geometry_id.second)
             this->do_add_volume(volume_idx);
     }
     update_type();
@@ -857,7 +857,7 @@ void Selection::flattening_rotate(const Vec3d& normal)
         // Normal transformed from the object coordinate space to the world coordinate space.
         const auto &voldata = m_cache.volumes_data[i];
         Vec3d tnormal = (Geometry::assemble_transform(
-            Vec3d::Zero(), voldata.get_instance_rotation(), 
+            Vec3d::Zero(), voldata.get_instance_rotation(),
             voldata.get_instance_scaling_factor().cwiseInverse(), voldata.get_instance_mirror()) * normal).normalized();
         // Additional rotation to align tnormal with the down vector in the world coordinate space.
         auto  extra_rotation = Eigen::Quaterniond().setFromTwoVectors(tnormal, - Vec3d::UnitZ());
@@ -1363,7 +1363,7 @@ void Selection::copy_to_clipboard()
         ModelObject* dst_object = m_clipboard.add_object();
         dst_object->name                 = src_object->name;
         dst_object->input_file           = src_object->input_file;
-		dst_object->config.assign_config(src_object->config);
+        dst_object->config.assign_config(src_object->config);
         dst_object->sla_support_points   = src_object->sla_support_points;
         dst_object->sla_points_status    = src_object->sla_points_status;
         dst_object->sla_drain_holes      = src_object->sla_drain_holes;
@@ -2157,7 +2157,7 @@ void Selection::ensure_on_bed()
 
     for (size_t i = 0; i < m_volumes->size(); ++i) {
         GLVolume* volume = (*m_volumes)[i];
-        if (!volume->is_wipe_tower && !volume->is_modifier && 
+        if (!volume->is_wipe_tower && !volume->is_modifier &&
             std::find(m_cache.sinking_volumes.begin(), m_cache.sinking_volumes.end(), i) == m_cache.sinking_volumes.end()) {
             const double min_z = volume->transformed_convex_hull_bounding_box().min.z();
             std::pair<int, int> instance = std::make_pair(volume->object_idx(), volume->instance_idx());
@@ -2287,7 +2287,7 @@ void Selection::paste_volumes_from_clipboard()
 
             volumes.push_back(dst_volume);
 #ifdef _DEBUG
-		    check_model_ids_validity(*m_model);
+            check_model_ids_validity(*m_model);
 #endif /* _DEBUG */
         }
 
@@ -2328,7 +2328,7 @@ void Selection::paste_objects_from_clipboard()
 
         object_idxs.push_back(m_model->objects.size() - 1);
 #ifdef _DEBUG
-	    check_model_ids_validity(*m_model);
+        check_model_ids_validity(*m_model);
 #endif /* _DEBUG */
     }
 

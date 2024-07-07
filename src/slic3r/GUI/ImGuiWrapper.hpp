@@ -73,7 +73,7 @@ public:
 
     void set_next_window_pos(float x, float y, int flag, float pivot_x = 0.0f, float pivot_y = 0.0f);
     void set_next_window_bg_alpha(float alpha);
-	void set_next_window_size(float x, float y, ImGuiCond cond);
+    void set_next_window_size(float x, float y, ImGuiCond cond);
 
     bool begin(const std::string &name, int flags = 0);
     bool begin(const wxString &name, int flags = 0);
@@ -82,9 +82,9 @@ public:
     void end();
 
     bool button(const wxString &label);
-	bool button(const wxString& label, float width, float height);
+    bool button(const wxString& label, float width, float height);
     bool radio_button(const wxString &label, bool active);
-	bool image_button();
+    bool image_button();
     bool input_double(const std::string &label, const double &value, const std::string &format = "%.3f");
     bool input_double(const wxString &label, const double &value, const std::string &format = "%.3f");
     bool input_vec3(const std::string &label, const Vec3d &value, float width, const std::string &format = "%.3f");

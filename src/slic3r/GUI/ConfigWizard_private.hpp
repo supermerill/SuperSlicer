@@ -60,26 +60,26 @@ enum Technology {
 
 struct Bundle
 {
-	std::unique_ptr<PresetBundle> preset_bundle;
-	VendorProfile* vendor_profile{ nullptr };
-	bool is_in_resources{ false };
-	bool is_prusa_bundle{ false };
+    std::unique_ptr<PresetBundle> preset_bundle;
+    VendorProfile* vendor_profile{ nullptr };
+    bool is_in_resources{ false };
+    bool is_prusa_bundle{ false };
 
-	Bundle() = default;
-	Bundle(Bundle&& other);
+    Bundle() = default;
+    Bundle(Bundle&& other);
 
-	// Returns false if not loaded. Reason for that is logged as boost::log error.
-	bool load(fs::path source_path, bool is_in_resources, bool is_prusa_bundle = false);
+    // Returns false if not loaded. Reason for that is logged as boost::log error.
+    bool load(fs::path source_path, bool is_in_resources, bool is_prusa_bundle = false);
 
-	const std::string& vendor_id() const { return vendor_profile->id; }
+    const std::string& vendor_id() const { return vendor_profile->id; }
 };
 
 struct BundleMap : std::unordered_map<std::string /* = vendor ID */, Bundle>
 {
-	static BundleMap load();
+    static BundleMap load();
 
-	Bundle& prusa_bundle();
-	const Bundle& prusa_bundle() const;
+    Bundle& prusa_bundle();
+    const Bundle& prusa_bundle() const;
 };
 
 struct Materials
@@ -87,26 +87,26 @@ struct Materials
     Technology technology;
     // use vector for the presets to purpose of save of presets sorting in the bundle
     std::vector<const Preset*> presets;
-    // String is alias of material, size_t number of compatible counters 
+    // String is alias of material, size_t number of compatible counters
     std::vector<std::pair<std::string, size_t>> compatibility_counter;
     std::set<std::string> types;
-	std::set<const Preset*> printers;
+    std::set<const Preset*> printers;
 
     Materials(Technology technology) : technology(technology) {}
 
     void push(const Preset *preset);
-	void add_printer(const Preset* preset);
+    void add_printer(const Preset* preset);
     void clear();
     bool containts(const Preset *preset) const {
-        //return std::find(presets.begin(), presets.end(), preset) != presets.end(); 
-		return std::find_if(presets.begin(), presets.end(),
-			[preset](const Preset* element) { return element == preset; }) != presets.end();
+        //return std::find(presets.begin(), presets.end(), preset) != presets.end();
+        return std::find_if(presets.begin(), presets.end(),
+            [preset](const Preset* element) { return element == preset; }) != presets.end();
 
     }
-	
-	bool get_omnipresent(const Preset* preset) {
-		return get_printer_counter(preset) == printers.size();
-	}
+
+    bool get_omnipresent(const Preset* preset) {
+        return get_printer_counter(preset) == printers.size();
+    }
 
     const std::vector<const Preset*> get_presets_by_alias(const std::string name) {
         std::vector<const Preset*> ret_vec;
@@ -117,32 +117,32 @@ struct Materials
         return ret_vec;
     }
 
-	
 
-	size_t get_printer_counter(const Preset* preset) {
-		for (auto it : compatibility_counter) {
-			if (it.first == preset->alias)
+
+    size_t get_printer_counter(const Preset* preset) {
+        for (auto it : compatibility_counter) {
+            if (it.first == preset->alias)
                 return it.second;
         }
-		return 0;
-	}
+        return 0;
+    }
 
     const std::string& appconfig_section() const;
     const std::string& get_type(const Preset *preset) const;
     const std::string& get_vendor(const Preset *preset) const;
-	
-	template<class F> void filter_presets(const Preset* printer, const std::string& type, const std::string& vendor, F cb) {
-		for (auto preset : presets) {
-			const Preset& prst = *(preset);
-			const Preset& prntr = *printer;
-		      if ((printer == nullptr || is_compatible_with_printer(PresetWithVendorProfile(prst, prst.vendor), PresetWithVendorProfile(prntr, prntr.vendor))) &&
-			    (type.empty() || get_type(preset) == type) &&
-				(vendor.empty() || get_vendor(preset) == vendor)) {
 
-				cb(preset);
-			}
-		}
-	}
+    template<class F> void filter_presets(const Preset* printer, const std::string& type, const std::string& vendor, F cb) {
+        for (auto preset : presets) {
+            const Preset& prst = *(preset);
+            const Preset& prntr = *printer;
+              if ((printer == nullptr || is_compatible_with_printer(PresetWithVendorProfile(prst, prst.vendor), PresetWithVendorProfile(prntr, prntr.vendor))) &&
+                (type.empty() || get_type(preset) == type) &&
+                (vendor.empty() || get_vendor(preset) == vendor)) {
+
+                cb(preset);
+            }
+        }
+    }
 
     static const std::string UNKNOWN;
     static const std::string& get_filament_type(const Preset *preset);
@@ -246,7 +246,7 @@ struct PagePrinters: ConfigWizardPage
         wxString title,
         wxString shortname,
         const VendorProfile &vendor,
-        uint32_t indent, 
+        uint32_t indent,
         Technology technology);
 
     void select_all(bool select, bool alternates = false);
@@ -267,7 +267,7 @@ struct PagePrinters: ConfigWizardPage
 template<class T, class D> struct DataList : public T
 {
     DataList(wxWindow *parent) : T(parent, wxID_ANY) {}
-	DataList(wxWindow* parent, int style) : T(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0, NULL, style) {}
+    DataList(wxWindow* parent, int style) : T(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0, NULL, style) {}
 
     // Note: We're _not_ using wxLB_SORT here because it doesn't do the right thing,
     // eg. "ABS" is sorted before "(All)"
@@ -298,7 +298,7 @@ template<class T, class D> struct DataList : public T
 
     void on_mouse_move(const wxPoint& position) {
         int item = T::HitTest(position);
-       
+
         if(item == wxHitTest::wxHT_WINDOW_INSIDE)
             BOOST_LOG_TRIVIAL(error) << "hit test wxHT_WINDOW_INSIDE";
         else if (item == wxHitTest::wxHT_WINDOW_OUTSIDE)
@@ -348,8 +348,8 @@ struct PageMaterials: ConfigWizardPage
     PageMaterials(ConfigWizard *parent, Materials *materials, wxString title, wxString shortname, wxString list1name);
 
     void reload_presets();
-	void update_lists(int sel_type, int sel_vendor, int last_selected_printer = -1);
-	void on_material_highlighted(int sel_material);
+    void update_lists(int sel_type, int sel_vendor, int last_selected_printer = -1);
+    void on_material_highlighted(int sel_material);
     void on_material_hovered(int sel_material);
     void select_material(int i);
     void select_all(bool select);
@@ -471,8 +471,8 @@ struct PageTemperatures: ConfigWizardPage
 };
 
 // hypothetically, each vendor can has printers both of technologies (FFF and SLA)
-typedef std::map<std::string /* = vendor ID */, 
-                 std::pair<PagePrinters* /* = FFF page */, 
+typedef std::map<std::string /* = vendor ID */,
+                 std::pair<PagePrinters* /* = FFF page */,
                            PagePrinters* /* = SLA page */>> Pages3rdparty;
 
 
@@ -551,7 +551,7 @@ struct ConfigWizard::priv
     std::unique_ptr<DynamicPrintConfig> custom_config;           // Backing for custom printer definition
     bool any_fff_selected;        // Used to decide whether to display Filaments page
     bool any_sla_selected;        // Used to decide whether to display SLA Materials page
-    bool custom_printer_selected { false }; 
+    bool custom_printer_selected { false };
     // Set to true if there are none FFF printers on the main FFF page. If true, only SLA printers are shown (not even custum printers)
     bool only_sla_mode { false };
 

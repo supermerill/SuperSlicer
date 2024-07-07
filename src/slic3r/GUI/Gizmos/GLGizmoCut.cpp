@@ -226,8 +226,8 @@ void GLGizmoCut::perform_cut(const Selection& selection)
 
     if (0.0 < object_cut_z && object_cut_z < m_max_z)
         wxGetApp().plater()->cut(object_idx, instance_idx, object_cut_z,
-            only_if(m_keep_upper, ModelObjectCutAttribute::KeepUpper) | 
-            only_if(m_keep_lower, ModelObjectCutAttribute::KeepLower) | 
+            only_if(m_keep_upper, ModelObjectCutAttribute::KeepUpper) |
+            only_if(m_keep_lower, ModelObjectCutAttribute::KeepLower) |
             only_if(m_rotate_lower, ModelObjectCutAttribute::FlipLower));
     else {
         // the object is SLA-elevated and the plane is under it.

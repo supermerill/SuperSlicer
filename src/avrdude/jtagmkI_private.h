@@ -133,17 +133,17 @@
 #define JTAG_BITRATE_125_kHz 0xfb
 
 /* memory types for CMND_{READ,WRITE}_MEMORY */
-#define MTYPE_IO_SHADOW 0x30	/* cached IO registers? */
-#define MTYPE_SRAM 0x20		/* target's SRAM or [ext.] IO registers */
-#define MTYPE_EEPROM 0x22	/* EEPROM, what way? */
-#define MTYPE_EVENT 0x60	/* ICE event memory */
-#define MTYPE_SPM 0xA0		/* flash through LPM/SPM */
-#define MTYPE_FLASH_PAGE 0xB0	/* flash in programming mode */
-#define MTYPE_EEPROM_PAGE 0xB1	/* EEPROM in programming mode */
-#define MTYPE_FUSE_BITS 0xB2	/* fuse bits in programming mode */
-#define MTYPE_LOCK_BITS 0xB3	/* lock bits in programming mode */
-#define MTYPE_SIGN_JTAG 0xB4	/* signature in programming mode */
-#define MTYPE_OSCCAL_BYTE 0xB5	/* osccal cells in programming mode */
+#define MTYPE_IO_SHADOW 0x30    /* cached IO registers? */
+#define MTYPE_SRAM 0x20        /* target's SRAM or [ext.] IO registers */
+#define MTYPE_EEPROM 0x22    /* EEPROM, what way? */
+#define MTYPE_EVENT 0x60    /* ICE event memory */
+#define MTYPE_SPM 0xA0        /* flash through LPM/SPM */
+#define MTYPE_FLASH_PAGE 0xB0    /* flash in programming mode */
+#define MTYPE_EEPROM_PAGE 0xB1    /* EEPROM in programming mode */
+#define MTYPE_FUSE_BITS 0xB2    /* fuse bits in programming mode */
+#define MTYPE_LOCK_BITS 0xB3    /* lock bits in programming mode */
+#define MTYPE_SIGN_JTAG 0xB4    /* signature in programming mode */
+#define MTYPE_OSCCAL_BYTE 0xB5    /* osccal cells in programming mode */
 
 struct device_descriptor
 {

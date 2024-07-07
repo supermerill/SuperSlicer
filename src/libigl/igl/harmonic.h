@@ -61,7 +61,7 @@ namespace igl
   // Compute a harmonic map using a given Laplacian and mass matrix
   //
   // Inputs:
-  //   L  #V by #V discrete (integrated) Laplacian  
+  //   L  #V by #V discrete (integrated) Laplacian
   //   M  #V by #V mass matrix
   //   b  #b boundary indices into V
   //   bc  #b by #W list of boundary values
@@ -85,11 +85,11 @@ namespace igl
   // That is, if the k-harmonic PDE is Q x = 0, then this minimizes x' Q x
   //
   // Inputs:
-  //   L  #V by #V discrete (integrated) Laplacian  
+  //   L  #V by #V discrete (integrated) Laplacian
   //   M  #V by #V mass matrix
   //   k  power of harmonic operation (1: harmonic, 2: biharmonic, etc)
   // Outputs:
-  //   Q  #V by #V discrete (integrated) k-Laplacian  
+  //   Q  #V by #V discrete (integrated) k-Laplacian
   template <
     typename DerivedL,
     typename DerivedM,
@@ -104,7 +104,7 @@ namespace igl
   //   F  #F by simplex-size list of element indices
   //   k  power of harmonic operation (1: harmonic, 2: biharmonic, etc)
   // Outputs:
-  //   Q  #V by #V discrete (integrated) k-Laplacian  
+  //   Q  #V by #V discrete (integrated) k-Laplacian
   template <
     typename DerivedV,
     typename DerivedF,

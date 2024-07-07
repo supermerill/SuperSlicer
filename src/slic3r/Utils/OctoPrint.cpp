@@ -31,7 +31,7 @@ namespace Slic3r {
 namespace {
 std::string substitute_host(const std::string& orig_addr, std::string sub_addr)
 {
-    // put ipv6 into [] brackets 
+    // put ipv6 into [] brackets
     if (sub_addr.find(':') != std::string::npos && sub_addr.at(0) != '[')
         sub_addr = "[" + sub_addr + "]";
 
@@ -46,7 +46,7 @@ std::string substitute_host(const std::string& orig_addr, std::string sub_addr)
     host_start = (at != std::string::npos && at > host_start ? at + 1 : host_start);
     // end of host, could be port(:), subpath(/) (could be query(?) or fragment(#)?)
     // or it will be ']' if address is ipv6 )
-    size_t potencial_host_end = orig_addr.find_first_of(":/", host_start); 
+    size_t potencial_host_end = orig_addr.find_first_of(":/", host_start);
     // if there are more ':' it must be ipv6
     if (potencial_host_end != std::string::npos && orig_addr[potencial_host_end] == ':' && orig_addr.rfind(':') != potencial_host_end) {
         size_t ipv6_end = orig_addr.find(']', host_start);
@@ -226,7 +226,7 @@ bool OctoPrint::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, Erro
         // If it got the address use it instead of the stored in "host" variable.
         // This new address returns in "test_msg_or_host_ip" variable.
         // Solves troubles of uploades failing with name address.
-        // in original address (m_host) replace host for resolved ip 
+        // in original address (m_host) replace host for resolved ip
         url = substitute_host(make_url("api/files/local"), GUI::into_u8(test_msg_or_host_ip));
         BOOST_LOG_TRIVIAL(info) << "Upload address after ip resolve: " << url;
     }
@@ -343,7 +343,7 @@ bool MiniDeltaLCD::validate_version_text(const boost::optional<std::string>& ver
 }
 
 // SL1Host
-SL1Host::SL1Host(DynamicPrintConfig *config) : 
+SL1Host::SL1Host(DynamicPrintConfig *config) :
     OctoPrint(config),
     m_authorization_type(dynamic_cast<const ConfigOptionEnum<AuthorizationType>*>(config->option("printhost_authorization_type"))->value),
     m_username(config->opt_string("printhost_user")),

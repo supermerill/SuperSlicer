@@ -33,7 +33,7 @@
 #ifndef EIGEN_GENERAL_MATRIX_MATRIX_BLAS_H
 #define EIGEN_GENERAL_MATRIX_MATRIX_BLAS_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 

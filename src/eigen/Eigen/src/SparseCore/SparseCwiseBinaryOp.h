@@ -10,7 +10,7 @@
 #ifndef EIGEN_SPARSE_CWISE_BINARY_OP_H
 #define EIGEN_SPARSE_CWISE_BINARY_OP_H
 
-namespace Eigen { 
+namespace Eigen {
 
 // Here we have to handle 3 cases:
 //  1 - sparse op dense
@@ -52,7 +52,7 @@ class CwiseBinaryOpImpl<BinaryOp, Lhs, Rhs, Sparse>
 
 namespace internal {
 
-  
+
 // Generic "sparse OP sparse"
 template<typename XprType> struct binary_sparse_evaluator;
 
@@ -71,7 +71,7 @@ public:
   class InnerIterator
   {
   public:
-    
+
     EIGEN_STRONG_INLINE InnerIterator(const binary_evaluator& aEval, Index outer)
       : m_lhsIter(aEval.m_lhsImpl,outer), m_rhsIter(aEval.m_rhsImpl,outer), m_functor(aEval.m_functor)
     {
@@ -123,22 +123,22 @@ public:
     Scalar m_value;
     StorageIndex m_id;
   };
-  
-  
+
+
   enum {
     CoeffReadCost = evaluator<Lhs>::CoeffReadCost + evaluator<Rhs>::CoeffReadCost + functor_traits<BinaryOp>::Cost,
     Flags = XprType::Flags
   };
-  
+
   explicit binary_evaluator(const XprType& xpr)
     : m_functor(xpr.functor()),
-      m_lhsImpl(xpr.lhs()), 
-      m_rhsImpl(xpr.rhs())  
+      m_lhsImpl(xpr.lhs()),
+      m_rhsImpl(xpr.rhs())
   {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<BinaryOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
-  
+
   inline Index nonZerosEstimate() const {
     return m_lhsImpl.nonZerosEstimate() + m_rhsImpl.nonZerosEstimate();
   }
@@ -415,7 +415,7 @@ public:
   class InnerIterator
   {
   public:
-    
+
     EIGEN_STRONG_INLINE InnerIterator(const sparse_conjunction_evaluator& aEval, Index outer)
       : m_lhsIter(aEval.m_lhsImpl,outer), m_rhsIter(aEval.m_rhsImpl,outer), m_functor(aEval.m_functor)
     {
@@ -441,7 +441,7 @@ public:
       }
       return *this;
     }
-    
+
     EIGEN_STRONG_INLINE Scalar value() const { return m_functor(m_lhsIter.value(), m_rhsIter.value()); }
 
     EIGEN_STRONG_INLINE StorageIndex index() const { return m_lhsIter.index(); }
@@ -456,22 +456,22 @@ public:
     RhsIterator m_rhsIter;
     const BinaryOp& m_functor;
   };
-  
-  
+
+
   enum {
     CoeffReadCost = evaluator<LhsArg>::CoeffReadCost + evaluator<RhsArg>::CoeffReadCost + functor_traits<BinaryOp>::Cost,
     Flags = XprType::Flags
   };
-  
+
   explicit sparse_conjunction_evaluator(const XprType& xpr)
     : m_functor(xpr.functor()),
-      m_lhsImpl(xpr.lhs()), 
-      m_rhsImpl(xpr.rhs())  
+      m_lhsImpl(xpr.lhs()),
+      m_rhsImpl(xpr.rhs())
   {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<BinaryOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
-  
+
   inline Index nonZerosEstimate() const {
     return (std::min)(m_lhsImpl.nonZerosEstimate(), m_rhsImpl.nonZerosEstimate());
   }
@@ -502,7 +502,7 @@ public:
     enum { IsRowMajor = (int(RhsArg::Flags)&RowMajorBit)==RowMajorBit };
 
   public:
-    
+
     EIGEN_STRONG_INLINE InnerIterator(const sparse_conjunction_evaluator& aEval, Index outer)
       : m_lhsEval(aEval.m_lhsImpl), m_rhsIter(aEval.m_rhsImpl,outer), m_functor(aEval.m_functor), m_outer(outer)
     {}
@@ -522,30 +522,30 @@ public:
     EIGEN_STRONG_INLINE Index col() const { return m_rhsIter.col(); }
 
     EIGEN_STRONG_INLINE operator bool() const { return m_rhsIter; }
-    
+
   protected:
     const LhsEvaluator &m_lhsEval;
     RhsIterator m_rhsIter;
     const BinaryOp& m_functor;
     const Index m_outer;
   };
-  
-  
+
+
   enum {
     CoeffReadCost = evaluator<LhsArg>::CoeffReadCost + evaluator<RhsArg>::CoeffReadCost + functor_traits<BinaryOp>::Cost,
     // Expose storage order of the sparse expression
     Flags = (XprType::Flags & ~RowMajorBit) | (int(RhsArg::Flags)&RowMajorBit)
   };
-  
+
   explicit sparse_conjunction_evaluator(const XprType& xpr)
     : m_functor(xpr.functor()),
-      m_lhsImpl(xpr.lhs()), 
-      m_rhsImpl(xpr.rhs())  
+      m_lhsImpl(xpr.lhs()),
+      m_rhsImpl(xpr.rhs())
   {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<BinaryOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
-  
+
   inline Index nonZerosEstimate() const {
     return m_rhsImpl.nonZerosEstimate();
   }
@@ -576,7 +576,7 @@ public:
     enum { IsRowMajor = (int(LhsArg::Flags)&RowMajorBit)==RowMajorBit };
 
   public:
-    
+
     EIGEN_STRONG_INLINE InnerIterator(const sparse_conjunction_evaluator& aEval, Index outer)
       : m_lhsIter(aEval.m_lhsImpl,outer), m_rhsEval(aEval.m_rhsImpl), m_functor(aEval.m_functor), m_outer(outer)
     {}
@@ -597,30 +597,30 @@ public:
     EIGEN_STRONG_INLINE Index col() const { return m_lhsIter.col(); }
 
     EIGEN_STRONG_INLINE operator bool() const { return m_lhsIter; }
-    
+
   protected:
     LhsIterator m_lhsIter;
     const evaluator<RhsArg> &m_rhsEval;
     const BinaryOp& m_functor;
     const Index m_outer;
   };
-  
-  
+
+
   enum {
     CoeffReadCost = evaluator<LhsArg>::CoeffReadCost + evaluator<RhsArg>::CoeffReadCost + functor_traits<BinaryOp>::Cost,
     // Expose storage order of the sparse expression
     Flags = (XprType::Flags & ~RowMajorBit) | (int(LhsArg::Flags)&RowMajorBit)
   };
-  
+
   explicit sparse_conjunction_evaluator(const XprType& xpr)
     : m_functor(xpr.functor()),
-      m_lhsImpl(xpr.lhs()), 
-      m_rhsImpl(xpr.rhs())  
+      m_lhsImpl(xpr.lhs()),
+      m_rhsImpl(xpr.rhs())
   {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<BinaryOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
-  
+
   inline Index nonZerosEstimate() const {
     return m_lhsImpl.nonZerosEstimate();
   }
@@ -684,7 +684,7 @@ Derived& SparseMatrixBase<Derived>::operator-=(const DiagonalBase<OtherDerived>&
   call_assignment_no_alias(derived(), other.derived(), internal::sub_assign_op<Scalar,typename OtherDerived::Scalar>());
   return derived();
 }
-    
+
 template<typename Derived>
 template<typename OtherDerived>
 EIGEN_STRONG_INLINE const typename SparseMatrixBase<Derived>::template CwiseProductDenseReturnType<OtherDerived>::Type

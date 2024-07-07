@@ -214,7 +214,7 @@ class GLCanvas3D
 
         mutable HeightProfileAdaptiveParams m_adaptive_params;
         mutable HeightProfileSmoothingParams m_smooth_params;
-        
+
         static float                s_overlay_window_width;
 
         struct LayersTexture
@@ -247,7 +247,7 @@ class GLCanvas3D
 
         void init();
 
-		void set_config(const DynamicPrintConfig* config);
+        void set_config(const DynamicPrintConfig* config);
         void select_object(const Model &model, int object_id);
 
         bool is_allowed() const;
@@ -258,8 +258,8 @@ class GLCanvas3D
         void render_overlay(const GLCanvas3D& canvas) const;
         void render_volumes(const GLCanvas3D& canvas, const GLVolumeCollection& volumes);
 
-		void adjust_layer_height_profile();
-		void accept_changes(GLCanvas3D& canvas);
+        void adjust_layer_height_profile();
+        void accept_changes(GLCanvas3D& canvas);
         void reset_layer_height_profile(GLCanvas3D& canvas);
         void adaptive_layer_height_profile(GLCanvas3D& canvas, const HeightProfileAdaptiveParams& adaptative_params);
         void smooth_layer_height_profile(GLCanvas3D& canvas, const HeightProfileSmoothingParams& smoothing_params);
@@ -282,7 +282,7 @@ class GLCanvas3D
         void update_slicing_parameters();
 
         static float thickness_bar_width(const GLCanvas3D &canvas);
-        
+
     };
 
     struct Mouse
@@ -586,8 +586,8 @@ private:
         GLToolbarItem*          m_toolbar_item{ nullptr };
     private:
         GLCanvas3D*             m_canvas{ nullptr };
-        int				        m_blink_counter{ 0 };
-        ToolbarHighlighterTimer m_timer;       
+        int                        m_blink_counter{ 0 };
+        ToolbarHighlighterTimer m_timer;
     }
     m_toolbar_highlighter;
 
@@ -602,7 +602,7 @@ private:
     private:
         GLGizmosManager*        m_gizmo_manager{ nullptr };
         GLCanvas3D*             m_canvas{ nullptr };
-        int				        m_blink_counter{ 0 };
+        int                        m_blink_counter{ 0 };
         GizmoHighlighterTimer   m_timer;
 
     }
@@ -617,7 +617,7 @@ public:
     void set_context(wxGLContext* context) { m_context = context; }
 
     wxGLCanvas* get_wxglcanvas() { return m_canvas; }
-	const wxGLCanvas* get_wxglcanvas() const { return m_canvas; }
+    const wxGLCanvas* get_wxglcanvas() const { return m_canvas; }
 
     bool init();
     void post_event(wxEvent &&event);
@@ -784,7 +784,7 @@ public:
     int get_move_volume_id() const { return m_mouse.drag.move_volume_idx; }
     int get_first_hover_volume_idx() const { return m_hover_volume_idxs.empty() ? -1 : m_hover_volume_idxs.front(); }
     void set_selected_extruder(int extruder) { m_selected_extruder = extruder;}
-    
+
     class WipeTowerInfo {
     protected:
         Vec2d m_pos = {std::nan(""), std::nan("")};
@@ -792,18 +792,18 @@ public:
         BoundingBoxf m_bb;
         friend class GLCanvas3D;
 
-    public:        
+    public:
         inline operator bool() const {
             return !std::isnan(m_pos.x()) && !std::isnan(m_pos.y());
         }
-        
+
         inline const Vec2d& pos() const { return m_pos; }
         inline double rotation() const { return m_rotation; }
         inline const Vec2d bb_size() const { return m_bb.size(); }
-        
+
         void apply_wipe_tower() const;
     };
-    
+
     WipeTowerInfo get_wipe_tower_info() const;
 
     // Returns the view ray line, in world coordinate, at the given mouse position.
@@ -818,7 +818,7 @@ public:
     void msw_rescale();
 
     void request_extra_frame() { m_extra_frame_requested = true; }
-    
+
     void schedule_extra_frame(int miliseconds);
 
     float get_main_toolbar_height() { return m_main_toolbar.get_height(); }
@@ -978,7 +978,7 @@ private:
     void _load_wipe_tower_toolpaths(const BuildVolume &build_volume, const std::vector<std::string>& str_tool_colors);
 
     // Load SLA objects and support structures for objects, for which the slaposSliceSupports step has been finished.
-	void _load_sla_shells();
+    void _load_sla_shells();
     void _update_sla_shells_outside_state();
     void _set_warning_notification_if_needed(EWarning warning);
 

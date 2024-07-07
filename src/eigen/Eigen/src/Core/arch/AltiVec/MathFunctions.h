@@ -31,7 +31,7 @@ static _EIGEN_DECLARE_CONST_Packet4f_FROM_INT(inv_mant_mask, ~0x7f800000);
 static _EIGEN_DECLARE_CONST_Packet4f_FROM_INT(min_norm_pos,  0x00800000);
 static _EIGEN_DECLARE_CONST_Packet4f_FROM_INT(minus_inf,     0xff800000); // -1.f/0.f
 static _EIGEN_DECLARE_CONST_Packet4f_FROM_INT(minus_nan,     0xffffffff);
-  
+
 /* natural logarithm computed for 4 simultaneous float
   return NaN for x <= 0
 */
@@ -189,7 +189,7 @@ Packet4f pexp<Packet4f>(const Packet4f& _x)
   emm0 = vec_add(emm0, p4i_0x7f);
   emm0 = vec_sl(emm0, reinterpret_cast<Packet4ui>(p4i_23));
 
-  // Altivec's max & min operators just drop silent NaNs. Check NaNs in 
+  // Altivec's max & min operators just drop silent NaNs. Check NaNs in
   // inputs and return them unmodified.
   Packet4ui isnumber_mask = reinterpret_cast<Packet4ui>(vec_cmpeq(_x, _x));
   return vec_sel(_x, pmax(pmul(y, reinterpret_cast<Packet4f>(emm0)), _x),
@@ -228,7 +228,7 @@ Packet2d psqrt<Packet2d>(const Packet2d& x)
 // VSX support varies between different compilers and even different
 // versions of the same compiler.  For gcc version >= 4.9.3, we can use
 // vec_cts to efficiently convert Packet2d to Packet2l.  Otherwise, use
-// a slow version that works with older compilers. 
+// a slow version that works with older compilers.
 // Update: apparently vec_cts/vec_ctf intrinsics for 64-bit doubles
 // are buggy, https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70963
 static inline Packet2l ConvertToPacket2l(const Packet2d& x) {
@@ -283,7 +283,7 @@ Packet2d pexp<Packet2d>(const Packet2d& _x)
   // build 2^n
   emm0 = ConvertToPacket2l(fx);
 
-#ifdef __POWER8_VECTOR__ 
+#ifdef __POWER8_VECTOR__
   emm0 = vec_add(emm0, p2l_1023);
   emm0 = vec_sl(emm0, p2ul_52);
 #else
@@ -297,7 +297,7 @@ Packet2d pexp<Packet2d>(const Packet2d& _x)
   emm04i = vec_add(emm04i, p4i_1023);
   emm04i = vec_sl(emm04i, reinterpret_cast<Packet4ui>(p4i_20));
   static const Packet16uc perm = {
-    0x14, 0x15, 0x16, 0x17, 0x00, 0x01, 0x02, 0x03, 
+    0x14, 0x15, 0x16, 0x17, 0x00, 0x01, 0x02, 0x03,
     0x1c, 0x1d, 0x1e, 0x1f, 0x08, 0x09, 0x0a, 0x0b };
 #ifdef  _BIG_ENDIAN
   emm0 = reinterpret_cast<Packet2l>(vec_perm(p4i_ZERO, emm04i, perm));
@@ -307,7 +307,7 @@ Packet2d pexp<Packet2d>(const Packet2d& _x)
 
 #endif
 
-  // Altivec's max & min operators just drop silent NaNs. Check NaNs in 
+  // Altivec's max & min operators just drop silent NaNs. Check NaNs in
   // inputs and return them unmodified.
   Packet2ul isnumber_mask = reinterpret_cast<Packet2ul>(vec_cmpeq(_x, _x));
   return vec_sel(_x, pmax(pmul(x, reinterpret_cast<Packet2d>(emm0)), _x),

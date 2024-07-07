@@ -24,7 +24,7 @@
 { // Begin block : Scope of qV (if not maintained)
 
 #ifndef COMPUTE_V_AS_QUATERNION
-    ENABLE_SCALAR_IMPLEMENTATION(union {float f;unsigned int ui;} Sqvs;)                  ENABLE_SSE_IMPLEMENTATION(__m128 Vqvs;)                                                   ENABLE_AVX_IMPLEMENTATION(__m256 Vqvs;) 
+    ENABLE_SCALAR_IMPLEMENTATION(union {float f;unsigned int ui;} Sqvs;)                  ENABLE_SSE_IMPLEMENTATION(__m128 Vqvs;)                                                   ENABLE_AVX_IMPLEMENTATION(__m256 Vqvs;)
     ENABLE_SCALAR_IMPLEMENTATION(union {float f;unsigned int ui;} Sqvvx;)                 ENABLE_SSE_IMPLEMENTATION(__m128 Vqvvx;)                                                  ENABLE_AVX_IMPLEMENTATION(__m256 Vqvvx;)
     ENABLE_SCALAR_IMPLEMENTATION(union {float f;unsigned int ui;} Sqvvy;)                 ENABLE_SSE_IMPLEMENTATION(__m128 Vqvvy;)                                                  ENABLE_AVX_IMPLEMENTATION(__m256 Vqvvy;)
     ENABLE_SCALAR_IMPLEMENTATION(union {float f;unsigned int ui;} Sqvvz;)                 ENABLE_SSE_IMPLEMENTATION(__m128 Vqvvz;)                                                  ENABLE_AVX_IMPLEMENTATION(__m256 Vqvvz;)
@@ -83,7 +83,7 @@
     ENABLE_SCALAR_IMPLEMENTATION(Ss33.f=Stmp1.f+Ss33.f;)                                  ENABLE_SSE_IMPLEMENTATION(Vs33=_mm_add_ps(Vtmp1,Vs33);)                                   ENABLE_AVX_IMPLEMENTATION(Vs33=_mm256_add_ps(Vtmp1,Vs33);)
     ENABLE_SCALAR_IMPLEMENTATION(Stmp1.f=Sa33.f*Sa33.f;)                                  ENABLE_SSE_IMPLEMENTATION(Vtmp1=_mm_mul_ps(Va33,Va33);)                                   ENABLE_AVX_IMPLEMENTATION(Vtmp1=_mm256_mul_ps(Va33,Va33);)
     ENABLE_SCALAR_IMPLEMENTATION(Ss33.f=Stmp1.f+Ss33.f;)                                  ENABLE_SSE_IMPLEMENTATION(Vs33=_mm_add_ps(Vtmp1,Vs33);)                                   ENABLE_AVX_IMPLEMENTATION(Vs33=_mm256_add_ps(Vtmp1,Vs33);)
-    
+
     //###########################################################
     // Solve symmetric eigenproblem using Jacobi iteration
     //###########################################################
@@ -972,7 +972,7 @@
 #define VU32 Vu32
 
 #include "Singular_Value_Decomposition_Givens_QR_Factorization_Kernel.hpp"
-    
+
 #undef SAPIVOT
 #undef SANPIVOT
 #undef SA11
@@ -1045,7 +1045,7 @@
 #define VU32 Vu33
 
 #include "Singular_Value_Decomposition_Givens_QR_Factorization_Kernel.hpp"
-    
+
 #undef SAPIVOT
 #undef SANPIVOT
 #undef SA11
@@ -1119,7 +1119,7 @@
 #define VU32 Vu33
 
 #include "Singular_Value_Decomposition_Givens_QR_Factorization_Kernel.hpp"
-    
+
 #undef SAPIVOT
 #undef SANPIVOT
 #undef SA11

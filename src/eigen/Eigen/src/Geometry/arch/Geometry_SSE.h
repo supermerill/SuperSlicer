@@ -11,7 +11,7 @@
 #ifndef EIGEN_GEOMETRY_SSE_H
 #define EIGEN_GEOMETRY_SSE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -37,7 +37,7 @@ struct quat_product<Architecture::SSE, Derived, OtherDerived, float>
                                     _mm_mul_ps(vec4f_swizzle1(a,2,0,1,0),
                                                vec4f_swizzle1(b,1,2,0,0))),
                          _mm_xor_ps(mask,_mm_add_ps(s1,s2))));
-    
+
     return res;
   }
 };
@@ -118,7 +118,7 @@ struct quat_product<Architecture::SSE, Derived, OtherDerived, double>
 #else
   pstoret<double,Packet2d,ResAlignment>(&res.x(), padd(t1, pxor(mask,preverse(t2))));
 #endif
-  
+
   /*
    * t1 = ww*zw - yy*xy
    * t2 = zz*zw + xx*xy

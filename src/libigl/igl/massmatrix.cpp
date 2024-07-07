@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "massmatrix.h"
 #include "normalize_row_sums.h"
@@ -15,8 +15,8 @@
 
 template <typename DerivedV, typename DerivedF, typename Scalar>
 IGL_INLINE void igl::massmatrix(
-  const Eigen::MatrixBase<DerivedV> & V, 
-  const Eigen::MatrixBase<DerivedF> & F, 
+  const Eigen::MatrixBase<DerivedV> & V,
+  const Eigen::MatrixBase<DerivedF> & F,
   const MassMatrixType type,
   Eigen::SparseMatrix<Scalar>& M)
 {
@@ -79,11 +79,11 @@ IGL_INLINE void igl::massmatrix(
 
           // Holy shit this needs to be cleaned up and optimized
           Matrix<Scalar,Dynamic,3> cosines(m,3);
-          cosines.col(0) = 
+          cosines.col(0) =
             (l.col(2).array().pow(2)+l.col(1).array().pow(2)-l.col(0).array().pow(2))/(l.col(1).array()*l.col(2).array()*2.0);
-          cosines.col(1) = 
+          cosines.col(1) =
             (l.col(0).array().pow(2)+l.col(2).array().pow(2)-l.col(1).array().pow(2))/(l.col(2).array()*l.col(0).array()*2.0);
-          cosines.col(2) = 
+          cosines.col(2) =
             (l.col(1).array().pow(2)+l.col(0).array().pow(2)-l.col(2).array().pow(2))/(l.col(0).array()*l.col(1).array()*2.0);
           Matrix<Scalar,Dynamic,3> barycentric = cosines.array() * l.array();
           normalize_row_sums(barycentric,barycentric);
@@ -111,7 +111,7 @@ IGL_INLINE void igl::massmatrix(
           MV.block(0*m,0,m,1) = quads.col(0);
           MV.block(1*m,0,m,1) = quads.col(1);
           MV.block(2*m,0,m,1) = quads.col(2);
-          
+
           break;
         }
       case MASSMATRIX_TYPE_FULL:

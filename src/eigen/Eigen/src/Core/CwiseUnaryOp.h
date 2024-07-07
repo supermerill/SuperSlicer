@@ -11,7 +11,7 @@
 #ifndef EIGEN_CWISE_UNARY_OP_H
 #define EIGEN_CWISE_UNARY_OP_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 template<typename UnaryOp, typename XprType>
@@ -24,7 +24,7 @@ struct traits<CwiseUnaryOp<UnaryOp, XprType> >
   typedef typename XprType::Nested XprTypeNested;
   typedef typename remove_reference<XprTypeNested>::type _XprTypeNested;
   enum {
-    Flags = _XprTypeNested::Flags & RowMajorBit 
+    Flags = _XprTypeNested::Flags & RowMajorBit
   };
 };
 }

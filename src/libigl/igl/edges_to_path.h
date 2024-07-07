@@ -15,10 +15,10 @@ namespace igl
   //     is a loop then I(1) == I(end)
   //   J  #I-1 list of indices into E of edges tracing I
   //   K  #I-1 list of indices into columns of E {1,2} so that K(i) means that
-  //     E(i,K(i)) comes before the other (i.e., E(i,3-K(i)) ). This means that 
+  //     E(i,K(i)) comes before the other (i.e., E(i,3-K(i)) ). This means that
   //     I(i) == E(J(i),K(i)) for i<#I, or
   //     I == E(sub2ind(size(E),J([1:end end]),[K;3-K(end)]))))
-  // 
+  //
   template <
     typename DerivedE,
     typename DerivedI,

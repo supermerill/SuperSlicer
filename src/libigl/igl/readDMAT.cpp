@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "readDMAT.h"
 
@@ -18,7 +18,7 @@
 // Outputs:
 //   num_rows  number of rows
 //   num_cols number of columns
-// Returns 
+// Returns
 //   0  success
 //   1  did not find header
 //   2  bad num_cols
@@ -64,7 +64,7 @@ IGL_INLINE bool igl::readDMAT(const std::string file_name,
   if(fp == NULL)
   {
     fprintf(stderr,"IOError: readDMAT() could not open %s...\n",file_name.c_str());
-    return false; 
+    return false;
   }
   int num_rows,num_cols;
   int head_success = readDMAT_read_header(fp,num_rows,num_cols);
@@ -142,14 +142,14 @@ IGL_INLINE bool igl::readDMAT(const std::string file_name,
 
 template <typename Scalar>
 IGL_INLINE bool igl::readDMAT(
-  const std::string file_name, 
+  const std::string file_name,
   std::vector<std::vector<Scalar> > & W)
 {
   FILE * fp = fopen(file_name.c_str(),"r");
   if(fp == NULL)
   {
     fprintf(stderr,"IOError: readDMAT() could not open %s...\n",file_name.c_str());
-    return false; 
+    return false;
   }
   int num_rows,num_cols;
   bool head_success = readDMAT_read_header(fp,num_rows,num_cols);

@@ -75,13 +75,13 @@
 #endif
 
 #if 0
-#define DEBUG(...) do { avrdude_message(MSG_DEBUG, __VA_ARGS__); } while(0) 
+#define DEBUG(...) do { avrdude_message(MSG_DEBUG, __VA_ARGS__); } while(0)
 #else
 #define DEBUG(...) ((void)0)
 #endif
 
 #if 0
-#define DEBUGRECV(...) do { avrdude_message(MSG_DEBUG, __VA_ARGS__); } while(0) 
+#define DEBUGRECV(...) do { avrdude_message(MSG_DEBUG, __VA_ARGS__); } while(0)
 #else
 #define DEBUGRECV(...) ((void)0)
 #endif
@@ -1311,7 +1311,7 @@ void pickit2_initpgm (PROGRAMMER * pgm)
 }
 #else
 static int pickit2_nousb_open (struct programmer_t *pgm, char * name) {
-    avrdude_message(MSG_INFO, 
+    avrdude_message(MSG_INFO,
 #ifdef WIN32NATIVE
             "%s: error: no usb or hid support. Please compile again with libusb or HID support from Win32 DDK installed.\n",
 #else

@@ -59,12 +59,12 @@ typedef uniform struct __RTCDevice {}* uniform RTCDevice;
   implementation specific parameters. If this string is NULL, a
   default configuration is used. The following configuration flags are
   supported by the Embree implementation of the API:
-  
+
   verbose = num,       // sets verbosity level (default is 0)
 
   If Embree is started on an unsupported CPU, rtcNewDevice will fail and
   set the RTC_UNSUPPORTED_CPU error code.
-  
+
 */
 RTCDevice rtcNewDevice(const uniform int8* uniform cfg = NULL);
 
@@ -84,16 +84,16 @@ void rtcDeleteDevice(RTCDevice device);
   specific parameters. If this string is NULL, a default configuration
   is used. The following configuration flags are supported by the
   Embree implementation of the API:
-  
+
   verbose = num,       // sets verbosity level (default is 0)
 
   If Embree is started on an unsupported CPU, rtcInit will fail and
   set the RTC_UNSUPPORTED_CPU error code.
-  
+
 */
 RTCORE_DEPRECATED void rtcInit(const uniform int8* uniform cfg = NULL);
 
-/*! \brief Shuts down Embree. 
+/*! \brief Shuts down Embree.
 
   WARNING: This function is deprecated, use rtcDeleteDevice instead.
 
@@ -134,7 +134,7 @@ enum RTCParameter {
   RTC_CONFIG_VERSION = 16,                 //!< returns Embree version as integer (e.g. Embree v2.8.2 -> 20802) (read only)
 };
 
-/*! \brief Configures some parameters. 
+/*! \brief Configures some parameters.
    WARNING: This function is deprecated, use rtcDeviceSetParameter1i instead.
 */
 RTCORE_DEPRECATED void rtcSetParameter1i(const uniform RTCParameter parm, uniform size_t val); // FIXME: should be ssize_t
@@ -161,7 +161,7 @@ enum RTCError {
   RTC_CANCELLED = 6          //!< The user has cancelled the operation through the RTCProgressMonitorFunc callback
 };
 
-/*! \brief Returns the value of the per-thread error flag. 
+/*! \brief Returns the value of the per-thread error flag.
 
   WARNING: This function is deprecated, use rtcDeviceGetError instead.
 
@@ -170,7 +170,7 @@ enum RTCError {
   currently stored error and clears the error flag again. */
 RTCORE_DEPRECATED uniform RTCError rtcGetError();
 
-/*! \brief Returns the value of the per-thread error flag. 
+/*! \brief Returns the value of the per-thread error flag.
 
   If an error occurs this flag is set to an error code if it stores no
   previous error. The rtcGetError function reads and returns the
@@ -181,7 +181,7 @@ uniform RTCError rtcDeviceGetError(RTCDevice device);
 typedef void (*uniform RTCErrorFunc)(const uniform RTCError code, const uniform int8* uniform str);
 RTCORE_DEPRECATED typedef RTCErrorFunc RTC_ERROR_FUNCTION;
 
-/*! \brief Sets a callback function that is called whenever an error occurs. 
+/*! \brief Sets a callback function that is called whenever an error occurs.
     WARNING: This function is deprecated, use rtcDeviceSetErrorFunction instead.
 */
 RTCORE_DEPRECATED void rtcSetErrorFunction(uniform RTCErrorFunc func);
@@ -195,7 +195,7 @@ RTCORE_DEPRECATED typedef RTCMemoryMonitorFunc RTC_MEMORY_MONITOR_FUNCTION;
 
 /*! \brief Sets the memory consumption callback function which is
  *  called before the library allocates or after the library frees
- *  memory. 
+ *  memory.
  *  WARNING: This function is deprecated, use rtcDeviceSetMemoryMonitorFunction instead.
 */
 RTCORE_DEPRECATED void rtcSetMemoryMonitorFunction(RTCMemoryMonitorFunc func);

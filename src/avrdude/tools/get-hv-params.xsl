@@ -48,7 +48,7 @@
         </xsl:call-template>;
 </xsl:if> <!-- PPControlStack -->
 
-	<xsl:if test="self::node()[name() = 'PpEnterProgMode']">
+    <xsl:if test="self::node()[name() = 'PpEnterProgMode']">
             <xsl:for-each select="*">
                 <xsl:if test="self::node()[name() = 'stabDelay']"
                 >    hventerstabdelay    = <xsl:value-of select="." />;

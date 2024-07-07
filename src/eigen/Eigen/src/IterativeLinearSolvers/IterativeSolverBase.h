@@ -10,7 +10,7 @@
 #ifndef EIGEN_ITERATIVE_SOLVER_BASE_H
 #define EIGEN_ITERATIVE_SOLVER_BASE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -145,7 +145,7 @@ class IterativeSolverBase : public SparseSolverBase<Derived>
 protected:
   typedef SparseSolverBase<Derived> Base;
   using Base::m_isInitialized;
-  
+
 public:
   typedef typename internal::traits<Derived>::MatrixType MatrixType;
   typedef typename internal::traits<Derived>::Preconditioner Preconditioner;
@@ -169,10 +169,10 @@ public:
   }
 
   /** Initialize the solver with matrix \a A for further \c Ax=b solving.
-    * 
+    *
     * This constructor is a shortcut for the default constructor followed
     * by a call to compute().
-    * 
+    *
     * \warning this class stores a reference to the matrix A as well as some
     * precomputed values that depend on it. Therefore, if \a A is changed
     * this class becomes invalid. Call compute() to update it with the new
@@ -187,7 +187,7 @@ public:
   }
 
   ~IterativeSolverBase() {}
-  
+
   /** Initializes the iterative solver for the sparsity pattern of the matrix \a A for further solving \c Ax=b problems.
     *
     * Currently, this function mostly calls analyzePattern on the preconditioner. In the future
@@ -203,7 +203,7 @@ public:
     m_info = m_preconditioner.info();
     return derived();
   }
-  
+
   /** Initializes the iterative solver with the numerical values of the matrix \a A for further solving \c Ax=b problems.
     *
     * Currently, this function mostly calls factorize on the preconditioner.
@@ -216,7 +216,7 @@ public:
   template<typename MatrixDerived>
   Derived& factorize(const EigenBase<MatrixDerived>& A)
   {
-    eigen_assert(m_analysisIsOk && "You must first call analyzePattern()"); 
+    eigen_assert(m_analysisIsOk && "You must first call analyzePattern()");
     grab(A.derived());
     m_preconditioner.factorize(matrix());
     m_factorizationIsOk = true;
@@ -256,7 +256,7 @@ public:
     * \sa setTolerance()
     */
   RealScalar tolerance() const { return m_tolerance; }
-  
+
   /** Sets the tolerance threshold used by the stopping criteria.
     *
     * This value is used as an upper bound to the relative residual error: |Ax-b|/|b|.
@@ -270,7 +270,7 @@ public:
 
   /** \returns a read-write reference to the preconditioner for custom configuration. */
   Preconditioner& preconditioner() { return m_preconditioner; }
-  
+
   /** \returns a read-only reference to the preconditioner. */
   const Preconditioner& preconditioner() const { return m_preconditioner; }
 
@@ -282,7 +282,7 @@ public:
   {
     return (m_maxIterations<0) ? 2*matrix().cols() : m_maxIterations;
   }
-  
+
   /** Sets the max number of iterations.
     * Default is twice the number of columns of the matrix.
     */
@@ -328,13 +328,13 @@ public:
     eigen_assert(m_isInitialized && "IterativeSolverBase is not initialized.");
     return m_info;
   }
-  
+
   /** \internal */
   template<typename Rhs, typename DestDerived>
   void _solve_impl(const Rhs& b, SparseMatrixBase<DestDerived> &aDest) const
   {
     eigen_assert(rows()==b.rows());
-    
+
     Index rhsCols = b.cols();
     Index size = b.rows();
     DestDerived& dest(aDest.derived());
@@ -370,19 +370,19 @@ protected:
   {
     return m_matrixWrapper.matrix();
   }
-  
+
   template<typename InputType>
   void grab(const InputType &A)
   {
     m_matrixWrapper.grab(A);
   }
-  
+
   MatrixWrapper m_matrixWrapper;
   Preconditioner m_preconditioner;
 
   Index m_maxIterations;
   RealScalar m_tolerance;
-  
+
   mutable RealScalar m_error;
   mutable Index m_iterations;
   mutable ComputationInfo m_info;

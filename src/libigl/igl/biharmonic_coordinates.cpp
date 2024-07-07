@@ -55,7 +55,7 @@ IGL_INLINE bool igl::biharmonic_coordinates(
       Array<bool,Dynamic,1> I;
       on_boundary(T,I,C);
     }
-#ifdef false 
+#ifdef false
     // Version described in paper is "wrong"
     // http://www.cs.toronto.edu/~jacobson/images/error-in-linear-subspace-design-for-real-time-shape-deformation-2017-wang-et-al.pdf
     SparseMatrix<double> N,Z,M;
@@ -109,7 +109,7 @@ IGL_INLINE bool igl::biharmonic_coordinates(
     // Degrees
     Eigen::VectorXd De;
     sum(Ad,2,De);
-    Eigen::DiagonalMatrix<double,Eigen::Dynamic> De_diag = 
+    Eigen::DiagonalMatrix<double,Eigen::Dynamic> De_diag =
       De.array().inverse().matrix().asDiagonal();
     K = L*(De_diag*Ad);
     // normalize

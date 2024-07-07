@@ -14,28 +14,28 @@ template<class Pt, class Unit = TCompute<Pt>> class RotatedBox {
     Pt axis_;
     Unit bottom_ = Unit(0), right_ = Unit(0);
 public:
-    
+
     RotatedBox() = default;
     RotatedBox(const Pt& axis, Unit b, Unit r):
         axis_(axis), bottom_(b), right_(r) {}
-    
-    inline long double area() const { 
+
+    inline long double area() const {
         long double asq = pl::magnsq<Pt, long double>(axis_);
         return cast<long double>(bottom_) * cast<long double>(right_) / asq;
     }
-    
-    inline long double width() const { 
+
+    inline long double width() const {
         return abs(bottom_) / std::sqrt(pl::magnsq<Pt, long double>(axis_));
     }
-    
-    inline long double height() const { 
+
+    inline long double height() const {
         return abs(right_) / std::sqrt(pl::magnsq<Pt, long double>(axis_));
     }
-    
+
     inline Unit bottom_extent() const { return bottom_; }
     inline Unit right_extent() const { return right_;  }
     inline const Pt& axis() const { return axis_; }
-    
+
     inline Radians angleToX() const {
         double ret = std::atan2(getY(axis_), getX(axis_));
         auto s = std::signbit(ret);
@@ -44,13 +44,13 @@ public:
     }
 };
 
-template <class Poly, class Pt = TPoint<Poly>, class Unit = TCompute<Pt>> 
+template <class Poly, class Pt = TPoint<Poly>, class Unit = TCompute<Pt>>
 Poly removeCollinearPoints(const Poly& sh, Unit eps = Unit(0))
 {
     Poly ret; sl::reserve(ret, sl::contourVertexCount(sh));
-    
+
     Pt eprev = *sl::cbegin(sh) - *std::prev(sl::cend(sh));
-    
+
     auto it  = sl::cbegin(sh);
     auto itx = std::next(it);
     if(itx != sl::cend(sh)) while (it != sl::cend(sh))
@@ -59,29 +59,29 @@ Poly removeCollinearPoints(const Poly& sh, Unit eps = Unit(0))
 
         auto dp = pl::dotperp<Pt, Unit>(eprev, enext);
         if(abs(dp) > eps) sl::addVertex(ret, *it);
-        
+
         eprev = enext;
         if (++itx == sl::cend(sh)) itx = sl::cbegin(sh);
         ++it;
     }
-    
+
     return ret;
 }
 
 // The area of the bounding rectangle with the axis dir and support vertices
-template<class Pt, class Unit = TCompute<Pt>, class R = TCompute<Pt>> 
+template<class Pt, class Unit = TCompute<Pt>, class R = TCompute<Pt>>
 inline R rectarea(const Pt& w, // the axis
-                  const Pt& vb, const Pt& vr, 
-                  const Pt& vt, const Pt& vl) 
+                  const Pt& vb, const Pt& vr,
+                  const Pt& vt, const Pt& vl)
 {
-    Unit a = pl::dot<Pt, Unit>(w, vr - vl); 
+    Unit a = pl::dot<Pt, Unit>(w, vr - vl);
     Unit b = pl::dot<Pt, Unit>(-pl::perp(w), vt - vb);
     R m = R(a) / pl::magnsq<Pt, Unit>(w);
     m = m * b;
     return m;
 };
 
-template<class Pt, 
+template<class Pt,
          class Unit = TCompute<Pt>,
          class R = TCompute<Pt>,
          class It = typename std::vector<Pt>::const_iterator>

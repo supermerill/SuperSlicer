@@ -6,7 +6,7 @@ IGL_INLINE void igl::copyleft::cgal::mesh_boolean_type_to_funcs(
   std::function<int(const Eigen::Matrix<int,1,Eigen::Dynamic>) >& wind_num_op,
   std::function<int(const int, const int)> & keep)
 {
-  switch (type) 
+  switch (type)
   {
     case MESH_BOOLEAN_TYPE_UNION:
       wind_num_op = BinaryUnion();

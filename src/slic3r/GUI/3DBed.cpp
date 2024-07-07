@@ -223,7 +223,7 @@ bool Bed3D::set_shape(const Pointfs& bed_shape, const double max_print_height, c
         model_filename.clear();
     }
 
-    
+
     if (m_build_volume.bed_shape() == bed_shape && m_build_volume.max_print_height() == max_print_height && m_type == type && m_texture_filename == texture_filename && m_model_filename == model_filename)
         // No change, no need to update the UI.
         return false;
@@ -453,7 +453,7 @@ void Bed3D::render_texture(bool bottom, GLCanvas3D& canvas) const
                 render_default(bottom, false);
                 return;
             }
-        } 
+        }
         else if (boost::algorithm::iends_with(texture_absolute_filename, ".png")) {
             // generate a temporary lower resolution texture to show while no main texture levels have been compressed
             if (wxGetApp().app_config->get("compress_png_texture") == "1" && (temp_texture->get_id() == 0 || temp_texture->get_source() != texture_absolute_filename)) {
@@ -465,7 +465,7 @@ void Bed3D::render_texture(bool bottom, GLCanvas3D& canvas) const
             }
 
             // starts generating the main texture, compression will run asynchronously
-            if (!texture->load_from_file(texture_absolute_filename, true, 
+            if (!texture->load_from_file(texture_absolute_filename, true,
                 wxGetApp().app_config->get("compress_png_texture") == "1" ? GLTexture::MultiThreaded : GLTexture::ECompressionType::None, true)) {
                 render_default(bottom, false);
                 return;

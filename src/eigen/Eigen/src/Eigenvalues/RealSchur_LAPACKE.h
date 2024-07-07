@@ -33,7 +33,7 @@
 #ifndef EIGEN_REAL_SCHUR_LAPACKE_H
 #define EIGEN_REAL_SCHUR_LAPACKE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \internal Specialization for the data types supported by LAPACKe */
 

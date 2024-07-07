@@ -47,7 +47,7 @@ void qh_exit(int exitcode) {
 
   notes:
     qh_fprintf_stderr() is called when qh->ferr is not defined, usually due to an initialization error
-    
+
     It is typically followed by qh_errexit().
 
     Redefine this function to avoid using stderr
@@ -72,7 +72,7 @@ void qh_fprintf_stderr(int msgcode, const char *fmt, ... ) {
 
   notes:
     same as free()
-    No calls to qh_errexit() 
+    No calls to qh_errexit()
 */
 void qh_free(void *mem) {
     free(mem);

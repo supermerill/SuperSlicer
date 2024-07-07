@@ -13,8 +13,8 @@
 
 namespace Slic3r {
 
-FlowErrorNegativeSpacing::FlowErrorNegativeSpacing() : 
-	FlowError("Flow::spacing() produced negative spacing. Did you set some extrusion width too small?") {}
+FlowErrorNegativeSpacing::FlowErrorNegativeSpacing() :
+    FlowError("Flow::spacing() produced negative spacing. Did you set some extrusion width too small?") {}
 
 FlowErrorNegativeFlow::FlowErrorNegativeFlow() :
     FlowError("Flow::mm3_per_mm() produced negative flow. Did you set some extrusion width too small?") {}
@@ -40,9 +40,9 @@ float Flow::auto_extrusion_width(FlowRole role, float nozzle_diameter)
 // and to provide reasonable values to the PlaceholderParser.
 static inline FlowRole opt_key_to_flow_role(const std::string &opt_key)
 {
- 	if (opt_key == "perimeter_extrusion_width" || 
- 		// or all the defaults:
- 		opt_key == "extrusion_width" || opt_key == "first_layer_extrusion_width")
+     if (opt_key == "perimeter_extrusion_width" ||
+         // or all the defaults:
+         opt_key == "extrusion_width" || opt_key == "first_layer_extrusion_width")
         return frPerimeter;
     else if (opt_key == "external_perimeter_extrusion_width")
         return frExternalPerimeter;
@@ -50,17 +50,17 @@ static inline FlowRole opt_key_to_flow_role(const std::string &opt_key)
         return frInfill;
     else if (opt_key == "solid_infill_extrusion_width")
         return frSolidInfill;
-	else if (opt_key == "top_infill_extrusion_width")
-		return frTopSolidInfill;
-	else if (opt_key == "support_material_extrusion_width")
-    	return frSupportMaterial;
-    else 
-    	throw Slic3r::RuntimeError("opt_key_to_flow_role: invalid argument");
+    else if (opt_key == "top_infill_extrusion_width")
+        return frTopSolidInfill;
+    else if (opt_key == "support_material_extrusion_width")
+        return frSupportMaterial;
+    else
+        throw Slic3r::RuntimeError("opt_key_to_flow_role: invalid argument");
 };
 
-static inline void throw_on_missing_variable(const std::string &opt_key, const char *dependent_opt_key) 
+static inline void throw_on_missing_variable(const std::string &opt_key, const char *dependent_opt_key)
 {
-	throw FlowErrorMissingVariable((boost::format(L("Cannot calculate extrusion width for %1%: Variable \"%2%\" not accessible.")) % opt_key % dependent_opt_key).str());
+    throw FlowErrorMissingVariable((boost::format(L("Cannot calculate extrusion width for %1%: Variable \"%2%\" not accessible.")) % opt_key % dependent_opt_key).str());
 }
 
 // Used to provide hints to the user on default extrusion width values, and to provide reasonable values to the PlaceholderParser.
@@ -323,7 +323,7 @@ Flow Flow::new_from_config(FlowRole role, const DynamicConfig& print_config, flo
 
     // Get the configured nozzle_diameter for the extruder associated to the flow role requested.
     // Here this->extruder(role) - 1 may underflow to MAX_INT, but then the get_at() will follback to zero'th element, so everything is all right.
-    return Flow::new_from_config_width(role, config_width, config_spacing, nozzle_diameter, layer_height, 
+    return Flow::new_from_config_width(role, config_width, config_spacing, nozzle_diameter, layer_height,
         std::min(role == frTopSolidInfill ? 1.f : overlap, filament_max_overlap));
     //bridge ? (float)m_config.bridge_flow_ratio.get_abs_value(1) : 0.0f);
 }
@@ -362,7 +362,7 @@ Flow Flow::new_from_config_width(FlowRole role, const ConfigOptionFloatOrPercent
         }
     }
 
-    
+
     return Flow(w, height, rounded_rectangle_extrusion_spacing(w, height, spacing_ratio), nozzle_diameter, spacing_ratio, bridge_flow_ratio > 0);
 }
 
@@ -449,9 +449,9 @@ Flow Flow::with_spacing_ratio_from_width(float new_spacing_ratio) const
     return Flow::new_from_width(m_width, m_nozzle_diameter, m_height, new_spacing_ratio, m_bridge);
 }
 
-// This method returns the centerline spacing between two adjacent extrusions 
+// This method returns the centerline spacing between two adjacent extrusions
 // having the same extrusion width (and other properties).
-float Flow::spacing() const 
+float Flow::spacing() const
 {
 #ifdef HAS_PERIMETER_LINE_OVERLAP
     if (this->bridge)
@@ -463,9 +463,9 @@ float Flow::spacing() const
     float res = float(this->bridge() ? (this->width() /*+ BRIDGE_EXTRA_SPACING_MULT * nozzle_diameter*/) : (this->width() - this->height() * (1. - 0.25 * PI) * m_spacing_ratio));
 #endif
 //    assert(res > 0.f);
-	if (res <= 0.f)
-		throw FlowErrorNegativeSpacing();
-	return res;
+    if (res <= 0.f)
+        throw FlowErrorNegativeSpacing();
+    return res;
 }
 
 // Adjust the width / height of a rounded extrusion model to reach the prescribed cross section area while maintaining extrusion spacing.
@@ -513,9 +513,9 @@ float Flow::spacing(const Flow &other) const
         0.5 * this->width() + 0.5 * other.width() :
         0.5 * this->spacing() + 0.5 * other.spacing());
 //    assert(res > 0.f);
-	if (res <= 0.f)
-		throw FlowErrorNegativeSpacing();
-	return res;
+    if (res <= 0.f)
+        throw FlowErrorNegativeSpacing();
+    return res;
 }
 
 float Flow::rounded_rectangle_extrusion_spacing(float width, float height, float m_spacing_ratio)
@@ -555,8 +555,8 @@ double Flow::mm3_per_mm() const
         // Rectangle with semicircles at the ends. ~ h (w - 0.215 h)
         float(m_height * (m_width - m_height * (1. - 0.25 * PI)));
     //assert(res > 0.);
-	if (res <= 0.)
-		throw FlowErrorNegativeFlow();
+    if (res <= 0.)
+        throw FlowErrorNegativeFlow();
     return res;
 }
 

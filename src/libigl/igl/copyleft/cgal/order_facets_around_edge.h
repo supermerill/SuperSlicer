@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Qingnan Zhou <qnzhou@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 //
 #ifndef IGL_COPYLEFT_CGAL_ORDER_FACETS_AROUND_EDGE_H
@@ -12,11 +12,11 @@
 #include <Eigen/Core>
 #include <vector>
 
-namespace igl 
+namespace igl
 {
   namespace copyleft
   {
-    namespace cgal 
+    namespace cgal
     {
       // Given a directed edge, sort its adjacent faces.  Assuming the
       // directed edge is (s, d).  Sort the adjacent faces clockwise around the
@@ -44,8 +44,8 @@ namespace igl
       void order_facets_around_edge(
           const Eigen::PlainObjectBase<DerivedV>& V,
           const Eigen::PlainObjectBase<DerivedF>& F,
-          size_t s, 
-          size_t d, 
+          size_t s,
+          size_t d,
           const std::vector<int>& adj_faces,
           Eigen::PlainObjectBase<DerivedI>& order,
           bool debug=false);
@@ -62,8 +62,8 @@ namespace igl
       void order_facets_around_edge(
         const Eigen::PlainObjectBase<DerivedV>& V,
         const Eigen::PlainObjectBase<DerivedF>& F,
-        size_t s, 
-        size_t d, 
+        size_t s,
+        size_t d,
         const std::vector<int>& adj_faces,
         const Eigen::PlainObjectBase<DerivedV>& pivot_point,
         Eigen::PlainObjectBase<DerivedI>& order);

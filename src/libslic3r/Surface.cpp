@@ -90,14 +90,14 @@ const char* surface_type_to_color_name(const SurfaceType surface_type)
     if (surface_type == (stPosInternal | stDensSolid | stModOverBridge)) return "rgb(0,255,128)"; // green-cyan
     if (surface_type == (stPosInternal | stDensSolid)) return "rgb(255,0,255)"; // magenta
     if (surface_type == (stPosInternal | stDensVoid)) return "rgb(128,128,128)"; // gray
-    if (surface_type == (stPosInternal | stDensSparse)) return "rgb(255,255,128)"; // yellow 
+    if (surface_type == (stPosInternal | stDensSparse)) return "rgb(255,255,128)"; // yellow
     if ((surface_type & stPosPerimeter) != 0) return "rgb(128,0,0)"; // maroon
     return "rgb(64,64,64)"; //dark gray
 }
 
 Point export_surface_type_legend_to_svg_box_size()
 {
-    return Point(scale_(1.+10.*8.), scale_(3.)); 
+    return Point(scale_(1.+10.*8.), scale_(3.));
 }
 
 void export_surface_type_legend_to_svg(SVG &svg, const Point &pos)

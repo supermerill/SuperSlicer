@@ -24,27 +24,27 @@
 #include <sys/ecppio.h>
 
 #define ppi_claim(fd) \
-	do { \
-		struct ecpp_transfer_parms p; \
-		(void)ioctl(fd, ECPPIOC_GETPARMS, &p); \
-		p.mode = ECPP_DIAG_MODE; \
-		(void)ioctl(fd, ECPPIOC_SETPARMS, &p); \
-	} while(0);
+    do { \
+        struct ecpp_transfer_parms p; \
+        (void)ioctl(fd, ECPPIOC_GETPARMS, &p); \
+        p.mode = ECPP_DIAG_MODE; \
+        (void)ioctl(fd, ECPPIOC_SETPARMS, &p); \
+    } while(0);
 
 #define ppi_release(fd)
 
 #define DO_PPI_READ(fd, reg, valp) \
-	do { struct ecpp_regs r; \
-	if ((reg) == PPIDATA) { (void)ioctl(fd, ECPPIOC_GETDATA, valp); } \
-	else { (void)ioctl(fd, ECPPIOC_GETREGS, &r); \
-		*(valp) = ((reg) == PPICTRL)? r.dcr: r.dsr; } \
-	} while(0)
+    do { struct ecpp_regs r; \
+    if ((reg) == PPIDATA) { (void)ioctl(fd, ECPPIOC_GETDATA, valp); } \
+    else { (void)ioctl(fd, ECPPIOC_GETREGS, &r); \
+        *(valp) = ((reg) == PPICTRL)? r.dcr: r.dsr; } \
+    } while(0)
 #define DO_PPI_WRITE(fd, reg, valp) \
-	do { struct ecpp_regs r; \
-	if ((reg) == PPIDATA) { (void)ioctl(fd, ECPPIOC_SETDATA, valp); } \
-	else { if ((reg) == PPICTRL) r.dcr = *(valp); else r.dsr = *(valp); \
-		(void)ioctl(fd, ECPPIOC_SETREGS, &r); } \
-	} while(0)
+    do { struct ecpp_regs r; \
+    if ((reg) == PPIDATA) { (void)ioctl(fd, ECPPIOC_SETDATA, valp); } \
+    else { if ((reg) == PPICTRL) r.dcr = *(valp); else r.dsr = *(valp); \
+        (void)ioctl(fd, ECPPIOC_SETREGS, &r); } \
+    } while(0)
 
 
 #endif /* solaris_ecpp_h */

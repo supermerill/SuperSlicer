@@ -23,7 +23,7 @@ namespace igl
 {
   // read mesh from an ascii file with automatic detection of file format.
   // supported: obj, off, stl, wrl, ply, mesh)
-  // 
+  //
   // Templates:
   //   Scalar  type for positions and vectors (will be read as double and cast
   //     to Scalar)
@@ -61,7 +61,7 @@ namespace igl
     std::string & name);
   // Inputs:
   //   ext  file extension
-  //   fp  pointer to already opened .ext file 
+  //   fp  pointer to already opened .ext file
   // Outputs:
   //   fp  closed file
   template <typename DerivedV, typename DerivedF>

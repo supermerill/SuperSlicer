@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "triangle_triangle_squared_distance.h"
 #include "point_triangle_squared_distance.h"
@@ -45,7 +45,7 @@ IGL_INLINE bool igl::copyleft::cgal::triangle_triangle_squared_distance(
     {
       Q = s->vertex(0);
       unique = false;
-    }else if(const std::vector<Point_3 > *polyp = 
+    }else if(const std::vector<Point_3 > *polyp =
       CGAL::object_cast< std::vector<Point_3 > >(&result))
     {
       assert(polyp->size() > 0 && "intersection poly should not be empty");

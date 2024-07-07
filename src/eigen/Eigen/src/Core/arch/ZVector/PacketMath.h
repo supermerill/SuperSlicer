@@ -42,7 +42,7 @@ typedef __vector unsigned long long  Packet2ul;
 typedef __vector long long           Packet2l;
 
 typedef struct {
-	Packet2d  v4f[2];
+    Packet2d  v4f[2];
 } Packet4f;
 
 typedef union {
@@ -87,7 +87,7 @@ static _EIGEN_DECLARE_CONST_FAST_Packet2d(ZERO, 0);
 static _EIGEN_DECLARE_CONST_FAST_Packet2l(ZERO, 0);
 static _EIGEN_DECLARE_CONST_FAST_Packet2l(ONE, 1);
 
-static Packet2d p2d_ONE = { 1.0, 1.0 }; 
+static Packet2d p2d_ONE = { 1.0, 1.0 };
 static Packet2d p2d_ZERO_ = { -0.0, -0.0 };
 
 static Packet4i p4i_COUNTDOWN = { 0, 1, 2, 3 };
@@ -98,9 +98,9 @@ static Packet16uc p16uc_PSET64_HI = { 0,1,2,3, 4,5,6,7, 0,1,2,3, 4,5,6,7 };
 static Packet16uc p16uc_DUPLICATE32_HI = { 0,1,2,3, 0,1,2,3, 4,5,6,7, 4,5,6,7 };
 
 // Mask alignment
-#define _EIGEN_MASK_ALIGNMENT	0xfffffffffffffff0
+#define _EIGEN_MASK_ALIGNMENT    0xfffffffffffffff0
 
-#define _EIGEN_ALIGNED_PTR(x)	((std::ptrdiff_t)(x) & _EIGEN_MASK_ALIGNMENT)
+#define _EIGEN_ALIGNED_PTR(x)    ((std::ptrdiff_t)(x) & _EIGEN_MASK_ALIGNMENT)
 
 // Handle endianness properly while loading constants
 // Define global static constants:
@@ -217,7 +217,7 @@ template<> struct unpacket_traits<Packet2d> { typedef double type; enum {size=2,
 
 /* Forward declaration */
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4f,4>& kernel);
- 
+
 inline std::ostream & operator <<(std::ostream & s, const Packet4i & v)
 {
   Packet vt;
@@ -771,7 +771,7 @@ template<> EIGEN_STRONG_INLINE Packet2d preduxp<Packet2d>(const Packet2d* vecs)
   Packet2d v[2], sum;
   v[0] = padd<Packet2d>(vecs[0], reinterpret_cast<Packet2d>(vec_sld(reinterpret_cast<Packet4ui>(vecs[0]), reinterpret_cast<Packet4ui>(vecs[0]), 8)));
   v[1] = padd<Packet2d>(vecs[1], reinterpret_cast<Packet2d>(vec_sld(reinterpret_cast<Packet4ui>(vecs[1]), reinterpret_cast<Packet4ui>(vecs[1]), 8)));
- 
+
   sum = reinterpret_cast<Packet2d>(vec_sld(reinterpret_cast<Packet4ui>(v[0]), reinterpret_cast<Packet4ui>(v[1]), 8));
 
   return sum;

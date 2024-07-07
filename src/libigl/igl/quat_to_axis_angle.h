@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_QUAT_TO_AXIS_ANGLE_H
 #define IGL_QUAT_TO_AXIS_ANGLE_H
@@ -22,13 +22,13 @@ namespace igl
   template <typename Q_type>
   IGL_INLINE void quat_to_axis_angle(
     const Q_type *q,
-    Q_type *axis, 
+    Q_type *axis,
     Q_type & angle);
   // Wrapper with angle in degrees
   template <typename Q_type>
   IGL_INLINE void quat_to_axis_angle_deg(
     const Q_type *q,
-    Q_type *axis, 
+    Q_type *axis,
     Q_type & angle);
 }
 

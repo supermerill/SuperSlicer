@@ -46,7 +46,7 @@ using namespace std::literals;
 #define DEBUG
 #define _DEBUG
 #include "SVG.hpp"
-#undef assert 
+#undef assert
 #include <cassert>
 #endif
 
@@ -65,7 +65,7 @@ namespace Slic3r {
         // therefore a bounding box from 1st instance of a ModelObject is good enough for calculating the object center,
         // snug height and an approximate bounding box in XY.
         BoundingBoxf3  bbox = model_object->raw_bounding_box();
-        Vec3d 		   bbox_center = bbox.center();
+        Vec3d            bbox_center = bbox.center();
         // We may need to rotate the bbox / bbox_center from the original instance to the current instance.
         double z_diff = Geometry::rotation_diff_z(model_object->instances.front()->get_rotation(), instances.front().model_instance->get_rotation());
         if (std::abs(z_diff) > EPSILON) {
@@ -279,7 +279,7 @@ namespace Slic3r {
     }
 
         // This will assign a type (top/bottom/internal) to $layerm->slices.
-        // Then the classifcation of $layerm->slices is transfered onto 
+        // Then the classifcation of $layerm->slices is transfered onto
         // the $layerm->fill_surfaces by clipping $layerm->fill_surfaces
         // by the cummulative area of the previous $layerm->fill_surfaces.
         m_print->set_status( 0, L("Detect surfaces types"), {}, PrintBase::SlicingStatus::SECONDARY_STATE);
@@ -455,7 +455,7 @@ namespace Slic3r {
                 }
             }
         }
-        });     
+        });
         m_max_sparse_spacing = max_sparse_spacing.load();
     }
 
@@ -1127,7 +1127,7 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
         return result;
     }
 
-    // Function used by fit_to_size. 
+    // Function used by fit_to_size.
     // It check if polygon_to_check can be decimated, using only point into allowedPoints and also cover polygon_to_cover
     ExPolygon try_fit_to_size(ExPolygon polygon_to_check, const ExPolygons& allowedPoints) {
 
@@ -1320,7 +1320,7 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
                                     //find the surface which intersect with the smallest maxNb possible
                                     for (const Surface& upp : previousOne->fill_surfaces.surfaces) {
                                         if (upp.has_fill_solid()) {
-                                            // i'm using intersection_ex because the result different than 
+                                            // i'm using intersection_ex because the result different than
                                             // upp.expolygon.overlaps(surf.expolygon) or surf.expolygon.overlaps(upp.expolygon)
                                             // and a little offset2 to remove the almost supported area
                                             ExPolygons intersect =
@@ -1477,7 +1477,7 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
                                         break;
                                     }
                                 }
-                                // break go here 
+                                // break go here
                                 surfs_to_add.insert(surfs_to_add.begin(), surf_to_add.begin(), surf_to_add.end());
                             } else surfs_to_add.emplace_back(std::move(surface));
                         }
@@ -1567,7 +1567,7 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
                     // of current layer and upper one)
                     Surfaces top;
                     if (upper_layer) {
-                        ExPolygons upper_slices = interface_shells ? 
+                        ExPolygons upper_slices = interface_shells ?
                             diff_ex(layerm_slices_surfaces, upper_layer->get_region(region_id)->slices().surfaces, ApplySafetyOffset::Yes) :
                             diff_ex(layerm_slices_surfaces, upper_layer->lslices, ApplySafetyOffset::Yes);
                         surfaces_append(top, opening_ex(upper_slices, offset), stPosTop | stDensSolid);
@@ -1585,7 +1585,7 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
 #if 0
                         //FIXME Why is this branch failing t\multi.t ?
                         Polygons lower_slices = interface_shells ?
-                            to_polygons(lower_layer->get_region(region_id)->slices.surfaces) : 
+                            to_polygons(lower_layer->get_region(region_id)->slices.surfaces) :
                             to_polygons(lower_layer->slices);
                         surfaces_append(bottom,
                             opening_ex(diff(layerm_slices_surfaces, lower_slices, true), offset),
@@ -1601,7 +1601,7 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
                         // if user requested internal shells, we need to identify surfaces
                         // lying on other slices not belonging to this region
                         if (interface_shells) {
-                            // non-bridging bottom surfaces: any part of this layer lying 
+                            // non-bridging bottom surfaces: any part of this layer lying
                             // on something else, excluding those lying on our own region
                             surfaces_append(
                                 bottom,
@@ -1717,7 +1717,7 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
         // Mark the object to have the region slices classified (typed, which also means they are split based on whether they are supported, bridging, top layers etc.)
         m_typed_slices = true;
     }
-    
+
     void PrintObject::apply_solid_infill_below_layer_area()
     {
         // compute the total layer surface for the bed, for solid_infill_below_layer_area
@@ -1807,7 +1807,7 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
             BOOST_LOG_TRIVIAL(debug) << "Collecting surfaces covered with extrusions in parallel - end";
         }
 
-	for (size_t region_id = 0; region_id < this->num_printing_regions(); ++region_id) {
+    for (size_t region_id = 0; region_id < this->num_printing_regions(); ++region_id) {
             BOOST_LOG_TRIVIAL(debug) << "Processing external surfaces for region " << region_id << " in parallel - start";
             tbb::parallel_for(
                 tbb::blocked_range<size_t>(0, m_layers.size()),
@@ -2027,7 +2027,7 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
 #endif /* SLIC3R_DEBUG_SLICE_PROCESSING */
 
                     Layer* layer = m_layers[idx_layer];
-                    LayerRegion 	        *layerm         = layer->m_regions[region_id];
+                    LayerRegion             *layerm         = layer->m_regions[region_id];
                     const PrintRegionConfig &region_config  = layerm->region().config();
 
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
@@ -2084,7 +2084,7 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
                                     holes = intersection_ex(holes, cache.holes);
                                 if (!cache.top_surfaces.empty()) {
                                     expolygons_append(shell, cache.top_surfaces);
-                                    // Running the union_ using the Clipper library piece by piece is cheaper 
+                                    // Running the union_ using the Clipper library piece by piece is cheaper
                                     // than running the union_ all at once.
                                     shell = union_ex(shell);
                                 }
@@ -2113,7 +2113,7 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
                                     holes = intersection_ex(holes, cache.holes);
                                 if (!cache.bottom_surfaces.empty()) {
                                     expolygons_append(shell, cache.bottom_surfaces);
-                                    // Running the union_ using the Clipper library piece by piece is cheaper 
+                                    // Running the union_ using the Clipper library piece by piece is cheaper
                                     // than running the union_ all at once.
                                     shell = union_ex(shell);
                                 }
@@ -2221,7 +2221,7 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
                     Polygons shell_before = shell;
 #endif /* SLIC3R_DEBUG_SLICE_PROCESSING */
 #if 1
-                    // Intentionally inflate a bit more than how much the region has been shrunk, 
+                    // Intentionally inflate a bit more than how much the region has been shrunk,
                     // so there will be some overlap between this solid infill and the other infill regions (mainly the sparse infill).
                     shell = offset2_ex(union_ex(shell), -0.5f * min_perimeter_infill_spacing, 0.8f * min_perimeter_infill_spacing, ClipperLib::jtSquare); //-+
                     if (shell.empty())
@@ -2237,8 +2237,8 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
                     // have the same angle, so the next shell would be grown even more and so on.
                     Polygons too_narrow = diff(shell, opening(shell, margin, ClipperLib::jtMiter, 5.), true);
                     if (!too_narrow.empty()) {
-                        // grow the collapsing parts and add the extra area to  the neighbor layer 
-                        // as well as to our original surfaces so that we support this 
+                        // grow the collapsing parts and add the extra area to  the neighbor layer
+                        // as well as to our original surfaces so that we support this
                         // additional area in the next shell too
                         // make sure our grown surfaces don't exceed the fill area
                         polygons_append(shell, intersection(offset(too_narrow, margin), polygonsInternal));
@@ -2284,7 +2284,7 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
 
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
             for (size_t idx_layer = 0; idx_layer < m_layers.size(); ++idx_layer) {
-			LayerRegion *layerm = m_layers[idx_layer]->get_region(region_id);
+            LayerRegion *layerm = m_layers[idx_layer]->get_region(region_id);
                 layerm->export_region_slices_to_svg_debug("4_discover_vertical_shells-final");
                 layerm->export_region_fill_surfaces_to_svg_debug("4_discover_vertical_shells-final");
             }
@@ -2352,7 +2352,7 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
 
                     //put to_bridge_pp into to_bridge
                     // there's no point in bridging too thin/short regions
-                    //FIXME Vojtech: The offset2 function is not a geometric offset, 
+                    //FIXME Vojtech: The offset2 function is not a geometric offset,
                     // therefore it may create 1) gaps, and 2) sharp corners, which are outside the original contour.
                     // The gaps will be filled by a separate region, which makes the infill less stable and it takes longer.
 
@@ -2597,7 +2597,7 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
         // Switch of infill for very low infill rates, also avoid division by zero in infill generator for these very low rates.
         // See GH issue #5910.
         config.fill_density.value = 0;
-    else 
+    else
         config.fill_density.value = std::min(config.fill_density.value, 100.);
     if (config.fuzzy_skin.value != FuzzySkinType::None && (config.fuzzy_skin_point_dist.value < 0.01 || config.fuzzy_skin_thickness.value < 0.001))
         config.fuzzy_skin.value = FuzzySkinType::None;
@@ -2781,7 +2781,7 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
             // Regularize the overhang regions, so that the infill areas will not become excessively jagged.
             smooth_outward(
                 closing(upper_internal, closing_radius, ClipperLib::jtSquare, 0.),
-                scaled<coord_t>(0.1)), 
+                scaled<coord_t>(0.1)),
             lower_layer_internal_surfaces);
             // Apply new internal infill to regions.
             for (LayerRegion* layerm : lower_layer->m_regions) {
@@ -2835,7 +2835,7 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
                 for (size_t idx_surface_type = 0; idx_surface_type < 3; ++idx_surface_type) {
                     m_print->throw_if_canceled();
                     SurfaceType type = (idx_surface_type == 0) ? (stPosTop | stDensSolid) :
-                        ((idx_surface_type == 1) ? (stPosBottom | stDensSolid) : 
+                        ((idx_surface_type == 1) ? (stPosBottom | stDensSolid) :
                             (stPosBottom | stDensSolid | stModBridge));
                     int num_solid_layers = ((type & stPosTop) == stPosTop) ? region_config.top_solid_layers.value : region_config.bottom_solid_layers.value;
                     if (num_solid_layers == 0)
@@ -2844,7 +2844,7 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
                     // Use slices instead of fill_surfaces, because they also include the perimeter area,
                     // which needs to be propagated in shells; we need to grow slices like we did for
                     // fill_surfaces though. Using both ungrown slices and grown fill_surfaces will
-                    // not work in some situations, as there won't be any grown region in the perimeter 
+                    // not work in some situations, as there won't be any grown region in the perimeter
                     // area (this was seen in a model where the top layer had one extra perimeter, thus
                     // its fill_surfaces were thinner than the lower layer's infill), however it's the best
                     // solution so far. Growing the external slices by external_infill_margin will put
@@ -2877,7 +2877,7 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
 
                         ((type & stPosTop) == stPosTop) ? --n : ++n)
                     {
-                        //                    Slic3r::debugf "  looking for neighbors on layer %d...\n", $n;                  
+                        //                    Slic3r::debugf "  looking for neighbors on layer %d...\n", $n;
                                             // Reference to the lower layer of a TOP surface, or an upper layer of a BOTTOM surface.
                         LayerRegion* neighbor_layerm = m_layers[n]->regions()[region_id];
 
@@ -2888,7 +2888,7 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
                         // are always a subset of the shells found on the previous shell layer
                         // this approach allows for DWIM in hollow sloping vases, where we want bottom
                         // shells to be generated in the base but not in the walls (where there are many
-                        // narrow bottom surfaces): reassigning $solid will consider the 'shadow' of the 
+                        // narrow bottom surfaces): reassigning $solid will consider the 'shadow' of the
                         // upper perimeter as an obstacle and shell will not be propagated to more upper layers
                         //FIXME How does it work for stInternalBRIDGE? This is set for sparse infill. Likely this does not work.
                         ExPolygons new_internal_solid;
@@ -2907,8 +2907,8 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
                             if (region_config.fill_density.value == 0) {
                                 // If user expects the object to be void (for example a hollow sloping vase),
                                 // don't continue the search. In this case, we only generate the external solid
-                                // shell if the object would otherwise show a hole (gap between perimeters of 
-                                // the two layers), and internal solid shells are a subset of the shells found 
+                                // shell if the object would otherwise show a hole (gap between perimeters of
+                                // the two layers), and internal solid shells are a subset of the shells found
                                 // on each previous layer.
                                 goto EXTERNAL;
                             } else {
@@ -2951,8 +2951,8 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
                                 new_internal_solid,
                             opening(new_internal_solid, margin, margin + ClipperSafetyOffset, ClipperLib::jtMiter, 5)); // -+
                             if (!too_narrow.empty()) {
-                                // grow the collapsing parts and add the extra area to  the neighbor layer 
-                                // as well as to our original surfaces so that we support this 
+                                // grow the collapsing parts and add the extra area to  the neighbor layer
+                                // as well as to our original surfaces so that we support this
                                 // additional area in the next shell too
                                 // make sure our grown surfaces don't exceed the fill area
                                 ExPolygons internal;
@@ -2963,9 +2963,9 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
                                     intersection_ex(
                                         offset_ex(too_narrow, +margin), //expand_ex
                                         // Discard bridges as they are grown for anchoring and we can't
-                                        // remove such anchors. (This may happen when a bridge is being 
+                                        // remove such anchors. (This may happen when a bridge is being
                                         // anchored onto a wall where little space remains after the bridge
-                                        // is grown, and that little space is an internal solid shell so 
+                                        // is grown, and that little space is an internal solid shell so
                                         // it triggers this too_narrow logic.)
                                         union_ex(internal)));
                                 // see https://github.com/prusa3d/PrusaSlicer/pull/3426
@@ -3154,7 +3154,7 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
                 // and the not-overlap area is stored in the LayerRegion object
                 float clearance_offset =
                     0.5f * layerms.back()->flow(frPerimeter).scaled_width() +
-                    // Because fill areas for rectilinear and honeycomb are grown 
+                    // Because fill areas for rectilinear and honeycomb are grown
                     // later to overlap perimeters, we need to counteract that too.
                     ((region.config().fill_pattern.value == ipRectilinear   ||
                       region.config().fill_pattern.value == ipMonotonic     ||
@@ -3371,7 +3371,7 @@ static void project_triangles_to_slabs(ConstLayerPtrsAdaptor layers, const index
             // The resulting triangles are fed to the Clipper library, which seem to handle flipped triangles well.
 //                if (cross2(Vec2d((poly.pts[1] - poly.pts[0]).cast<double>()), Vec2d((poly.pts[2] - poly.pts[1]).cast<double>())) < 0)
 //                    std::swap(poly.pts.front(), poly.pts.back());
-                
+
             out[layer_id].emplace_back(std::move(poly.pts));
             ++layer_id;
         }

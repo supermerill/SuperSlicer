@@ -20,7 +20,7 @@ IGL_INLINE void igl::copyleft::swept_volume(
   using namespace igl;
   using namespace igl::copyleft;
 
-  const auto & Vtransform = 
+  const auto & Vtransform =
     [&V,&transform](const size_t vi,const double t)->RowVector3d
   {
     Vector3d Vvi = V.row(vi).transpose();

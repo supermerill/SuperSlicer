@@ -50,5 +50,5 @@ namespace igl
 }
 #ifndef IGL_STATIC_LIBRARY
 #  include "offset_surface.cpp"
-#endif 
-#endif 
+#endif
+#endif

@@ -31,15 +31,15 @@ THE SOFTWARE.
 /*---------------------------------------------------------------------------*/
 
 #ifndef FALSE
-#define FALSE	0x0
+#define FALSE    0x0
 #endif
 
 #ifndef TRUE
-#define TRUE	0x1
+#define TRUE    0x1
 #endif
 
 #ifndef NULL
-#define NULL	0
+#define NULL    0
 #endif
 
 #include "ShinyConfig.h"
@@ -51,31 +51,31 @@ extern "C" {
 
 /*---------------------------------------------------------------------------*/
 
-#define SHINY_PLATFORM_WIN32	0x1
-#define SHINY_PLATFORM_POSIX	0x2
+#define SHINY_PLATFORM_WIN32    0x1
+#define SHINY_PLATFORM_POSIX    0x2
 
 #if defined (_WIN32)
-#   define SHINY_PLATFORM	SHINY_PLATFORM_WIN32
+#   define SHINY_PLATFORM    SHINY_PLATFORM_WIN32
 
 #else /* ASSUME: POSIX-compliant OS */
-#   define SHINY_PLATFORM	SHINY_PLATFORM_POSIX
+#   define SHINY_PLATFORM    SHINY_PLATFORM_POSIX
 #endif
 
 
 /*---------------------------------------------------------------------------*/
 
-#define SHINY_COMPILER_MSVC		0x1
-#define SHINY_COMPILER_GNUC		0x2
-#define SHINY_COMPILER_OTHER	0x3
+#define SHINY_COMPILER_MSVC        0x1
+#define SHINY_COMPILER_GNUC        0x2
+#define SHINY_COMPILER_OTHER    0x3
 
 #if defined (_MSC_VER)
-#   define SHINY_COMPILER	SHINY_COMPILER_MSVC
+#   define SHINY_COMPILER    SHINY_COMPILER_MSVC
 
 #elif defined (__GNUG__)
-#   define SHINY_COMPILER	SHINY_COMPILER_GNUC
+#   define SHINY_COMPILER    SHINY_COMPILER_GNUC
 
 #else
-#   define SHINY_COMPILER	SHINY_COMPILER_OTHER
+#   define SHINY_COMPILER    SHINY_COMPILER_OTHER
 #endif
 
 
@@ -102,34 +102,34 @@ typedef struct _ShinyNode* ShinyNodeTable;
 /*---------------------------------------------------------------------------*/
 
 #if SHINY_COMPILER == SHINY_COMPILER_MSVC
-#	define SHINY_INLINE		__inline
-#	define SHINY_UNUSED
+#    define SHINY_INLINE        __inline
+#    define SHINY_UNUSED
 #elif SHINY_COMPILER == SHINY_COMPILER_GNUC
-#	define SHINY_INLINE		inline
-#	define SHINY_UNUSED		__attribute__((unused))
+#    define SHINY_INLINE        inline
+#    define SHINY_UNUSED        __attribute__((unused))
 #elif SHINY_COMPILER == SHINY_COMPILER_OTHER
-#	define SHINY_INLINE		inline
-#	define SHINY_UNUSED
+#    define SHINY_INLINE        inline
+#    define SHINY_UNUSED
 #endif
 
 
 /*---------------------------------------------------------------------------*/
 
 #if SHINY_COMPILER == SHINY_COMPILER_MSVC
-	typedef int					int32_t;
-	typedef unsigned int		uint32_t;
+    typedef int                    int32_t;
+    typedef unsigned int        uint32_t;
 
-	typedef __int64				int64_t;
-	typedef unsigned __int64	uint64_t;
+    typedef __int64                int64_t;
+    typedef unsigned __int64    uint64_t;
 
 /*
 #elif defined(__CYGWIN__)
-	typedef u_int32_t			uint32_t;
-	typedef u_int64_t			uint64_t;
+    typedef u_int32_t            uint32_t;
+    typedef u_int64_t            uint64_t;
 */
 #endif
 
-	typedef uint64_t			shinytick_t;
+    typedef uint64_t            shinytick_t;
 
 #if __cplusplus
 } /* end of extern "C" */

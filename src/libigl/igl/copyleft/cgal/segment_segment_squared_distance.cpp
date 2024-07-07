@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "segment_segment_squared_distance.h"
 #include <CGAL/Vector_3.h>
@@ -54,8 +54,8 @@ IGL_INLINE bool igl::copyleft::cgal::segment_segment_squared_distance(
 
   bool parallel = false;
   // compute the line parameters of the two closest points
-  if (D==0) 
-  { 
+  if (D==0)
+  {
     // the lines are almost parallel
     parallel = true;
     sN = 0.0;         // force using source point on segment S1
@@ -67,13 +67,13 @@ IGL_INLINE bool igl::copyleft::cgal::segment_segment_squared_distance(
     // get the closest points on the infinite lines
     sN = (b*e - c*d);
     tN = (a*e - b*d);
-    if (sN < 0.0) 
-    { 
+    if (sN < 0.0)
+    {
       // sc < 0 => the s=0 edge is visible
       sN = 0.0;
       tN = e;
       tD = c;
-    } else if (sN > sD) 
+    } else if (sN > sD)
     {  // sc > 1  => the s=1 edge is visible
       sN = sD;
       tN = e + b;
@@ -81,7 +81,7 @@ IGL_INLINE bool igl::copyleft::cgal::segment_segment_squared_distance(
     }
   }
 
-  if (tN < 0.0) 
+  if (tN < 0.0)
   {
     // tc < 0 => the t=0 edge is visible
     tN = 0.0;
@@ -92,12 +92,12 @@ IGL_INLINE bool igl::copyleft::cgal::segment_segment_squared_distance(
     }else if (-d > a)
     {
       sN = sD;
-    }else 
+    }else
     {
       sN = -d;
       sD = a;
     }
-  }else if (tN > tD) 
+  }else if (tN > tD)
   {
     // tc > 1  => the t=1 edge is visible
     tN = tD;

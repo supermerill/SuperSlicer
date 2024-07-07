@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "cotmatrix_entries.h"
 #include "doublearea.h"
@@ -35,13 +35,13 @@ IGL_INLINE void igl::cotmatrix_entries(
     case 3:
     {
       // Triangles
-      //Compute Squared Edge lengths 
+      //Compute Squared Edge lengths
       Matrix<typename DerivedC::Scalar,Dynamic,3> l2;
       igl::squared_edge_lengths(V,F,l2);
-      //Compute Edge lengths 
+      //Compute Edge lengths
       Matrix<typename DerivedC::Scalar,Dynamic,3> l;
       l = l2.array().sqrt();
-      
+
       // double area
       Matrix<typename DerivedC::Scalar,Dynamic,1> dblA;
       doublearea(l,0.,dblA);

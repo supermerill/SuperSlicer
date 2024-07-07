@@ -112,7 +112,7 @@ static bool write_rgb_or_gray_to_file(const char *file_name_utf8, size_t width, 
     png_structp  png_ptr      = nullptr;
     png_infop    info_ptr     = nullptr;
     png_byte   **row_pointers = nullptr;
- 
+
     FILE        *fp = boost::nowide::fopen(file_name_utf8, "wb");
     if (! fp) {
         BOOST_LOG_TRIVIAL(error) << "write_png_file: File could not be opened for writing: " << file_name_utf8;

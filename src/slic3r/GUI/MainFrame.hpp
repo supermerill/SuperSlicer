@@ -98,8 +98,8 @@ class MainFrame : public DPIFrame
     bool can_export_supports() const;
     bool can_export_gcode() const;
     bool can_send_gcode() const;
-	bool can_export_gcode_sd() const;
-	bool can_eject() const;
+    bool can_export_gcode_sd() const;
+    bool can_eject() const;
     bool can_slice() const;
     bool can_change_view() const;
     bool can_select() const;
@@ -108,7 +108,7 @@ class MainFrame : public DPIFrame
     bool can_delete_all() const;
     bool can_reslice() const;
 
-    // MenuBar items changeable in respect to printer technology 
+    // MenuBar items changeable in respect to printer technology
     enum MenuItems
     {                   //   FFF                  SLA
         miExport = 0,   // Export G-code        Export
@@ -117,7 +117,7 @@ class MainFrame : public DPIFrame
         miPrinterTab,   // Different bitmap for Printer Settings
     };
 
-    // vector of a MenuBar items changeable in respect to printer technology 
+    // vector of a MenuBar items changeable in respect to printer technology
     std::vector<wxMenuItem*> m_changeable_menu_items;
     wxMenu* m_calibration_menu = nullptr;
     wxMenuItem* m_layerpreview_menu_item = nullptr;
@@ -150,7 +150,7 @@ public:
     };
 
 private:
-    
+
     ESettingsLayout m_layout{ ESettingsLayout::Unknown };
 
 protected:
@@ -164,8 +164,8 @@ public:
 
     void update_layout();
 
-	// Called when closing the application and when switching the application language.
-	void 		shutdown();
+    // Called when closing the application and when switching the application language.
+    void         shutdown();
 
     Plater*     plater() { return m_plater; }
 
@@ -208,7 +208,7 @@ public:
     // 0 = a plater tab, 1 = print setting, 2 = filament settign, 3 = printer setting
     void        select_tab(Tab* tab);
     void        select_tab(ETabType tab = ETabType::Any, bool keep_tab_type = false);
-    ETabType    selected_tab() const; 
+    ETabType    selected_tab() const;
     ETabType    next_preview_tab();
     void        select_view(const std::string& direction);
     // Propagate changed configuration from the Tab to the Plater and save changes to the AppConfig
@@ -239,9 +239,9 @@ public:
 #endif // __APPLE__
 
 #ifdef _WIN32
-    void*				m_hDeviceNotify { nullptr };
-    uint32_t  			m_ulSHChangeNotifyRegister { 0 };
-	static constexpr int WM_USER_MEDIACHANGED { 0x7FFF }; // WM_USER from 0x0400 to 0x7FFF, picking the last one to not interfere with wxWidgets allocation
+    void*                m_hDeviceNotify { nullptr };
+    uint32_t              m_ulSHChangeNotifyRegister { 0 };
+    static constexpr int WM_USER_MEDIACHANGED { 0x7FFF }; // WM_USER from 0x0400 to 0x7FFF, picking the last one to not interfere with wxWidgets allocation
 #endif // _WIN32
 };
 

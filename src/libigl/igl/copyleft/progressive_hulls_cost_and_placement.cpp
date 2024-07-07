@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "progressive_hulls_cost_and_placement.h"
 #include "quadprog.h"
@@ -53,7 +53,7 @@ IGL_INLINE void igl::copyleft::progressive_hulls_cost_and_placement(
     const RowVector3d & v20 = V.row(F(f,2))-V.row(F(f,0));
     A.row(i) = v01.cross(v20);
     B(i) = V.row(F(f,0)).dot(A.row(i));
-    D(i) = 
+    D(i) =
       (Matrix3d()<< V.row(F(f,0)), V.row(F(f,1)), V.row(F(f,2)))
       .finished().determinant();
   }
@@ -78,7 +78,7 @@ IGL_INLINE void igl::copyleft::progressive_hulls_cost_and_placement(
         G,g0,
         MatrixXd(n,0),VectorXd(0,1),
         A.transpose(),-B,x);
-    cost  = (1.-w)*(1./6.)*(x.dot(f) - D.sum()) + 
+    cost  = (1.-w)*(1./6.)*(x.dot(f) - D.sum()) +
       w*(x.transpose()-mid).squaredNorm() +
       w*(V.row(E(e,0))-V.row(E(e,1))).norm();
   }

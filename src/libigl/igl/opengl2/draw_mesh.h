@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_OPENGL2_DRAW_MESH_H
 #define IGL_OPENGL2_DRAW_MESH_H
@@ -27,7 +27,7 @@ namespace igl
       const Eigen::MatrixXd & V,
       const Eigen::MatrixXi & F,
       const Eigen::MatrixXd & N);
-    
+
     // Draw ../opengl/OpenGL_ commands needed to display a mesh with normals and per-vertex
     // colors
     //
@@ -53,7 +53,7 @@ namespace igl
       const Eigen::MatrixXd & N,
       const Eigen::MatrixXd & C,
       const Eigen::MatrixXd & TC);
-    
+
     // Draw ../opengl/OpenGL_ commands needed to display a mesh with normals, per-vertex
     // colors and LBS weights
     //
@@ -79,7 +79,7 @@ namespace igl
       const GLuint W_index,
       const Eigen::MatrixXi & WI,
       const GLuint WI_index);
-    
+
     // Draw ../opengl/OpenGL_ commands needed to display a mesh with normals, per-vertex
     // colors and LBS weights
     //

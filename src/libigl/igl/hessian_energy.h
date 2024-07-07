@@ -35,7 +35,7 @@ namespace igl
                                    const Eigen::MatrixBase<DerivedV> & V,
                                    const Eigen::MatrixBase<DerivedF> & F,
                                    Eigen::SparseMatrix<Scalar>& Q);
-    
+
 }
 
 #ifndef IGL_STATIC_LIBRARY

@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "projected_delaunay.h"
 #include "../../REDRUM.h"
@@ -29,18 +29,18 @@ IGL_INLINE void igl::copyleft::cgal::projected_delaunay(
   using namespace std;
   // 3D Primitives
   typedef CGAL::Point_3<Kernel>    Point_3;
-  typedef CGAL::Segment_3<Kernel>  Segment_3; 
-  typedef CGAL::Triangle_3<Kernel> Triangle_3; 
+  typedef CGAL::Segment_3<Kernel>  Segment_3;
+  typedef CGAL::Triangle_3<Kernel> Triangle_3;
   typedef CGAL::Plane_3<Kernel>    Plane_3;
-  //typedef CGAL::Tetrahedron_3<Kernel> Tetrahedron_3; 
+  //typedef CGAL::Tetrahedron_3<Kernel> Tetrahedron_3;
   typedef CGAL::Point_2<Kernel>    Point_2;
-  //typedef CGAL::Segment_2<Kernel>  Segment_2; 
-  //typedef CGAL::Triangle_2<Kernel> Triangle_2; 
+  //typedef CGAL::Segment_2<Kernel>  Segment_2;
+  //typedef CGAL::Triangle_2<Kernel> Triangle_2;
   typedef CGAL::Triangulation_vertex_base_2<Kernel>  TVB_2;
   typedef CGAL::Constrained_triangulation_face_base_2<Kernel> CTFB_2;
   typedef CGAL::Triangulation_data_structure_2<TVB_2,CTFB_2> TDS_2;
   typedef CGAL::Exact_intersections_tag Itag;
-  typedef CGAL::Constrained_Delaunay_triangulation_2<Kernel,TDS_2,Itag> 
+  typedef CGAL::Constrained_Delaunay_triangulation_2<Kernel,TDS_2,Itag>
     CDT_2;
   typedef CGAL::Constrained_triangulation_plus_2<CDT_2> CDT_plus_2;
 
@@ -79,7 +79,7 @@ IGL_INLINE void igl::copyleft::cgal::projected_delaunay(
       cdt.insert_constraint(P.to_2d(itri->vertex(0)),P.to_2d(itri->vertex(1)));
       cdt.insert_constraint(P.to_2d(itri->vertex(1)),P.to_2d(itri->vertex(2)));
       cdt.insert_constraint(P.to_2d(itri->vertex(2)),P.to_2d(itri->vertex(0)));
-    } else if(const std::vector<Point_3 > *polyp = 
+    } else if(const std::vector<Point_3 > *polyp =
         CGAL::object_cast< std::vector<Point_3 > >(&obj))
     {
       //cerr<<REDRUM("Poly...")<<endl;

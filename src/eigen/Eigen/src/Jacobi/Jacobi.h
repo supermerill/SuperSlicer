@@ -11,7 +11,7 @@
 #ifndef EIGEN_JACOBI_H
 #define EIGEN_JACOBI_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \ingroup Jacobi_Module
   * \jacobi_module
@@ -158,7 +158,7 @@ void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const Scalar& q, Scalar
   using std::sqrt;
   using std::abs;
   using numext::conj;
-  
+
   if(q==Scalar(0))
   {
     m_c = numext::real(p)<0 ? Scalar(-1) : Scalar(1);
@@ -442,7 +442,7 @@ void /*EIGEN_DONT_INLINE*/ apply_rotation_in_the_plane(DenseBase<VectorX>& xpr_x
 
   Scalar* EIGEN_RESTRICT x = &xpr_x.derived().coeffRef(0);
   Scalar* EIGEN_RESTRICT y = &xpr_y.derived().coeffRef(0);
-  
+
   OtherScalar c = j.c();
   OtherScalar s = j.s();
   if (c==OtherScalar(1) && s==OtherScalar(0))

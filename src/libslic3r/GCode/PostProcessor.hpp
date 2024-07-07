@@ -24,8 +24,8 @@ extern bool run_post_process_scripts(std::string &src_path, bool make_copy, cons
 
 inline bool run_post_process_scripts(std::string &src_path, const DynamicPrintConfig &config)
 {
-	std::string src_path_name = src_path;
-	return run_post_process_scripts(src_path, false, "File", src_path_name, config);
+    std::string src_path_name = src_path;
+    return run_post_process_scripts(src_path, false, "File", src_path_name, config);
 }
 
 } // namespace Slic3r

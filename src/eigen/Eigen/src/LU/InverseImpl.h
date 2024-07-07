@@ -11,7 +11,7 @@
 #ifndef EIGEN_INVERSE_IMPL_H
 #define EIGEN_INVERSE_IMPL_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -72,7 +72,7 @@ struct compute_inverse_and_det_with_check<MatrixType, ResultType, 1>
 ****************************/
 
 template<typename MatrixType, typename ResultType>
-EIGEN_DEVICE_FUNC 
+EIGEN_DEVICE_FUNC
 inline void compute_inverse_size2_helper(
     const MatrixType& matrix, const typename ResultType::Scalar& invdet,
     ResultType& result)
@@ -122,7 +122,7 @@ struct compute_inverse_and_det_with_check<MatrixType, ResultType, 2>
 ****************************/
 
 template<typename MatrixType, int i, int j>
-EIGEN_DEVICE_FUNC 
+EIGEN_DEVICE_FUNC
 inline typename MatrixType::Scalar cofactor_3x3(const MatrixType& m)
 {
   enum {
@@ -200,7 +200,7 @@ struct compute_inverse_and_det_with_check<MatrixType, ResultType, 3>
 ****************************/
 
 template<typename Derived>
-EIGEN_DEVICE_FUNC 
+EIGEN_DEVICE_FUNC
 inline const typename Derived::Scalar general_det3_helper
 (const MatrixBase<Derived>& matrix, int i1, int i2, int i3, int j1, int j2, int j3)
 {
@@ -209,7 +209,7 @@ inline const typename Derived::Scalar general_det3_helper
 }
 
 template<typename MatrixType, int i, int j>
-EIGEN_DEVICE_FUNC 
+EIGEN_DEVICE_FUNC
 inline typename MatrixType::Scalar cofactor_4x4(const MatrixType& matrix)
 {
   enum {
@@ -296,7 +296,7 @@ struct Assignment<DstXprType, Inverse<XprType>, internal::assign_op<typename Dst
     Index dstCols = src.cols();
     if((dst.rows()!=dstRows) || (dst.cols()!=dstCols))
       dst.resize(dstRows, dstCols);
-    
+
     const int Size = EIGEN_PLAIN_ENUM_MIN(XprType::ColsAtCompileTime,DstXprType::ColsAtCompileTime);
     EIGEN_ONLY_USED_FOR_DEBUG(Size);
     eigen_assert(( (Size<=1) || (Size>4) || (extract_data(src.nestedExpression())!=extract_data(dst)))
@@ -304,14 +304,14 @@ struct Assignment<DstXprType, Inverse<XprType>, internal::assign_op<typename Dst
 
     typedef typename internal::nested_eval<XprType,XprType::ColsAtCompileTime>::type  ActualXprType;
     typedef typename internal::remove_all<ActualXprType>::type                        ActualXprTypeCleanded;
-    
+
     ActualXprType actual_xpr(src.nestedExpression());
-    
+
     compute_inverse<ActualXprTypeCleanded, DstXprType>::run(actual_xpr, dst);
   }
 };
 
-  
+
 } // end namespace internal
 
 /** \lu_module

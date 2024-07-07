@@ -31,31 +31,31 @@ THE SOFTWARE.
 /* if SHINY_LOOKUP_RATE is defined to TRUE then Shiny will record the success of its hash function. This is useful for debugging. Default is FALSE.
  */
 #ifndef SHINY_LOOKUP_RATE
-// #define SHINY_LOOKUP_RATE		FALSE
+// #define SHINY_LOOKUP_RATE        FALSE
 #endif
 
 /* if SHINY_HAS_ENABLED is defined to TRUE then Shiny can be enabled and disabled at runtime. TODO: bla bla...
  */
 #ifndef SHINY_HAS_ENABLED
-// #define SHINY_HAS_ENABLED		FALSE
+// #define SHINY_HAS_ENABLED        FALSE
 #endif
 
-/* TODO: 
+/* TODO:
  */
-#define SHINY_OUTPUT_MODE_FLAT	0x1
+#define SHINY_OUTPUT_MODE_FLAT    0x1
 
-/* TODO: 
+/* TODO:
  */
-#define SHINY_OUTPUT_MODE_TREE	0x2
+#define SHINY_OUTPUT_MODE_TREE    0x2
 
-/* TODO: 
+/* TODO:
  */
-#define SHINY_OUTPUT_MODE_BOTH	0x3
+#define SHINY_OUTPUT_MODE_BOTH    0x3
 
-/* TODO: 
+/* TODO:
  */
 #ifndef SHINY_OUTPUT_MODE
-#define SHINY_OUTPUT_MODE		SHINY_OUTPUT_MODE_BOTH
+#define SHINY_OUTPUT_MODE        SHINY_OUTPUT_MODE_BOTH
 #endif
 
 #endif /* SHINY_CONFIG_H */

@@ -246,12 +246,12 @@ inline NfpResult<RawShape> nfpConvexOnly(const RawShape& sh,
         if constexpr (ClosureTypeV<RawShape> == Closure::OPEN)
             add_edge(*sl::cbegin(other), *sl::rcbegin(other));
     }
-   
+
     std::sort(edgelist.begin(), edgelist.end(),
               [](const Edge& e1, const Edge& e2)
     {
         const Vertex ax(1, 0); // Unit vector for the X axis
-        
+
         // get cectors from the edges
         Vertex p1 = e1.second() - e1.first();
         Vertex p2 = e2.second() - e2.first();
@@ -284,7 +284,7 @@ inline NfpResult<RawShape> nfpConvexOnly(const RawShape& sh,
             if(lcos[i] == 0) q[i] = lsin[i] > 0 ? 1 : 3;
             else if(lsin[i] == 0) q[i] = lcos[i] > 0 ? 0 : 2;
             else q[i] = quadrants[((lcos[i] < 0) << 1) + (lsin[i] < 0)];
-            
+
         if(q[0] == q[1]) { // only bother if p1 and p2 are in the same quadrant
             auto lsq1 = pl::magnsq(p1);     // squared magnitudes, avoid sqrt
             auto lsq2 = pl::magnsq(p2);     // squared magnitudes, avoid sqrt
@@ -292,7 +292,7 @@ inline NfpResult<RawShape> nfpConvexOnly(const RawShape& sh,
             // We will actually compare l^2 * cos^2(phi) which saturates the
             // cos function. But with the quadrant info we can get the sign back
             int sign = q[0] == 1 || q[0] == 2 ? -1 : 1;
-            
+
             // supermerill: add safe-check for when two points are on the same position
             // If Ratio is an actual rational type, there is no precision loss
             auto pcos1 = lsq1 != 0 ? Ratio(lcos[0]) / lsq1 * sign * lcos[0] : 1 * sign * lcos[0];
@@ -303,7 +303,7 @@ inline NfpResult<RawShape> nfpConvexOnly(const RawShape& sh,
             else
                 return q[0] < 2 ? pcos1 > pcos2 : pcos1 < pcos2;
         }
-        
+
         // If in different quadrants, compare the quadrant indices only.
         if constexpr (is_clockwise<RawShape>())
             return q[0] > q[1];

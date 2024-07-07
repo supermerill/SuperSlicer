@@ -15,14 +15,14 @@ std::string SpiralVase::process_layer(const std::string &gcode)
           at the beginning
         - each layer is composed by suitable geometry (i.e. a single complete loop)
         - loops were not clipped before calling this method  */
-    
+
     // If we're not going to modify G-code, just feed it to the reader
     // in order to update positions.
     if (! m_enabled) {
         m_reader.parse_buffer(gcode);
         return gcode;
     }
-    
+
     // Get total XY length for this layer by summing all extrusion moves.
     float total_layer_length = 0;
     float layer_height = 0;
@@ -60,10 +60,10 @@ std::string SpiralVase::process_layer(const std::string &gcode)
             }
         });
     }
-    
+
     // Remove layer height from initial Z.
     z -= layer_height;
-    
+
     std::string new_gcode;
     //FIXME Tapering of the transition layer only works reliably with relative extruder distances.
     // For absolute extruder distances it will be switched off.
@@ -161,7 +161,7 @@ std::string SpiralVase::process_layer(const std::string &gcode)
         new_gcode += "; return to spiral location\n";
         new_gcode += line_last_position.raw() + "\n";
     }
-    
+
     return new_gcode;
 }
 

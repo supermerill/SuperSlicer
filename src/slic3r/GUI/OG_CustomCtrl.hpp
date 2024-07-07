@@ -13,7 +13,7 @@
 #include "OptionsGroup.hpp"
 #include "I18N.hpp"
 
-// Translate the ifdef 
+// Translate the ifdef
 #ifdef __WXOSX__
     #define wxOSX true
 #else

@@ -38,7 +38,7 @@ IGL_INLINE void igl::unproject(
   for(int i = 0;i<n;i++)
   {
     typedef typename Derivedscene::Scalar Scalar;
-    Eigen::Matrix<Scalar,4,4> Inverse = 
+    Eigen::Matrix<Scalar,4,4> Inverse =
       (proj.template cast<Scalar>() * model.template cast<Scalar>()).inverse();
 
     Eigen::Matrix<Scalar,4,1> tmp;

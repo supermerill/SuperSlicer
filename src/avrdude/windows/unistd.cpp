@@ -12,8 +12,8 @@ extern "C" {
 
 int usleep(unsigned usec)
 {
-	std::this_thread::sleep_for(std::chrono::microseconds(usec));
-	return 0;
+    std::this_thread::sleep_for(std::chrono::microseconds(usec));
+    return 0;
 }
 
 
@@ -22,7 +22,7 @@ int gettimeofday(struct timeval *tp, struct timezone *tzp)
 {
     // Note: some broken versions only have 8 trailing zero's, the correct epoch has 9 trailing zero's
     // This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
-    // until 00:00:00 January 1, 1970 
+    // until 00:00:00 January 1, 1970
     static const std::uint64_t EPOCH = ((std::uint64_t) 116444736000000000ULL);
 
     SYSTEMTIME  system_time;

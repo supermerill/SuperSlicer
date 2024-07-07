@@ -27,7 +27,7 @@ IGL_INLINE typename DerivedA::Scalar igl::solid_angle(
   Eigen::Matrix<SType,1,3> vl = v.rowwise().norm();
   //printf("\n");
   // Compute determinant
-  SType detf = 
+  SType detf =
     v(0,0)*v(1,1)*v(2,2)+
     v(1,0)*v(2,1)*v(0,2)+
     v(2,0)*v(0,1)*v(1,2)-
@@ -48,7 +48,7 @@ IGL_INLINE typename DerivedA::Scalar igl::solid_angle(
   // Compute winding number
   // Only divide by TWO_PI instead of 4*pi because there was a 2 out front
   return atan2(detf,
-    vl(0)*vl(1)*vl(2) + 
+    vl(0)*vl(1)*vl(2) +
     dp(0)*vl(0) +
     dp(1)*vl(1) +
     dp(2)*vl(2)) / (2.*igl::PI);

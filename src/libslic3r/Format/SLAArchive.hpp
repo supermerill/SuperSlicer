@@ -14,13 +14,13 @@ class SLAAbstractArchive: public SLAArchive {
 protected:
     virtual SLAPrinterConfig& config() = 0;
     virtual const SLAPrinterConfig& config() const = 0;
-    
+
     std::unique_ptr<sla::RasterBase> create_raster() const override;
     sla::RasterEncoder get_encoder() const override;
-public: 
+public:
     SLAAbstractArchive() = default;
-   
-    /// Actually perform the export. 
+
+    /// Actually perform the export.
     virtual void export_print(Zipper &zipper, const SLAPrint &print, const std::string &projectname = "") = 0;
 
     /// Export to a file. Virtual for overriding functions to change how the raster is assembled.
@@ -38,7 +38,7 @@ public:
             m_layers = {};
         }
     }
-    
+
 };
 
 } // namespace Slic3r

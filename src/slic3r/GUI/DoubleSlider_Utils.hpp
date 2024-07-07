@@ -44,7 +44,7 @@ class ColorGenerator
             out.s = (delta / max);                  // s
         }
         else {
-            // if max is 0, then r = g = b = 0              
+            // if max is 0, then r = g = b = 0
             // s = 0, h is undefined
             out.s = 0.0;
             out.h = NAN;                            // its now undefined

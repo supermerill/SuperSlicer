@@ -92,7 +92,7 @@ public:
     ExtrusionEntityCollection   *gap_fill;
     SurfaceCollection           *fill_surfaces;
     ExPolygons fill_no_overlap;
-    
+
     PerimeterGenerator(
         // Input:
         const SurfaceCollection*    slices,
@@ -155,7 +155,7 @@ private:
 
     ProcessSurfaceResult process_classic(int& contour_count, int& holes_count, const Surface& surface);
     ProcessSurfaceResult process_arachne(int& loop_number, const Surface& surface);
-    
+
     void        processs_no_bridge(Surfaces& all_surfaces);
     ExtrusionPaths create_overhangs(const Polyline& loop_polygons, ExtrusionRole role, bool is_external) const;
     ExtrusionPaths create_overhangs(const ClipperLib_Z::Path& loop_polygons, ExtrusionRole role, bool is_external) const;

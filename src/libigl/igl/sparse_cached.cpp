@@ -57,8 +57,8 @@ IGL_INLINE void igl::sparse_cached_precompute(
     for (unsigned k=0; k<X.outerSize(); ++k)
     {
       unsigned outer_index = *(X.outerIndexPtr()+k);
-      unsigned next_outer_index = (k+1 == X.outerSize()) ? X.nonZeros() : *(X.outerIndexPtr()+k+1); 
-      
+      unsigned next_outer_index = (k+1 == X.outerSize()) ? X.nonZeros() : *(X.outerIndexPtr()+k+1);
+
       for (unsigned l=outer_index; l<next_outer_index; ++l)
       {
         int col = k;
@@ -80,7 +80,7 @@ IGL_INLINE void igl::sparse_cached_precompute(
     assert(t==T.size());
 
 }
-  
+
 template <typename Scalar>
 IGL_INLINE void igl::sparse_cached(
   const std::vector<Eigen::Triplet<Scalar> >& triplets,
@@ -92,7 +92,7 @@ IGL_INLINE void igl::sparse_cached(
   // Clear it first
   for (unsigned i = 0; i<data.size(); ++i)
     *(X.valuePtr() + data[i]) = 0;
- 
+
   // Then sum them up
   for (unsigned i = 0; i<triplets.size(); ++i)
     *(X.valuePtr() + data[i]) += triplets[i].value();
@@ -109,7 +109,7 @@ IGL_INLINE void igl::sparse_cached(
   // Clear it first
   for (unsigned i = 0; i<data.size(); ++i)
     *(X.valuePtr() + data[i]) = 0;
- 
+
   // Then sum them up
   for (unsigned i = 0; i<V.size(); ++i)
     *(X.valuePtr() + data[i]) += V[i];

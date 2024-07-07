@@ -206,11 +206,11 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
         return false;
 
     // to match the background of the sliders
-#ifdef _WIN32 
+#ifdef _WIN32
     wxGetApp().UpdateDarkUI(this);
 #else
     SetBackgroundColour(GetParent()->GetBackgroundColour());
-#endif // _WIN32 
+#endif // _WIN32
 
     //get display size to see if we have to compress the labels
     const auto idx = wxDisplay::GetFromWindow(parent);
@@ -346,7 +346,7 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     GetSizer()->SetSizeHints(this);
 
     bind_event_handlers();
-    
+
     return true;
 }
 
@@ -409,7 +409,7 @@ void Preview::reload_print(bool keep_volumes)
 #endif /* __linux__ */
     if (
 #ifdef __linux__
-        m_volumes_cleanup_required || 
+        m_volumes_cleanup_required ||
 #endif /* __linux__ */
         (!keep_volumes && m_canvas->is_preview_dirty()))
     {
@@ -714,7 +714,7 @@ void Preview::update_layers_slider(const std::vector<double>& layers_z, bool sho
 
     // Detect and set manipulation mode for double slider
     update_layers_slider_mode();
-    
+
     Plater* plater = wxGetApp().plater();
     CustomGCode::Info ticks_info_from_model = plater->model().custom_gcode_per_print_z;
     if (wxGetApp().is_editor())
@@ -748,7 +748,7 @@ void Preview::update_layers_slider(const std::vector<double>& layers_z, bool sho
     }
     m_layers_slider->SetSelectionSpan(idx_low, idx_high);
     m_layers_slider->SetTicksValues(ticks_info_from_model);
-    
+
     bool sequential_print = wxGetApp().preset_bundle->fff_prints.get_edited_preset().config.opt_bool("complete_objects");
     bool sla_print_technology = plater->printer_technology() == ptSLA;
     m_layers_slider->SetDrawMode(sla_print_technology, sequential_print);
@@ -804,14 +804,14 @@ void Preview::update_layers_slider(const std::vector<double>& layers_z, bool sho
             const ExPolygons& bottom = object->get_layer(0)->lslices;
             double bottom_area = area(bottom);
 
-            // at least 25% of object's height have to be a solid 
+            // at least 25% of object's height have to be a solid
             int  i, min_solid_height = int(0.25 * num_layers);
             for (i = 1; i <= min_solid_height; ++ i) {
                 double cur_area = area(object->get_layer(i)->lslices);
                 if (!DoubleSlider::equivalent_areas(bottom_area, cur_area)) {
                     // but due to the elephant foot compensation, the first layer may be slightly smaller than the others
                     if (i == 1 && fabs(cur_area - bottom_area) / bottom_area < 0.1) {
-                        // So, let process this case and use second layer as a bottom 
+                        // So, let process this case and use second layer as a bottom
                         bottom_area = cur_area;
                         continue;
                     }
@@ -849,13 +849,13 @@ void Preview::update_layers_slider(const std::vector<double>& layers_z, bool sho
 
 void Preview::update_layers_slider_mode()
 {
-    //    true  -> single-extruder printer profile OR 
+    //    true  -> single-extruder printer profile OR
     //             multi-extruder printer profile , but whole model is printed by only one extruder
     //    false -> multi-extruder printer profile , and model is printed by several extruders
     bool    one_extruder_printed_model = true;
 
     // extruder used for whole model for multi-extruder printer profile
-    int     only_extruder = -1; 
+    int     only_extruder = -1;
 
     if (wxGetApp().extruders_edited_cnt() > 1)
     {
@@ -876,7 +876,7 @@ void Preview::update_layers_slider_mode()
                         return false;
 
                     for (ModelVolume* volume : object->volumes)
-                        if ((volume->config.has("extruder") && 
+                        if ((volume->config.has("extruder") &&
                             volume->config.option("extruder")->get_int() != 0 && // extruder isn't default
                             volume->config.option("extruder")->get_int() != extruder) ||
                             !volume->mmu_segmentation_facets.empty())
@@ -1026,7 +1026,7 @@ void Preview::load_print_as_fff(bool keep_z_range)
                 color_print_values = wxGetApp().plater()->model().custom_gcode_per_print_z.gcodes;
             else
                 color_print_values = m_canvas->get_custom_gcode_per_print_z();
-            colors.push_back("#808080"); // gray color for pause print or custom G-code 
+            colors.push_back("#808080"); // gray color for pause print or custom G-code
         }
     }
     else if (gcode_view_type == GCodeViewer::EViewType::Filament)

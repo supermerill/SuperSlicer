@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2017 Daniele Panozzo <daniele.panozzo@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_SLICE_CACHED_H
 #define IGL_SLICE_CACHED_H
@@ -12,19 +12,19 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 namespace igl
-{  
+{
 
   // Act like the matlab X(row_indices,col_indices) operator, where row_indices,
   // col_indices are non-negative integer indices. This is a fast version of
   // igl::slice that can analyze and store the sparsity structure. It is slower
   // at the irst evaluation (slice_cached_precompute), but faster on the
   // subsequent ones.
-  // 
+  //
   // Inputs:
   //   X  m by n matrix
   //   R  list of row indices
   //   C  list of column indices
-  //   
+  //
   // Output:
   //   Y  #R by #C matrix
   //   data Temporary data used by slice_cached to repeat this operation

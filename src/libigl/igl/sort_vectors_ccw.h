@@ -17,7 +17,7 @@ namespace igl {
   // Optionally it also returns a copy of the ordered vector set, or the indices,
   // in the original unordered set, of the vectors in the ordered set (called here
   // the "inverse" set of indices).
-  
+
   // Inputs:
   //   P               1 by 3N row vector of the vectors to be sorted, stacked horizontally
   //   N               #1 by 3 normal of the plane where the vectors lie

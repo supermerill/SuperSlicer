@@ -22,12 +22,12 @@
 #define avrdude_h
 
 
-extern char * progname;		/* name of program, for messages */
-extern char progbuf[];		/* spaces same length as progname */
+extern char * progname;        /* name of program, for messages */
+extern char progbuf[];        /* spaces same length as progname */
 
-extern int ovsigck;		/* override signature check (-F) */
-extern int verbose;		/* verbosity level (-v, -vv, ...) */
-extern int quell_progress;	/* quiteness level (-q, -qq) */
+extern int ovsigck;        /* override signature check (-F) */
+extern int verbose;        /* verbosity level (-v, -vv, ...) */
+extern int quell_progress;    /* quiteness level (-q, -qq) */
 
 typedef void (*avrdude_message_handler_t)(const char *msg, unsigned size, void *user_p);
 void avrdude_message_handler_set(avrdude_message_handler_t newhandler, void *user_p);

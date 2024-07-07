@@ -10,7 +10,7 @@
 #ifndef EIGEN_SELFADJOINT_MATRIX_VECTOR_H
 #define EIGEN_SELFADJOINT_MATRIX_VECTOR_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -151,7 +151,7 @@ EIGEN_DONT_INLINE void selfadjoint_matrix_vector_product<Scalar,Index,StorageOrd
   }
 }
 
-} // end namespace internal 
+} // end namespace internal
 
 /***************************************************************************
 * Wrapper to product_selfadjoint_vector
@@ -163,11 +163,11 @@ template<typename Lhs, int LhsMode, typename Rhs>
 struct selfadjoint_product_impl<Lhs,LhsMode,false,Rhs,0,true>
 {
   typedef typename Product<Lhs,Rhs>::Scalar Scalar;
-  
+
   typedef internal::blas_traits<Lhs> LhsBlasTraits;
   typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
   typedef typename internal::remove_all<ActualLhsType>::type ActualLhsTypeCleaned;
-  
+
   typedef internal::blas_traits<Rhs> RhsBlasTraits;
   typedef typename RhsBlasTraits::DirectLinearAccessType ActualRhsType;
   typedef typename internal::remove_all<ActualRhsType>::type ActualRhsTypeCleaned;
@@ -180,7 +180,7 @@ struct selfadjoint_product_impl<Lhs,LhsMode,false,Rhs,0,true>
     typedef typename Dest::Scalar ResScalar;
     typedef typename Rhs::Scalar RhsScalar;
     typedef Map<Matrix<ResScalar,Dynamic,1>, EIGEN_PLAIN_ENUM_MIN(AlignedMax,internal::packet_traits<ResScalar>::size)> MappedDest;
-    
+
     eigen_assert(dest.rows()==a_lhs.rows() && dest.cols()==a_rhs.cols());
 
     typename internal::add_const_on_value_type<ActualLhsType>::type lhs = LhsBlasTraits::extract(a_lhs);
@@ -193,16 +193,16 @@ struct selfadjoint_product_impl<Lhs,LhsMode,false,Rhs,0,true>
       EvalToDest = (Dest::InnerStrideAtCompileTime==1),
       UseRhs = (ActualRhsTypeCleaned::InnerStrideAtCompileTime==1)
     };
-    
+
     internal::gemv_static_vector_if<ResScalar,Dest::SizeAtCompileTime,Dest::MaxSizeAtCompileTime,!EvalToDest> static_dest;
     internal::gemv_static_vector_if<RhsScalar,ActualRhsTypeCleaned::SizeAtCompileTime,ActualRhsTypeCleaned::MaxSizeAtCompileTime,!UseRhs> static_rhs;
 
     ei_declare_aligned_stack_constructed_variable(ResScalar,actualDestPtr,dest.size(),
                                                   EvalToDest ? dest.data() : static_dest.data());
-                                                  
+
     ei_declare_aligned_stack_constructed_variable(RhsScalar,actualRhsPtr,rhs.size(),
         UseRhs ? const_cast<RhsScalar*>(rhs.data()) : static_rhs.data());
-    
+
     if(!EvalToDest)
     {
       #ifdef EIGEN_DENSE_STORAGE_CTOR_PLUGIN
@@ -211,7 +211,7 @@ struct selfadjoint_product_impl<Lhs,LhsMode,false,Rhs,0,true>
       #endif
       MappedDest(actualDestPtr, dest.size()) = dest;
     }
-      
+
     if(!UseRhs)
     {
       #ifdef EIGEN_DENSE_STORAGE_CTOR_PLUGIN
@@ -220,8 +220,8 @@ struct selfadjoint_product_impl<Lhs,LhsMode,false,Rhs,0,true>
       #endif
       Map<typename ActualRhsTypeCleaned::PlainObject>(actualRhsPtr, rhs.size()) = rhs;
     }
-      
-      
+
+
     internal::selfadjoint_matrix_vector_product<Scalar, Index, (internal::traits<ActualLhsTypeCleaned>::Flags&RowMajorBit) ? RowMajor : ColMajor,
                                                 int(LhsUpLo), bool(LhsBlasTraits::NeedToConjugate), bool(RhsBlasTraits::NeedToConjugate)>::run
       (
@@ -231,7 +231,7 @@ struct selfadjoint_product_impl<Lhs,LhsMode,false,Rhs,0,true>
         actualDestPtr,                          // result info
         actualAlpha                             // scale factor
       );
-    
+
     if(!EvalToDest)
       dest = MappedDest(actualDestPtr, dest.size());
   }

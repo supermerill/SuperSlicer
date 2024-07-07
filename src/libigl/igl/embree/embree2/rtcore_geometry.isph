@@ -55,7 +55,7 @@ enum RTCMatrixType {
 };
 
 /*! \brief Supported geometry flags to specify handling in dynamic scenes. */
-enum RTCGeometryFlags 
+enum RTCGeometryFlags
 {
   RTC_GEOMETRY_STATIC     = 0,    //!< specifies static geometry that will change rarely
   RTC_GEOMETRY_DEFORMABLE = 1,    //!< specifies dynamic geometry with deformable motion (BVH refit possible)
@@ -79,7 +79,7 @@ typedef void (*uniform RTCFilterFuncVarying)(void* uniform ptr,   /*!< pointer t
                                              varying RTCRay& ray  /*!< intersection to filter */);
 
 
-/*! \brief Creates a new scene instance. 
+/*! \brief Creates a new scene instance.
 
   A scene instance contains a reference to a scene to instantiate and
   the transformation to instantiate the scene with. An implementation
@@ -91,7 +91,7 @@ uniform unsigned int rtcNewInstance (RTCScene target,           //!< the scene t
                                      RTCScene source            //!< the geometry to instantiate
   );
 
-/*! \brief Creates a new scene instance. 
+/*! \brief Creates a new scene instance.
 
   A scene instance contains a reference to a scene to instantiate and
   the transformation to instantiate the scene with. For motion blurred
@@ -115,10 +115,10 @@ void rtcSetTransform (RTCScene scene,                                  //!< scen
 
 /*! \brief Sets transformation of the instance for specified timestep */
 void rtcSetTransform2 (RTCScene scene,                                 //!< scene handle
-                       uniform unsigned int geomID,                    //!< ID of geometry 
+                       uniform unsigned int geomID,                    //!< ID of geometry
                        uniform RTCMatrixType layout,                   //!< layout of transformation matrix
                        const uniform float* uniform xfm,               //!< pointer to transformation matrix
-                       uniform size_t timeStep = 0                     //!< timestep to set the matrix for 
+                       uniform size_t timeStep = 0                     //!< timestep to set the matrix for
   );
 
 /*! \brief Creates a new triangle mesh. The number of triangles
@@ -284,14 +284,14 @@ uniform unsigned int rtcNewLineSegments (RTCScene scene,                    //!<
 /*! \brief Sets 32 bit ray mask. */
 void rtcSetMask (RTCScene scene, uniform unsigned int geomID, uniform int mask);
 
-/*! \brief Sets boundary interpolation mode for subdivision surfaces */                                                                        
+/*! \brief Sets boundary interpolation mode for subdivision surfaces */
 void rtcSetBoundaryMode(RTCScene scene, uniform unsigned int geomID, uniform RTCBoundaryMode mode);
 
 /*! \brief Maps specified buffer. This function can be used to set index and
  *  vertex buffers of geometries. */
 void* uniform rtcMapBuffer(RTCScene scene, uniform unsigned int geomID, uniform RTCBufferType type);
 
-/*! \brief Unmaps specified buffer. 
+/*! \brief Unmaps specified buffer.
 
   A buffer has to be unmapped before the rtcEnable, rtcDisable,
   rtcUpdate, or rtcDeleteGeometry calls are executed. */
@@ -309,13 +309,13 @@ void rtcUnmapBuffer(RTCScene scene, uniform unsigned int geomID, uniform RTCBuff
  *  thus padding is required for some layouts. If this function is not
  *  called, Embree will allocate and manage buffers of the default
  *  layout. */
-void rtcSetBuffer(RTCScene scene, uniform unsigned int geomID, uniform RTCBufferType type, 
+void rtcSetBuffer(RTCScene scene, uniform unsigned int geomID, uniform RTCBufferType type,
                   const void* uniform ptr, uniform size_t byteOffset, uniform size_t byteStride);
 
 /*! \brief Enable geometry. Enabled geometry can be hit by a ray. */
 void rtcEnable (RTCScene scene, uniform unsigned int geomID);
 
-/*! \brief Update spefific geometry buffer. 
+/*! \brief Update spefific geometry buffer.
 
   Each time geometry buffers got modified, the user has to call some
   update function to tell the ray tracing engine which buffers got
@@ -323,7 +323,7 @@ void rtcEnable (RTCScene scene, uniform unsigned int geomID);
   some geometry as modified. */
 void rtcUpdate (RTCScene scene, uniform unsigned int geomID);
 
-/*! \brief Update spefific geometry buffer. 
+/*! \brief Update spefific geometry buffer.
 
   Each time geometry buffers got modified, the user has to call some
   update function to tell the ray tracing engine which buffers got
@@ -331,7 +331,7 @@ void rtcUpdate (RTCScene scene, uniform unsigned int geomID);
   some geometry as modified. */
 void rtcUpdateBuffer (RTCScene scene, uniform unsigned int geomID, uniform RTCBufferType type);
 
-/*! \brief Disable geometry. 
+/*! \brief Disable geometry.
 
   Disabled geometry is not hit by any ray. Disabling and enabling
   geometry gives higher performance than deleting and recreating
@@ -371,7 +371,7 @@ void* uniform rtcGetUserData (RTCScene scene, uniform unsigned int geomID);
  *  (SoA) layout. The buffer has to be padded at the end such
  *  that the last element can be read safely using SSE
  *  instructions. */
-void rtcInterpolate(RTCScene scene, uniform unsigned int geomID, varying unsigned int primIDs, varying float u, varying float v, 
+void rtcInterpolate(RTCScene scene, uniform unsigned int geomID, varying unsigned int primIDs, varying float u, varying float v,
                     uniform RTCBufferType buffer,
                     varying float* uniform P, varying float* uniform dPdu, varying float* uniform dPdv, uniform size_t numFloats);
 
@@ -391,7 +391,7 @@ void rtcInterpolate(RTCScene scene, uniform unsigned int geomID, varying unsigne
  *  (SoA) layout. The buffer has to be padded at the end such that
  *  the last element can be read safely using SSE
  *  instructions. */
-void rtcInterpolate2(RTCScene scene, uniform unsigned int geomID, varying unsigned int primIDs, varying float u, varying float v, 
+void rtcInterpolate2(RTCScene scene, uniform unsigned int geomID, varying unsigned int primIDs, varying float u, varying float v,
                     uniform RTCBufferType buffer,
                     varying float* uniform P, varying float* uniform dPdu, varying float* uniform dPdv,
                     varying float* uniform ddPdudu, varying float* uniform ddPdvdv, varying float* uniform ddPdudv,

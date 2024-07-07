@@ -21,7 +21,7 @@ class ExtruderSequenceDialog: public DPIDialog
     ScalableBitmap  m_bmp_add;
     DoubleSlider::ExtrudersSequence m_sequence;
 
-    wxTextCtrl* m_interval_by_layers {nullptr}; 
+    wxTextCtrl* m_interval_by_layers {nullptr};
     wxTextCtrl* m_interval_by_mm {nullptr};
     wxCheckBox* m_random_sequence {nullptr};
     wxCheckBox* m_color_repetition{nullptr};
@@ -38,7 +38,7 @@ public:
 protected:
     void apply_extruder_sequence();
     void on_dpi_changed(const wxRect& suggested_rect) override;
-    
+
 };
 
 }

@@ -1,12 +1,12 @@
 #include "GUI_Init.hpp"
 
-#include "libslic3r/AppConfig.hpp" 
+#include "libslic3r/AppConfig.hpp"
 #include "libslic3r/BlacklistedLibraryCheck.hpp"
 
 #include "slic3r/GUI/GUI.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/3DScene.hpp"
-#include "slic3r/GUI/InstanceCheck.hpp" 
+#include "slic3r/GUI/InstanceCheck.hpp"
 #include "slic3r/GUI/format.hpp"
 #include "slic3r/GUI/MainFrame.hpp"
 #include "slic3r/GUI/Plater.hpp"
@@ -89,6 +89,6 @@ int GUI_Run(GUI_InitParams &params)
     // error
     return 1;
 }
-    
+
 }
 }

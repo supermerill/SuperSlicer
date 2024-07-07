@@ -47,18 +47,18 @@ void Chart::draw() {
     dc.SetBrush(*wxWHITE_BRUSH);
 #endif
     dc.DrawRectangle(m_rect);
-    
+
     if (m_line_to_draw.empty()) {
         dc.DrawText(m_no_point_legend, wxPoint(m_rect.GetLeft() + m_rect.GetWidth() / 2 - 2*legend_side,
                                                      m_rect.GetBottom() - m_rect.GetHeight() / 2));
     }
-    
-    
+
+
     if (!m_line_to_draw.empty()) {
         for (unsigned int i=0;i<m_line_to_draw.size()-2;++i) {
             int color = 510*((m_rect.GetBottom()-(m_line_to_draw)[i])/double(m_rect.GetHeight()));
             dc.SetPen( wxPen( wxColor(std::min(255,color),255-std::max(color-255,0),0), 1 ) );
-            dc.DrawLine(m_rect.GetLeft()+1+i, (m_line_to_draw)[i], m_rect.GetLeft()+1+i, m_rect.GetBottom());        
+            dc.DrawLine(m_rect.GetLeft()+1+i, (m_line_to_draw)[i], m_rect.GetLeft()+1+i, m_rect.GetBottom());
         }
 #ifdef _WIN32
         dc.SetPen(wxPen(GetForegroundColour()));
@@ -76,7 +76,7 @@ void Chart::draw() {
             }
         }
     }
-    
+
     // draw draggable buttons
     dc.SetBrush(*wxBLUE_BRUSH);
 #ifdef _WIN32
@@ -114,13 +114,13 @@ void Chart::draw() {
         }
         last_mark = x;
     }
-    
+
     // draw y-axis:
     last_mark=10000;
     for (float math_y = int(visible_area.m_y * 10) / 10.f; math_y < (visible_area.m_y + visible_area.m_height); math_y += m_y_legend_incr) {
         int y = math_to_screen(wxPoint2DDouble(visible_area.m_x,math_y)).y;
         int x = m_rect.GetLeft();
-        if (last_mark-y < legend_side / 2) continue;    
+        if (last_mark-y < legend_side / 2) continue;
         dc.DrawLine(x-3,y,x+3,y);
         if (m_y_precision == 0) {
             dc.DrawText(wxString()<<int(math_y), wxPoint(x - 2 * scale_unit, y - 0.5 * scale_unit));
@@ -131,7 +131,7 @@ void Chart::draw() {
         }
         last_mark = y;
     }
-    
+
     // axis labels:
     int text_width = 0;
     int text_height = 0;
@@ -335,7 +335,7 @@ void Chart::recalculate_line() {
         std::vector<float> lambda(N+1);
         std::vector<float> h(N+1);
         std::vector<float> rhs(N+1);
-        
+
         // let's fill in inner equations
         for (int i=1;i<=N;++i) h[i] = points[i].x-points[i-1].x;
         std::fill(diag.begin(),diag.end(),2.f);
@@ -407,7 +407,7 @@ void Chart::recalculate_line() {
             m_total_volume += (m_rect.GetBottom() - m_line_to_draw.back()) * (visible_area.m_width / m_rect.GetWidth()) * (visible_area.m_height / m_rect.GetHeight());
         }
     } else if (points.size() == 1) {
-        
+
         m_line_to_draw.push_back(points.front().y);
         m_line_to_draw.back() = std::max(m_line_to_draw.back(), m_rect.GetTop()-1);
         m_line_to_draw.back() = std::min(m_line_to_draw.back(), m_rect.GetBottom()-1);
@@ -423,14 +423,14 @@ void Chart::recalculate_line() {
 
 std::vector<float> Chart::get_value_samples(float sampling) const {
     std::vector<float> smaples;
-    
+
     const int number_of_samples = std::round( visible_area.m_width / sampling);
     if (number_of_samples > 0 && !m_line_to_draw.empty()) {
         const int dx = (m_line_to_draw.size()-1) / number_of_samples;
         for (int j=0;j<number_of_samples;++j) {
             float left =  screen_to_math(wxPoint(0,m_line_to_draw[j*dx])).m_y;
             float right = screen_to_math(wxPoint(0,m_line_to_draw[(j+1)*dx])).m_y;
-            smaples.push_back((left+right)/2.f);            
+            smaples.push_back((left+right)/2.f);
         }
     }
     return smaples;

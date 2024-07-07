@@ -112,10 +112,10 @@ Copyright @copyright{} 2006 J@"org Wunsch
 @end ifinfo
 
 @menu
-* Introduction::                
+* Introduction::
 * Command Line Options::
 * Terminal Mode Operation::
-* Configuration File::          
+* Configuration File::
 * Programmer Specific Information::
 * Platform Dependent Information::
 * Troubleshooting::
@@ -168,13 +168,13 @@ attached to a physical serial port.  Connecting to a serial port
 emulated on top of USB is likely to not work at all, or to work
 abysmally slow.
 
-If you happen to have a Linux system with at least 4 hardware GPIOs 
-available (like almost all embedded Linux boards) you can do without 
-any additional hardware - just connect them to the MOSI, MISO, RESET 
+If you happen to have a Linux system with at least 4 hardware GPIOs
+available (like almost all embedded Linux boards) you can do without
+any additional hardware - just connect them to the MOSI, MISO, RESET
 and SCK pins on the AVR and use the linuxgpio programmer type. It bitbangs
 the lines using the Linux sysfs GPIO interface. Of course, care should
-be taken about voltage level compatibility. Also, although not strictly 
-required, it is strongly advisable to protect the GPIO pins from 
+be taken about voltage level compatibility. Also, although not strictly
+required, it is strongly advisable to protect the GPIO pins from
 overcurrent situations in some way. The simplest would be to just put
 some resistors in series or better yet use a 3-state buffer driver like
 the 74HC244. Have a look at http://kolev.info/avrdude-linuxgpio for a more
@@ -184,7 +184,7 @@ The STK500, JTAG ICE, avr910, and avr109/butterfly use the serial port to commun
 The STK600, JTAG ICE mkII/3, AVRISP mkII, USBasp, avrftdi (and derivatives), and USBtinyISP
 programmers communicate through the USB, using @code{libusb} as a
 platform abstraction layer.
-The avrftdi adds support for the FT2232C/D, FT2232H, and FT4232H devices. These all use 
+The avrftdi adds support for the FT2232C/D, FT2232H, and FT4232H devices. These all use
 the MPSSE mode, which has a specific pin mapping. Bit 1 (the lsb of the byte in the config
 file) is SCK. Bit 2 is MOSI, and Bit 3 is MISO. Bit 4 usually reset. The 2232C/D parts
 are only supported on interface A, but the H parts can be either A or B (specified by the
@@ -258,7 +258,7 @@ See below for some hints about FLIP version 1 protocol behaviour.
 
 
 @menu
-* History::                     
+* History::
 @end menu
 
 @c
@@ -396,16 +396,16 @@ specified, AVRDUDE reads the configuration file from
 the method of searching for the configuration file for Windows.
 
 If @var{config-file} is written as @var{+filename}
-then this file is read after the system wide and user configuration 
+then this file is read after the system wide and user configuration
 files. This can be used to add entries to the configuration
-without patching your system wide configuration file. It can be used 
-several times, the files are read in same order as given on the command 
+without patching your system wide configuration file. It can be used
+several times, the files are read in same order as given on the command
 line.
 
 
 @item -D
-Disable auto erase for flash.  When the -U option with flash memory is 
-specified, avrdude will perform a chip erase before starting any of the 
+Disable auto erase for flash.  When the -U option with flash memory is
+specified, avrdude will perform a chip erase before starting any of the
 programming operations, since it generally is a mistake to program the flash
 without performing an erase first.  This option disables that.
 Auto erase is not used for ATxmega devices as these devices can
@@ -789,8 +789,8 @@ is not verified but used directly within the
 C programming language.
 @item @samp{no_blockmode}
 Disables the default checking for block transfer capability.
-Use 
-@samp{no_blockmode} only if your @samp{AVR910} 
+Use
+@samp{no_blockmode} only if your @samp{AVR910}
 programmer creates errors during initial sequence.
 @end table
 
@@ -863,23 +863,23 @@ significant write speed increase. If use of this mode is not desirable for some
 reason, this option disables it.
 
 @item @samp{nopagedread}
-Newer firmware versions support in binary mode SPI command some AVR Extended 
+Newer firmware versions support in binary mode SPI command some AVR Extended
 Commands. Using the ``Bulk Memory Read from Flash'' results in a
 significant read speed increase. If use of this mode is not desirable for some
 reason, this option disables it.
 
 @item @samp{cpufreq=@var{125..4000}}
 This sets the @emph{AUX}  pin to output a frequency of @var{n} kHz. Connecting
-the @emph{AUX} pin to the XTAL1 pin of your MCU, you can provide it a clock, 
+the @emph{AUX} pin to the XTAL1 pin of your MCU, you can provide it a clock,
 for example when it needs an external clock because of wrong fuses settings.
-Make sure the CPU frequency is at least four times the SPI frequency.  
+Make sure the CPU frequency is at least four times the SPI frequency.
 
 @item @samp{serial_recv_timeout=@var{1...}}
-This sets the serial receive timeout to the given value. 
-The timeout happens every time avrdude waits for the BusPirate prompt. 
-Especially in ascii mode this happens very often, so setting a smaller value 
-can speed up programming a lot. 
-The default value is 100ms. Using 10ms might work in most cases.  
+This sets the serial receive timeout to the given value.
+The timeout happens every time avrdude waits for the BusPirate prompt.
+Especially in ascii mode this happens very often, so setting a smaller value
+can speed up programming a lot.
+The default value is 100ms. Using 10ms might work in most cases.
 
 @end table
 
@@ -929,7 +929,7 @@ STK500 programmer connected to the default serial port:
 
 @smallexample
 @cartouche
-% avrdude -p m128 -c stk500 -e -U flash:w:diag.hex 
+% avrdude -p m128 -c stk500 -e -U flash:w:diag.hex
 
 avrdude: AVR device initialized and ready to accept instructions
 
@@ -973,7 +973,7 @@ programmer and save it in raw binary format in the file named
 
 @smallexample
 @cartouche
-% avrdude -p m128 -c stk500 -U flash:r:"c:/diag flash.bin":r 
+% avrdude -p m128 -c stk500 -U flash:r:"c:/diag flash.bin":r
 
 avrdude: AVR device initialized and ready to accept instructions
 
@@ -990,7 +990,7 @@ avrdude: safemode: Fuses OK
 
 avrdude done.  Thank you.
 
-% 
+%
 @end cartouche
 @end smallexample
 
@@ -1039,7 +1039,7 @@ avrdude: 19278 bytes of flash verified
 
 avrdude done.  Thank you.
 
-% 
+%
 @end cartouche
 @end smallexample
 
@@ -1103,8 +1103,8 @@ Terminal mode also supports a command history so that previously entered
 commands can be recalled and edited.
 
 @menu
-* Terminal Mode Commands::      
-* Terminal Mode Examples::      
+* Terminal Mode Commands::
+* Terminal Mode Examples::
 @end menu
 
 @node Terminal Mode Commands, Terminal Mode Examples, Terminal Mode Operation, Terminal Mode Operation
@@ -1232,7 +1232,7 @@ avrdude: AVR device initialized and ready to accept instructions
 avrdude: Device signature = 0x1e9702
 avrdude: current erase-rewrite cycle count is 52 (if being tracked)
 avrdude> part
->>> part 
+>>> part
 
 AVR Part              : ATMEGA128
 Chip Erase delay      : 9000 us
@@ -1257,24 +1257,24 @@ Memory Detail         :
   signature   no          3    0     0     0     0 0x00 0x00
 
 avrdude> dump eeprom 0 16
->>> dump eeprom 0 16 
+>>> dump eeprom 0 16
 0000  ff ff ff ff ff ff ff ff  ff ff ff ff ff ff ff ff  |................|
 
 avrdude> write eeprom 0 1 2 3 4
->>> write eeprom 0 1 2 3 4 
+>>> write eeprom 0 1 2 3 4
 
 avrdude> dump eeprom 0 16
->>> dump eeprom 0 16 
+>>> dump eeprom 0 16
 0000  01 02 03 04 ff ff ff ff  ff ff ff ff ff ff ff ff  |................|
 
 avrdude> erase
->>> erase 
+>>> erase
 avrdude: erasing chip
 avrdude> dump eeprom 0 16
->>> dump eeprom 0 16 
+>>> dump eeprom 0 16
 0000  ff ff ff ff ff ff ff ff  ff ff ff ff ff ff ff ff  |................|
 
-avrdude> 
+avrdude>
 @end cartouche
 @end smallexample
 
@@ -1283,7 +1283,7 @@ avrdude>
 Program the fuse bits of an ATmega128 (disable M103 compatibility,
 enable high speed external crystal, enable brown-out detection, slowly
 rising power).  Note since we are working with fuse bits the -u (unsafe)
-option is specified, which allows you to modify the fuse bits. First 
+option is specified, which allows you to modify the fuse bits. First
 display the factory defaults, then reprogram:
 
 @smallexample
@@ -1294,27 +1294,27 @@ avrdude: AVR device initialized and ready to accept instructions
 avrdude: Device signature = 0x1e9702
 avrdude: current erase-rewrite cycle count is 52 (if being tracked)
 avrdude> d efuse
->>> d efuse 
+>>> d efuse
 0000  fd                                                |.               |
 
 avrdude> d hfuse
->>> d hfuse 
+>>> d hfuse
 0000  99                                                |.               |
 
 avrdude> d lfuse
->>> d lfuse 
+>>> d lfuse
 0000  e1                                                |.               |
 
 avrdude> w efuse 0 0xff
->>> w efuse 0 0xff 
+>>> w efuse 0 0xff
 
 avrdude> w hfuse 0 0x89
->>> w hfuse 0 0x89 
+>>> w hfuse 0 0x89
 
 avrdude> w lfuse 0 0x2f
->>> w lfuse 0 0x2f 
+>>> w lfuse 0 0x2f
 
-avrdude> 
+avrdude>
 @end cartouche
 @end smallexample
 
@@ -1347,10 +1347,10 @@ Windows, this file is the @code{avrdude.rc} file located in the same
 directory as the executable.
 
 @menu
-* AVRDUDE Defaults::            
-* Programmer Definitions::      
-* Part Definitions::            
-* Other Notes::                 
+* AVRDUDE Defaults::
+* Programmer Definitions::
+* Part Definitions::
+* Other Notes::
 @end menu
 
 @c
@@ -1408,7 +1408,7 @@ programmer
     vfyled   = <num> ;                          # pin number
     usbvid   = <hexnum>;                        # USB VID (Vendor ID)
     usbpid   = <hexnum> [, <hexnum> ...];       # USB PID (Product ID)
-    usbdev   = <interface>;                     # USB interface or other device info 
+    usbdev   = <interface>;                     # USB interface or other device info
     usbvendor = <vendorname>;                   # USB Vendor Name
     usbproduct = <productname>;                 # USB Product Name
     usbsn    = <serialno>;                      # USB Serial Number
@@ -1416,7 +1416,7 @@ programmer
 @end smallexample
 
 @noindent
-If a parent is specified, all settings of it (except its ids) are used for the new 
+If a parent is specified, all settings of it (except its ids) are used for the new
 programmer. These values can be changed by new setting them for the new programmer.
 
 @noindent
@@ -1544,9 +1544,9 @@ part
 
 @noindent
 Parts can also inherit parameters from previously defined parts
-using the following syntax. In this case specified integer and 
-string values override parameter values from the parent part. New 
-memory definitions are added to the definitions inherited from the 
+using the following syntax. In this case specified integer and
+string values override parameter values from the parent part. New
+memory definitions are added to the definitions inherited from the
 parent.
 
 @smallexample
@@ -1721,7 +1721,7 @@ and socket card:
 @item @code{STK600-RC100M-11} @tab @code{STK600-TQFP100} @tab ATmega640 ATmega1280 ATmega2560
 @item @code{} @tab @code{STK600-ATMEGA2560} @tab ATmega2560
 @item @code{STK600-RC100M-18} @tab @code{STK600-TQFP100} @tab ATmega3250 ATmega3250P ATmega3290 ATmega3290P ATmega6450 ATmega6490
-@item @code{STK600-RC032U-20} @tab @code{STK600-TQFP32} @tab AT90USB82 AT90USB162 ATmega8U2 ATmega16U2 ATmega32U2 
+@item @code{STK600-RC032U-20} @tab @code{STK600-TQFP32} @tab AT90USB82 AT90USB162 ATmega8U2 ATmega16U2 ATmega32U2
 @item @code{STK600-RC044U-25} @tab @code{STK600-TQFP44} @tab ATmega16U4 ATmega32U4
 @item @code{STK600-RC064U-17} @tab @code{STK600-TQFP64} @tab ATmega32U6 AT90USB646 AT90USB1286 AT90USB647 AT90USB1287
 @item @code{STK600-RCPWM-22} @tab @code{STK600-TQFP32} @tab ATmega32C1 ATmega64C1 ATmega16M1 ATmega32M1 ATmega64M1
@@ -1823,10 +1823,10 @@ versions of the bootloader.
 @section Unix
 
 @menu
-* Unix Installation::           
-* Unix Configuration Files::    
-* Unix Port Names::             
-* Unix Documentation::          
+* Unix Installation::
+* Unix Configuration Files::
+* Unix Port Names::
+* Unix Documentation::
 @end menu
 
 @c
@@ -1862,8 +1862,8 @@ $ make install
 @end example
 
 @menu
-* FreeBSD Installation::        
-* Linux Installation::          
+* FreeBSD Installation::
+* Linux Installation::
 @end menu
 
 @c
@@ -1927,8 +1927,8 @@ is searched for a file named @code{.avrduderc}, and if found, is used to
 augment the system default configuration file.
 
 @menu
-* FreeBSD Configuration Files::  
-* Linux Configuration Files::   
+* FreeBSD Configuration Files::
+* Linux Configuration Files::
 @end menu
 
 @c
@@ -2011,12 +2011,12 @@ such as @option{--prefix}.
 @section Windows
 
 @menu
-* Windows Installation::        
-* Windows Configuration Files::  
-* Windows Port Names::          
-* Using the parallel port::     
-* Documentation::               
-* Credits.::                    
+* Windows Installation::
+* Windows Configuration Files::
+* Windows Port Names::
+* Using the parallel port::
+* Documentation::
+* Credits.::
 @end menu
 
 @c
@@ -2027,7 +2027,7 @@ such as @option{--prefix}.
 
 @noindent
 A Windows executable of avrdude is included in WinAVR which can be found at
-@url{http://sourceforge.net/projects/winavr}. WinAVR is a suite of executable, 
+@url{http://sourceforge.net/projects/winavr}. WinAVR is a suite of executable,
 open source software development tools for the AVR for the Windows platform.
 
 There are two options to build avrdude from source under Windows.
@@ -2040,7 +2040,7 @@ $ set PREFIX=<your install directory path>
 $ export PREFIX
 $ gunzip -c avrdude-@value{VERSION}.tar.gz | tar xf -
 $ cd avrdude-@value{VERSION}
-$ ./configure LDFLAGS="-static" --prefix=$PREFIX --datadir=$PREFIX 
+$ ./configure LDFLAGS="-static" --prefix=$PREFIX --datadir=$PREFIX
 --sysconfdir=$PREFIX/bin --enable-versioned-doc=no
 $ make
 $ make install
@@ -2065,8 +2065,8 @@ compiler version that still supports MinGW builds, or use MinGW
 @subsection Configuration Files
 
 @menu
-* Configuration file names::    
-* How AVRDUDE finds the configuration files.::  
+* Configuration file names::
+* How AVRDUDE finds the configuration files.::
 @end menu
 
 @c
@@ -2085,7 +2085,7 @@ AVRDUDE on Windows looks for a system configuration file name of
 @c
 @node How AVRDUDE finds the configuration files.,  , Configuration file names, Windows Configuration Files
 @subsubsection How AVRDUDE finds the configuration files.
- 
+
 @noindent
 AVRDUDE on Windows has a different way of searching for the system and
 user configuration files. Below is the search method for locating the
@@ -2123,8 +2123,8 @@ The directories that are listed in the PATH environment variable.
 @subsection Port Names
 
 @menu
-* Serial Ports::                
-* Parallel Ports::              
+* Serial Ports::
+* Parallel Ports::
 @end menu
 
 @c
@@ -2132,11 +2132,11 @@ The directories that are listed in the PATH environment variable.
 @c
 @node Serial Ports, Parallel Ports, Windows Port Names, Windows Port Names
 @subsubsection Serial Ports
- 
+
 @noindent
 When you select a serial port (i.e. when using an STK500) use the
 Windows serial port device names such as: com1, com2, etc.
- 
+
 @c
 @c Node
 @c
@@ -2171,13 +2171,13 @@ language notation (i. e., hexadecimal values are prefixed by @code{0x}).
 
 @c
 @c Node
-@c 
+@c
 @node Using the parallel port, Documentation, Windows Port Names, Windows
 @subsection Using the parallel port
 
 @menu
-* Windows NT/2K/XP::            
-* Windows 95/98::               
+* Windows NT/2K/XP::
+* Windows 95/98::
 @end menu
 
 @c
@@ -2216,7 +2216,7 @@ When you first execute install_giveio.bat, loaddrv.exe and giveio.sys
 must be in the current directory. When install_giveio.bat is executed it
 will copy giveio.sys from your current directory to your Windows
 directory. It will then load the driver from the Windows directory. This
-means that after the first time install_giveio is executed, you should 
+means that after the first time install_giveio is executed, you should
 be able to subsequently execute the batch file from any directory and have
 it successfully start the driver.
 
@@ -2462,7 +2462,7 @@ Solution: Use the following pin mapping:
 
 @item
 Problem: I want to use my AVR Dragon to program an
-Xmega device through PDI.  
+Xmega device through PDI.
 
 Solution: Use the 6 pin ISP header on the Dragon and the following pin mapping:
 
@@ -2471,8 +2471,8 @@ Solution: Use the 6 pin ISP header on the Dragon and the following pin mapping:
 @item @strong{ISP Header} @tab @strong{pins}
 @item 1 (MISO)  @tab PDI_DATA
 @item 2 (VCC)   @tab VCC
-@item 3 (SCK)   @tab 
-@item 4 (MOSI)  @tab 
+@item 3 (SCK)   @tab
+@item 4 (MOSI)  @tab
 @item 5 (RESET) @tab PDI_CLK / RST
 @item 6 (GND)   @tab GND
 @end multitable
@@ -2495,26 +2495,26 @@ Solution: Use the following pin mapping:
 @end multitable
 
 @item
-Problem: I want to program an ATtiny4/5/9/10 device using a serial/parallel 
+Problem: I want to program an ATtiny4/5/9/10 device using a serial/parallel
 bitbang programmer.  How to connect the pins?
 
-Solution: Since TPI has only 1 pin for bi-directional data transfer, both 
-@var{MISO} and @var{MOSI} pins should be connected to the @var{TPIDATA} pin 
+Solution: Since TPI has only 1 pin for bi-directional data transfer, both
+@var{MISO} and @var{MOSI} pins should be connected to the @var{TPIDATA} pin
 on the ATtiny device.
 However, a 1K resistor should be placed between the @var{MOSI} and @var{TPIDATA}.
 The @var{MISO} pin connects to @var{TPIDATA} directly.
 The @var{SCK} pin is connected to @var{TPICLK}.
 
-In addition, the @var{Vcc}, @var{/RESET} and @var{GND} pins should 
+In addition, the @var{Vcc}, @var{/RESET} and @var{GND} pins should
 be connected to their respective ports on the ATtiny device.
 
 @item
 Problem: How can I use a FTDI FT232R USB-to-Serial device for bitbang programming?
 
-Solution: When connecting the FT232 directly to the pins of the target Atmel device, 
-the polarity of the pins defined in the @code{programmer} definition should be 
-inverted by prefixing a tilde. For example, the @var{dasa} programmer would 
-look like this when connected via a FT232R device (notice the tildes in 
+Solution: When connecting the FT232 directly to the pins of the target Atmel device,
+the polarity of the pins defined in the @code{programmer} definition should be
+inverted by prefixing a tilde. For example, the @var{dasa} programmer would
+look like this when connected via a FT232R device (notice the tildes in
 front of pins 7, 4, 3 and 8):
 
 @example
@@ -2529,7 +2529,7 @@ programmer
 ;
 @end example
 
-Note that this uses the FT232 device as a normal serial port, not using the 
+Note that this uses the FT232 device as a normal serial port, not using the
 FTDI drivers in the special bitbang mode.
 
 @item

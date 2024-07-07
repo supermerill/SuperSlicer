@@ -12,16 +12,16 @@
 namespace Slic3r {
 
 namespace EdgeGrid {
-	class Grid;
+    class Grid;
 }
 
 struct TrimmedLoop
 {
-	std::vector<Point> 			points;
-	// Number of points per segment. Empty if the loop is 
-	std::vector<unsigned int> 	segments;
+    std::vector<Point>             points;
+    // Number of points per segment. Empty if the loop is
+    std::vector<unsigned int>     segments;
 
-	bool 	is_trimmed() const { return ! segments.empty(); }
+    bool     is_trimmed() const { return ! segments.empty(); }
 };
 
 TrimmedLoop trim_loop(const Polygon &loop, const EdgeGrid::Grid &grid);

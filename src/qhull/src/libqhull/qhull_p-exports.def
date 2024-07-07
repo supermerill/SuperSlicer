@@ -414,5 +414,5 @@ qh_voronoi_center
 qh_willdelete
 ; Mark as DATA, otherwise links a separate qhmem.  No __declspec
 qhmem                   DATA
-rbox			DATA
+rbox            DATA
 rbox_inuse              DATA

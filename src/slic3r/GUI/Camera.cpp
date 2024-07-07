@@ -286,9 +286,9 @@ void Camera::rotate_local_around_target(const Vec3d& rotation_rad)
         const Vec3d axis = m_view_rotation.conjugate() * rotation_rad.normalized();
         m_view_rotation *= Eigen::Quaterniond(Eigen::AngleAxisd(angle, axis));
         m_view_rotation.normalize();
-	    m_view_matrix.fromPositionOrientationScale(m_view_rotation * (-m_target) + translation, m_view_rotation, Vec3d(1., 1., 1.));
-	    update_zenit();
-	}
+        m_view_matrix.fromPositionOrientationScale(m_view_rotation * (-m_target) + translation, m_view_rotation, Vec3d(1., 1., 1.));
+        update_zenit();
+    }
 }
 
 std::pair<double, double> Camera::calc_tight_frustrum_zs_around(const BoundingBoxf3& box)

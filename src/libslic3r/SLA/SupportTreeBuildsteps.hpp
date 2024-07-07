@@ -195,7 +195,7 @@ class SupportTreeBuildsteps {
     PtIndices m_iheads;            // support points with pinhead
     PtIndices m_iheads_onmodel;
     PtIndices m_iheadless;         // headless support points
-    
+
     std::map<unsigned, IndexedMesh::hit_result> m_head_to_ground_scans;
 
     // normals for support points from model faces.
@@ -222,7 +222,7 @@ class SupportTreeBuildsteps {
     // When bridging heads to pillars... TODO: find a cleaner solution
     ccr::BlockingMutex m_bridge_mutex;
 
-    inline IndexedMesh::hit_result ray_mesh_intersect(const Vec3d& s, 
+    inline IndexedMesh::hit_result ray_mesh_intersect(const Vec3d& s,
                                                       const Vec3d& dir)
     {
         return m_mesh.query_ray_hit(s, dir);
@@ -282,7 +282,7 @@ class SupportTreeBuildsteps {
                                      r * m_cfg.safety_distance_mm /
                                          m_cfg.head_back_radius_mm);
     }
-    
+
     template<class...Args>
     inline double bridge_mesh_distance(Args&&...args) {
         return bridge_mesh_intersect(std::forward<Args>(args)...).distance();
@@ -293,18 +293,18 @@ class SupportTreeBuildsteps {
 
     // For connecting a head to a nearby pillar.
     bool connect_to_nearpillar(const Head& head, long nearpillar_id);
-    
+
     // Find route for a head to the ground. Inserts additional bridge from the
     // head to the pillar if cannot create pillar directly.
     // The optional dir parameter is the direction of the bridge which is the
     // direction of the pinhead if omitted.
     bool connect_to_ground(Head& head, const Vec3d &dir);
     inline bool connect_to_ground(Head& head);
-    
+
     bool connect_to_model_body(Head &head);
 
     bool search_pillar_and_connect(const Head& source);
-    
+
     // This is a proxy function for pillar creation which will mind the gap
     // between the pad and the model bottom in zero elevation mode.
     // jp is the starting junction point which needs to be routed down.

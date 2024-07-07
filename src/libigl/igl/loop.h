@@ -44,7 +44,7 @@ namespace igl
   //  NV a matrix containing the new vertices
   //  NF a matrix containing the new faces
   template <
-    typename DerivedV, 
+    typename DerivedV,
     typename DerivedF,
     typename DerivedNV,
     typename DerivedNF>

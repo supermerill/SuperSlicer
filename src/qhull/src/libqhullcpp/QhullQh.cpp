@@ -88,7 +88,7 @@ checkAndFreeQhullMemory()
 void QhullQh::
 appendQhullMessage(const string &s)
 {
-    if(output_stream && use_output_stream && this->USEstdout){ 
+    if(output_stream && use_output_stream && this->USEstdout){
         *output_stream << s;
     }else if(error_stream){
         *error_stream << s;

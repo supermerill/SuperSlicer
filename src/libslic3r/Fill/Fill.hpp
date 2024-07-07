@@ -20,8 +20,8 @@ class Filler
 {
 public:
     Filler() : fill(nullptr) {}
-    ~Filler() { 
-        delete fill; 
+    ~Filler() {
+        delete fill;
         fill = nullptr;
     }
     Fill        *fill;

@@ -45,7 +45,7 @@ namespace igl
                                         const Eigen::MatrixBase<DerivedI>& I,
                                         const Eigen::MatrixBase<DerivedN>& N,
                                         Eigen::PlainObjectBase<DerivedA> & A);
-      
+
     // This version can be used to output the tangent plane normal at each
     // point. Since we area already fitting a plane to each point's neighbour
     // set, the tangent plane normals come "for free"
@@ -65,7 +65,7 @@ namespace igl
                                 const Eigen::MatrixBase<DerivedN>& N,
                                 Eigen::PlainObjectBase<DerivedA> & A,
                                 Eigen::PlainObjectBase<DerivedT> & T);
-      
+
     }
   }
 }

@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "slice_tets.h"
 #include "LinSpaced.h"
@@ -18,8 +18,8 @@
 #include <vector>
 
 template <
-  typename DerivedV, 
-  typename DerivedT, 
+  typename DerivedV,
+  typename DerivedT,
   typename DerivedS,
   typename DerivedSV,
   typename DerivedSF,
@@ -49,8 +49,8 @@ IGL_INLINE void igl::slice_tets(
 }
 
 template <
-  typename DerivedV, 
-  typename DerivedT, 
+  typename DerivedV,
+  typename DerivedT,
   typename DerivedS,
   typename DerivedSV,
   typename DerivedSF,
@@ -69,8 +69,8 @@ IGL_INLINE void igl::slice_tets(
 }
 
 template <
-  typename DerivedV, 
-  typename DerivedT, 
+  typename DerivedV,
+  typename DerivedT,
   typename DerivedS,
   typename DerivedSV,
   typename DerivedSF,
@@ -93,7 +93,7 @@ IGL_INLINE void igl::slice_tets(
   assert(V.cols() == 3 && "V should be #V by 3");
   assert(T.cols() == 4 && "T should be #T by 4");
 
-  static const Eigen::Matrix<int,12,4> flipped_order = 
+  static const Eigen::Matrix<int,12,4> flipped_order =
     (Eigen::Matrix<int,12,4>(12,4)<<
       3,2,0,1,
       3,1,2,0,
@@ -123,7 +123,7 @@ IGL_INLINE void igl::slice_tets(
   typedef Matrix<Index,Dynamic,2> MatrixX2I;
   typedef Matrix<Index,Dynamic,1> VectorXI;
   typedef Array<bool,Dynamic,1> ArrayXb;
-  
+
   MatrixX4S IT(m,4);
   for(size_t t = 0;t<m;t++)
   {
@@ -134,7 +134,7 @@ IGL_INLINE void igl::slice_tets(
   }
 
   // Essentially, just a glorified slice(X,1)
-  // 
+  //
   // Inputs:
   //   T  #T by 4 list of tet indices into V
   //   IT  #IT by 4 list of isosurface values at each tet
@@ -178,8 +178,8 @@ IGL_INLINE void igl::slice_tets(
   extract_rows(T,IT,I22,T22,IT22,J22);
 
   const auto & apply_sort4 = [] (
-     const MatrixX4I & T, 
-     const MatrixX4I & sJ, 
+     const MatrixX4I & T,
+     const MatrixX4I & sJ,
      MatrixX4I & sT)
   {
     sT.resize(T.rows(),4);
@@ -193,8 +193,8 @@ IGL_INLINE void igl::slice_tets(
   };
 
   const auto & apply_sort2 = [] (
-     const MatrixX2I & E, 
-     const MatrixX2I & sJ, 
+     const MatrixX2I & E,
+     const MatrixX2I & sJ,
      Eigen::PlainObjectBase<DerivedsE>& sE)
   {
     sE.resize(E.rows(),2);
@@ -234,7 +234,7 @@ IGL_INLINE void igl::slice_tets(
     SF.resize(m,3);
     for(size_t c = 0;c<3;c++)
     {
-      SF.col(c) = 
+      SF.col(c) =
         igl::LinSpaced<
         Eigen::Matrix<typename DerivedSF::Scalar,Eigen::Dynamic,1> >
         (m,0+c*m,(m-1)+c*m);
@@ -306,7 +306,7 @@ IGL_INLINE void igl::slice_tets(
   one_below(T31,-IT31,U31,SF31);
   two_below(T22, IT22,U22,SF22);
   // https://forum.kde.org/viewtopic.php?f=74&t=107974
-  const MatrixX2I U = 
+  const MatrixX2I U =
     (MatrixX2I(U13.rows()+ U31.rows()+ U22.rows(),2)<<U13,U31,U22).finished();
   MatrixX2I sU;
   {
@@ -332,7 +332,7 @@ IGL_INLINE void igl::slice_tets(
   SV.resize(sE.rows(),V.cols());
   for(int e = 0;e<sE.rows();e++)
   {
-    SV.row(e) = V.row(sE(e,0)).template cast<Scalar>()*lambda(e) + 
+    SV.row(e) = V.row(sE(e,0)).template cast<Scalar>()*lambda(e) +
                 V.row(sE(e,1)).template cast<Scalar>()*(1.0-lambda(e));
   }
   SF.resize( SF13.rows()+SF31.rows()+SF22.rows(),3);

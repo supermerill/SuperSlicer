@@ -29,7 +29,7 @@ namespace igl {
     const Eigen::PlainObjectBase<DerivedF> &F;
     const Eigen::PlainObjectBase<DerivedV> &PD1;
     const Eigen::PlainObjectBase<DerivedV> &PD2;
-    
+
     DerivedV N;
 
   private:
@@ -37,7 +37,7 @@ namespace igl {
     std::vector<bool> V_border; // bool
     std::vector<std::vector<int> > VF;
     std::vector<std::vector<int> > VFi;
-    
+
     DerivedF TT;
     DerivedF TTi;
 

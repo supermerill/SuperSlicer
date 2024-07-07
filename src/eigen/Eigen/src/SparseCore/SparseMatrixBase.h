@@ -10,7 +10,7 @@
 #ifndef EIGEN_SPARSEMATRIXBASE_H
 #define EIGEN_SPARSEMATRIXBASE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \ingroup SparseCore_Module
   *
@@ -29,12 +29,12 @@ template<typename Derived> class SparseMatrixBase
   public:
 
     typedef typename internal::traits<Derived>::Scalar Scalar;
-    
+
     /** The numeric type of the expression' coefficients, e.g. float, double, int or std::complex<float>, etc.
       *
       * It is an alias for the Scalar type */
     typedef Scalar value_type;
-    
+
     typedef typename internal::packet_traits<Scalar>::type PacketScalar;
     typedef typename internal::traits<Derived>::StorageKind StorageKind;
 
@@ -50,7 +50,7 @@ template<typename Derived> class SparseMatrixBase
 
     typedef Matrix<StorageIndex,Dynamic,1> IndexVector;
     typedef Matrix<Scalar,Dynamic,1> ScalarVector;
-    
+
     template<typename OtherDerived>
     Derived& operator=(const EigenBase<OtherDerived> &other);
 
@@ -93,7 +93,7 @@ template<typename Derived> class SparseMatrixBase
           */
 
       IsRowMajor = Flags&RowMajorBit ? 1 : 0,
-      
+
       InnerSizeAtCompileTime = int(IsVectorAtCompileTime) ? int(SizeAtCompileTime)
                              : int(IsRowMajor) ? int(ColsAtCompileTime) : int(RowsAtCompileTime),
 
@@ -191,7 +191,7 @@ template<typename Derived> class SparseMatrixBase
 
     SparseMatrixBase() : m_isRValue(false) { /* TODO check flags */ }
 
-    
+
     template<typename OtherDerived>
     Derived& operator=(const ReturnByValue<OtherDerived>& other);
 
@@ -263,7 +263,7 @@ template<typename Derived> class SparseMatrixBase
     Derived& operator+=(const SparseMatrixBase<OtherDerived>& other);
     template<typename OtherDerived>
     Derived& operator-=(const SparseMatrixBase<OtherDerived>& other);
-    
+
     template<typename OtherDerived>
     Derived& operator+=(const DiagonalBase<OtherDerived>& other);
     template<typename OtherDerived>
@@ -302,24 +302,24 @@ template<typename Derived> class SparseMatrixBase
     const Product<OtherDerived,Derived>
     operator*(const DiagonalBase<OtherDerived> &lhs, const SparseMatrixBase& rhs)
     { return Product<OtherDerived,Derived>(lhs.derived(), rhs.derived()); }
-    
+
     // sparse * sparse
     template<typename OtherDerived>
     const Product<Derived,OtherDerived,AliasFreeProduct>
     operator*(const SparseMatrixBase<OtherDerived> &other) const;
-    
+
     // sparse * dense
     template<typename OtherDerived>
     const Product<Derived,OtherDerived>
     operator*(const MatrixBase<OtherDerived> &other) const
     { return Product<Derived,OtherDerived>(derived(), other.derived()); }
-    
+
     // dense * sparse
     template<typename OtherDerived> friend
     const Product<OtherDerived,Derived>
     operator*(const MatrixBase<OtherDerived> &lhs, const SparseMatrixBase& rhs)
     { return Product<OtherDerived,Derived>(lhs.derived(), rhs.derived()); }
-    
+
      /** \returns an expression of P H P^-1 where H is the matrix represented by \c *this */
     SparseSymmetricPermutationProduct<Derived,Upper|Lower> twistedBy(const PermutationMatrix<Dynamic,Dynamic,StorageIndex>& perm) const
     {
@@ -331,11 +331,11 @@ template<typename Derived> class SparseMatrixBase
 
     template<int Mode>
     inline const TriangularView<const Derived, Mode> triangularView() const;
-    
+
     template<unsigned int UpLo> struct SelfAdjointViewReturnType { typedef SparseSelfAdjointView<Derived, UpLo> Type; };
     template<unsigned int UpLo> struct ConstSelfAdjointViewReturnType { typedef const SparseSelfAdjointView<const Derived, UpLo> Type; };
 
-    template<unsigned int UpLo> inline 
+    template<unsigned int UpLo> inline
     typename ConstSelfAdjointViewReturnType<UpLo>::Type selfadjointView() const;
     template<unsigned int UpLo> inline
     typename SelfAdjointViewReturnType<UpLo>::Type selfadjointView();
@@ -385,7 +385,7 @@ template<typename Derived> class SparseMatrixBase
     { return typename internal::eval<Derived>::type(derived()); }
 
     Scalar sum() const;
-    
+
     inline const SparseView<Derived>
     pruned(const Scalar& reference = Scalar(0), const RealScalar& epsilon = NumTraits<Scalar>::dummy_precision()) const;
 

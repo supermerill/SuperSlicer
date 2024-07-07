@@ -10,7 +10,7 @@
 #ifndef EIGEN_STABLENORM_H
 #define EIGEN_STABLENORM_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -18,7 +18,7 @@ template<typename ExpressionType, typename Scalar>
 inline void stable_norm_kernel(const ExpressionType& bl, Scalar& ssq, Scalar& scale, Scalar& invScale)
 {
   Scalar maxCoeff = bl.cwiseAbs().maxCoeff();
-  
+
   if(maxCoeff>scale)
   {
     ssq = ssq * numext::abs2(scale/maxCoeff);
@@ -43,10 +43,10 @@ inline void stable_norm_kernel(const ExpressionType& bl, Scalar& ssq, Scalar& sc
   {
     scale = maxCoeff;
   }
-  
+
   // TODO if the maxCoeff is much much smaller than the current scale,
   // then we can neglect this sub vector
-  if(scale>Scalar(0)) // if scale==0, then bl is 0 
+  if(scale>Scalar(0)) // if scale==0, then bl is 0
     ssq += (bl*invScale).squaredNorm();
 }
 
@@ -54,7 +54,7 @@ template<typename Derived>
 inline typename NumTraits<typename traits<Derived>::Scalar>::Real
 blueNorm_impl(const EigenBase<Derived>& _vec)
 {
-  typedef typename Derived::RealScalar RealScalar;  
+  typedef typename Derived::RealScalar RealScalar;
   using std::pow;
   using std::sqrt;
   using std::abs;
@@ -162,11 +162,11 @@ MatrixBase<Derived>::stableNorm() const
   RealScalar scale(0);
   RealScalar invScale(1);
   RealScalar ssq(0); // sum of square
-  
+
   typedef typename internal::nested_eval<Derived,2>::type DerivedCopy;
   typedef typename internal::remove_all<DerivedCopy>::type DerivedCopyClean;
   const DerivedCopy copy(derived());
-  
+
   enum {
     CanAlign = (   (int(DerivedCopyClean::Flags)&DirectAccessBit)
                 || (int(internal::evaluator<DerivedCopyClean>::Alignment)>0) // FIXME Alignment)>0 might not be enough
@@ -176,10 +176,10 @@ MatrixBase<Derived>::stableNorm() const
   typedef typename internal::conditional<CanAlign, Ref<const Matrix<Scalar,Dynamic,1,0,blockSize,1>, internal::evaluator<DerivedCopyClean>::Alignment>,
                                                    typename DerivedCopyClean::ConstSegmentReturnType>::type SegmentWrapper;
   Index n = size();
-  
+
   if(n==1)
     return abs(this->coeff(0));
-  
+
   Index bi = internal::first_default_aligned(copy);
   if (bi>0)
     internal::stable_norm_kernel(copy.head(bi), ssq, scale, invScale);

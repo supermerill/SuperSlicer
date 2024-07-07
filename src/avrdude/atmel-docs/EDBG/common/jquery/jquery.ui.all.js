@@ -411,7 +411,7 @@ i[e]=("show"==g?"pos"==h?"+=":"-=":"pos"==h?"-=":"+=")+f;c.animate(i,{queue:!1,d
  * Based on highlight v3 by Johann Burkard
  * http://johannburkard.de/blog/programming/javascript/highlight-javascript-text-higlighting-jquery-plugin.html
  * Copyright (c) 2009 Bartek Szopka http://bartaz.github.com/sandbox.js/jquery.highlight.html
- * Licensed under MIT license. 
+ * Licensed under MIT license.
  */
 jQuery.extend({highlight:function(a,c,b,e){if(a.nodeType===3){if(c=a.data.match(c)){b=document.createElement(b||"span");b.className=e||"highlight";a=a.splitText(c.index);a.splitText(c[0].length);e=a.cloneNode(true);b.appendChild(e);a.parentNode.replaceChild(b,a);return 1}}else if(a.nodeType===1&&a.childNodes&&!/(script|style)/i.test(a.tagName)&&!(a.tagName===b.toUpperCase()&&a.className===e))for(var d=0;d<a.childNodes.length;d++)d+=jQuery.highlight(a.childNodes[d],c,b,e);return 0}});
 jQuery.fn.unhighlight=function(a){var c={className:"highlight",element:"span"};jQuery.extend(c,a);return this.find(c.element+"."+c.className).each(function(){var b=this.parentNode;b.replaceChild(this.firstChild,this);b.normalize()}).end()};

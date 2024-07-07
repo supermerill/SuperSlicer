@@ -98,9 +98,9 @@ namespace Slic3r {
             MoveVertex(uint32_t gcode_id, EMoveType type, ExtrusionRole extrusion_role, uint8_t extruder_id,
                 uint8_t cp_color_id, Vec3f position, float delta_extruder, float feedrate, float width, float height,
                 float mm3_per_mm, float fan_speed, float temperature, float time, float layer_duration, uint16_t layer_id) :
-                gcode_id(gcode_id), type(type), extrusion_role(extrusion_role), extruder_id(extruder_id), 
-                cp_color_id(cp_color_id), position(position), delta_extruder(delta_extruder), feedrate(feedrate), 
-                width(width), height(height), mm3_per_mm(mm3_per_mm), fan_speed(fan_speed), 
+                gcode_id(gcode_id), type(type), extrusion_role(extrusion_role), extruder_id(extruder_id),
+                cp_color_id(cp_color_id), position(position), delta_extruder(delta_extruder), feedrate(feedrate),
+                width(width), height(height), mm3_per_mm(mm3_per_mm), fan_speed(fan_speed),
                 temperature(temperature), time(time), layer_duration(layer_duration), layer_id(layer_id) {
             }
 
@@ -174,7 +174,7 @@ namespace Slic3r {
         };
 
         static const std::string& reserved_tag(ETags tag) { return Reserved_Tags[static_cast<unsigned char>(tag)]; }
-        // checks the given gcode for reserved tags and returns true when finding the 1st (which is returned into found_tag) 
+        // checks the given gcode for reserved tags and returns true when finding the 1st (which is returned into found_tag)
         static bool contains_reserved_tag(const std::string& gcode, std::string& found_tag);
         // checks the given gcode for reserved tags and returns true when finding any
         // (the first max_count found tags are returned into found_tag)

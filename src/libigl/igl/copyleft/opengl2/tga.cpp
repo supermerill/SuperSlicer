@@ -208,7 +208,7 @@ igl::opengl::gliReadTGA(FILE *fp, char *name, int /*hflip*/, int vflip)
     sprintf(error, "TGA: Cannot read footer from \"%s\"", name);
     if (_verbose) printf("%s\n", error);
     return NULL;
-  }  
+  }
 
   /* Check the signature. */
   if (memcmp(tgaFooter.signature, TGA_SIGNATURE,
@@ -227,7 +227,7 @@ igl::opengl::gliReadTGA(FILE *fp, char *name, int /*hflip*/, int vflip)
 
   if (_verbose && tgaHeader.idLength) {
     char *idString = (char*) malloc(tgaHeader.idLength);
-    
+
     if (fread(idString, tgaHeader.idLength, 1, fp) != 1) {
       sprintf(error, "TGA: Cannot read ID field in \"%s\"", name);
       printf("%s\n", error);
@@ -243,7 +243,7 @@ igl::opengl::gliReadTGA(FILE *fp, char *name, int /*hflip*/, int vflip)
       return NULL;
     }
   }
-  
+
   /* Reassemble the multi-byte values correctly, regardless of
      host endianness. */
   width = (tgaHeader.widthHi << 8) | tgaHeader.widthLo;
@@ -319,7 +319,7 @@ igl::opengl::gliReadTGA(FILE *fp, char *name, int /*hflip*/, int vflip)
       (format == GL_BGR_EXT && bpp != 24) ||
       ((format == GL_LUMINANCE || format == GL_COLOR_INDEX) && bpp != 8)) {
     /* FIXME: We haven't implemented bit-packed fields yet. */
-    fprintf(stderr, "bpp %d, format %x\n", bpp, (unsigned int)format); 
+    fprintf(stderr, "bpp %d, format %x\n", bpp, (unsigned int)format);
     sprintf(error, "TGA: channel sizes other than 8 bits are unimplemented");
     if (_verbose) printf("%s\n", error);
     return NULL;
@@ -429,7 +429,7 @@ igl::opengl::gliReadTGA(FILE *fp, char *name, int /*hflip*/, int vflip)
           ftell(fp), width);
       }
       return NULL;
-    }  
+    }
 
     if (horzrev) {
       /* We need to mirror row horizontally. */
@@ -475,37 +475,37 @@ IGL_INLINE int igl::opengl::gli_verbose(int new_verbose)
 
 
 // added 10/2005, Denis Zorin
-// a very simple TGA output, supporting 
-// uncompressed luminance RGB and RGBA 
-// G22.2270 students: this is C (no C++) 
+// a very simple TGA output, supporting
+// uncompressed luminance RGB and RGBA
+// G22.2270 students: this is C (no C++)
 // so this is not the style I would encourage
-// you to use; I used it for consistency 
-// with the rest of the code in this file 
+// you to use; I used it for consistency
+// with the rest of the code in this file
 
 
 // fixed header values for the subset of TGA we use for writing
-unsigned char TGAHeaderColor[12] = 
+unsigned char TGAHeaderColor[12] =
   { 0,// 0 ID length = no id
     0,// 1 color map type = no color map
     2,// 2 image type = uncompressed true color
     0, 0, 0, 0, 0,// color map spec = empty
-    0, 0,  // x origin of image 
+    0, 0,  // x origin of image
     0, 0   // y origin of image
   };
 
-unsigned char TGAHeaderBW[12] = 
+unsigned char TGAHeaderBW[12] =
   { 0,// 0 ID length = no id
     0,// 1 color map type = no color map
     3,// 3 image type = uncompressed black and white
     0, 0, 0, 0, 0,// color map spec = empty
-    0, 0,  // x origin of image 
+    0, 0,  // x origin of image
     0, 0   // y origin of image
   };
 
-// this makes sure that 
-// image size is written in correct format 
+// this makes sure that
+// image size is written in correct format
 // and byte order (least first)
-IGL_INLINE void write16bit(int n, FILE* fp) { 
+IGL_INLINE void write16bit(int n, FILE* fp) {
   unsigned char bytes[] = { static_cast<unsigned char>(n % 256), static_cast<unsigned char>(n / 256) };
   fwrite(bytes, 2, sizeof(unsigned char),fp);
 }
@@ -515,33 +515,33 @@ IGL_INLINE void write16bit(int n, FILE* fp) {
 IGL_INLINE void igl::opengl::writeTGA( igl::opengl::gliGenericImage* image, FILE *fp) {
 
   assert(!image->cmap); // we do not deal with color map images
-    
-  if(image->components == 3 || image->components == 4) 
+
+  if(image->components == 3 || image->components == 4)
     fwrite(TGAHeaderColor, 12, sizeof(unsigned char),fp);
-  else { 
-    if(image->components == 1 ) 
-      fwrite(TGAHeaderBW, 12, sizeof(unsigned char),fp);        
+  else {
+    if(image->components == 1 )
+      fwrite(TGAHeaderBW, 12, sizeof(unsigned char),fp);
     else { fprintf(stderr,"Supported component number: 1,3 or 4\n"); exit(1); }
   }
 
-  write16bit(image->width,fp);  
-  write16bit(image->height,fp);  
-  switch (image->components ) { 
-  case 1: 
+  write16bit(image->width,fp);
+  write16bit(image->height,fp);
+  switch (image->components ) {
+  case 1:
     putc(8,fp);
     break;
-  case 3: 
-    putc(24,fp); 
+  case 3:
+    putc(24,fp);
     break;
   case 4:
     putc(32,fp);
     break;
-  default: fprintf(stderr,"Supported component number: 1,3 or 4\n"); exit(1); 
+  default: fprintf(stderr,"Supported component number: 1,3 or 4\n"); exit(1);
   };
-  
-  if(image-> components == 4) 
+
+  if(image-> components == 4)
     putc(0x04,fp); // bottom left image (0x00) + 8 bit alpha (0x4)
-  else 
+  else
     putc(0x00,fp);
 
   fwrite(image->pixels, image->height*image->width*image->components, sizeof(char),fp);

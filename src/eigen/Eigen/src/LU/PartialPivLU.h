@@ -69,7 +69,7 @@ struct enable_if_ref<Ref<T>,Derived> {
   * The data of the LU decomposition can be directly accessed through the methods matrixLU(), permutationP().
   *
   * This class supports the \link InplaceDecomposition inplace decomposition \endlink mechanism.
-  * 
+  *
   * \sa MatrixBase::partialPivLu(), MatrixBase::determinant(), MatrixBase::inverse(), MatrixBase::computeInverse(), class FullPivLU
   */
 template<typename _MatrixType> class PartialPivLU

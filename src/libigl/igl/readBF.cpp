@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "readBF.h"
 #include "list_to_matrix.h"
@@ -12,7 +12,7 @@
 #include <fstream>
 #include <cassert>
 #include <functional>
-template < 
+template <
   typename DerivedWI,
   typename DerivedP,
   typename DerivedO>
@@ -50,7 +50,7 @@ IGL_INLINE bool igl::readBF(
   return true;
 }
 
-template < 
+template <
   typename DerivedWI,
   typename DerivedbfP,
   typename DerivedO,
@@ -77,7 +77,7 @@ IGL_INLINE bool igl::readBF(
   vector<bool> computed(C.rows(),false);
   // better not be cycles in bfP
   std::function<Eigen::RowVector3d(const int)> locate_tip;
-  locate_tip = 
+  locate_tip =
     [&offsets,&computed,&bfP,&locate_tip,&C](const int w)->Eigen::RowVector3d
   {
     if(w<0) return Eigen::RowVector3d(0,0,0);

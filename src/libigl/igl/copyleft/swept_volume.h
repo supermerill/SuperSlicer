@@ -9,7 +9,7 @@ namespace igl
   {
     // Compute the surface of the swept volume of a solid object with surface
     // (V,F) mesh under going rigid motion.
-    // 
+    //
     // Inputs:
     //   V  #V by 3 list of mesh positions in reference pose
     //   F  #F by 3 list of mesh indices into V

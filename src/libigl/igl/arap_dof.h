@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_ARAP_ENERGY_TYPE_DOF_H
 #define IGL_ARAP_ENERGY_TYPE_DOF_H
@@ -25,31 +25,31 @@ namespace igl
   // while(not satisfied)
   //   arap_dof_update(...)
   // end
-  
+
   template <typename LbsMatrixType, typename SSCALAR>
   struct ArapDOFData;
-  
+
   ///////////////////////////////////////////////////////////////////////////
   //
   // Arap DOF precomputation consists of two parts the computation. The first is
   // that which depends solely on the mesh (V,F), the linear blend skinning
   // weights (M) and the groups G. Then there's the part that depends on the
-  // previous precomputation and the list of free and fixed vertices. 
+  // previous precomputation and the list of free and fixed vertices.
   //
   ///////////////////////////////////////////////////////////////////////////
-  
-  
+
+
   // The code and variables differ from the description in Section 3 of "Fast
   // Automatic Skinning Transformations" by [Jacobson et al. 2012]
-  // 
+  //
   // Here is a useful conversion table:
   //
   // [article]                             [code]
   // S = \tilde{K} T                       S = CSM * Lsep
   // S --> R                               S --> R --shuffled--> Rxyz
-  // Gamma_solve RT = Pi_1 \tilde{K} RT    L_part1xyz = CSolveBlock1 * Rxyz 
+  // Gamma_solve RT = Pi_1 \tilde{K} RT    L_part1xyz = CSolveBlock1 * Rxyz
   // Pi_1 \tilde{K}                        CSolveBlock1
-  // Peq = [T_full; P_pos]                 
+  // Peq = [T_full; P_pos]
   // T_full                                B_eq_fix <--- L0
   // P_pos                                 B_eq
   // Pi_2 * P_eq =                         Lpart2and3 = Lpart2 + Lpart3
@@ -57,7 +57,7 @@ namespace igl
   //   Pi_2_right P_pos                    Lpart2 = M_fullsolve(left) * B_eq
   // T = [Pi_1 Pi_2] [\tilde{K}TRT P_eq]   L = Lpart1 + Lpart2and3
   //
-  
+
   // Precomputes the system we are going to optimize. This consists of building
   // constructor matrices (to compute covariance matrices from transformations
   // and to build the poisson solve right hand side from rotation matrix entries)
@@ -68,14 +68,14 @@ namespace igl
   //   F  #F by {3|4} list of face indices
   //   M  #V * dim by #handles * dim * (dim+1) matrix such that
   //     new_V(:) = LBS(V,W,A) = reshape(M * A,size(V)), where A is a column
-  //     vectors formed by the entries in each handle's dim by dim+1 
+  //     vectors formed by the entries in each handle's dim by dim+1
   //     transformation matrix. Specifcally, A =
   //       reshape(permute(Astack,[3 1 2]),n*dim*(dim+1),1)
   //     or A = [Lxx;Lyx;Lxy;Lyy;tx;ty], and likewise for other dim
   //     if Astack(:,:,i) is the dim by (dim+1) transformation at handle i
   //     handles are ordered according to P then BE (point handles before bone
   //     handles)
-  //   G  #V list of group indices (1 to k) for each vertex, such that vertex i 
+  //   G  #V list of group indices (1 to k) for each vertex, such that vertex i
   //     is assigned to group G(i)
   // Outputs:
   //   data  structure containing all necessary precomputation for calling
@@ -85,12 +85,12 @@ namespace igl
   // See also: lbs_matrix_column
   template <typename LbsMatrixType, typename SSCALAR>
   IGL_INLINE bool arap_dof_precomputation(
-    const Eigen::MatrixXd & V, 
+    const Eigen::MatrixXd & V,
     const Eigen::MatrixXi & F,
     const LbsMatrixType & M,
     const Eigen::Matrix<int,Eigen::Dynamic,1> & G,
     ArapDOFData<LbsMatrixType, SSCALAR> & data);
-  
+
   // Should always be called after arap_dof_precomputation, but may be called in
   // between successive calls to arap_dof_update, recomputes precomputation
   // given that there are only changes in free and fixed
@@ -117,7 +117,7 @@ namespace igl
     const Eigen::Matrix<int,Eigen::Dynamic,1> & fixed_dim,
     const Eigen::SparseMatrix<double> & A_eq,
     ArapDOFData<LbsMatrixType, SSCALAR> & data);
-  
+
   // Optimizes the transformations attached to each weight function based on
   // precomputed system.
   //
@@ -143,7 +143,7 @@ namespace igl
     const double tol,
     Eigen::MatrixXd & L
     );
-  
+
   // Structure that contains fields for all precomputed data or data that needs
   // to be remembered at update
   template <typename LbsMatrixType, typename SSCALAR>
@@ -175,30 +175,30 @@ namespace igl
     std::vector<bool> free_mask;
     // Full quadratic coefficients matrix before lagrangian (should be dense)
     LbsMatrixType Q;
-  
-  
+
+
     //// Solve matrix for the global step
     //Eigen::MatrixXd M_Solve; // TODO: remove from here
-  
-    // Full solve matrix that contains also conversion from rotations to the right hand side, 
+
+    // Full solve matrix that contains also conversion from rotations to the right hand side,
     // i.e., solves Poisson transformations just from rotations and positional constraints
     MatrixXS M_FullSolve;
-  
+
     // Precomputed condensed matrices (3x3 commutators folded to 1x1):
     MatrixXS CSM;
     MatrixXS CSolveBlock1;
-  
+
     // Print timings at each update
     bool print_timings;
-  
+
     // Dynamics
     bool with_dynamics;
     // I'm hiding the extra dynamics stuff in this struct, which sort of defeats
     // the purpose of this function-based coding style...
-  
+
     // Time step
     double h;
-  
+
     // L0  #handles * dim * dim+1 list of transformation entries from
     // previous solve
     MatrixXS L0;
@@ -207,27 +207,27 @@ namespace igl
     //MatrixXS Lm1;
     // "Velocity"
     MatrixXS Lvel0;
-  
+
     // #V by dim matrix of external forces
     // fext
     MatrixXS fext;
-  
+
     // Mass_tilde: MT * Mass * M
     LbsMatrixType Mass_tilde;
-  
+
     // Force due to gravity (premultiplier)
     Eigen::MatrixXd fgrav;
     // Direction of gravity
     Eigen::Vector3d grav_dir;
     // Magnitude of gravity
     double grav_mag;
-    
+
     // Π1 from the paper
     MatrixXS Pi_1;
-  
+
     // Default values
-    ArapDOFData(): 
-      energy(igl::ARAP_ENERGY_TYPE_SPOKES), 
+    ArapDOFData():
+      energy(igl::ARAP_ENERGY_TYPE_SPOKES),
       with_dynamics(false),
       h(1),
       grav_dir(0,-1,0),

@@ -19,7 +19,7 @@ namespace igl
   {
     // Forward define
     class EmbreeIntersector;
-  
+
     // Unproject a screen location (using current opengl viewport, projection, and
     // model view) to a 3D position _inside_ a given mesh. If the ray through the
     // given screen location (x,y) _hits_ the mesh more than twice then the 3D

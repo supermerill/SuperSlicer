@@ -85,16 +85,16 @@ static float intersection_distance(float initial_rate, float final_rate, float a
 
 static float speed_from_distance(float initial_feedrate, float distance, float acceleration)
 {
-    // to avoid invalid negative numbers due to numerical errors 
+    // to avoid invalid negative numbers due to numerical errors
     float value = std::max(0.0f, sqr(initial_feedrate) + 2.0f * acceleration * distance);
     return ::sqrt(value);
 }
 
-// Calculates the maximum allowable speed at this point when you must be able to reach target_velocity using the 
+// Calculates the maximum allowable speed at this point when you must be able to reach target_velocity using the
 // acceleration within the allotted distance.
 static float max_allowable_speed(float acceleration, float target_velocity, float distance)
 {
-    // to avoid invalid negative numbers due to numerical errors 
+    // to avoid invalid negative numbers due to numerical errors
     float value = std::max(0.0f, sqr(target_velocity) - 2.0f * acceleration * distance);
     return std::sqrt(value);
 }
@@ -145,7 +145,7 @@ void GCodeProcessor::TimeBlock::calculate_trapezoid()
     float cruise_distance = distance - accelerate_distance - decelerate_distance;
 
     // Not enough space to reach the nominal feedrate.
-    // This means no cruising, and we'll have to use intersection_distance() to calculate when to abort acceleration 
+    // This means no cruising, and we'll have to use intersection_distance() to calculate when to abort acceleration
     // and start braking in order to reach the exit_feedrate exactly at the end of this block.
     if (cruise_distance < 0.0f) {
         accelerate_distance = std::clamp(intersection_distance(feedrate_profile.entry, feedrate_profile.exit, acceleration, distance), 0.0f, distance);
@@ -643,7 +643,7 @@ void GCodeProcessor::TimeProcessor::post_process(const std::string& filename, st
                     gcode_line.clear();
                 }
                 // Skip EOL.
-                it = it_end; 
+                it = it_end;
                 if (it != it_bufend && *it == '\r')
                     ++ it;
                 if (it != it_bufend && *it == '\n')
@@ -700,12 +700,12 @@ void GCodeProcessor::UsedFilaments::increase_caches(double extruded_volume, uint
 {
     if (extruder_id >= this->extruder_retracted_volume.size())
         this->extruder_retracted_volume.resize(extruder_id + 1, parking_volume);
-    
+
     if (this->recent_toolchange) {
         extruded_volume -= extra_loading_volume;
         this->recent_toolchange = false;
     }
-    
+
     this->extruder_retracted_volume[extruder_id] -= extruded_volume;
 
     if (this->extruder_retracted_volume[extruder_id] < 0.) {
@@ -1058,7 +1058,7 @@ void GCodeProcessor::apply_config(const DynamicPrintConfig& config)
             m_extruder_offsets[i] = { offset(0), offset(1), 0.0f };
         }
     }
-    
+
     if (m_extruder_offsets.size() < m_result.extruders_count) {
         for (size_t i = m_extruder_offsets.size(); i < m_result.extruders_count; ++i) {
             m_extruder_offsets.emplace_back(DEFAULT_EXTRUDER_OFFSET);
@@ -1370,7 +1370,7 @@ void GCodeProcessor::process_string(const std::string& gcode, std::function<void
     std::string strline;
     while ( std::getline(ss, strline))
         m_parser.parse_line(strline, [this](GCodeReader& reader, const GCodeReader::GCodeLine& line) {
-            process_gcode_line(line, false); 
+            process_gcode_line(line, false);
         });
 }
 
@@ -1393,13 +1393,13 @@ void GCodeProcessor::process_preamble(bool unit_mm, bool absolute_coords, bool a
     } else {
         m_e_local_positioning_type = EPositioningType::Relative;
     }
-    
+
     {
         m_origin[E] = m_end_position[E] = set_G92_value * ((m_units == EUnits::Inches) ? INCHES_TO_MM : 1.0f);
 
     }
 }
-    
+
 static inline const char* skip_whitespaces(const char *begin, const char *end) {
     for (; begin != end && (*begin == ' ' || *begin == '\t'); ++ begin);
     return begin;
@@ -1497,7 +1497,7 @@ void GCodeProcessor::initialize(const std::string& filename)
 void GCodeProcessor::process_buffer(const std::string &buffer)
 {
     //FIXME maybe cache GCodeLine gline to be over multiple parse_buffer() invocations.
-    m_parser.parse_buffer(buffer, [this](GCodeReader&, const GCodeReader::GCodeLine& line) { 
+    m_parser.parse_buffer(buffer, [this](GCodeReader&, const GCodeReader::GCodeLine& line) {
         this->process_gcode_line(line, false);
     });
 }
@@ -1724,7 +1724,7 @@ void GCodeProcessor::apply_config_simplify3d(const std::string& filename)
             }
             return false;
         };
-        
+
         begin = skip_whitespaces(begin, end);
         end   = remove_eols(begin, end);
         if (begin != end) {
@@ -2009,7 +2009,7 @@ template<typename T>
         // Legacy conversion, which is costly due to having to make a copy of the string before conversion.
         try {
             assert(sv.size() < 1024);
-	    assert(sv.data() != nullptr);
+        assert(sv.data() != nullptr);
             std::string str { sv };
             size_t read = 0;
             if constexpr (std::is_same_v<T, int>)
@@ -2193,7 +2193,7 @@ bool GCodeProcessor::process_producers_tags(const std::string_view comment)
     switch (m_producer)
     {
     case EProducer::Slic3rPE:
-    case EProducer::Slic3r: 
+    case EProducer::Slic3r:
     case EProducer::SuperSlicer:
     case EProducer::PrusaSlicer: { return process_prusaslicer_tags(comment); }
     case EProducer::Cura:        { return process_cura_tags(comment); }
@@ -2302,7 +2302,7 @@ bool GCodeProcessor::process_simplify3d_tags(const std::string_view comment)
         set_extrusion_role(erSkirt);
         return true;
     }
-    
+
     // ; outer perimeter
     pos = cmt.find(" outer perimeter");
     if (pos == 0) {
@@ -2698,7 +2698,7 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line)
                 type = (delta_pos[Z] == 0.0f) ? EMoveType::Unretract : EMoveType::Travel;
             else if (delta_pos[X] != 0.0f || delta_pos[Y] != 0.0f)
                 type = EMoveType::Extrude;
-        } 
+        }
         else if (delta_pos[X] != 0.0f || delta_pos[Y] != 0.0f || delta_pos[Z] != 0.0f)
             type = EMoveType::Travel;
 
@@ -2881,7 +2881,7 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line)
         }
 
         // calculates block acceleration
-        float acceleration = 
+        float acceleration =
             (type == EMoveType::Travel) ? get_travel_acceleration(static_cast<PrintEstimatedStatistics::ETimeMode>(i)) :
             (is_extrusion_only_move(delta_pos) ?
                 get_retract_acceleration(static_cast<PrintEstimatedStatistics::ETimeMode>(i)) :
@@ -3249,7 +3249,7 @@ void GCodeProcessor::process_G92(const GCodeReader::GCodeLine& line)
         simulate_st_synchronize();
 
     if (!any_found && !line.has_unknown_axis()) {
-        // The G92 may be called for axes that PrusaSlicer does not recognize, for example see GH issue #3510, 
+        // The G92 may be called for axes that PrusaSlicer does not recognize, for example see GH issue #3510,
         // where G92 A0 B0 is called although the extruder axis is till E.
         for (unsigned char a = X; a <= E; ++a) {
             m_origin[a] = m_end_position[a];
@@ -3647,8 +3647,8 @@ void GCodeProcessor::store_move_vertex(EMoveType type)
         m_cp_color.current,
 #if ENABLE_Z_OFFSET_CORRECTION
         //note: m_first_layer_height may not be set. use m_end_position instead if it's the case
-        Vec3f(float(m_end_position[X]), float(m_end_position[Y]), 
-            float(m_processing_start_custom_gcode 
+        Vec3f(float(m_end_position[X]), float(m_end_position[Y]),
+            float(m_processing_start_custom_gcode
                 ? ((m_first_layer_height == 0 && m_end_position[Z] > 0) ? m_end_position[Z] : m_first_layer_height)
                 : m_end_position[Z] - m_z_offset)) + m_extruder_offsets[m_extruder_id],
 #else

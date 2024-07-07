@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2017 Daniele Panozzo <daniele.panozzo@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_ATA_CACHED_H
 #define IGL_ATA_CACHED_H
@@ -12,7 +12,7 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 namespace igl
-{  
+{
   struct AtA_cached_data
   {
     // Weights
@@ -28,7 +28,7 @@ namespace igl
     std::vector<int> I_outer;
   };
 
-  // Computes At * W * A, where A is sparse and W is diagonal. Divides the 
+  // Computes At * W * A, where A is sparse and W is diagonal. Divides the
   // construction in two phases, one
   // for fixing the sparsity pattern, and one to populate it with values. Compared to
   // evaluating it directly, this version is slower for the first time (since it requires a
@@ -60,7 +60,7 @@ namespace igl
     const AtA_cached_data& data,
     Eigen::SparseMatrix<Scalar>& AtA
     );
-  
+
 }
 
 #ifndef IGL_STATIC_LIBRARY

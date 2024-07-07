@@ -52,7 +52,7 @@ IGL_INLINE void igl::opengl::vertex_array(
     V.cols()*size_VScalar,
     (GLvoid*)0);
   glEnableVertexAttribArray(0);
-  glBindBuffer(GL_ARRAY_BUFFER, 0); 
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindVertexArray(0);
 }
 

@@ -12,9 +12,9 @@
 #include "igl_inline.h"
 #include <Eigen/Core>
 
-namespace igl 
+namespace igl
 {
-  // Exact geodesic algorithm for triangular mesh with the implementation from https://code.google.com/archive/p/geodesic/, 
+  // Exact geodesic algorithm for triangular mesh with the implementation from https://code.google.com/archive/p/geodesic/,
   // and the algorithm first described by Mitchell, Mount and Papadimitriou in 1987
   //
   // Inputs:
@@ -27,8 +27,8 @@ namespace igl
   // Output:
   //   D  #VT+#FT by 1 vector of geodesic distances of each target w.r.t. the nearest one in the source set
   //
-  // Note: 
-  //      Specifying a face as target/source means its center. 
+  // Note:
+  //      Specifying a face as target/source means its center.
   //
     template <
     typename DerivedV,

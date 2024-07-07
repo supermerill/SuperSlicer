@@ -42,14 +42,14 @@ namespace igl
     //       glBindTexture(GL_TEXTURE_2D,d_id);
     //     }
     //     // draw textures
-    //      
-    //     
+    //
+    //
     //
     // Inputs:
     //   width  image width
     //   height  image height
     //   depth_texture  whether to create a texture for depth or to create a
-    //     render buffer for depth 
+    //     render buffer for depth
     // Outputs:
     //   tex_id  id of the texture
     //   fbo_id  id of the frame buffer object

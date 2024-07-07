@@ -39,7 +39,7 @@ public:
     // Source data, unscaled coordinates.
     const std::vector<Vec2d>&   bed_shape()         const { return m_bed_shape; }
     double                      max_print_height()  const { return m_max_print_height; }
-    
+
     // Derived data
     Type                        type()              const { return m_type; }
     // Format the type for console output.
@@ -69,7 +69,7 @@ public:
         Colliding,
         // Outside of the build volume means the object is ignored: Not printed and no error is shown.
         Outside,
-        // Completely below the print bed. The same as Outside, but an object with one printable part below the print bed 
+        // Completely below the print bed. The same as Outside, but an object with one printable part below the print bed
         // and at least one part above the print bed is still printable.
         Below,
     };

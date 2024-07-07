@@ -34,11 +34,11 @@
 # Notes on Visual Studio projects
 #   You may need to copy bin/msvcr80.dll into C:/Program Files/qhull/bin
 #   If using library debug targets, please rename with '_d' (e.g., qhullstatic_d.lib)
-# 
+#
 # Troubleshooting
 #   "No CMAKE_C_COMPILER could be found"
 #     cmake was not able to find the build environment specified (e.g., Visual Studio 11)
-# 
+#
 # To uninstall on Windows
 #   Delete C:/Program Files/qhull
 #
@@ -56,7 +56,7 @@
 #   Remove src/libqhullcpp from most of the AdditionalIncludeDirectories
 #   Remove CMAKE_INTDIR from PreprocessorDefinitions
 #   Adjust target names and destinations (e.g., lib/libqhullstatic_rd.a)
-#  
+#
 # $Id: //main/2015/qhull/CMakeLists.txt#8 $$Change: 2066 $
 # $DateTime: 2016/01/18 19:29:17 $$Author: bbarber $
 
@@ -68,7 +68,7 @@ set(qhull_VERSION2 "2015.2 2016/01/18")  # not used, See global.c, global_r.c, r
 set(qhull_VERSION     "7.2.0")  # Advance every release
 
 # SOVERSION -- qhull 2003 = empty, 2009 = 5, 2010-2012 = 6, 2015 (reentrant) = 7
-set(qhull_SOVERSION 7) # For SOVERSION 
+set(qhull_SOVERSION 7) # For SOVERSION
 
 include(CMakeModules/CheckLFS.cmake)
 option(WITH_LFS "Enable Large File Support" ON)
@@ -177,8 +177,8 @@ set(
         src/libqhull/qh-qhull.htm
         src/libqhull/qh-set.htm
         src/libqhull/qh-stat.htm
-        src/libqhull/qh-user.htm    
-        src/libqhull/DEPRECATED.txt    
+        src/libqhull/qh-user.htm
+        src/libqhull/DEPRECATED.txt
 )
 
 set(
@@ -245,7 +245,7 @@ set(
         src/libqhull_r/qh-qhull_r.htm
         src/libqhull_r/qh-set_r.htm
         src/libqhull_r/qh-stat_r.htm
-        src/libqhull_r/qh-user_r.htm    
+        src/libqhull_r/qh-user_r.htm
 )
 
 set(
@@ -321,10 +321,10 @@ set(
 
 set(
     doc_FILES
-        README.txt 
-        REGISTER.txt 
-        Announce.txt 
-        COPYING.txt 
+        README.txt
+        REGISTER.txt
+        Announce.txt
+        COPYING.txt
         index.htm
 )
 
@@ -332,7 +332,7 @@ include_directories(${CMAKE_SOURCE_DIR}/src)
 
 if(CMAKE_BUILD_TYPE MATCHES "[dD]ebug")
     set(qhull_CPP qhullcpp_d)
-    set(qhull_SHARED qhull_d) 
+    set(qhull_SHARED qhull_d)
     set(qhull_SHAREDP qhull_pd)
     set(qhull_SHAREDR qhull_rd)
     set(qhull_STATIC qhullstatic_d)
@@ -367,7 +367,7 @@ endif(UNIX)
 
 # ---------------------------------------
 # Define C++ static library qhullcpp
-#     Do not create libqhullcpp as a shared library.  Qhull C++ classes may change layout and size. 
+#     Do not create libqhullcpp as a shared library.  Qhull C++ classes may change layout and size.
 # ---------------------------------------
 
 add_library(${qhull_CPP} STATIC ${libqhullcpp_SOURCES})

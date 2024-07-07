@@ -5,7 +5,7 @@
 
 #include <GL/glew.h>
 
-#include <wx/utils.h> 
+#include <wx/utils.h>
 
 namespace Slic3r {
 namespace GUI {

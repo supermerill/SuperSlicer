@@ -11,7 +11,7 @@
 #ifndef EIGEN_DIAGONALPRODUCT_H
 #define EIGEN_DIAGONALPRODUCT_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \returns the diagonal matrix product of \c *this by the diagonal matrix \a diagonal.
   */

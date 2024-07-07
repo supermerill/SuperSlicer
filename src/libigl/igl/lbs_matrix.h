@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_LBS_MATRIX_H
 #define IGL_LBS_MATRIX_H
@@ -30,7 +30,7 @@ namespace igl
   // In MATLAB:
   //   kron(ones(1,size(W,2)),[V ones(size(V,1),1)]).*kron(W,ones(1,size(V,2)+1))
   IGL_INLINE void lbs_matrix(
-    const Eigen::MatrixXd & V, 
+    const Eigen::MatrixXd & V,
     const Eigen::MatrixXd & W,
     Eigen::MatrixXd & M);
   // LBS_MATRIX  construct a matrix that when multiplied against a column of
@@ -46,23 +46,23 @@ namespace igl
   // Output:
   //   M  #V * dim by #handles * dim * (dim+1) matrix such that
   //     new_V(:) = LBS(V,W,A) = reshape(M * A,size(V)), where A is a column
-  //     vectors formed by the entries in each handle's dim by dim+1 
+  //     vectors formed by the entries in each handle's dim by dim+1
   //     transformation matrix. Specifcally, A =
   //       reshape(permute(Astack,[3 1 2]),n*dim*(dim+1),1)
   //     or A = [Lxx;Lyx;Lxy;Lyy;tx;ty], and likewise for other dim
   //     if Astack(:,:,i) is the dim by (dim+1) transformation at handle i
   IGL_INLINE void lbs_matrix_column(
-    const Eigen::MatrixXd & V, 
+    const Eigen::MatrixXd & V,
     const Eigen::MatrixXd & W,
     Eigen::SparseMatrix<double>& M);
   IGL_INLINE void lbs_matrix_column(
-    const Eigen::MatrixXd & V, 
+    const Eigen::MatrixXd & V,
     const Eigen::MatrixXd & W,
     Eigen::MatrixXd & M);
   // Same as LBS_MATRIX above but instead of giving W as a full matrix of weights
   // (each vertex has #handles weights), a constant number of weights are given
   // for each vertex.
-  // 
+  //
   // Inputs:
   //   V  #V by dim list of vertex rest positions
   //   W  #V by k  list of k correspondence weights per vertex
@@ -71,19 +71,19 @@ namespace igl
   // Output:
   //   M  #V * dim by #handles * dim * (dim+1) matrix such that
   //     new_V(:) = LBS(V,W,A) = reshape(M * A,size(V)), where A is a column
-  //     vectors formed by the entries in each handle's dim by dim+1 
+  //     vectors formed by the entries in each handle's dim by dim+1
   //     transformation matrix. Specifcally, A =
   //       reshape(permute(Astack,[3 1 2]),n*dim*(dim+1),1)
   //     or A = [Lxx;Lyx;Lxy;Lyy;tx;ty], and likewise for other dim
   //     if Astack(:,:,i) is the dim by (dim+1) transformation at handle i
   //
   IGL_INLINE void lbs_matrix_column(
-    const Eigen::MatrixXd & V, 
+    const Eigen::MatrixXd & V,
     const Eigen::MatrixXd & W,
     const Eigen::MatrixXi & WI,
     Eigen::SparseMatrix<double>& M);
   IGL_INLINE void lbs_matrix_column(
-    const Eigen::MatrixXd & V, 
+    const Eigen::MatrixXd & V,
     const Eigen::MatrixXd & W,
     const Eigen::MatrixXi & WI,
     Eigen::MatrixXd & M);

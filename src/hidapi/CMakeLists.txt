@@ -13,7 +13,7 @@ include_directories(include)
 add_library(hidapi STATIC ${HIDAPI_IMPL})
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-	# Don't link the udev library, as there are two versions out there (libudev.so.0, libudev.so.1), so they are linked explicitely.
-#	target_link_libraries(hidapi udev)
-	target_link_libraries(hidapi dl)
+    # Don't link the udev library, as there are two versions out there (libudev.so.0, libudev.so.1), so they are linked explicitely.
+#    target_link_libraries(hidapi udev)
+    target_link_libraries(hidapi dl)
 endif()

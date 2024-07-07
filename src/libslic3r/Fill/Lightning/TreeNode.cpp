@@ -25,7 +25,7 @@ bool Node::hasOffspring(const NodeSPtr& to_be_checked) const
         return true;
 
     for (auto& child_ptr : m_children)
-        if (child_ptr->hasOffspring(to_be_checked)) 
+        if (child_ptr->hasOffspring(to_be_checked))
             return true;
 
     return false;
@@ -84,7 +84,7 @@ void Node::visitNodes(const std::function<void(NodeSPtr)>& visitor)
     }
 }
 
-Node::Node(const Point& p, const std::optional<Point>& last_grounding_location /*= std::nullopt*/) : 
+Node::Node(const Point& p, const std::optional<Point>& last_grounding_location /*= std::nullopt*/) :
     m_is_root(true), m_p(p), m_last_grounding_location(last_grounding_location)
 {}
 
@@ -328,7 +328,7 @@ coord_t Node::prune(const coord_t& pruning_distance)
             const Point b = child->getLocation();
             const Point ba = a - b;
             const auto ab_len = coord_t(ba.cast<double>().norm());
-            if (dist_pruned_child + ab_len <= pruning_distance) { 
+            if (dist_pruned_child + ab_len <= pruning_distance) {
                 // we're still in the process of pruning
                 assert(child->m_children.empty() && "when pruning away a node all it's children must already have been pruned away");
                 max_distance_pruned = std::max(max_distance_pruned, dist_pruned_child + ab_len);

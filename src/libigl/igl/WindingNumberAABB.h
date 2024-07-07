@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2014 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 
 // # MUTUAL DEPENDENCY ISSUE FOR HEADER ONLY VERSION
@@ -18,7 +18,7 @@ namespace igl
 {
   template <
     typename Point,
-    typename DerivedV, 
+    typename DerivedV,
     typename DerivedF >
   class WindingNumberAABB : public WindingNumberTree<Point,DerivedV,DerivedF>
   {
@@ -26,7 +26,7 @@ namespace igl
       Point min_corner;
       Point max_corner;
       typename DerivedV::Scalar total_positive_area;
-    public: 
+    public:
       enum SplitMethod
       {
         CENTER_ON_LONGEST_AXIS = 0,
@@ -148,7 +148,7 @@ inline void igl::WindingNumberAABB<Point,DerivedV,DerivedF>::grow()
 
   // Compute longest direction
   int max_d = -1;
-  typename DerivedV::Scalar max_len = 
+  typename DerivedV::Scalar max_len =
     -numeric_limits<typename DerivedV::Scalar>::infinity();
   for(int d = 0;d<min_corner.size();d++)
   {
@@ -222,11 +222,11 @@ inline void igl::WindingNumberAABB<Point,DerivedV,DerivedF>::grow()
   assert(right_i == rightF.rows());
   assert(left_i == leftF.rows());
   // Finally actually grow children and Recursively grow
-  WindingNumberAABB<Point,DerivedV,DerivedF> * leftWindingNumberAABB = 
+  WindingNumberAABB<Point,DerivedV,DerivedF> * leftWindingNumberAABB =
     new WindingNumberAABB<Point,DerivedV,DerivedF>(*this,leftF);
   leftWindingNumberAABB->grow();
   this->children.push_back(leftWindingNumberAABB);
-  WindingNumberAABB<Point,DerivedV,DerivedF> * rightWindingNumberAABB = 
+  WindingNumberAABB<Point,DerivedV,DerivedF> * rightWindingNumberAABB =
     new WindingNumberAABB<Point,DerivedV,DerivedF>(*this,rightF);
   rightWindingNumberAABB->grow();
   this->children.push_back(rightWindingNumberAABB);
@@ -269,11 +269,11 @@ inline void igl::WindingNumberAABB<Point,DerivedV,DerivedF>::compute_min_max_cor
     {
       for(int d = 0;d<min_corner.size();d++)
       {
-        min_corner[d] = 
-          this->getV()(this->getF()(i,j),d) < min_corner[d] ?  
+        min_corner[d] =
+          this->getV()(this->getF()(i,j),d) < min_corner[d] ?
             this->getV()(this->getF()(i,j),d) : min_corner[d];
-        max_corner[d] = 
-          this->getV()(this->getF()(i,j),d) > max_corner[d] ?  
+        max_corner[d] =
+          this->getV()(this->getF()(i,j),d) > max_corner[d] ?
             this->getV()(this->getF()(i,j),d) : max_corner[d];
       }
       // This is biased toward vertices incident on more than one face, but
@@ -309,7 +309,7 @@ igl::WindingNumberAABB<Point,DerivedV,DerivedF>::max_abs_winding_number(const Po
 }
 
 template <typename Point, typename DerivedV, typename DerivedF>
-inline typename DerivedV::Scalar 
+inline typename DerivedV::Scalar
   igl::WindingNumberAABB<Point,DerivedV,DerivedF>::max_simple_abs_winding_number(
   const Point & p) const
 {

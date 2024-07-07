@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "submesh_aabb_tree.h"
 #include <stdexcept>
@@ -19,7 +19,7 @@ IGL_INLINE void igl::copyleft::cgal::submesh_aabb_tree(
   const Eigen::PlainObjectBase<DerivedI>& I,
   CGAL::AABB_tree<
     CGAL::AABB_traits<
-      Kernel, 
+      Kernel,
       CGAL::AABB_triangle_primitive<
         Kernel, typename std::vector<
           typename Kernel::Triangle_3 >::iterator > > > & tree,
@@ -28,7 +28,7 @@ IGL_INLINE void igl::copyleft::cgal::submesh_aabb_tree(
 {
   in_I.resize(F.rows(), false);
   const size_t num_faces = I.rows();
-  for (size_t i=0; i<num_faces; i++) 
+  for (size_t i=0; i<num_faces; i++)
   {
     const Eigen::Vector3i f = F.row(I(i, 0));
     in_I[I(i,0)] = true;
@@ -37,7 +37,7 @@ IGL_INLINE void igl::copyleft::cgal::submesh_aabb_tree(
       typename Kernel::Point_3(V(f[1], 0), V(f[1], 1), V(f[1], 2)),
       typename Kernel::Point_3(V(f[2], 0), V(f[2], 1), V(f[2], 2)));
 #ifndef NDEBUG
-    if (triangles.back().is_degenerate()) 
+    if (triangles.back().is_degenerate())
     {
       throw std::runtime_error(
         "Input facet components contains degenerated triangles");

@@ -28,7 +28,7 @@ namespace orgQhull {
 #//!\name Constructors
 
 QhullFacetList::
-QhullFacetList(const Qhull &q, facetT *b, facetT *e ) 
+QhullFacetList(const Qhull &q, facetT *b, facetT *e )
 : QhullLinkedList<QhullFacet>(QhullFacet(q, b), QhullFacet(q, e))
 , select_all(false)
 {

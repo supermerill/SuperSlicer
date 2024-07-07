@@ -28,9 +28,9 @@ IGL_INLINE void igl::per_corner_normals(
 }
 
 template <
-  typename DerivedV, 
-  typename DerivedF, 
-  typename DerivedFN, 
+  typename DerivedV,
+  typename DerivedF,
+  typename DerivedFN,
   typename DerivedCN>
 IGL_INLINE void igl::per_corner_normals(
   const Eigen::PlainObjectBase<DerivedV>& V,
@@ -47,9 +47,9 @@ IGL_INLINE void igl::per_corner_normals(
 }
 
 template <
-  typename DerivedV, 
-  typename DerivedF, 
-  typename DerivedFN, 
+  typename DerivedV,
+  typename DerivedF,
+  typename DerivedFN,
   typename IndexType,
   typename DerivedCN>
 IGL_INLINE void igl::per_corner_normals(

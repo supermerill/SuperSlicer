@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_MATLAB_MATLAB_WORKSPACE_H
 #define IGL_MATLAB_MATLAB_WORKSPACE_H
@@ -25,7 +25,7 @@ namespace igl
     //
     // Class which contains data of a matlab workspace which can be written to a
     // .mat file and loaded from matlab
-    // 
+    //
     // This depends on matlab at compile time (though it shouldn't necessarily
     // have to) but it does not depend on running the matlab engine at run-time.
     //
@@ -61,7 +61,7 @@ namespace igl
         inline bool read(const std::string & path);
         // Assign data to a variable name in the workspace
         //
-        // Template: 
+        // Template:
         //   DerivedM  eigen matrix (e.g. MatrixXd)
         // Inputs:
         //   M  data (usually a matrix)
@@ -122,7 +122,7 @@ namespace igl
         //
         // KNOWN BUG: Outputs the first found (not necessarily unique lists).
         //
-        // Template: 
+        // Template:
         //   DerivedM  eigen matrix (e.g. MatrixXd)
         // Inputs:
         //   name  exact name of matrix as string
@@ -130,22 +130,22 @@ namespace igl
         //   M  matrix
         // Returns true only if found.
         template <typename DerivedM>
-        inline bool find( 
+        inline bool find(
           const std::string & name,
           Eigen::PlainObjectBase<DerivedM>& M);
         template <typename MT>
-        inline bool find( 
+        inline bool find(
           const std::string & name,
           Eigen::SparseMatrix<MT>& M);
-        inline bool find( 
+        inline bool find(
           const std::string & name,
           double & d);
-        inline bool find( 
+        inline bool find(
           const std::string & name,
           int & v);
         // Subtracts 1 from all entries
         template <typename DerivedM>
-        inline bool find_index( 
+        inline bool find_index(
           const std::string & name,
           Eigen::PlainObjectBase<DerivedM>& M);
     };
@@ -202,12 +202,12 @@ inline bool igl::matlab::MatlabWorkspace::write(const std::string & path) const
   {
     // Put variable as LOCAL variable
     int status = matPutVariable(mat_file,names[i].c_str(), data[i]);
-    if(status != 0) 
+    if(status != 0)
     {
       cerr<<"^MatlabWorkspace::save Error: matPutVariable ("<<names[i]<<
         ") failed"<<endl;
       return false;
-    } 
+    }
   }
   if(matClose(mat_file) != 0)
   {
@@ -224,7 +224,7 @@ inline bool igl::matlab::MatlabWorkspace::read(const std::string & path)
   MATFile * mat_file;
 
   mat_file = matOpen(path.c_str(), "r");
-  if (mat_file == NULL) 
+  if (mat_file == NULL)
   {
     cerr<<"Error: failed to open "<<path<<endl;
     return false;
@@ -245,23 +245,23 @@ inline bool igl::matlab::MatlabWorkspace::read(const std::string & path)
     return false;
   }
   mat_file = matOpen(path.c_str(), "r");
-  if (mat_file == NULL) 
+  if (mat_file == NULL)
   {
     cerr<<"Error: failed to open "<<path<<endl;
     return false;
   }
-  
+
 
   /* Read in each array. */
-  for (int i=0; i<ndir; i++) 
+  for (int i=0; i<ndir; i++)
   {
     const char * name;
     mxArray * mx_data = matGetNextVariable(mat_file, &name);
-    if (mx_data == NULL) 
+    if (mx_data == NULL)
     {
       cerr<<"Error: matGetNextVariable failed in "<<path<<endl;
       return false;
-    } 
+    }
     const int dims = mxGetNumberOfDimensions(mx_data);
     assert(dims == 2);
     if(dims != 2)
@@ -299,7 +299,7 @@ inline igl::matlab::MatlabWorkspace& igl::matlab::MatlabWorkspace::save(
   names.push_back(name);
   // Copy data immediately
   // Use Eigen's map and cast to copy
-  Eigen::Map< Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> > 
+  Eigen::Map< Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> >
     map(mxGetPr(mx_data),m,n);
   map = M.template cast<double>();
   return *this;
@@ -386,7 +386,7 @@ inline igl::matlab::MatlabWorkspace& igl::matlab::MatlabWorkspace::save(
 }
 
 template <typename DerivedM>
-inline igl::matlab::MatlabWorkspace& 
+inline igl::matlab::MatlabWorkspace&
   igl::matlab::MatlabWorkspace::save_index(
     const Eigen::DenseBase<DerivedM>& M,
     const std::string & name)
@@ -417,7 +417,7 @@ inline igl::matlab::MatlabWorkspace& igl::matlab::MatlabWorkspace::save_index(
 }
 
 template <typename DerivedM>
-inline bool igl::matlab::MatlabWorkspace::find( 
+inline bool igl::matlab::MatlabWorkspace::find(
   const std::string & name,
   Eigen::PlainObjectBase<DerivedM>& M)
 {
@@ -446,13 +446,13 @@ inline bool igl::matlab::MatlabWorkspace::find(
   }
   assert(mxGetNumberOfElements(mx_data) == M.size());
   // Use Eigen's map and cast to copy
-  M = Eigen::Map< Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> > 
+  M = Eigen::Map< Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> >
     (mxGetPr(mx_data),M.rows(),M.cols()).cast<typename DerivedM::Scalar>();
   return true;
 }
 
 template <typename MT>
-inline bool igl::matlab::MatlabWorkspace::find( 
+inline bool igl::matlab::MatlabWorkspace::find(
   const std::string & name,
   Eigen::SparseMatrix<MT>& M)
 {
@@ -505,7 +505,7 @@ inline bool igl::matlab::MatlabWorkspace::find(
   return true;
 }
 
-inline bool igl::matlab::MatlabWorkspace::find( 
+inline bool igl::matlab::MatlabWorkspace::find(
   const std::string & name,
   int & v)
 {
@@ -528,7 +528,7 @@ inline bool igl::matlab::MatlabWorkspace::find(
   return true;
 }
 
-inline bool igl::matlab::MatlabWorkspace::find( 
+inline bool igl::matlab::MatlabWorkspace::find(
   const std::string & name,
   double & d)
 {
@@ -552,7 +552,7 @@ inline bool igl::matlab::MatlabWorkspace::find(
 }
 
 template <typename DerivedM>
-inline bool igl::matlab::MatlabWorkspace::find_index( 
+inline bool igl::matlab::MatlabWorkspace::find_index(
   const std::string & name,
   Eigen::PlainObjectBase<DerivedM>& M)
 {

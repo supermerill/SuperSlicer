@@ -173,7 +173,7 @@ std::vector<Point> VoronoiUtils::discretizeParabola(const Point& p, const Segmen
         discretized.emplace_back(e);
         return discretized;
     }
-    
+
     const float marking_bound = atan(transitioning_angle * 0.5);
     int64_t msx = - marking_bound * int64_t(d); // projected marking_start
     int64_t mex = marking_bound * int64_t(d); // projected marking_end
@@ -192,7 +192,7 @@ std::vector<Point> VoronoiUtils::discretizeParabola(const Point& p, const Segmen
         std::swap(marking_start, marking_end);
         std::swap(msx, mex);
     }
-    
+
     bool add_marking_start = msx * int64_t(dir) > int64_t(sx - px) * int64_t(dir) && msx * int64_t(dir) < int64_t(ex - px) * int64_t(dir);
     bool add_marking_end = mex * int64_t(dir) > int64_t(sx - px) * int64_t(dir) && mex * int64_t(dir) < int64_t(ex - px) * int64_t(dir);
 
@@ -204,9 +204,9 @@ std::vector<Point> VoronoiUtils::discretizeParabola(const Point& p, const Segmen
     {
         BOOST_LOG_TRIVIAL(warning) << "Failing to discretize parabola! Must add an apex or one of the endpoints.";
     }
-    
+
     const coord_t step_count = static_cast<coord_t>(static_cast<float>(std::abs(ex - sx)) / approximate_step_size + 0.5);
-    
+
     discretized.emplace_back(s);
     for (coord_t step = 1; step < step_count; step++)
     {
@@ -215,7 +215,7 @@ std::vector<Point> VoronoiUtils::discretizeParabola(const Point& p, const Segmen
         assert(double(x) * double(x) <= double(std::numeric_limits<int64_t>::max()));
         assert(double(x) * double(x) / double(2 * d) + double(d / 2) <= double(std::numeric_limits<int64_t>::max()));
         const int64_t y = int64_t(x) * int64_t(x) / int64_t(2 * d) + int64_t(d / 2);
-        
+
         if (add_marking_start && msx * int64_t(dir) < int64_t(x) * int64_t(dir))
         {
             discretized.emplace_back(marking_start);
@@ -224,7 +224,7 @@ std::vector<Point> VoronoiUtils::discretizeParabola(const Point& p, const Segmen
         if (add_apex && int64_t(x) * int64_t(dir) > 0)
         {
             discretized.emplace_back(apex);
-            add_apex = false; // only add the apex just before the 
+            add_apex = false; // only add the apex just before the
         }
         if (add_marking_end && mex * int64_t(dir) < int64_t(x) * int64_t(dir))
         {

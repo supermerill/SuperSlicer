@@ -1,7 +1,7 @@
 /*
  * avrdude - A Downloader/Uploader for AVR device programmers
  * Support for bitbanging GPIO pins using the /sys/class/gpio interface
- * 
+ *
  * Copyright (C) 2013 Radoslav Kolev <radoslav@kolev.info>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -46,14 +46,14 @@
 
 /*
  * GPIO user space helpers
- * The following functions are acting on an "unsigned gpio" argument, which corresponds to the 
- * gpio numbering scheme in the kernel (starting from 0).  
+ * The following functions are acting on an "unsigned gpio" argument, which corresponds to the
+ * gpio numbering scheme in the kernel (starting from 0).
  * The higher level functions use "int pin" to specify the pins with an offset of 1:
  * gpio = pin - 1;
  */
 
-#define GPIO_DIR_IN	0
-#define GPIO_DIR_OUT	1
+#define GPIO_DIR_IN    0
+#define GPIO_DIR_OUT    1
 
 static int linuxgpio_export(unsigned int gpio)
 {
@@ -204,7 +204,7 @@ static int linuxgpio_getpin(PROGRAMMER * pgm, int pinfunc)
 static int linuxgpio_highpulsepin(PROGRAMMER * pgm, int pinfunc)
 {
   int pin = pgm->pinno[pinfunc]; // TODO
-  
+
   if ( linuxgpio_fds[pin & PIN_MASK] < 0 )
     return -1;
 
@@ -254,11 +254,11 @@ static int linuxgpio_open(PROGRAMMER *pgm, char *port)
     linuxgpio_fds[i] = -1;
   //Avrdude assumes that if a pin number is 0 it means not used/available
   //this causes a problem because 0 is a valid GPIO number in Linux sysfs.
-  //To avoid annoying off by one pin numbering we assume SCK, MOSI, MISO 
+  //To avoid annoying off by one pin numbering we assume SCK, MOSI, MISO
   //and RESET pins are always defined in avrdude.conf, even as 0. If they're
   //not programming will not work anyway. The drawbacks of this approach are
   //that unwanted toggling of GPIO0 can occur and that other optional pins
-  //mostry LED status, can't be set to GPIO0. It can be fixed when a better 
+  //mostry LED status, can't be set to GPIO0. It can be fixed when a better
   //solution exists.
   for (i=0; i<N_PINS; i++) {
     if ( (pgm->pinno[i] & PIN_MASK) != 0 ||

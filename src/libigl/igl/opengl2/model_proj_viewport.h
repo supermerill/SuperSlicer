@@ -22,8 +22,8 @@ namespace igl
     //
     template <typename Derivedmodel, typename Derivedproj, typename Derivedviewport>
     IGL_INLINE void model_proj_viewport(
-      Eigen::PlainObjectBase<Derivedmodel> & model, 
-      Eigen::PlainObjectBase<Derivedproj> & proj, 
+      Eigen::PlainObjectBase<Derivedmodel> & model,
+      Eigen::PlainObjectBase<Derivedproj> & proj,
       Eigen::PlainObjectBase<Derivedviewport> & viewport);
   }
 }

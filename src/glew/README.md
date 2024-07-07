@@ -17,22 +17,22 @@ https://github.com/nigels-com/glew
 ## Table of Contents
 
 * [Downloads](#downloads)
-	* [Recent snapshots](#recent-snapshots)
+    * [Recent snapshots](#recent-snapshots)
 * [Build](#build)
-	* [Linux and Mac](#linux-and-mac)
-		* [Using GNU Make](#using-gnu-make)
-		* [Install build tools](#install-build-tools)
-		* [Build](#build-1)
-		* [Linux EGL](#linux-egl)
-		* [Linux OSMesa](#linux-osmesa)
-		* [Linux mingw-w64](#linux-mingw-w64)
-	* [Using cmake](#using-cmake)
-		* [Install build tools](#install-build-tools-1)
-		* [Build](#build-2)
-	* [Windows](#windows)
-		* [Visual Studio](#visual-studio)
-		* [MSYS/Mingw](#msysmingw)
-		* [MSYS2/Mingw-w64](#msys2mingw-w64)
+    * [Linux and Mac](#linux-and-mac)
+        * [Using GNU Make](#using-gnu-make)
+        * [Install build tools](#install-build-tools)
+        * [Build](#build-1)
+        * [Linux EGL](#linux-egl)
+        * [Linux OSMesa](#linux-osmesa)
+        * [Linux mingw-w64](#linux-mingw-w64)
+    * [Using cmake](#using-cmake)
+        * [Install build tools](#install-build-tools-1)
+        * [Build](#build-2)
+    * [Windows](#windows)
+        * [Visual Studio](#visual-studio)
+        * [MSYS/Mingw](#msysmingw)
+        * [MSYS2/Mingw-w64](#msys2mingw-w64)
 * [glewinfo](#glewinfo)
 * [Code Generation](#code-generation)
 * [Authors](#authors)
@@ -82,9 +82,9 @@ FreeBSD: `# pkg install xorg lang/gcc git cmake gmake bash python perl5`
 
 ##### Build
 
-	$ make
-	$ sudo make install
-	$ make clean
+    $ make
+    $ sudo make install
+    $ make clean
 
 Targets:    `all, glew.lib (sub-targets: glew.lib.shared, glew.lib.static), glew.bin, clean, install, uninstall`
 
@@ -94,19 +94,19 @@ _Note: you may need to call `make` in the  **auto** folder first_
 
 ##### Linux EGL
 
-	$ sudo apt install libegl1-mesa-dev
-	$ make SYSTEM=linux-egl
+    $ sudo apt install libegl1-mesa-dev
+    $ make SYSTEM=linux-egl
 
 ##### Linux OSMesa
 
-	$ sudo apt install libosmesa-dev
-	$ make SYSTEM=linux-osmesa
+    $ sudo apt install libosmesa-dev
+    $ make SYSTEM=linux-osmesa
 
 ##### Linux mingw-w64
 
-	$ sudo apt install mingw-w64
-	$ make SYSTEM=linux-mingw32
-	$ make SYSTEM=linux-mingw64
+    $ sudo apt install mingw-w64
+    $ make SYSTEM=linux-mingw32
+    $ make SYSTEM=linux-mingw64
 
 #### Using cmake
 
@@ -124,9 +124,9 @@ RedHat/CentOS/Fedora: `$ sudo yum install libXmu-devel libXi-devel libGL-devel c
 
 ##### Build
 
-	$ cd build
-	$ cmake ./cmake
-	$ make -j4
+    $ cd build
+    $ cmake ./cmake
+    $ make -j4
 
 | Target     | Description |
 | ---------- | ----------- |
@@ -159,9 +159,9 @@ Available from [Mingw](http://www.mingw.org/)
 
 Requirements: bash, make, gcc
 
-	$ mingw32-make
-	$ mingw32-make install
-	$ mingw32-make install.all
+    $ mingw32-make
+    $ mingw32-make install
+    $ mingw32-make install.all
 
 Alternative toolchain:  `SYSTEM=mingw-win32`
 
@@ -171,10 +171,10 @@ Available from [Msys2](http://msys2.github.io/) and/or [Mingw-w64](http://mingw-
 
 Requirements: bash, make, gcc
 
-	$ pacman -S gcc make mingw-w64-i686-gcc mingw-w64-x86_64-gcc
-	$ make
-	$ make install
-	$ make install.all
+    $ pacman -S gcc make mingw-w64-i686-gcc mingw-w64-x86_64-gcc
+    $ make
+    $ make install
+    $ make install.all
 
 Alternative toolchain:  `SYSTEM=msys, SYSTEM=msys-win32, SYSTEM=msys-win64`
 
@@ -184,26 +184,26 @@ Alternative toolchain:  `SYSTEM=msys, SYSTEM=msys-win32, SYSTEM=msys-win64`
 OpenGL implementation and GLEW support for that.  Please include `glewinfo.txt`
 with bug reports, as appropriate.
 
-	---------------------------
-	    GLEW Extension Info
-	---------------------------
+    ---------------------------
+        GLEW Extension Info
+    ---------------------------
 
-	GLEW version 2.0.0
-	Reporting capabilities of pixelformat 3
-	Running on a Intel(R) HD Graphics 3000 from Intel
-	OpenGL version 3.1.0 - Build 9.17.10.4229 is supported
+    GLEW version 2.0.0
+    Reporting capabilities of pixelformat 3
+    Running on a Intel(R) HD Graphics 3000 from Intel
+    OpenGL version 3.1.0 - Build 9.17.10.4229 is supported
 
-	GL_VERSION_1_1:                                                OK
-	---------------
+    GL_VERSION_1_1:                                                OK
+    ---------------
 
-	GL_VERSION_1_2:                                                OK
-	---------------
-	  glCopyTexSubImage3D:                                         OK
-	  glDrawRangeElements:                                         OK
-	  glTexImage3D:                                                OK
-	  glTexSubImage3D:                                             OK
+    GL_VERSION_1_2:                                                OK
+    ---------------
+      glCopyTexSubImage3D:                                         OK
+      glDrawRangeElements:                                         OK
+      glTexImage3D:                                                OK
+      glTexSubImage3D:                                             OK
 
-	...
+    ...
 
 ## Code Generation
 
@@ -211,7 +211,7 @@ A Unix or Mac environment is needed for building GLEW from scratch to
 include new extensions, or customize the code generation. The extension
 data is regenerated from the top level source directory with:
 
-	make extensions
+    make extensions
 
 An alternative to generating the GLEW sources from scratch is to
 download a pre-generated (unsupported) snapshot:

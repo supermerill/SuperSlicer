@@ -23,8 +23,8 @@ class KDTreeIndirect
 {
 public:
     static constexpr size_t NumDimensions = ANumDimensions;
-    using					CoordinateFn  = ACoordinateFn;
-    using					CoordType     = ACoordType;
+    using                    CoordinateFn  = ACoordinateFn;
+    using                    CoordType     = ACoordType;
     // Following could be static constexpr size_t, but that would not link in C++11
     enum : size_t {
         npos = size_t(-1)

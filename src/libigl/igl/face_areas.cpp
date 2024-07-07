@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2014 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "face_areas.h"
 #include "edge_lengths.h"
@@ -40,9 +40,9 @@ IGL_INLINE void igl::face_areas(
   assert(L.cols() == 6);
   const int m = L.rows();
   // (unsigned) face Areas (opposite vertices: 1 2 3 4)
-  Matrix<typename DerivedA::Scalar,Dynamic,1> 
+  Matrix<typename DerivedA::Scalar,Dynamic,1>
     A0(m,1), A1(m,1), A2(m,1), A3(m,1);
-  Matrix<typename DerivedA::Scalar,Dynamic,3> 
+  Matrix<typename DerivedA::Scalar,Dynamic,3>
     L0(m,3), L1(m,3), L2(m,3), L3(m,3);
   L0<<L.col(1),L.col(2),L.col(3);
   L1<<L.col(0),L.col(2),L.col(4);

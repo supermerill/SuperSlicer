@@ -10,7 +10,7 @@
 
 #ifndef EIGEN_QUATERNION_H
 #define EIGEN_QUATERNION_H
-namespace Eigen { 
+namespace Eigen {
 
 
 /***************************************************************************
@@ -285,14 +285,14 @@ public:
   EIGEN_DEVICE_FUNC inline const Coefficients& coeffs() const { return m_coeffs;}
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF(bool(NeedsAlignment))
-  
+
 #ifdef EIGEN_QUATERNION_PLUGIN
 # include EIGEN_QUATERNION_PLUGIN
 #endif
 
 protected:
   Coefficients m_coeffs;
-  
+
 #ifndef EIGEN_PARSED_BY_DOXYGEN
     static EIGEN_STRONG_INLINE void _check_template_params()
     {
@@ -683,7 +683,7 @@ template<int Arch, class Derived, typename Scalar> struct quat_conj
   }
 };
 }
-                         
+
 /** \returns the conjugate of the \c *this which is equal to the multiplicative inverse
   * if the quaternion is normalized.
   * The conjugate of a quaternion represents the opposite rotation.
@@ -696,7 +696,7 @@ QuaternionBase<Derived>::conjugate() const
 {
   return internal::quat_conj<Architecture::Target, Derived,
                          typename internal::traits<Derived>::Scalar>::run(*this);
-                         
+
 }
 
 /** \returns the angle (in radian) between two rotations
@@ -712,11 +712,11 @@ QuaternionBase<Derived>::angularDistance(const QuaternionBase<OtherDerived>& oth
   return Scalar(2) * atan2( d.vec().norm(), numext::abs(d.w()) );
 }
 
- 
-    
+
+
 /** \returns the spherical linear interpolation between the two quaternions
   * \c *this and \a other at the parameter \a t in [0;1].
-  * 
+  *
   * This represents an interpolation for a constant motion between \c *this and \a other,
   * see also http://en.wikipedia.org/wiki/Slerp.
   */

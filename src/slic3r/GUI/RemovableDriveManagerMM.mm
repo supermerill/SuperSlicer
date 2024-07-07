@@ -1,7 +1,7 @@
 #import "RemovableDriveManager.hpp"
 #import "RemovableDriveManagerMM.h"
 #import "GUI_App.hpp"
-#import <AppKit/AppKit.h> 
+#import <AppKit/AppKit.h>
 #import <DiskArbitration/DiskArbitration.h>
 
 static void eject_callback(DADiskRef disk, DADissenterRef dissenter, void *context)
@@ -22,9 +22,9 @@ static void unmount_callback(DADiskRef disk, DADissenterRef dissenter, void *con
 
 -(instancetype) init
 {
-	self = [super init];
-	//if(self){}
-	return self;
+    self = [super init];
+    //if(self){}
+    return self;
 }
 
 -(void) on_device_unmount: (NSNotification*) notification
@@ -44,15 +44,15 @@ static void unmount_callback(DADiskRef disk, DADissenterRef dissenter, void *con
 {
     // DEPRICATED:
     //NSArray* devices = [[NSWorkspace sharedWorkspace] mountedRemovableMedia];
-	//return devices;
-    
+    //return devices;
+
     NSArray *mountedRemovableMedia = [[NSFileManager defaultManager] mountedVolumeURLsIncludingResourceValuesForKeys:nil options:NSVolumeEnumerationSkipHiddenVolumes];
     NSMutableArray *result = [NSMutableArray array];
     for(NSURL *volURL in mountedRemovableMedia)
     {
         int                 err = 0;
         DADiskRef           disk;
-        CFDictionaryRef     descDict = nullptr;        
+        CFDictionaryRef     descDict = nullptr;
         DASessionRef        session = DASessionCreate(nullptr);
         if (session == nullptr)
             err = EINVAL;
@@ -70,7 +70,7 @@ static void unmount_callback(DADiskRef disk, DADissenterRef dissenter, void *con
             CFTypeRef mediaEjectableKey = CFDictionaryGetValue(descDict,kDADiskDescriptionMediaEjectableKey);
             BOOL ejectable = [(id)mediaEjectableKey boolValue];
             CFTypeRef deviceProtocolName = CFDictionaryGetValue(descDict,kDADiskDescriptionDeviceProtocolKey);
-            
+
             CFTypeRef deviceModelKey = CFDictionaryGetValue(descDict, kDADiskDescriptionDeviceModelKey);
             //debug logging
             /*
@@ -80,8 +80,8 @@ static void unmount_callback(DADiskRef disk, DADissenterRef dissenter, void *con
                 NSLog(@"-%@",(CFStringRef)deviceModelKey);
             */
             if (mediaEjectableKey != nullptr) {
-                BOOL op = ejectable && 
-                    ( (deviceProtocolName != nullptr && (CFEqual(deviceProtocolName, CFSTR("USB")) || CFEqual(deviceProtocolName, CFSTR("Secure Digital")))) || 
+                BOOL op = ejectable &&
+                    ( (deviceProtocolName != nullptr && (CFEqual(deviceProtocolName, CFSTR("USB")) || CFEqual(deviceProtocolName, CFSTR("Secure Digital")))) ||
                       (deviceModelKey     != nullptr && CFEqual(deviceModelKey, CFSTR("SD Card Reader"))) );
                 //!CFEqual(deviceModelKey, CFSTR("Disk Image"));
                 if (op)
@@ -123,8 +123,8 @@ void RemovableDriveManager::register_window_osx()
 {
     assert(m_impl_osx == nullptr);
     m_impl_osx = [[RemovableDriveManagerMM alloc] init];
-	if (m_impl_osx)
-		[(id)m_impl_osx add_unmount_observer];
+    if (m_impl_osx)
+        [(id)m_impl_osx add_unmount_observer];
 }
 
 void RemovableDriveManager::unregister_window_osx()
@@ -135,7 +135,7 @@ void RemovableDriveManager::unregister_window_osx()
     }
 }
 
-namespace search_for_drives_internal 
+namespace search_for_drives_internal
 {
     void inspect_file(const std::string &path, const std::string &parent_path, std::vector<DriveData> &out);
 }
@@ -144,9 +144,9 @@ void RemovableDriveManager::list_devices(std::vector<DriveData> &out) const
 {
     assert(m_impl_osx != nullptr);
     if (m_impl_osx) {
-    	NSArray* devices = [(id)m_impl_osx list_dev];
-    	for (NSString* volumePath in devices)
-        	search_for_drives_internal::inspect_file(std::string([volumePath UTF8String]), "/Volumes", out);
+        NSArray* devices = [(id)m_impl_osx list_dev];
+        for (NSString* volumePath in devices)
+            search_for_drives_internal::inspect_file(std::string([volumePath UTF8String]), "/Volumes", out);
     }
 }
 

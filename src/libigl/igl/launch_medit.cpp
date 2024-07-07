@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "launch_medit.h"
 #include "writeMESH.h"
@@ -18,14 +18,14 @@
 
 template <typename DerivedV, typename DerivedT, typename DerivedF>
 IGL_INLINE int igl::launch_medit(
-  const Eigen::PlainObjectBase<DerivedV> & V, 
+  const Eigen::PlainObjectBase<DerivedV> & V,
   const Eigen::PlainObjectBase<DerivedT> & T,
   const Eigen::PlainObjectBase<DerivedF> & F,
   const bool wait)
 {
   using namespace std;
   // Build medit command, end with & so command returns without waiting
-  stringstream command; 
+  stringstream command;
   command<<MEDIT_PATH<<" "<<TEMP_MESH_FILE<<" "<<TEMP_MEDIT_FILE;
   if(!wait)
   {
@@ -37,7 +37,7 @@ IGL_INLINE int igl::launch_medit(
     return -1;
   }
   // Write default medit options
-  const string default_medit_file_contents = 
+  const string default_medit_file_contents =
     "BackgroundColor 1 1 1\n"
     "LineColor 0 0 0\n"
     "WindowSize 1024 800\n"

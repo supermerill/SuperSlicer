@@ -221,15 +221,15 @@ UPDATE * new_update(int op, char * memtype, int filefmt, char * filename, unsign
 void free_update(UPDATE * u)
 {
     if (u != NULL) {
-	if(u->memtype != NULL) {
-	    free(u->memtype);
-	    u->memtype = NULL;
-	}
-	if(u->filename != NULL) {
-	    free(u->filename);
-	    u->filename = NULL;
-	}
-	free(u);
+    if(u->memtype != NULL) {
+        free(u->memtype);
+        u->memtype = NULL;
+    }
+    if(u->filename != NULL) {
+        free(u->filename);
+        u->filename = NULL;
+    }
+    free(u);
     }
 }
 
@@ -255,7 +255,7 @@ int do_op(PROGRAMMER * pgm, struct avrpart * p, UPDATE * upd, enum updateflags f
     if (quell_progress < 2) {
       avrdude_message(MSG_INFO, "%s: reading %s memory:\n",
             progname, mem->desc);
-	  }
+      }
     report_progress(0,1,"Reading");
     rc = avr_read(pgm, p, upd->memtype, 0);
     if (rc < 0) {
@@ -305,14 +305,14 @@ int do_op(PROGRAMMER * pgm, struct avrpart * p, UPDATE * upd, enum updateflags f
     if (quell_progress < 2) {
       avrdude_message(MSG_INFO, "%s: writing %s (%d bytes):\n",
             progname, mem->desc, size);
-	  }
+      }
 
-	//Prusa3D bootloader progress on lcd
-	if (strcmp(pgm->type, "Wiring") == 0)
-	{
-		if (pgm->set_upload_size != 0)
-			pgm->set_upload_size(pgm, size);
-	}
+    //Prusa3D bootloader progress on lcd
+    if (strcmp(pgm->type, "Wiring") == 0)
+    {
+        if (pgm->set_upload_size != 0)
+            pgm->set_upload_size(pgm, size);
+    }
 
     if (!(flags & UF_NOWRITE)) {
       report_progress(0,1,"Writing");

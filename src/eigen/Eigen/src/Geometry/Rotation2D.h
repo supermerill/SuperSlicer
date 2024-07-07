@@ -10,7 +10,7 @@
 #ifndef EIGEN_ROTATION2D_H
 #define EIGEN_ROTATION2D_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \geometry_module \ingroup Geometry_Module
   *
@@ -60,7 +60,7 @@ public:
 
   /** Construct a 2D counter clock wise rotation from the angle \a a in radian. */
   EIGEN_DEVICE_FUNC explicit inline Rotation2D(const Scalar& a) : m_angle(a) {}
-  
+
   /** Default constructor wihtout initialization. The represented rotation is undefined. */
   EIGEN_DEVICE_FUNC Rotation2D() {}
 
@@ -79,13 +79,13 @@ public:
 
   /** \returns a read-write reference to the rotation angle */
   EIGEN_DEVICE_FUNC inline Scalar& angle() { return m_angle; }
-  
+
   /** \returns the rotation angle in [0,2pi] */
   EIGEN_DEVICE_FUNC inline Scalar smallestPositiveAngle() const {
     Scalar tmp = numext::fmod(m_angle,Scalar(2*EIGEN_PI));
     return tmp<Scalar(0) ? tmp + Scalar(2*EIGEN_PI) : tmp;
   }
-  
+
   /** \returns the rotation angle in [-pi,pi] */
   EIGEN_DEVICE_FUNC inline Scalar smallestAngle() const {
     Scalar tmp = numext::fmod(m_angle,Scalar(2*EIGEN_PI));
@@ -108,7 +108,7 @@ public:
   /** Applies the rotation to a 2D vector */
   EIGEN_DEVICE_FUNC Vector2 operator* (const Vector2& vec) const
   { return toRotationMatrix() * vec; }
-  
+
   template<typename Derived>
   EIGEN_DEVICE_FUNC Rotation2D& fromRotationMatrix(const MatrixBase<Derived>& m);
   EIGEN_DEVICE_FUNC Matrix2 toRotationMatrix() const;
@@ -157,7 +157,7 @@ public:
     * \sa MatrixBase::isApprox() */
   EIGEN_DEVICE_FUNC bool isApprox(const Rotation2D& other, const typename NumTraits<Scalar>::Real& prec = NumTraits<Scalar>::dummy_precision()) const
   { return internal::isApprox(m_angle,other.m_angle, prec); }
-  
+
 };
 
 /** \ingroup Geometry_Module

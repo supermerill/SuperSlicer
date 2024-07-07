@@ -101,7 +101,7 @@ static void convertUniToAscii(char *buffer)
 }
 
 static int usbOpenDevice(union filedescriptor *fdp, int vendor, char *vendorName,
-			 int product, char *productName, int usesReportIDs)
+             int product, char *productName, int usesReportIDs)
 {
     GUID                                hidGuid;        /* GUID for HID driver */
     HDEVINFO                            deviceInfoList;
@@ -115,7 +115,7 @@ static int usbOpenDevice(union filedescriptor *fdp, int vendor, char *vendorName
 
     HidD_GetHidGuid(&hidGuid);
     deviceInfoList = SetupDiGetClassDevs(&hidGuid, NULL, NULL,
-					 DIGCF_PRESENT | DIGCF_INTERFACEDEVICE);
+                     DIGCF_PRESENT | DIGCF_INTERFACEDEVICE);
     deviceInfo.cbSize = sizeof(deviceInfo);
     for(i=0;;i++){
         if(handle != INVALID_HANDLE_VALUE){
@@ -132,12 +132,12 @@ static int usbOpenDevice(union filedescriptor *fdp, int vendor, char *vendorName
         deviceDetails->cbSize = sizeof(*deviceDetails);
         /* this call is for real: */
         SetupDiGetDeviceInterfaceDetail(deviceInfoList, &deviceInfo, deviceDetails,
-					size, &size, NULL);
+                    size, &size, NULL);
         DEBUG_PRINT(("checking HID path \"%s\"\n", deviceDetails->DevicePath));
         /* attempt opening for R/W -- we don't care about devices which can't be accessed */
         handle = CreateFile(deviceDetails->DevicePath, GENERIC_READ|GENERIC_WRITE,
-			    FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
-			    openFlag, NULL);
+                FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
+                openFlag, NULL);
         if(handle == INVALID_HANDLE_VALUE){
             DEBUG_PRINT(("opening failed: %d\n", (int)GetLastError()));
             /* errorCode = USB_ERROR_ACCESS; opening will always fail for mouse -- ignore */
@@ -146,7 +146,7 @@ static int usbOpenDevice(union filedescriptor *fdp, int vendor, char *vendorName
         deviceAttributes.Size = sizeof(deviceAttributes);
         HidD_GetAttributes(handle, &deviceAttributes);
         DEBUG_PRINT(("device attributes: vid=%d pid=%d\n",
-		     deviceAttributes.VendorID, deviceAttributes.ProductID));
+             deviceAttributes.VendorID, deviceAttributes.ProductID));
         if(deviceAttributes.VendorID != vendor || deviceAttributes.ProductID != product)
             continue;   /* ignore this device */
         errorCode = USB_ERROR_NOTFOUND;
@@ -177,8 +177,8 @@ static int usbOpenDevice(union filedescriptor *fdp, int vendor, char *vendorName
     if(deviceDetails != NULL)
         free(deviceDetails);
     if(handle != INVALID_HANDLE_VALUE){
-	fdp->pfd = (void *)handle;
-	errorCode = 0;
+    fdp->pfd = (void *)handle;
+    errorCode = 0;
     }
     return errorCode;
 }
@@ -214,7 +214,7 @@ static int usbSetReport(union filedescriptor *fdp, int reportType, char *buffer,
 /* ------------------------------------------------------------------------ */
 
 static int usbGetReport(union filedescriptor *fdp, int reportType, int reportNumber,
-			char *buffer, int *len)
+            char *buffer, int *len)
 {
     HANDLE  handle = (HANDLE)fdp->pfd;
     BOOLEAN rval = 0;
@@ -270,8 +270,8 @@ static int  usbGetStringAscii(usb_dev_handle *dev, int index, int langid, char *
     int     rval, i;
 
     if((rval = usb_control_msg(dev, USB_ENDPOINT_IN, USB_REQ_GET_DESCRIPTOR,
-			       (USB_DT_STRING << 8) + index, langid, buffer,
-			       sizeof(buffer), 1000)) < 0)
+                   (USB_DT_STRING << 8) + index, langid, buffer,
+                   sizeof(buffer), 1000)) < 0)
         return rval;
     if(buffer[1] != USB_DT_STRING)
         return 0;
@@ -291,7 +291,7 @@ static int  usbGetStringAscii(usb_dev_handle *dev, int index, int langid, char *
 }
 
 static int usbOpenDevice(union filedescriptor *fdp, int vendor, char *vendorName,
-			 int product, char *productName, int doReportIDs)
+             int product, char *productName, int doReportIDs)
 {
     struct usb_bus      *bus;
     struct usb_device   *dev;
@@ -314,7 +314,7 @@ static int usbOpenDevice(union filedescriptor *fdp, int vendor, char *vendorName
                 if(!handle){
                     errorCode = USB_ERROR_ACCESS;
                     avrdude_message(MSG_INFO, "Warning: cannot open USB device: %s\n",
-			    usb_strerror());
+                usb_strerror());
                     continue;
                 }
                 if(vendorName == NULL && productName == NULL){  /* name does not matter */
@@ -322,7 +322,7 @@ static int usbOpenDevice(union filedescriptor *fdp, int vendor, char *vendorName
                 }
                 /* now check whether the names match: */
                 len = usbGetStringAscii(handle, dev->descriptor.iManufacturer,
-					0x0409, string, sizeof(string));
+                    0x0409, string, sizeof(string));
                 if(len < 0){
                     errorCode = USB_ERROR_IO;
                     avrdude_message(MSG_INFO, "Warning: cannot query manufacturer for device: %s\n",
@@ -332,7 +332,7 @@ static int usbOpenDevice(union filedescriptor *fdp, int vendor, char *vendorName
                     /* avrdude_message(MSG_INFO, "seen device from vendor ->%s<-\n", string); */
                     if(strcmp(string, vendorName) == 0){
                         len = usbGetStringAscii(handle, dev->descriptor.iProduct,
-						0x0409, string, sizeof(string));
+                        0x0409, string, sizeof(string));
                         if(len < 0){
                             errorCode = USB_ERROR_IO;
                             avrdude_message(MSG_INFO, "Warning: cannot query product for device: %s\n",
@@ -356,7 +356,7 @@ static int usbOpenDevice(union filedescriptor *fdp, int vendor, char *vendorName
         int rval, retries = 3;
         if(usb_set_configuration(handle, 1)){
             avrdude_message(MSG_INFO, "Warning: could not set configuration: %s\n",
-		    usb_strerror());
+            usb_strerror());
         }
         /* now try to claim the interface and detach the kernel HID driver on
          * linux and other operating systems which support the call.
@@ -365,7 +365,7 @@ static int usbOpenDevice(union filedescriptor *fdp, int vendor, char *vendorName
 #ifdef LIBUSB_HAS_DETACH_KERNEL_DRIVER_NP
             if(usb_detach_kernel_driver_np(handle, 0) < 0){
                 avrdude_message(MSG_INFO, "Warning: could not detach kernel HID driver: %s\n",
-			usb_strerror());
+            usb_strerror());
             }
 #endif
         }
@@ -399,8 +399,8 @@ static int usbSetReport(union filedescriptor *fdp, int reportType, char *buffer,
         len--;
     }
     bytesSent = usb_control_msg((usb_dev_handle *)fdp->pfd, USB_TYPE_CLASS |
-				USB_RECIP_INTERFACE | USB_ENDPOINT_OUT, USBRQ_HID_SET_REPORT,
-				reportType << 8 | buffer[0], 0, buffer, len, 5000);
+                USB_RECIP_INTERFACE | USB_ENDPOINT_OUT, USBRQ_HID_SET_REPORT,
+                reportType << 8 | buffer[0], 0, buffer, len, 5000);
     if(bytesSent != len){
         if(bytesSent < 0)
             avrdude_message(MSG_INFO, "Error sending message: %s\n", usb_strerror());
@@ -412,7 +412,7 @@ static int usbSetReport(union filedescriptor *fdp, int reportType, char *buffer,
 /* ------------------------------------------------------------------------- */
 
 static int usbGetReport(union filedescriptor *fdp, int reportType, int reportNumber,
-			char *buffer, int *len)
+            char *buffer, int *len)
 {
     int bytesReceived, maxLen = *len;
 
@@ -421,8 +421,8 @@ static int usbGetReport(union filedescriptor *fdp, int reportType, int reportNum
         maxLen--;
     }
     bytesReceived = usb_control_msg((usb_dev_handle *)fdp->pfd, USB_TYPE_CLASS |
-				    USB_RECIP_INTERFACE | USB_ENDPOINT_IN, USBRQ_HID_GET_REPORT,
-				    reportType << 8 | reportNumber, 0, buffer, maxLen, 5000);
+                    USB_RECIP_INTERFACE | USB_ENDPOINT_IN, USBRQ_HID_GET_REPORT,
+                    reportType << 8 | reportNumber, 0, buffer, maxLen, 5000);
     if(bytesReceived < 0){
         avrdude_message(MSG_INFO, "Error sending message: %s\n", usb_strerror());
         return USB_ERROR_IO;
@@ -550,13 +550,13 @@ static int avrdoper_send(union filedescriptor *fdp, const unsigned char *buf, si
         unsigned char buffer[256];
         int rval, lenIndex = chooseDataSize(buflen);
         int thisLen = buflen > reportDataSizes[lenIndex] ?
-	    reportDataSizes[lenIndex] : buflen;
+        reportDataSizes[lenIndex] : buflen;
         buffer[0] = lenIndex + 1;   /* report ID */
         buffer[1] = thisLen;
         memcpy(buffer + 2, buf, thisLen);
         avrdude_message(MSG_TRACE, "Sending %d bytes data chunk\n", thisLen);
         rval = usbSetReport(fdp, USB_HID_REPORT_TYPE_FEATURE, (char *)buffer,
-			    reportDataSizes[lenIndex] + 2);
+                reportDataSizes[lenIndex] + 2);
         if(rval != 0){
             avrdude_message(MSG_INFO, "%s: avrdoper_send(): %s\n", progname, usbErrorText(rval));
             return -1;
@@ -582,7 +582,7 @@ static int avrdoperFillBuffer(union filedescriptor *fdp)
             break;
         len = reportDataSizes[lenIndex] + 2;
         usbErr = usbGetReport(fdp, USB_HID_REPORT_TYPE_FEATURE, lenIndex + 1,
-			      (char *)buffer, &len);
+                  (char *)buffer, &len);
         if(usbErr != 0){
             avrdude_message(MSG_INFO, "%s: avrdoperFillBuffer(): %s\n", progname, usbErrorText(usbErr));
             return -1;
@@ -641,7 +641,7 @@ static int avrdoper_drain(union filedescriptor *fdp, int display)
 
 static int avrdoper_set_dtr_rts(union filedescriptor *fdp, int is_on)
 {
-	avrdude_message(MSG_INFO, "%s: AVR-Doper doesn't support DTR/RTS setting\n", progname);
+    avrdude_message(MSG_INFO, "%s: AVR-Doper doesn't support DTR/RTS setting\n", progname);
     return -1;
 }
 

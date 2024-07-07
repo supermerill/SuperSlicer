@@ -41,7 +41,7 @@ namespace igl
       const EmbreeIntersector & ei,
       int& fid,
       Eigen::Vector3f& bc);
-    
+
     // Unproject a screen location (using the given model, proj and viewport) to find
     // the first face on the mesh and the closest vertex
     //

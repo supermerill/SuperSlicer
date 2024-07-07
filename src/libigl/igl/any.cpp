@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "any.h"
 #include "redux.h"
@@ -11,7 +11,7 @@
 
 template <typename AType, typename DerivedB>
 IGL_INLINE void igl::any(
-  const Eigen::SparseMatrix<AType> & A, 
+  const Eigen::SparseMatrix<AType> & A,
   const int dim,
   Eigen::PlainObjectBase<DerivedB>& B)
 {

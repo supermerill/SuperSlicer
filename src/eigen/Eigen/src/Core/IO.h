@@ -11,7 +11,7 @@
 #ifndef EIGEN_IO_H
 #define EIGEN_IO_H
 
-namespace Eigen { 
+namespace Eigen {
 
 enum { DontAlignCols = 1 };
 enum { StreamPrecision = -1,
@@ -133,7 +133,7 @@ std::ostream & print_matrix(std::ostream & s, const Derived& _m, const IOFormat&
     s << fmt.matPrefix << fmt.matSuffix;
     return s;
   }
-  
+
   typename Derived::Nested m = _m;
   typedef typename Derived::Scalar Scalar;
 

@@ -10,10 +10,10 @@
 #include <Eigen/Core>
 
 template <
-  typename DerivedP, 
-  typename DerivedS, 
-  typename DerivedD, 
-  typename Derivedt, 
+  typename DerivedP,
+  typename DerivedS,
+  typename DerivedD,
+  typename Derivedt,
   typename DerivedsqrD>
 IGL_INLINE void igl::project_to_line(
   const Eigen::MatrixBase<DerivedP> & P,

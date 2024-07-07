@@ -32,7 +32,7 @@ protected:
                               Polylines &polylines_out) const override;
 
     // Let the G-code export reoder the infill lines.
-	bool no_sort() const override { return false; }
+    bool no_sort() const override { return false; }
 };
 
 } // namespace FillAdaptive

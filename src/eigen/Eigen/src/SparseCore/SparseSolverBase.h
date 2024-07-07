@@ -10,7 +10,7 @@
 #ifndef EIGEN_SPARSESOLVERBASE_H
 #define EIGEN_SPARSESOLVERBASE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -29,7 +29,7 @@ solve_sparse_through_dense_panels(const Decomposition &dec, const Rhs& rhs, Dest
   Index rhsCols = rhs.cols();
   Index size = rhs.rows();
   // the temporary matrices do not need more columns than NbColsAtOnce:
-  Index tmpCols = (std::min)(rhsCols, NbColsAtOnce); 
+  Index tmpCols = (std::min)(rhsCols, NbColsAtOnce);
   Eigen::Matrix<DestScalar,Dynamic,Dynamic> tmp(size,tmpCols);
   Eigen::Matrix<DestScalar,Dynamic,Dynamic> tmpX(size,tmpCols);
   for(Index k=0; k<rhsCols; k+=NbColsAtOnce)
@@ -78,7 +78,7 @@ class SparseSolverBase : internal::noncopyable
 
     Derived& derived() { return *static_cast<Derived*>(this); }
     const Derived& derived() const { return *static_cast<const Derived*>(this); }
-    
+
     /** \returns an expression of the solution x of \f$ A x = b \f$ using the current decomposition of A.
       *
       * \sa compute()
@@ -91,7 +91,7 @@ class SparseSolverBase : internal::noncopyable
       eigen_assert(derived().rows()==b.rows() && "solve(): invalid number of rows of the right hand side matrix b");
       return Solve<Derived, Rhs>(derived(), b.derived());
     }
-    
+
     /** \returns an expression of the solution x of \f$ A x = b \f$ using the current decomposition of A.
       *
       * \sa compute()
@@ -104,7 +104,7 @@ class SparseSolverBase : internal::noncopyable
       eigen_assert(derived().rows()==b.rows() && "solve(): invalid number of rows of the right hand side matrix b");
       return Solve<Derived, Rhs>(derived(), b.derived());
     }
-    
+
     #ifndef EIGEN_PARSED_BY_DOXYGEN
     /** \internal default implementation of solving with a sparse rhs */
     template<typename Rhs,typename Dest>
@@ -115,7 +115,7 @@ class SparseSolverBase : internal::noncopyable
     #endif // EIGEN_PARSED_BY_DOXYGEN
 
   protected:
-    
+
     mutable bool m_isInitialized;
 };
 

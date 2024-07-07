@@ -16,7 +16,7 @@
 namespace Slic3r::Arachne {
 
 /*! \brief Sparse grid which can locate spatially nearby elements efficiently.
- * 
+ *
  * \note This is an abstract template class which doesn't have any functions to insert elements.
  * \see SparsePointGrid
  *

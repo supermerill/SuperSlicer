@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "draw_point.h"
 
@@ -51,7 +51,7 @@ IGL_INLINE void igl::opengl2::draw_point(
   glBegin(GL_POINTS);
   glVertex3d(x,y,z);
   glEnd();
-  
+
   // Foreground
   glColor4fv(color);
   glPointSize(2*r-4*outline_size);
@@ -95,6 +95,6 @@ IGL_INLINE void igl::opengl2::draw_point(
 #ifdef IGL_STATIC_LIBRARY
 // Explicit template instantiation
 template void igl::opengl2::draw_point<Eigen::Matrix<double, 3, 1, 0, 3, 1> >(Eigen::PlainObjectBase<Eigen::Matrix<double, 3, 1, 0, 3, 1> > const&, double, bool);
-template void igl::opengl2::draw_point<Eigen::Matrix<double, 2, 1, 0, 2, 1> >(Eigen::PlainObjectBase<Eigen::Matrix<double, 2, 1, 0, 2, 1> > const&, double, bool); 
+template void igl::opengl2::draw_point<Eigen::Matrix<double, 2, 1, 0, 2, 1> >(Eigen::PlainObjectBase<Eigen::Matrix<double, 2, 1, 0, 2, 1> > const&, double, bool);
 #endif
 

@@ -70,24 +70,24 @@ int32_t Point::nearest_point_index(const PointConstPtrs &points) const
 {
     int32_t idx = -1;
     double distance = -1;  // double because long is limited to 2147483647 on some platforms and it's not enough
-    
+
     for (PointConstPtrs::const_iterator it = points.begin(); it != points.end(); ++it) {
         /* If the X distance of the candidate is > than the total distance of the
            best previous candidate, we know we don't want it */
         double d = sqr<double>(double((*this).x() - (*it)->x()));
         if (distance != -1 && d > distance) continue;
-        
+
         /* If the Y distance of the candidate is > than the total distance of the
            best previous candidate, we know we don't want it */
         d += sqr<double>(double((*this).y() - (*it)->y()));
         if (distance != -1 && d > distance) continue;
-        
+
         idx = (int32_t)(it - points.begin());
         distance = d;
-        
+
         if (distance < EPSILON) break;
     }
-    
+
     return idx;
 }
 
@@ -101,7 +101,7 @@ Point::distance_to(const Line &line) const {
     if (l2 == 0.0) return this->distance_to(line.a);   // line.a == line.b case
 
     // Consider the line extending the segment, parameterized as line.a + t (line.b - line.a).
-    // We find projection of this point onto the line. 
+    // We find projection of this point onto the line.
     // It falls where t = [(this-line.a) . (line.b-line.a)] / |line.b-line.a|^2
     const double t = ((this->x() - line.a.x()) * dx + (this->y() - line.a.y()) * dy) / l2;
     if (t < 0.0)      return this->distance_to(line.a);  // beyond the 'a' end of the segment
@@ -165,13 +165,13 @@ Point Point::projection_onto(const MultiPoint &poly) const
 {
     Point running_projection = poly.first_point();
     double running_min = (running_projection - *this).cast<double>().norm();
-    
+
     Lines lines = poly.lines();
     for (Lines::const_iterator line = lines.begin(); line != lines.end(); ++line) {
         Point point_temp = this->projection_onto(*line);
         if ((point_temp - *this).cast<double>().norm() < running_min) {
-	        running_projection = point_temp;
-	        running_min = (running_projection - *this).cast<double>().norm();
+            running_projection = point_temp;
+            running_min = (running_projection - *this).cast<double>().norm();
         }
     }
     return running_projection;
@@ -180,7 +180,7 @@ Point Point::projection_onto(const MultiPoint &poly) const
 Point Point::projection_onto(const Line &line) const
 {
     if (line.a == line.b) return line.a;
-    
+
     /*
         (Ported from VisiLibity by Karl J. Obermeyer)
         The projection of point_temp onto the line determined by
@@ -192,12 +192,12 @@ Point Point::projection_onto(const Line &line) const
     */
     double lx = (double)(line.b(0) - line.a(0));
     double ly = (double)(line.b(1) - line.a(1));
-    double theta = ( (double)(line.b(0) - (*this)(0))*lx + (double)(line.b(1)- (*this)(1))*ly ) 
+    double theta = ( (double)(line.b(0) - (*this)(0))*lx + (double)(line.b(1)- (*this)(1))*ly )
           / ( sqr<double>(lx) + sqr<double>(ly) );
-    
+
     if (0.0 <= theta && theta <= 1.0)
         return (theta * line.a.cast<coordf_t>() + (1.0-theta) * line.b.cast<coordf_t>()).cast<coord_t>();
-    
+
     // Else pick closest endpoint.
     return ((line.a - *this).cast<double>().squaredNorm() < (line.b - *this).cast<double>().squaredNorm()) ? line.a : line.b;
 }
@@ -212,7 +212,7 @@ bool has_duplicate_points(std::vector<Point> &&pts)
 }
 
 BoundingBox get_extents(const Points &pts)
-{ 
+{
     return BoundingBox(pts);
 }
 

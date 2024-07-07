@@ -55,14 +55,14 @@ void glAssertRecentCallImpl(const char* file_name, unsigned int line, const char
     switch (err) {
     case GL_INVALID_ENUM:       sErr = "Invalid Enum";      break;
     case GL_INVALID_VALUE:      sErr = "Invalid Value";     break;
-    // be aware that GL_INVALID_OPERATION is generated if glGetError is executed between the execution of glBegin and the corresponding execution of glEnd 
+    // be aware that GL_INVALID_OPERATION is generated if glGetError is executed between the execution of glBegin and the corresponding execution of glEnd
     case GL_INVALID_OPERATION:  sErr = "Invalid Operation"; break;
     case GL_STACK_OVERFLOW:     sErr = "Stack Overflow";    break;
     case GL_STACK_UNDERFLOW:    sErr = "Stack Underflow";   break;
     case GL_OUT_OF_MEMORY:      sErr = "Out Of Memory";     break;
     default:                    sErr = "Unknown";           break;
     }
-	BOOST_LOG_TRIVIAL(error) << "OpenGL error in " << file_name << ":" << line << ", function " << function_name << "() : " << (int)err << " - " << sErr;
+    BOOST_LOG_TRIVIAL(error) << "OpenGL error in " << file_name << ":" << line << ", function " << function_name << "() : " << (int)err << " - " << sErr;
     assert(false);
 }
 #endif // HAS_GLSAFE
@@ -176,11 +176,11 @@ void GLIndexedVertexArray::finalize_geometry(bool opengl_initialized)
     assert(this->triangle_indices_VBO_id == 0);
     assert(this->quad_indices_VBO_id == 0);
 
-	if (! opengl_initialized) {
-		// Shrink the data vectors to conserve memory in case the data cannot be transfered to the OpenGL driver yet.
-		this->shrink_to_fit();
-		return;
-	}
+    if (! opengl_initialized) {
+        // Shrink the data vectors to conserve memory in case the data cannot be transfered to the OpenGL driver yet.
+        this->shrink_to_fit();
+        return;
+    }
 
     if (! this->vertices_and_normals_interleaved.empty()) {
         glsafe(::glGenBuffers(1, &this->vertices_and_normals_interleaved_VBO_id));
@@ -290,7 +290,7 @@ void GLIndexedVertexArray::render(
 
     glsafe(::glDisableClientState(GL_VERTEX_ARRAY));
     glsafe(::glDisableClientState(GL_NORMAL_ARRAY));
-    
+
     glsafe(::glBindBuffer(GL_ARRAY_BUFFER, 0));
 }
 
@@ -353,7 +353,7 @@ void GLVolume::SinkingContours::update()
 const std::array<float, 4> GLVolume::SELECTED_COLOR = { 0.0f, 1.0f, 0.0f, 1.0f };
 const std::array<float, 4> GLVolume::HOVER_SELECT_COLOR = { 0.4f, 0.9f, 0.1f, 1.0f };
 const std::array<float, 4> GLVolume::HOVER_DESELECT_COLOR = { 1.0f, 0.75f, 0.75f, 1.0f };
-const std::array<float, 4> GLVolume::OUTSIDE_COLOR = { 0.867f, 0.173f, 0.0f, 1.0f }; //dark red	and not { 0.0f, 0.38f, 0.8f, 1.0f };
+const std::array<float, 4> GLVolume::OUTSIDE_COLOR = { 0.867f, 0.173f, 0.0f, 1.0f }; //dark red    and not { 0.0f, 0.38f, 0.8f, 1.0f };
 const std::array<float, 4> GLVolume::SELECTED_OUTSIDE_COLOR = { 1.0f, 0.239f, 0.0f, 1.0f }; //red and not { 0.19f, 0.58f, 1.0f, 1.0f };
 const std::array<float, 4> GLVolume::DISABLED_COLOR = { 0.25f, 0.25f, 0.25f, 1.0f };
 const std::array<float, 4> GLVolume::SLA_SUPPORT_COLOR = { 0.75f, 0.75f, 0.75f, 1.0f };
@@ -516,8 +516,8 @@ const BoundingBoxf3& GLVolume::transformed_convex_hull_bounding_box() const
 
 BoundingBoxf3 GLVolume::transformed_convex_hull_bounding_box(const Transform3d &trafo) const
 {
-	return (m_convex_hull && ! m_convex_hull->empty()) ?
-		m_convex_hull->transformed_bounding_box(trafo) :
+    return (m_convex_hull && ! m_convex_hull->empty()) ?
+        m_convex_hull->transformed_bounding_box(trafo) :
         bounding_box().transformed(trafo);
 }
 
@@ -615,7 +615,7 @@ std::vector<int> GLVolumeCollection::load_object(
     int                      obj_idx,
     const std::vector<int>  &instance_idxs,
     const std::string       &color_by,
-    bool 					 opengl_initialized)
+    bool                      opengl_initialized)
 {
     std::vector<int> volumes_idx;
     for (int volume_idx = 0; volume_idx < int(model_object->volumes.size()); ++volume_idx)
@@ -630,12 +630,12 @@ int GLVolumeCollection::load_object_volume(
     int                  volume_idx,
     int                  instance_idx,
     const std::string   &color_by,
-    bool 				 opengl_initialized)
+    bool                  opengl_initialized)
 {
     const ModelVolume   *model_volume = model_object->volumes[volume_idx];
     const int            extruder_id  = model_volume->extruder_id();
-    const ModelInstance *instance 	  = model_object->instances[instance_idx];
-    const TriangleMesh  &mesh 		  = model_volume->mesh();
+    const ModelInstance *instance       = model_object->instances[instance_idx];
+    const TriangleMesh  &mesh           = model_volume->mesh();
     std::array<float, 4> color = GLVolume::MODEL_COLOR[((color_by == "volume") ? volume_idx : obj_idx) % 4];
     color[3] = model_volume->is_model_part() ? 1.f : 0.5f;
     this->volumes.emplace_back(new GLVolume(color));
@@ -667,14 +667,14 @@ int GLVolumeCollection::load_object_volume(
 // This function produces volumes for multiple instances in a single shot,
 // as some object specific mesh conversions may be expensive.
 void GLVolumeCollection::load_object_auxiliary(
-    const SLAPrintObject 		   *print_object,
+    const SLAPrintObject            *print_object,
     int                             obj_idx,
     // pairs of <instance_idx, print_instance_idx>
     const std::vector<std::pair<size_t, size_t>>& instances,
     SLAPrintObjectStep              milestone,
     // Timestamp of the last change of the milestone
     size_t                          timestamp,
-    bool 				 			opengl_initialized)
+    bool                              opengl_initialized)
 {
     assert(print_object->is_step_done(milestone));
     Transform3d  mesh_trafo_inv = print_object->trafo().inverse();
@@ -692,7 +692,7 @@ void GLVolumeCollection::load_object_auxiliary(
 #else
         v.indexed_vertex_array.load_mesh(mesh);
 #endif // ENABLE_SMOOTH_NORMALS
-	    v.indexed_vertex_array.finalize_geometry(opengl_initialized);
+        v.indexed_vertex_array.finalize_geometry(opengl_initialized);
         v.composite_id = GLVolume::CompositeID(obj_idx, -int(milestone), (int)instance_idx.first);
         v.geometry_id = std::pair<size_t, size_t>(timestamp, model_instance.id().id);
         // Create a copy of the convex hull mesh for each instance. Use a move operator on the last instance.
@@ -733,7 +733,7 @@ int GLVolumeCollection::load_wipe_tower_preview(
         // are shifted so that the front edge has y=0 and centerline of the back edge has y=depth:
         float out_points_idx[][3] = { { 0, -depth, 0 }, { 0, 0, 0 }, { 38.453f, 0, 0 }, { 61.547f, 0, 0 }, { 100.0f, 0, 0 }, { 100.0f, -depth, 0 }, { 55.7735f, -10.0f, 0 }, { 44.2265f, 10.0f, 0 },
         { 38.453f, 0, 1 }, { 0, 0, 1 }, { 0, -depth, 1 }, { 100.0f, -depth, 1 }, { 100.0f, 0, 1 }, { 61.547f, 0, 1 }, { 55.7735f, -10.0f, 1 }, { 44.2265f, 10.0f, 1 } };
-        static constexpr const int out_facets_idx[][3] = { 
+        static constexpr const int out_facets_idx[][3] = {
             { 0, 1, 2 }, { 3, 4, 5 }, { 6, 5, 0 }, { 3, 5, 6 }, { 6, 2, 7 }, { 6, 0, 2 }, { 8, 9, 10 }, { 11, 12, 13 }, { 10, 11, 14 }, { 14, 11, 13 }, { 15, 8, 14 },
             { 8, 10, 14 }, { 3, 12, 4 }, { 3, 13, 12 }, { 6, 13, 3 }, { 6, 14, 13 }, { 7, 14, 6 }, { 7, 15, 14 }, { 2, 15, 7 }, { 2, 8, 15 }, { 1, 8, 2 }, { 1, 9, 8 },
             { 0, 9, 1 }, { 0, 10, 9 }, { 5, 10, 0 }, { 5, 11, 10 }, { 4, 11, 5 }, { 4, 12, 11 } };
@@ -782,19 +782,19 @@ int GLVolumeCollection::load_wipe_tower_preview(
 
 GLVolume* GLVolumeCollection::new_toolpath_volume(const std::array<float, 4>& rgba, size_t reserve_vbo_floats)
 {
-	GLVolume *out = new_nontoolpath_volume(rgba, reserve_vbo_floats);
-	out->is_extrusion_path = true;
-	return out;
+    GLVolume *out = new_nontoolpath_volume(rgba, reserve_vbo_floats);
+    out->is_extrusion_path = true;
+    return out;
 }
 
 GLVolume* GLVolumeCollection::new_nontoolpath_volume(const std::array<float, 4>& rgba, size_t reserve_vbo_floats)
 {
-	GLVolume *out = new GLVolume(rgba);
-	out->is_extrusion_path = false;
-	// Reserving number of vertices (3x position + 3x color)
-	out->indexed_vertex_array.reserve(reserve_vbo_floats / 6);
-	this->volumes.emplace_back(out);
-	return out;
+    GLVolume *out = new GLVolume(rgba);
+    out->is_extrusion_path = false;
+    // Reserving number of vertices (3x position + 3x color)
+    out->indexed_vertex_array.reserve(reserve_vbo_floats / 6);
+    this->volumes.emplace_back(out);
+    return out;
 }
 
 GLVolumeWithIdAndZList volumes_to_render(const GLVolumePtrs& volumes, GLVolumeCollection::ERenderType type, const Transform3d& view_matrix, std::function<bool(const GLVolume&)> filter_func)
@@ -932,7 +932,7 @@ bool GLVolumeCollection::check_outside_state(const BuildVolume &build_volume, Mo
     auto                volume_sinking     = [](GLVolume& volume) -> bool
         { return volume.object_idx() != -1 && volume.volume_idx() != -1 && volume.is_sinking(); };
     // Cached bounding box of a volume above the print bed.
-    auto                volume_bbox        = [volume_sinking](GLVolume& volume) -> BoundingBoxf3 
+    auto                volume_bbox        = [volume_sinking](GLVolume& volume) -> BoundingBoxf3
         { return volume_sinking(volume) ? volume.transformed_non_sinking_bounding_box() : volume.transformed_convex_hull_bounding_box(); };
     // Cached 3D convex hull of a volume above the print bed.
     auto                volume_convex_mesh = [volume_sinking, &model](GLVolume& volume) -> const TriangleMesh&
@@ -1020,17 +1020,17 @@ void GLVolumeCollection::update_colors_by_extruder(const DynamicPrintConfig* con
     unsigned char rgb[3];
     std::vector<Color> colors;
 
-    if (static_cast<PrinterTechnology>(config->opt_int("printer_technology")) == ptSLA) 
+    if (static_cast<PrinterTechnology>(config->opt_int("printer_technology")) == ptSLA)
     {
-        const std::string& txt_color = config->opt_string("material_colour").empty() ? 
-                                       print_config_def.get("material_colour")->get_default_value<ConfigOptionString>()->value : 
+        const std::string& txt_color = config->opt_string("material_colour").empty() ?
+                                       print_config_def.get("material_colour")->get_default_value<ConfigOptionString>()->value :
                                        config->opt_string("material_colour");
         if (Slic3r::GUI::BitmapCache::parse_color(txt_color, rgb)) {
             colors.resize(1);
             colors[0].set(txt_color, rgb);
         }
     }
-    else 
+    else
     {
         const ConfigOptionStrings* extruders_opt = dynamic_cast<const ConfigOptionStrings*>(config->option("extruder_colour"));
         if (extruders_opt == nullptr)
@@ -1101,32 +1101,32 @@ std::vector<double> GLVolumeCollection::get_current_print_zs(bool active_only) c
     return print_zs;
 }
 
-size_t GLVolumeCollection::cpu_memory_used() const 
+size_t GLVolumeCollection::cpu_memory_used() const
 {
-	size_t memsize = sizeof(*this) + this->volumes.capacity() * sizeof(GLVolume);
-	for (const GLVolume *volume : this->volumes)
-		memsize += volume->cpu_memory_used();
-	return memsize;
+    size_t memsize = sizeof(*this) + this->volumes.capacity() * sizeof(GLVolume);
+    for (const GLVolume *volume : this->volumes)
+        memsize += volume->cpu_memory_used();
+    return memsize;
 }
 
-size_t GLVolumeCollection::gpu_memory_used() const 
+size_t GLVolumeCollection::gpu_memory_used() const
 {
-	size_t memsize = 0;
-	for (const GLVolume *volume : this->volumes)
-		memsize += volume->gpu_memory_used();
-	return memsize;
+    size_t memsize = 0;
+    for (const GLVolume *volume : this->volumes)
+        memsize += volume->gpu_memory_used();
+    return memsize;
 }
 
-std::string GLVolumeCollection::log_memory_info() const 
-{ 
-	return " (GLVolumeCollection RAM: " + format_memsize_MB(this->cpu_memory_used()) + " GPU: " + format_memsize_MB(this->gpu_memory_used()) + " Both: " + format_memsize_MB(this->gpu_memory_used()) + ")";
+std::string GLVolumeCollection::log_memory_info() const
+{
+    return " (GLVolumeCollection RAM: " + format_memsize_MB(this->cpu_memory_used()) + " GPU: " + format_memsize_MB(this->gpu_memory_used()) + " Both: " + format_memsize_MB(this->gpu_memory_used()) + ")";
 }
 
 // caller is responsible for supplying NO lines with zero length
 static void thick_lines_to_indexed_vertex_array(
-    const Lines                 &lines, 
+    const Lines                 &lines,
     const std::vector<double>   &widths,
-    const std::vector<double>   &heights, 
+    const std::vector<double>   &heights,
     bool                         closed,
     double                       top_z,
     GLIndexedVertexArray        &volume)
@@ -1201,7 +1201,7 @@ static void thick_lines_to_indexed_vertex_array(
         // Share top / bottom vertices if possible.
         if (is_first) {
             idx_a[TOP] = idx_last++;
-            volume.push_geometry(a(0), a(1), top_z   , 0., 0.,  1.); 
+            volume.push_geometry(a(0), a(1), top_z   , 0., 0.,  1.);
         } else {
             idx_a[TOP] = idx_prev[TOP];
         }
@@ -1227,9 +1227,9 @@ static void thick_lines_to_indexed_vertex_array(
         } else {
             // Continuing a previous segment.
             // Share left / right vertices if possible.
-			double v_dot    = v_prev.dot(v);
+            double v_dot    = v_prev.dot(v);
             // To reduce gpu memory usage, we try to reuse vertices
-            // To reduce the visual artifacts, due to averaged normals, we allow to reuse vertices only when any of two adjacent edges 
+            // To reduce the visual artifacts, due to averaged normals, we allow to reuse vertices only when any of two adjacent edges
             // is longer than a fixed threshold.
             // The following value is arbitrary, it comes from tests made on a bunch of models showing the visual artifacts
             double len_threshold = 2.5;
@@ -1273,7 +1273,7 @@ static void thick_lines_to_indexed_vertex_array(
                         memcpy(volume.vertices_and_normals_interleaved.data() + idx_initial[LEFT ] * 6, volume.vertices_and_normals_interleaved.data() + idx_prev[LEFT ] * 6, sizeof(float) * 6);
                         memcpy(volume.vertices_and_normals_interleaved.data() + idx_initial[RIGHT] * 6, volume.vertices_and_normals_interleaved.data() + idx_prev[RIGHT] * 6, sizeof(float) * 6);
                         volume.vertices_and_normals_interleaved.erase(volume.vertices_and_normals_interleaved.end() - 12, volume.vertices_and_normals_interleaved.end());
-                        // Replace the left / right vertex indices to point to the start of the loop. 
+                        // Replace the left / right vertex indices to point to the start of the loop.
                         for (size_t u = volume.quad_indices.size() - 16; u < volume.quad_indices.size(); ++ u) {
                             if (volume.quad_indices[u] == idx_prev[LEFT])
                                 volume.quad_indices[u] = idx_initial[LEFT];
@@ -1391,7 +1391,7 @@ static void thick_lines_to_indexed_vertex_array(const Lines3& lines,
 
         Vec3d n_top = Vec3d::Zero();
         Vec3d n_right = Vec3d::Zero();
-        
+
         if ((line.a(0) == line.b(0)) && (line.a(1) == line.b(1)))
         {
             // vertical segment
@@ -1467,7 +1467,7 @@ static void thick_lines_to_indexed_vertex_array(const Lines3& lines,
             bool is_right_turn = n_top_prev.dot(unit_v_prev.cross(unit_v)) > 0.0;
 
             // To reduce gpu memory usage, we try to reuse vertices
-            // To reduce the visual artifacts, due to averaged normals, we allow to reuse vertices only when any of two adjacent edges 
+            // To reduce the visual artifacts, due to averaged normals, we allow to reuse vertices only when any of two adjacent edges
             // is longer than a fixed threshold.
             // The following value is arbitrary, it comes from tests made on a bunch of models showing the visual artifacts
             double len_threshold = 2.5;
@@ -1510,7 +1510,7 @@ static void thick_lines_to_indexed_vertex_array(const Lines3& lines,
                     ::memcpy(volume.vertices_and_normals_interleaved.data() + idx_initial[LEFT] * 6, volume.vertices_and_normals_interleaved.data() + idx_prev[LEFT] * 6, sizeof(float) * 6);
                     ::memcpy(volume.vertices_and_normals_interleaved.data() + idx_initial[RIGHT] * 6, volume.vertices_and_normals_interleaved.data() + idx_prev[RIGHT] * 6, sizeof(float) * 6);
                     volume.vertices_and_normals_interleaved.erase(volume.vertices_and_normals_interleaved.end() - 12, volume.vertices_and_normals_interleaved.end());
-                    // Replace the left / right vertex indices to point to the start of the loop. 
+                    // Replace the left / right vertex indices to point to the start of the loop.
                     for (size_t u = volume.quad_indices.size() - 16; u < volume.quad_indices.size(); ++u)
                     {
                         if (volume.quad_indices[u] == idx_prev[LEFT])
@@ -1635,7 +1635,7 @@ static void point_to_indexed_vertex_array(const Vec3crd& point,
 void _3DScene::thick_lines_to_verts(
     const Lines                 &lines,
     const std::vector<double>   &widths,
-    const std::vector<double>   &heights, 
+    const std::vector<double>   &heights,
     bool                         closed,
     double                       top_z,
     GLVolume                    &volume)
@@ -1662,16 +1662,16 @@ static void thick_point_to_verts(const Vec3crd& point,
 
 void _3DScene::extrusionentity_to_verts(const Polyline &polyline, float width, float height, float print_z, GLVolume& volume)
 {
-	if (polyline.size() >= 2) {
-		size_t num_segments = polyline.size() - 1;
-		thick_lines_to_verts(polyline.lines(), std::vector<double>(num_segments, width), std::vector<double>(num_segments, height), false, print_z, volume);
-	}
+    if (polyline.size() >= 2) {
+        size_t num_segments = polyline.size() - 1;
+        thick_lines_to_verts(polyline.lines(), std::vector<double>(num_segments, width), std::vector<double>(num_segments, height), false, print_z, volume);
+    }
 }
 
 // Fill in the qverts and tverts with quads and triangles for the extrusion_path.
 void _3DScene::extrusionentity_to_verts(const ExtrusionPath &extrusion_path, float print_z, GLVolume &volume)
 {
-	extrusionentity_to_verts(extrusion_path.polyline.as_polyline(), extrusion_path.width, extrusion_path.height, print_z, volume);
+    extrusionentity_to_verts(extrusion_path.polyline.as_polyline(), extrusion_path.width, extrusion_path.height, print_z, volume);
 }
 
 // Fill in the qverts and tverts with quads and triangles for the extrusion_path.

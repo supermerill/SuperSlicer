@@ -15,7 +15,7 @@ namespace Eigen {
 
 /** \class EigenBase
   * \ingroup Core_Module
-  * 
+  *
   * Common base class for all classes T such that MatrixBase has an operator=(T) and a constructor MatrixBase(T).
   *
   * In other words, an EigenBase object is an object that can be copied into a MatrixBase.
@@ -29,7 +29,7 @@ namespace Eigen {
 template<typename Derived> struct EigenBase
 {
 //   typedef typename internal::plain_matrix_type<Derived>::type PlainObject;
-  
+
   /** \brief The interface type of indices
     * \details To change this, \c \#define the preprocessor symbol \c EIGEN_DEFAULT_DENSE_INDEX_TYPE.
     * \deprecated Since Eigen 3.3, its usage is deprecated. Use Eigen::Index instead.

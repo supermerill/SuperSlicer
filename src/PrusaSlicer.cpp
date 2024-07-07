@@ -7,8 +7,8 @@
     #include <Windows.h>
     #include <wchar.h>
     #ifdef SLIC3R_GUI
-    extern "C" 
-    { 
+    extern "C"
+    {
         // Let the NVIDIA and AMD know we want to use their graphics card
         // on a dual graphics card system.
         __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
@@ -77,40 +77,40 @@ int CLI::run(int argc, char **argv)
     ::setenv("GDK_BACKEND", "x11", /* replace */ true);
 #endif
 
-	// Switch boost::filesystem to utf8.
+    // Switch boost::filesystem to utf8.
     try {
         boost::nowide::nowide_filesystem();
     } catch (const std::runtime_error& ex) {
         std::string caption = std::string(SLIC3R_APP_NAME) + " Error";
         std::string text = std::string("An error occured while setting up locale.\n") + (
 #if !defined(_WIN32) && !defined(__APPLE__)
-        	// likely some linux system
-        	"You may need to reconfigure the missing locales, likely by running the \"locale-gen\" and \"dpkg-reconfigure locales\" commands.\n"
+            // likely some linux system
+            "You may need to reconfigure the missing locales, likely by running the \"locale-gen\" and \"dpkg-reconfigure locales\" commands.\n"
 #endif
-        	SLIC3R_APP_NAME " will now terminate.\n\n") + ex.what();
+            SLIC3R_APP_NAME " will now terminate.\n\n") + ex.what();
     #if defined(_WIN32) && defined(SLIC3R_GUI)
         if (m_actions.empty())
-        	// Empty actions means Slicer is executed in the GUI mode. Show a GUI message.
+            // Empty actions means Slicer is executed in the GUI mode. Show a GUI message.
             MessageBoxA(NULL, text.c_str(), caption.c_str(), MB_OK | MB_ICONERROR);
     #endif
         boost::nowide::cerr << text.c_str() << std::endl;
         return 1;
     }
 
-	if (! this->setup(argc, argv))
-		return 1;
+    if (! this->setup(argc, argv))
+        return 1;
 
     m_extra_config.apply(m_config, true);
     m_extra_config.normalize_fdm();
-    
+
     PrinterTechnology printer_technology = get_printer_technology(m_config);
 
-    bool							start_gui			= m_actions.empty() &&
+    bool                            start_gui            = m_actions.empty() &&
         // cutting transformations are setting an "export" action.
         std::find(m_transforms.begin(), m_transforms.end(), "cut") == m_transforms.end() &&
         std::find(m_transforms.begin(), m_transforms.end(), "cut_x") == m_transforms.end() &&
         std::find(m_transforms.begin(), m_transforms.end(), "cut_y") == m_transforms.end();
-    bool 							start_as_gcodeviewer =
+    bool                             start_as_gcodeviewer =
 #ifdef _WIN32
             false;
 #else
@@ -118,7 +118,7 @@ int CLI::run(int argc, char **argv)
             boost::algorithm::iends_with(boost::filesystem::path(argv[0]).filename().string(), GCODEVIEWER_APP_CMD);
 #endif // _WIN32
 
-    const std::vector<std::string>              &load_configs		      = m_config.option<ConfigOptionStrings>("load", true)->get_values();
+    const std::vector<std::string>              &load_configs              = m_config.option<ConfigOptionStrings>("load", true)->get_values();
     const ForwardCompatibilitySubstitutionRule   config_substitution_rule = m_config.option<ConfigOptionEnum<ForwardCompatibilitySubstitutionRule>>("config_compatibility", true)->value;
 
     // load config files supplied via --load
@@ -157,7 +157,7 @@ int CLI::run(int argc, char **argv)
         }
         m_print_config.apply(config);
     }
-        
+
     // are we starting as gcodeviewer ?
     for (auto it = m_actions.begin(); it != m_actions.end(); ++it) {
         if (*it == "gcodeviewer") {
@@ -232,7 +232,7 @@ int CLI::run(int argc, char **argv)
     // Initialize full print configs for both the FFF and SLA technologies.
     FullPrintConfig    fff_print_config;
     SLAFullPrintConfig sla_print_config;
-    
+
     // Synchronize the default parameters and the ones received on the command line.
     if (printer_technology == ptFFF) {
         fff_print_config.apply(m_print_config, true);
@@ -240,17 +240,17 @@ int CLI::run(int argc, char **argv)
     } else {
         assert(printer_technology == ptSLA);
         sla_print_config.output_filename_format.value = "[input_filename_base].sl1";
-        
+
         // The default bed shape should reflect the default display parameters
         // and not the fff defaults.
         double w = sla_print_config.display_width.get_float();
         double h = sla_print_config.display_height.get_float();
         sla_print_config.bed_shape.set({ Vec2d(0, 0), Vec2d(w, 0), Vec2d(w, h), Vec2d(0, h) });
-        
+
         sla_print_config.apply(m_print_config, true);
         m_print_config.apply(sla_print_config, true);
     }
-    
+
     {
         std::string validity = m_print_config.validate();
         if (! validity.empty()) {
@@ -258,12 +258,12 @@ int CLI::run(int argc, char **argv)
             return 1;
         }
     }
-    
+
     // Loop through transform options.
     bool user_center_specified = false;
     Points bed = get_bed_shape(m_print_config);
     int dups = 1;
-    
+
     for (auto const &opt_key : m_transforms) {
         if (opt_key == "merge") {
             Model m;
@@ -288,10 +288,10 @@ int CLI::run(int argc, char **argv)
                     model.objects.begin(), model.objects.end(),
                     [](ModelObject* o){ return o->instances.empty(); }
                 );
-                
+
                 dups = m_config.opt_int("duplicate");
                 if (!all_objects_have_instances) model.add_default_instances();
-                
+
             }
         } else if (opt_key == "duplicate_grid") {
             const std::vector<int> &ints = m_config.option<ConfigOptionInts>("duplicate_grid")->get_values();
@@ -301,7 +301,7 @@ int CLI::run(int argc, char **argv)
             for (auto &model : m_models)
                 model.duplicate_objects_grid(x, y, (distance > 0) ? distance : 6);  // TODO: this is not the right place for setting a default
         } else if (opt_key == "center") {
-        	user_center_specified = true;
+            user_center_specified = true;
             for (auto &model : m_models) {
                 model.add_default_instances();
                 // this affects instances:
@@ -505,7 +505,7 @@ int CLI::run(int argc, char **argv)
                 });
 
                 PrintBase  *print = (printer_technology == ptFFF) ? static_cast<PrintBase*>(&fff_print) : static_cast<PrintBase*>(&sla_print);
-                
+
                 if (! m_config.opt_bool("dont_arrange")) {
                     ArrangeParams arrange_cfg;
                     arrange_cfg.min_obj_distance = scaled(min_object_distance(&m_print_config)) * 2;
@@ -643,7 +643,7 @@ int CLI::run(int argc, char **argv)
 bool CLI::setup(int argc, char **argv)
 {
     {
-	    Slic3r::set_logging_level(1);
+        Slic3r::set_logging_level(1);
         const char *loglevel = boost::nowide::getenv("SLIC3R_LOGLEVEL");
         if (loglevel != nullptr) {
             if (loglevel[0] >= '0' && loglevel[0] <= '9' && loglevel[1] == 0)
@@ -708,7 +708,7 @@ bool CLI::setup(int argc, char **argv)
         if (opt_loglevel != 0)
             set_logging_level(opt_loglevel->value);
     }
-    
+
     //FIXME Validating at this stage most likely does not make sense, as the config is not fully initialized yet.
     std::string validity = m_config.validate();
 
@@ -718,7 +718,7 @@ bool CLI::setup(int argc, char **argv)
             m_config.option(optdef.first, true);
 
     set_data_dir(m_config.opt_string("datadir"));
-    
+
     //FIXME Validating at this stage most likely does not make sense, as the config is not fully initialized yet.
     if (!validity.empty()) {
         boost::nowide::cerr << "error: " << validity << std::endl;
@@ -760,7 +760,7 @@ void CLI::print_help(bool include_print_options, PrinterTechnology printer_techn
         << "\t1) Config keys from the command line, for example --fill-pattern=stars" << std::endl
         << "\t   (highest priority, overwrites everything below)" << std::endl
         << "\t2) Config files loaded with --load" << std::endl
-	    << "\t3) Config values loaded from amf or 3mf files" << std::endl;
+        << "\t3) Config values loaded from amf or 3mf files" << std::endl;
 
     if (include_print_options) {
         boost::nowide::cout << std::endl;
@@ -824,8 +824,8 @@ extern "C" {
     __declspec(dllexport) int __stdcall slic3r_main(int argc, wchar_t **argv)
     {
         // Convert wchar_t arguments to UTF8.
-        std::vector<std::string> 	argv_narrow;
-        std::vector<char*>			argv_ptrs(argc + 1, nullptr);
+        std::vector<std::string>     argv_narrow;
+        std::vector<char*>            argv_ptrs(argc + 1, nullptr);
         for (size_t i = 0; i < argc; ++ i)
             argv_narrow.emplace_back(boost::nowide::narrow(argv[i]));
         for (size_t i = 0; i < argc; ++ i)

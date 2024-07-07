@@ -9,23 +9,23 @@ namespace igl
   // Solve the problem:
   //
   //   minimize f(x)
-  //   subject to lb ≤ x ≤ ub 
-  // 
+  //   subject to lb ≤ x ≤ ub
+  //
   // by particle swarm optimization (PSO).
   //
   // Inputs:
   //   f  function that evaluates the objective for a given "particle" location
-  //   LB  #X vector of lower bounds 
-  //   UB  #X vector of upper bounds 
+  //   LB  #X vector of lower bounds
+  //   UB  #X vector of upper bounds
   //   max_iters  maximum number of iterations
   //   population  number of particles in swarm
   // Outputs:
   //   X  best particle seen so far
   // Returns objective corresponding to best particle seen so far
   template <
-    typename Scalar, 
+    typename Scalar,
     typename DerivedX,
-    typename DerivedLB, 
+    typename DerivedLB,
     typename DerivedUB>
   IGL_INLINE Scalar pso(
     const std::function< Scalar (DerivedX &) > f,
@@ -37,9 +37,9 @@ namespace igl
   // Inputs:
   //   P  whether each DOF is periodic
   template <
-    typename Scalar, 
+    typename Scalar,
     typename DerivedX,
-    typename DerivedLB, 
+    typename DerivedLB,
     typename DerivedUB,
     typename DerivedP>
   IGL_INLINE Scalar pso(

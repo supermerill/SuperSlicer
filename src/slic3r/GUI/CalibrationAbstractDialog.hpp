@@ -12,7 +12,7 @@
 #include "wxExtensions.hpp"
 #include <wx/html/htmlwin.h>
 
-namespace Slic3r { 
+namespace Slic3r {
 namespace GUI {
 
 class CalibrationAbstractDialog : public DPIDialog
@@ -21,7 +21,7 @@ class CalibrationAbstractDialog : public DPIDialog
 public:
     CalibrationAbstractDialog(GUI_App* app, MainFrame* mainframe, std::string name);
     virtual ~CalibrationAbstractDialog(){ if(gui_app!=nullptr) gui_app->change_calibration_dialog(this, nullptr);}
-    
+
 private:
     wxPanel* create_header(wxWindow* parent, const wxFont& bold_font);
 protected:

@@ -5,9 +5,9 @@
 #include <iostream>
 
 template <
-  typename Scalar, 
+  typename Scalar,
   typename DerivedX,
-  typename DerivedLB, 
+  typename DerivedLB,
   typename DerivedUB>
 IGL_INLINE Scalar igl::pso(
   const std::function< Scalar (DerivedX &) > f,
@@ -23,9 +23,9 @@ IGL_INLINE Scalar igl::pso(
 }
 
 template <
-  typename Scalar, 
+  typename Scalar,
   typename DerivedX,
-  typename DerivedLB, 
+  typename DerivedLB,
   typename DerivedUB,
   typename DerivedP>
 IGL_INLINE Scalar igl::pso(
@@ -91,9 +91,9 @@ IGL_INLINE Scalar igl::pso(
     {
       const DerivedX R_p = DerivedX::Random(dim).array()*0.5+0.5;
       const DerivedX R_g = DerivedX::Random(dim).array()*0.5+0.5;
-      velocity[p] = 
+      velocity[p] =
         omega * velocity[p].array() +
-        phi_p * R_p.array() *(best_position[p] - position[p]).array() + 
+        phi_p * R_p.array() *(best_position[p] - position[p]).array() +
         phi_g * R_g.array() *(               X - position[p]).array();
       position[p] += velocity[p];
       // Clamp to bounds

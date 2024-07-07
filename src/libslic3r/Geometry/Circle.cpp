@@ -14,7 +14,7 @@ Point circle_center_taubin_newton(const Points::const_iterator& input_begin, con
     tmp.reserve(std::distance(input_begin, input_end));
     std::transform(input_begin, input_end, std::back_inserter(tmp), [] (const Point& in) { return unscale(in); } );
     Vec2d center = circle_center_taubin_newton(tmp.cbegin(), tmp.end(), cycles);
-	return Point::new_scale(center.x(), center.y());
+    return Point::new_scale(center.x(), center.y());
 }
 
 /// Adapted from work in "Circular and Linear Regression: Fitting circles and lines by least squares", pg 126
@@ -71,7 +71,7 @@ Vec2d circle_center_taubin_newton(const Vec2ds::const_iterator& input_begin, con
         const double yold {ynew};
         ynew = C0 + xnew * (C1 + xnew*(C2 + xnew * C3));
         if (std::abs(ynew) > std::abs(yold)) {
-			BOOST_LOG_TRIVIAL(error) << "Geometry: Fit is going in the wrong direction.\n";
+            BOOST_LOG_TRIVIAL(error) << "Geometry: Fit is going in the wrong direction.\n";
             return Vec2d(std::nan(""), std::nan(""));
         }
         const double Dy {C1 + xnew*(C22 + xnew*C33)};
@@ -86,7 +86,7 @@ Vec2d circle_center_taubin_newton(const Vec2ds::const_iterator& input_begin, con
             xnew = 0.0;
         }
     }
-    
+
     // compute the determinant and the circle's parameters now that we've solved.
     double DET = xnew*xnew - xnew*Mz + Cov_xy;
 
@@ -292,7 +292,7 @@ bool ArcCircle::get_deviation_sum_squared(const Points& points, const double tol
     // BBS: skip the first and last points since they are on the circle
     for (size_t index = 1; index < points.size() - 1; index++)
     {
-        //BBS: make sure the length from the center of our circle to the test point is 
+        //BBS: make sure the length from the center of our circle to the test point is
         // at or below our max distance.
         temp = points[index] - center;
         distance_from_center = sqrt((double)temp.x() * (double)temp.x() + (double)temp.y() * (double)temp.y());

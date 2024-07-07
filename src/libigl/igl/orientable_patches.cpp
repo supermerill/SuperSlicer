@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "orientable_patches.h"
 #include "components.h"
@@ -37,7 +37,7 @@ IGL_INLINE void igl::orientable_patches(
   allE.block(2*F.rows(),1,F.rows(),1) = F.col(1);
   // Sort each row
   sort(allE,2,true,sortallE,IX);
-  //IC(i) tells us where to find sortallE(i,:) in uE: 
+  //IC(i) tells us where to find sortallE(i,:) in uE:
   // so that sortallE(i,:) = uE(IC(i),:)
   unique_rows(sortallE,uE,IA,IC);
   // uE2FT(e,f) = 1 means face f is adjacent to unique edge e
@@ -84,7 +84,7 @@ IGL_INLINE void igl::orientable_patches(
   //% Connected components are patches
   //%C = components(A); % alternative to graphconncomp from matlab_bgl
   //[~,C] = graphconncomp(A);
-  // graph connected components 
+  // graph connected components
   components(A,C);
 
 }

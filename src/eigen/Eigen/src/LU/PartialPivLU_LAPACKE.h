@@ -33,7 +33,7 @@
 #ifndef EIGEN_PARTIALLU_LAPACK_H
 #define EIGEN_PARTIALLU_LAPACK_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 

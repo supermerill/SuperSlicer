@@ -10,7 +10,7 @@
 #ifndef EIGEN_DYNAMIC_SPARSEMATRIX_H
 #define EIGEN_DYNAMIC_SPARSEMATRIX_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \deprecated use a SparseMatrix in an uncompressed mode
   *
@@ -328,7 +328,7 @@ template<typename _Scalar, int _Options, typename _StorageIndex>
     /** \deprecated use finalize()
       * Does nothing. Provided for compatibility with SparseMatrix. */
     EIGEN_DEPRECATED void endFill() {}
-    
+
 #   ifdef EIGEN_DYNAMICSPARSEMATRIX_PLUGIN
 #     include EIGEN_DYNAMICSPARSEMATRIX_PLUGIN
 #   endif
@@ -378,20 +378,20 @@ struct evaluator<DynamicSparseMatrix<_Scalar,_Options,_StorageIndex> >
   typedef DynamicSparseMatrix<_Scalar,_Options,_StorageIndex> SparseMatrixType;
   typedef typename SparseMatrixType::InnerIterator InnerIterator;
   typedef typename SparseMatrixType::ReverseInnerIterator ReverseInnerIterator;
-  
+
   enum {
     CoeffReadCost = NumTraits<_Scalar>::ReadCost,
     Flags = SparseMatrixType::Flags
   };
-  
+
   evaluator() : m_matrix(0) {}
   evaluator(const SparseMatrixType &mat) : m_matrix(&mat) {}
-  
+
   operator SparseMatrixType&() { return m_matrix->const_cast_derived(); }
   operator const SparseMatrixType&() const { return *m_matrix; }
-  
+
   Scalar coeff(Index row, Index col) const { return m_matrix->coeff(row,col); }
-  
+
   Index nonZerosEstimate() const { return m_matrix->nonZeros(); }
 
   const SparseMatrixType *m_matrix;

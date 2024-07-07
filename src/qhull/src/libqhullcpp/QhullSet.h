@@ -201,10 +201,10 @@ public:
                         iterator(const iterator &o) : i(o.i), qh_qh(o.qh_qh) {}
         iterator &      operator=(const iterator &o) { i= o.i; qh_qh= o.qh_qh; return *this; }
 
-        // Constructs T.  Cannot return reference.  
+        // Constructs T.  Cannot return reference.
         T               operator*() const { return T(qh_qh, *i); }
         //operator->() n/a, value-type
-        // Constructs T.  Cannot return reference.  
+        // Constructs T.  Cannot return reference.
         T               operator[](countT idx) const { return T(qh_qh, *(i+idx)); } //!< No error checking
         bool            operator==(const iterator &o) const { return i == o.i; }
         bool            operator!=(const iterator &o) const { return !operator==(o); }
@@ -325,8 +325,8 @@ template <typename T>
 std::vector<T> QhullSet<T>::
 toStdVector() const
 {
-	typename QhullSet<T>::const_iterator i = begin();
-	typename QhullSet<T>::const_iterator e = end();
+    typename QhullSet<T>::const_iterator i = begin();
+    typename QhullSet<T>::const_iterator e = end();
     std::vector<T> vs;
     while(i!=e){
         vs.push_back(*i++);

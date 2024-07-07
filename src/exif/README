@@ -8,7 +8,7 @@ It easily enables you to get the value of the IFD tag field with such code:
 
 See "sample_main.c" and "exif.h" for details.
 
-exif.c only uses standard C library functions. So, it will be usable in many environments. 
+exif.c only uses standard C library functions. So, it will be usable in many environments.
 It has been tested in the following environments.
 
  - Windows XP 32bit + 32bit Visual C++

@@ -34,7 +34,7 @@ struct SlicingParameters
     SlicingParameters() = default;
 
     static std::shared_ptr<SlicingParameters> create_from_config(
-        const PrintConfig       &print_config, 
+        const PrintConfig       &print_config,
         const PrintObjectConfig &object_config,
         const PrintRegionConfig &default_region_config,
         coordf_t                 object_height,
@@ -62,8 +62,8 @@ struct SlicingParameters
     coordf_t    interface_raft_layer_height { 0 };
     coordf_t    contact_raft_layer_height { 0 };
 
-	// The regular layer height, applied for all but the first layer, if not overridden by layer ranges
-	// or by the variable layer thickness table.
+    // The regular layer height, applied for all but the first layer, if not overridden by layer ranges
+    // or by the variable layer thickness table.
     coordf_t    layer_height { 0 };
     // Minimum / maximum layer height, to be used for the automatic adaptive layer height algorithm,
     // or by an interactive layer height editor. (unscaled)
@@ -85,7 +85,7 @@ struct SlicingParameters
     coordf_t    first_object_layer_height { 0 };
 
     // If the object is printed over a non-soluble raft, the first layer may be printed with a briding flow.
-    bool 		first_object_layer_bridging { false };
+    bool         first_object_layer_bridging { false };
 
     // Soluble interface? (PLA soluble in water, HIPS soluble in lemonen)
     // otherwise the interface must be broken off.
@@ -104,8 +104,8 @@ struct SlicingParameters
     coordf_t    raft_interface_top_z { 0 };
     coordf_t    raft_contact_top_z { 0 };
     // In case of a soluble interface, object_print_z_min == raft_contact_top_z, otherwise there is a gap between the raft and the 1st object layer.
-    coordf_t 	object_print_z_min { 0 };
-    coordf_t 	object_print_z_max { 0 };
+    coordf_t     object_print_z_min { 0 };
+    coordf_t     object_print_z_max { 0 };
 };
 static_assert(IsTriviallyCopyable<SlicingParameters>::value, "SlicingParameters class is not POD (and it should be - see constructor).");
 
@@ -182,7 +182,7 @@ extern void adjust_layer_height_profile(
     const SlicingParameters     &slicing_params,
     std::vector<coordf_t>       &layer_height_profile,
     coordf_t                     z,
-    coordf_t                     layer_thickness_delta, 
+    coordf_t                     layer_thickness_delta,
     coordf_t                     band_width,
     LayerHeightEditActionType    action);
 
@@ -201,20 +201,20 @@ extern int generate_layer_height_texture(
     void *data, int rows, int cols, bool level_of_detail_2nd_level);
 
 namespace Slicing {
-	// Minimum layer height for the variable layer height algorithm. Nozzle index is 0 based.
-	coordf_t min_layer_height_from_nozzle(const DynamicPrintConfig &print_config, uint16_t idx_nozzle);
+    // Minimum layer height for the variable layer height algorithm. Nozzle index is 0 based.
+    coordf_t min_layer_height_from_nozzle(const DynamicPrintConfig &print_config, uint16_t idx_nozzle);
 
-	// Maximum layer height for the variable layer height algorithm, 3/4 of a nozzle dimaeter by default,
-	// it should not be smaller than the minimum layer height.
-	// Nozzle index is 0 based.
-	coordf_t max_layer_height_from_nozzle(const DynamicPrintConfig &print_config, uint16_t idx_nozzle);
+    // Maximum layer height for the variable layer height algorithm, 3/4 of a nozzle dimaeter by default,
+    // it should not be smaller than the minimum layer height.
+    // Nozzle index is 0 based.
+    coordf_t max_layer_height_from_nozzle(const DynamicPrintConfig &print_config, uint16_t idx_nozzle);
 } // namespace Slicing
 
 } // namespace Slic3r
 
 namespace cereal
 {
-	template<class Archive> void serialize(Archive& archive, Slic3r::t_layer_height_range &lhr) { archive(lhr.first, lhr.second); }
+    template<class Archive> void serialize(Archive& archive, Slic3r::t_layer_height_range &lhr) { archive(lhr.first, lhr.second); }
 }
 
 #endif /* slic3r_Slicing_hpp_ */

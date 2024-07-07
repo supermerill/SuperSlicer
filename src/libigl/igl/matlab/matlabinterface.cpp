@@ -303,7 +303,7 @@ IGL_INLINE void igl::matlab::mlsetmatrix(Engine** mlengine, std::string name, co
 //    for (Eigen::SparseMatrix<double>::InnerIterator it(M,k); it; ++it)
 //      if (it.value() != 0)
 //        ++count;
-  
+
   Eigen::MatrixXd T(M.nonZeros(),3);
   for (unsigned k=0; k<(unsigned)M.outerSize(); ++k)
   {
@@ -320,11 +320,11 @@ IGL_INLINE void igl::matlab::mlsetmatrix(Engine** mlengine, std::string name, co
   T.col(1) = T.col(1).array()+1;
 
   mlsetmatrix(mlengine,"temp93765",T);
-  
+
   std::string temp = name + " = sparse(temp93765(:,1),temp93765(:,2),temp93765(:,3),"
                           + std::to_string(M.rows()) + ","
                           + std::to_string(M.cols()) + ");";
-  
+
   mleval(mlengine,temp);
   mleval(mlengine,"clear temp93765");
 }

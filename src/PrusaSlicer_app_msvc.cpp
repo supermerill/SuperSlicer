@@ -11,8 +11,8 @@
 
 
 #ifdef SLIC3R_GUI
-extern "C" 
-{ 
+extern "C"
+{
     // Let the NVIDIA and AMD know we want to use their graphics card
     // on a dual graphics card system.
     __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
@@ -50,7 +50,7 @@ public:
     bool load_opengl_dll()
     {
         MSG      msg     = {0};
-        WNDCLASS wc      = {0}; 
+        WNDCLASS wc      = {0};
         wc.lpfnWndProc   = OpenGLVersionCheck::supports_opengl2_wndproc;
         wc.hInstance     = (HINSTANCE)GetModuleHandle(nullptr);
         wc.hbrBackground = (HBRUSH)(COLOR_BACKGROUND);
@@ -67,7 +67,7 @@ public:
         return this->success;
     }
 
-    void unload_opengl_dll() 
+    void unload_opengl_dll()
     {
         if (this->hOpenGL) {
             BOOL released = FreeLibrary(this->hOpenGL);
@@ -121,10 +121,10 @@ protected:
         typedef BOOL(WINAPI* Func_wglDeleteContext)(HGLRC);
         typedef GLubyte* (WINAPI* Func_glGetString)(GLenum);
 
-        Func_wglCreateContext 	wglCreateContext = (Func_wglCreateContext)GetProcAddress(hOpenGL, "wglCreateContext");
-        Func_wglMakeCurrent 	wglMakeCurrent = (Func_wglMakeCurrent)GetProcAddress(hOpenGL, "wglMakeCurrent");
-        Func_wglDeleteContext 	wglDeleteContext = (Func_wglDeleteContext)GetProcAddress(hOpenGL, "wglDeleteContext");
-        Func_glGetString 		glGetString = (Func_glGetString)GetProcAddress(hOpenGL, "glGetString");
+        Func_wglCreateContext     wglCreateContext = (Func_wglCreateContext)GetProcAddress(hOpenGL, "wglCreateContext");
+        Func_wglMakeCurrent     wglMakeCurrent = (Func_wglMakeCurrent)GetProcAddress(hOpenGL, "wglMakeCurrent");
+        Func_wglDeleteContext     wglDeleteContext = (Func_wglDeleteContext)GetProcAddress(hOpenGL, "wglDeleteContext");
+        Func_glGetString         glGetString = (Func_glGetString)GetProcAddress(hOpenGL, "glGetString");
 
         if (wglCreateContext == nullptr || wglMakeCurrent == nullptr || wglDeleteContext == nullptr || glGetString == nullptr) {
             printf("Failed loading the system opengl32.dll: The library is invalid.\n");
@@ -153,7 +153,7 @@ protected:
 
         HDC ourWindowHandleToDeviceContext = ::GetDC(hWnd);
         // Gdi32.dll
-        int letWindowsChooseThisPixelFormat = ::ChoosePixelFormat(ourWindowHandleToDeviceContext, &pfd); 
+        int letWindowsChooseThisPixelFormat = ::ChoosePixelFormat(ourWindowHandleToDeviceContext, &pfd);
         // Gdi32.dll
         SetPixelFormat(ourWindowHandleToDeviceContext, letWindowsChooseThisPixelFormat, &pfd);
         // Opengl32.dll
@@ -249,7 +249,7 @@ int wmain(int argc, wchar_t **argv)
 
 #ifdef SLIC3R_GUI
     OpenGLVersionCheck opengl_version_check;
-    bool load_mesa = 
+    bool load_mesa =
         // Forced from the command line.
         force_mesa ||
         // Running over a rempote desktop, and the RemoteFX is not enabled, therefore Windows will only provide SW OpenGL 1.1 context.
@@ -281,7 +281,7 @@ int wmain(int argc, wchar_t **argv)
         if (hInstance_OpenGL == nullptr) {
             printf("MESA OpenGL library was not loaded\n");
         } else
-            printf("MESA OpenGL library was loaded sucessfully\n");        
+            printf("MESA OpenGL library was loaded sucessfully\n");
     }
 #endif /* SLIC3R_GUI */
 
@@ -297,7 +297,7 @@ int wmain(int argc, wchar_t **argv)
     }
 
     // resolve function address here
-    slic3r_main = (Slic3rMainFunc)GetProcAddress(hInstance_Slic3r, 
+    slic3r_main = (Slic3rMainFunc)GetProcAddress(hInstance_Slic3r,
 #ifdef _WIN64
         // there is just a single calling conversion, therefore no mangling of the function name.
         "slic3r_main"

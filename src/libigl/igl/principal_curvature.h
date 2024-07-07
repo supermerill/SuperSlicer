@@ -43,11 +43,11 @@ namespace igl
   // Daniele Panozzo, Enrico Puppo, Luigi Rocca
   // GraVisMa, 2010
 template <
-  typename DerivedV, 
+  typename DerivedV,
   typename DerivedF,
-  typename DerivedPD1, 
-  typename DerivedPD2, 
-  typename DerivedPV1, 
+  typename DerivedPD1,
+  typename DerivedPD2,
+  typename DerivedPV1,
   typename DerivedPV2>
 IGL_INLINE void principal_curvature(
   const Eigen::PlainObjectBase<DerivedV>& V,

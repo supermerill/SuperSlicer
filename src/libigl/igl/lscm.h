@@ -13,7 +13,7 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
-namespace igl 
+namespace igl
 {
   // Compute a Least-squares conformal map parametrization (equivalently
   // derived in "Intrinsic Parameterizations of Surface Meshes" [Desbrun et al.
@@ -34,11 +34,11 @@ namespace igl
   //   UV #V by 2 list of 2D mesh vertex positions in UV space
   // Returns true only on solver success.
   //
-  IGL_INLINE bool lscm( 
-      const Eigen::MatrixXd& V, 
+  IGL_INLINE bool lscm(
+      const Eigen::MatrixXd& V,
       const Eigen::MatrixXi& F,
-      const Eigen::VectorXi& b, 
-      const Eigen::MatrixXd& bc, 
+      const Eigen::VectorXi& b,
+      const Eigen::MatrixXd& bc,
       Eigen::MatrixXd& V_uv);
 }
 

@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2014 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "dated_copy.h"
 #include "dirname.h"
@@ -36,7 +36,7 @@ IGL_INLINE bool igl::dated_copy(const std::string & src_path, const std::string 
   {
     // http://stackoverflow.com/a/10195497/148668
     ifstream src(src_path,ios::binary);
-    if (!src.is_open()) 
+    if (!src.is_open())
     {
       cerr<<" failed."<<endl;
       return false;
@@ -72,7 +72,7 @@ IGL_INLINE bool igl::dated_copy(const std::string & src_path, const std::string 
       cerr<<" failed."<<endl;
       return false;
     }
-    //update the permissions 
+    //update the permissions
     if(fchmod(dst_posix,fst.st_mode) == -1)
     {
       cerr<<" failed."<<endl;

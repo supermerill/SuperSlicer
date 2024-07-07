@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2014 Daniele Panozzo <daniele.panozzo@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "file_dialog_save.h"
 #include <cstdio>
@@ -47,7 +47,7 @@ IGL_INLINE std::string igl::file_dialog_save()
   ofn.lStructSize = sizeof(ofn);
   ofn.hwndOwner = NULL;//hwnd;
   ofn.lpstrFile = new char[100];
-  // Set lpstrFile[0] to '\0' so that GetOpenFileName does not 
+  // Set lpstrFile[0] to '\0' so that GetOpenFileName does not
   // use the contents of szFile to initialize itself.
   ofn.lpstrFile[0] = '\0';
   ofn.nMaxFile = sizeof(szFile);
@@ -58,7 +58,7 @@ IGL_INLINE std::string igl::file_dialog_save()
   ofn.lpstrInitialDir = NULL;
   ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 
-  // Display the Open dialog box. 
+  // Display the Open dialog box.
   int pos = 0;
   if (GetSaveFileName(&ofn)==TRUE)
   {
@@ -76,7 +76,7 @@ IGL_INLINE std::string igl::file_dialog_save()
   while ( fgets(buffer, FILE_DIALOG_MAX_BUFFER, output) != NULL )
   {
   }
-  
+
   if (strlen(buffer) > 0)
   {
     buffer[strlen(buffer)-1] = 0;

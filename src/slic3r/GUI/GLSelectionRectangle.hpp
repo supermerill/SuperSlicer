@@ -5,7 +5,7 @@
 
 namespace Slic3r {
 namespace GUI {
-    
+
 struct Camera;
 class GLCanvas3D;
 
@@ -17,7 +17,7 @@ public:
             Deselect
     };
 
-    // Initiates the rectangle. 
+    // Initiates the rectangle.
     void start_dragging(const Vec2d& mouse_position, EState state);
 
     // To be called on mouse move.
@@ -48,7 +48,7 @@ private:
     Vec2d m_end_corner;
 };
 
-    
+
 } // namespace GUI
 } // namespace Slic3r
 

@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "decimate.h"
 #include "collapse_edge.h"
@@ -349,8 +349,8 @@ IGL_INLINE bool igl::decimate(
   for(int f = 0;f<F.rows();f++)
   {
     if(
-      F(f,0) != IGL_COLLAPSE_EDGE_NULL || 
-      F(f,1) != IGL_COLLAPSE_EDGE_NULL || 
+      F(f,0) != IGL_COLLAPSE_EDGE_NULL ||
+      F(f,1) != IGL_COLLAPSE_EDGE_NULL ||
       F(f,2) != IGL_COLLAPSE_EDGE_NULL)
     {
       F2.row(m) = F.row(f);

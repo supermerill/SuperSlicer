@@ -10,7 +10,7 @@
 #ifndef EIGEN_SIMPLICIAL_CHOLESKY_H
 #define EIGEN_SIMPLICIAL_CHOLESKY_H
 
-namespace Eigen { 
+namespace Eigen {
 
 enum SimplicialCholeskyMode {
   SimplicialCholeskyLLT,
@@ -27,7 +27,7 @@ namespace internal {
       pmat = &tmp;
     }
   };
-  
+
   template<typename MatrixType>
   struct simplicial_cholesky_grab_input<MatrixType,MatrixType> {
     typedef MatrixType const * ConstMatrixPtr;
@@ -44,7 +44,7 @@ namespace internal {
   * This is a base class for LL^T and LDL^T Cholesky factorizations of sparse matrices that are
   * selfadjoint and positive definite. These factorizations allow for solving A.X = B where
   * X and B can be either dense or sparse.
-  * 
+  *
   * In order to reduce the fill-in, a symmetric permutation P is applied prior to the factorization
   * such that the factorized matrix is P A P^-1.
   *
@@ -56,7 +56,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived>
 {
     typedef SparseSolverBase<Derived> Base;
     using Base::m_isInitialized;
-    
+
   public:
     typedef typename internal::traits<Derived>::MatrixType MatrixType;
     typedef typename internal::traits<Derived>::OrderingType OrderingType;
@@ -75,7 +75,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived>
     };
 
   public:
-    
+
     using Base::derived;
 
     /** Default constructor */
@@ -95,10 +95,10 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived>
 
     Derived& derived() { return *static_cast<Derived*>(this); }
     const Derived& derived() const { return *static_cast<const Derived*>(this); }
-    
+
     inline Index cols() const { return m_matrix.cols(); }
     inline Index rows() const { return m_matrix.rows(); }
-    
+
     /** \brief Reports whether previous computation was successful.
       *
       * \returns \c Success if computation was succesful,
@@ -109,12 +109,12 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived>
       eigen_assert(m_isInitialized && "Decomposition is not initialized.");
       return m_info;
     }
-    
+
     /** \returns the permutation P
       * \sa permutationPinv() */
     const PermutationMatrix<Dynamic,Dynamic,StorageIndex>& permutationP() const
     { return m_P; }
-    
+
     /** \returns the inverse P^-1 of the permutation P
       * \sa permutationP() */
     const PermutationMatrix<Dynamic,Dynamic,StorageIndex>& permutationPinv() const
@@ -178,7 +178,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived>
       if(m_P.size()>0)
         dest = m_Pinv * dest;
     }
-    
+
     template<typename Rhs,typename Dest>
     void _solve_impl(const SparseMatrixBase<Rhs> &b, SparseMatrixBase<Dest> &dest) const
     {
@@ -188,7 +188,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived>
 #endif // EIGEN_PARSED_BY_DOXYGEN
 
   protected:
-    
+
     /** Computes the sparse Cholesky decomposition of \a matrix */
     template<bool DoLDLT>
     void compute(const MatrixType& matrix)
@@ -201,7 +201,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived>
       analyzePattern_preordered(*pmat, DoLDLT);
       factorize_preordered<DoLDLT>(*pmat);
     }
-    
+
     template<bool DoLDLT>
     void factorize(const MatrixType& a)
     {
@@ -209,7 +209,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived>
       Index size = a.cols();
       CholMatrixType tmp(size,size);
       ConstCholMatrixPtr pmat;
-      
+
       if(m_P.size()==0 && (UpLo&Upper)==Upper)
       {
         // If there is no ordering, try to directly use the input matrix without any copy
@@ -220,7 +220,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived>
         tmp.template selfadjointView<Upper>() = a.template selfadjointView<UpLo>().twistedBy(m_P);
         pmat = &tmp;
       }
-      
+
       factorize_preordered<DoLDLT>(*pmat);
     }
 
@@ -237,7 +237,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived>
       analyzePattern_preordered(*pmat,doLDLT);
     }
     void analyzePattern_preordered(const CholMatrixType& a, bool doLDLT);
-    
+
     void ordering(const MatrixType& a, ConstCholMatrixPtr &pmat, CholMatrixType& ap);
 
     /** keeps off-diagonal entries; drops diagonal entries */
@@ -251,7 +251,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived>
     mutable ComputationInfo m_info;
     bool m_factorizationIsOk;
     bool m_analysisIsOk;
-    
+
     CholMatrixType m_matrix;
     VectorType m_diag;                                // the diagonal coefficients (LDLT mode)
     VectorI m_parent;                                 // elimination tree
@@ -313,7 +313,7 @@ template<typename _MatrixType, int _UpLo, typename _Ordering> struct traits<Simp
   * This class provides a LL^T Cholesky factorizations of sparse matrices that are
   * selfadjoint and positive definite. The factorization allows for solving A.X = B where
   * X and B can be either dense or sparse.
-  * 
+  *
   * In order to reduce the fill-in, a symmetric permutation P is applied prior to the factorization
   * such that the factorized matrix is P A P^-1.
   *
@@ -359,7 +359,7 @@ public:
         eigen_assert(Base::m_factorizationIsOk && "Simplicial LLT not factorized");
         return Traits::getU(Base::m_matrix);
     }
-    
+
     /** Computes the sparse Cholesky decomposition of \a matrix */
     SimplicialLLT& compute(const MatrixType& matrix)
     {
@@ -404,7 +404,7 @@ public:
   * This class provides a LDL^T Cholesky factorizations without square root of sparse matrices that are
   * selfadjoint and positive definite. The factorization allows for solving A.X = B where
   * X and B can be either dense or sparse.
-  * 
+  *
   * In order to reduce the fill-in, a symmetric permutation P is applied prior to the factorization
   * such that the factorized matrix is P A P^-1.
   *
@@ -463,7 +463,7 @@ public:
       Base::template compute<true>(matrix);
       return *this;
     }
-    
+
     /** Performs a symbolic decomposition on the sparcity of \a matrix.
       *
       * This function is particularly useful when solving for several problems having the same structure.
@@ -548,7 +548,7 @@ public:
         eigen_assert(Base::m_factorizationIsOk && "Simplicial Cholesky not factorized");
         return Base::m_matrix;
     }
-    
+
     /** Computes the sparse Cholesky decomposition of \a matrix */
     SimplicialCholesky& compute(const MatrixType& matrix)
     {
@@ -621,14 +621,14 @@ public:
       if(Base::m_P.size()>0)
         dest = Base::m_Pinv * dest;
     }
-    
+
     /** \internal */
     template<typename Rhs,typename Dest>
     void _solve_impl(const SparseMatrixBase<Rhs> &b, SparseMatrixBase<Dest> &dest) const
     {
       internal::solve_sparse_through_dense_panels(*this, b, dest);
     }
-    
+
     Scalar determinant() const
     {
       if(m_LDLT)
@@ -641,7 +641,7 @@ public:
         return numext::abs2(detL);
       }
     }
-    
+
   protected:
     bool m_LDLT;
 };
@@ -658,14 +658,14 @@ void SimplicialCholeskyBase<Derived>::ordering(const MatrixType& a, ConstCholMat
     {
       CholMatrixType C;
       C = a.template selfadjointView<UpLo>();
-      
+
       OrderingType ordering;
       ordering(C,m_Pinv);
     }
 
     if(m_Pinv.size()>0) m_P = m_Pinv.inverse();
     else                m_P.resize(0);
-    
+
     ap.resize(size,size);
     ap.template selfadjointView<Upper>() = a.template selfadjointView<UpLo>().twistedBy(m_P);
   }
@@ -681,7 +681,7 @@ void SimplicialCholeskyBase<Derived>::ordering(const MatrixType& a, ConstCholMat
     }
     else
       internal::simplicial_cholesky_grab_input<CholMatrixType,MatrixType>::run(a, pmat, ap);
-  }  
+  }
 }
 
 } // end namespace Eigen

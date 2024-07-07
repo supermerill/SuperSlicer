@@ -25,12 +25,12 @@ namespace igl {
     typedef typename DerivedCM::Scalar real_cm;
     typedef typename DerivedR::Scalar real_r;
     typedef typename DerivedEC::Scalar real_ec;
-  
+
     typedef Eigen::Matrix<real_p,1,3> RowVec3p;
-  
+
     int m = CH.size();
     int num_terms;
-  
+
     assert(expansion_order < 3 && expansion_order >= 0 && "m must be less than n");
     if(expansion_order == 0){
         num_terms = 3;
@@ -39,7 +39,7 @@ namespace igl {
     } else if(expansion_order == 2){
         num_terms = 3 + 9 + 27;
     }
-  
+
     R.resize(m);
     CM.resize(m,3);
     EC.resize(m,num_terms);
@@ -56,19 +56,19 @@ namespace igl {
         real_p areatotal = 0.0;
         for(int j = 0; j < point_indices.at(index).size(); j++){
             int curr_point_index = point_indices.at(index).at(j);
-          
+
             areatotal += A(curr_point_index);
             masscenter += A(curr_point_index)*P.row(curr_point_index);
             zeroth_expansion += A(curr_point_index)*N.row(curr_point_index);
         }
-      
+
         masscenter = masscenter/areatotal;
         CM.row(index) = masscenter;
         EC.block(index,0,1,3) = zeroth_expansion;
-      
+
         real_r max_norm = 0;
         real_r curr_norm;
-      
+
         for(int i = 0; i < point_indices.at(index).size(); i++){
             //Get max distance from center of mass:
             int curr_point_index = point_indices.at(index).at(i);
@@ -78,7 +78,7 @@ namespace igl {
             if(curr_norm > max_norm){
                 max_norm = curr_norm;
             }
-          
+
             //Calculate higher order terms if necessary
             Eigen::Matrix<real_ec,3,3> TempCoeffs;
             if(EC.cols() >= (3+9)){
@@ -88,7 +88,7 @@ namespace igl {
                 Eigen::Map<Eigen::Matrix<real_ec,1,9> >(TempCoeffs.data(),
                                                         TempCoeffs.size());
             }
-          
+
             if(EC.cols() == (3+9+27)){
                 for(int k = 0; k < 3; k++){
                     TempCoeffs = 0.5 * point(k) * (A(curr_point_index)*
@@ -99,7 +99,7 @@ namespace igl {
                 }
             }
         }
-      
+
         R(index) = max_norm;
         if(CH(index,0) != -1)
         {
@@ -111,7 +111,7 @@ namespace igl {
     };
     helper(0);
   }
-  
+
   template <typename DerivedP, typename DerivedA, typename DerivedN,
   typename Index, typename DerivedCH, typename DerivedCM, typename DerivedR,
   typename DerivedEC, typename DerivedQ, typename BetaType,
@@ -127,7 +127,7 @@ namespace igl {
                         const Eigen::MatrixBase<DerivedQ>& Q,
                         const BetaType beta,
                         Eigen::PlainObjectBase<DerivedWN>& WN){
-  
+
     typedef typename DerivedP::Scalar real_p;
     typedef typename DerivedN::Scalar real_n;
     typedef typename DerivedA::Scalar real_a;
@@ -136,10 +136,10 @@ namespace igl {
     typedef typename DerivedEC::Scalar real_ec;
     typedef typename DerivedQ::Scalar real_q;
     typedef typename DerivedWN::Scalar real_wn;
-  
+
     typedef Eigen::Matrix<real_q,1,3> RowVec;
     typedef Eigen::Matrix<real_ec,3,3> EC_3by3;
-  
+
     auto direct_eval = [](const RowVec & loc,
                           const Eigen::Matrix<real_ec,1,3> & anorm){
         real_wn wn = (loc(0)*anorm(0)+loc(1)*anorm(1)+loc(2)*anorm(2))
@@ -150,7 +150,7 @@ namespace igl {
             return wn;
         }
     };
-  
+
     auto expansion_eval = [&direct_eval](const RowVec & loc,
                                          const Eigen::RowVectorXd & EC){
       real_wn wn = direct_eval(loc,EC.head<3>());
@@ -189,10 +189,10 @@ namespace igl {
       }
       return wn;
     };
-  
+
     int m = Q.rows();
     WN.resize(m,1);
-  
+
     std::function< real_wn(const RowVec, const std::vector<int>) > helper;
     helper = [&helper,
               &P,&N,&A,
@@ -241,8 +241,8 @@ namespace igl {
       }
       return wn;
     };
-  
-  
+
+
     if(beta > 0){
       std::vector<int> near_indices_start = {0};
       igl::parallel_for(m,[&](int iter){
@@ -258,7 +258,7 @@ namespace igl {
       },1000);
     }
   }
-  
+
   template <typename DerivedP, typename DerivedA, typename DerivedN,
     typename DerivedQ, typename BetaType, typename DerivedWN>
   IGL_INLINE void fast_winding_number(const Eigen::MatrixBase<DerivedP>& P,
@@ -270,22 +270,22 @@ namespace igl {
                                       Eigen::PlainObjectBase<DerivedWN>& WN
                                       ){
     typedef typename DerivedWN::Scalar real;
-    
+
     std::vector<std::vector<int> > point_indices;
     Eigen::Matrix<int,Eigen::Dynamic,8> CH;
     Eigen::Matrix<real,Eigen::Dynamic,3> CN;
     Eigen::Matrix<real,Eigen::Dynamic,1> W;
-  
+
     octree(P,point_indices,CH,CN,W);
-  
+
     Eigen::Matrix<real,Eigen::Dynamic,Eigen::Dynamic> EC;
     Eigen::Matrix<real,Eigen::Dynamic,3> CM;
     Eigen::Matrix<real,Eigen::Dynamic,1> R;
-  
+
     fast_winding_number(P,N,A,point_indices,CH,expansion_order,CM,R,EC);
     fast_winding_number(P,N,A,point_indices,CH,CM,R,EC,Q,beta,WN);
   }
-  
+
   template <typename DerivedP, typename DerivedA, typename DerivedN,
     typename DerivedQ, typename DerivedWN>
   IGL_INLINE void fast_winding_number(const Eigen::MatrixBase<DerivedP>& P,

@@ -12,11 +12,11 @@ namespace marchsq {
 // Marks a square in the grid
 struct Coord {
     long r = 0, c = 0;
-    
+
     Coord() = default;
     explicit Coord(long s) : r(s), c(s) {}
     Coord(long _r, long _c): r(_r), c(_c) {}
-    
+
     size_t seq(const Coord &res) const { return r * res.c + c; }
     Coord& operator+=(const Coord& b) { r += b.r; c += b.c; return *this; }
     Coord operator+(const Coord& b) const { Coord a = *this; a += b; return a; }
@@ -27,13 +27,13 @@ using Ring = std::vector<Coord>;
 
 // Specialize this struct to register a raster type for the Marching squares alg
 template<class T, class Enable = void> struct _RasterTraits {
-    
+
     // The type of pixel cell in the raster
     using ValueType = typename T::ValueType;
-    
+
     // Value at a given position
     static ValueType get(const T &raster, size_t row, size_t col);
-    
+
     // Number of rows and cols of the raster
     static size_t rows(const T &raster);
     static size_t cols(const T &raster);
@@ -74,7 +74,7 @@ void for_each(ExecutionPolicy&& policy, It from, It to, Fn &&fn)
 }
 
 // Type of squares (tiles) depending on which vertices are inside an ROI
-// The vertices would be marked a, b, c, d in counter clockwise order from the 
+// The vertices would be marked a, b, c, d in counter clockwise order from the
 // bottom left vertex of a square.
 // d --- c
 // |     |
@@ -113,21 +113,21 @@ static const constexpr Dir NEXT_CCW[] = {
 
 static const constexpr uint8_t PREV_CCW[] = {
     /* 00 */ 1 << _t(Dir::none),
-    /* 01 */ 1 << _t(Dir::up),      
+    /* 01 */ 1 << _t(Dir::up),
     /* 02 */ 1 << _t(Dir::left),
-    /* 03 */ 1 << _t(Dir::left),     
-    /* 04 */ 1 << _t(Dir::down),     
-    /* 05 */ 1 << _t(Dir::up) | 1 << _t(Dir::down),      
+    /* 03 */ 1 << _t(Dir::left),
+    /* 04 */ 1 << _t(Dir::down),
+    /* 05 */ 1 << _t(Dir::up) | 1 << _t(Dir::down),
     /* 06 */ 1 << _t(Dir::down),
     /* 07 */ 1 << _t(Dir::down),
     /* 08 */ 1 << _t(Dir::right),
     /* 09 */ 1 << _t(Dir::up),
-    /* 10 */ 1 << _t(Dir::left) | 1 << _t(Dir::right), 
-    /* 11 */ 1 << _t(Dir::left),   
+    /* 10 */ 1 << _t(Dir::left) | 1 << _t(Dir::right),
+    /* 11 */ 1 << _t(Dir::left),
     /* 12 */ 1 << _t(Dir::right),
     /* 13 */ 1 << _t(Dir::up),
-    /* 14 */ 1 << _t(Dir::right), 
-    /* 15 */ 1 << _t(Dir::none)  
+    /* 14 */ 1 << _t(Dir::right),
+    /* 15 */ 1 << _t(Dir::none)
 };
 
 const constexpr uint8_t DIRMASKS[] = {
@@ -154,7 +154,7 @@ template<class Rst> class Grid {
     Coord br(const Coord &crd) const { return tl(crd) + Coord{m_res_1.r, m_res_1.c}; }
     Coord tr(const Coord &crd) const { return tl(crd) + Coord{0, m_res_1.c}; }
     Coord tl(const Coord &crd) const { return rastercoord(crd); }
-    
+
     bool is_within(const Coord &crd)
     {
         long R = rows(*m_rst), C = cols(*m_rst);
@@ -164,18 +164,18 @@ template<class Rst> class Grid {
     // Calculate the tag for a cell (or square). The cell coordinates mark the
     // top left vertex of a square in the raster. v is the isovalue
     uint8_t get_tag_for_cell(const Coord &cell, TRasterValue<Rst> v)
-    {        
+    {
         Coord sqr[] = {bl(cell), br(cell), tr(cell), tl(cell)};
-        
+
         uint8_t t = ((is_within(sqr[0]) && isoval(*m_rst, sqr[0]) >= v)) +
                     ((is_within(sqr[1]) && isoval(*m_rst, sqr[1]) >= v) << 1) +
                     ((is_within(sqr[2]) && isoval(*m_rst, sqr[2]) >= v) << 2) +
                     ((is_within(sqr[3]) && isoval(*m_rst, sqr[3]) >= v) << 3);
-        
+
         assert(t < 16);
         return t;
     }
-    
+
     // Get a cell coordinate from a sequential index
     Coord coord(size_t i) const
     {
@@ -183,7 +183,7 @@ template<class Rst> class Grid {
     }
 
     size_t seq(const Coord &crd) const { return crd.seq(m_gridsize); }
-    
+
     bool is_visited(size_t idx, Dir d = Dir::none) const
     {
         SquareTag t = get_tag(idx);
@@ -191,12 +191,12 @@ template<class Rst> class Grid {
         return t == SquareTag::full || t == SquareTag::none ||
                ((m_tags[idx] & 0xf0) >> 4) == ref;
     }
-    
+
     void set_visited(size_t idx, Dir d = Dir::none)
     {
         m_tags[idx] |= (1 << (_t(d)) << 4);
     }
-    
+
     bool is_ambiguous(size_t idx) const
     {
         SquareTag t = get_tag(idx);
@@ -209,12 +209,12 @@ template<class Rst> class Grid {
         // Skip ambiguous tags as starting tags due to unknown previous
         // direction.
         while ((i < m_tags.size()) && (is_visited(i) || is_ambiguous(i))) ++i;
-        
+
         return i;
     }
-    
+
     SquareTag get_tag(size_t idx) const { return SquareTag(m_tags[idx] & 0x0f); }
-        
+
     Dir next_dir(Dir prev, SquareTag tag) const
     {
         // Treat ambiguous cases as two separate regions in one square.
@@ -234,36 +234,36 @@ template<class Rst> class Grid {
         default:
             return NEXT_CCW[uint8_t(tag)];
         }
-        
+
         return Dir::none;
     }
-    
+
     struct CellIt {
         Coord crd; Dir dir= Dir::none; const Rst *grid = nullptr;
-        
+
         TRasterValue<Rst> operator*() const { return isoval(*grid, crd); }
         CellIt& operator++() { crd = step(crd, dir); return *this; }
         CellIt operator++(int) { CellIt it = *this; ++(*this); return it; }
         bool operator!=(const CellIt &it) { return crd.r != it.crd.r || crd.c != it.crd.c; }
-        
+
         using value_type        = TRasterValue<Rst>;
         using pointer           = TRasterValue<Rst> *;
         using reference         = TRasterValue<Rst> &;
         using difference_type   = long;
         using iterator_category = std::forward_iterator_tag;
     };
-    
+
     // Two cell iterators representing an edge of a square. This is then
     // used for binary search for the first active pixel on the edge.
     struct Edge { CellIt from, to; };
-    
+
     Edge _edge(const Coord &ringvertex) const
     {
         size_t idx = ringvertex.r;
         Coord cell = coord(idx);
         uint8_t tg = m_tags[ringvertex.r];
         SquareTag t = SquareTag(tg & 0x0f);
-        
+
         switch (t) {
         case SquareTag::a:
         case SquareTag::ab:
@@ -300,32 +300,32 @@ template<class Rst> class Grid {
             return {{crd, Dir::none, m_rst}, {crd}};
         }
         }
-        
-        return {}; 
+
+        return {};
     }
-    
+
     Edge edge(const Coord &ringvertex) const
     {
         const long R = rows(*m_rst), C = cols(*m_rst);
         const long R_1 = R - 1, C_1 = C - 1;
-        
+
         Edge e = _edge(ringvertex);
         e.to.dir = e.from.dir;
         ++e.to;
-        
+
         e.from.crd.r = std::min(e.from.crd.r, R_1);
         e.from.crd.r = std::max(e.from.crd.r, 0l);
         e.from.crd.c = std::min(e.from.crd.c, C_1);
         e.from.crd.c = std::max(e.from.crd.c, 0l);
-        
+
         e.to.crd.r = std::min(e.to.crd.r, R);
         e.to.crd.r = std::max(e.to.crd.r, 0l);
         e.to.crd.c = std::min(e.to.crd.c, C);
         e.to.crd.c = std::max(e.to.crd.c, 0l);
-        
+
         return e;
     }
-    
+
 public:
     explicit Grid(const Rst &rst, const Coord &cellsz, const Coord &overlap)
         : m_rst{&rst}
@@ -337,11 +337,11 @@ public:
                      2 + (long(cols(rst)) - overlap.c) / m_window.c}
         , m_tags(m_gridsize.r * m_gridsize.c, 0)
     {}
-    
+
     // Go through the cells and mark them with the appropriate tag.
     template<class ExecutionPolicy>
     void tag_grid(ExecutionPolicy &&policy, TRasterValue<Rst> isoval)
-    {        
+    {
         // parallel for r
         for_each (std::forward<ExecutionPolicy>(policy),
                  m_tags.begin(), m_tags.end(),
@@ -349,7 +349,7 @@ public:
             tag = get_tag_for_cell(coord(idx), isoval);
         });
     }
-    
+
     // Scan for the rings on the tagged grid. Each ring vertex stores the
     // sequential index of the cell and the next direction (Dir).
     // This info can be used later to calculate the exact raster coordinate.
@@ -359,32 +359,32 @@ public:
         size_t startidx = 0;
         while ((startidx = search_start_cell(startidx)) < m_tags.size()) {
             Ring ring;
-            
+
             size_t idx = startidx;
             Dir prev = Dir::none, next = next_dir(prev, get_tag(idx));
-            
+
             while (next != Dir::none && !is_visited(idx, prev)) {
                 Coord ringvertex{long(idx), long(next)};
                 ring.emplace_back(ringvertex);
                 set_visited(idx, prev);
-                
+
                 idx  = seq(step(coord(idx), next));
                 prev = next;
                 next = next_dir(next, get_tag(idx));
             }
-            
+
             // To prevent infinite loops in case of degenerate input
             if (next == Dir::none) m_tags[startidx] = _t(SquareTag::none);
-            
+
             if (ring.size() > 1) {
                 ring.pop_back();
                 rings.emplace_back(ring);
             }
         }
-        
+
         return rings;
     }
-    
+
     // Calculate the exact raster position from the cells which store the
     // sequantial index of the square and the next direction
     template<class ExecutionPolicy>
@@ -397,7 +397,7 @@ public:
         {
             for (Coord &ringvertex : ring) {
                 Edge e = edge(ringvertex);
-                
+
                 CellIt found = std::lower_bound(e.from, e.to, isov);
                 ringvertex = found.crd;
             }
@@ -412,21 +412,21 @@ std::vector<marchsq::Ring> execute_with_policy(ExecutionPolicy &&   policy,
                                                Coord windowsize = {})
 {
     if (!rows(raster) || !cols(raster)) return {};
-    
+
     size_t ratio = cols(raster) / rows(raster);
-    
+
     if (!windowsize.r) windowsize.r = 2;
     if (!windowsize.c)
         windowsize.c = std::max(2l, long(windowsize.r * ratio));
-    
+
     Coord overlap{1};
-    
+
     Grid<Raster> grid{raster, windowsize, overlap};
-    
+
     grid.tag_grid(std::forward<ExecutionPolicy>(policy), isoval);
     std::vector<marchsq::Ring> rings = grid.scan_rings();
     grid.interpolate_rings(std::forward<ExecutionPolicy>(policy), rings, isoval);
-    
+
     return rings;
 }
 

@@ -27,7 +27,7 @@
    Andreas Jonsson
    andreas@angelcode.com
 */
- 
+
 //
 // as_atomic.cpp
 //
@@ -40,43 +40,43 @@ BEGIN_AS_NAMESPACE
 
 asCAtomic::asCAtomic()
 {
-	value = 0;
+    value = 0;
 }
 
 asDWORD asCAtomic::get() const
 {
-	// A very high ref count is highly unlikely. It most likely a problem with
-	// memory that has been overwritten or is being accessed after it was deleted.
-	asASSERT(value < 1000000);
+    // A very high ref count is highly unlikely. It most likely a problem with
+    // memory that has been overwritten or is being accessed after it was deleted.
+    asASSERT(value < 1000000);
 
-	return value;
+    return value;
 }
 
 void asCAtomic::set(asDWORD val)
 {
-	// A very high ref count is highly unlikely. It most likely a problem with
-	// memory that has been overwritten or is being accessed after it was deleted.
-	asASSERT(value < 1000000);
+    // A very high ref count is highly unlikely. It most likely a problem with
+    // memory that has been overwritten or is being accessed after it was deleted.
+    asASSERT(value < 1000000);
 
-	value = val;
+    value = val;
 }
 
 asDWORD asCAtomic::atomicInc()
 {
-	// A very high ref count is highly unlikely. It most likely a problem with
-	// memory that has been overwritten or is being accessed after it was deleted.
-	asASSERT(value < 1000000);
+    // A very high ref count is highly unlikely. It most likely a problem with
+    // memory that has been overwritten or is being accessed after it was deleted.
+    asASSERT(value < 1000000);
 
-	return asAtomicInc((int&)value);
+    return asAtomicInc((int&)value);
 }
 
 asDWORD asCAtomic::atomicDec()
 {
-	// A very high ref count is highly unlikely. It most likely a problem with
-	// memory that has been overwritten or is being accessed after it was deleted.
-	asASSERT(value < 1000000);
+    // A very high ref count is highly unlikely. It most likely a problem with
+    // memory that has been overwritten or is being accessed after it was deleted.
+    asASSERT(value < 1000000);
 
-	return asAtomicDec((int&)value);
+    return asAtomicDec((int&)value);
 }
 
 //
@@ -86,12 +86,12 @@ asDWORD asCAtomic::atomicDec()
 
 int asAtomicInc(int &value)
 {
-	return ++value;
+    return ++value;
 }
 
 int asAtomicDec(int &value)
 {
-	return --value;
+    return --value;
 }
 
 #elif defined(AS_XENON) /// XBox360
@@ -102,12 +102,12 @@ BEGIN_AS_NAMESPACE
 
 int asAtomicInc(int &value)
 {
-	return InterlockedIncrement((LONG*)&value);
+    return InterlockedIncrement((LONG*)&value);
 }
 
 int asAtomicDec(int &value)
 {
-	return InterlockedDecrement((LONG*)&value);
+    return InterlockedDecrement((LONG*)&value);
 }
 
 #elif defined(AS_WIN)
@@ -119,36 +119,36 @@ BEGIN_AS_NAMESPACE
 
 int asAtomicInc(int &value)
 {
-	return InterlockedIncrement((LONG*)&value);
+    return InterlockedIncrement((LONG*)&value);
 }
 
 int asAtomicDec(int &value)
 {
-	asASSERT(value > 0);
-	return InterlockedDecrement((LONG*)&value);
+    asASSERT(value > 0);
+    return InterlockedDecrement((LONG*)&value);
 }
 
 #elif defined(AS_LINUX) || defined(AS_BSD) || defined(AS_ILLUMOS) || defined(AS_ANDROID)
 
 //
-// atomic_inc_and_test() and atomic_dec_and_test() from asm/atomic.h is not meant 
-// to be used outside the Linux kernel. Instead we should use the GNUC provided 
+// atomic_inc_and_test() and atomic_dec_and_test() from asm/atomic.h is not meant
+// to be used outside the Linux kernel. Instead we should use the GNUC provided
 // __sync_add_and_fetch() and __sync_sub_and_fetch() functions.
 //
 // Reference: http://golubenco.org/blog/atomic-operations/
 //
-// These are only available in GCC 4.1 and above, so for older versions we 
+// These are only available in GCC 4.1 and above, so for older versions we
 // use the critical sections, though it is a lot slower.
-// 
+//
 
 int asAtomicInc(int &value)
 {
-	return __sync_add_and_fetch(&value, 1);
+    return __sync_add_and_fetch(&value, 1);
 }
 
 int asAtomicDec(int &value)
 {
-	return __sync_sub_and_fetch(&value, 1);
+    return __sync_sub_and_fetch(&value, 1);
 }
 
 #elif defined(AS_MAC) || defined(AS_IPHONE)
@@ -159,18 +159,18 @@ BEGIN_AS_NAMESPACE
 
 int asAtomicInc(int &value)
 {
-	return OSAtomicIncrement32((int32_t*)&value);
+    return OSAtomicIncrement32((int32_t*)&value);
 }
 
 int asAtomicDec(int &value)
 {
-	return OSAtomicDecrement32((int32_t*)&value);
+    return OSAtomicDecrement32((int32_t*)&value);
 }
 
 #else
 
 // If we get here, then the configuration in as_config.h
-//  is wrong for the compiler/platform combination. 
+//  is wrong for the compiler/platform combination.
 int ERROR_PleaseFixTheConfig[-1];
 
 #endif

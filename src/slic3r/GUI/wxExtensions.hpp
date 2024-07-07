@@ -42,7 +42,7 @@ wxMenuItem* append_menu_radio_item(wxMenu* menu, int id, const wxString& string,
 
 wxMenuItem* append_menu_check_item(wxMenu* menu, int id, const wxString& string, const wxString& description,
     std::function<void(wxCommandEvent & event)> cb, wxEvtHandler* event_handler,
-    std::function<bool()> const enable_condition = []() { return true; }, 
+    std::function<bool()> const enable_condition = []() { return true; },
     std::function<bool()> const check_condition = []() { return true; }, wxWindow* parent = nullptr);
 
 void enable_menu_item(wxUpdateUIEvent& evt, std::function<bool()> const cb_condition, wxMenuItem* item, wxWindow* win);
@@ -60,7 +60,7 @@ int     mode_icon_px_size();
 
 wxBitmap create_menu_bitmap(const std::string& bmp_name);
 
-wxBitmap create_scaled_bitmap(const std::string& bmp_name, wxWindow *win = nullptr, 
+wxBitmap create_scaled_bitmap(const std::string& bmp_name, wxWindow *win = nullptr,
     const int px_cnt = 16, const bool grayscale = false,
     const std::string& new_color = std::string(), // color witch will used instead of orange
     const bool menu_bitmap = false);
@@ -123,19 +123,19 @@ class wxDataViewTreeCtrlComboPopup: public wxDataViewTreeCtrl, public wxComboPop
     static const unsigned int DefaultHeight;
     static const unsigned int DefaultItemHeight;
 
-    wxString	m_text;
-    int			m_cnt_open_items{0};
+    wxString    m_text;
+    int            m_cnt_open_items{0};
 
 public:
-    virtual bool		Create(wxWindow* parent);
-    virtual wxWindow*	GetControl() { return this; }
-    virtual void		SetStringValue(const wxString& value) { m_text = value; }
-    virtual wxString	GetStringValue() const { return m_text; }
-//	virtual wxSize		GetAdjustedSize(int minWidth, int prefHeight, int maxHeight);
+    virtual bool        Create(wxWindow* parent);
+    virtual wxWindow*    GetControl() { return this; }
+    virtual void        SetStringValue(const wxString& value) { m_text = value; }
+    virtual wxString    GetStringValue() const { return m_text; }
+//    virtual wxSize        GetAdjustedSize(int minWidth, int prefHeight, int maxHeight);
 
-    virtual void		OnKeyEvent(wxKeyEvent& evt);
-    void				OnDataViewTreeCtrlSelection(wxCommandEvent& evt);
-    void				SetItemsCnt(int cnt) { m_cnt_open_items = cnt; }
+    virtual void        OnKeyEvent(wxKeyEvent& evt);
+    void                OnDataViewTreeCtrlSelection(wxCommandEvent& evt);
+    void                SetItemsCnt(int cnt) { m_cnt_open_items = cnt; }
 };
 
 
@@ -149,11 +149,11 @@ public:
     ScalableBitmap() {};
     ScalableBitmap( wxWindow *parent,
                     const std::string& icon_name = "",
-                    const int px_cnt = 16, 
+                    const int px_cnt = 16,
                     const bool grayscale = false);
-    ScalableBitmap(wxWindow* parent, 
+    ScalableBitmap(wxWindow* parent,
         const wxBitmap& bitmap,
-        const int px_cnt = 16) 
+        const int px_cnt = 16)
         : m_bmp(bitmap), m_px_cnt(px_cnt) {};
 
     ~ScalableBitmap() {}
@@ -264,7 +264,7 @@ private:
 
     bool            m_use_default_disabled_bitmap {false};
 
-    // bitmap dimensions 
+    // bitmap dimensions
     int             m_px_cnt{ 16 };
     bool            m_has_border {false};
 };

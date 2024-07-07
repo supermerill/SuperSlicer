@@ -7,21 +7,21 @@
 namespace Slic3r {
 
 void FillPlanePath::_fill_surface_single(
-    const FillParams                &params, 
+    const FillParams                &params,
     unsigned int                     thickness_layers,
-    const std::pair<float, Point>   &direction, 
+    const std::pair<float, Point>   &direction,
     ExPolygon                        expolygon,
     Polylines                       &polylines_out) const
 {
     expolygon.rotate(- direction.first);
 
-	coord_t distance_between_lines = scale_t(this->get_spacing() / params.density);
-    
+    coord_t distance_between_lines = scale_t(this->get_spacing() / params.density);
+
     // align infill across layers using the object's bounding box
     // Rotated bounding box of the whole object.
     BoundingBox bounding_box = this->bounding_box.rotated(- direction.first);
-    
-    Point shift = this->_centered() ? 
+
+    Point shift = this->_centered() ?
         bounding_box.center() :
         bounding_box.min;
     expolygon.translate(-double(shift.x()), -double(shift.y()));
@@ -99,7 +99,7 @@ Pointfs FillArchimedeanChords::_generate(coord_t min_x, coord_t min_y, coord_t m
     return out;
 }
 
-// Adapted from 
+// Adapted from
 // http://cpansearch.perl.org/src/KRYDE/Math-PlanePath-122/lib/Math/PlanePath/HilbertCurve.pm
 //
 // state=0    3--2   plain

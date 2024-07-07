@@ -43,30 +43,30 @@ namespace nowide {
         typedef basic_filebuf<CharType,Traits> internal_buffer_type;
         typedef std::basic_istream<CharType,Traits> internal_stream_type;
 
-        basic_ifstream() : 
+        basic_ifstream() :
             internal_stream_type(0)
         {
             buf_.reset(new internal_buffer_type());
             std::ios::rdbuf(buf_.get());
         }
-        
-        explicit basic_ifstream(char const *file_name,std::ios_base::openmode mode = std::ios_base::in) : 
-            internal_stream_type(0) 
+
+        explicit basic_ifstream(char const *file_name,std::ios_base::openmode mode = std::ios_base::in) :
+            internal_stream_type(0)
         {
             buf_.reset(new internal_buffer_type());
             std::ios::rdbuf(buf_.get());
             open(file_name,mode);
         }
 
-        explicit basic_ifstream(std::string const &file_name,std::ios_base::openmode mode = std::ios_base::in) : 
-            internal_stream_type(0) 
+        explicit basic_ifstream(std::string const &file_name,std::ios_base::openmode mode = std::ios_base::in) :
+            internal_stream_type(0)
         {
             buf_.reset(new internal_buffer_type());
             std::ios::rdbuf(buf_.get());
             open(file_name,mode);
         }
 
-        
+
         void open(std::string const &file_name,std::ios_base::openmode mode = std::ios_base::in)
         {
             open(file_name.c_str(),mode);
@@ -104,7 +104,7 @@ namespace nowide {
         {
             buf_->close();
         }
-            
+
     private:
         boost::scoped_ptr<internal_buffer_type> buf_;
     };
@@ -120,7 +120,7 @@ namespace nowide {
         typedef basic_filebuf<CharType,Traits> internal_buffer_type;
         typedef std::basic_ostream<CharType,Traits> internal_stream_type;
 
-        basic_ofstream() : 
+        basic_ofstream() :
             internal_stream_type(0)
         {
             buf_.reset(new internal_buffer_type());
@@ -177,7 +177,7 @@ namespace nowide {
         {
             buf_->close();
         }
-            
+
     private:
         boost::scoped_ptr<internal_buffer_type> buf_;
     };
@@ -193,7 +193,7 @@ namespace nowide {
         typedef basic_filebuf<CharType,Traits> internal_buffer_type;
         typedef std::basic_iostream<CharType,Traits> internal_stream_type;
 
-        basic_fstream() : 
+        basic_fstream() :
             internal_stream_type(0)
         {
             buf_.reset(new internal_buffer_type());
@@ -250,7 +250,7 @@ namespace nowide {
         {
             buf_->close();
         }
-            
+
     private:
         boost::scoped_ptr<internal_buffer_type> buf_;
     };

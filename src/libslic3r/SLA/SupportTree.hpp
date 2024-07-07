@@ -34,7 +34,7 @@ enum class PillarConnectionMode
 struct SupportTreeConfig
 {
     bool   enabled = true;
-    
+
     // Radius in mm of the pointing side of the head.
     double head_front_radius_mm = 0.2;
 
@@ -79,13 +79,13 @@ struct SupportTreeConfig
     // The elevation in Z direction upwards. This is the space between the pad
     // and the model object's bounding box bottom.
     double object_elevation_mm = 10;
-    
+
     // The shortest distance between a pillar base perimeter from the model
     // body. This is only useful when elevation is set to zero.
     double pillar_base_safety_distance_mm = 0.5;
-    
+
     unsigned max_bridges_on_pillar = 3;
-    
+
     double head_fullwidth() const {
         return 2 * head_front_radius_mm + head_width_mm +
                2 * head_back_radius_mm - head_penetration_mm;
@@ -106,7 +106,7 @@ struct SupportTreeConfig
     static const double constexpr optimizer_rel_score_diff = 1e-6;
     static const unsigned constexpr optimizer_max_iterations = 1000;
     static const unsigned constexpr pillar_cascade_neighbors = 3;
-    
+
 };
 
 // TODO: Part of future refactor
@@ -129,7 +129,7 @@ struct SupportableMesh
                              const SupportTreeConfig &c)
         : emesh{trmsh}, pts{sp}, cfg{c}
     {}
-    
+
     explicit SupportableMesh(const IndexedMesh   &em,
                              const SupportPoints &sp,
                              const SupportTreeConfig &c)
@@ -143,7 +143,7 @@ class SupportTree
     JobController m_ctl;
 public:
     using UPtr = std::unique_ptr<SupportTree>;
-    
+
     static UPtr create(const SupportableMesh &input,
                        const JobController &ctl = {});
 
@@ -153,19 +153,19 @@ public:
 
     /// Adding the "pad" under the supports.
     /// modelbase will be used according to the embed_object flag in PoolConfig.
-    /// If set, the plate will be interpreted as the model's intrinsic pad. 
+    /// If set, the plate will be interpreted as the model's intrinsic pad.
     /// Otherwise, the modelbase will be unified with the base plate calculated
     /// from the supports.
     virtual const indexed_triangle_set &add_pad(const ExPolygons &modelbase,
                                                 const PadConfig & pcfg) = 0;
 
     virtual void remove_pad() = 0;
-    
+
     std::vector<ExPolygons> slice(const std::vector<float> &,
                                   float closing_radius) const;
-    
+
     void retrieve_full_mesh(indexed_triangle_set &outmesh) const;
-    
+
     const JobController &ctl() const { return m_ctl; }
 };
 

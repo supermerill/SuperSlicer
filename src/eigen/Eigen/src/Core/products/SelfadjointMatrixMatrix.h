@@ -10,7 +10,7 @@
 #ifndef EIGEN_SELFADJOINT_MATRIX_MATRIX_H
 #define EIGEN_SELFADJOINT_MATRIX_MATRIX_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -49,19 +49,19 @@ struct symm_pack_lhs
     const_blas_data_mapper<Scalar,Index,StorageOrder> lhs(_lhs,lhsStride);
     Index count = 0;
     //Index peeled_mc3 = (rows/Pack1)*Pack1;
-    
+
     const Index peeled_mc3 = Pack1>=3*PacketSize ? (rows/(3*PacketSize))*(3*PacketSize) : 0;
     const Index peeled_mc2 = Pack1>=2*PacketSize ? peeled_mc3+((rows-peeled_mc3)/(2*PacketSize))*(2*PacketSize) : 0;
     const Index peeled_mc1 = Pack1>=1*PacketSize ? (rows/(1*PacketSize))*(1*PacketSize) : 0;
-    
+
     if(Pack1>=3*PacketSize)
       for(Index i=0; i<peeled_mc3; i+=3*PacketSize)
         pack<3*PacketSize>(blockA, lhs, cols, i, count);
-    
+
     if(Pack1>=2*PacketSize)
       for(Index i=peeled_mc3; i<peeled_mc2; i+=2*PacketSize)
         pack<2*PacketSize>(blockA, lhs, cols, i, count);
-    
+
     if(Pack1>=1*PacketSize)
       for(Index i=peeled_mc2; i<peeled_mc1; i+=1*PacketSize)
         pack<1*PacketSize>(blockA, lhs, cols, i, count);
@@ -464,24 +464,24 @@ EIGEN_DONT_INLINE void product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,f
 ***************************************************************************/
 
 namespace internal {
-  
+
 template<typename Lhs, int LhsMode, typename Rhs, int RhsMode>
 struct selfadjoint_product_impl<Lhs,LhsMode,false,Rhs,RhsMode,false>
 {
   typedef typename Product<Lhs,Rhs>::Scalar Scalar;
-  
+
   typedef internal::blas_traits<Lhs> LhsBlasTraits;
   typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
   typedef internal::blas_traits<Rhs> RhsBlasTraits;
   typedef typename RhsBlasTraits::DirectLinearAccessType ActualRhsType;
-  
+
   enum {
     LhsIsUpper = (LhsMode&(Upper|Lower))==Upper,
     LhsIsSelfAdjoint = (LhsMode&SelfAdjoint)==SelfAdjoint,
     RhsIsUpper = (RhsMode&(Upper|Lower))==Upper,
     RhsIsSelfAdjoint = (RhsMode&SelfAdjoint)==SelfAdjoint
   };
-  
+
   template<typename Dest>
   static void run(Dest &dst, const Lhs &a_lhs, const Rhs &a_rhs, const Scalar& alpha)
   {

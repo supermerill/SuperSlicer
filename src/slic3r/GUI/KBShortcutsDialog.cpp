@@ -29,7 +29,7 @@ KBShortcutsDialog::KBShortcutsDialog()
 
 #ifdef _MSW_DARK_MODE
     wxBookCtrlBase* book;
-//    if (wxGetApp().dark_mode()) 
+//    if (wxGetApp().dark_mode())
         book = new Notebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP);
 /*    else
         book = new wxNotebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP);*/

@@ -1935,7 +1935,7 @@ bool ImGui::DataTypeApplyOpFromText(const char* buf, const char* initial_value_b
 
     if (format == NULL)
         format = type_info->ScanFmt;
-    
+
     if (!buf[0]) {
         if (p_default_data && data_type == ImGuiDataType_Float) {
             float* v = (float*)p_data;

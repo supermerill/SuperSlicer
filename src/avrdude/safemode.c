@@ -217,7 +217,7 @@ int safemode_readfuses (unsigned char * lfuse, unsigned char * hfuse,
         return -5;
         }
 
-    if (fusegood == 0)	 {
+    if (fusegood == 0)     {
             avrdude_message(MSG_INFO, "%s: safemode: Verify error - unable to read hfuse properly. "
                             "Programmer may not be reliable.\n", progname);
        return -2;
@@ -285,7 +285,7 @@ int safemode_readfuses (unsigned char * lfuse, unsigned char * hfuse,
  * values from the internal buffer into the locations pointed to be
  * lfuse, hfuse, and efuse. This allows you to change the fuse bits if
  * needed from another routine (ie: have it so if user requests fuse
- * bits are changed, the requested value is now verified 
+ * bits are changed, the requested value is now verified
  */
 int safemode_memfuses (int save, unsigned char * lfuse, unsigned char * hfuse,
                        unsigned char * efuse, unsigned char * fuse)

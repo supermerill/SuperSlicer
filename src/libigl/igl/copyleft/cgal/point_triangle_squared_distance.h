@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_COPYLEFT_CGAL_POINT_TRIANGLE_SQUARED_DISTANCE_H
 #define IGL_COPYLEFT_CGAL_POINT_TRIANGLE_SQUARED_DISTANCE_H
@@ -18,7 +18,7 @@ namespace igl
     {
       // Given a point P1 and triangle T2 find the points on each of closest
       // approach and the squared distance thereof.
-      // 
+      //
       // Inputs:
       //   P1  point
       //   T2  triangle

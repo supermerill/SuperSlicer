@@ -34,7 +34,7 @@
 #ifndef EIGEN_COLPIVOTINGHOUSEHOLDERQR_LAPACKE_H
 #define EIGEN_COLPIVOTINGHOUSEHOLDERQR_LAPACKE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \internal Specialization for the data types supported by LAPACKe */
 

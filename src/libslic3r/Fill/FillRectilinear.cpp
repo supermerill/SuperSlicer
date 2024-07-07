@@ -138,15 +138,15 @@ struct SegmentIntersection
             p -= int64_t(pos_q>>1);
         else
             p += int64_t(pos_q>>1);
-        return coord_t(p / int64_t(pos_q)); 
+        return coord_t(p / int64_t(pos_q));
     }
 
     // Left vertical line / contour intersection point.
     // null if next_on_contour_vertical.
-    int32_t	prev_on_contour{ 0 };
+    int32_t    prev_on_contour{ 0 };
     // Right vertical line / contour intersection point.
     // If next_on_contour_vertical, then then next_on_contour contains next contour point on the same vertical line.
-    int32_t	next_on_contour{ 0 };
+    int32_t    next_on_contour{ 0 };
 
     // Kind of intersection. With the original contour, or with the inner offestted contour?
     // A vertical segment will be at least intersected by OUTER_LOW, OUTER_HIGH,
@@ -180,10 +180,10 @@ struct SegmentIntersection
     };
 
     // Kept grouped with other booleans for smaller memory footprint.
-    LinkType 		prev_on_contour_type{ LinkType::Horizontal };
-    LinkType 		next_on_contour_type{ LinkType::Horizontal };
-    LinkQuality 	prev_on_contour_quality{ LinkQuality::Valid };
-    LinkQuality 	next_on_contour_quality{ LinkQuality::Valid };
+    LinkType         prev_on_contour_type{ LinkType::Horizontal };
+    LinkType         next_on_contour_type{ LinkType::Horizontal };
+    LinkQuality     prev_on_contour_quality{ LinkQuality::Valid };
+    LinkQuality     next_on_contour_quality{ LinkQuality::Valid };
 
     // Was this segment along the y axis consumed?
     // Up means up along the vertical segment.
@@ -210,67 +210,67 @@ struct SegmentIntersection
         Down
     };
 
-    bool 	has_left_horizontal()    		 	const { return this->prev_on_contour_type == LinkType::Horizontal; }
-    bool 	has_right_horizontal()   		 	const { return this->next_on_contour_type == LinkType::Horizontal; }
-    bool 	has_horizontal(Side side)		 	const { return side == Side::Left ? this->has_left_horizontal() : this->has_right_horizontal(); }
+    bool     has_left_horizontal()                 const { return this->prev_on_contour_type == LinkType::Horizontal; }
+    bool     has_right_horizontal()                const { return this->next_on_contour_type == LinkType::Horizontal; }
+    bool     has_horizontal(Side side)             const { return side == Side::Left ? this->has_left_horizontal() : this->has_right_horizontal(); }
 
-    bool 	has_left_vertical_up()   		 	const { return this->prev_on_contour_type == LinkType::Up; }
-    bool 	has_left_vertical_down() 		 	const { return this->prev_on_contour_type == LinkType::Down; }
-    bool 	has_left_vertical(Direction dir) 	const { return dir == Direction::Up ? this->has_left_vertical_up() : this->has_left_vertical_down(); }
-    bool 	has_left_vertical()    	 		 	const { return this->has_left_vertical_up() || this->has_left_vertical_down(); }
-    bool 	has_left_vertical_outside()			const { return this->is_low() ? this->has_left_vertical_down() : this->has_left_vertical_up(); }
+    bool     has_left_vertical_up()                const { return this->prev_on_contour_type == LinkType::Up; }
+    bool     has_left_vertical_down()              const { return this->prev_on_contour_type == LinkType::Down; }
+    bool     has_left_vertical(Direction dir)     const { return dir == Direction::Up ? this->has_left_vertical_up() : this->has_left_vertical_down(); }
+    bool     has_left_vertical()                      const { return this->has_left_vertical_up() || this->has_left_vertical_down(); }
+    bool     has_left_vertical_outside()            const { return this->is_low() ? this->has_left_vertical_down() : this->has_left_vertical_up(); }
 
-    bool 	has_right_vertical_up()   			const { return this->next_on_contour_type == LinkType::Up; }
-    bool 	has_right_vertical_down() 			const { return this->next_on_contour_type == LinkType::Down; }
-    bool 	has_right_vertical(Direction dir) 	const { return dir == Direction::Up ? this->has_right_vertical_up() : this->has_right_vertical_down(); }
-    bool 	has_right_vertical()    			const { return this->has_right_vertical_up() || this->has_right_vertical_down(); }
-    bool 	has_right_vertical_outside()		const { return this->is_low() ? this->has_right_vertical_down() : this->has_right_vertical_up(); }
+    bool     has_right_vertical_up()               const { return this->next_on_contour_type == LinkType::Up; }
+    bool     has_right_vertical_down()             const { return this->next_on_contour_type == LinkType::Down; }
+    bool     has_right_vertical(Direction dir)     const { return dir == Direction::Up ? this->has_right_vertical_up() : this->has_right_vertical_down(); }
+    bool     has_right_vertical()                const { return this->has_right_vertical_up() || this->has_right_vertical_down(); }
+    bool     has_right_vertical_outside()        const { return this->is_low() ? this->has_right_vertical_down() : this->has_right_vertical_up(); }
 
-    bool 	has_vertical()						const { return this->has_left_vertical() || this->has_right_vertical(); }
-    bool 	has_vertical(Side side)				const { return side == Side::Left ? this->has_left_vertical() : this->has_right_vertical(); }
-    bool 	has_vertical_up()					const { return this->has_left_vertical_up() || this->has_right_vertical_up(); }
-    bool 	has_vertical_down()					const { return this->has_left_vertical_down() || this->has_right_vertical_down(); }
-    bool 	has_vertical(Direction dir)			const { return dir == Direction::Up ? this->has_vertical_up() : this->has_vertical_down(); }
+    bool     has_vertical()                        const { return this->has_left_vertical() || this->has_right_vertical(); }
+    bool     has_vertical(Side side)                const { return side == Side::Left ? this->has_left_vertical() : this->has_right_vertical(); }
+    bool     has_vertical_up()                    const { return this->has_left_vertical_up() || this->has_right_vertical_up(); }
+    bool     has_vertical_down()                    const { return this->has_left_vertical_down() || this->has_right_vertical_down(); }
+    bool     has_vertical(Direction dir)            const { return dir == Direction::Up ? this->has_vertical_up() : this->has_vertical_down(); }
 
-    int 	left_horizontal()  					const { return this->has_left_horizontal() ? this->prev_on_contour : -1; }
-    int 	right_horizontal()  				const { return this->has_right_horizontal() ? this->next_on_contour : -1; }
-    int 	horizontal(Side side)  				const { return side == Side::Left ? this->left_horizontal() : this->right_horizontal(); }
-    LinkQuality horizontal_quality(Side side)	const {
+    int     left_horizontal()                      const { return this->has_left_horizontal() ? this->prev_on_contour : -1; }
+    int     right_horizontal()                  const { return this->has_right_horizontal() ? this->next_on_contour : -1; }
+    int     horizontal(Side side)                  const { return side == Side::Left ? this->left_horizontal() : this->right_horizontal(); }
+    LinkQuality horizontal_quality(Side side)    const {
         assert(this->has_horizontal(side));
         return side == Side::Left ? this->prev_on_contour_quality : this->next_on_contour_quality;
     }
 
-    int 	left_vertical_up()   		 		const { return this->has_left_vertical_up() ? this->prev_on_contour : -1; }
-    int 	left_vertical_down()   		 		const { return this->has_left_vertical_down() ? this->prev_on_contour : -1; }
-    int 	left_vertical(Direction dir) 		const { return (dir == Direction::Up ? this->has_left_vertical_up() : this->has_left_vertical_down()) ? this->prev_on_contour : -1; }
-    int 	left_vertical()   			 		const { return this->has_left_vertical() ? this->prev_on_contour : -1; }
-    int 	left_vertical_outside()				const { return this->is_low() ? this->left_vertical_down() : this->left_vertical_up(); }
-    int 	right_vertical_up()   		 		const { return this->has_right_vertical_up() ? this->next_on_contour : -1; }
-    int 	right_vertical_down()   	 		const { return this->has_right_vertical_down() ? this->next_on_contour : -1; }
-    int 	right_vertical(Direction dir) 		const { return (dir == Direction::Up ? this->has_right_vertical_up() : this->has_right_vertical_down()) ? this->next_on_contour : -1; }
-    int 	right_vertical()   			 		const { return this->has_right_vertical() ? this->next_on_contour : -1; }
-    int 	right_vertical_outside()			const { return this->is_low() ? this->right_vertical_down() : this->right_vertical_up(); }
+    int     left_vertical_up()                    const { return this->has_left_vertical_up() ? this->prev_on_contour : -1; }
+    int     left_vertical_down()                    const { return this->has_left_vertical_down() ? this->prev_on_contour : -1; }
+    int     left_vertical(Direction dir)         const { return (dir == Direction::Up ? this->has_left_vertical_up() : this->has_left_vertical_down()) ? this->prev_on_contour : -1; }
+    int     left_vertical()                        const { return this->has_left_vertical() ? this->prev_on_contour : -1; }
+    int     left_vertical_outside()                const { return this->is_low() ? this->left_vertical_down() : this->left_vertical_up(); }
+    int     right_vertical_up()                    const { return this->has_right_vertical_up() ? this->next_on_contour : -1; }
+    int     right_vertical_down()                const { return this->has_right_vertical_down() ? this->next_on_contour : -1; }
+    int     right_vertical(Direction dir)         const { return (dir == Direction::Up ? this->has_right_vertical_up() : this->has_right_vertical_down()) ? this->next_on_contour : -1; }
+    int     right_vertical()                        const { return this->has_right_vertical() ? this->next_on_contour : -1; }
+    int     right_vertical_outside()            const { return this->is_low() ? this->right_vertical_down() : this->right_vertical_up(); }
 
-    int 	vertical_up(Side side)				const { return side == Side::Left ? this->left_vertical_up() : this->right_vertical_up(); }
-    int 	vertical_down(Side side)			const { return side == Side::Left ? this->left_vertical_down() : this->right_vertical_down(); }
-    int 	vertical_outside(Side side)			const { return side == Side::Left ? this->left_vertical_outside() : this->right_vertical_outside(); }
+    int     vertical_up(Side side)                const { return side == Side::Left ? this->left_vertical_up() : this->right_vertical_up(); }
+    int     vertical_down(Side side)            const { return side == Side::Left ? this->left_vertical_down() : this->right_vertical_down(); }
+    int     vertical_outside(Side side)            const { return side == Side::Left ? this->left_vertical_outside() : this->right_vertical_outside(); }
     // Returns -1 if there is no link up.
-    int 	vertical_up()						const {
+    int     vertical_up()                        const {
         return this->has_left_vertical_up() ? this->left_vertical_up() : this->right_vertical_up();
     }
-    LinkQuality vertical_up_quality()			const {
+    LinkQuality vertical_up_quality()            const {
         return this->has_left_vertical_up() ? this->prev_on_contour_quality : this->next_on_contour_quality;
     }
     // Returns -1 if there is no link down.
-    int 	vertical_down()						const {
-        //    	assert(! this->has_left_vertical_down() || ! this->has_right_vertical_down());
+    int     vertical_down()                        const {
+        //        assert(! this->has_left_vertical_down() || ! this->has_right_vertical_down());
         return this->has_left_vertical_down() ? this->left_vertical_down() : this->right_vertical_down();
     }
-    LinkQuality vertical_down_quality()			const {
+    LinkQuality vertical_down_quality()            const {
         return this->has_left_vertical_down() ? this->prev_on_contour_quality : this->next_on_contour_quality;
     }
-    int 	vertical_outside()					const { return this->is_low() ? this->vertical_down() : this->vertical_up(); }
-    LinkQuality vertical_outside_quality()		const { return this->is_low() ? this->vertical_down_quality() : this->vertical_up_quality(); }
+    int     vertical_outside()                    const { return this->is_low() ? this->vertical_down() : this->vertical_up(); }
+    LinkQuality vertical_outside_quality()        const { return this->is_low() ? this->vertical_down_quality() : this->vertical_up_quality(); }
 
     // Compare two y intersection points given by rational numbers.
     // Note that the rational number is given as pos_p/pos_q, where pos_p is int64 and pos_q is uint32.
@@ -326,7 +326,7 @@ struct SegmentIntersection
         }
     }
 
-    bool operator==(const SegmentIntersection &other) const 
+    bool operator==(const SegmentIntersection &other) const
     {
         assert(pos_q > 0);
         assert(other.pos_q > 0);
@@ -418,7 +418,7 @@ public:
         // assert(aoffset1 < 0);
         assert(aoffset2 <= 0);
         // assert(aoffset2 == 0 || aoffset2 < aoffset1);
-//        bool sticks_removed = 
+//        bool sticks_removed =
         remove_sticks(polygons_src);
         //        if (sticks_removed) BOOST_LOG_TRIVIAL(error) << "Sticks removed!";
         polygons_outer = aoffset1 == 0 ? polygons_src : offset(polygons_src, float(aoffset1), ClipperLib::jtMiter, miterLimit);
@@ -458,7 +458,7 @@ public:
     // Any contour with offset2
     bool             is_contour_inner(size_t idx) const { return idx >= n_contours_outer; }
 
-    const Polygon&   contour(size_t idx) const 
+    const Polygon&   contour(size_t idx) const
         { return is_contour_outer(idx) ? polygons_outer[idx] : polygons_inner[idx - n_contours_outer]; }
 
     Polygon&         contour(size_t idx)
@@ -466,11 +466,11 @@ public:
 
     bool             is_contour_ccw(size_t idx) const { return polygons_ccw[idx]; }
 
-    BoundingBox      bounding_box_src() const 
+    BoundingBox      bounding_box_src() const
         { return get_extents(polygons_src); }
-    BoundingBox      bounding_box_outer() const 
+    BoundingBox      bounding_box_outer() const
         { return get_extents(polygons_outer); }
-    BoundingBox      bounding_box_inner() const 
+    BoundingBox      bounding_box_inner() const
         { return get_extents(polygons_inner); }
 
 #ifdef SLIC3R_DEBUG
@@ -1486,8 +1486,8 @@ static void traverse_graph_generate_polylines(
     // Naively one would expect to achieve best results by chaining the paths by the shortest distance,
     // but that procedure does not create the longest continuous paths.
     // A simple "sweep left to right" procedure achieves better results.
-    int    	  i_vline = 0;
-    int    	  i_intersection = -1;
+    int          i_vline = 0;
+    int          i_intersection = -1;
     // Follow the line, connect the lines into a graph.
     // Until no new line could be added to the output path:
     Point     pointLast;
@@ -1601,8 +1601,8 @@ static void traverse_graph_generate_polylines(
         // From the initial point (i_vline, i_intersection), follow a path.
         SegmentedIntersectionLine& vline = segs[i_vline];
         SegmentIntersection* it = &vline.intersections[i_intersection];
-        bool 					   going_up = it->is_low();
-        bool 					   try_connect = false;
+        bool                        going_up = it->is_low();
+        bool                        try_connect = false;
         if (going_up) {
             assert(!it->consumed_vertical_up);
             assert(size_t(i_intersection + 1) < vline.intersections.size());
@@ -1699,7 +1699,7 @@ static void traverse_graph_generate_polylines(
             int i_vertical = it->vertical_outside();
             auto vertical_link_quality = (i_vertical == -1 || vline.intersections[i_vertical + (going_up ? 0 : -1)].consumed_vertical_up) ?
                 SegmentIntersection::LinkQuality::Invalid : it->vertical_outside_quality();
-#if 0            	
+#if 0
             if (vertical_link_quality == SegmentIntersection::LinkQuality::Valid ||
                 // Follow the link if there is no horizontal link available.
                 (!intersection_horizontal_valid && vertical_link_quality != SegmentIntersection::LinkQuality::Invalid)) {
@@ -1770,26 +1770,26 @@ struct MonotonicRegion
         int high;
     };
 
-    Boundary 	left;
-    Boundary 	right;
+    Boundary     left;
+    Boundary     right;
 
     // Length when starting at left.low
-    float 		len1{ 0.f };
+    float         len1{ 0.f };
     // Length when starting at left.high
-    float 		len2{ 0.f };
+    float         len2{ 0.f };
     // If true, then when starting at left.low, then ending at right.high and vice versa.
     // If false, then ending at the same side as starting.
-    bool 		flips{ false };
+    bool         flips{ false };
 
     float       length(bool region_flipped) const { return region_flipped ? len2 : len1; }
-    int 		left_intersection_point(bool region_flipped) const { return region_flipped ? left.high : left.low; }
-    int 		right_intersection_point(bool region_flipped) const { return (region_flipped == flips) ? right.low : right.high; }
+    int         left_intersection_point(bool region_flipped) const { return region_flipped ? left.high : left.low; }
+    int         right_intersection_point(bool region_flipped) const { return (region_flipped == flips) ? right.low : right.high; }
 
 #if NDEBUG
     // Left regions are used to track whether all regions left to this one have already been printed.
-    boost::container::small_vector<MonotonicRegion*, 4>	left_neighbors;
+    boost::container::small_vector<MonotonicRegion*, 4>    left_neighbors;
     // Right regions are held to pick a next region to be extruded using the "Ant colony" heuristics.
-    boost::container::small_vector<MonotonicRegion*, 4>	right_neighbors;
+    boost::container::small_vector<MonotonicRegion*, 4>    right_neighbors;
 #else
     // For debugging, use the normal vector as it is better supported by debug visualizers.
     std::vector<MonotonicRegion*> left_neighbors;
@@ -1799,16 +1799,16 @@ struct MonotonicRegion
 
 struct AntPath
 {
-    float length{ -1. }; 		// Length of the link to the next region.
-    float visibility{ -1. }; 		// 1 / length. Which length, just to the next region, or including the path accross the region?
-    float pheromone{ 0 }; 		// <0, 1>
+    float length{ -1. };         // Length of the link to the next region.
+    float visibility{ -1. };         // 1 / length. Which length, just to the next region, or including the path accross the region?
+    float pheromone{ 0 };         // <0, 1>
 };
 
 struct MonotonicRegionLink
 {
     MonotonicRegion* region;
-    bool 				 flipped;
-    // Distance of right side of this region to left side of the next region, if the "flipped" flag of this region and the next region 
+    bool                  flipped;
+    // Distance of right side of this region to left side of the next region, if the "flipped" flag of this region and the next region
     // is applied as defined.
     AntPath* next;
     // Distance of right side of this region to left side of the next region, if the "flipped" flag of this region and the next region
@@ -1825,7 +1825,7 @@ public:
         const std::vector<MonotonicRegion>& regions,
         const ExPolygonWithOffset& poly_with_offset,
         const std::vector<SegmentedIntersectionLine>& segs,
-        const float 									 initial_pheromone) :
+        const float                                      initial_pheromone) :
         m_regions(regions),
         m_poly_with_offset(poly_with_offset),
         m_segs(segs),
@@ -1886,7 +1886,7 @@ private:
     const std::vector<SegmentedIntersectionLine>& m_segs;
     // From end of one region to the start of another region, both flipped or not flipped.
     //FIXME one may possibly use sparse representation of the matrix, likely using hashing.
-    std::vector<AntPath>					         m_matrix;
+    std::vector<AntPath>                             m_matrix;
 };
 
 static const SegmentIntersection& vertical_run_bottom(const SegmentedIntersectionLine & vline, const SegmentIntersection & start)
@@ -2185,7 +2185,7 @@ static float montonous_region_path_length(const MonotonicRegion& region, bool di
         const SegmentIntersection* it = &vline.intersections[i_intersection];
         const bool                       going_up = it->is_low();
 
-        if (no_perimeter) 
+        if (no_perimeter)
             total_length += (last_point - Vec2f(vline.pos, (it + (going_up ? -1 : 1))->pos())).norm();
 
         int iright = it->right_horizontal();
@@ -2231,7 +2231,7 @@ static float montonous_region_path_length(const MonotonicRegion& region, bool di
 
         // Find the end of the next overlapping vertical segment.
         const SegmentedIntersectionLine &vline_right = segs[i_vline + 1];
-        const SegmentIntersection       *right       = going_up ? 
+        const SegmentIntersection       *right       = going_up ?
             &vertical_run_top(vline_right, vline_right.intersections[iright]) : &vertical_run_bottom(vline_right, vline_right.intersections[iright]);
         i_intersection = int(right - vline_right.intersections.data());
 
@@ -2261,19 +2261,19 @@ static float montonous_region_path_length(const MonotonicRegion& region, bool di
 
 static void connect_monotonic_regions(std::vector<MonotonicRegion> &regions, const ExPolygonWithOffset &poly_with_offset, std::vector<SegmentedIntersectionLine> &segs)
 {
-	// Map from low intersection to left / right side of a monotonic region.
-	using MapType = std::pair<SegmentIntersection*, MonotonicRegion*>;
-	std::vector<MapType> map_intersection_to_region_start;
-	std::vector<MapType> map_intersection_to_region_end;
-	map_intersection_to_region_start.reserve(regions.size());
-	map_intersection_to_region_end.reserve(regions.size());
-	for (MonotonicRegion &region : regions) {
-		map_intersection_to_region_start.emplace_back(&segs[region.left.vline].intersections[region.left.low], &region);
-		map_intersection_to_region_end.emplace_back(&segs[region.right.vline].intersections[region.right.low], &region);
-	}
-	auto intersections_lower = [](const MapType &l, const MapType &r){ return l.first < r.first ; };
+    // Map from low intersection to left / right side of a monotonic region.
+    using MapType = std::pair<SegmentIntersection*, MonotonicRegion*>;
+    std::vector<MapType> map_intersection_to_region_start;
+    std::vector<MapType> map_intersection_to_region_end;
+    map_intersection_to_region_start.reserve(regions.size());
+    map_intersection_to_region_end.reserve(regions.size());
+    for (MonotonicRegion &region : regions) {
+        map_intersection_to_region_start.emplace_back(&segs[region.left.vline].intersections[region.left.low], &region);
+        map_intersection_to_region_end.emplace_back(&segs[region.right.vline].intersections[region.right.low], &region);
+    }
+    auto intersections_lower = [](const MapType &l, const MapType &r){ return l.first < r.first ; };
     std::sort(map_intersection_to_region_start.begin(), map_intersection_to_region_start.end(), intersections_lower);
-	std::sort(map_intersection_to_region_end.begin(), map_intersection_to_region_end.end(), intersections_lower);
+    std::sort(map_intersection_to_region_end.begin(), map_intersection_to_region_end.end(), intersections_lower);
 
     // Scatter links to neighboring regions.
     for (MonotonicRegion& region : regions) {
@@ -2404,9 +2404,9 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
     std::vector<MonotonicRegion> & regions, const ExPolygonWithOffset & poly_with_offset, const std::vector<SegmentedIntersectionLine> & segs, std::mt19937_64 & rng)
 {
     // Number of left neighbors (regions that this region depends on, this region cannot be printed before the regions left of it are printed) + self.
-    std::vector<int32_t>			left_neighbors_unprocessed(regions.size(), 1);
+    std::vector<int32_t>            left_neighbors_unprocessed(regions.size(), 1);
     // Queue of regions, which have their left neighbors already printed.
-    std::vector<MonotonicRegion*> 	queue;
+    std::vector<MonotonicRegion*>     queue;
     queue.reserve(regions.size());
     for (MonotonicRegion& region : regions)
         if (region.left_neighbors.empty())
@@ -2422,14 +2422,14 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
     best_path.reserve(regions.size());
     float best_path_length = std::numeric_limits<float>::max();
 
-	struct NextCandidate {
+    struct NextCandidate {
         MonotonicRegion    *region = nullptr;
-        AntPath  	        *link;
-        AntPath  	        *link_flipped;
+        AntPath              *link;
+        AntPath              *link_flipped;
         float                probability;
-        bool 		         dir = false;
-	};
-	std::vector<NextCandidate> next_candidates;
+        bool                  dir = false;
+    };
+    std::vector<NextCandidate> next_candidates;
 
     [[maybe_unused]]auto validate_unprocessed =
 #ifdef NDEBUG
@@ -2439,7 +2439,7 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
             std::vector<unsigned char> regions_processed(regions.size(), false);
             std::vector<unsigned char> regions_in_queue(regions.size(), false);
             for (const MonotonicRegion *region : queue) {
-            	// This region is not processed yet, his predecessors are processed.
+                // This region is not processed yet, his predecessors are processed.
                 assert(left_neighbors_unprocessed[region - regions.data()] == 1);
                 regions_in_queue[region - regions.data()] = true;
             }
@@ -2465,7 +2465,7 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
                     for (const MonotonicRegion* left : region.left_neighbors) {
                         size_t iprev = left - regions.data();
                         if (regions_processed[iprev]) {
-                        	assert(left_neighbors_unprocessed[iprev] == 0);
+                            assert(left_neighbors_unprocessed[iprev] == 0);
                             if (left == path.back().region) {
                                 // This region should actually be on queue, but to optimize the queue management
                                 // this item will be processed in the next round by traversing path.back().region->right_neighbors before processing the queue.
@@ -2474,11 +2474,11 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
                                 ++ num_predecessors_unprocessed;
                             }
                         } else {
-                        	if (regions_in_queue[iprev])
-	                    		assert(left_neighbors_unprocessed[iprev] == 1);
-	                    	else 
-	                    		assert(left_neighbors_unprocessed[iprev] > 1);
-	                    	++ num_predecessors_unprocessed;
+                            if (regions_in_queue[iprev])
+                                assert(left_neighbors_unprocessed[iprev] == 1);
+                            else
+                                assert(left_neighbors_unprocessed[iprev] > 1);
+                            ++ num_predecessors_unprocessed;
                         }
                     }
                     assert(num_predecessors_unprocessed > 0);
@@ -2489,23 +2489,23 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
         };
 #endif /* NDEBUG */
 
-	// How many times to repeat the ant simulation (number of ant generations).
-	constexpr int const   num_rounds = 25;
-	// After how many rounds without an improvement to exit?
-	constexpr int const   num_rounds_no_change_exit = 8;
-	// With how many ants each of the run will be performed?
-	const int             num_ants = std::min(int(regions.size()), 10);
-	// Base (initial) pheromone level. This value will be adjusted based on the length of the first greedy path found.
-	float                 pheromone_initial_deposit = 0.5f;
-	// Evaporation rate of pheromones.
-	constexpr float const pheromone_evaporation = 0.1f;
+    // How many times to repeat the ant simulation (number of ant generations).
+    constexpr int const   num_rounds = 25;
+    // After how many rounds without an improvement to exit?
+    constexpr int const   num_rounds_no_change_exit = 8;
+    // With how many ants each of the run will be performed?
+    const int             num_ants = std::min(int(regions.size()), 10);
+    // Base (initial) pheromone level. This value will be adjusted based on the length of the first greedy path found.
+    float                 pheromone_initial_deposit = 0.5f;
+    // Evaporation rate of pheromones.
+    constexpr float const pheromone_evaporation = 0.1f;
     // Evaporation rate to diversify paths taken by individual ants.
     constexpr float const pheromone_diversification = 0.1f;
-	// Probability at which to take the next best path. Otherwise take the the path based on the cost distribution.
-	constexpr float const probability_take_best = 0.9f;
-	// Exponents of the cost function.
-	constexpr float const pheromone_alpha = 1.f; // pheromone exponent
-	constexpr float const pheromone_beta  = 2.f; // attractiveness weighted towards edge length
+    // Probability at which to take the next best path. Otherwise take the the path based on the cost distribution.
+    constexpr float const probability_take_best = 0.9f;
+    // Exponents of the cost function.
+    constexpr float const pheromone_alpha = 1.f; // pheromone exponent
+    constexpr float const pheromone_beta  = 2.f; // attractiveness weighted towards edge length
 
     AntPathMatrix path_matrix(regions, poly_with_offset, segs, pheromone_initial_deposit);
 
@@ -2523,14 +2523,14 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
         float total_length = path_end.region->length(false);
         while (!queue.empty() || !path_end.region->right_neighbors.empty()) {
             // Chain.
-			MonotonicRegion 		    &region = *path_end.region;
-			bool 			  			 dir    = path_end.flipped;
-			NextCandidate 				 next_candidate;
-			next_candidate.probability = 0;
-			for (MonotonicRegion *next : region.right_neighbors) {
+            MonotonicRegion             &region = *path_end.region;
+            bool                            dir    = path_end.flipped;
+            NextCandidate                  next_candidate;
+            next_candidate.probability = 0;
+            for (MonotonicRegion *next : region.right_neighbors) {
                 assert(left_neighbors_unprocessed[next - regions.data()] > 1);
-				if (left_neighbors_unprocessed[next - regions.data()] == 2) {
-					// Dependencies of the successive blocks are satisfied.
+                if (left_neighbors_unprocessed[next - regions.data()] == 2) {
+                    // Dependencies of the successive blocks are satisfied.
                     AntPath &path1 = path_matrix(region, dir, *next, false);
                     AntPath &path2 = path_matrix(region, dir, *next, true);
                     if (path1.visibility > next_candidate.probability)
@@ -2561,10 +2561,10 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
                 *it = queue.back();
                 queue.pop_back();
             }
-			// Extend the path.
+            // Extend the path.
             assert(next_candidate.region);
-			MonotonicRegion *next_region = next_candidate.region;
-			bool              next_dir    = next_candidate.dir;
+            MonotonicRegion *next_region = next_candidate.region;
+            bool              next_dir    = next_candidate.dir;
             total_length += next_region->length(next_dir) + path_matrix(*path_end.region, path_end.flipped, *next_region, next_dir).length;
             path_end = { next_region, next_dir };
             assert(left_neighbors_unprocessed[next_region - regions.data()] == 1);
@@ -2577,14 +2577,14 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
     }
 
     // Probability (unnormalized) of traversing a link between two monotonic regions.
-	auto path_probability = [
+    auto path_probability = [
 #ifndef __APPLE__
         // clang complains when capturing constexpr constants.
         pheromone_alpha, pheromone_beta
 #endif // __APPLE__
         ](AntPath &path) {
-		return pow(path.pheromone, pheromone_alpha) * pow(path.visibility, pheromone_beta);
-	};
+        return pow(path.pheromone, pheromone_alpha) * pow(path.visibility, pheromone_beta);
+    };
 
 #ifdef SLIC3R_DEBUG_ANTS
     static int irun = 0;
@@ -2617,14 +2617,14 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
                 path.back().region->left.vline,
                 path.back().flipped ? path.back().region->left.high : path.back().region->left.low,
                 path.back().flipped ? path.back().region->left.low  : path.back().region->left.high,
-                path.back().region->right.vline, 
+                path.back().region->right.vline,
                 path.back().flipped == path.back().region->flips ? path.back().region->right.high : path.back().region->right.low,
                 path.back().flipped == path.back().region->flips ? path.back().region->right.low : path.back().region->right.high);
 
             while (!queue.empty() || !path.back().region->right_neighbors.empty()) {
                 // Chain.
                 MonotonicRegion& region = *path.back().region;
-                bool 			  			 dir = path.back().flipped;
+                bool                            dir = path.back().flipped;
                 // Sort by distance to pt.
                 next_candidates.clear();
                 next_candidates.reserve(region.right_neighbors.size() * 2);
@@ -2805,12 +2805,12 @@ static void polylines_from_paths(const std::vector<MonotonicRegionLink>& path, c
             // Connect previous path segment with the new one.
             const MonotonicRegionLink& path_segment_prev = *(&path_segment - 1);
             const MonotonicRegion& region_prev = *path_segment_prev.region;
-            bool 			  			       dir_prev = path_segment_prev.flipped;
+            bool                                  dir_prev = path_segment_prev.flipped;
             int                                i_vline_prev = region_prev.right.vline;
             const SegmentedIntersectionLine& vline_prev = segs[i_vline_prev];
-            int 		       				   i_intersection_prev = region_prev.right_intersection_point(dir_prev);
+            int                                   i_intersection_prev = region_prev.right_intersection_point(dir_prev);
             const SegmentIntersection* ip_prev = &vline_prev.intersections[i_intersection_prev];
-            bool 						       extended = false;
+            bool                                extended = false;
             if (i_vline_prev + 1 == i_vline) {
                 if (ip_prev->right_horizontal() == i_intersection && ip_prev->next_on_contour_quality == SegmentIntersection::LinkQuality::Valid) {
                     // Emit a horizontal connection contour.
@@ -2887,11 +2887,11 @@ static void polylines_from_paths(const std::vector<MonotonicRegionLink>& path, c
 
             // Find the end of the next overlapping vertical segment.
             const SegmentedIntersectionLine &vline_right = segs[i_vline + 1];
-            const SegmentIntersection       *right       = going_up ? 
+            const SegmentIntersection       *right       = going_up ?
                 &vertical_run_top(vline_right, vline_right.intersections[iright]) : &vertical_run_bottom(vline_right, vline_right.intersections[iright]);
             i_intersection = int(right - vline_right.intersections.data());
 
-	        if (inext == i_intersection && it->next_on_contour_quality == SegmentIntersection::LinkQuality::Valid) {
+            if (inext == i_intersection && it->next_on_contour_quality == SegmentIntersection::LinkQuality::Valid) {
                 // Emit a horizontal connection contour.
                 emit_perimeter_prev_next_segment(poly_with_offset, segs, i_vline, it->iContour, it - vline.intersections.data(), inext, *polyline, true);
             } else {
@@ -2939,8 +2939,8 @@ bool FillRectilinear::fill_surface_by_lines(const Surface *surface, const FillPa
 
     // On the polygons of poly_with_offset, the infill lines will be connected.
     ExPolygonWithOffset poly_with_offset(
-        surface->expolygon, 
-        - rotate_vector.first, 
+        surface->expolygon,
+        - rotate_vector.first,
         (scale_t(0 /*this->overlap*/ - /*(0.5 - INFILL_OVERLAP_OVER_SPACING)*/ 0.05 * this->get_spacing())), // outer offset, have to be > to the inner one (less negative)
         // inner offset (don't put 0.5, as it will cut full-filled area when it's exactly at the right place)
         // Note: this will put the fill 2% too far into the perimeter.
@@ -2966,8 +2966,8 @@ bool FillRectilinear::fill_surface_by_lines(const Surface *surface, const FillPa
         coord_t pattern_shift_scaled = scale_t(pattern_shift) % line_spacing;
         refpt.x() -= (pattern_shift_scaled >= 0) ? pattern_shift_scaled : (line_spacing + pattern_shift_scaled);
         bounding_box.merge(align_to_grid(
-            bounding_box.min, 
-            Point(line_spacing, line_spacing), 
+            bounding_box.min,
+            Point(line_spacing, line_spacing),
             refpt));
     }
 
@@ -3150,12 +3150,12 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
         // Rotate polygons so that we can work with vertical lines here
         float angle = rotate_vector.first + sweep.angle_base;
         make_fill_lines(
-            ExPolygonWithOffset(poly_with_offset_base, - angle), 
-            rotate_vector.second.rotated(-angle), 
-            angle, 
-            line_width + coord_t(SCALED_EPSILON), 
-            line_spacing, 
-            scale_t(sweep.pattern_shift), 
+            ExPolygonWithOffset(poly_with_offset_base, - angle),
+            rotate_vector.second.rotated(-angle),
+            angle,
+            line_width + coord_t(SCALED_EPSILON),
+            line_spacing,
+            scale_t(sweep.pattern_shift),
             fill_lines,
             params);
     }
@@ -3230,7 +3230,7 @@ Polylines FillCubic::fill_surface(const Surface *surface, const FillParams &para
         { { 0.f, float(dx) }, { float(M_PI / 3.), -float(dx) }, { float(M_PI * 2. / 3.), float(dx) } },
         polylines_out))
         BOOST_LOG_TRIVIAL(error) << "FillCubic::fill_surface() failed to fill a region.";
-    return polylines_out; 
+    return polylines_out;
 }
 
 Polylines FillSupportBase::fill_surface(const Surface *surface, const FillParams &params) const
@@ -3360,7 +3360,7 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
                 //do not use the "return" line nor the tangent ones.
                 while (idx < poly.size() && maxLength > tooth_spacing_min && (next_zhop >= line_length || line_length < clearance
                     || (std::abs(std::abs((int)(this->angle * 180 / PI) % 180) - 90) > 45 ? pts[idx].y() < pts[idx - 1].y() : pts[idx].x() < pts[idx - 1].x()))) {
-                    if (line_length < clearance 
+                    if (line_length < clearance
                         || (std::abs(std::abs((int)(this->angle * 180 / PI) % 180) - 90) > 45 ? pts[idx].y() < pts[idx - 1].y() : pts[idx].x() < pts[idx - 1].x())) {
                         // not becasue of next_zhop too big, so don't reduce it.
                     } else {
@@ -3378,7 +3378,7 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
                 if (idx < poly.size() &&  maxLength > clearance /*&& line_length > scaled_nozzle_diam * 2.5*/) {
                     //do z-hop
                     //keep some room for the mouv
-                    if (next_zhop > line_length - scaled_nozzle_diam * 2) 
+                    if (next_zhop > line_length - scaled_nozzle_diam * 2)
                         next_zhop = line_length - scaled_nozzle_diam * 2.5;
                     last = last.interpolate(next_zhop / (double)line_length, pts[idx]);
                     //Create point at pos
@@ -3445,7 +3445,7 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
 void
 FillRectilinearWGapFill::split_polygon_gap_fill(const Surface &surface, const FillParams &params, ExPolygons &rectilinear, ExPolygons &gapfill) {
 
-    // remove areas for gapfill 
+    // remove areas for gapfill
     // factor=0.5 : remove area smaller than a spacing. factor=1 : max spacing for the gapfill (but not the width)
     //choose between 2 to avoid dotted line  effect.
     float factor1 = 0.99f;
@@ -3464,7 +3464,7 @@ FillRectilinearWGapFill::fill_surface_extrusion(const Surface *surface, const Fi
     coll_nosort->set_can_sort_reverse(false, false); //can be sorted inside the pass but thew two pass need to be done one after the other
     ExtrusionRole good_role = getRoleFromSurfaceType(params, surface);
 
-    //// remove areas for gapfill 
+    //// remove areas for gapfill
     //// factor=0.5 : remove area smaller than a spacing. factor=1 : max spacing for the gapfill (but not the width)
     ////choose between 2 to avoid dotted line  effect.
     //float factor1 = 0.99f;
@@ -3537,7 +3537,7 @@ FillRectilinearWGapFill::fill_surface_extrusion(const Surface *surface, const Fi
         do_gap_fill(intersection_ex(gapfill_areas, no_overlap_expolygons), params2, coll_nosort->set_entities());
     }
 
-    
+
     // check volume coverage
     {
         double flow_mult_exact_volume = 1;

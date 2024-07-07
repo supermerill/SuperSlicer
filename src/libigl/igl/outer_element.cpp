@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Qingnan Zhou <qnzhou@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "outer_element.h"
 #include <iostream>
@@ -23,7 +23,7 @@ IGL_INLINE void igl::outer_vertex(
         IndexType & v_index,
         Eigen::PlainObjectBase<DerivedA> & A)
 {
-    // Algorithm: 
+    // Algorithm:
     //    Find an outer vertex (i.e. vertex reachable from infinity)
     //    Return the vertex with the largest X value.
     //    If there is a tie, pick the one with largest Y value.
@@ -112,7 +112,7 @@ IGL_INLINE void igl::outer_edge(
     const ScalarArray3& outer_v = V.row(outer_vid);
     assert(candidate_faces.size() > 0);
 
-    auto get_vertex_index = [&](const IndexArray3& f, Index vid) -> Index 
+    auto get_vertex_index = [&](const IndexArray3& f, Index vid) -> Index
     {
         if (f[0] == vid) return 0;
         if (f[1] == vid) return 1;
@@ -241,7 +241,7 @@ IGL_INLINE void igl::outer_facet(
     Scalar max_nx = 0;
     size_t outer_fid = INVALID;
     const size_t num_incident_faces = incident_faces.size();
-    for (size_t i=0; i<num_incident_faces; i++) 
+    for (size_t i=0; i<num_incident_faces; i++)
     {
         const auto& fid = incident_faces(i);
         const Scalar nx = N(fid, 0);

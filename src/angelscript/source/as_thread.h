@@ -52,37 +52,37 @@ class asCThreadLocalData;
 class asCThreadManager : public asIThreadManager
 {
 public:
-	static asCThreadLocalData *GetLocalData();
-	static int CleanupLocalData();
+    static asCThreadLocalData *GetLocalData();
+    static int CleanupLocalData();
 
-	static int  Prepare(asIThreadManager *externalThreadMgr);
-	static void Unprepare();
+    static int  Prepare(asIThreadManager *externalThreadMgr);
+    static void Unprepare();
 
-	// This read/write lock can be used by the application to provide simple synchronization
-	DECLAREREADWRITELOCK(appRWLock)
+    // This read/write lock can be used by the application to provide simple synchronization
+    DECLAREREADWRITELOCK(appRWLock)
 
 protected:
-	asCThreadManager();
-	~asCThreadManager();
+    asCThreadManager();
+    ~asCThreadManager();
 
-	// No need to use the atomic int here, as it will only be
-	// updated within the thread manager's critical section
-	int refCount;
+    // No need to use the atomic int here, as it will only be
+    // updated within the thread manager's critical section
+    int refCount;
 
 #ifndef AS_NO_THREADS
 #if defined(_MSC_VER) && defined(AS_WINDOWS_THREADS) && (WINAPI_FAMILY & WINAPI_FAMILY_PHONE_APP)
-	// On Windows Store we must use MSVC specific thread variables for thread
-	// local storage, as the TLS API isn't available. On desktop we can't use
-	// this as it may cause problems if the library is used in a dll.
-	// ref: http://msdn.microsoft.com/en-us/library/2s9wt68x.aspx
-	// ref: http://msdn.microsoft.com/en-us/library/9w1sdazb.aspx
-	__declspec(thread) static asCThreadLocalData *tld;
+    // On Windows Store we must use MSVC specific thread variables for thread
+    // local storage, as the TLS API isn't available. On desktop we can't use
+    // this as it may cause problems if the library is used in a dll.
+    // ref: http://msdn.microsoft.com/en-us/library/2s9wt68x.aspx
+    // ref: http://msdn.microsoft.com/en-us/library/9w1sdazb.aspx
+    __declspec(thread) static asCThreadLocalData *tld;
 #else
-	asDWORD tlsKey;
+    asDWORD tlsKey;
 #endif
-	DECLARECRITICALSECTION(criticalSection)
+    DECLARECRITICALSECTION(criticalSection)
 #else
-	asCThreadLocalData *tld;
+    asCThreadLocalData *tld;
 #endif
 };
 
@@ -93,14 +93,14 @@ class asIScriptContext;
 class asCThreadLocalData
 {
 public:
-	asCArray<asIScriptContext *> activeContexts;
-	asCString string;
+    asCArray<asIScriptContext *> activeContexts;
+    asCString string;
 
 protected:
-	friend class asCThreadManager;
+    friend class asCThreadManager;
 
-	asCThreadLocalData();
-	~asCThreadLocalData();
+    asCThreadLocalData();
+    ~asCThreadLocalData();
 };
 
 END_AS_NAMESPACE

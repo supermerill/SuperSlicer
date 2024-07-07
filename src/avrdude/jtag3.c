@@ -62,7 +62,7 @@ struct pdata
   unsigned long eeprom_pageaddr;
   unsigned int eeprom_pagesize;
 
-  int prog_enabled;	     /* Cached value of PROGRAMMING status. */
+  int prog_enabled;         /* Cached value of PROGRAMMING status. */
 
   /* JTAG chain stuff */
   unsigned char jtagchain[4];
@@ -80,7 +80,7 @@ struct pdata
  * pgm->flag is marked as "for private use of the programmer".
  * The following defines this programmer's use of that field.
  */
-#define PGM_FL_IS_DW		(0x0001)
+#define PGM_FL_IS_DW        (0x0001)
 #define PGM_FL_IS_PDI           (0x0002)
 #define PGM_FL_IS_JTAG          (0x0004)
 #define PGM_FL_IS_EDBG          (0x0008)
@@ -188,9 +188,9 @@ static void jtag3_prmsg(PROGRAMMER * pgm, unsigned char * data, size_t len)
     for (i = 0; i < len; i++) {
       avrdude_message(MSG_TRACE, "%02x ", data[i]);
       if (i % 16 == 15)
-	putc('\n', stderr);
+    putc('\n', stderr);
       else
-	putc(' ', stderr);
+    putc(' ', stderr);
     }
     if (i % 16 != 0)
       putc('\n', stderr);
@@ -228,47 +228,47 @@ static void jtag3_prmsg(PROGRAMMER * pgm, unsigned char * data, size_t len)
       avrdude_message(MSG_INFO, "FAILED");
       if (len > 3)
       {
-	char reason[50];
-	sprintf(reason, "0x%02x", data[3]);
-	switch (data[3])
-	{
-	  case RSP3_FAIL_NO_ANSWER:
-	    strcpy(reason, "target does not answer");
-	    break;
+    char reason[50];
+    sprintf(reason, "0x%02x", data[3]);
+    switch (data[3])
+    {
+      case RSP3_FAIL_NO_ANSWER:
+        strcpy(reason, "target does not answer");
+        break;
 
-	  case RSP3_FAIL_NO_TARGET_POWER:
-	    strcpy(reason, "no target power");
-	    break;
+      case RSP3_FAIL_NO_TARGET_POWER:
+        strcpy(reason, "no target power");
+        break;
 
-	  case RSP3_FAIL_NOT_UNDERSTOOD:
-	    strcpy(reason, "command not understood");
-	    break;
+      case RSP3_FAIL_NOT_UNDERSTOOD:
+        strcpy(reason, "command not understood");
+        break;
 
-	  case RSP3_FAIL_WRONG_MODE:
-	    strcpy(reason, "wrong (programming) mode");
-	    break;
+      case RSP3_FAIL_WRONG_MODE:
+        strcpy(reason, "wrong (programming) mode");
+        break;
 
-	  case RSP3_FAIL_PDI:
-	    strcpy(reason, "PDI failure");
-	    break;
+      case RSP3_FAIL_PDI:
+        strcpy(reason, "PDI failure");
+        break;
 
-	  case RSP3_FAIL_UNSUPP_MEMORY:
-	    strcpy(reason, "unsupported memory type");
-	    break;
+      case RSP3_FAIL_UNSUPP_MEMORY:
+        strcpy(reason, "unsupported memory type");
+        break;
 
-	  case RSP3_FAIL_WRONG_LENGTH:
-	    strcpy(reason, "wrong length in memory access");
-	    break;
+      case RSP3_FAIL_WRONG_LENGTH:
+        strcpy(reason, "wrong length in memory access");
+        break;
 
-	  case RSP3_FAIL_DEBUGWIRE:
-	    strcpy(reason, "debugWIRE communication failed");
-	    break;
-	}
-	avrdude_message(MSG_INFO, ", reason: %s\n", reason);
+      case RSP3_FAIL_DEBUGWIRE:
+        strcpy(reason, "debugWIRE communication failed");
+        break;
+    }
+    avrdude_message(MSG_INFO, ", reason: %s\n", reason);
       }
       else
       {
-	avrdude_message(MSG_INFO, ", unspecified reason\n");
+    avrdude_message(MSG_INFO, ", unspecified reason\n");
       }
       break;
 
@@ -280,10 +280,10 @@ static void jtag3_prmsg(PROGRAMMER * pgm, unsigned char * data, size_t len)
     case RSP3_INFO:
       avrdude_message(MSG_INFO, "Info returned:\n");
       for (i = 2; i < len; i++) {
-	if (isprint(data[i]))
-	  putc(data[i], stderr);
-	else
-	  avrdude_message(MSG_INFO, "\\%03o", data[i]);
+    if (isprint(data[i]))
+      putc(data[i], stderr);
+    else
+      avrdude_message(MSG_INFO, "\\%03o", data[i]);
       }
       putc('\n', stderr);
       break;
@@ -291,13 +291,13 @@ static void jtag3_prmsg(PROGRAMMER * pgm, unsigned char * data, size_t len)
     case RSP3_PC:
       if (len < 7)
       {
-	avrdude_message(MSG_INFO, "PC reply too short\n");
+    avrdude_message(MSG_INFO, "PC reply too short\n");
       }
       else
       {
-	unsigned long pc = (data[6] << 24) | (data[5] << 16)
-	  | (data[4] << 8) | data[3];
-	avrdude_message(MSG_INFO, "PC 0x%0lx\n", pc);
+    unsigned long pc = (data[6] << 24) | (data[5] << 16)
+      | (data[4] << 8) | data[3];
+    avrdude_message(MSG_INFO, "PC 0x%0lx\n", pc);
       }
       break;
 
@@ -316,16 +316,16 @@ static void jtag3_prevent(PROGRAMMER * pgm, unsigned char * data, size_t len)
     for (i = 0; i < len; i++) {
       avrdude_message(MSG_TRACE, "%02x ", data[i]);
       if (i % 16 == 15)
-	putc('\n', stderr);
+    putc('\n', stderr);
       else
-	putc(' ', stderr);
+    putc(' ', stderr);
     }
     if (i % 16 != 0)
       putc('\n', stderr);
   }
 
   avrdude_message(MSG_INFO, "Event serial 0x%04x, ",
-	  (data[3] << 8) | data[2]);
+      (data[3] << 8) | data[2]);
 
   switch (data[4]) {
     case SCOPE_INFO:
@@ -352,19 +352,19 @@ static void jtag3_prevent(PROGRAMMER * pgm, unsigned char * data, size_t len)
       avrdude_message(MSG_INFO, ", PC = 0x%lx, reason ", b4_to_u32(data + 6));
       switch (data[10]) {
       case 0x00:
-	avrdude_message(MSG_INFO, "unspecified");
-	break;
+    avrdude_message(MSG_INFO, "unspecified");
+    break;
       case 0x01:
-	avrdude_message(MSG_INFO, "program break");
-	break;
+    avrdude_message(MSG_INFO, "program break");
+    break;
       case 0x02:
-	avrdude_message(MSG_INFO, "data break PDSB");
-	break;
+    avrdude_message(MSG_INFO, "data break PDSB");
+    break;
       case 0x03:
-	avrdude_message(MSG_INFO, "data break PDMSB");
-	break;
+    avrdude_message(MSG_INFO, "data break PDMSB");
+    break;
       default:
-	avrdude_message(MSG_INFO, "unknown: 0x%02x", data[10]);
+    avrdude_message(MSG_INFO, "unknown: 0x%02x", data[10]);
       }
       /* There are two more bytes of data which always appear to be
        * 0x01, 0x00.  Purpose unknown. */
@@ -406,12 +406,12 @@ int jtag3_send(PROGRAMMER * pgm, unsigned char * data, size_t len)
     return jtag3_edbg_send(pgm, data, len);
 
   avrdude_message(MSG_DEBUG, "\n%s: jtag3_send(): sending %lu bytes\n",
-	    progname, (unsigned long)len);
+        progname, (unsigned long)len);
 
   if ((buf = malloc(len + 4)) == NULL)
     {
       avrdude_message(MSG_INFO, "%s: jtag3_send(): out of memory",
-	      progname);
+          progname);
       return -1;
     }
 
@@ -444,7 +444,7 @@ static int jtag3_edbg_send(PROGRAMMER * pgm, unsigned char * data, size_t len)
     }
 
   avrdude_message(MSG_DEBUG, "\n%s: jtag3_edbg_send(): sending %lu bytes\n",
-	    progname, (unsigned long)len);
+        progname, (unsigned long)len);
 
   /* 4 bytes overhead for CMD, fragment #, and length info */
   int max_xfer = pgm->fd.usb.max_xfer;
@@ -521,7 +521,7 @@ static int jtag3_edbg_prepare(PROGRAMMER * pgm)
   int rv;
 
   avrdude_message(MSG_DEBUG, "\n%s: jtag3_edbg_prepare()\n",
-	    progname);
+        progname);
 
   if (verbose >= 4)
     memset(buf, 0, USBDEV_MAX_XFER_3);
@@ -579,7 +579,7 @@ static int jtag3_edbg_signoff(PROGRAMMER * pgm)
   int rv;
 
   avrdude_message(MSG_DEBUG, "\n%s: jtag3_edbg_signoff()\n",
-	    progname);
+        progname);
 
   if (verbose >= 4)
     memset(buf, 0, USBDEV_MAX_XFER_3);
@@ -649,7 +649,7 @@ static int jtag3_recv_frame(PROGRAMMER * pgm, unsigned char **msg) {
 
   if ((buf = malloc(pgm->fd.usb.max_xfer)) == NULL) {
     avrdude_message(MSG_INFO, "%s: jtag3_recv(): out of memory\n",
-	    progname);
+        progname);
     return -1;
   }
   if (verbose >= 4)
@@ -679,12 +679,12 @@ static int jtag3_edbg_recv_frame(PROGRAMMER * pgm, unsigned char **msg) {
 
   if ((buf = malloc(USBDEV_MAX_XFER_3)) == NULL) {
     avrdude_message(MSG_INFO, "%s: jtag3_edbg_recv(): out of memory\n",
-	    progname);
+        progname);
     return -1;
   }
   if ((request = malloc(pgm->fd.usb.max_xfer)) == NULL) {
     avrdude_message(MSG_INFO, "%s: jtag3_edbg_recv(): out of memory\n",
-	    progname);
+        progname);
     free(buf);
     return -1;
   }
@@ -781,7 +781,7 @@ int jtag3_recv(PROGRAMMER * pgm, unsigned char **msg) {
 
     if ((rv & USB_RECV_FLAG_EVENT) != 0) {
       if (verbose >= 3)
-	jtag3_prevent(pgm, *msg, rv & USB_RECV_LENGTH_MASK);
+    jtag3_prevent(pgm, *msg, rv & USB_RECV_LENGTH_MASK);
 
       free(*msg);
       continue;
@@ -790,11 +790,11 @@ int jtag3_recv(PROGRAMMER * pgm, unsigned char **msg) {
     rv &= USB_RECV_LENGTH_MASK;
     r_seqno = ((*msg)[2] << 8) | (*msg)[1];
     avrdude_message(MSG_DEBUG, "%s: jtag3_recv(): "
-	      "Got message seqno %d (command_sequence == %d)\n",
-	      progname, r_seqno, PDATA(pgm)->command_sequence);
+          "Got message seqno %d (command_sequence == %d)\n",
+          progname, r_seqno, PDATA(pgm)->command_sequence);
     if (r_seqno == PDATA(pgm)->command_sequence) {
       if (++(PDATA(pgm)->command_sequence) == 0xffff)
-	PDATA(pgm)->command_sequence = 0;
+    PDATA(pgm)->command_sequence = 0;
       /*
        * We move the payload to the beginning of the buffer, to make
        * the job easier for the caller.  We have to return the
@@ -806,21 +806,21 @@ int jtag3_recv(PROGRAMMER * pgm, unsigned char **msg) {
       return rv;
     }
     avrdude_message(MSG_NOTICE2, "%s: jtag3_recv(): "
-	      "got wrong sequence number, %u != %u\n",
-	      progname, r_seqno, PDATA(pgm)->command_sequence);
+          "got wrong sequence number, %u != %u\n",
+          progname, r_seqno, PDATA(pgm)->command_sequence);
 
     free(*msg);
   }
 }
 
  int jtag3_command(PROGRAMMER *pgm, unsigned char *cmd, unsigned int cmdlen,
-		   unsigned char **resp, const char *descr)
+           unsigned char **resp, const char *descr)
 {
   int status;
   unsigned char c;
 
   avrdude_message(MSG_NOTICE2, "%s: Sending %s command: ",
-	    progname, descr);
+        progname, descr);
   jtag3_send(pgm, cmd, cmdlen);
 
   status = jtag3_recv(pgm, resp);
@@ -901,7 +901,7 @@ static int jtag3_chip_erase_dw(PROGRAMMER * pgm, AVRPART * p)
 {
 
   avrdude_message(MSG_INFO, "%s: Chip erase not supported in debugWire mode\n",
-	  progname);
+      progname);
 
   return 0;
 }
@@ -1022,7 +1022,7 @@ static int jtag3_initialize(PROGRAMMER * pgm, AVRPART * p)
 
   if (conn == 0) {
     avrdude_message(MSG_INFO, "%s: jtag3_initialize(): part %s has no %s interface\n",
-	    progname, p->desc, ifname);
+        progname, p->desc, ifname);
     return -1;
   }
 
@@ -1055,8 +1055,8 @@ static int jtag3_initialize(PROGRAMMER * pgm, AVRPART * p)
   {
     unsigned int clock = 1E-3 / pgm->bitclock; /* kHz */
     avrdude_message(MSG_NOTICE2, "%s: jtag3_initialize(): "
-	      "trying to set JTAG clock to %u kHz\n",
-	      progname, clock);
+          "trying to set JTAG clock to %u kHz\n",
+          progname, clock);
     parm[0] = clock & 0xff;
     parm[1] = (clock >> 8) & 0xff;
     if (PDATA(pgm)->set_sck(pgm, parm) < 0)
@@ -1066,10 +1066,10 @@ static int jtag3_initialize(PROGRAMMER * pgm, AVRPART * p)
   if (conn == PARM3_CONN_JTAG)
   {
     avrdude_message(MSG_NOTICE2, "%s: jtag3_initialize(): "
-	      "trying to set JTAG daisy-chain info to %d,%d,%d,%d\n",
-	      progname,
-	      PDATA(pgm)->jtagchain[0], PDATA(pgm)->jtagchain[1],
-	      PDATA(pgm)->jtagchain[2], PDATA(pgm)->jtagchain[3]);
+          "trying to set JTAG daisy-chain info to %d,%d,%d,%d\n",
+          progname,
+          PDATA(pgm)->jtagchain[0], PDATA(pgm)->jtagchain[1],
+          PDATA(pgm)->jtagchain[2], PDATA(pgm)->jtagchain[3]);
     if (jtag3_setparm(pgm, SCOPE_AVR, 1, PARM3_JTAGCHAIN, PDATA(pgm)->jtagchain, 4) < 0)
       return -1;
   }
@@ -1087,32 +1087,32 @@ static int jtag3_initialize(PROGRAMMER * pgm, AVRPART * p)
     for (ln = lfirst(p->mem); ln; ln = lnext(ln)) {
       m = ldata(ln);
       if (strcmp(m->desc, "flash") == 0) {
-	if (m->readsize != 0 && m->readsize < m->page_size)
-	  PDATA(pgm)->flash_pagesize = m->readsize;
-	else
-	  PDATA(pgm)->flash_pagesize = m->page_size;
-	u16_to_b2(xd.flash_page_size, m->page_size);
+    if (m->readsize != 0 && m->readsize < m->page_size)
+      PDATA(pgm)->flash_pagesize = m->readsize;
+    else
+      PDATA(pgm)->flash_pagesize = m->page_size;
+    u16_to_b2(xd.flash_page_size, m->page_size);
       } else if (strcmp(m->desc, "eeprom") == 0) {
-	PDATA(pgm)->eeprom_pagesize = m->page_size;
-	xd.eeprom_page_size = m->page_size;
-	u16_to_b2(xd.eeprom_size, m->size);
-	u32_to_b4(xd.nvm_eeprom_offset, m->offset);
+    PDATA(pgm)->eeprom_pagesize = m->page_size;
+    xd.eeprom_page_size = m->page_size;
+    u16_to_b2(xd.eeprom_size, m->size);
+    u32_to_b4(xd.nvm_eeprom_offset, m->offset);
       } else if (strcmp(m->desc, "application") == 0) {
-	u32_to_b4(xd.app_size, m->size);
-	u32_to_b4(xd.nvm_app_offset, m->offset);
+    u32_to_b4(xd.app_size, m->size);
+    u32_to_b4(xd.nvm_app_offset, m->offset);
       } else if (strcmp(m->desc, "boot") == 0) {
-	u16_to_b2(xd.boot_size, m->size);
-	u32_to_b4(xd.nvm_boot_offset, m->offset);
+    u16_to_b2(xd.boot_size, m->size);
+    u32_to_b4(xd.nvm_boot_offset, m->offset);
       } else if (strcmp(m->desc, "fuse1") == 0) {
-	u32_to_b4(xd.nvm_fuse_offset, m->offset & ~7);
+    u32_to_b4(xd.nvm_fuse_offset, m->offset & ~7);
       } else if (strncmp(m->desc, "lock", 4) == 0) {
-	u32_to_b4(xd.nvm_lock_offset, m->offset);
+    u32_to_b4(xd.nvm_lock_offset, m->offset);
       } else if (strcmp(m->desc, "usersig") == 0) {
-	u32_to_b4(xd.nvm_user_sig_offset, m->offset);
+    u32_to_b4(xd.nvm_user_sig_offset, m->offset);
       } else if (strcmp(m->desc, "prodsig") == 0) {
-	u32_to_b4(xd.nvm_prod_sig_offset, m->offset);
+    u32_to_b4(xd.nvm_prod_sig_offset, m->offset);
       } else if (strcmp(m->desc, "data") == 0) {
-	u32_to_b4(xd.nvm_data_offset, m->offset);
+    u32_to_b4(xd.nvm_data_offset, m->offset);
       }
     }
 
@@ -1131,18 +1131,18 @@ static int jtag3_initialize(PROGRAMMER * pgm, AVRPART * p)
     for (ln = lfirst(p->mem); ln; ln = lnext(ln)) {
       m = ldata(ln);
       if (strcmp(m->desc, "flash") == 0) {
-	if (m->readsize != 0 && m->readsize < m->page_size)
-	  PDATA(pgm)->flash_pagesize = m->readsize;
-	else
-	  PDATA(pgm)->flash_pagesize = m->page_size;
-	u16_to_b2(md.flash_page_size, m->page_size);
-	u32_to_b4(md.flash_size, (flashsize = m->size));
-	// do we need it?  just a wild guess
-	u32_to_b4(md.boot_address, (m->size - m->page_size * 4) / 2);
+    if (m->readsize != 0 && m->readsize < m->page_size)
+      PDATA(pgm)->flash_pagesize = m->readsize;
+    else
+      PDATA(pgm)->flash_pagesize = m->page_size;
+    u16_to_b2(md.flash_page_size, m->page_size);
+    u32_to_b4(md.flash_size, (flashsize = m->size));
+    // do we need it?  just a wild guess
+    u32_to_b4(md.boot_address, (m->size - m->page_size * 4) / 2);
       } else if (strcmp(m->desc, "eeprom") == 0) {
-	PDATA(pgm)->eeprom_pagesize = m->page_size;
-	md.eeprom_page_size = m->page_size;
-	u16_to_b2(md.eeprom_size, m->size);
+    PDATA(pgm)->eeprom_pagesize = m->page_size;
+    md.eeprom_page_size = m->page_size;
+    u16_to_b2(md.eeprom_size, m->size);
       }
     }
 
@@ -1152,11 +1152,11 @@ static int jtag3_initialize(PROGRAMMER * pgm, AVRPART * p)
 
       /* lacking a proper definition, guess the OCD revision */
       if (p->flags & AVRPART_HAS_DW)
-	ocdrev = 1;		/* exception: ATtiny13, 2313, 4313 */
+    ocdrev = 1;        /* exception: ATtiny13, 2313, 4313 */
       else if (flashsize > 128 * 1024)
-	ocdrev = 4;
+    ocdrev = 4;
       else
-	ocdrev = 3;		/* many exceptions from that, actually */
+    ocdrev = 3;        /* many exceptions from that, actually */
       avrdude_message(MSG_INFO, "%s: part definition for %s lacks \"ocdrev\"; guessing %d\n",
                       progname, p->desc, ocdrev);
       md.ocd_revision = ocdrev;
@@ -1168,7 +1168,7 @@ static int jtag3_initialize(PROGRAMMER * pgm, AVRPART * p)
     md.idr_address = p->idr;
 
     if (p->eecr == 0)
-      p->eecr = 0x3f;		/* matches most "modern" mega/tiny AVRs */
+      p->eecr = 0x3f;        /* matches most "modern" mega/tiny AVRs */
     md.eearh_address = p->eecr - 0x20 + 3;
     md.eearl_address = p->eecr - 0x20 + 2;
     md.eecr_address = p->eecr - 0x20;
@@ -1186,13 +1186,13 @@ static int jtag3_initialize(PROGRAMMER * pgm, AVRPART * p)
     cmd[0] = SCOPE_AVR;
     cmd[1] = CMD3_SIGN_ON;
     cmd[2] = 0;
-    cmd[3] = use_ext_reset;			/* external reset */
+    cmd[3] = use_ext_reset;            /* external reset */
 
     if ((status = jtag3_command(pgm, cmd, 4, &resp, "AVR sign-on")) >= 0)
       break;
 
     avrdude_message(MSG_INFO, "%s: retrying with external reset applied\n",
-		    progname);
+            progname);
   }
 
   if (use_ext_reset > 1) {
@@ -1211,7 +1211,7 @@ static int jtag3_initialize(PROGRAMMER * pgm, AVRPART * p)
   if (resp[1] == RSP3_DATA && status >= 7)
     /* JTAG ID has been returned */
     avrdude_message(MSG_NOTICE, "%s: JTAG ID returned: 0x%02x 0x%02x 0x%02x 0x%02x\n",
-	    progname, resp[3], resp[4], resp[5], resp[6]);
+        progname, resp[3], resp[4], resp[5], resp[6]);
 
   free(resp);
 
@@ -1235,12 +1235,12 @@ static int jtag3_initialize(PROGRAMMER * pgm, AVRPART * p)
   free(PDATA(pgm)->eeprom_pagecache);
   if ((PDATA(pgm)->flash_pagecache = malloc(PDATA(pgm)->flash_pagesize)) == NULL) {
     avrdude_message(MSG_INFO, "%s: jtag3_initialize(): Out of memory\n",
-	    progname);
+        progname);
     return -1;
   }
   if ((PDATA(pgm)->eeprom_pagecache = malloc(PDATA(pgm)->eeprom_pagesize)) == NULL) {
     avrdude_message(MSG_INFO, "%s: jtag3_initialize(): Out of memory\n",
-	    progname);
+        progname);
     free(PDATA(pgm)->flash_pagecache);
     return -1;
   }
@@ -1352,7 +1352,7 @@ int jtag3_open_common(PROGRAMMER * pgm, char * port)
     rv = serial_open(port, pinfo, &pgm->fd);
   }
   if (rv < 0) {
-#endif	/* HAVE_LIBHIDAPI */
+#endif    /* HAVE_LIBHIDAPI */
 #if defined(HAVE_LIBUSB)
     serdev = &usb_serdev_frame;
     for (usbpid = lfirst(pgm->usbpid); rv < 0 && usbpid != NULL; usbpid = lnext(usbpid)) {
@@ -1366,7 +1366,7 @@ int jtag3_open_common(PROGRAMMER * pgm, char * port)
       strcpy(pgm->port, port);
       rv = serial_open(port, pinfo, &pgm->fd);
     }
-#endif	/* HAVE_LIBUSB */
+#endif    /* HAVE_LIBUSB */
 #if defined(HAVE_LIBHIDAPI)
   }
 #endif
@@ -1476,11 +1476,11 @@ static int jtag3_page_erase(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
   unsigned char cmd[8], *resp;
 
   avrdude_message(MSG_NOTICE2, "%s: jtag3_page_erase(.., %s, 0x%x)\n",
-	    progname, m->desc, addr);
+        progname, m->desc, addr);
 
   if (!(p->flags & AVRPART_HAS_PDI)) {
     avrdude_message(MSG_INFO, "%s: jtag3_page_erase: not an Xmega device\n",
-	    progname);
+        progname);
     return -1;
   }
 
@@ -1527,7 +1527,7 @@ static int jtag3_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
   long otimeout = serial_recv_timeout;
 
   avrdude_message(MSG_NOTICE2, "%s: jtag3_paged_write(.., %s, %d, %d)\n",
-	    progname, m->desc, page_size, n_bytes);
+        progname, m->desc, page_size, n_bytes);
 
   if (!(pgm->flag & PGM_FL_IS_DW) && jtag3_program_enable(pgm) < 0)
     return -1;
@@ -1536,7 +1536,7 @@ static int jtag3_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
 
   if ((cmd = malloc(page_size + 13)) == NULL) {
     avrdude_message(MSG_INFO, "%s: jtag3_paged_write(): Out of memory\n",
-	    progname);
+        progname);
     return -1;
   }
 
@@ -1556,11 +1556,11 @@ static int jtag3_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
        * DW mode.  Use jtag3_write_byte() instead.
        */
       for (; addr < maxaddr; addr++) {
-	status = jtag3_write_byte(pgm, p, m, addr, m->buf[addr]);
-	if (status < 0) {
-	  free(cmd);
-	  return -1;
-	}
+    status = jtag3_write_byte(pgm, p, m, addr, m->buf[addr]);
+    if (status < 0) {
+      free(cmd);
+      return -1;
+    }
       }
       free(cmd);
       return n_bytes;
@@ -1583,8 +1583,8 @@ static int jtag3_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
     else
       block_size = page_size;
     avrdude_message(MSG_DEBUG, "%s: jtag3_paged_write(): "
-	      "block_size at addr %d is %d\n",
-	      progname, addr, block_size);
+          "block_size at addr %d is %d\n",
+          progname, addr, block_size);
 
     if (dynamic_memtype)
       cmd[3] = jtag3_memtype(pgm, p, addr);
@@ -1604,7 +1604,7 @@ static int jtag3_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
     memcpy(cmd + 13, m->buf + addr, block_size);
 
     if ((status = jtag3_command(pgm, cmd, page_size + 13,
-				&resp, "write memory")) < 0) {
+                &resp, "write memory")) < 0) {
       free(cmd);
       serial_recv_timeout = otimeout;
       return -1;
@@ -1631,7 +1631,7 @@ static int jtag3_paged_load(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
   long otimeout = serial_recv_timeout;
 
   avrdude_message(MSG_NOTICE2, "%s: jtag3_paged_load(.., %s, %d, %d)\n",
-	    progname, m->desc, page_size, n_bytes);
+        progname, m->desc, page_size, n_bytes);
 
   if (!(pgm->flag & PGM_FL_IS_DW) && jtag3_program_enable(pgm) < 0)
     return -1;
@@ -1669,8 +1669,8 @@ static int jtag3_paged_load(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
     else
       block_size = page_size;
     avrdude_message(MSG_DEBUG, "%s: jtag3_paged_load(): "
-	      "block_size at addr %d is %d\n",
-	      progname, addr, block_size);
+          "block_size at addr %d is %d\n",
+          progname, addr, block_size);
 
     if (dynamic_memtype)
       cmd[3] = jtag3_memtype(pgm, p, addr);
@@ -1682,9 +1682,9 @@ static int jtag3_paged_load(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
       return -1;
 
     if (resp[1] != RSP3_DATA ||
-	status < block_size + 4) {
+    status < block_size + 4) {
       avrdude_message(MSG_INFO, "%s: wrong/short reply to read memory command\n",
-	      progname);
+          progname);
       serial_recv_timeout = otimeout;
       free(resp);
       return -1;
@@ -1698,7 +1698,7 @@ static int jtag3_paged_load(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
 }
 
 static int jtag3_read_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
-			      unsigned long addr, unsigned char * value)
+                  unsigned long addr, unsigned char * value)
 {
   unsigned char cmd[12];
   unsigned char *resp, *cache_ptr = NULL;
@@ -1707,7 +1707,7 @@ static int jtag3_read_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
   unsigned int pagesize = 0;
 
   avrdude_message(MSG_NOTICE2, "%s: jtag3_read_byte(.., %s, 0x%lx, ...)\n",
-	    progname, mem->desc, addr);
+        progname, mem->desc, addr);
 
   if (!(pgm->flag & PGM_FL_IS_DW) && jtag3_program_enable(pgm) < 0)
     return -1;
@@ -1782,7 +1782,7 @@ static int jtag3_read_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
 
     if (addr == 0) {
       if ((status = jtag3_command(pgm, cmd, 12, &resp, "read memory")) < 0)
-	return -1;
+    return -1;
 
       signature_cache[0] = resp[4];
       signature_cache[1] = resp[5];
@@ -1836,7 +1836,7 @@ static int jtag3_read_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
   if (resp[1] != RSP3_DATA ||
       status < (pagesize? pagesize: 1) + 4) {
     avrdude_message(MSG_INFO, "%s: wrong/short reply to read memory command\n",
-	    progname);
+        progname);
     free(resp);
     return -1;
   }
@@ -1853,7 +1853,7 @@ static int jtag3_read_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
 }
 
 static int jtag3_write_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
-			       unsigned long addr, unsigned char data)
+                   unsigned long addr, unsigned char data)
 {
   unsigned char cmd[14];
   unsigned char *resp;
@@ -1862,7 +1862,7 @@ static int jtag3_write_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
   unsigned int pagesize = 0;
 
   avrdude_message(MSG_NOTICE2, "%s: jtag3_write_byte(.., %s, 0x%lx, ...)\n",
-	    progname, mem->desc, addr);
+        progname, mem->desc, addr);
 
   cmd[0] = SCOPE_AVR;
   cmd[1] = CMD3_WRITE_MEMORY;
@@ -1932,7 +1932,7 @@ static int jtag3_write_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * mem,
     /* step #2: update our value in page cache, and copy
      * cache to mem->buf */
     cache_ptr[addr & (pagesize - 1)] = data;
-    addr &= ~(pagesize - 1);	/* page base address */
+    addr &= ~(pagesize - 1);    /* page base address */
     memcpy(mem->buf + addr, cache_ptr, pagesize);
     /* step #3: write back */
     i = jtag3_paged_write(pgm, p, mem, pagesize, addr, pagesize);
@@ -1979,7 +1979,7 @@ static int jtag3_set_sck_period(PROGRAMMER * pgm, double v)
 
   if (PDATA(pgm)->set_sck == NULL) {
     avrdude_message(MSG_INFO, "%s: No backend to set the SCK period for\n",
-	    progname);
+        progname);
     return -1;
   }
 
@@ -1991,8 +1991,8 @@ static int jtag3_set_sck_period(PROGRAMMER * pgm, double v)
  * Read (an) emulator parameter(s).
  */
 int jtag3_getparm(PROGRAMMER * pgm, unsigned char scope,
-		  unsigned char section, unsigned char parm,
-		  unsigned char *value, unsigned char length)
+          unsigned char section, unsigned char parm,
+          unsigned char *value, unsigned char length)
 {
   int status;
   unsigned char buf[6], *resp, c;
@@ -2008,7 +2008,7 @@ int jtag3_getparm(PROGRAMMER * pgm, unsigned char scope,
   buf[5] = length;
 
   sprintf(descr, "get parameter (scope 0x%02x, section %d, parm %d)",
-	  scope, section, parm);
+      scope, section, parm);
 
   if ((status = jtag3_command(pgm, buf, 6, &resp, descr)) < 0)
     return -1;
@@ -2033,8 +2033,8 @@ int jtag3_getparm(PROGRAMMER * pgm, unsigned char scope,
  * Write an emulator parameter.
  */
 int jtag3_setparm(PROGRAMMER * pgm, unsigned char scope,
-		  unsigned char section, unsigned char parm,
-		  unsigned char *value, unsigned char length)
+          unsigned char section, unsigned char parm,
+          unsigned char *value, unsigned char length)
 {
   int status;
   unsigned char *buf, *resp;
@@ -2043,12 +2043,12 @@ int jtag3_setparm(PROGRAMMER * pgm, unsigned char scope,
   avrdude_message(MSG_NOTICE2, "%s: jtag3_setparm()\n", progname);
 
   sprintf(descr, "set parameter (scope 0x%02x, section %d, parm %d)",
-	  scope, section, parm);
+      scope, section, parm);
 
   if ((buf = malloc(6 + length)) == NULL)
   {
     avrdude_message(MSG_INFO, "%s: jtag3_setparm(): Out of memory\n",
-	    progname);
+        progname);
     return -1;
   }
 
@@ -2106,8 +2106,8 @@ static void jtag3_display(PROGRAMMER * pgm, const char * p)
 
   avrdude_message(MSG_INFO, "%sICE hardware version: %d\n", p, parms[0]);
   avrdude_message(MSG_INFO, "%sICE firmware version: %d.%02d (rel. %d)\n", p,
-	  parms[1], parms[2],
-	  (parms[3] | (parms[4] << 8)));
+      parms[1], parms[2],
+      (parms[3] | (parms[4] << 8)));
   avrdude_message(MSG_INFO, "%sSerial number   : %s\n", p, resp);
   free(resp);
 
@@ -2123,27 +2123,27 @@ static void jtag3_print_parms1(PROGRAMMER * pgm, const char * p)
     return;
 
   avrdude_message(MSG_INFO, "%sVtarget         : %.2f V\n", p,
-	  b2_to_u16(buf) / 1000.0);
+      b2_to_u16(buf) / 1000.0);
 
   if (jtag3_getparm(pgm, SCOPE_AVR, 1, PARM3_CLK_MEGA_PROG, buf, 2) < 0)
     return;
   avrdude_message(MSG_INFO, "%sJTAG clock megaAVR/program: %u kHz\n", p,
-	  b2_to_u16(buf));
+      b2_to_u16(buf));
 
   if (jtag3_getparm(pgm, SCOPE_AVR, 1, PARM3_CLK_MEGA_DEBUG, buf, 2) < 0)
     return;
   avrdude_message(MSG_INFO, "%sJTAG clock megaAVR/debug:   %u kHz\n", p,
-	  b2_to_u16(buf));
+      b2_to_u16(buf));
 
   if (jtag3_getparm(pgm, SCOPE_AVR, 1, PARM3_CLK_XMEGA_JTAG, buf, 2) < 0)
     return;
   avrdude_message(MSG_INFO, "%sJTAG clock Xmega: %u kHz\n", p,
-	  b2_to_u16(buf));
+      b2_to_u16(buf));
 
   if (jtag3_getparm(pgm, SCOPE_AVR, 1, PARM3_CLK_XMEGA_PDI, buf, 2) < 0)
     return;
   avrdude_message(MSG_INFO, "%sPDI clock Xmega : %u kHz\n", p,
-	  b2_to_u16(buf));
+      b2_to_u16(buf));
 }
 
 static void jtag3_print_parms(PROGRAMMER * pgm)

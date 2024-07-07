@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_INDEXCOMPARISON_H
 #define IGL_INDEXCOMPARISON_H
@@ -48,7 +48,7 @@ namespace igl{
   // For use with functions like std::sort
   template<class T> struct IndexDimLessThan
   {
-    IndexDimLessThan(const T & mat,const int & dim, const int & j) : 
+    IndexDimLessThan(const T & mat,const int & dim, const int & j) :
       mat(mat),
       dim(dim),
       j(j)

@@ -88,8 +88,8 @@ template<class C> bool all_of(const C &container)
 
 /// Exactly like Matlab https://www.mathworks.com/help/matlab/ref/linspace.html
 template<class T, class I, class = IntegerOnly<I>>
-inline std::vector<T> linspace_vector(const ArithmeticOnly<T> &start, 
-                                      const T &stop, 
+inline std::vector<T> linspace_vector(const ArithmeticOnly<T> &start,
+                                      const T &stop,
                                       const I &n)
 {
     std::vector<T> vals(n, T());
@@ -119,20 +119,20 @@ inline std::array<ArithmeticOnly<T>, N> linspace_array(const T &start, const T &
 
 /// A set of equidistant values starting from 'start' (inclusive), ending
 /// in the closest multiple of 'stride' less than or equal to 'end' and
-/// leaving 'stride' space between each value. 
+/// leaving 'stride' space between each value.
 /// Very similar to Matlab [start:stride:end] notation.
 template<class T>
-inline std::vector<ArithmeticOnly<T>> grid(const T &start, 
-                                           const T &stop, 
+inline std::vector<ArithmeticOnly<T>> grid(const T &start,
+                                           const T &stop,
                                            const T &stride)
 {
     std::vector<T> vals(size_t(std::ceil((stop - start) / stride)), T());
-    
+
     int i = 0;
     std::generate(vals.begin(), vals.end(), [&i, start, stride] {
-        return start + i++ * stride; 
+        return start + i++ * stride;
     });
-     
+
     return vals;
 }
 

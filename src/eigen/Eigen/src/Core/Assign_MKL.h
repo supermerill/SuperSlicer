@@ -1,7 +1,7 @@
 /*
  Copyright (c) 2011, Intel Corporation. All rights reserved.
  Copyright (C) 2015 Gael Guennebaud <gael.guennebaud@inria.fr>
- 
+
  Redistribution and use in source and binary forms, with or without modification,
  are permitted provided that the following conditions are met:
 
@@ -34,7 +34,7 @@
 #ifndef EIGEN_ASSIGN_VML_H
 #define EIGEN_ASSIGN_VML_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -73,7 +73,7 @@ class vml_assign_traits
 #define EIGEN_VMLMODE_EXPAND_LA , VML_LA
 #endif
 
-#define EIGEN_VMLMODE_EXPAND__ 
+#define EIGEN_VMLMODE_EXPAND__
 
 #define EIGEN_VMLMODE_PREFIX_LA vm
 #define EIGEN_VMLMODE_PREFIX__  v
@@ -111,12 +111,12 @@ class vml_assign_traits
 #define EIGEN_MKL_VML_DECLARE_UNARY_CALLS_CPLX(EIGENOP, VMLOP, VMLMODE)                                                         \
   EIGEN_MKL_VML_DECLARE_UNARY_CALL(EIGENOP, EIGEN_CAT(EIGEN_VMLMODE_PREFIX(VMLMODE),c##VMLOP), scomplex, MKL_Complex8, VMLMODE) \
   EIGEN_MKL_VML_DECLARE_UNARY_CALL(EIGENOP, EIGEN_CAT(EIGEN_VMLMODE_PREFIX(VMLMODE),z##VMLOP), dcomplex, MKL_Complex16, VMLMODE)
-  
+
 #define EIGEN_MKL_VML_DECLARE_UNARY_CALLS(EIGENOP, VMLOP, VMLMODE)                                                              \
   EIGEN_MKL_VML_DECLARE_UNARY_CALLS_REAL(EIGENOP, VMLOP, VMLMODE)                                                               \
   EIGEN_MKL_VML_DECLARE_UNARY_CALLS_CPLX(EIGENOP, VMLOP, VMLMODE)
 
-  
+
 EIGEN_MKL_VML_DECLARE_UNARY_CALLS(sin,   Sin,   LA)
 EIGEN_MKL_VML_DECLARE_UNARY_CALLS(asin,  Asin,  LA)
 EIGEN_MKL_VML_DECLARE_UNARY_CALLS(sinh,  Sinh,  LA)
@@ -165,7 +165,7 @@ EIGEN_MKL_VML_DECLARE_UNARY_CALLS_REAL(ceil,  Ceil,   _)
       }                                                                                                                       \
     }                                                                                                                         \
   };
-  
+
 EIGEN_MKL_VML_DECLARE_POW_CALL(pow, vmsPowx, float,    float,         LA)
 EIGEN_MKL_VML_DECLARE_POW_CALL(pow, vmdPowx, double,   double,        LA)
 EIGEN_MKL_VML_DECLARE_POW_CALL(pow, vmcPowx, scomplex, MKL_Complex8,  LA)

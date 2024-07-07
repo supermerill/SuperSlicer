@@ -10,17 +10,17 @@ namespace GUI {
 
 struct GUI_InitParams
 {
-	int		                    argc;
-	char	                  **argv;
+    int                            argc;
+    char                      **argv;
 
-	// Substitutions of unknown configuration values done during loading of user presets.
-	PresetsConfigSubstitutions  preset_substitutions;
+    // Substitutions of unknown configuration values done during loading of user presets.
+    PresetsConfigSubstitutions  preset_substitutions;
 
     std::vector<std::string>    load_configs;
     DynamicPrintConfig          extra_config;
     std::vector<std::string>    input_files;
 
-	bool	                    start_as_gcodeviewer;
+    bool                        start_as_gcodeviewer;
 };
 
 int GUI_Run(GUI_InitParams &params);

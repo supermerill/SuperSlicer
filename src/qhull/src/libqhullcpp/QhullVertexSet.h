@@ -61,7 +61,7 @@ public:
     struct PrintVertexSet{
         const QhullVertexSet *vertex_set;
         const char *    print_message;     //!< non-null message
-                        
+
                         PrintVertexSet(const char *message, const QhullVertexSet *s) : vertex_set(s), print_message(message) {}
     };//PrintVertexSet
     const PrintVertexSet print(const char *message) const { return PrintVertexSet(message, this); }

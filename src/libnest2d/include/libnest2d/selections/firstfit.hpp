@@ -39,15 +39,15 @@ public:
 
         std::vector<Placer> placers;
         placers.reserve(last-first);
-        
+
         std::for_each(first, last, [this](Item& itm) {
             if(itm.isFixed()) {
                 if (itm.binId() < 0) itm.binId(0);
                 auto binidx = size_t(itm.binId());
-                
+
                 while(packed_bins_.size() <= binidx)
                     packed_bins_.emplace_back();
-                
+
                 packed_bins_[binidx].emplace_back(itm);
             } else {
                 store_.emplace_back(itm);
@@ -62,7 +62,7 @@ public:
             placers.back().configure(pconfig);
             placers.back().preload(ig);
         }
-        
+
         auto sortfunc = [](Item& i1, Item& i2) {
             int p1 = i1.priority(), p2 = i2.priority();
             return p1 == p2 ? i1.area() > i2.area() : p1 > p2;
@@ -78,7 +78,7 @@ public:
         };
 
         auto& cancelled = this->stopcond_;
-        
+
         this->template remove_unpackable_items<Placer>(store_, bin, pconfig);
 
         auto it = store_.begin();

@@ -31,7 +31,7 @@ using Coord = TCoord<PointImpl>;
 using Box = _Box<PointImpl>;
 using Segment = _Segment<PointImpl>;
 using Circle = _Circle<PointImpl>;
-using MultiPolygon = TMultiShape<PolygonImpl>; 
+using MultiPolygon = TMultiShape<PolygonImpl>;
 
 using Item = _Item<PolygonImpl>;
 using Rectangle = _Rectangle<PolygonImpl>;
@@ -67,7 +67,7 @@ struct NestConfig {
     typename Selector::Config selector_config;
     using Placement = typename Placer::Config;
     using Selection = typename Selector::Config;
-    
+
     NestConfig() = default;
     NestConfig(const typename Placer::Config &cfg)   : placer_config{cfg} {}
     NestConfig(const typename Selector::Config &cfg) : selector_config{cfg} {}
@@ -79,7 +79,7 @@ struct NestConfig {
 struct NestControl {
     ProgressFunction progressfn;
     StopCondition stopcond = []{ return false; };
-    
+
     NestControl() = default;
     NestControl(ProgressFunction pr) : progressfn{std::move(pr)} {}
     NestControl(StopCondition sc) : stopcond{std::move(sc)} {}
@@ -134,7 +134,7 @@ std::size_t nest(Container&& cont,
     return nest<Placer, Selector>(cont.begin(), cont.end(), bin, dist, cfg, ctl);
 }
 
-template<class T = double> enable_if_t<std::is_arithmetic<T>::value, TCoord<PointImpl>> mm(T val = T(1)) 
+template<class T = double> enable_if_t<std::is_arithmetic<T>::value, TCoord<PointImpl>> mm(T val = T(1))
 {
     return TCoord<PointImpl>(val * CoordType<PointImpl>::MM_IN_COORDS);
 }

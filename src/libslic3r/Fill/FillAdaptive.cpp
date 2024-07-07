@@ -38,7 +38,7 @@ namespace FillAdaptive {
 //    Best: 17.282 nsecs / 46.496 ticks, Avg: 17.804 nsecs, Worst: 18.434 nsecs
 //
 //FIXME Vojtech: The MathGeoLib contains a vectorized implementation.
-template<typename Vector> 
+template<typename Vector>
 bool triangle_AABB_intersects(const Vector &a, const Vector &b, const Vector &c, const BoundingBoxBase<Vector> &aabb)
 {
     using Scalar = typename Vector::Scalar;
@@ -558,7 +558,7 @@ static void export_infill_lines_to_svg(const ExPolygon &expoly, const Polylines 
 #endif /* ADAPTIVE_CUBIC_INFILL_DEBUG_OUTPUT */
 
 // Representing a T-joint (in general case) between two infill lines
-// (between one end point of intersect_pl/intersect_line and 
+// (between one end point of intersect_pl/intersect_line and
 struct Intersection
 {
     // Closest line to intersect_point.
@@ -637,7 +637,7 @@ static inline Intersection* get_nearest_intersection(std::vector<std::pair<Inter
     return intersect_line[take_next ? first_idx + 1 : first_idx - 1].first;
 }
 
-// Create a line representing the anchor aka hook extrusion based on line_to_offset 
+// Create a line representing the anchor aka hook extrusion based on line_to_offset
 // translated in the direction of the intersection line (intersection.intersect_line).
 static Line create_offset_line(Line offset_line, const Intersection &intersection, const coordf_t scaled_offset)
 {
@@ -668,8 +668,8 @@ static inline rtree_segment_t mk_rtree_seg(const Line &l) {
 
 // Create a hook based on hook_line and append it to the begin or end of the polyline in the intersection
 static void add_hook(
-    const Intersection &intersection, const double scaled_offset, 
-    const coordf_t hook_length, double scaled_trim_distance, 
+    const Intersection &intersection, const double scaled_offset,
+    const coordf_t hook_length, double scaled_trim_distance,
     const rtree_t &rtree, const Lines &lines_src)
 {
     if (hook_length < SCALED_EPSILON)
@@ -874,7 +874,7 @@ static Polylines connect_lines_using_hooks(Polylines &&lines, const ExPolygon &b
     // Convert input polylines to lines_src after the colinear segments were merged.
     Lines lines_src;
     lines_src.reserve(lines.size());
-    std::transform(lines.begin(), lines.end(), std::back_inserter(lines_src), [](const Polyline &pl) { 
+    std::transform(lines.begin(), lines.end(), std::back_inserter(lines_src), [](const Polyline &pl) {
         return pl.empty() ? Line(Point(0, 0), Point(0, 0)) : Line(pl.points.front(), pl.points.back()); });
 
     sort_remove_duplicates(lines_touching_at_endpoints);
@@ -901,7 +901,7 @@ static Polylines connect_lines_using_hooks(Polylines &&lines, const ExPolygon &b
             std::optional<size_t> tjoint_front, tjoint_back;
             {
                 auto has_tjoint = [&closest, line_idx, &rtree, &lines, &lines_src](const Point &pt) {
-                    auto filter_t_joint = [line_idx, &lines_src, pt](const auto &item) { 
+                    auto filter_t_joint = [line_idx, &lines_src, pt](const auto &item) {
                         if (item.second != line_idx) {
                             // Verify that the point projects onto the line.
                             const Line  &line = lines_src[item.second];
@@ -929,7 +929,7 @@ static Polylines connect_lines_using_hooks(Polylines &&lines, const ExPolygon &b
                             Linef l { { bg::get<0, 0>(seg), bg::get<0, 1>(seg) }, { bg::get<1, 0>(seg), bg::get<1, 1>(seg) } };
                             assert(line_alg::distance_to_squared(l, Vec2d(pt.cast<double>())) > 1000 * 1000);
     #endif // NDEBUG
-                        } else if (pl.size() >= 2 && 
+                        } else if (pl.size() >= 2 &&
                             //FIXME Hoping that pl is really a line, trimmed by a polygon using ClipperUtils. Sometimes Clipper leaves some additional collinear points on the polyline, let's hope it is all right.
                             Line{ pl.front(), pl.back() }.distance_to_squared(pt) <= 1000 * 1000)
                             out = closest.front().second;
@@ -965,7 +965,7 @@ static Polylines connect_lines_using_hooks(Polylines &&lines, const ExPolygon &b
                     anchor = line_len > line_len_threshold_anchor_single_side;
                 } else {
                     // Not connected to perimeters at all, connected to two infill lines.
-                    assert(num_tjoints == 2);                    
+                    assert(num_tjoints == 2);
                     drop   = line_len < line_len_threshold_drop_both_sides;
                     anchor = line_len > line_len_threshold_anchor_both_sides;
                 }
@@ -1114,7 +1114,7 @@ static Polylines connect_lines_using_hooks(Polylines &&lines, const ExPolygon &b
         {
             const Vec2d line_dir = intersections[min_idx].closest_line->vector().cast<double>();
             size_t max_idx = min_idx;
-            for (; max_idx < intersections.size() && 
+            for (; max_idx < intersections.size() &&
                     intersections[min_idx].closest_line == intersections[max_idx].closest_line &&
                     intersections[min_idx].left         == intersections[max_idx].left;
                     ++ max_idx)
@@ -1181,7 +1181,7 @@ static Polylines connect_lines_using_hooks(Polylines &&lines, const ExPolygon &b
                 closest.clear();
                 rtree.query(
                     bgi::intersects(mk_rtree_seg(first_i_point, nearest_i_point)) &&
-                    bgi::satisfies([&first_i, &nearest_i, &lines_src](const auto &item) 
+                    bgi::satisfies([&first_i, &nearest_i, &lines_src](const auto &item)
                         { return item.second != (long unsigned int)(first_i.intersect_line - lines_src.data())
                               && item.second != (long unsigned int)(nearest_i.intersect_line - lines_src.data()); }),
                     std::back_inserter(closest));
@@ -1330,7 +1330,7 @@ void Filler::_fill_surface_single(
     Polylines all_polylines;
     {
         // 3 contexts for three directions of infill lines
-        std::array<FillContext, 3> contexts { 
+        std::array<FillContext, 3> contexts {
             FillContext { *adapt_fill_octree, this->z, 0 },
             FillContext { *adapt_fill_octree, this->z, 1 },
             FillContext { *adapt_fill_octree, this->z, 2 }
@@ -1356,7 +1356,7 @@ void Filler::_fill_surface_single(
             // Crop all polylines
             append(all_polylines, intersection_pl(std::move(lines), boundary));
         }
-//        assert(has_no_collinear_lines(all_polylines));        
+//        assert(has_no_collinear_lines(all_polylines));
 #else
         // Collect the lines.
         std::vector<Line> lines;
@@ -1468,7 +1468,7 @@ OctreePtr build_octree(
     const indexed_triangle_set  &triangle_mesh,
     // Overhang triangles extracted from fill surfaces with stInternalBridge type,
     // rotated to the coordinate system of the octree.
-    const std::vector<Vec3d>    &overhang_triangles, 
+    const std::vector<Vec3d>    &overhang_triangles,
     coordf_t                     line_spacing,
     bool                         support_overhangs_only)
 {

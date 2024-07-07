@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "svd3x3.h"
 
@@ -21,7 +21,7 @@
 template<typename T>
 IGL_INLINE void igl::svd3x3(const Eigen::Matrix<T, 3, 3>& A, Eigen::Matrix<T, 3, 3> &U, Eigen::Matrix<T, 3, 1> &S, Eigen::Matrix<T, 3, 3>&V)
 {
-  // this code only supports the scalar version (otherwise we'd need to pass arrays of matrices)  
+  // this code only supports the scalar version (otherwise we'd need to pass arrays of matrices)
 
 #include "Singular_Value_Decomposition_Kernel_Declarations.hpp"
 
@@ -61,7 +61,7 @@ IGL_INLINE void igl::svd3x3(const Eigen::Matrix<T, 3, 3>& A, Eigen::Matrix<T, 3,
     ENABLE_SCALAR_IMPLEMENTATION(S(1,0)=Sa22.f;)                                   ENABLE_SSE_IMPLEMENTATION(_mm_storeu_ps(sigma2,Va22);)                              ENABLE_AVX_IMPLEMENTATION(_mm256_storeu_ps(sigma2,Va22);)
     ENABLE_SCALAR_IMPLEMENTATION(S(2,0)=Sa33.f;)                                   ENABLE_SSE_IMPLEMENTATION(_mm_storeu_ps(sigma3,Va33);)                              ENABLE_AVX_IMPLEMENTATION(_mm256_storeu_ps(sigma3,Va33);)
 }
-#pragma runtime_checks( "u", restore ) 
+#pragma runtime_checks( "u", restore )
 
 // forced instantiation
 template void igl::svd3x3(const Eigen::Matrix<float, 3, 3>& A, Eigen::Matrix<float, 3, 3> &U, Eigen::Matrix<float, 3, 1> &S, Eigen::Matrix<float, 3, 3>&V);

@@ -97,7 +97,7 @@ IGL_INLINE void igl::doublearea(
       // For 2d compute signed area
       const auto & R = A-C;
       const auto & S = B-C;
-      D = (R.col(0).array()*S.col(1).array() - 
+      D = (R.col(0).array()*S.col(1).array() -
           R.col(1).array()*S.col(0).array()).template cast<
         typename DerivedD::Scalar>();
       break;
@@ -186,8 +186,8 @@ IGL_INLINE void igl::doublearea(
       // Section 3.1 http://www.cs.berkeley.edu/~jrs/meshpapers/robnotes.pdf,
       // he recommends computing the triangle areas for 2D and 3D using 2D
       // signed areas computed with determinants.
-      assert( 
-        (nan_replacement == nan_replacement || 
+      assert(
+        (nan_replacement == nan_replacement ||
           (l(i,2) - (l(i,0)-l(i,1)))>=0)
           && "Side lengths do not obey the triangle inequality.");
       if(dblA(i) != dblA(i))

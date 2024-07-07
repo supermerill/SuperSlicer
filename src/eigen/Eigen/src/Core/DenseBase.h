@@ -14,15 +14,15 @@
 namespace Eigen {
 
 namespace internal {
-  
+
 // The index type defined by EIGEN_DEFAULT_DENSE_INDEX_TYPE must be a signed type.
 // This dummy function simply aims at checking that at compile time.
 static inline void check_DenseIndex_is_signed() {
-  EIGEN_STATIC_ASSERT(NumTraits<DenseIndex>::IsSigned,THE_INDEX_TYPE_MUST_BE_A_SIGNED_TYPE); 
+  EIGEN_STATIC_ASSERT(NumTraits<DenseIndex>::IsSigned,THE_INDEX_TYPE_MUST_BE_A_SIGNED_TYPE);
 }
 
 } // end namespace internal
-  
+
 /** \class DenseBase
   * \ingroup Core_Module
   *
@@ -64,12 +64,12 @@ template<typename Derived> class DenseBase
 
     /** The numeric type of the expression' coefficients, e.g. float, double, int or std::complex<float>, etc. */
     typedef typename internal::traits<Derived>::Scalar Scalar;
-    
+
     /** The numeric type of the expression' coefficients, e.g. float, double, int or std::complex<float>, etc.
       *
       * It is an alias for the Scalar type */
     typedef Scalar value_type;
-    
+
     typedef typename NumTraits<Scalar>::Real RealScalar;
     typedef DenseCoeffsBase<Derived> Base;
 
@@ -170,11 +170,11 @@ template<typename Derived> class DenseBase
       InnerStrideAtCompileTime = internal::inner_stride_at_compile_time<Derived>::ret,
       OuterStrideAtCompileTime = internal::outer_stride_at_compile_time<Derived>::ret
     };
-    
+
     typedef typename internal::find_best_packet<Scalar,SizeAtCompileTime>::type PacketScalar;
 
     enum { IsPlainObjectBase = 0 };
-    
+
     /** The plain matrix type corresponding to this expression.
       * \sa PlainObject */
     typedef Matrix<typename internal::traits<Derived>::Scalar,
@@ -184,7 +184,7 @@ template<typename Derived> class DenseBase
                 internal::traits<Derived>::MaxRowsAtCompileTime,
                 internal::traits<Derived>::MaxColsAtCompileTime
           > PlainMatrix;
-    
+
     /** The plain array type corresponding to this expression.
       * \sa PlainObject */
     typedef Array<typename internal::traits<Derived>::Scalar,
@@ -224,7 +224,7 @@ template<typename Derived> class DenseBase
     /** \returns the inner size.
       *
       * \note For a vector, this is just the size. For a matrix (non-vector), this is the minor dimension
-      * with respect to the \ref TopicStorageOrders "storage order", i.e., the number of rows for a 
+      * with respect to the \ref TopicStorageOrders "storage order", i.e., the number of rows for a
       * column-major matrix, and the number of columns for a row-major matrix. */
     EIGEN_DEVICE_FUNC
     Index innerSize() const
@@ -369,7 +369,7 @@ template<typename Derived> class DenseBase
     template<typename OtherDerived> EIGEN_DEVICE_FUNC
     bool isApprox(const DenseBase<OtherDerived>& other,
                   const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
-    EIGEN_DEVICE_FUNC 
+    EIGEN_DEVICE_FUNC
     bool isMuchSmallerThan(const RealScalar& other,
                            const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
     template<typename OtherDerived> EIGEN_DEVICE_FUNC
@@ -380,7 +380,7 @@ template<typename Derived> class DenseBase
     EIGEN_DEVICE_FUNC bool isConstant(const Scalar& value, const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
     EIGEN_DEVICE_FUNC bool isZero(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
     EIGEN_DEVICE_FUNC bool isOnes(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
-    
+
     inline bool hasNaN() const;
     inline bool allFinite() const;
 
@@ -394,7 +394,7 @@ template<typename Derived> class DenseBase
       *
       * Notice that in the case of a plain matrix or vector (not an expression) this function just returns
       * a const reference, in order to avoid a useless copy.
-      * 
+      *
       * \warning Be carefull with eval() and the auto C++ keyword, as detailed in this \link TopicPitfalls_auto_keyword page \endlink.
       */
     EIGEN_DEVICE_FUNC
@@ -405,7 +405,7 @@ template<typename Derived> class DenseBase
       // size types on MSVC.
       return typename internal::eval<Derived>::type(derived());
     }
-    
+
     /** swaps *this with the expression \a other.
       *
       */

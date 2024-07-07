@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Qingnan Zhou <qnzhou@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 //
 #ifndef IGL_COPYLEFT_CGAL_BINARY_WINDING_NUMBER_OPERATIONS_H
@@ -42,7 +42,7 @@ namespace igl
         public:
           template<typename DerivedW>
           typename DerivedW::Scalar operator()(
-              const Eigen::PlainObjectBase<DerivedW>& win_nums) const 
+              const Eigen::PlainObjectBase<DerivedW>& win_nums) const
           {
             for(int i = 0;i<win_nums.size();i++)
             {
@@ -58,7 +58,7 @@ namespace igl
         public:
           template<typename DerivedW>
           typename DerivedW::Scalar operator()(
-              const Eigen::PlainObjectBase<DerivedW>& win_nums) const 
+              const Eigen::PlainObjectBase<DerivedW>& win_nums) const
           {
             for(int i = 0;i<win_nums.size();i++)
             {
@@ -74,7 +74,7 @@ namespace igl
         public:
           template<typename DerivedW>
           typename DerivedW::Scalar operator()(
-              const Eigen::PlainObjectBase<DerivedW>& win_nums) const 
+              const Eigen::PlainObjectBase<DerivedW>& win_nums) const
           {
             assert(win_nums.size()>1);
             // Union of objects 1 through n-1
@@ -95,7 +95,7 @@ namespace igl
         public:
           template<typename DerivedW>
           typename DerivedW::Scalar operator()(
-              const Eigen::PlainObjectBase<DerivedW>& win_nums) const 
+              const Eigen::PlainObjectBase<DerivedW>& win_nums) const
           {
             // If inside an odd number of objects
             int count = 0;

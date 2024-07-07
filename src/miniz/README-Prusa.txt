@@ -4,7 +4,7 @@ This library is based on miniz 2.1.0 - amalgamated version.
 
 PrusaResearch (Vojtech) homebrewed the following:
 
-mz_zip_writer_add_staged_open(), mz_zip_writer_add_staged_data() and mz_zip_writer_add_staged_finish() 
+mz_zip_writer_add_staged_open(), mz_zip_writer_add_staged_data() and mz_zip_writer_add_staged_finish()
 were derived from mz_zip_writer_add_read_buf_callback() by splitting it and passing a new
 mz_zip_writer_staged_context between them.
 

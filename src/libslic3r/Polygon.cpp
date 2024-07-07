@@ -125,7 +125,7 @@ Polygons Polygon::simplify(double tolerance) const
     points.push_back(points.front());
     Polygon p(MultiPoint::_douglas_peucker(points, tolerance));
     p.points.pop_back();
-    
+
     Polygons pp;
     pp.push_back(p);
     return simplify_polygons(pp);
@@ -147,7 +147,7 @@ void Polygon::triangulate_convex(Polygons* polygons) const
         p.points.push_back(this->points.front());
         p.points.push_back(*(it-1));
         p.points.push_back(*it);
-        
+
         // this should be replaced with a more efficient call to a merge_collinear_segments() method
         if (p.area() > 0) polygons->push_back(p);
     }
@@ -178,20 +178,20 @@ Points Polygon::concave_points(double angle) const
 {
     Points points;
     angle = 2. * PI - angle + EPSILON;
-    
+
     // check whether first point forms a concave angle
     if (this->points.front().ccw_angle(this->points.back(), *(this->points.begin()+1)) <= angle)
         points.push_back(this->points.front());
-    
+
     // check whether points 1..(n-1) form concave angles
     for (Points::const_iterator p = this->points.begin()+1; p != this->points.end()-1; ++ p)
         if (p->ccw_angle(*(p-1), *(p+1)) <= angle)
-        	points.push_back(*p);
-    
+            points.push_back(*p);
+
     // check whether last point forms a concave angle
     if (this->points.back().ccw_angle(*(this->points.end()-2), this->points.front()) <= angle)
         points.push_back(this->points.back());
-    
+
     return points;
 }
 
@@ -222,20 +222,20 @@ Points Polygon::convex_points(double angle) const
 {
     Points points;
     angle = 2 * PI - angle - EPSILON;
-    
+
     // check whether first point forms a convex angle
     if (this->points.front().ccw_angle(this->points.back(), *(this->points.begin()+1)) >= angle)
         points.push_back(this->points.front());
-    
+
     // check whether points 1..(n-1) form convex angles
     for (Points::const_iterator p = this->points.begin() + 1; p != this->points.end() - 1; ++p)
         if (p->ccw_angle(*(p - 1), *(p + 1)) >= angle)
             points.push_back(*p);
-    
+
     // check whether last point forms a convex angle
     if (this->points.back().ccw_angle(*(this->points.end()-2), this->points.front()) >= angle)
         points.push_back(this->points.back());
-    
+
     return points;
 }
 
@@ -409,8 +409,8 @@ size_t Polygon::remove_collinear_angle(double angle_radian) {
     return nb_del;
 }
 
-BoundingBox get_extents(const Polygon &poly) 
-{ 
+BoundingBox get_extents(const Polygon &poly)
+{
     return poly.bounding_box();
 }
 
@@ -425,8 +425,8 @@ BoundingBox get_extents(const Polygons &polygons)
     return bb;
 }
 
-BoundingBox get_extents_rotated(const Polygon &poly, double angle) 
-{ 
+BoundingBox get_extents_rotated(const Polygon &poly, double angle)
+{
     return get_extents_rotated(poly.points, angle);
 }
 
@@ -545,7 +545,7 @@ bool remove_sticks(Polygons &polys)
     for (size_t i = 0; i < polys.size(); ++ i) {
         modified |= remove_sticks(polys[i]);
         if (polys[i].points.size() >= 3) {
-            if (j < i) 
+            if (j < i)
                 std::swap(polys[i].points, polys[j].points);
             ++ j;
         }
@@ -561,7 +561,7 @@ bool remove_degenerate(Polygons &polys)
     size_t j = 0;
     for (size_t i = 0; i < polys.size(); ++ i) {
         if (polys[i].points.size() >= 3) {
-            if (j < i) 
+            if (j < i)
                 std::swap(polys[i].points, polys[j].points);
             ++ j;
         } else
@@ -578,7 +578,7 @@ bool remove_small(Polygons &polys, double min_area)
     size_t j = 0;
     for (size_t i = 0; i < polys.size(); ++ i) {
         if (std::abs(polys[i].area()) >= min_area) {
-            if (j < i) 
+            if (j < i)
                 std::swap(polys[i].points, polys[j].points);
             ++ j;
         } else

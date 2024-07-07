@@ -194,7 +194,7 @@ void Mouse3DController::init()
   if (load_driver_functions()) {
     mouse_3d_controller = this;
 
-    uint16_t error = has_new_driver ? 
+    uint16_t error = has_new_driver ?
       SetConnexionHandlers(DeviceEvent, DeviceAdded, DeviceRemoved, false) :
       InstallConnexionHandlers(DeviceEvent, DeviceAdded, DeviceRemoved);
 

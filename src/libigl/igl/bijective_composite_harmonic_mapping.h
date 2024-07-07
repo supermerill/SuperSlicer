@@ -1,16 +1,16 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2017 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_BIJECTIVE_COMPOSITE_HARMONIC_MAPPING_H
 #define IGL_BIJECTIVE_COMPOSITE_HARMONIC_MAPPING_H
 #include "igl_inline.h"
 #include <Eigen/Core>
 
-namespace igl 
+namespace igl
 {
   // Compute a planar mapping of a triangulated polygon (V,F) subjected to
   // boundary conditions (b,bc). The mapping should be bijective in the sense
@@ -31,7 +31,7 @@ namespace igl
   //   U  #V by 2 list of output mesh vertex locations
   // Returns true if and only if U contains a successful bijectie mapping
   //
-  // 
+  //
   template <
     typename DerivedV,
     typename DerivedF,
@@ -54,7 +54,7 @@ namespace igl
   //   test_for_flips  whether to check if flips occurred (and trigger more
   //     steps). if test_for_flips = false then this function always returns
   //     true
-  // 
+  //
   template <
     typename DerivedV,
     typename DerivedF,

@@ -9,7 +9,7 @@
 #include <sstream>
 #include <unordered_map>
 
-#include <Eigen/Geometry> 
+#include <Eigen/Geometry>
 
 #include "LocalesUtils.hpp"
 
@@ -152,7 +152,7 @@ public:
 
     Point& operator+=(const Point& rhs) { this->x() += rhs.x(); this->y() += rhs.y(); return *this; }
     Point& operator-=(const Point& rhs) { this->x() -= rhs.x(); this->y() -= rhs.y(); return *this; }
-	Point& operator*=(const double &rhs) { this->x() = coord_t(this->x() * rhs); this->y() = coord_t(this->y() * rhs); return *this; }
+    Point& operator*=(const double &rhs) { this->x() = coord_t(this->x() * rhs); this->y() = coord_t(this->y() * rhs); return *this; }
     Point operator*(const double &rhs) const { return Point(this->x() * rhs, this->y() * rhs); }
 
     void   rotate(double angle) { this->rotate(std::cos(angle), std::sin(angle)); }
@@ -192,8 +192,8 @@ public:
     }
 };
 
-inline bool operator<(const Point &l, const Point &r) 
-{ 
+inline bool operator<(const Point &l, const Point &r)
+{
     return l.x() < r.x() || (l.x() == r.x() && l.y() < r.y());
 }
 
@@ -204,32 +204,32 @@ inline Point operator* (const Point& l, const double &r)
 
 inline bool is_approx(const Point &p1, const Point &p2, coord_t epsilon = coord_t(SCALED_EPSILON))
 {
-	Point d = (p2 - p1).cwiseAbs();
-	return d.x() < epsilon && d.y() < epsilon;
+    Point d = (p2 - p1).cwiseAbs();
+    return d.x() < epsilon && d.y() < epsilon;
 }
 
 inline bool is_approx(const Vec2f &p1, const Vec2f &p2, float epsilon = float(EPSILON))
 {
-	Vec2f d = (p2 - p1).cwiseAbs();
-	return d.x() < epsilon && d.y() < epsilon;
+    Vec2f d = (p2 - p1).cwiseAbs();
+    return d.x() < epsilon && d.y() < epsilon;
 }
 
 inline bool is_approx(const Vec2d &p1, const Vec2d &p2, double epsilon = EPSILON)
 {
-	Vec2d d = (p2 - p1).cwiseAbs();
-	return d.x() < epsilon && d.y() < epsilon;
+    Vec2d d = (p2 - p1).cwiseAbs();
+    return d.x() < epsilon && d.y() < epsilon;
 }
 
 inline bool is_approx(const Vec3f &p1, const Vec3f &p2, float epsilon = float(EPSILON))
 {
-	Vec3f d = (p2 - p1).cwiseAbs();
-	return d.x() < epsilon && d.y() < epsilon && d.z() < epsilon;
+    Vec3f d = (p2 - p1).cwiseAbs();
+    return d.x() < epsilon && d.y() < epsilon && d.z() < epsilon;
 }
 
 inline bool is_approx(const Vec3d &p1, const Vec3d &p2, double epsilon = EPSILON)
 {
-	Vec3d d = (p2 - p1).cwiseAbs();
-	return d.x() < epsilon && d.y() < epsilon && d.z() < epsilon;
+    Vec3d d = (p2 - p1).cwiseAbs();
+    return d.x() < epsilon && d.y() < epsilon && d.z() < epsilon;
 }
 
 inline Point lerp(const Point &a, const Point &b, double t)
@@ -300,36 +300,36 @@ struct PointHash {
 template<typename ValueType, typename PointAccessor> class ClosestPointInRadiusLookup
 {
 public:
-    ClosestPointInRadiusLookup(coord_t search_radius, PointAccessor point_accessor = PointAccessor()) : 
-		m_search_radius(search_radius), m_point_accessor(point_accessor), m_grid_log2(0)
+    ClosestPointInRadiusLookup(coord_t search_radius, PointAccessor point_accessor = PointAccessor()) :
+        m_search_radius(search_radius), m_point_accessor(point_accessor), m_grid_log2(0)
     {
         // Resolution of a grid, twice the search radius + some epsilon.
-		coord_t gridres = 2 * m_search_radius + 4;
+        coord_t gridres = 2 * m_search_radius + 4;
         m_grid_resolution = gridres;
         assert(m_grid_resolution > 0);
         assert(m_grid_resolution < (coord_t(1) << 30));
-		// Compute m_grid_log2 = log2(m_grid_resolution)
-		if (m_grid_resolution > 32767) {
-			m_grid_resolution >>= 16;
-			m_grid_log2 += 16;
-		}
-		if (m_grid_resolution > 127) {
-			m_grid_resolution >>= 8;
-			m_grid_log2 += 8;
-		}
-		if (m_grid_resolution > 7) {
-			m_grid_resolution >>= 4;
-			m_grid_log2 += 4;
-		}
-		if (m_grid_resolution > 1) {
-			m_grid_resolution >>= 2;
-			m_grid_log2 += 2;
-		}
-		if (m_grid_resolution > 0)
-			++ m_grid_log2;
-		m_grid_resolution = ((coord_t)1) << m_grid_log2;
-		assert(m_grid_resolution >= gridres);
-		assert(gridres > m_grid_resolution / 2);
+        // Compute m_grid_log2 = log2(m_grid_resolution)
+        if (m_grid_resolution > 32767) {
+            m_grid_resolution >>= 16;
+            m_grid_log2 += 16;
+        }
+        if (m_grid_resolution > 127) {
+            m_grid_resolution >>= 8;
+            m_grid_log2 += 8;
+        }
+        if (m_grid_resolution > 7) {
+            m_grid_resolution >>= 4;
+            m_grid_log2 += 4;
+        }
+        if (m_grid_resolution > 1) {
+            m_grid_resolution >>= 2;
+            m_grid_log2 += 2;
+        }
+        if (m_grid_resolution > 0)
+            ++ m_grid_log2;
+        m_grid_resolution = ((coord_t)1) << m_grid_log2;
+        assert(m_grid_resolution >= gridres);
+        assert(gridres > m_grid_resolution / 2);
     }
 
     void insert(const ValueType &value) {
@@ -389,8 +389,8 @@ public:
                 }
             }
         }
-        return (value_min != nullptr && dist_min < coordf_t(m_search_radius) * coordf_t(m_search_radius)) ? 
-            std::make_pair(value_min, dist_min) : 
+        return (value_min != nullptr && dist_min < coordf_t(m_search_radius) * coordf_t(m_search_radius)) ?
+            std::make_pair(value_min, dist_min) :
             std::make_pair(nullptr, std::numeric_limits<double>::max());
     }
 
@@ -510,9 +510,9 @@ inline coord_t align_to_grid(const coord_t coord, const coord_t spacing) {
     assert(aligned <= coord);
     return aligned;
 }
-inline Point   align_to_grid(Point   coord, Point   spacing) 
+inline Point   align_to_grid(Point   coord, Point   spacing)
     { return Point(align_to_grid(coord.x(), spacing.x()), align_to_grid(coord.y(), spacing.y())); }
-inline coord_t align_to_grid(coord_t coord, coord_t spacing, coord_t base) 
+inline coord_t align_to_grid(coord_t coord, coord_t spacing, coord_t base)
     { return base + align_to_grid(coord - base, spacing); }
 inline Point   align_to_grid(Point   coord, Point   spacing, Point   base)
     { return Point(align_to_grid(coord.x(), spacing.x(), base.x()), align_to_grid(coord.y(), spacing.y(), base.y())); }
@@ -525,16 +525,16 @@ inline Point   align_to_grid(Point   coord, Point   spacing, Point   base)
 namespace boost { namespace polygon {
     template <>
     struct geometry_concept<Slic3r::Point> { using type = point_concept; };
-   
+
     template <>
     struct point_traits<Slic3r::Point> {
         using coordinate_type = coord_t;
-    
+
         static inline coordinate_type get(const Slic3r::Point& point, orientation_2d orient) {
             return static_cast<coordinate_type>(point((orient == HORIZONTAL) ? 0 : 1));
         }
     };
-    
+
     template <>
     struct point_mutable_traits<Slic3r::Point> {
         using coordinate_type = coord_t;
@@ -550,19 +550,19 @@ namespace boost { namespace polygon {
 
 // Serialization through the Cereal library
 namespace cereal {
-//	template<class Archive> void serialize(Archive& archive, Slic3r::Vec2crd &v) { archive(v.x(), v.y()); }
-//	template<class Archive> void serialize(Archive& archive, Slic3r::Vec3crd &v) { archive(v.x(), v.y(), v.z()); }
-	template<class Archive> void serialize(Archive& archive, Slic3r::Vec2i32   &v) { archive(v.x(), v.y()); }
-	template<class Archive> void serialize(Archive& archive, Slic3r::Vec3i32  &v) { archive(v.x(), v.y(), v.z()); }
-	template<class Archive> void serialize(Archive& archive, Slic3r::Vec2i64 &v) { archive(v.x(), v.y()); }
-	template<class Archive> void serialize(Archive& archive, Slic3r::Vec3i64 &v) { archive(v.x(), v.y(), v.z()); }
-	template<class Archive> void serialize(Archive& archive, Slic3r::Vec2f   &v) { archive(v.x(), v.y()); }
-	template<class Archive> void serialize(Archive& archive, Slic3r::Vec3f   &v) { archive(v.x(), v.y(), v.z()); }
-	template<class Archive> void serialize(Archive& archive, Slic3r::Vec2d   &v) { archive(v.x(), v.y()); }
-	template<class Archive> void serialize(Archive& archive, Slic3r::Vec3d   &v) { archive(v.x(), v.y(), v.z()); }
+//    template<class Archive> void serialize(Archive& archive, Slic3r::Vec2crd &v) { archive(v.x(), v.y()); }
+//    template<class Archive> void serialize(Archive& archive, Slic3r::Vec3crd &v) { archive(v.x(), v.y(), v.z()); }
+    template<class Archive> void serialize(Archive& archive, Slic3r::Vec2i32   &v) { archive(v.x(), v.y()); }
+    template<class Archive> void serialize(Archive& archive, Slic3r::Vec3i32  &v) { archive(v.x(), v.y(), v.z()); }
+    template<class Archive> void serialize(Archive& archive, Slic3r::Vec2i64 &v) { archive(v.x(), v.y()); }
+    template<class Archive> void serialize(Archive& archive, Slic3r::Vec3i64 &v) { archive(v.x(), v.y(), v.z()); }
+    template<class Archive> void serialize(Archive& archive, Slic3r::Vec2f   &v) { archive(v.x(), v.y()); }
+    template<class Archive> void serialize(Archive& archive, Slic3r::Vec3f   &v) { archive(v.x(), v.y(), v.z()); }
+    template<class Archive> void serialize(Archive& archive, Slic3r::Vec2d   &v) { archive(v.x(), v.y()); }
+    template<class Archive> void serialize(Archive& archive, Slic3r::Vec3d   &v) { archive(v.x(), v.y(), v.z()); }
 
-	template<class Archive> void load(Archive& archive, Slic3r::Matrix2f &m) { archive.loadBinary((char*)m.data(), sizeof(float) * 4); }
-	template<class Archive> void save(Archive& archive, Slic3r::Matrix2f &m) { archive.saveBinary((char*)m.data(), sizeof(float) * 4); }
+    template<class Archive> void load(Archive& archive, Slic3r::Matrix2f &m) { archive.loadBinary((char*)m.data(), sizeof(float) * 4); }
+    template<class Archive> void save(Archive& archive, Slic3r::Matrix2f &m) { archive.saveBinary((char*)m.data(), sizeof(float) * 4); }
 }
 
 // To be able to use Vec<> and Mat<> in range based for loops:

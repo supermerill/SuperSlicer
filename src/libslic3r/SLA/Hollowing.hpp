@@ -46,18 +46,18 @@ struct DrainHole
 
     DrainHole(const DrainHole& rhs) :
         DrainHole(rhs.pos, rhs.normal, rhs.radius, rhs.height, rhs.failed) {}
-    
+
     bool operator==(const DrainHole &sp) const;
-    
+
     bool operator!=(const DrainHole &sp) const { return !(sp == (*this)); }
 
     bool is_inside(const Vec3f& pt) const;
 
     bool get_intersections(const Vec3f& s, const Vec3f& dir,
                            std::array<std::pair<float, Vec3d>, 2>& out) const;
-    
+
     indexed_triangle_set to_mesh() const;
-    
+
     template<class Archive> inline void serialize(Archive &ar)
     {
         ar(pos, normal, radius, height, failed);

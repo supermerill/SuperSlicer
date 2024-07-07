@@ -39,7 +39,7 @@
  * (what else would it do??)  The region must consist of a single
  * loop of half-edges (see mesh.h) oriented CCW.  "Monotone" in this
  * case means that any vertical line intersects the interior of the
- * region in a single interval.  
+ * region in a single interval.
  *
  * Tessellation consists of adding interior edges (actually pairs of
  * half-edges), to split the region into non-overlapping triangles.
@@ -66,6 +66,6 @@ int __gl_meshTessellateMonoRegion( GLUface *face );
 int __gl_meshTessellateInterior( GLUmesh *mesh );
 void __gl_meshDiscardExterior( GLUmesh *mesh );
 int __gl_meshSetWindingNumber( GLUmesh *mesh, int value,
-			        GLboolean keepOnlyBoundary );
+                    GLboolean keepOnlyBoundary );
 
 #endif

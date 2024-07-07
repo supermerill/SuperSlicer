@@ -13,7 +13,7 @@
 
 namespace Eigen {
 namespace internal {
-  
+
 template <int SegSizeAtCompileTime> struct LU_kernel_bmod
 {
   /** \internal
@@ -41,26 +41,26 @@ EIGEN_DONT_INLINE void LU_kernel_bmod<SegSizeAtCompileTime>::run(const Index seg
 {
   typedef typename ScalarVector::Scalar Scalar;
   // First, copy U[*,j] segment from dense(*) to tempv(*)
-  // The result of triangular solve is in tempv[*]; 
+  // The result of triangular solve is in tempv[*];
     // The result of matric-vector update is in dense[*]
-  Index isub = lptr + no_zeros; 
+  Index isub = lptr + no_zeros;
   Index i;
   Index irow;
   for (i = 0; i < ((SegSizeAtCompileTime==Dynamic)?segsize:SegSizeAtCompileTime); i++)
   {
-    irow = lsub(isub); 
-    tempv(i) = dense(irow); 
-    ++isub; 
+    irow = lsub(isub);
+    tempv(i) = dense(irow);
+    ++isub;
   }
   // Dense triangular solve -- start effective triangle
-  luptr += lda * no_zeros + no_zeros; 
-  // Form Eigen matrix and vector 
+  luptr += lda * no_zeros + no_zeros;
+  // Form Eigen matrix and vector
   Map<Matrix<Scalar,SegSizeAtCompileTime,SegSizeAtCompileTime, ColMajor>, 0, OuterStride<> > A( &(lusup.data()[luptr]), segsize, segsize, OuterStride<>(lda) );
   Map<Matrix<Scalar,SegSizeAtCompileTime,1> > u(tempv.data(), segsize);
-  
-  u = A.template triangularView<UnitLower>().solve(u); 
-  
-  // Dense matrix-vector product y <-- B*x 
+
+  u = A.template triangularView<UnitLower>().solve(u);
+
+  // Dense matrix-vector product y <-- B*x
   luptr += segsize;
   const Index PacketSize = internal::packet_traits<Scalar>::size;
   Index ldl = internal::first_multiple(nrow, PacketSize);
@@ -68,24 +68,24 @@ EIGEN_DONT_INLINE void LU_kernel_bmod<SegSizeAtCompileTime>::run(const Index seg
   Index aligned_offset = internal::first_default_aligned(tempv.data()+segsize, PacketSize);
   Index aligned_with_B_offset = (PacketSize-internal::first_default_aligned(B.data(), PacketSize))%PacketSize;
   Map<Matrix<Scalar,Dynamic,1>, 0, OuterStride<> > l(tempv.data()+segsize+aligned_offset+aligned_with_B_offset, nrow, OuterStride<>(ldl) );
-  
+
   l.setZero();
   internal::sparselu_gemm<Scalar>(l.rows(), l.cols(), B.cols(), B.data(), B.outerStride(), u.data(), u.outerStride(), l.data(), l.outerStride());
-  
-  // Scatter tempv[] into SPA dense[] as a temporary storage 
+
+  // Scatter tempv[] into SPA dense[] as a temporary storage
   isub = lptr + no_zeros;
   for (i = 0; i < ((SegSizeAtCompileTime==Dynamic)?segsize:SegSizeAtCompileTime); i++)
   {
-    irow = lsub(isub++); 
+    irow = lsub(isub++);
     dense(irow) = tempv(i);
   }
-  
+
   // Scatter l into SPA dense[]
   for (i = 0; i < nrow; i++)
   {
-    irow = lsub(isub++); 
+    irow = lsub(isub++);
     dense(irow) -= l(i);
-  } 
+  }
 }
 
 template <> struct LU_kernel_bmod<1>

@@ -768,7 +768,7 @@ Qs
 Search all points for the initial simplex.
 .TP
 Qt
-Triangulated output.  Triangulate all non\[hy]simplicial facets.  
+Triangulated output.  Triangulate all non\[hy]simplicial facets.
 \'Qt' is deprecated for Voronoi diagrams.  See also 'Qt'.
 .TP
 Qv

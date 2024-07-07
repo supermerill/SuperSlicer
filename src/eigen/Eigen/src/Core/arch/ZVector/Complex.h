@@ -234,7 +234,7 @@ template<> EIGEN_STRONG_INLINE Packet2cf preduxp<Packet2cf>(const Packet2cf* vec
   ptranspose(transpose);
 
   return padd<Packet2cf>(transpose.packet[0], transpose.packet[1]);
-} 
+}
 
 template<> EIGEN_STRONG_INLINE std::complex<double> predux_mul<Packet1cd>(const Packet1cd& a)
 {

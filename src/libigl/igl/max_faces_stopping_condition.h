@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_MAX_FACES_STOPPING_CONDITION_H
 #define IGL_MAX_FACES_STOPPING_CONDITION_H
@@ -46,7 +46,7 @@ namespace igl
       const int,
       const int,
       const int)> & stopping_condition);
-  IGL_INLINE 
+  IGL_INLINE
     std::function<bool(
       const Eigen::MatrixXd &,
       const Eigen::MatrixXi &,
@@ -61,7 +61,7 @@ namespace igl
       const int,
       const int,
       const int,
-      const int)> 
+      const int)>
     max_faces_stopping_condition(
       int & m,
       const int orign_m,

@@ -89,7 +89,7 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
     size_t nb_items = 1 + nb_items_up + nb_items_down;
     //start at the highest temp
     temperature = temperature + step_temp * nb_items_up;
-    
+
     /// --- scale ---
     //model is created for a 0.4 nozzle, scale xy with nozzle size.
     const ConfigOptionFloats* nozzle_diameter_config = printer_config->option<ConfigOptionFloats>("nozzle_diameter");
@@ -103,7 +103,7 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
         xyzScale = 1;
         model.objects[objs_idx[0]]->scale(xyzScale, xyzScale * 0.5, xyzScale);
     }
-    
+
     // it's rotated but not around the good origin: correct that
     double init_z_rotate_angle = Geometry::deg2rad(plat->config()->opt_float("init_z_rotate"));
     Matrix3d rot_matrix = Eigen::Quaterniond(Eigen::AngleAxisd(init_z_rotate_angle, Vec3d{0,0,1})).toRotationMatrix();
@@ -153,7 +153,7 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
     /// --- main config, please modify object config when possible ---
     DynamicPrintConfig new_print_config = *print_config; //make a copy
     new_print_config.set_key_value("complete_objects", new ConfigOptionBool(false));
-    
+
     /// -- generate the heat change gcode
     //std::string str_layer_gcode = "{if layer_num > 0 and layer_z  <= " + std::to_string(2 * xyzScale) + "}\nM104 S" + std::to_string(temperature - (int8_t)nb_delta * 5);
     //    double print_z, std::string gcode,int extruder, std::string color
@@ -177,8 +177,8 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
     model.objects[objs_idx[0]]->config.set_key_value("perimeters", new ConfigOptionInt(1));
     model.objects[objs_idx[0]]->config.set_key_value("extra_perimeters_overhangs", new ConfigOptionBool(true));
     model.objects[objs_idx[0]]->config.set_key_value("bottom_solid_layers", new ConfigOptionInt(2));
-    model.objects[objs_idx[0]]->config.set_key_value("top_solid_layers", new ConfigOptionInt(3)); 
-    model.objects[objs_idx[0]]->config.set_key_value("gap_fill_enabled", new ConfigOptionBool(false)); 
+    model.objects[objs_idx[0]]->config.set_key_value("top_solid_layers", new ConfigOptionInt(3));
+    model.objects[objs_idx[0]]->config.set_key_value("gap_fill_enabled", new ConfigOptionBool(false));
     model.objects[objs_idx[0]]->config.set_key_value("thin_perimeters", new ConfigOptionPercent(100));
     model.objects[objs_idx[0]]->config.set_key_value("layer_height", new ConfigOptionFloat(nozzle_diameter / 2));
     model.objects[objs_idx[0]]->config.set_key_value("fill_density", new ConfigOptionPercent(7));

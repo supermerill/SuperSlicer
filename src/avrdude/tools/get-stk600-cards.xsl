@@ -37,11 +37,11 @@
   <xsl:if test="$what = 'RC'">
     <xsl:for-each select="/STK600/ROUTING/CARD">
       <xsl:if test="RC_NAME != ''">
-	<xsl:text>  { </xsl:text>
-	<xsl:value-of select="RC_ID" />
-	<xsl:text>, &#034;</xsl:text>
-	<xsl:value-of select="RC_NAME" />
-	<xsl:text>&#034; },&#010;</xsl:text>
+    <xsl:text>  { </xsl:text>
+    <xsl:value-of select="RC_ID" />
+    <xsl:text>, &#034;</xsl:text>
+    <xsl:value-of select="RC_NAME" />
+    <xsl:text>&#034; },&#010;</xsl:text>
       </xsl:if>
     </xsl:for-each>  <!-- All cards -->
   </xsl:if> <!-- Routing cards -->

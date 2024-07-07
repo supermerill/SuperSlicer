@@ -6,7 +6,7 @@
 #include "../slice_mask.h"
 
 template <
-  typename DerivedV, 
+  typename DerivedV,
   typename DerivedE,
   typename DerivedWV,
   typename DerivedWF,

@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "tetgenio_to_tetmesh.h"
 
@@ -15,7 +15,7 @@
 
 IGL_INLINE bool igl::copyleft::tetgen::tetgenio_to_tetmesh(
   const tetgenio & out,
-  std::vector<std::vector<REAL > > & V, 
+  std::vector<std::vector<REAL > > & V,
   std::vector<std::vector<int> > & T,
   std::vector<std::vector<int> > & F)
 {
@@ -86,7 +86,7 @@ IGL_INLINE bool igl::copyleft::tetgen::tetgenio_to_tetmesh(
 
 IGL_INLINE bool igl::copyleft::tetgen::tetgenio_to_tetmesh(
   const tetgenio & out,
-  std::vector<std::vector<REAL > > & V, 
+  std::vector<std::vector<REAL > > & V,
   std::vector<std::vector<int> > & T)
 {
   std::vector<std::vector<int> > F;

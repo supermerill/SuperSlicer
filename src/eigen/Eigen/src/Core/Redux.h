@@ -11,7 +11,7 @@
 #ifndef EIGEN_REDUX_H
 #define EIGEN_REDUX_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -60,7 +60,7 @@ public:
   enum {
     Unrolling = Cost <= UnrollingLimit ? CompleteUnrolling : NoUnrolling
   };
-  
+
 #ifdef EIGEN_DEBUG_ASSIGN
   static void debug()
   {
@@ -128,7 +128,7 @@ template<typename Func, typename Derived, int Start>
 struct redux_novec_unroller<Func, Derived, Start, 0>
 {
   typedef typename Derived::Scalar Scalar;
-  EIGEN_DEVICE_FUNC 
+  EIGEN_DEVICE_FUNC
   static EIGEN_STRONG_INLINE Scalar run(const Derived&, const Func&) { return Scalar(); }
 };
 
@@ -215,7 +215,7 @@ struct redux_impl<Func, Derived, LinearVectorizedTraversal, NoUnrolling>
   static Scalar run(const Derived &mat, const Func& func)
   {
     const Index size = mat.size();
-    
+
     const Index packetSize = redux_traits<Func, Derived>::PacketSize;
     const int packetAlignment = unpacket_traits<PacketScalar>::alignment;
     enum {
@@ -336,12 +336,12 @@ class redux_evaluator
 public:
   typedef _XprType XprType;
   EIGEN_DEVICE_FUNC explicit redux_evaluator(const XprType &xpr) : m_evaluator(xpr), m_xpr(xpr) {}
-  
+
   typedef typename XprType::Scalar Scalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename XprType::PacketScalar PacketScalar;
   typedef typename XprType::PacketReturnType PacketReturnType;
-  
+
   enum {
     MaxRowsAtCompileTime = XprType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = XprType::MaxColsAtCompileTime,
@@ -353,7 +353,7 @@ public:
     CoeffReadCost = evaluator<XprType>::CoeffReadCost,
     Alignment = evaluator<XprType>::Alignment
   };
-  
+
   EIGEN_DEVICE_FUNC Index rows() const { return m_xpr.rows(); }
   EIGEN_DEVICE_FUNC Index cols() const { return m_xpr.cols(); }
   EIGEN_DEVICE_FUNC Index size() const { return m_xpr.size(); }
@@ -375,17 +375,17 @@ public:
   template<int LoadMode, typename PacketType>
   PacketType packet(Index index) const
   { return m_evaluator.template packet<LoadMode,PacketType>(index); }
-  
+
   EIGEN_DEVICE_FUNC
   CoeffReturnType coeffByOuterInner(Index outer, Index inner) const
   { return m_evaluator.coeff(IsRowMajor ? outer : inner, IsRowMajor ? inner : outer); }
-  
+
   template<int LoadMode, typename PacketType>
   PacketType packetByOuterInner(Index outer, Index inner) const
   { return m_evaluator.template packet<LoadMode,PacketType>(IsRowMajor ? outer : inner, IsRowMajor ? inner : outer); }
-  
+
   const XprType & nestedExpression() const { return m_xpr; }
-  
+
 protected:
   internal::evaluator<XprType> m_evaluator;
   const XprType &m_xpr;
@@ -414,7 +414,7 @@ DenseBase<Derived>::redux(const Func& func) const
 
   typedef typename internal::redux_evaluator<Derived> ThisEvaluator;
   ThisEvaluator thisEval(derived());
-  
+
   return internal::redux_impl<Func, ThisEvaluator>::run(thisEval, func);
 }
 

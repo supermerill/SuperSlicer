@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2014 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "readSTL.h"
 #include "list_to_matrix.h"
@@ -65,7 +65,7 @@ IGL_INLINE bool igl::readSTL(
 
 template <typename TypeV, typename TypeF, typename TypeN>
 IGL_INLINE bool igl::readSTL(
-  FILE * stl_file, 
+  FILE * stl_file,
   std::vector<std::vector<TypeV> > & V,
   std::vector<std::vector<TypeF> > & F,
   std::vector<std::vector<TypeN> > & N)
@@ -95,7 +95,7 @@ IGL_INLINE bool igl::readSTL(
   sscanf(header,"%s",solid);
   if(string("solid") != solid)
   {
-    // definitely **not** ascii 
+    // definitely **not** ascii
     is_ascii = false;
   }else
   {
@@ -152,8 +152,8 @@ IGL_INLINE bool igl::readSTL(
       {
         break;
       }
-      if(ret != 5 || 
-          !(string("facet") == facet || 
+      if(ret != 5 ||
+          !(string("facet") == facet ||
           string("faced") == facet) ||
           string("normal") != normal)
       {

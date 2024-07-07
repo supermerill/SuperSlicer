@@ -8,14 +8,14 @@ namespace Slic3r {
 
 void filter_by_extrusion_role_in_place(ExtrusionEntitiesPtr &extrusion_entities, ExtrusionRole role)
 {
-	if (role != erMixed) {
-		auto first  = extrusion_entities.begin();
-		auto last   = extrusion_entities.end();
+    if (role != erMixed) {
+        auto first  = extrusion_entities.begin();
+        auto last   = extrusion_entities.end();
         extrusion_entities.erase(
             std::remove_if(first, last, [&role](const ExtrusionEntity* ee) {
                 return ee->role() != role; }),
             last);
-	}
+    }
 }
 
 ExtrusionEntityCollection::ExtrusionEntityCollection(const ExtrusionPaths &paths)
@@ -42,8 +42,8 @@ void ExtrusionEntityCollection::swap(ExtrusionEntityCollection &c)
 
 void ExtrusionEntityCollection::clear()
 {
-	for (size_t i = 0; i < this->m_entities.size(); ++i)
-		delete this->m_entities[i];
+    for (size_t i = 0; i < this->m_entities.size(); ++i)
+        delete this->m_entities[i];
     this->m_entities.clear();
 }
 

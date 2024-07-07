@@ -28,7 +28,7 @@ static wxSize get_bitmap_size(const wxBitmap& bmp)
 #endif
 }
 
-// static wxString get_url(const wxString& path_end, bool get_default = false) 
+// static wxString get_url(const wxString& path_end, bool get_default = false)
 // {
 //     if (path_end.IsEmpty())
 //         return wxEmptyString;
@@ -115,7 +115,7 @@ int OG_CustomCtrl::get_height(const Line& line)
     for (auto ctrl_line : ctrl_lines)
         if (&ctrl_line.og_line == &line)
             return ctrl_line.height;
-        
+
     return 0;
 }
 
@@ -210,7 +210,7 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
                         wxCoord label_w, label_h;
 #ifdef __WXMSW__
                         // when we use 2 monitors with different DPIs, GetTextExtent() return value for the primary display
-                        // so, use dc.GetMultiLineTextExtent on Windows 
+                        // so, use dc.GetMultiLineTextExtent on Windows
                     wxClientDC dc(this);
                         dc.SetFont(m_font);
                         if (option.label_width >= 0) {
@@ -254,7 +254,7 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
 
                 // size of little widget before the real one
                 h_pos += 2 * blinking_button_width;
-                
+
                 if (field == field_in) {
                     //correct_horiz_pos(h_pos, field);
                     break;
@@ -422,7 +422,7 @@ bool OG_CustomCtrl::update_visibility(ConfigOptionMode mode)
             v_pos += (wxCoord)line.height;
         else
             invisible_lines++;
-    }    
+    }
 
     this->SetMinSize(wxSize(wxDefaultCoord, v_pos));
 
@@ -574,7 +574,7 @@ void OG_CustomCtrl::CtrlLine::msw_rescale()
         wxSize label_sz = ctrl->GetTextExtent(og_line.label);
         height = label_sz.y * (label_sz.GetWidth() > int(ctrl->opt_group->title_width * ctrl->m_em_unit) ? 2 : 1) + ctrl->m_v_gap;
     }
-    
+
     correct_items_positions();
 }
 
@@ -857,7 +857,7 @@ wxCoord    OG_CustomCtrl::CtrlLine::draw_text(wxDC& dc, wxPoint pos, const wxStr
             dc.SetFont(old_font.Underlined());
 #else
             dc.SetFont(old_font.Bold().Underlined());
-#endif            
+#endif
         dc.SetTextForeground(color ? *color : wxGetApp().get_label_clr_default());
         dc.DrawText(out_text, draw_pos);
         dc.SetTextForeground(old_clr);

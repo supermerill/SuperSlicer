@@ -59,7 +59,7 @@ ProgressStatusBar::ProgressStatusBar(wxWindow *parent, int id)
     });
 
     m_cancelbutton->Bind(wxEVT_BUTTON, [this](const wxCommandEvent&) {
-        if (m_cancel_cb) 
+        if (m_cancel_cb)
             m_cancel_cb();
         m_cancelbutton->Hide();
     });
@@ -84,7 +84,7 @@ int ProgressStatusBar::get_progress() const
 void ProgressStatusBar::set_progress(int val)
 {
     if(!m_prog) return;
-    
+
     if(!m_prog->IsShown()) show_progress(true);
     if(val < 0) return;
 
@@ -120,7 +120,7 @@ void ProgressStatusBar::show_progress(bool show)
 void ProgressStatusBar::start_busy(int rate)
 {
     if(!m_prog) return;
-    
+
     m_busy = true;
     show_progress(true);
     if (!m_timer->IsRunning()) {
@@ -131,7 +131,7 @@ void ProgressStatusBar::start_busy(int rate)
 void ProgressStatusBar::stop_busy()
 {
     if(!m_timer || !m_prog) return;
-    
+
     m_timer->Stop();
     show_progress(false);
     m_prog->SetValue(0);
@@ -160,16 +160,16 @@ void ProgressStatusBar::embed(wxFrame *frame)
 
 void ProgressStatusBar::set_status_text(const wxString& txt)
 {
-	if(self) self->SetStatusText(txt);
+    if(self) self->SetStatusText(txt);
 }
 
 void ProgressStatusBar::set_status_text(const std::string& txt)
-{ 
+{
     this->set_status_text(txt.c_str());
 }
 
 void ProgressStatusBar::set_status_text(const char *txt)
-{ 
+{
     this->set_status_text(wxString::FromUTF8(txt));
 }
 

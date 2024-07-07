@@ -172,26 +172,26 @@ static int pin_name;
 %token K_HVSP_CONTROLSTACK
 
 /* JTAG ICE mkII specific parameters */
-%token K_ALLOWFULLPAGEBITSTREAM	/*
-				 * Internal parameter for the JTAG
-				 * ICE; describes the internal JTAG
-				 * streaming behaviour inside the MCU.
-				 * 1 for all older chips, 0 for newer
-				 * MCUs.
-				 */
-%token K_ENABLEPAGEPROGRAMMING	/* ? yes for mega256*, mega406 */
-%token K_HAS_JTAG		/* MCU has JTAG i/f. */
-%token K_HAS_DW			/* MCU has debugWire i/f. */
+%token K_ALLOWFULLPAGEBITSTREAM    /*
+                 * Internal parameter for the JTAG
+                 * ICE; describes the internal JTAG
+                 * streaming behaviour inside the MCU.
+                 * 1 for all older chips, 0 for newer
+                 * MCUs.
+                 */
+%token K_ENABLEPAGEPROGRAMMING    /* ? yes for mega256*, mega406 */
+%token K_HAS_JTAG        /* MCU has JTAG i/f. */
+%token K_HAS_DW            /* MCU has debugWire i/f. */
 %token K_HAS_PDI                /* MCU has PDI i/f rather than ISP (ATxmega). */
 %token K_HAS_TPI                /* MCU has TPI i/f rather than ISP (ATtiny4/5/9/10). */
-%token K_IDR			/* address of OCD register in IO space */
-%token K_IS_AT90S1200		/* chip is an AT90S1200 (needs special treatment) */
+%token K_IDR            /* address of OCD register in IO space */
+%token K_IS_AT90S1200        /* chip is an AT90S1200 (needs special treatment) */
 %token K_IS_AVR32               /* chip is in the avr32 family */
-%token K_RAMPZ			/* address of RAMPZ reg. in IO space */
-%token K_SPMCR			/* address of SPMC[S]R in memory space */
-%token K_EECR    		/* address of EECR in memory space */
-%token K_FLASH_INSTR		/* flash instructions */
-%token K_EEPROM_INSTR		/* EEPROM instructions */
+%token K_RAMPZ            /* address of RAMPZ reg. in IO space */
+%token K_SPMCR            /* address of SPMC[S]R in memory space */
+%token K_EECR            /* address of EECR in memory space */
+%token K_FLASH_INSTR        /* flash instructions */
+%token K_EEPROM_INSTR        /* EEPROM instructions */
 
 %token TKN_COMMA
 %token TKN_EQUAL
@@ -207,7 +207,7 @@ static int pin_name;
 
 %%
 
-number_real : 
+number_real :
  TKN_NUMBER {
     $$ = $1;
     /* convert value to real */
@@ -332,8 +332,8 @@ prog_decl :
 
 
 part_def :
-  part_decl part_parms 
-    { 
+  part_decl part_parms
+    {
       LNODEID ln;
       AVRMEM * m;
       AVRPART * existing_part;
@@ -384,8 +384,8 @@ part_def :
         lrmv_d(part_list, existing_part);
         avr_free_part(existing_part);
       }
-      PUSH(part_list, current_part); 
-      current_part = NULL; 
+      PUSH(part_list, current_part);
+      current_part = NULL;
     }
 ;
 
@@ -400,7 +400,7 @@ part_decl :
       strcpy(current_part->config_file, infile);
       current_part->lineno = lineno;
     } |
-  K_PART K_PARENT TKN_STRING 
+  K_PART K_PARENT TKN_STRING
     {
       AVRPART * parent_part = locate_part(part_list, $3->value.string);
       if (parent_part == NULL) {
@@ -492,11 +492,11 @@ prog_parm_type_id:
   const struct programmer_type_t * pgm_type = locate_programmer_type($1->value.string);
     if (pgm_type == NULL) {
         yyerror("programmer type %s not found", $1->value.string);
-        free_token($1); 
+        free_token($1);
         YYABORT;
     }
     current_prog->initpgm = pgm_type->initpgm;
-    free_token($1); 
+    free_token($1);
 }
   | error
 {
@@ -660,14 +660,14 @@ retry_lines :
 ;
 
 part_parm :
-  K_ID TKN_EQUAL TKN_STRING 
+  K_ID TKN_EQUAL TKN_STRING
     {
       strncpy(current_part->id, $3->value.string, AVR_IDLEN);
       current_part->id[AVR_IDLEN-1] = 0;
       free_token($3);
     } |
 
-  K_DESC TKN_EQUAL TKN_STRING 
+  K_DESC TKN_EQUAL TKN_STRING
     {
       strncpy(current_part->desc, $3->value.string, AVR_DESCLEN);
       current_part->desc[AVR_DESCLEN-1] = 0;
@@ -727,20 +727,20 @@ part_parm :
       memset(current_part->controlstack, 0, CTL_STACK_SIZE);
       while (lsize(number_list)) {
         t = lrmv_n(number_list, 1);
-	if (nbytes < CTL_STACK_SIZE)
-	  {
-	    current_part->controlstack[nbytes] = t->value.number;
-	    nbytes++;
-	  }
-	else
-	  {
-	    ok = 0;
-	  }
+    if (nbytes < CTL_STACK_SIZE)
+      {
+        current_part->controlstack[nbytes] = t->value.number;
+        nbytes++;
+      }
+    else
+      {
+        ok = 0;
+      }
         free_token(t);
       }
       if (!ok)
-	{
-	  yywarning("too many bytes in control stack");
+    {
+      yywarning("too many bytes in control stack");
         }
     }
   } |
@@ -758,20 +758,20 @@ part_parm :
       memset(current_part->controlstack, 0, CTL_STACK_SIZE);
       while (lsize(number_list)) {
         t = lrmv_n(number_list, 1);
-	if (nbytes < CTL_STACK_SIZE)
-	  {
-	    current_part->controlstack[nbytes] = t->value.number;
-	    nbytes++;
-	  }
-	else
-	  {
-	    ok = 0;
-	  }
+    if (nbytes < CTL_STACK_SIZE)
+      {
+        current_part->controlstack[nbytes] = t->value.number;
+        nbytes++;
+      }
+    else
+      {
+        ok = 0;
+      }
         free_token(t);
       }
       if (!ok)
-	{
-	  yywarning("too many bytes in control stack");
+    {
+      yywarning("too many bytes in control stack");
         }
     }
   } |
@@ -788,20 +788,20 @@ part_parm :
       memset(current_part->flash_instr, 0, FLASH_INSTR_SIZE);
       while (lsize(number_list)) {
         t = lrmv_n(number_list, 1);
-	if (nbytes < FLASH_INSTR_SIZE)
-	  {
-	    current_part->flash_instr[nbytes] = t->value.number;
-	    nbytes++;
-	  }
-	else
-	  {
-	    ok = 0;
-	  }
+    if (nbytes < FLASH_INSTR_SIZE)
+      {
+        current_part->flash_instr[nbytes] = t->value.number;
+        nbytes++;
+      }
+    else
+      {
+        ok = 0;
+      }
         free_token(t);
       }
       if (!ok)
-	{
-	  yywarning("too many bytes in flash instructions");
+    {
+      yywarning("too many bytes in flash instructions");
         }
     }
   } |
@@ -818,20 +818,20 @@ part_parm :
       memset(current_part->eeprom_instr, 0, EEPROM_INSTR_SIZE);
       while (lsize(number_list)) {
         t = lrmv_n(number_list, 1);
-	if (nbytes < EEPROM_INSTR_SIZE)
-	  {
-	    current_part->eeprom_instr[nbytes] = t->value.number;
-	    nbytes++;
-	  }
-	else
-	  {
-	    ok = 0;
-	  }
+    if (nbytes < EEPROM_INSTR_SIZE)
+      {
+        current_part->eeprom_instr[nbytes] = t->value.number;
+        nbytes++;
+      }
+    else
+      {
+        ok = 0;
+      }
         free_token(t);
       }
       if (!ok)
-	{
-	  yywarning("too many bytes in EEPROM instructions");
+    {
+      yywarning("too many bytes in EEPROM instructions");
         }
     }
   } |
@@ -1206,7 +1206,7 @@ part_parm :
     mem_specs |
 */
 
-  K_MEMORY TKN_STRING 
+  K_MEMORY TKN_STRING
     {
       current_mem = avr_new_memtype();
       if (current_mem == NULL) {
@@ -1218,8 +1218,8 @@ part_parm :
       current_mem->desc[AVR_MEMDESCLEN-1] = 0;
       free_token($2);
     }
-    mem_specs 
-    { 
+    mem_specs
+    {
       AVRMEM * existing_mem;
 
       existing_mem = avr_locate_mem(current_part, current_mem->desc);
@@ -1227,12 +1227,12 @@ part_parm :
         lrmv_d(current_part->mem, existing_mem);
         avr_free_mem(existing_mem);
       }
-      ladd(current_part->mem, current_mem); 
-      current_mem = NULL; 
+      ladd(current_part->mem, current_mem);
+      current_mem = NULL;
     } |
 
   opcode TKN_EQUAL string_list {
-    { 
+    {
       int opnum;
       OPCODE * op;
 
@@ -1363,7 +1363,7 @@ mem_spec :
 
 
   opcode TKN_EQUAL string_list {
-    { 
+    {
       int opnum;
       OPCODE * op;
 

@@ -92,16 +92,16 @@ void RotoptimizeJob::finalize()
 
             auto    trmatrix = oi->get_transformation().get_matrix();
             Polygon trchull  = o->convex_hull_2d(trmatrix);
-            
+
             if (!trchull.empty()) {
                 MinAreaBoundigBox rotbb(trchull, MinAreaBoundigBox::pcConvex);
                 double            phi = rotbb.angle_to_X();
-    
+
                 // The box should be landscape
                 if(rotbb.width() < rotbb.height()) phi += PI / 2;
-    
+
                 Vec3d rt = oi->get_rotation(); rt(Z) += phi;
-    
+
                 oi->set_rotation(rt);
             }
         }
@@ -115,7 +115,7 @@ void RotoptimizeJob::finalize()
 
     if (!was_canceled())
         m_plater->update();
-    
+
     Job::finalize();
 }
 

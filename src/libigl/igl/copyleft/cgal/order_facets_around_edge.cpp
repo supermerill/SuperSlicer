@@ -13,7 +13,7 @@ void igl::copyleft::cgal::order_facets_around_edge(
     const Eigen::PlainObjectBase<DerivedV>& V,
     const Eigen::PlainObjectBase<DerivedF>& F,
     size_t s,
-    size_t d, 
+    size_t d,
     const std::vector<int>& adj_faces,
     Eigen::PlainObjectBase<DerivedI>& order, bool debug)
 {
@@ -40,7 +40,7 @@ void igl::copyleft::cgal::order_facets_around_edge(
   };
 
   // Handle base cases
-  if (adj_faces.size() == 0) 
+  if (adj_faces.size() == 0)
   {
     order.resize(0, 1);
     return;
@@ -223,7 +223,7 @@ void igl::copyleft::cgal::order_facets_around_edge(
   }
   count += tie_positive_size;
 
-  for (size_t i=0; i<negative_size; i++) 
+  for (size_t i=0; i<negative_size; i++)
   {
     order(count+i, 0) = negative_side_index[negative_order(i, 0)];
   }
@@ -283,7 +283,7 @@ void igl::copyleft::cgal::order_facets_around_edge(
   const Eigen::PlainObjectBase<DerivedV>& V,
   const Eigen::PlainObjectBase<DerivedF>& F,
   size_t s,
-  size_t d, 
+  size_t d,
   const std::vector<int>& adj_faces,
   const Eigen::PlainObjectBase<DerivedV>& pivot_point,
   Eigen::PlainObjectBase<DerivedI>& order)
@@ -323,7 +323,7 @@ void igl::copyleft::cgal::order_facets_around_edge(
 
   // Because face indices are used for tie breaking, the original face indices
   // in the new faces array must be ascending.
-  auto comp = [&](int i, int j) 
+  auto comp = [&](int i, int j)
   {
     return signed_index_to_index(adj_faces[i]) <
       signed_index_to_index(adj_faces[j]);
@@ -333,7 +333,7 @@ void igl::copyleft::cgal::order_facets_around_edge(
   std::sort(adj_order.begin(), adj_order.end(), comp);
 
   DerivedV vertices(num_faces + 2, 3);
-  for (size_t i=0; i<N; i++) 
+  for (size_t i=0; i<N; i++)
   {
     const size_t fid = signed_index_to_index(adj_faces[adj_order[i]]);
     vertices.row(i) = V.row(get_opposite_vertex_index(fid));
@@ -345,12 +345,12 @@ void igl::copyleft::cgal::order_facets_around_edge(
   DerivedF faces(num_faces, 3);
   for (size_t i=0; i<N; i++)
   {
-    if (adj_faces[adj_order[i]] < 0) 
+    if (adj_faces[adj_order[i]] < 0)
     {
       faces(i,0) = N+1; // s
       faces(i,1) = N+2; // d
       faces(i,2) = i  ;
-    } else 
+    } else
     {
       faces(i,0) = N+2; // d
       faces(i,1) = N+1; // s

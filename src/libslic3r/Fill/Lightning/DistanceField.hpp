@@ -33,7 +33,7 @@ public:
      * layer.
      */
     DistanceField(const coord_t& radius, const Polygons& current_outline, const BoundingBox& current_outlines_bbox, const Polygons& current_overhang);
-    
+
     /*!
      * Gets the next unsupported location to be supported by a new branch.
      * \param p Output variable for the next point to support.

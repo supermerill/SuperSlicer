@@ -344,7 +344,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
         toggle_field(el, have_perimeters);
 
     bool has_spiral_vase = have_perimeters && config->opt_bool("spiral_vase");
-    
+
     bool have_arachne = have_perimeters && (config->opt_int("perimeters") == config->opt_int("perimeters_hole") || config->opt_int("perimeters_hole") < 0);
     toggle_field("perimeter_generator", have_arachne);
     have_arachne = have_arachne && config->opt_enum<PerimeterGeneratorType>("perimeter_generator") == PerimeterGeneratorType::Arachne;
@@ -360,7 +360,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
     for (auto el : {"perimeter_loop", "extra_perimeters_overhangs",
         "thin_perimeters", "perimeter_round_corners"})
         toggle_field(el, have_perimeters && !have_arachne);
-    
+
     toggle_field("no_perimeter_unsupported_algo", have_perimeters);
     toggle_field("only_one_perimeter_top", have_perimeters);
     toggle_field("only_one_perimeter_first_layer", config->opt_int("perimeters") > 1);
@@ -419,9 +419,9 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
         for (auto el : { "infill_every_layers", "infill_only_where_needed" })
             toggle_field(el, !have_infill_dense);
 
-    bool has_top_solid_infill 	 = config->opt_int("top_solid_layers") > 0 || has_spiral_vase;
+    bool has_top_solid_infill      = config->opt_int("top_solid_layers") > 0 || has_spiral_vase;
     bool has_bottom_solid_infill = config->opt_int("bottom_solid_layers") > 0;
-    bool has_solid_infill 		 = has_top_solid_infill || has_bottom_solid_infill || (have_infill && (config->opt_int("solid_infill_every_layers") > 0 || config->opt_float("solid_infill_below_area") > 0));
+    bool has_solid_infill          = has_top_solid_infill || has_bottom_solid_infill || (have_infill && (config->opt_int("solid_infill_every_layers") > 0 || config->opt_float("solid_infill_below_area") > 0));
     // solid_infill_extruder uses the same logic as in Print::extruders()
     for (auto el : { "top_fill_pattern", "bottom_fill_pattern", "solid_fill_pattern", "enforce_full_fill_volume", "external_infill_margin", "bridged_infill_margin",
         "solid_infill_extruder", "solid_infill_extrusion_width", "solid_nfill_extrusion_change_odd_layers", "solid_infill_extrusion_spacing", "solid_infill_speed" })
@@ -432,7 +432,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
     for (auto el : {"fill_angle_cross","fill_angle_follow_model","fill_angle_increment", "fill_angle_template", "bridge_angle", "infill_extrusion_width",
                     "infill_extrusion_spacing", "infill_extrusion_change_odd_layers", "infill_speed" })
         toggle_field(el, have_infill || has_solid_infill);
-        
+
     toggle_field("fill_angle", (have_infill || has_solid_infill) && ((ConfigOptionVectorBase*)config->option("fill_angle_template"))->size() == 0);
 
 
@@ -488,7 +488,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
     bool have_support_soluble = have_support_material && ((ConfigOptionEnumGeneric*)config->option("support_material_contact_distance_type"))->value == zdNone;
     auto support_material_style = config->opt_enum<SupportMaterialStyle>("support_material_style");
     for (auto el : { "support_material_style", "support_material_pattern", "support_material_with_sheath",
-                    "support_material_spacing", "support_material_angle", "support_material_angle_height", 
+                    "support_material_spacing", "support_material_angle", "support_material_angle_height",
                     "support_material_bottom_interface_layers", "support_material_interface_layers",
                     "dont_support_bridges", "support_material_extrusion_width",
                     "support_material_contact_distance_type",
@@ -540,7 +540,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
     bool has_ironing = has_PP_ironing || has_ironing_pattern;
     for (auto el : { "ironing_speed" })
         toggle_field(el, has_ironing);
-    
+
 
     bool have_sequential_printing = config->opt_bool("complete_objects");
     for (auto el : { /*"extruder_clearance_radius", "extruder_clearance_height",*/ "complete_objects_one_skirt",
@@ -561,7 +561,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
     toggle_field("avoid_crossing_perimeters_max_detour", have_avoid_crossing_perimeters);
     toggle_field("avoid_crossing_not_first_layer", have_avoid_crossing_perimeters);
     toggle_field("avoid_crossing_top", have_avoid_crossing_perimeters);
-    
+
     toggle_field("enforce_retract_first_layer", config->opt_bool("only_retract_when_crossing_perimeters"));
 
 
@@ -590,9 +590,9 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
         toggle_field(el, have_default_acceleration);
 
     // for default speed, it needs at least a dependent field with a %
-    toggle_field("default_speed", config->option<ConfigOptionFloatOrPercent>("perimeter_speed")->percent || 
-        config->option<ConfigOptionFloatOrPercent>("solid_infill_speed")->percent || 
-        config->option<ConfigOptionFloatOrPercent>("bridge_speed")->percent || 
+    toggle_field("default_speed", config->option<ConfigOptionFloatOrPercent>("perimeter_speed")->percent ||
+        config->option<ConfigOptionFloatOrPercent>("solid_infill_speed")->percent ||
+        config->option<ConfigOptionFloatOrPercent>("bridge_speed")->percent ||
         config->option<ConfigOptionFloatOrPercent>("support_material_speed")->percent);
     toggle_field("max_print_speed", config->opt_float("max_volumetric_speed") != 0);
 }
@@ -628,7 +628,7 @@ void ConfigManipulation::update_printer_fff_config(DynamicPrintConfig *config,
             apply(config, &new_conf);
             is_msg_dlg_already_exist = false;
         }
-        
+
         bool have_retract_length = config->opt_float("retract_length", extruder_idx) > 0;
         bool use_firmware_retraction = config->opt_bool("use_firmware_retraction");
         bool wipe = config->opt_bool("wipe", extruder_idx) && have_retract_length;
@@ -659,7 +659,7 @@ void ConfigManipulation::toggle_printer_fff_options(DynamicPrintConfig *config, 
     bool custom_color = config->opt_bool("thumbnails_custom_color");
     toggle_field("thumbnails_color", custom_color);
     const ConfigOptionEnum<GCodeThumbnailsFormat>* thumbnails_format = config->option<ConfigOptionEnum<GCodeThumbnailsFormat>>("thumbnails_format");
-    
+
     if (thumbnails_format) {
         toggle_field("thumbnails_end_file", thumbnails_format->value != (GCodeThumbnailsFormat::BIQU));
         toggle_field("thumbnails_tag_format", thumbnails_format->value != (GCodeThumbnailsFormat::BIQU));
@@ -668,7 +668,7 @@ void ConfigManipulation::toggle_printer_fff_options(DynamicPrintConfig *config, 
     //firmware
     bool have_remaining_times = config->opt_bool("remaining_times");
     toggle_field("remaining_times_type", have_remaining_times);
-	
+
     bool have_arc_fitting = config->opt_bool("arc_fitting");
     toggle_field("arc_fitting_tolerance", have_arc_fitting);
 
@@ -678,7 +678,7 @@ void ConfigManipulation::toggle_printer_fff_options(DynamicPrintConfig *config, 
     toggle_field("silent_mode", is_marlin_flavor);
 
     for (size_t i = 0; i < extruder_count; ++i) {
-        
+
         bool have_retract_length = config->opt_float("retract_length", i) > 0;
 
         // when using firmware retraction, firmware decides retraction length

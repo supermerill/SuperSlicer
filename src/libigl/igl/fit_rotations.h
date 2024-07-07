@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_FIT_ROTATIONS_H
 #define IGL_FIT_ROTATIONS_H
@@ -17,7 +17,7 @@ namespace igl
   //
   // FIT_ROTATIONS Given an input mesh and new positions find rotations for
   // every covariance matrix in a stack of covariance matrices
-  // 
+  //
   // Inputs:
   //   S  nr*dim by dim stack of covariance matrices
   //   single_precision  whether to use single precision (faster)
@@ -29,10 +29,10 @@ namespace igl
     const Eigen::PlainObjectBase<DerivedS> & S,
     const bool single_precision,
           Eigen::PlainObjectBase<DerivedD> & R);
-  
+
   // FIT_ROTATIONS Given an input mesh and new positions find 2D rotations for
   // every vertex that best maps its one ring to the new one ring
-  // 
+  //
   // Inputs:
   //   S  nr*dim by dim stack of covariance matrices, third column and every
   //   third row will be ignored

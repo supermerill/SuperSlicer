@@ -42,7 +42,7 @@ template<typename _MatrixType> struct traits<ColPivHouseholderQR<_MatrixType> >
   * numerical stability. It is slower than HouseholderQR, and faster than FullPivHouseholderQR.
   *
   * This class supports the \link InplaceDecomposition inplace decomposition \endlink mechanism.
-  * 
+  *
   * \sa MatrixBase::colPivHouseholderQr()
   */
 template<typename _MatrixType> class ColPivHouseholderQR

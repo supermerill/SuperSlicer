@@ -61,7 +61,7 @@ static constexpr coord_t SCALED_EPSILON = 100; // coord_t(EPSILON/ SCALING_FACTO
 #define PI 3.141592653589793238
 // When extruding a closed loop, the loop is interrupted and shortened a bit to reduce the seam.
 //static constexpr double LOOP_CLIPPING_LENGTH_OVER_NOZZLE_DIAMETER = 0.15; now seam_gap
-// Maximum perimeter length for the loop to apply the small perimeter speed. 
+// Maximum perimeter length for the loop to apply the small perimeter speed.
 //#define                 SMALL_PERIMETER_LENGTH  ((6.5 / SCALING_FACTOR) * 2 * PI)
 static constexpr double INSET_OVERLAP_TOLERANCE = 0.4;
 //FIXME Better to use an inline function with an explicit return type.
@@ -82,7 +82,7 @@ extern Semver SEMVER;
 
 // On MSVC, std::deque degenerates to a list of pointers, which defeats its purpose of reducing allocator load and memory fragmentation.
 template<class T, class Allocator = std::allocator<T>>
-using deque = 
+using deque =
 #ifdef _WIN32
     // Use boost implementation, which allocates blocks of 512 bytes instead of blocks of 8 bytes.
     boost::container::deque<T, Allocator>;
@@ -98,16 +98,16 @@ inline double unscaled(coordf_t v) { return v * SCALING_FACTOR; }
 inline coord_t scale_t(double v) { return coord_t(v * UNSCALING_FACTOR); }
 inline coordf_t scale_d(double v) { return coordf_t(v * UNSCALING_FACTOR); }
 
-enum Axis { 
-	X=0,
-	Y,
-	Z,
-	E,
-	F,
-	NUM_AXES,
-	// For the GCodeReader to mark a parsed axis, which is not in "XYZEF", it was parsed correctly.
-	UNKNOWN_AXIS = NUM_AXES,
-	NUM_AXES_WITH_UNKNOWN,
+enum Axis {
+    X=0,
+    Y,
+    Z,
+    E,
+    F,
+    NUM_AXES,
+    // For the GCodeReader to mark a parsed axis, which is not in "XYZEF", it was parsed correctly.
+    UNKNOWN_AXIS = NUM_AXES,
+    NUM_AXES_WITH_UNKNOWN,
 };
 template <typename T>
 inline void append(std::vector<T>& dest, const std::vector<T>& src)
@@ -166,7 +166,7 @@ inline void append_reversed(std::vector<T>& dest, std::vector<T>&& src)
 
 // Casting an std::vector<> from one type to another type without warnings about a loss of accuracy.
 template<typename T_TO, typename T_FROM>
-std::vector<T_TO> cast(const std::vector<T_FROM> &src) 
+std::vector<T_TO> cast(const std::vector<T_FROM> &src)
 {
     std::vector<T_TO> dst;
     dst.reserve(src.size());
@@ -178,16 +178,16 @@ std::vector<T_TO> cast(const std::vector<T_FROM> &src)
 template <typename T>
 inline void remove_nulls(std::vector<T*> &vec)
 {
-	vec.erase(
-    	std::remove_if(vec.begin(), vec.end(), [](const T *ptr) { return ptr == nullptr; }),
-    	vec.end());
+    vec.erase(
+        std::remove_if(vec.begin(), vec.end(), [](const T *ptr) { return ptr == nullptr; }),
+        vec.end());
 }
 
 template <typename T>
 inline void sort_remove_duplicates(std::vector<T> &vec)
 {
-	std::sort(vec.begin(), vec.end());
-	vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
+    std::sort(vec.begin(), vec.end());
+    vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
 }
 
 // Older compilers do not provide a std::make_unique template. Provide a simple one.
@@ -204,7 +204,7 @@ ForwardIt lower_bound_by_predicate(ForwardIt first, ForwardIt last, LowerThanKey
     ForwardIt it;
     typename std::iterator_traits<ForwardIt>::difference_type count, step;
     count = std::distance(first, last);
- 
+
     while (count > 0) {
         it = first;
         step = count / 2;
@@ -223,10 +223,10 @@ ForwardIt lower_bound_by_predicate(ForwardIt first, ForwardIt last, LowerThanKey
 template<class ForwardIt, class T, class Compare=std::less<>>
 ForwardIt binary_find(ForwardIt first, ForwardIt last, const T& value, Compare comp={})
 {
-    // Note: BOTH type T and the type after ForwardIt is dereferenced 
-    // must be implicitly convertible to BOTH Type1 and Type2, used in Compare. 
+    // Note: BOTH type T and the type after ForwardIt is dereferenced
+    // must be implicitly convertible to BOTH Type1 and Type2, used in Compare.
     // This is stricter than lower_bound requirement (see above)
- 
+
     first = std::lower_bound(first, last, value, comp);
     return first != last && !comp(value, *first) ? first : last;
 }
@@ -235,10 +235,10 @@ ForwardIt binary_find(ForwardIt first, ForwardIt last, const T& value, Compare c
 template<class ForwardIt, class LowerThanKeyPredicate, class EqualToKeyPredicate>
 ForwardIt binary_find_by_predicate(ForwardIt first, ForwardIt last, LowerThanKeyPredicate lower_thank_key, EqualToKeyPredicate equal_to_key)
 {
-    // Note: BOTH type T and the type after ForwardIt is dereferenced 
-    // must be implicitly convertible to BOTH Type1 and Type2, used in Compare. 
+    // Note: BOTH type T and the type after ForwardIt is dereferenced
+    // must be implicitly convertible to BOTH Type1 and Type2, used in Compare.
     // This is stricter than lower_bound requirement (see above)
- 
+
     first = lower_bound_by_predicate(first, last, lower_thank_key);
     return first != last && equal_to_key(*first) ? first : last;
 }
@@ -291,7 +291,7 @@ template<class I> struct is_scaled_coord
 // return type will be bool.
 // For more info how to use, see docs for std::enable_if
 //
-template<class T, class O = T> 
+template<class T, class O = T>
 using FloatingOnly = std::enable_if_t<std::is_floating_point<T>::value, O>;
 
 template<class T, class O = T>

@@ -38,7 +38,7 @@ static void update_bounding_box(const indexed_triangle_set &its, TriangleMeshSta
     BoundingBoxf3 bbox      = Slic3r::bounding_box(its);
     out.min                 = bbox.min.cast<float>();
     out.max                 = bbox.max.cast<float>();
-    out.size                = out.max - out.min;    
+    out.size                = out.max - out.min;
 }
 
 static void fill_initial_stats(const indexed_triangle_set &its, TriangleMeshStats &out)
@@ -93,7 +93,7 @@ static void trianglemesh_repair_on_import(stl_file &stl)
     stl.stats.facets_w_1_bad_edge = (stl.stats.connected_facets_2_edge - stl.stats.connected_facets_3_edge);
     stl.stats.facets_w_2_bad_edge = (stl.stats.connected_facets_1_edge - stl.stats.connected_facets_2_edge);
     stl.stats.facets_w_3_bad_edge = (stl.stats.number_of_facets - stl.stats.connected_facets_1_edge);
-    
+
     // checking nearby
     //int last_edges_fixed = 0;
     float tolerance = (float)stl.stats.shortest_edge;
@@ -118,7 +118,7 @@ static void trianglemesh_repair_on_import(stl_file &stl)
         }
     }
     assert(stl_validate(&stl));
-    
+
     // remove_unconnected
     if (stl.stats.connected_facets_3_edge < (int)stl.stats.number_of_facets) {
 #ifdef SLIC3R_TRACE_REPAIR
@@ -127,7 +127,7 @@ static void trianglemesh_repair_on_import(stl_file &stl)
         stl_remove_unconnected_facets(&stl);
         assert(stl_validate(&stl));
     }
-    
+
     // fill_holes
 #if 0
     // Don't fill holes, the current algorithm does more harm than good on complex holes.
@@ -154,7 +154,7 @@ static void trianglemesh_repair_on_import(stl_file &stl)
 #endif /* SLIC3R_TRACE_REPAIR */
     stl_fix_normal_values(&stl);
     assert(stl_validate(&stl));
-    
+
     // always calculate the volume and reverse all normals if volume is negative
 #ifdef SLIC3R_TRACE_REPAIR
     BOOST_LOG_TRIVIAL(trace) << "\tstl_calculate_volume";
@@ -162,7 +162,7 @@ static void trianglemesh_repair_on_import(stl_file &stl)
     // If the volume is negative, all the facets are flipped and added to stats.facets_reversed.
     stl_calculate_volume(&stl);
     assert(stl_validate(&stl));
-    
+
     // neighbors
 #ifdef SLIC3R_TRACE_REPAIR
     BOOST_LOG_TRIVIAL(trace) << "\tstl_verify_neighbors";
@@ -178,7 +178,7 @@ static void trianglemesh_repair_on_import(stl_file &stl)
 }
 
 bool TriangleMesh::ReadSTLFile(const char* input_file, bool repair)
-{ 
+{
     stl_file stl;
     if (! stl_open(&stl, input_file))
         return false;
@@ -209,12 +209,12 @@ bool TriangleMesh::ReadSTLFile(const char* input_file, bool repair)
 }
 
 bool TriangleMesh::write_ascii(const char* output_file)
-{ 
+{
     return its_write_stl_ascii(output_file, "", this->its);
 }
 
 bool TriangleMesh::write_binary(const char* output_file)
-{ 
+{
     return its_write_stl_binary(output_file, "", this->its);
 }
 
@@ -497,7 +497,7 @@ TriangleMesh TriangleMesh::convex_hull_3d() const
 
 std::vector<ExPolygons> TriangleMesh::slice(const std::vector<double> &z) const
 {
-	throw Exception("not using config");
+    throw Exception("not using config");
     // convert doubles to floats
     std::vector<float> z_f(z.begin(), z.end());
     return slice_mesh_ex(this->its, z_f, 0.0004f);
@@ -579,8 +579,8 @@ static inline std::vector<Vec3i32> its_face_edge_ids_impl(const indexed_triangle
             }
         if (! found) {
             //FIXME Vojtech: Trying to find an edge with equal orientation. This smells.
-            // admesh can assign the same edge ID to more than two facets (which is 
-            // still topologically correct), so we have to search for a duplicate of 
+            // admesh can assign the same edge ID to more than two facets (which is
+            // still topologically correct), so we have to search for a duplicate of
             // this edge too in case it was already seen in this orientation
             for (j = i + 1; j < edges_map.size() && edge_i == edges_map[j]; ++ j)
                 if (edges_map[j].face != -1) {
@@ -906,7 +906,7 @@ indexed_triangle_set its_make_prism(float width, float length, float height)
     };
 }
 
-// Generate the mesh for a cylinder and return it, using 
+// Generate the mesh for a cylinder and return it, using
 // the generated angle to calculate the top mesh triangles.
 // Default is 360 sides, angle fa is in radians.
 indexed_triangle_set its_make_cylinder(double r, double h, double fa)
@@ -997,7 +997,7 @@ indexed_triangle_set its_make_pyramid(float base, float height)
 }
 
 // Generates mesh for a sphere centered about the origin, using the generated angle
-// to determine the granularity. 
+// to determine the granularity.
 // Default angle is 1 degree.
 //FIXME better to discretize an Icosahedron recursively http://www.songho.ca/opengl/gl_sphere.html
 indexed_triangle_set its_make_sphere(double radius, double fa)
@@ -1205,7 +1205,7 @@ float its_average_edge_length(const indexed_triangle_set &its)
     double edge_length = 0.f;
     for (size_t i = 0; i < its.indices.size(); ++ i) {
         const its_triangle v = its_triangle_vertices(its, i);
-        edge_length += (v[1] - v[0]).cast<double>().norm() + 
+        edge_length += (v[1] - v[0]).cast<double>().norm() +
                        (v[2] - v[0]).cast<double>().norm() +
                        (v[1] - v[2]).cast<double>().norm();
     }
@@ -1287,7 +1287,7 @@ std::vector<Vec3i32> its_face_neighbors_par(const indexed_triangle_set &its)
     return create_face_neighbors_index(ex_tbb, its);
 }
 
-std::vector<Vec3f> its_face_normals(const indexed_triangle_set &its) 
+std::vector<Vec3f> its_face_normals(const indexed_triangle_set &its)
 {
     std::vector<Vec3f> normals;
     normals.reserve(its.indices.size());

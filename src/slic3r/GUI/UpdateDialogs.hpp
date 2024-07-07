@@ -21,19 +21,19 @@ namespace GUI {
 class MsgUpdateSlic3r : public MsgDialog
 {
 public:
-	MsgUpdateSlic3r(const Semver &ver_current, const Semver &ver_online);
-	MsgUpdateSlic3r(MsgUpdateSlic3r &&) = delete;
-	MsgUpdateSlic3r(const MsgUpdateSlic3r &) = delete;
-	MsgUpdateSlic3r &operator=(MsgUpdateSlic3r &&) = delete;
-	MsgUpdateSlic3r &operator=(const MsgUpdateSlic3r &) = delete;
-	virtual ~MsgUpdateSlic3r();
+    MsgUpdateSlic3r(const Semver &ver_current, const Semver &ver_online);
+    MsgUpdateSlic3r(MsgUpdateSlic3r &&) = delete;
+    MsgUpdateSlic3r(const MsgUpdateSlic3r &) = delete;
+    MsgUpdateSlic3r &operator=(MsgUpdateSlic3r &&) = delete;
+    MsgUpdateSlic3r &operator=(const MsgUpdateSlic3r &) = delete;
+    virtual ~MsgUpdateSlic3r();
 
-	// Tells whether the user checked the "don't bother me again" checkbox
-	bool disable_version_check() const;
+    // Tells whether the user checked the "don't bother me again" checkbox
+    bool disable_version_check() const;
 
-	void on_hyperlink(wxHyperlinkEvent& evt);
+    void on_hyperlink(wxHyperlinkEvent& evt);
 private:
-	wxCheckBox *cbox;
+    wxCheckBox *cbox;
 };
 
 
@@ -41,92 +41,92 @@ private:
 class MsgUpdateConfig : public MsgDialog
 {
 public:
-	struct Update
-	{
-		std::string vendor;
-		Semver version;
-		std::string comment;
-		std::string changelog_url;
+    struct Update
+    {
+        std::string vendor;
+        Semver version;
+        std::string comment;
+        std::string changelog_url;
 
-		Update(std::string vendor, Semver version, std::string comment, std::string changelog_url)
-			: vendor(std::move(vendor))
-			, version(std::move(version))
-			, comment(std::move(comment))
-			, changelog_url(std::move(changelog_url))
-		{}
-	};
+        Update(std::string vendor, Semver version, std::string comment, std::string changelog_url)
+            : vendor(std::move(vendor))
+            , version(std::move(version))
+            , comment(std::move(comment))
+            , changelog_url(std::move(changelog_url))
+        {}
+    };
 
-	// force_before_wizard - indicates that check of updated is forced before ConfigWizard opening
-	MsgUpdateConfig(const std::vector<Update> &updates, bool force_before_wizard = false);
-	MsgUpdateConfig(MsgUpdateConfig &&) = delete;
-	MsgUpdateConfig(const MsgUpdateConfig &) = delete;
-	MsgUpdateConfig &operator=(MsgUpdateConfig &&) = delete;
-	MsgUpdateConfig &operator=(const MsgUpdateConfig &) = delete;
-	~MsgUpdateConfig();
+    // force_before_wizard - indicates that check of updated is forced before ConfigWizard opening
+    MsgUpdateConfig(const std::vector<Update> &updates, bool force_before_wizard = false);
+    MsgUpdateConfig(MsgUpdateConfig &&) = delete;
+    MsgUpdateConfig(const MsgUpdateConfig &) = delete;
+    MsgUpdateConfig &operator=(MsgUpdateConfig &&) = delete;
+    MsgUpdateConfig &operator=(const MsgUpdateConfig &) = delete;
+    ~MsgUpdateConfig();
 };
 
 // Informs about currently installed bundles not being compatible with the running Slic3r. Asks about action.
 class MsgUpdateForced : public MsgDialog
 {
 public:
-	struct Update
-	{
-		std::string vendor;
-		Semver version;
-		std::string comment;
-		std::string changelog_url;
+    struct Update
+    {
+        std::string vendor;
+        Semver version;
+        std::string comment;
+        std::string changelog_url;
 
-		Update(std::string vendor, Semver version, std::string comment, std::string changelog_url)
-			: vendor(std::move(vendor))
-			, version(std::move(version))
-			, comment(std::move(comment))
-			, changelog_url(std::move(changelog_url))
-		{}
-	};
+        Update(std::string vendor, Semver version, std::string comment, std::string changelog_url)
+            : vendor(std::move(vendor))
+            , version(std::move(version))
+            , comment(std::move(comment))
+            , changelog_url(std::move(changelog_url))
+        {}
+    };
 
-	MsgUpdateForced(const std::vector<Update>& updates);
-	MsgUpdateForced(MsgUpdateForced&&) = delete;
-	MsgUpdateForced(const MsgUpdateForced&) = delete;
-	MsgUpdateForced& operator=(MsgUpdateForced&&) = delete;
-	MsgUpdateForced& operator=(const MsgUpdateForced&) = delete;
-	~MsgUpdateForced();
+    MsgUpdateForced(const std::vector<Update>& updates);
+    MsgUpdateForced(MsgUpdateForced&&) = delete;
+    MsgUpdateForced(const MsgUpdateForced&) = delete;
+    MsgUpdateForced& operator=(MsgUpdateForced&&) = delete;
+    MsgUpdateForced& operator=(const MsgUpdateForced&) = delete;
+    ~MsgUpdateForced();
 };
 
 // Informs about currently installed bundles not being compatible with the running Slic3r. Asks about action.
 class MsgDataIncompatible : public MsgDialog
 {
 public:
-	// incompats is a map of "vendor name" -> "version restrictions"
-	MsgDataIncompatible(const std::unordered_map<std::string, wxString> &incompats);
-	MsgDataIncompatible(MsgDataIncompatible &&) = delete;
-	MsgDataIncompatible(const MsgDataIncompatible &) = delete;
-	MsgDataIncompatible &operator=(MsgDataIncompatible &&) = delete;
-	MsgDataIncompatible &operator=(const MsgDataIncompatible &) = delete;
-	~MsgDataIncompatible();
+    // incompats is a map of "vendor name" -> "version restrictions"
+    MsgDataIncompatible(const std::unordered_map<std::string, wxString> &incompats);
+    MsgDataIncompatible(MsgDataIncompatible &&) = delete;
+    MsgDataIncompatible(const MsgDataIncompatible &) = delete;
+    MsgDataIncompatible &operator=(MsgDataIncompatible &&) = delete;
+    MsgDataIncompatible &operator=(const MsgDataIncompatible &) = delete;
+    ~MsgDataIncompatible();
 };
 
 // Informs about a legacy data directory - an update from Slic3r PE < 1.40
 class MsgDataLegacy : public MsgDialog
 {
 public:
-	MsgDataLegacy();
-	MsgDataLegacy(MsgDataLegacy &&) = delete;
-	MsgDataLegacy(const MsgDataLegacy &) = delete;
-	MsgDataLegacy &operator=(MsgDataLegacy &&) = delete;
-	MsgDataLegacy &operator=(const MsgDataLegacy &) = delete;
-	~MsgDataLegacy();
+    MsgDataLegacy();
+    MsgDataLegacy(MsgDataLegacy &&) = delete;
+    MsgDataLegacy(const MsgDataLegacy &) = delete;
+    MsgDataLegacy &operator=(MsgDataLegacy &&) = delete;
+    MsgDataLegacy &operator=(const MsgDataLegacy &) = delete;
+    ~MsgDataLegacy();
 };
 
 // Informs about absence of bundles requiring update.
 class MsgNoUpdates : public MsgDialog
 {
 public:
-	MsgNoUpdates();
-	MsgNoUpdates(MsgNoUpdates&&) = delete;
-	MsgNoUpdates(const MsgNoUpdates&) = delete;
-	MsgNoUpdates& operator=(MsgNoUpdates&&) = delete;
-	MsgNoUpdates& operator=(const MsgNoUpdates&) = delete;
-	~MsgNoUpdates();
+    MsgNoUpdates();
+    MsgNoUpdates(MsgNoUpdates&&) = delete;
+    MsgNoUpdates(const MsgNoUpdates&) = delete;
+    MsgNoUpdates& operator=(MsgNoUpdates&&) = delete;
+    MsgNoUpdates& operator=(const MsgNoUpdates&) = delete;
+    ~MsgNoUpdates();
 };
 
 }

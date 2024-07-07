@@ -6933,7 +6933,7 @@ lapack_int LAPACKE_zlagge_work( int matrix_order, lapack_int m, lapack_int n,
                                 lapack_complex_double* a, lapack_int lda,
                                 lapack_int* iseed,
                                 lapack_complex_double* work );
-                                
+
 lapack_int LAPACKE_claghe_work( int matrix_order, lapack_int n, lapack_int k,
                                 const float* d, lapack_complex_float* a,
                                 lapack_int lda, lapack_int* iseed,
@@ -6982,7 +6982,7 @@ lapack_int LAPACKE_slartgs_work( float x, float y, float sigma, float* cs,
                                  float* sn );
 lapack_int LAPACKE_dlartgs_work( double x, double y, double sigma, double* cs,
                                  double* sn );
-                                
+
 float LAPACKE_slapy2_work( float x, float y );
 double LAPACKE_dlapy2_work( double x, double y );
 

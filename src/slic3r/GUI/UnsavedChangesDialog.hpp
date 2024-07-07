@@ -24,7 +24,7 @@ class PresetComboBox;
 class MainFrame;
 using ModelNodePtrArray = std::vector<std::unique_ptr<ModelNode>>;
 
-// On all of 3 different platforms Bitmap+Text icon column looks different 
+// On all of 3 different platforms Bitmap+Text icon column looks different
 // because of Markup text is missed or not implemented.
 // As a temporary workaround, we will use:
 // MSW - DataViewBitmapText (our custom renderer wxBitmap + wxString, supported Markup text)
@@ -362,7 +362,7 @@ protected:
     void on_sys_color_changed() override;
 };
 
-} 
+}
 }
 
 #endif //slic3r_UnsavedChangesDialog_hpp_

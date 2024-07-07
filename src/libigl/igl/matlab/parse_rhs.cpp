@@ -1,16 +1,16 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "parse_rhs.h"
 #include <algorithm>
 
 template <typename DerivedV>
 IGL_INLINE void igl::matlab::parse_rhs_double(
-    const mxArray *prhs[], 
+    const mxArray *prhs[],
     Eigen::PlainObjectBase<DerivedV> & V)
 {
   using namespace Eigen;
@@ -22,7 +22,7 @@ IGL_INLINE void igl::matlab::parse_rhs_double(
 
 template <typename DerivedV>
 IGL_INLINE void igl::matlab::parse_rhs_index(
-    const mxArray *prhs[], 
+    const mxArray *prhs[],
     Eigen::PlainObjectBase<DerivedV> & V)
 {
   parse_rhs_double(prhs,V);
@@ -31,7 +31,7 @@ IGL_INLINE void igl::matlab::parse_rhs_index(
 
 template <typename MT>
 IGL_INLINE void igl::matlab::parse_rhs(
-  const mxArray *prhs[], 
+  const mxArray *prhs[],
   Eigen::SparseMatrix<MT> & M)
 {
   using namespace Eigen;

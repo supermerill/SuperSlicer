@@ -21,7 +21,7 @@ namespace igl
   //   func  function handle with the prototype `X(Y a, I i, J j, Z b)` where a
   //     is the running value, b is A(i,j)
   // Output:
-  //   S  n-long sparse vector (if dim == 1) 
+  //   S  n-long sparse vector (if dim == 1)
   //   or
   //   S  m-long sparse vector (if dim == 2)
   template <typename AType, typename Func, typename DerivedB>

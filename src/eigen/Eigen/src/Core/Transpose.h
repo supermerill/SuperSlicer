@@ -11,7 +11,7 @@
 #ifndef EIGEN_TRANSPOSE_H
 #define EIGEN_TRANSPOSE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 template<typename MatrixType>
@@ -276,7 +276,7 @@ struct inplace_transpose_selector<MatrixType,false,MatchPacketSize> { // non squ
   * Notice however that this method is only useful if you want to replace a matrix by its own transpose.
   * If you just need the transpose of a matrix, use transpose().
   *
-  * \note if the matrix is not square, then \c *this must be a resizable matrix. 
+  * \note if the matrix is not square, then \c *this must be a resizable matrix.
   * This excludes (non-square) fixed-size matrices, block-expressions and maps.
   *
   * \sa transpose(), adjoint(), adjointInPlace() */

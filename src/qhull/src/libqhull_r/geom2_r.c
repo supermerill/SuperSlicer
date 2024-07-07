@@ -23,7 +23,7 @@
 
   qh_copypoints(qh, points, numpoints, dimension)
     return qh_malloc'd copy of points
-  
+
   notes:
     qh_free the returned points to avoid a memory leak
 */

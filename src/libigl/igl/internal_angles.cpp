@@ -1,10 +1,10 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
 // Copyright (C) 2015 Daniele Panozzo <daniele.panozzo@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "internal_angles.h"
 #include "squared_edge_lengths.h"
@@ -36,8 +36,8 @@ IGL_INLINE void igl::internal_angles(
     assert(V.cols() == 3 && "If F contains non-triangle facets, V must be 3D");
     K.resizeLike(F);
     auto corner = [](
-      const typename DerivedV::ConstRowXpr & x, 
-      const typename DerivedV::ConstRowXpr & y, 
+      const typename DerivedV::ConstRowXpr & x,
+      const typename DerivedV::ConstRowXpr & y,
       const typename DerivedV::ConstRowXpr & z)
     {
       typedef Eigen::Matrix<Scalar,1,3> RowVector3S;

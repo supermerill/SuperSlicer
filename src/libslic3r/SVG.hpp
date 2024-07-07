@@ -22,20 +22,20 @@ public:
     SVG(const char* afilename) :
         arrows(false), fill("grey"), stroke("black"), filename(afilename), flipY(false)
         { open(filename); }
-    SVG(const char* afilename, const BoundingBox &bbox, const coord_t bbox_offset = scale_(1.), bool flipY = true) : 
+    SVG(const char* afilename, const BoundingBox &bbox, const coord_t bbox_offset = scale_(1.), bool flipY = true) :
         arrows(false), fill("grey"), stroke("black"), filename(afilename), origin(bbox.min - Point(bbox_offset, bbox_offset)), flipY(flipY)
         { open(filename, bbox, bbox_offset, flipY); }
     SVG(const std::string &filename) :
         arrows(false), fill("grey"), stroke("black"), filename(filename), flipY(false)
         { open(filename); }
-    SVG(const std::string &filename, const BoundingBox &bbox, const coord_t bbox_offset = scale_(1.), bool flipY = true) : 
+    SVG(const std::string &filename, const BoundingBox &bbox, const coord_t bbox_offset = scale_(1.), bool flipY = true) :
         arrows(false), fill("grey"), stroke("black"), filename(filename), origin(bbox.min - Point(bbox_offset, bbox_offset)), flipY(flipY)
         { open(filename, bbox, bbox_offset, flipY); }
     ~SVG() { if (f != NULL) Close(); }
 
     bool open(const char* filename);
     bool open(const char* filename, const BoundingBox &bbox, const coord_t bbox_offset = scale_(1.), bool flipY = true);
-    bool open(const std::string &filename) 
+    bool open(const std::string &filename)
         { return open(filename.c_str()); }
     bool open(const std::string &filename, const BoundingBox &bbox, const coord_t bbox_offset = scale_(1.), bool flipY = true)
         { return open(filename.c_str(), bbox, bbox_offset, flipY); }
@@ -43,7 +43,7 @@ public:
     void draw(const Line &line, std::string stroke = "black", coordf_t stroke_width = 0);
     void draw(const ThickLine &line, const std::string &fill, const std::string &stroke, coordf_t stroke_width = 0);
     void draw(const Lines &lines, std::string stroke = "black", coordf_t stroke_width = 0);
-    
+
     void draw(const ExPolygon &expolygon, std::string fill = "grey", const float fill_opacity=1.f);
     void draw_outline(const ExPolygon &polygon, std::string stroke_outer = "black", std::string stroke_holes = "blue", coordf_t stroke_width = 0);
     void draw(const ExPolygons &expolygons, std::string fill = "grey", const float fill_opacity=1.f);
@@ -57,7 +57,7 @@ public:
     void draw_outline(const SurfacesPtr& surfaces, std::string stroke_outer = "black", std::string stroke_holes = "blue", coordf_t stroke_width = 0);
     void draw(const SurfacesConstPtr& surfaces, std::string fill = "grey", const float fill_opacity = 1.f);
     void draw_outline(const SurfacesConstPtr& surfaces, std::string stroke_outer = "black", std::string stroke_holes = "blue", coordf_t stroke_width = 0);
- 
+
     void draw(const Polygon &polygon, std::string fill = "grey");
     void draw_outline(const Polygon &polygon, std::string stroke = "black", coordf_t stroke_width = 0);
     void draw(const Polygons &polygons, std::string fill = "grey");
@@ -80,22 +80,22 @@ public:
     void draw_legend(const Point &pt, const char *text, const char *color, coordf_t font_size = 10.f);
 
     void Close();
-    
+
     private:
     std::string filename;
     FILE* f;
-    
+
     void path(const std::string &d, bool fill, coordf_t stroke_width, const float fill_opacity);
     std::string get_path_d(const MultiPoint &mp, bool closed = false) const;
     std::string get_path_d(const ClipperLib::Path &mp, double scale, bool closed = false) const;
 
 public:
     static void export_expolygons(const char *path, const BoundingBox &bbox, const Slic3r::ExPolygons &expolygons, std::string stroke_outer = "black", std::string stroke_holes = "blue", coordf_t stroke_width = 0);
-    static void export_expolygons(const std::string &path, const BoundingBox &bbox, const Slic3r::ExPolygons &expolygons, std::string stroke_outer = "black", std::string stroke_holes = "blue", coordf_t stroke_width = 0) 
+    static void export_expolygons(const std::string &path, const BoundingBox &bbox, const Slic3r::ExPolygons &expolygons, std::string stroke_outer = "black", std::string stroke_holes = "blue", coordf_t stroke_width = 0)
         { export_expolygons(path.c_str(), bbox, expolygons, stroke_outer, stroke_holes, stroke_width); }
     static void export_expolygons(const char *path, const Slic3r::ExPolygons &expolygons, std::string stroke_outer = "black", std::string stroke_holes = "blue", coordf_t stroke_width = 0)
         { export_expolygons(path, get_extents(expolygons), expolygons, stroke_outer, stroke_holes, stroke_width); }
-    static void export_expolygons(const std::string &path, const Slic3r::ExPolygons &expolygons, std::string stroke_outer = "black", std::string stroke_holes = "blue", coordf_t stroke_width = 0) 
+    static void export_expolygons(const std::string &path, const Slic3r::ExPolygons &expolygons, std::string stroke_outer = "black", std::string stroke_holes = "blue", coordf_t stroke_width = 0)
         { export_expolygons(path.c_str(), get_extents(expolygons), expolygons, stroke_outer, stroke_holes, stroke_width); }
 
     struct ExPolygonAttributes
@@ -117,8 +117,8 @@ public:
             color_holes     (color_holes),
             outline_width   (outline_width),
             fill_opacity    (fill_opacity),
-            color_points 	(color_points),
-            radius_points	(radius_points)
+            color_points     (color_points),
+            radius_points    (radius_points)
             {}
 
         ExPolygonAttributes(
@@ -153,10 +153,10 @@ public:
         std::string     color_fill;
         std::string     color_contour;
         std::string     color_holes;
-        std::string   	color_points;
+        std::string       color_points;
         coord_t         outline_width { 0 };
         float           fill_opacity;
-        coord_t			radius_points { 0 };
+        coord_t            radius_points { 0 };
     };
 
     // Paint the expolygons in the order they are presented, thus the latter overwrites the former expolygon.
@@ -165,9 +165,9 @@ public:
     //    Paint with ExPolygonAttributes::color_contour and ExPolygonAttributes::color_holes.
     //    If color_contour is empty, color_fill is used. If color_hole is empty, color_contour is used.
     // 3) Optionally paint points of all expolygon contours with ExPolygonAttributes::radius_points if radius_points > 0.
-    // 4) Paint ExPolygonAttributes::legend into legend using the ExPolygonAttributes::color_fill if legend is not empty. 
+    // 4) Paint ExPolygonAttributes::legend into legend using the ExPolygonAttributes::color_fill if legend is not empty.
     static void export_expolygons(const char *path, const std::vector<std::pair<Slic3r::ExPolygons, ExPolygonAttributes>> &expolygons_with_attributes);
-    static void export_expolygons(const std::string &path, const std::vector<std::pair<Slic3r::ExPolygons, ExPolygonAttributes>> &expolygons_with_attributes) 
+    static void export_expolygons(const std::string &path, const std::vector<std::pair<Slic3r::ExPolygons, ExPolygonAttributes>> &expolygons_with_attributes)
         { export_expolygons(path.c_str(), expolygons_with_attributes); }
 
 private:

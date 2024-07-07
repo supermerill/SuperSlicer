@@ -35,7 +35,7 @@ class MappedSparseMatrix
     typedef Map<SparseMatrix<_Scalar, _Flags, _StorageIndex> > Base;
 
   public:
-    
+
     typedef typename Base::StorageIndex StorageIndex;
     typedef typename Base::Scalar Scalar;
 
@@ -55,7 +55,7 @@ struct evaluator<MappedSparseMatrix<_Scalar,_Options,_StorageIndex> >
 {
   typedef MappedSparseMatrix<_Scalar,_Options,_StorageIndex> XprType;
   typedef evaluator<SparseCompressedBase<XprType> > Base;
-  
+
   evaluator() : Base() {}
   explicit evaluator(const XprType &mat) : Base(mat) {}
 };

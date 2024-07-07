@@ -204,7 +204,7 @@ static const Selection& get_selection()
     return plater()->canvas3D()->get_selection();
 }
 
-//				  category ->	         	vector 			 ( option	;  label )
+//                  category ->                 vector              ( option    ;  label )
 typedef std::map< Slic3r::OptionCategory, std::vector< std::pair<std::string, std::string> > > FullSettingsHierarchy;
 static void get_full_settings_hierarchy(FullSettingsHierarchy& settings_menu, const bool is_part)
 {
@@ -241,7 +241,7 @@ static int GetSelectedChoices(  wxArrayInt& selections,
     // As I don't want to recreate the wxMultiChoiceDialog and the parent classes, i just use this ugly hack.
     try {
         if (dialog.GetSizer()->GetItemCount() > 0 && dialog.GetSizer()->GetItem(dialog.GetSizer()->GetItemCount() - 1)->GetSizer()) {
-            //get the button vertical sizer that has the separator and then the button line 
+            //get the button vertical sizer that has the separator and then the button line
             wxSizer* vertical_bt_sizer = dialog.GetSizer()->GetItem(dialog.GetSizer()->GetItemCount() - 1)->GetSizer();
             //create the button line
             wxStdDialogButtonSizer* button_line = dialog.CreateStdDialogButtonSizer(wxYES | wxNO | wxCANCEL);
@@ -430,7 +430,7 @@ static void create_freq_settings_popupmenu(wxMenu* menu, const bool is_object_se
             [menu, item, is_object_settings, bundle](wxCommandEvent& event) {
                     wxString category_name = menu->GetLabel(event.GetId());
                     std::vector<std::string> options;
-                    for (auto& category : bundle) 
+                    for (auto& category : bundle)
                         if (category_name == _(toString(category.first))) {
                             options = category.second;
                             break;
@@ -496,7 +496,7 @@ std::vector<wxBitmap> MenuFactory::get_volume_bitmaps()
 void MenuFactory::append_menu_item_delete(wxMenu* menu)
 {
     append_menu_item(menu, wxID_ANY, _L("Delete") + "\tDel", _L("Remove the selected object"),
-        [](wxCommandEvent&) { plater()->remove_selected(); }, "delete", nullptr, 
+        [](wxCommandEvent&) { plater()->remove_selected(); }, "delete", nullptr,
         []() { return plater()->can_delete(); }, m_parent);
 
     menu->AppendSeparator();
@@ -506,7 +506,7 @@ void MenuFactory::append_menu_item_delete(wxMenu* menu)
 wxMenu* MenuFactory::append_submenu_add_generic(wxMenu* menu, ModelVolumeType type) {
     auto sub_menu = new wxMenu;
 
-    if ( (wxGetApp().get_mode() == comExpert || wxGetApp().app_config->get("objects_always_expert") == "1") 
+    if ( (wxGetApp().get_mode() == comExpert || wxGetApp().app_config->get("objects_always_expert") == "1")
             && type != ModelVolumeType::INVALID) {
         append_menu_item(sub_menu, wxID_ANY, _L("Load") + " " + dots, "",
             [type](wxCommandEvent&) { obj_list()->load_subobject(type); }, "", menu);
@@ -515,7 +515,7 @@ wxMenu* MenuFactory::append_submenu_add_generic(wxMenu* menu, ModelVolumeType ty
 
     std::vector<std::string> items = { "Box", "Cylinder", "Sphere", "Slab" };
     if (type == ModelVolumeType::SEAM_POSITION) items = { "Sphere" };
-    // only to trigger slab tranlation (the other three should be translated by append_menu_items_add_volume) 
+    // only to trigger slab tranlation (the other three should be translated by append_menu_items_add_volume)
     wxString slabStr = _L("Slab");
     // add items to menu
     for (std::string& item : items)
@@ -726,7 +726,7 @@ wxMenuItem* MenuFactory::append_menu_item_instance_to_object(wxMenu* menu)
 
 wxMenuItem* MenuFactory::append_menu_item_printable(wxMenu* menu)
 {
-    wxMenuItem* menu_item_printable = append_menu_check_item(menu, wxID_ANY, _L("Printable"), "", 
+    wxMenuItem* menu_item_printable = append_menu_check_item(menu, wxID_ANY, _L("Printable"), "",
         [](wxCommandEvent& ) { obj_list()->toggle_printable_state(); }, menu);
 
     m_parent->Bind(wxEVT_UPDATE_UI, [](wxUpdateUIEvent& evt) {
@@ -743,7 +743,7 @@ wxMenuItem* MenuFactory::append_menu_item_printable(wxMenu* menu)
             int inst_idx = type == itObject ? 0 : list->GetModel()->GetInstanceIdByItem(frst_item);
             check = list->object(obj_idx)->instances[inst_idx]->printable;
         }
-            
+
         evt.Check(check);
         plater()->set_current_canvas_as_dirty();
 
@@ -979,7 +979,7 @@ void MenuFactory::create_default_menu()
 
 void MenuFactory::create_common_object_menu(wxMenu* menu)
 {
-#ifdef __WXOSX__  
+#ifdef __WXOSX__
     append_menu_items_osx(menu);
 #endif // __WXOSX__
     append_menu_items_instance_manipulation(menu);
@@ -1010,10 +1010,10 @@ void MenuFactory::create_object_menu()
         return;
 
     append_menu_item(split_menu, wxID_ANY, _L("To objects"), _L("Split the selected object into individual objects"),
-        [](wxCommandEvent&) { plater()->split_object(); }, "split_object_SMALL", &m_object_menu, 
+        [](wxCommandEvent&) { plater()->split_object(); }, "split_object_SMALL", &m_object_menu,
         []() { return plater()->can_split(true); }, m_parent);
     append_menu_item(split_menu, wxID_ANY, _L("To parts"), _L("Split the selected object into individual parts"),
-        [](wxCommandEvent&) { plater()->split_volume(); }, "split_parts_SMALL", &m_object_menu, 
+        [](wxCommandEvent&) { plater()->split_volume(); }, "split_parts_SMALL", &m_object_menu,
         []() { return plater()->can_split(false); }, m_parent);
 
     append_submenu(&m_object_menu, split_menu, wxID_ANY, _L("Split"), _L("Split the selected object"), "",
@@ -1036,7 +1036,7 @@ void MenuFactory::create_sla_object_menu()
 void MenuFactory::create_part_menu()
 {
     wxMenu* menu = &m_part_menu;
-#ifdef __WXOSX__  
+#ifdef __WXOSX__
     append_menu_items_osx(menu);
 #endif // __WXOSX__
     append_menu_item_delete(menu);
@@ -1048,7 +1048,7 @@ void MenuFactory::create_part_menu()
     append_menu_items_mirror(menu);
 
     append_menu_item(menu, wxID_ANY, _L("Split"), _L("Split the selected object into individual parts"),
-        [](wxCommandEvent&) { plater()->split_volume(); }, "split_parts_SMALL", nullptr, 
+        [](wxCommandEvent&) { plater()->split_volume(); }, "split_parts_SMALL", nullptr,
         []() { return plater()->can_split(false); }, m_parent);
 
     menu->AppendSeparator();
@@ -1157,17 +1157,17 @@ void MenuFactory::append_menu_items_instance_manipulation(wxMenu* menu)
     MenuType type = menu == &m_object_menu ? mtObjectFFF : mtObjectSLA;
 
     items_increase[type]                = append_menu_item(menu, wxID_ANY, _L("Add instance") + "\t+", _L("Add one more instance of the selected object"),
-        [](wxCommandEvent&) { plater()->increase_instances();      }, "add_copies", nullptr, 
+        [](wxCommandEvent&) { plater()->increase_instances();      }, "add_copies", nullptr,
         []() { return plater()->can_increase_instances(); }, m_parent);
     items_decrease[type]                = append_menu_item(menu, wxID_ANY, _L("Remove instance") + "\t-", _L("Remove one instance of the selected object"),
-        [](wxCommandEvent&) { plater()->decrease_instances();      }, "remove_copies", nullptr, 
+        [](wxCommandEvent&) { plater()->decrease_instances();      }, "remove_copies", nullptr,
         []() { return plater()->can_decrease_instances(); }, m_parent);
     items_set_number_of_copies[type]    = append_menu_item(menu, wxID_ANY, _L("Set number of instances") + dots, _L("Change the number of instances of the selected object"),
         [](wxCommandEvent&) { plater()->set_number_of_copies();    }, "number_of_copies", nullptr,
         []() { return plater()->can_increase_instances(); }, m_parent);
 
     append_menu_item(menu, wxID_ANY, _L("Fill bed with instances") + dots, _L("Fill the remaining area of bed with instances of the selected object"),
-        [](wxCommandEvent&) { plater()->fill_bed_with_instances();    }, "", nullptr, 
+        [](wxCommandEvent&) { plater()->fill_bed_with_instances();    }, "", nullptr,
         []() { return plater()->can_increase_instances(); }, m_parent);
 
 }
@@ -1278,7 +1278,7 @@ void MenuFactory::sys_color_changed()
 {
     for (MenuWithSeparators* menu : { &m_object_menu, &m_sla_object_menu, &m_part_menu, &m_default_menu }) {
         msw_rescale_menu(dynamic_cast<wxMenu*>(menu));// msw_rescale_menu updates just icons, so use it
-#ifdef _WIN32 
+#ifdef _WIN32
         // but under MSW we have to update item's bachground color
         for (wxMenuItem* item : menu->GetMenuItems())
             update_menu_item_def_colors(item);
@@ -1291,7 +1291,7 @@ void MenuFactory::sys_color_changed(wxMenuBar* menubar)
     for (size_t id = 0; id < menubar->GetMenuCount(); id++) {
         wxMenu* menu = menubar->GetMenu(id);
         msw_rescale_menu(menu);
-#ifdef _WIN32 
+#ifdef _WIN32
         // but under MSW we have to update item's bachground color
         for (wxMenuItem* item : menu->GetMenuItems())
             update_menu_item_def_colors(item);
@@ -1302,4 +1302,4 @@ void MenuFactory::sys_color_changed(wxMenuBar* menubar)
 
 
 } //namespace GUI
-} //namespace Slic3r 
+} //namespace Slic3r

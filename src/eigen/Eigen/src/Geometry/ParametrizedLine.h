@@ -11,7 +11,7 @@
 #ifndef EIGEN_PARAMETRIZEDLINE_H
 #define EIGEN_PARAMETRIZEDLINE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \geometry_module \ingroup Geometry_Module
   *
@@ -42,7 +42,7 @@ public:
 
   /** Default constructor without initialization */
   EIGEN_DEVICE_FUNC inline ParametrizedLine() {}
-  
+
   template<int OtherOptions>
   EIGEN_DEVICE_FUNC ParametrizedLine(const ParametrizedLine<Scalar,AmbientDimAtCompileTime,OtherOptions>& other)
    : m_origin(other.origin()), m_direction(other.direction())
@@ -94,13 +94,13 @@ public:
   { return origin() + direction().dot(p-origin()) * direction(); }
 
   EIGEN_DEVICE_FUNC VectorType pointAt(const Scalar& t) const;
-  
+
   template <int OtherOptions>
   EIGEN_DEVICE_FUNC Scalar intersectionParameter(const Hyperplane<_Scalar, _AmbientDim, OtherOptions>& hyperplane) const;
- 
+
   template <int OtherOptions>
   EIGEN_DEVICE_FUNC Scalar intersection(const Hyperplane<_Scalar, _AmbientDim, OtherOptions>& hyperplane) const;
-  
+
   template <int OtherOptions>
   EIGEN_DEVICE_FUNC VectorType intersectionPoint(const Hyperplane<_Scalar, _AmbientDim, OtherOptions>& hyperplane) const;
 
@@ -156,7 +156,7 @@ template <typename _Scalar, int _AmbientDim, int _Options>
 EIGEN_DEVICE_FUNC inline typename ParametrizedLine<_Scalar, _AmbientDim,_Options>::VectorType
 ParametrizedLine<_Scalar, _AmbientDim,_Options>::pointAt(const _Scalar& t) const
 {
-  return origin() + (direction()*t); 
+  return origin() + (direction()*t);
 }
 
 /** \returns the parameter value of the intersection between \c *this and the given \a hyperplane

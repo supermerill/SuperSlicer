@@ -101,10 +101,10 @@ static int ser_setspeed(union filedescriptor *fd, long baud)
   int rc;
   struct termios termios;
   speed_t speed = serial_baud_lookup (baud);
-  
+
   if (!isatty(fd->ifd))
     return -ENOTTY;
-  
+
   /*
    * initialize terminal modes
    */
@@ -230,7 +230,7 @@ net_open(const char *port, union filedescriptor *fdp)
 
   if ((hstr = hp = strdup(port)) == NULL) {
     avrdude_message(MSG_INFO, "%s: net_open(): Out of memory!\n",
-	    progname);
+        progname);
     return -1;
   }
 
@@ -241,7 +241,7 @@ net_open(const char *port, union filedescriptor *fdp)
    */
   if (((pstr = strrchr(hstr, ':')) == NULL) || (pstr == hstr)) {
     avrdude_message(MSG_INFO, "%s: net_open(): Mangled host:port string \"%s\"\n",
-	    progname, hstr);
+        progname, hstr);
     goto error;
   }
 
@@ -265,9 +265,9 @@ net_open(const char *port, union filedescriptor *fdp)
 
   if (s != 0) {
     avrdude_message(MSG_INFO,
-	    "%s: net_open(): Cannot resolve "
-	    "host=\"%s\", port=\"%s\": %s\n",
-	    progname, hstr, pstr, gai_strerror(s));
+        "%s: net_open(): Cannot resolve "
+        "host=\"%s\", port=\"%s\": %s\n",
+        progname, hstr, pstr, gai_strerror(s));
     goto error;
   }
   for (rp = result; rp != NULL; rp = rp->ai_next) {
@@ -306,7 +306,7 @@ error:
 
 static int ser_set_dtr_rts(union filedescriptor *fdp, int is_on)
 {
-  unsigned int	ctl;
+  unsigned int    ctl;
   int           r;
 
   r = ioctl(fdp->ifd, TIOCMGET, &ctl);

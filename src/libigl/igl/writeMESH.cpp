@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "writeMESH.h"
 
@@ -47,7 +47,7 @@ IGL_INLINE bool igl::writeMESH(
 template <typename DerivedV, typename DerivedT, typename DerivedF>
 IGL_INLINE bool igl::writeMESH(
   const std::string str,
-  const Eigen::PlainObjectBase<DerivedV> & V, 
+  const Eigen::PlainObjectBase<DerivedV> & V,
   const Eigen::PlainObjectBase<DerivedT> & T,
   const Eigen::PlainObjectBase<DerivedF> & F)
 {
@@ -110,9 +110,9 @@ IGL_INLINE bool igl::writeMESH(
   for(int i = 0;i<number_of_triangles;i++)
   {
     // loop over vertices in face
-    fprintf(mesh_file,"%d %d %d 1\n", 
-      (int)F(i,0)+1, 
-      (int)F(i,1)+1, 
+    fprintf(mesh_file,"%d %d %d 1\n",
+      (int)F(i,0)+1,
+      (int)F(i,1)+1,
       (int)F(i,2)+1);
   }
   // print tetrahedra

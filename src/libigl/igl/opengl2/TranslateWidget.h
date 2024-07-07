@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_OPENGL2_TRANSLATE_WIDGET_H
 #define IGL_OPENGL2_TRANSLATE_WIDGET_H
@@ -61,7 +61,7 @@ inline igl::opengl2::TranslateWidget::TranslateWidget(
   m_drag_xy(-1,-1),
   m_is_enabled(true),
   m_len(50),
-  m_down_type(DOWN_TYPE_NONE), 
+  m_down_type(DOWN_TYPE_NONE),
   m_selected_type(DOWN_TYPE_NONE)
 {
 }
@@ -167,7 +167,7 @@ inline void igl::opengl2::TranslateWidget::draw() const
     glVertex3f(1.0f, 1.0f, -1.0f);
     glVertex3f(1.0f, 1.0f, -1.0f);
     glVertex3f(1.0f, -1.0f, -1.0f);
-    glVertex3f(1.0f, -1.0f, -1.0f);	
+    glVertex3f(1.0f, -1.0f, -1.0f);
     glVertex3f(1.0f, -1.0f, 1.0f);
     glVertex3f(1.0f, 1.0f, -1.0f);
     glVertex3f(-1.0f, 1.0f, -1.0f);

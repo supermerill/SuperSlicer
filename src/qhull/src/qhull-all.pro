@@ -25,14 +25,14 @@ SUBDIRS += libqhullstatic_r #static library with reentrant code
 SUBDIRS += libqhullcpp     #static library for C++ interface with libqhullstatic_r
 
 SUBDIRS += qhull           #qhull program linked to libqhullstatic_r
-SUBDIRS += rbox         
+SUBDIRS += rbox
 SUBDIRS += qconvex         #qhull programs linked to libqhullstatic
 SUBDIRS += qdelaunay
 SUBDIRS += qhalf
 SUBDIRS += qvoronoi
 
 SUBDIRS += user_eg         #user programs linked to libqhull_r
-SUBDIRS += user_eg2  
+SUBDIRS += user_eg2
 SUBDIRS += user_eg3        #user program with libqhullcpp and libqhullstatic_r
 
 SUBDIRS += qhulltest       #C++ test program with Qt, libqhullcpp, and libqhullstatic_r

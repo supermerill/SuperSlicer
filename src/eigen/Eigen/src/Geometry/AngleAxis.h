@@ -10,7 +10,7 @@
 #ifndef EIGEN_ANGLEAXIS_H
 #define EIGEN_ANGLEAXIS_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \geometry_module \ingroup Geometry_Module
   *
@@ -76,12 +76,12 @@ public:
     * \warning If the \a axis vector is not normalized, then the angle-axis object
     *          represents an invalid rotation. */
   template<typename Derived>
-  EIGEN_DEVICE_FUNC 
+  EIGEN_DEVICE_FUNC
   inline AngleAxis(const Scalar& angle, const MatrixBase<Derived>& axis) : m_axis(axis), m_angle(angle) {}
   /** Constructs and initialize the angle-axis rotation from a quaternion \a q.
     * This function implicitly normalizes the quaternion \a q.
     */
-  template<typename QuatDerived> 
+  template<typename QuatDerived>
   EIGEN_DEVICE_FUNC inline explicit AngleAxis(const QuaternionBase<QuatDerived>& q) { *this = q; }
   /** Constructs and initialize the angle-axis rotation from a 3x3 rotation matrix. */
   template<typename Derived>
@@ -162,7 +162,7 @@ typedef AngleAxis<double> AngleAxisd;
 /** Set \c *this from a \b unit quaternion.
   *
   * The resulting axis is normalized, and the computed angle is in the [0,pi] range.
-  * 
+  *
   * This function implicitly normalizes the quaternion \a q.
   */
 template<typename Scalar>

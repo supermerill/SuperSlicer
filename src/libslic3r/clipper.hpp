@@ -14,8 +14,8 @@
 
 #include "Point.hpp"
 
-#define CLIPPERLIB_NAMESPACE_PREFIX		Slic3r
-#define CLIPPERLIB_INTPOINT_TYPE    	Slic3r::Point
+#define CLIPPERLIB_NAMESPACE_PREFIX        Slic3r
+#define CLIPPERLIB_INTPOINT_TYPE        Slic3r::Point
 
 #include <clipper/clipper.hpp>
 

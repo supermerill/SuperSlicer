@@ -131,8 +131,8 @@ static void Splice( GLUhalfEdge *a, GLUhalfEdge *b )
  * the new vertex *before* vNext so that algorithms which walk the vertex
  * list will not see the newly created vertices.
  */
-static void MakeVertex( GLUvertex *newVertex, 
-			GLUhalfEdge *eOrig, GLUvertex *vNext )
+static void MakeVertex( GLUvertex *newVertex,
+            GLUhalfEdge *eOrig, GLUvertex *vNext )
 {
   GLUhalfEdge *e;
   GLUvertex *vPrev;
@@ -171,7 +171,7 @@ static void MakeFace( GLUface *newFace, GLUhalfEdge *eOrig, GLUface *fNext )
   GLUface *fPrev;
   GLUface *fNew = newFace;
 
-  assert(fNew != NULL); 
+  assert(fNew != NULL);
 
   /* insert in circular doubly-linked list before fNext */
   fPrev = fNext->prev;
@@ -283,9 +283,9 @@ GLUhalfEdge *__gl_meshMakeEdge( GLUmesh *mesh )
   if (newVertex1 == NULL || newVertex2 == NULL || newFace == NULL) {
      if (newVertex1 != NULL) memFree(newVertex1);
      if (newVertex2 != NULL) memFree(newVertex2);
-     if (newFace != NULL) memFree(newFace);     
+     if (newFace != NULL) memFree(newFace);
      return NULL;
-  } 
+  }
 
   e = MakeEdge( &mesh->eHead );
   if (e == NULL) {
@@ -300,12 +300,12 @@ GLUhalfEdge *__gl_meshMakeEdge( GLUmesh *mesh )
   MakeFace( newFace, e, &mesh->fHead );
   return e;
 }
-  
+
 
 /* __gl_meshSplice( eOrg, eDst ) is the basic operation for changing the
  * mesh connectivity and topology.  It changes the mesh so that
- *	eOrg->Onext <- OLD( eDst->Onext )
- *	eDst->Onext <- OLD( eOrg->Onext )
+ *    eOrg->Onext <- OLD( eDst->Onext )
+ *    eDst->Onext <- OLD( eOrg->Onext )
  * where OLD(...) means the value before the meshSplice operation.
  *
  * This can have two effects on the vertex structure:
@@ -357,7 +357,7 @@ int __gl_meshSplice( GLUhalfEdge *eOrg, GLUhalfEdge *eDst )
     eOrg->Org->anEdge = eOrg;
   }
   if( ! joiningLoops ) {
-    GLUface *newFace= allocFace();  
+    GLUface *newFace= allocFace();
     if (newFace == NULL) return 0;
 
     /* We split one loop into two -- the new loop is eDst->Lface.
@@ -405,7 +405,7 @@ int __gl_meshDelete( GLUhalfEdge *eDel )
     Splice( eDel, eDel->Oprev );
     if( ! joiningLoops ) {
       GLUface *newFace= allocFace();
-      if (newFace == NULL) return 0; 
+      if (newFace == NULL) return 0;
 
       /* We are splitting one loop into two -- create a new loop for eDel. */
       MakeFace( newFace, eDel, eDel->Lface );
@@ -486,9 +486,9 @@ GLUhalfEdge *__gl_meshSplitEdge( GLUhalfEdge *eOrg )
 
   /* Set the vertex and face information */
   eOrg->Dst = eNew->Org;
-  eNew->Dst->anEdge = eNew->Sym;	/* may have pointed to eOrg->Sym */
+  eNew->Dst->anEdge = eNew->Sym;    /* may have pointed to eOrg->Sym */
   eNew->Rface = eOrg->Rface;
-  eNew->winding = eOrg->winding;	/* copy old winding information */
+  eNew->winding = eOrg->winding;    /* copy old winding information */
   eNew->Sym->winding = eOrg->Sym->winding;
 
   return eNew;
@@ -508,7 +508,7 @@ GLUhalfEdge *__gl_meshSplitEdge( GLUhalfEdge *eOrg )
 GLUhalfEdge *__gl_meshConnect( GLUhalfEdge *eOrg, GLUhalfEdge *eDst )
 {
   GLUhalfEdge *eNewSym;
-  int joiningLoops = FALSE;  
+  int joiningLoops = FALSE;
   GLUhalfEdge *eNew = MakeEdge( eOrg );
   if (eNew == NULL) return NULL;
 
@@ -569,19 +569,19 @@ void __gl_meshZapFace( GLUface *fZap )
       /* delete the edge -- see __gl_MeshDelete above */
 
       if( e->Onext == e ) {
-	KillVertex( e->Org, NULL );
+    KillVertex( e->Org, NULL );
       } else {
-	/* Make sure that e->Org points to a valid half-edge */
-	e->Org->anEdge = e->Onext;
-	Splice( e, e->Oprev );
+    /* Make sure that e->Org points to a valid half-edge */
+    e->Org->anEdge = e->Onext;
+    Splice( e, e->Oprev );
       }
       eSym = e->Sym;
       if( eSym->Onext == eSym ) {
-	KillVertex( eSym->Org, NULL );
+    KillVertex( eSym->Org, NULL );
       } else {
-	/* Make sure that eSym->Org points to a valid half-edge */
-	eSym->Org->anEdge = eSym->Onext;
-	Splice( eSym, eSym->Oprev );
+    /* Make sure that eSym->Org points to a valid half-edge */
+    eSym->Org->anEdge = eSym->Onext;
+    Splice( eSym, eSym->Oprev );
       }
       KillEdge( e );
     }
@@ -610,7 +610,7 @@ GLUmesh *__gl_meshNewMesh( void )
   if (mesh == NULL) {
      return NULL;
   }
-  
+
   v = &mesh->vHead;
   f = &mesh->fHead;
   e = &mesh->eHead;

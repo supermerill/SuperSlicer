@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_QSLIM_OPTIMAL_COLLAPSE_EDGE_CALLBACKS_H
 #define IGL_QSLIM_OPTIMAL_COLLAPSE_EDGE_CALLBACKS_H
@@ -21,7 +21,7 @@ namespace igl
   //
   // Inputs:
   //   E  #E by 2 list of working edges
-  //   quadrics  reference to list of working per vertex quadrics 
+  //   quadrics  reference to list of working per vertex quadrics
   //   v1  working variable to maintain end point of collapsed edge
   //   v2  working variable to maintain end point of collapsed edge
   // Outputs
@@ -31,7 +31,7 @@ namespace igl
   //   post_collapse  callback after edge collapse (see collapse_edge)
   IGL_INLINE void qslim_optimal_collapse_edge_callbacks(
     Eigen::MatrixXi & E,
-    std::vector<std::tuple<Eigen::MatrixXd,Eigen::RowVectorXd,double> > & 
+    std::vector<std::tuple<Eigen::MatrixXd,Eigen::RowVectorXd,double> > &
       quadrics,
     int & v1,
     int & v2,

@@ -6,7 +6,7 @@
 #define clipper_hpp
 
 // Override ClipperLib namespace to Slic3r::ClipperLib
-#define CLIPPERLIB_NAMESPACE_PREFIX	Slic3r
+#define CLIPPERLIB_NAMESPACE_PREFIX    Slic3r
 // Override Slic3r::ClipperLib::IntPoint to Slic3r::Point
 #define CLIPPERLIB_INTPOINT_TYPE    Slic3r::Point
 

@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_MATERIAL_COLORS_H
 #define IGL_MATERIAL_COLORS_H
@@ -43,7 +43,7 @@ namespace igl
   const float EASTER_RED_DIFFUSE[4] = {0.603922,0.494118f,0.603922f,1.0f};
   const float WN_OPEN_BOUNDARY_COLOR[4] = {154./255.,0./255.,0./255.,1.0f};
   const float WN_NON_MANIFOLD_EDGE_COLOR[4] = {201./255., 51./255.,255./255.,1.0f};
-  const Eigen::Vector4f 
+  const Eigen::Vector4f
     MAYA_GREEN(128./255.,242./255.,0./255.,1.),
     MAYA_YELLOW(255./255.,247./255.,50./255.,1.),
     MAYA_RED(234./255.,63./255.,52./255.,1.),

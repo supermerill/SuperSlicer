@@ -1,23 +1,23 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "hausdorff.h"
 #include "point_mesh_squared_distance.h"
 
 template <
-  typename DerivedVA, 
+  typename DerivedVA,
   typename DerivedFA,
   typename DerivedVB,
   typename DerivedFB,
   typename Scalar>
 IGL_INLINE void igl::hausdorff(
-  const Eigen::PlainObjectBase<DerivedVA> & VA, 
+  const Eigen::PlainObjectBase<DerivedVA> & VA,
   const Eigen::PlainObjectBase<DerivedFA> & FA,
-  const Eigen::PlainObjectBase<DerivedVB> & VB, 
+  const Eigen::PlainObjectBase<DerivedVB> & VB,
   const Eigen::PlainObjectBase<DerivedFB> & FB,
   Scalar & d)
 {
@@ -73,13 +73,13 @@ IGL_INLINE void igl::hausdorff(
     d(i) = dist_to_B(V(i,0),V(i,1),V(i,2));
     // Lower bound is simply the max over vertex distances
     l = std::max(d(i),l);
-    // u1 is the minimum of corner distances + maximum adjacent edge 
+    // u1 is the minimum of corner distances + maximum adjacent edge
     u1 = std::min(u1,d(i) + std::max(e((i+1)%3),e((i+2)%3)));
     // u2 first takes the maximum over corner distances
     u2 = std::max(u2,d(i));
   }
   // u2 is the distance from the circumcenter/midpoint of obtuse edge plus the
-  // largest corner distance 
+  // largest corner distance
   u2 += (s-r>2.*R ? R : 0.5*e_max);
   u = std::min(u1,u2);
 }

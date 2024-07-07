@@ -84,7 +84,7 @@ void ArcFitter::do_arc_fitting(const Points& points, std::vector<PathFittingData
             current_segment.push_back(points[front_index + 1]);
         }
     }
-	//BBS: handle the remain data
+    //BBS: handle the remain data
     if (front_index != back_index) {
         if (result.empty() || result.back().path_type != EMovePathType::Linear_move)
             result.emplace_back(std::move(PathFittingData{front_index, back_index, EMovePathType::Linear_move, ArcSegment()}));

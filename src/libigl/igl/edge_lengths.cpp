@@ -17,7 +17,7 @@ IGL_INLINE void igl::edge_lengths(
       igl::squared_edge_lengths(V,F,L);
       L=L.array().sqrt().eval();
   }
-  
+
 
 #ifdef IGL_STATIC_LIBRARY
 // Explicit template instantiation

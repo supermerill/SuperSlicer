@@ -45,258 +45,258 @@ BEGIN_AS_NAMESPACE
 
 enum eTokenType
 {
-	ttUnrecognizedToken,
+    ttUnrecognizedToken,
 
-	ttEnd,                 // End of file
+    ttEnd,                 // End of file
 
-	// White space and comments
-	ttWhiteSpace,          // ' ', '\t', '\r', '\n', UTF8 byte-order-mark
-	ttOnelineComment,      // // \n
-	ttMultilineComment,    // /* */
+    // White space and comments
+    ttWhiteSpace,          // ' ', '\t', '\r', '\n', UTF8 byte-order-mark
+    ttOnelineComment,      // // \n
+    ttMultilineComment,    // /* */
 
-	// Atoms
-	ttIdentifier,                  // abc123
-	ttIntConstant,                 // 1234
-	ttFloatConstant,               // 12.34e56f
-	ttDoubleConstant,              // 12.34e56
-	ttStringConstant,              // "123"
-	ttMultilineStringConstant,     //
-	ttHeredocStringConstant,       // """text"""
-	ttNonTerminatedStringConstant, // "123
-	ttBitsConstant,                // 0xFFFF
+    // Atoms
+    ttIdentifier,                  // abc123
+    ttIntConstant,                 // 1234
+    ttFloatConstant,               // 12.34e56f
+    ttDoubleConstant,              // 12.34e56
+    ttStringConstant,              // "123"
+    ttMultilineStringConstant,     //
+    ttHeredocStringConstant,       // """text"""
+    ttNonTerminatedStringConstant, // "123
+    ttBitsConstant,                // 0xFFFF
 
-	// Math operators
-	ttPlus,                // +
-	ttMinus,               // -
-	ttStar,                // *
-	ttSlash,               // /
-	ttPercent,             // %
-	ttStarStar,            // **
+    // Math operators
+    ttPlus,                // +
+    ttMinus,               // -
+    ttStar,                // *
+    ttSlash,               // /
+    ttPercent,             // %
+    ttStarStar,            // **
 
-	ttHandle,              // @
+    ttHandle,              // @
 
-	ttAddAssign,           // +=
-	ttSubAssign,           // -=
-	ttMulAssign,           // *=
-	ttDivAssign,           // /=
-	ttModAssign,           // %=
-	ttPowAssign,           // **=
+    ttAddAssign,           // +=
+    ttSubAssign,           // -=
+    ttMulAssign,           // *=
+    ttDivAssign,           // /=
+    ttModAssign,           // %=
+    ttPowAssign,           // **=
 
-	ttOrAssign,            // |=
-	ttAndAssign,           // &=
-	ttXorAssign,           // ^=
-	ttShiftLeftAssign,     // <<=
-	ttShiftRightLAssign,   // >>=
-	ttShiftRightAAssign,   // >>>=
+    ttOrAssign,            // |=
+    ttAndAssign,           // &=
+    ttXorAssign,           // ^=
+    ttShiftLeftAssign,     // <<=
+    ttShiftRightLAssign,   // >>=
+    ttShiftRightAAssign,   // >>>=
 
-	ttInc,                 // ++
-	ttDec,                 // --
+    ttInc,                 // ++
+    ttDec,                 // --
 
-	ttDot,                 // .
-	ttScope,               // ::
+    ttDot,                 // .
+    ttScope,               // ::
 
-	// Statement tokens
-	ttAssignment,          // =
-	ttEndStatement,        // ;
-	ttListSeparator,       // ,
-	ttStartStatementBlock, // {
-	ttEndStatementBlock,   // }
-	ttOpenParanthesis,     // (
-	ttCloseParanthesis,    // )
-	ttOpenBracket,         // [
-	ttCloseBracket,        // ]
-	ttAmp,                 // &
+    // Statement tokens
+    ttAssignment,          // =
+    ttEndStatement,        // ;
+    ttListSeparator,       // ,
+    ttStartStatementBlock, // {
+    ttEndStatementBlock,   // }
+    ttOpenParanthesis,     // (
+    ttCloseParanthesis,    // )
+    ttOpenBracket,         // [
+    ttCloseBracket,        // ]
+    ttAmp,                 // &
 
-	// Bitwise operators
-	ttBitOr,               // |
-	ttBitNot,              // ~
-	ttBitXor,              // ^
-	ttBitShiftLeft,        // <<
-	ttBitShiftRight,       // >>     // TODO: In Java this is the arithmetical shift
-	ttBitShiftRightArith,  // >>>    // TODO: In Java this is the logical shift
+    // Bitwise operators
+    ttBitOr,               // |
+    ttBitNot,              // ~
+    ttBitXor,              // ^
+    ttBitShiftLeft,        // <<
+    ttBitShiftRight,       // >>     // TODO: In Java this is the arithmetical shift
+    ttBitShiftRightArith,  // >>>    // TODO: In Java this is the logical shift
 
-	// Compare operators
-	ttEqual,               // ==
-	ttNotEqual,            // !=
-	ttLessThan,            // <
-	ttGreaterThan,         // >
-	ttLessThanOrEqual,     // <=
-	ttGreaterThanOrEqual,  // >=
+    // Compare operators
+    ttEqual,               // ==
+    ttNotEqual,            // !=
+    ttLessThan,            // <
+    ttGreaterThan,         // >
+    ttLessThanOrEqual,     // <=
+    ttGreaterThanOrEqual,  // >=
 
-	ttQuestion,            // ?
-	ttColon,               // :
+    ttQuestion,            // ?
+    ttColon,               // :
 
-	// Reserved keywords
-	ttIf,                  // if
-	ttElse,                // else
-	ttFor,                 // for
-	ttWhile,               // while
-	ttBool,                // bool
-	ttFuncDef,             // funcdef
-	ttImport,              // import
-	ttInt,                 // int
-	ttInt8,                // int8
-	ttInt16,               // int16
-	ttInt64,               // int64
-	ttInterface,           // interface
-	ttIs,                  // is
-	ttNotIs,               // !is
-	ttUInt,                // uint
-	ttUInt8,               // uint8
-	ttUInt16,              // uint16
-	ttUInt64,              // uint64
-	ttFloat,               // float
-	ttVoid,                // void
-	ttTrue,                // true
-	ttFalse,               // false
-	ttReturn,              // return
-	ttNot,                 // not
-	ttAnd,                 // and, &&
-	ttOr,                  // or, ||
-	ttXor,                 // xor, ^^
-	ttBreak,               // break
-	ttContinue,            // continue
-	ttConst,               // const
-	ttDo,                  // do
-	ttDouble,              // double
-	ttSwitch,              // switch
-	ttCase,                // case
-	ttDefault,             // default
-	ttIn,                  // in
-	ttOut,                 // out
-	ttInOut,               // inout
-	ttNull,                // null
-	ttClass,               // class
-	ttTypedef,             // typedef
-	ttEnum,                // enum
-	ttCast,                // cast
-	ttPrivate,             // private
-	ttProtected,           // protected
-	ttNamespace,           // namespace
-	ttMixin,               // mixin
-	ttAuto,                // auto
-	ttTry,                 // try
-	ttCatch                // catch
+    // Reserved keywords
+    ttIf,                  // if
+    ttElse,                // else
+    ttFor,                 // for
+    ttWhile,               // while
+    ttBool,                // bool
+    ttFuncDef,             // funcdef
+    ttImport,              // import
+    ttInt,                 // int
+    ttInt8,                // int8
+    ttInt16,               // int16
+    ttInt64,               // int64
+    ttInterface,           // interface
+    ttIs,                  // is
+    ttNotIs,               // !is
+    ttUInt,                // uint
+    ttUInt8,               // uint8
+    ttUInt16,              // uint16
+    ttUInt64,              // uint64
+    ttFloat,               // float
+    ttVoid,                // void
+    ttTrue,                // true
+    ttFalse,               // false
+    ttReturn,              // return
+    ttNot,                 // not
+    ttAnd,                 // and, &&
+    ttOr,                  // or, ||
+    ttXor,                 // xor, ^^
+    ttBreak,               // break
+    ttContinue,            // continue
+    ttConst,               // const
+    ttDo,                  // do
+    ttDouble,              // double
+    ttSwitch,              // switch
+    ttCase,                // case
+    ttDefault,             // default
+    ttIn,                  // in
+    ttOut,                 // out
+    ttInOut,               // inout
+    ttNull,                // null
+    ttClass,               // class
+    ttTypedef,             // typedef
+    ttEnum,                // enum
+    ttCast,                // cast
+    ttPrivate,             // private
+    ttProtected,           // protected
+    ttNamespace,           // namespace
+    ttMixin,               // mixin
+    ttAuto,                // auto
+    ttTry,                 // try
+    ttCatch                // catch
 };
 
 struct sTokenWord
 {
-	const char *word;
-	size_t      wordLength;
-	eTokenType  tokenType;
+    const char *word;
+    size_t      wordLength;
+    eTokenType  tokenType;
 };
 
 #define asTokenDef(str, tok) {str, sizeof(str)-1, tok}
 
 sTokenWord const tokenWords[] =
 {
-	asTokenDef("+"         , ttPlus),
-	asTokenDef("+="        , ttAddAssign),
-	asTokenDef("++"        , ttInc),
-	asTokenDef("-"         , ttMinus),
-	asTokenDef("-="        , ttSubAssign),
-	asTokenDef("--"        , ttDec),
-	asTokenDef("*"         , ttStar),
-	asTokenDef("*="        , ttMulAssign),
-	asTokenDef("/"         , ttSlash),
-	asTokenDef("/="        , ttDivAssign),
-	asTokenDef("%"         , ttPercent),
-	asTokenDef("%="        , ttModAssign),
-	asTokenDef("**"        , ttStarStar),
-	asTokenDef("**="       , ttPowAssign),
-	asTokenDef("="         , ttAssignment),
-	asTokenDef("=="        , ttEqual),
-	asTokenDef("."         , ttDot),
-	asTokenDef("|"         , ttBitOr),
-	asTokenDef("|="        , ttOrAssign),
-	asTokenDef("||"        , ttOr),
-	asTokenDef("&"         , ttAmp),
-	asTokenDef("&="        , ttAndAssign),
-	asTokenDef("&&"        , ttAnd),
-	asTokenDef("^"         , ttBitXor),
-	asTokenDef("^="        , ttXorAssign),
-	asTokenDef("^^"        , ttXor),
-	asTokenDef("<"         , ttLessThan),
-	asTokenDef("<="        , ttLessThanOrEqual),
-	asTokenDef("<<"        , ttBitShiftLeft),
-	asTokenDef("<<="       , ttShiftLeftAssign),
-	asTokenDef(">"         , ttGreaterThan),
-	asTokenDef(">="        , ttGreaterThanOrEqual),
-	asTokenDef(">>"        , ttBitShiftRight),
-	asTokenDef(">>="       , ttShiftRightLAssign),
-	asTokenDef(">>>"       , ttBitShiftRightArith),
-	asTokenDef(">>>="      , ttShiftRightAAssign),
-	asTokenDef("~"         , ttBitNot),
-	asTokenDef(";"         , ttEndStatement),
-	asTokenDef(","         , ttListSeparator),
-	asTokenDef("{"         , ttStartStatementBlock),
-	asTokenDef("}"         , ttEndStatementBlock),
-	asTokenDef("("         , ttOpenParanthesis),
-	asTokenDef(")"         , ttCloseParanthesis),
-	asTokenDef("["         , ttOpenBracket),
-	asTokenDef("]"         , ttCloseBracket),
-	asTokenDef("?"         , ttQuestion),
-	asTokenDef(":"         , ttColon),
-	asTokenDef("::"        , ttScope),
-	asTokenDef("!"         , ttNot),
-	asTokenDef("!="        , ttNotEqual),
-	asTokenDef("!is"       , ttNotIs),
-	asTokenDef("@"         , ttHandle),
-	asTokenDef("and"       , ttAnd),
-	asTokenDef("auto"      , ttAuto),
-	asTokenDef("bool"      , ttBool),
-	asTokenDef("break"     , ttBreak),
-	asTokenDef("case"      , ttCase),
-	asTokenDef("cast"      , ttCast),
-	asTokenDef("catch"     , ttCatch),
-	asTokenDef("class"     , ttClass),
-	asTokenDef("const"     , ttConst),
-	asTokenDef("continue"  , ttContinue),
-	asTokenDef("default"   , ttDefault),
-	asTokenDef("do"        , ttDo),
+    asTokenDef("+"         , ttPlus),
+    asTokenDef("+="        , ttAddAssign),
+    asTokenDef("++"        , ttInc),
+    asTokenDef("-"         , ttMinus),
+    asTokenDef("-="        , ttSubAssign),
+    asTokenDef("--"        , ttDec),
+    asTokenDef("*"         , ttStar),
+    asTokenDef("*="        , ttMulAssign),
+    asTokenDef("/"         , ttSlash),
+    asTokenDef("/="        , ttDivAssign),
+    asTokenDef("%"         , ttPercent),
+    asTokenDef("%="        , ttModAssign),
+    asTokenDef("**"        , ttStarStar),
+    asTokenDef("**="       , ttPowAssign),
+    asTokenDef("="         , ttAssignment),
+    asTokenDef("=="        , ttEqual),
+    asTokenDef("."         , ttDot),
+    asTokenDef("|"         , ttBitOr),
+    asTokenDef("|="        , ttOrAssign),
+    asTokenDef("||"        , ttOr),
+    asTokenDef("&"         , ttAmp),
+    asTokenDef("&="        , ttAndAssign),
+    asTokenDef("&&"        , ttAnd),
+    asTokenDef("^"         , ttBitXor),
+    asTokenDef("^="        , ttXorAssign),
+    asTokenDef("^^"        , ttXor),
+    asTokenDef("<"         , ttLessThan),
+    asTokenDef("<="        , ttLessThanOrEqual),
+    asTokenDef("<<"        , ttBitShiftLeft),
+    asTokenDef("<<="       , ttShiftLeftAssign),
+    asTokenDef(">"         , ttGreaterThan),
+    asTokenDef(">="        , ttGreaterThanOrEqual),
+    asTokenDef(">>"        , ttBitShiftRight),
+    asTokenDef(">>="       , ttShiftRightLAssign),
+    asTokenDef(">>>"       , ttBitShiftRightArith),
+    asTokenDef(">>>="      , ttShiftRightAAssign),
+    asTokenDef("~"         , ttBitNot),
+    asTokenDef(";"         , ttEndStatement),
+    asTokenDef(","         , ttListSeparator),
+    asTokenDef("{"         , ttStartStatementBlock),
+    asTokenDef("}"         , ttEndStatementBlock),
+    asTokenDef("("         , ttOpenParanthesis),
+    asTokenDef(")"         , ttCloseParanthesis),
+    asTokenDef("["         , ttOpenBracket),
+    asTokenDef("]"         , ttCloseBracket),
+    asTokenDef("?"         , ttQuestion),
+    asTokenDef(":"         , ttColon),
+    asTokenDef("::"        , ttScope),
+    asTokenDef("!"         , ttNot),
+    asTokenDef("!="        , ttNotEqual),
+    asTokenDef("!is"       , ttNotIs),
+    asTokenDef("@"         , ttHandle),
+    asTokenDef("and"       , ttAnd),
+    asTokenDef("auto"      , ttAuto),
+    asTokenDef("bool"      , ttBool),
+    asTokenDef("break"     , ttBreak),
+    asTokenDef("case"      , ttCase),
+    asTokenDef("cast"      , ttCast),
+    asTokenDef("catch"     , ttCatch),
+    asTokenDef("class"     , ttClass),
+    asTokenDef("const"     , ttConst),
+    asTokenDef("continue"  , ttContinue),
+    asTokenDef("default"   , ttDefault),
+    asTokenDef("do"        , ttDo),
 #ifdef  AS_USE_DOUBLE_AS_FLOAT
-	asTokenDef("double"    , ttFloat),
+    asTokenDef("double"    , ttFloat),
 #else
-	asTokenDef("double"    , ttDouble),
+    asTokenDef("double"    , ttDouble),
 #endif
-	asTokenDef("else"      , ttElse),
-	asTokenDef("enum"      , ttEnum),
-	asTokenDef("false"     , ttFalse),
-	asTokenDef("float"     , ttFloat),
-	asTokenDef("for"       , ttFor),
-	asTokenDef("funcdef"   , ttFuncDef),
-	asTokenDef("if"        , ttIf),
-	asTokenDef("import"    , ttImport),
-	asTokenDef("in"        , ttIn),
-	asTokenDef("inout"     , ttInOut),
-	asTokenDef("int"       , ttInt),
-	asTokenDef("int8"      , ttInt8),
-	asTokenDef("int16"     , ttInt16),
-	asTokenDef("int32"     , ttInt),
-	asTokenDef("int64"     , ttInt64),
-	asTokenDef("interface" , ttInterface),
-	asTokenDef("is"        , ttIs),
-	asTokenDef("mixin"     , ttMixin),
-	asTokenDef("namespace" , ttNamespace),
-	asTokenDef("not"       , ttNot),
-	asTokenDef("null"      , ttNull),
-	asTokenDef("or"        , ttOr),
-	asTokenDef("out"       , ttOut),
-	asTokenDef("private"   , ttPrivate),
-	asTokenDef("protected" , ttProtected),
-	asTokenDef("return"    , ttReturn),
-	asTokenDef("switch"    , ttSwitch),
-	asTokenDef("true"      , ttTrue),
-	asTokenDef("try"       , ttTry),
-	asTokenDef("typedef"   , ttTypedef),
-	asTokenDef("uint"      , ttUInt),
-	asTokenDef("uint8"     , ttUInt8),
-	asTokenDef("uint16"    , ttUInt16),
-	asTokenDef("uint32"    , ttUInt),
-	asTokenDef("uint64"    , ttUInt64),
-	asTokenDef("void"      , ttVoid),
-	asTokenDef("while"     , ttWhile),
-	asTokenDef("xor"       , ttXor),
+    asTokenDef("else"      , ttElse),
+    asTokenDef("enum"      , ttEnum),
+    asTokenDef("false"     , ttFalse),
+    asTokenDef("float"     , ttFloat),
+    asTokenDef("for"       , ttFor),
+    asTokenDef("funcdef"   , ttFuncDef),
+    asTokenDef("if"        , ttIf),
+    asTokenDef("import"    , ttImport),
+    asTokenDef("in"        , ttIn),
+    asTokenDef("inout"     , ttInOut),
+    asTokenDef("int"       , ttInt),
+    asTokenDef("int8"      , ttInt8),
+    asTokenDef("int16"     , ttInt16),
+    asTokenDef("int32"     , ttInt),
+    asTokenDef("int64"     , ttInt64),
+    asTokenDef("interface" , ttInterface),
+    asTokenDef("is"        , ttIs),
+    asTokenDef("mixin"     , ttMixin),
+    asTokenDef("namespace" , ttNamespace),
+    asTokenDef("not"       , ttNot),
+    asTokenDef("null"      , ttNull),
+    asTokenDef("or"        , ttOr),
+    asTokenDef("out"       , ttOut),
+    asTokenDef("private"   , ttPrivate),
+    asTokenDef("protected" , ttProtected),
+    asTokenDef("return"    , ttReturn),
+    asTokenDef("switch"    , ttSwitch),
+    asTokenDef("true"      , ttTrue),
+    asTokenDef("try"       , ttTry),
+    asTokenDef("typedef"   , ttTypedef),
+    asTokenDef("uint"      , ttUInt),
+    asTokenDef("uint8"     , ttUInt8),
+    asTokenDef("uint16"    , ttUInt16),
+    asTokenDef("uint32"    , ttUInt),
+    asTokenDef("uint64"    , ttUInt64),
+    asTokenDef("void"      , ttVoid),
+    asTokenDef("while"     , ttWhile),
+    asTokenDef("xor"       , ttXor),
 };
 
 const unsigned int numTokenWords = sizeof(tokenWords)/sizeof(sTokenWord);

@@ -34,12 +34,12 @@ namespace Eigen {
  *
  * Singular values are always sorted in decreasing order.
  *
- * 
+ *
  * You can ask for only \em thin \a U or \a V to be computed, meaning the following. In case of a rectangular n-by-p matrix, letting \a m be the
  * smaller value among \a n and \a p, there are only \a m singular vectors; the remaining columns of \a U and \a V do not correspond to actual
  * singular vectors. Asking for \em thin \a U or \a V means asking for only their \a m first columns to be formed. So \a U is then a n-by-m matrix,
  * and \a V is then a p-by-m matrix. Notice that thin \a U and \a V are all you need for (least squares) solving.
- *  
+ *
  * If the input matrix has inf or nan coefficients, the result of the computation is undefined, but the computation is guaranteed to
  * terminate in finite (and reasonable) time.
  * \sa class BDCSVD, class JacobiSVD
@@ -67,7 +67,7 @@ public:
   typedef Matrix<Scalar, RowsAtCompileTime, RowsAtCompileTime, MatrixOptions, MaxRowsAtCompileTime, MaxRowsAtCompileTime> MatrixUType;
   typedef Matrix<Scalar, ColsAtCompileTime, ColsAtCompileTime, MatrixOptions, MaxColsAtCompileTime, MaxColsAtCompileTime> MatrixVType;
   typedef typename internal::plain_diag_type<MatrixType, RealScalar>::type SingularValuesType;
-  
+
   Derived& derived() { return *static_cast<Derived*>(this); }
   const Derived& derived() const { return *static_cast<const Derived*>(this); }
 
@@ -120,7 +120,7 @@ public:
     eigen_assert(m_isInitialized && "SVD is not initialized.");
     return m_nonzeroSingularValues;
   }
-  
+
   /** \returns the rank of the matrix of which \c *this is the SVD.
     *
     * \note This method has to determine which singular values should be considered nonzero.
@@ -137,7 +137,7 @@ public:
     while(i>=0 && m_singularValues.coeff(i) < premultiplied_threshold) --i;
     return i+1;
   }
-  
+
   /** Allows to prescribe a threshold to be used by certain methods, such as rank() and solve(),
     * which need to determine when singular values are to be considered nonzero.
     * This is not used for the SVD decomposition itself.
@@ -193,7 +193,7 @@ public:
 
   inline Index rows() const { return m_rows; }
   inline Index cols() const { return m_cols; }
-  
+
   /** \returns a (least squares) solution of \f$ A x = b \f$ using the current SVD decomposition of A.
     *
     * \param b the right-hand-side of the equation to solve.
@@ -211,7 +211,7 @@ public:
     eigen_assert(computeU() && computeV() && "SVD::solve() requires both unitaries U and V to be computed (thin unitaries suffice).");
     return Solve<Derived, Rhs>(derived(), b.derived());
   }
-  
+
   #ifndef EIGEN_PARSED_BY_DOXYGEN
   template<typename RhsType, typename DstType>
   EIGEN_DEVICE_FUNC
@@ -219,12 +219,12 @@ public:
   #endif
 
 protected:
-  
+
   static void check_template_parameters()
   {
     EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar);
   }
-  
+
   // return true if already allocated
   bool allocate(Index rows, Index cols, unsigned int computationOptions) ;
 
@@ -298,7 +298,7 @@ bool SVDBase<MatrixType>::allocate(Index rows, Index cols, unsigned int computat
   eigen_assert(!(m_computeFullU && m_computeThinU) && "SVDBase: you can't ask for both full and thin U");
   eigen_assert(!(m_computeFullV && m_computeThinV) && "SVDBase: you can't ask for both full and thin V");
   eigen_assert(EIGEN_IMPLIES(m_computeThinU || m_computeThinV, MatrixType::ColsAtCompileTime==Dynamic) &&
-	       "SVDBase: thin U and V are only available when your matrix has a dynamic number of columns.");
+           "SVDBase: thin U and V are only available when your matrix has a dynamic number of columns.");
 
   m_diagSize = (std::min)(m_rows, m_cols);
   m_singularValues.resize(m_diagSize);

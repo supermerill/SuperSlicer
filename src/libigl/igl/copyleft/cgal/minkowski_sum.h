@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_COPYLEFT_CGAL_MINKOWSKI_SUM_H
 #define IGL_COPYLEFT_CGAL_MINKOWSKI_SUM_H
@@ -31,8 +31,8 @@ namespace igl
       // Outputs:
       //   W  #W by 3 list of mesh vertices in 3D
       //   G  #G by 3 list of triangle indices into W
-      //   J  #G by 2 list of indices into 
-      //   
+      //   J  #G by 2 list of indices into
+      //
       template <
         typename DerivedVA,
         typename DerivedFA,

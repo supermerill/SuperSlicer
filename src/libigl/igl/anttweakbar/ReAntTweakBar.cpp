@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "ReAntTweakBar.h"
 
@@ -15,16 +15,16 @@
 #include <map>
 
 // GLOBAL WRAPPERS
-namespace 
+namespace
 {
   std::map<
-    TwType,std::pair<const char *,std::vector<TwEnumVal> > 
+    TwType,std::pair<const char *,std::vector<TwEnumVal> >
     > ReTw_custom_types;
 }
 
 IGL_INLINE TwType igl::anttweakbar::ReTwDefineEnum(
-  const char *name, 
-  const TwEnumVal *enumValues, 
+  const char *name,
+  const TwEnumVal *enumValues,
   unsigned int nbValues)
 {
   using namespace std;
@@ -37,7 +37,7 @@ IGL_INLINE TwType igl::anttweakbar::ReTwDefineEnum(
   }
   TwType type = TwDefineEnum(name,enumValues,nbValues);
 
-  ReTw_custom_types[type] = 
+  ReTw_custom_types[type] =
     std::pair<const char *,std::vector<TwEnumVal> >(name,enum_vals);
 
   return type;
@@ -51,7 +51,7 @@ IGL_INLINE TwType igl::anttweakbar::ReTwDefineEnumFromString(
   // ReTwDefineEnum
   using namespace std;
   {
-    if (_EnumString == NULL) 
+    if (_EnumString == NULL)
         return ReTwDefineEnum(_Name, NULL, 0);
 
     // split enumString
@@ -83,9 +83,9 @@ IGL_INLINE TwType igl::anttweakbar::ReTwDefineEnumFromString(
         Vals[i].Label = c_label;
     }
 
-    const TwType type = 
-      ReTwDefineEnum(_Name, Vals.empty() ? 
-        NULL : 
+    const TwType type =
+      ReTwDefineEnum(_Name, Vals.empty() ?
+        NULL :
         &(Vals[0]), (unsigned int)Vals.size());
     return type;
   }
@@ -100,7 +100,7 @@ namespace
   };
 
   #define RETW_NUM_DEFAULT_TYPE_STRINGS 23
-  ReTwTypeString ReTwDefaultTypeStrings[RETW_NUM_DEFAULT_TYPE_STRINGS] = 
+  ReTwTypeString ReTwDefaultTypeStrings[RETW_NUM_DEFAULT_TYPE_STRINGS] =
   {
     {TW_TYPE_UNDEF,"TW_TYPE_UNDEF"},
     {TW_TYPE_BOOLCPP,"TW_TYPE_BOOLCPP"},
@@ -144,7 +144,7 @@ IGL_INLINE igl::anttweakbar::ReTwBar::ReTwBar(
 {
 }
 
-IGL_INLINE igl::anttweakbar::ReTwBar & 
+IGL_INLINE igl::anttweakbar::ReTwBar &
 igl::anttweakbar::ReTwBar::operator=(const igl::anttweakbar::ReTwBar & that)
 {
   // check for self assignment
@@ -170,9 +170,9 @@ IGL_INLINE void igl::anttweakbar::ReTwBar::TwNewBar(const char * _name)
 }
 
 IGL_INLINE int igl::anttweakbar::ReTwBar::TwAddVarRW(
-  const char *name, 
-  TwType type, 
-  void *var, 
+  const char *name,
+  TwType type,
+  void *var,
   const char *def,
   const bool record)
 {
@@ -185,15 +185,15 @@ IGL_INLINE int igl::anttweakbar::ReTwBar::TwAddVarRW(
 }
 
 IGL_INLINE int igl::anttweakbar::ReTwBar::TwAddVarCB(
-  const char *name, 
-  TwType type, 
-  TwSetVarCallback setCallback, 
-  TwGetVarCallback getCallback, 
-  void *clientData, 
+  const char *name,
+  TwType type,
+  TwSetVarCallback setCallback,
+  TwGetVarCallback getCallback,
+  void *clientData,
   const char *def,
   const bool record)
 {
-  int ret = 
+  int ret =
     ::TwAddVarCB(this->bar,name,type,setCallback,getCallback,clientData,def);
   if(ret && record)
   {
@@ -203,9 +203,9 @@ IGL_INLINE int igl::anttweakbar::ReTwBar::TwAddVarCB(
 }
 
 IGL_INLINE int igl::anttweakbar::ReTwBar::TwAddVarRO(
-  const char *name, 
-  TwType type, 
-  void *var, 
+  const char *name,
+  TwType type,
+  void *var,
   const char *def)
 {
   int ret = ::TwAddVarRO(this->bar,name,type,var,def);
@@ -218,12 +218,12 @@ IGL_INLINE int igl::anttweakbar::ReTwBar::TwAddVarRO(
 }
 
 IGL_INLINE int igl::anttweakbar::ReTwBar::TwAddButton(
-  const char *name, 
-  TwButtonCallback buttonCallback, 
-  void *clientData, 
+  const char *name,
+  TwButtonCallback buttonCallback,
+  void *clientData,
   const char *def)
 {
-  int ret = 
+  int ret =
     ::TwAddButton(this->bar,name,buttonCallback,clientData,def);
   // buttons are not recorded
   //if(ret)
@@ -234,14 +234,14 @@ IGL_INLINE int igl::anttweakbar::ReTwBar::TwAddButton(
 }
 
 IGL_INLINE int igl::anttweakbar::ReTwBar::TwSetParam(
-  const char *varName, 
-  const char *paramName, 
-  TwParamValueType paramValueType, 
-  unsigned int inValueCount, 
+  const char *varName,
+  const char *paramName,
+  TwParamValueType paramValueType,
+  unsigned int inValueCount,
   const void *inValues)
 {
   // For now just pass these along
-  return 
+  return
     ::TwSetParam(
       this->bar,
       varName,
@@ -252,13 +252,13 @@ IGL_INLINE int igl::anttweakbar::ReTwBar::TwSetParam(
 }
 
 IGL_INLINE int igl::anttweakbar::ReTwBar::TwGetParam(
-  const char *varName, 
-  const char *paramName, 
-  TwParamValueType paramValueType, 
+  const char *varName,
+  const char *paramName,
+  TwParamValueType paramValueType,
   unsigned int outValueMaxCount,
   void *outValues)
 {
-  return 
+  return
     ::TwGetParam(
       this->bar,
       varName,
@@ -300,8 +300,8 @@ IGL_INLINE bool igl::anttweakbar::ReTwBar::save(const char *file_name)
 
   // Print all RW variables
   for(
-    std::vector<ReTwRWItem>::iterator it = rw_items.begin(); 
-    it != rw_items.end(); 
+    std::vector<ReTwRWItem>::iterator it = rw_items.begin();
+    it != rw_items.end();
     it++)
   {
     std::string s = (*it).name;
@@ -316,8 +316,8 @@ IGL_INLINE bool igl::anttweakbar::ReTwBar::save(const char *file_name)
   char var[REANTTWEAKBAR_MAX_CB_VAR_SIZE];
   // Print all CB variables
   for(
-    std::vector<ReTwCBItem>::iterator it = cb_items.begin(); 
-    it != cb_items.end(); 
+    std::vector<ReTwCBItem>::iterator it = cb_items.begin();
+    it != cb_items.end();
     it++)
   {
     const char * name = it->name.c_str();
@@ -345,7 +345,7 @@ IGL_INLINE bool igl::anttweakbar::ReTwBar::save(const char *file_name)
 }
 
 IGL_INLINE std::string igl::anttweakbar::ReTwBar::get_value_as_string(
-  void * var, 
+  void * var,
   TwType type)
 {
   std::stringstream sstr;
@@ -450,7 +450,7 @@ IGL_INLINE std::string igl::anttweakbar::ReTwBar::get_value_as_string(
     default:
       {
         using namespace std;
-        std::map<TwType,std::pair<const char *,std::vector<TwEnumVal> > >::const_iterator iter = 
+        std::map<TwType,std::pair<const char *,std::vector<TwEnumVal> > >::const_iterator iter =
           ReTw_custom_types.find(type);
         if(iter != ReTw_custom_types.end())
         {
@@ -538,7 +538,7 @@ IGL_INLINE bool igl::anttweakbar::ReTwBar::load(const char *file_name)
   }
 
   fclose(fp);
-  
+
   // everything succeeded
   return true;
 }
@@ -559,8 +559,8 @@ IGL_INLINE bool igl::anttweakbar::ReTwBar::type_from_string(
 
   // then check custom types
   std::map<
-    TwType,std::pair<const char *,std::vector<TwEnumVal> > 
-    >::const_iterator iter = 
+    TwType,std::pair<const char *,std::vector<TwEnumVal> >
+    >::const_iterator iter =
     ReTw_custom_types.begin();
   for(;iter != ReTw_custom_types.end(); iter++)
   {
@@ -574,8 +574,8 @@ IGL_INLINE bool igl::anttweakbar::ReTwBar::type_from_string(
 }
 
 bool igl::anttweakbar::ReTwBar::set_value_from_string(
-  const char * name, 
-  TwType type, 
+  const char * name,
+  TwType type,
   const char * value_str)
 {
   void * value = NULL;
@@ -730,7 +730,7 @@ bool igl::anttweakbar::ReTwBar::set_value_from_string(
       }
     default:
       // Try to find type in custom enum types
-      std::map<TwType,std::pair<const char *,std::vector<TwEnumVal> > >::const_iterator iter = 
+      std::map<TwType,std::pair<const char *,std::vector<TwEnumVal> > >::const_iterator iter =
         ReTw_custom_types.find(type);
       if(iter != ReTw_custom_types.end())
       {
@@ -763,8 +763,8 @@ bool igl::anttweakbar::ReTwBar::set_value_from_string(
   // First look in RW items
   bool item_found = false;
   for(
-    std::vector<ReTwRWItem>::iterator it = rw_items.begin(); 
-    it != rw_items.end(); 
+    std::vector<ReTwRWItem>::iterator it = rw_items.begin();
+    it != rw_items.end();
     it++)
   {
     if(it->name == name)
@@ -866,7 +866,7 @@ bool igl::anttweakbar::ReTwBar::set_value_from_string(
           }
         default:
           // Try to find type in custom enum types
-          std::map<TwType,std::pair<const char *,std::vector<TwEnumVal> > >::iterator iter = 
+          std::map<TwType,std::pair<const char *,std::vector<TwEnumVal> > >::iterator iter =
             ReTw_custom_types.find(type);
           if(iter != ReTw_custom_types.end())
           {
@@ -901,8 +901,8 @@ bool igl::anttweakbar::ReTwBar::set_value_from_string(
   if(!item_found)
   {
     for(
-      std::vector<ReTwCBItem>::iterator it = cb_items.begin(); 
-      it != cb_items.end(); 
+      std::vector<ReTwCBItem>::iterator it = cb_items.begin();
+      it != cb_items.end();
       it++)
     {
       if(it->name==name)
@@ -921,13 +921,13 @@ bool igl::anttweakbar::ReTwBar::set_value_from_string(
   return true;
 }
 
-IGL_INLINE const std::vector<igl::anttweakbar::ReTwRWItem> & 
+IGL_INLINE const std::vector<igl::anttweakbar::ReTwRWItem> &
   igl::anttweakbar::ReTwBar::get_rw_items()
 {
   return rw_items;
 }
 
-IGL_INLINE const std::vector<igl::anttweakbar::ReTwCBItem> & 
+IGL_INLINE const std::vector<igl::anttweakbar::ReTwCBItem> &
   igl::anttweakbar::ReTwBar::get_cb_items()
 {
   return cb_items;

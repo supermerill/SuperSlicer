@@ -226,7 +226,7 @@ template<> EIGEN_STRONG_INLINE Packet8f ploaddup<Packet8f>(const float* from)
 //   Packet8f tmp  = _mm256_castps128_ps256(_mm_loadu_ps(from));
 //   tmp = _mm256_insertf128_ps(tmp, _mm_movehl_ps(_mm256_castps256_ps128(tmp),_mm256_castps256_ps128(tmp)), 1);
 //   return _mm256_unpacklo_ps(tmp,tmp);
-  
+
   // _mm256_insertf128_ps is very slow on Haswell, thus:
   Packet8f tmp = _mm256_broadcast_ps((const __m128*)(const void*)from);
   // mimic an "inplace" permutation of the lower 128bits using a blend

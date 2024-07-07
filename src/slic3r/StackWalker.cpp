@@ -886,7 +886,7 @@ extern "C" void** __cdecl __current_exception_context();
 static PCONTEXT get_current_exception_context()
 {
   PCONTEXT * pctx = NULL;
-#if defined(_MSC_VER) && _MSC_VER >= 1400 && _MSC_VER < 1900  
+#if defined(_MSC_VER) && _MSC_VER >= 1400 && _MSC_VER < 1900
   LPSTR ptd = (LPSTR)_getptd();
   if (ptd)
     pctx = (PCONTEXT *)(ptd + (sizeof(void*) == 4 ? 0x8C : 0xF8));

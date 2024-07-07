@@ -13,7 +13,7 @@
 namespace Eigen {
 
 template<typename Decomposition, typename RhsType, typename StorageKind> class SolveImpl;
-  
+
 /** \class Solve
   * \ingroup Core_Module
   *
@@ -64,11 +64,11 @@ class Solve : public SolveImpl<Decomposition,RhsType,typename internal::traits<R
 public:
   typedef typename internal::traits<Solve>::PlainObject PlainObject;
   typedef typename internal::traits<Solve>::StorageIndex StorageIndex;
-  
+
   Solve(const Decomposition &dec, const RhsType &rhs)
     : m_dec(dec), m_rhs(rhs)
   {}
-  
+
   EIGEN_DEVICE_FUNC Index rows() const { return m_dec.cols(); }
   EIGEN_DEVICE_FUNC Index cols() const { return m_rhs.cols(); }
 
@@ -87,14 +87,14 @@ class SolveImpl<Decomposition,RhsType,Dense>
   : public MatrixBase<Solve<Decomposition,RhsType> >
 {
   typedef Solve<Decomposition,RhsType> Derived;
-  
+
 public:
-  
+
   typedef MatrixBase<Solve<Decomposition,RhsType> > Base;
   EIGEN_DENSE_PUBLIC_INTERFACE(Derived)
 
 private:
-  
+
   Scalar coeff(Index row, Index col) const;
   Scalar coeff(Index i) const;
 };
@@ -119,15 +119,15 @@ struct evaluator<Solve<Decomposition,RhsType> >
   typedef evaluator<PlainObject> Base;
 
   enum { Flags = Base::Flags | EvalBeforeNestingBit };
-  
+
   EIGEN_DEVICE_FUNC explicit evaluator(const SolveType& solve)
     : m_result(solve.rows(), solve.cols())
   {
     ::new (static_cast<Base*>(this)) Base(m_result);
     solve.dec()._solve_impl(solve.rhs(), m_result);
   }
-  
-protected:  
+
+protected:
   PlainObject m_result;
 };
 
@@ -176,7 +176,7 @@ struct Assignment<DstXprType, Solve<CwiseUnaryOp<internal::scalar_conjugate_op<t
     Index dstCols = src.cols();
     if((dst.rows()!=dstRows) || (dst.cols()!=dstCols))
       dst.resize(dstRows, dstCols);
-    
+
     src.dec().nestedExpression().nestedExpression().template _solve_impl_transposed<true>(src.rhs(), dst);
   }
 };

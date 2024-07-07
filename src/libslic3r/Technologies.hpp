@@ -22,7 +22,7 @@
 #define ENABLE_NONCUSTOM_DATA_VIEW_RENDERING 0
 // Enable G-Code viewer statistics imgui dialog
 #define ENABLE_GCODE_VIEWER_STATISTICS 0
-// Enable G-Code viewer comparison between toolpaths height and width detected from gcode and calculated at gcode generation 
+// Enable G-Code viewer comparison between toolpaths height and width detected from gcode and calculated at gcode generation
 #define ENABLE_GCODE_VIEWER_DATA_CHECKING 0
 // Enable project dirty state manager debug window
 #define ENABLE_PROJECT_DIRTY_STATE_DEBUG_WINDOW 0

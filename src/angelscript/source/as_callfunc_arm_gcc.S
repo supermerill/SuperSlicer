@@ -720,7 +720,7 @@ nomoreargsarmFuncR0R1:
 #endif /* arm */
 
 #if defined(__linux__) && defined(__ELF__)
-/* ref: http://hardened.gentoo.org/gnu-stack.xml 
+/* ref: http://hardened.gentoo.org/gnu-stack.xml
    ref: https://wiki.gentoo.org/wiki/Hardened/GNU_stack_quickstart */
 .section .note.GNU-stack,"",%progbits
 #endif

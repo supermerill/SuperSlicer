@@ -32,7 +32,7 @@ namespace internal {
 #if EIGEN_ARCH_ARM64
 #define EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS 32
 #else
-#define EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS 16 
+#define EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS 16
 #endif
 #endif
 
@@ -107,7 +107,7 @@ template<> struct packet_traits<float>  : default_packet_traits
     AlignedOnScalar = 1,
     size = 4,
     HasHalfPacket=0, // Packet2f intrinsics not implemented yet
-   
+
     HasDiv  = 1,
     // FIXME check the Has*
     HasSin  = 0,
@@ -478,7 +478,7 @@ template<> EIGEN_STRONG_INLINE int32_t predux_min<Packet4i>(const Packet4i& a)
   a_hi = vget_high_s32(a);
   min = vpmin_s32(a_lo, a_hi);
   min = vpmin_s32(min, min);
-  
+
   return vget_lane_s32(min, 0);
 }
 
@@ -595,7 +595,7 @@ template<> struct packet_traits<double>  : default_packet_traits
     AlignedOnScalar = 1,
     size = 2,
     HasHalfPacket=0,
-   
+
     HasDiv  = 1,
     // FIXME check the Has*
     HasSin  = 0,
@@ -751,7 +751,7 @@ ptranspose(PacketBlock<Packet2d,2>& kernel) {
   kernel.packet[0] = trn1;
   kernel.packet[1] = trn2;
 }
-#endif // EIGEN_ARCH_ARM64 
+#endif // EIGEN_ARCH_ARM64
 
 } // end namespace internal
 

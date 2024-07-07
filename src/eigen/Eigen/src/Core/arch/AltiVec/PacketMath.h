@@ -85,12 +85,12 @@ static Packet16uc p16uc_DUPLICATE32_HI = { 0,1,2,3, 0,1,2,3, 4,5,6,7, 4,5,6,7 };
 
 // Mask alignment
 #ifdef __PPC64__
-#define _EIGEN_MASK_ALIGNMENT	0xfffffffffffffff0
+#define _EIGEN_MASK_ALIGNMENT    0xfffffffffffffff0
 #else
-#define _EIGEN_MASK_ALIGNMENT	0xfffffff0
+#define _EIGEN_MASK_ALIGNMENT    0xfffffff0
 #endif
 
-#define _EIGEN_ALIGNED_PTR(x)	((std::ptrdiff_t)(x) & _EIGEN_MASK_ALIGNMENT)
+#define _EIGEN_ALIGNED_PTR(x)    ((std::ptrdiff_t)(x) & _EIGEN_MASK_ALIGNMENT)
 
 // Handle endianness properly while loading constants
 // Define global static constants:

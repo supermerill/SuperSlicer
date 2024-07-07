@@ -15,7 +15,7 @@ class ExPolygonCollection
 {
 public:
     ExPolygons expolygons;
-    
+
     ExPolygonCollection() {}
     explicit ExPolygonCollection(const ExPolygon &expolygon);
     explicit ExPolygonCollection(const ExPolygons &expolygons) : expolygons(expolygons) {}

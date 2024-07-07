@@ -59,13 +59,13 @@ static int arduino_read_sig_bytes(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m)
     return -1;
   if (buf[0] == Resp_STK_NOSYNC) {
     avrdude_message(MSG_INFO, "%s: stk500_cmd(): programmer is out of sync\n",
-			progname);
-	return -1;
+            progname);
+    return -1;
   } else if (buf[0] != Resp_STK_INSYNC) {
     avrdude_message(MSG_INFO, "\n%s: arduino_read_sig_bytes(): (a) protocol error, "
                     "expect=0x%02x, resp=0x%02x\n",
                     progname, Resp_STK_INSYNC, buf[0]);
-	return -2;
+    return -2;
   }
   if (buf[4] != Resp_STK_OK) {
     avrdude_message(MSG_INFO, "\n%s: arduino_read_sig_bytes(): (a) protocol error, "
@@ -133,7 +133,7 @@ static int arduino_open(PROGRAMMER * pgm, char * port)
     return -1;
   }
 
-  /* Clear DTR and RTS to unload the RESET capacitor 
+  /* Clear DTR and RTS to unload the RESET capacitor
    * (for example in Arduino) */
   serial_set_dtr_rts(&pgm->fd, 0);
   usleep(250*1000);
@@ -179,7 +179,7 @@ const char arduino_desc[] = "Arduino programmer";
 void arduino_initpgm(PROGRAMMER * pgm)
 {
   /* This is mostly a STK500; just the signature is read
-     differently than on real STK500v1 
+     differently than on real STK500v1
      and the DTR signal is set when opening the serial port
      for the Auto-Reset feature */
   stk500_initpgm(pgm);

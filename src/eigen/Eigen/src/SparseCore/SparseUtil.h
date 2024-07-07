@@ -10,7 +10,7 @@
 #ifndef EIGEN_SPARSEUTIL_H
 #define EIGEN_SPARSEUTIL_H
 
-namespace Eigen { 
+namespace Eigen {
 
 #ifdef NDEBUG
 #define EIGEN_DBG_SPARSE(X)
@@ -43,7 +43,7 @@ EIGEN_SPARSE_INHERIT_ASSIGNMENT_OPERATOR(Derived, =)
 #define EIGEN_SPARSE_PUBLIC_INTERFACE(Derived) \
   EIGEN_GENERIC_PUBLIC_INTERFACE(Derived)
 
-  
+
 const int CoherentAccessPattern     = 0x1;
 const int InnerRandomAccessPattern  = 0x2 | CoherentAccessPattern;
 const int OuterRandomAccessPattern  = 0x4 | CoherentAccessPattern;
@@ -66,7 +66,7 @@ template<typename Lhs, typename Rhs, bool Transpose> class SparseDenseOuterProdu
 template<typename Lhs, typename Rhs> struct SparseSparseProductReturnType;
 template<typename Lhs, typename Rhs,
          int InnerSize = EIGEN_SIZE_MIN_PREFER_FIXED(internal::traits<Lhs>::ColsAtCompileTime,internal::traits<Rhs>::RowsAtCompileTime)> struct DenseSparseProductReturnType;
-         
+
 template<typename Lhs, typename Rhs,
          int InnerSize = EIGEN_SIZE_MIN_PREFER_FIXED(internal::traits<Lhs>::ColsAtCompileTime,internal::traits<Rhs>::RowsAtCompileTime)> struct SparseDenseProductReturnType;
 template<typename MatrixType,int UpLo> class SparseSymmetricPermutationProduct;

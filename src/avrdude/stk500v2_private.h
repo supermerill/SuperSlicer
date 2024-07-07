@@ -1,11 +1,11 @@
 //**** ATMEL AVR - A P P L I C A T I O N   N O T E  ************************
 //*
-//* Title:		AVR068 - STK500 Communication Protocol
-//* Filename:		command.h
-//* Version:		1.0
-//* Last updated:	10.01.2005
+//* Title:        AVR068 - STK500 Communication Protocol
+//* Filename:        command.h
+//* Version:        1.0
+//* Last updated:    10.01.2005
 //*
-//* Support E-mail:	avr@atmel.com
+//* Support E-mail:    avr@atmel.com
 //*
 //**************************************************************************
 
@@ -43,7 +43,7 @@
 #define CMD_READ_SIGNATURE_ISP              0x1B
 #define CMD_READ_OSCCAL_ISP                 0x1C
 #define CMD_SPI_MULTI                       0x1D /* STK500v2, AVRISPmkII,
-						  * JTAGICEmkII */
+                          * JTAGICEmkII */
 #define CMD_SET_SCK                         0x1D /* JTAGICE3 */
 #define CMD_GET_SCK                         0x1E /* JTAGICE3 */
 

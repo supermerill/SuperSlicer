@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Qingnan Zhou <qnzhou@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 //
 #ifndef IGL_COPYLET_CGAL_CLOSEST_FACET_H
@@ -92,7 +92,7 @@ namespace igl
           const std::vector<std::vector<size_t> > & VFi,
           const CGAL::AABB_tree<
             CGAL::AABB_traits<
-              Kernel, 
+              Kernel,
               CGAL::AABB_triangle_primitive<
                 Kernel, typename std::vector<
                   typename Kernel::Triangle_3 >::iterator > > > & tree,

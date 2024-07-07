@@ -10,7 +10,7 @@
 #ifndef EIGEN_ALIGNEDBOX_H
 #define EIGEN_ALIGNEDBOX_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \geometry_module \ingroup Geometry_Module
   *
@@ -231,7 +231,7 @@ EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF_VECTORIZABLE_FIXED_SIZE(_Scalar,_AmbientDim)
   {return AlignedBox(m_min.cwiseMax(b.m_min), m_max.cwiseMin(b.m_max)); }
 
   /** Returns an AlignedBox that is the union of \a b and \c *this.
-   * \note Merging with an empty box may result in a box bigger than \c *this. 
+   * \note Merging with an empty box may result in a box bigger than \c *this.
    * \sa extend(const AlignedBox&) */
   EIGEN_DEVICE_FUNC inline AlignedBox merged(const AlignedBox& b) const
   { return AlignedBox(m_min.cwiseMin(b.m_min), m_max.cwiseMax(b.m_max)); }

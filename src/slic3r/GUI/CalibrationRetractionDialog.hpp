@@ -3,7 +3,7 @@
 
 #include "CalibrationAbstractDialog.hpp"
 
-namespace Slic3r { 
+namespace Slic3r {
 namespace GUI {
 
 class CalibrationRetractionDialog : public CalibrationAbstractDialog
@@ -12,7 +12,7 @@ class CalibrationRetractionDialog : public CalibrationAbstractDialog
 public:
     CalibrationRetractionDialog(GUI_App* app, MainFrame* mainframe) : CalibrationAbstractDialog(app, mainframe, "Retraction calibration") { create(boost::filesystem::path("calibration") / "retraction", "retraction.html", wxSize(900, 500));  }
     virtual ~CalibrationRetractionDialog() {}
-    
+
 protected:
     void create_buttons(wxStdDialogButtonSizer* sizer) override;
     void remove_slowdown(wxCommandEvent& event_args);

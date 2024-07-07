@@ -53,7 +53,7 @@ reg = register as defined in an enum in ppi.h. This must be converted
 #define DEVICE_LPT2 "lpt2"
 #define DEVICE_LPT3 "lpt3"
 
-#define DEVICE_MAX	3
+#define DEVICE_MAX    3
 
 typedef struct
 {
@@ -61,7 +61,7 @@ typedef struct
     int base_address;
 } winpp;
 
-static const winpp winports[DEVICE_MAX] = 
+static const winpp winports[DEVICE_MAX] =
 {
     {DEVICE_LPT1, 0x378},
     {DEVICE_LPT2, 0x278},
@@ -87,7 +87,7 @@ void ppi_open(char *port, union filedescriptor *fdp)
 {
     unsigned char i;
     int fd;
-	
+
     fd = winnt_pp_open();
 
     if(fd < 0)
@@ -110,20 +110,20 @@ void ppi_open(char *port, union filedescriptor *fdp)
     }
     if(fd == -1)
     {
-	/*
-	 * Supplied port name did not match any of the pre-defined
-	 * names.  Try interpreting it as a numeric
-	 * (hexadecimal/decimal/octal) address.
-	 */
-	char *cp;
+    /*
+     * Supplied port name did not match any of the pre-defined
+     * names.  Try interpreting it as a numeric
+     * (hexadecimal/decimal/octal) address.
+     */
+    char *cp;
 
-	fd = strtol(port, &cp, 0);
-	if(*port == '\0' || *cp != '\0')
-	{
-	    avrdude_message(MSG_INFO, "%s: port name \"%s\" is neither lpt1/2/3 nor valid number\n",
+    fd = strtol(port, &cp, 0);
+    if(*port == '\0' || *cp != '\0')
+    {
+        avrdude_message(MSG_INFO, "%s: port name \"%s\" is neither lpt1/2/3 nor valid number\n",
                             progname, port);
-	    fd = -1;
-	}
+        fd = -1;
+    }
     }
     if(fd < 0)
     {
@@ -150,7 +150,7 @@ static int winnt_pp_open(void)
     {
         return(-1);
     }
-    else if(ver_info.dwPlatformId == VER_PLATFORM_WIN32_NT) 
+    else if(ver_info.dwPlatformId == VER_PLATFORM_WIN32_NT)
     {
         HANDLE h = CreateFileA(DRIVERNAME,
             GENERIC_READ,
@@ -317,12 +317,12 @@ static unsigned char reg2offset(int reg)
 static unsigned char inb(unsigned short port)
 {
     unsigned char t;
-    
-	asm volatile ("in %1, %0"
+
+    asm volatile ("in %1, %0"
         : "=a" (t)
         : "d" (port));
-    
-	return t;
+
+    return t;
 }
 
 
@@ -341,13 +341,13 @@ struct timezone;
 int gettimeofday(struct timeval *tv, struct timezone *unused){
 // i've found only ms resolution, avrdude expects us
 
-	SYSTEMTIME st;
-	GetSystemTime(&st);
-  
-	tv->tv_sec=(long)(st.wSecond+st.wMinute*60+st.wHour*3600);
-	tv->tv_usec=(long)(st.wMilliseconds*1000);
+    SYSTEMTIME st;
+    GetSystemTime(&st);
 
-	return 0;
+    tv->tv_sec=(long)(st.wSecond+st.wMinute*60+st.wHour*3600);
+    tv->tv_usec=(long)(st.wMilliseconds*1000);
+
+    return 0;
 }
 #endif /* HAVE_GETTIMEOFDAY */
 
@@ -376,35 +376,35 @@ int gettimeofday(struct timeval *tv, struct timezone *unused){
 #if !defined(HAVE_USLEEP)
 int usleep(unsigned int us)
 {
-	int has_highperf;
-	LARGE_INTEGER freq,start,stop,loopend;
+    int has_highperf;
+    LARGE_INTEGER freq,start,stop,loopend;
 
-	// workaround: although usleep is very precise if using
-	// high-performance-timers there are sometimes problems with
-	// verify - increasing the delay helps sometimes but not
-	// realiably. There must be some other problem. Maybe just
-	// with my test-hardware maybe in the code-base.
-	//// us=(unsigned long) (us*1.5);
+    // workaround: although usleep is very precise if using
+    // high-performance-timers there are sometimes problems with
+    // verify - increasing the delay helps sometimes but not
+    // realiably. There must be some other problem. Maybe just
+    // with my test-hardware maybe in the code-base.
+    //// us=(unsigned long) (us*1.5);
 
-	has_highperf=QueryPerformanceFrequency(&freq);
+    has_highperf=QueryPerformanceFrequency(&freq);
 
-	//has_highperf=0; // debug
+    //has_highperf=0; // debug
 
-	if (has_highperf) {
-		QueryPerformanceCounter(&start);
-		loopend.QuadPart=start.QuadPart+freq.QuadPart*us/(1000*1000);
-		do {
-			QueryPerformanceCounter(&stop);
-		} while (stop.QuadPart<=loopend.QuadPart);
-	}
-	else {
-		DEBUG_QueryPerformanceCounter(&start);
+    if (has_highperf) {
+        QueryPerformanceCounter(&start);
+        loopend.QuadPart=start.QuadPart+freq.QuadPart*us/(1000*1000);
+        do {
+            QueryPerformanceCounter(&stop);
+        } while (stop.QuadPart<=loopend.QuadPart);
+    }
+    else {
+        DEBUG_QueryPerformanceCounter(&start);
 
-		Sleep(1);
-		Sleep( (DWORD)((us+999)/1000) );
+        Sleep(1);
+        Sleep( (DWORD)((us+999)/1000) );
 
-		DEBUG_QueryPerformanceCounter(&stop);
-	}
+        DEBUG_QueryPerformanceCounter(&stop);
+    }
 
     DEBUG_DisplayTimingInfo(start, stop, freq, us, has_highperf);
 

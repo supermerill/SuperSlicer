@@ -45,10 +45,10 @@ RM = rm
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
-	$(CC) -o ./$@ $(OBJECTS) $(LDFLAGS)
+    $(CC) -o ./$@ $(OBJECTS) $(LDFLAGS)
 
 $(OBJECTS): %.o: %.c
-	$(CC) $(CFLAGS) -o $@ -c $<
+    $(CC) $(CFLAGS) -o $@ -c $<
 
 clean:
-	$(RM) -f $(OBJECTS) $(TARGET)
+    $(RM) -f $(OBJECTS) $(TARGET)

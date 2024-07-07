@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Qingnan Zhou <qnzhou@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 //
 #include "propagate_winding_numbers.h"
@@ -40,7 +40,7 @@ IGL_INLINE bool igl::copyleft::cgal::propagate_winding_numbers(
     const Eigen::PlainObjectBase<DerivedV>& V,
     const Eigen::PlainObjectBase<DerivedF>& F,
     const Eigen::PlainObjectBase<DerivedL>& labels,
-    Eigen::PlainObjectBase<DerivedW>& W) 
+    Eigen::PlainObjectBase<DerivedW>& W)
 {
 #ifdef PROPAGATE_WINDING_NUMBER_TIMING
   const auto & tictoc = []() -> double
@@ -119,7 +119,7 @@ IGL_INLINE bool igl::copyleft::cgal::propagate_winding_numbers(
 
   bool valid = true;
   // https://github.com/libigl/libigl/issues/674
-  if (!igl::piecewise_constant_winding_number(F, uE, uE2E)) 
+  if (!igl::piecewise_constant_winding_number(F, uE, uE2E))
   {
     assert(false && "Input mesh is not PWN");
     std::cerr << "Input mesh is not PWN!" << std::endl;
@@ -180,21 +180,21 @@ IGL_INLINE bool igl::copyleft::cgal::propagate_winding_numbers(
           Q.pop();
           int curr_label = cell_labels[curr_idx];
           for (const auto& neighbor : cell_adj[curr_idx]) {
-            if (cell_labels[std::get<0>(neighbor)] == 0) 
+            if (cell_labels[std::get<0>(neighbor)] == 0)
             {
               cell_labels[std::get<0>(neighbor)] = curr_label * -1;
               Q.push(std::get<0>(neighbor));
               parents[std::get<0>(neighbor)] = curr_idx;
-            } else 
+            } else
             {
-              if (cell_labels[std::get<0>(neighbor)] != curr_label * -1) 
+              if (cell_labels[std::get<0>(neighbor)] != curr_label * -1)
               {
                 std::cerr << "Odd cell cycle detected!" << std::endl;
                 auto path = trace_parents(curr_idx);
                 path.reverse();
                 auto path2 = trace_parents(std::get<0>(neighbor));
                 path.insert(path.end(), path2.begin(), path2.end());
-                for (auto cell_id : path) 
+                for (auto cell_id : path)
                 {
                   std::cout << cell_id << " ";
                   std::stringstream filename;
@@ -293,7 +293,7 @@ IGL_INLINE bool igl::copyleft::cgal::propagate_winding_numbers(
 #endif
 
   W.resize(num_faces, num_labels*2);
-  for (size_t i=0; i<num_faces; i++) 
+  for (size_t i=0; i<num_faces; i++)
   {
     const size_t patch = P[i];
     const size_t positive_cell = C(patch, 0);

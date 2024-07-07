@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2014 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_BARYCENTRIC_COORDINATES_H
 #define IGL_BARYCENTRIC_COORDINATES_H
@@ -21,7 +21,7 @@ namespace igl
   //   D  #P by 3 Tet corners in 3d
   // Outputs:
   //   L  #P by 4 list of barycentric coordinates
-  //   
+  //
   template <
     typename DerivedP,
     typename DerivedA,
@@ -45,7 +45,7 @@ namespace igl
   //   C  #P by dim Triangle corners
   // Outputs:
   //   L  #P by 3 list of barycentric coordinates
-  //   
+  //
   template <
     typename DerivedP,
     typename DerivedA,

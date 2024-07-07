@@ -73,7 +73,7 @@ static const std::map<const wchar_t, std::string> font_icons_large = {
     {ImGui::DocumentationButton     , "notification_documentation"      },
     {ImGui::DocumentationHoverButton, "notification_documentation_hover"},
     {ImGui::InfoMarker              , "notification_info"               },
-    
+
 };
 
 static const std::map<const wchar_t, std::string> font_icons_extra_large = {
@@ -380,7 +380,7 @@ void ImGuiWrapper::set_next_window_bg_alpha(float alpha)
 
 void ImGuiWrapper::set_next_window_size(float x, float y, ImGuiCond cond)
 {
-	ImGui::SetNextWindowSize(ImVec2(x, y), cond);
+    ImGui::SetNextWindowSize(ImVec2(x, y), cond);
 }
 
 bool ImGuiWrapper::begin(const std::string &name, int flags)
@@ -416,8 +416,8 @@ bool ImGuiWrapper::button(const wxString &label)
 
 bool ImGuiWrapper::button(const wxString& label, float width, float height)
 {
-	auto label_utf8 = into_u8(label);
-	return ImGui::Button(label_utf8.c_str(), ImVec2(width, height));
+    auto label_utf8 = into_u8(label);
+    return ImGui::Button(label_utf8.c_str(), ImVec2(width, height));
 }
 
 bool ImGuiWrapper::radio_button(const wxString &label, bool active)
@@ -428,7 +428,7 @@ bool ImGuiWrapper::radio_button(const wxString &label, bool active)
 
 bool ImGuiWrapper::image_button()
 {
-	return false;
+    return false;
 }
 
 bool ImGuiWrapper::input_double(const std::string &label, const double &value, const std::string &format)
@@ -637,7 +637,7 @@ bool ImGuiWrapper::combo(const wxString& label, const std::vector<std::string>& 
     return res;
 }
 
-// Scroll up for one item 
+// Scroll up for one item
 static void scroll_up()
 {
     ImGuiContext& g = *GImGui;
@@ -649,7 +649,7 @@ static void scroll_up()
     ImGui::SetScrollY(win_top - item_size_y);
 }
 
-// Scroll down for one item 
+// Scroll down for one item
 static void scroll_down()
 {
     ImGuiContext& g = *GImGui;
@@ -897,7 +897,7 @@ void ImGuiWrapper::search_list(const ImVec2& size_, bool (*items_getter)(int, co
 {
     int& hovered_id = view_params.hovered_id;
     // ImGui::ListBoxHeader("", size);
-    {   
+    {
         // rewrote part of function to add a TextInput instead of label Text
         ImGuiContext& g = *GImGui;
         ImGuiWindow* window = ImGui::GetCurrentWindow();
@@ -1122,9 +1122,9 @@ void ImGuiWrapper::init_font(bool compress)
     io.Fonts->Clear();
 
     // Create ranges of characters from m_glyph_ranges, possibly adding some OS specific special characters.
-	ImVector<ImWchar> ranges;
-	ImFontAtlas::GlyphRangesBuilder builder;
-	builder.AddRanges(m_glyph_ranges);
+    ImVector<ImWchar> ranges;
+    ImFontAtlas::GlyphRangesBuilder builder;
+    builder.AddRanges(m_glyph_ranges);
 
     if (m_font_cjk) {
         // This is a temporary fix of https://github.com/prusa3d/PrusaSlicer/issues/8171. The translation
@@ -1135,15 +1135,15 @@ void ImGuiWrapper::init_font(bool compress)
     }
 
 #ifdef __APPLE__
-	if (m_font_cjk)
-		// Apple keyboard shortcuts are only contained in the CJK fonts.
-		builder.AddRanges(ranges_keyboard_shortcuts);
+    if (m_font_cjk)
+        // Apple keyboard shortcuts are only contained in the CJK fonts.
+        builder.AddRanges(ranges_keyboard_shortcuts);
 #endif
-	builder.BuildRanges(&ranges); // Build the final result (ordered ranges with all the unique characters submitted)
+    builder.BuildRanges(&ranges); // Build the final result (ordered ranges with all the unique characters submitted)
 
     //FIXME replace with io.Fonts->AddFontFromMemoryTTF(buf_decompressed_data, (int)buf_decompressed_size, m_font_size, nullptr, ranges.Data);
     //https://github.com/ocornut/imgui/issues/220
-	ImFont* font = io.Fonts->AddFontFromFileTTF((boost::filesystem::path(Slic3r::resources_dir()) / "fonts" / (m_font_cjk ? "NotoSansCJK-Regular.ttc" : "NotoSans-Regular.ttf")).string().c_str(), m_font_size, nullptr, ranges.Data);
+    ImFont* font = io.Fonts->AddFontFromFileTTF((boost::filesystem::path(Slic3r::resources_dir()) / "fonts" / (m_font_cjk ? "NotoSansCJK-Regular.ttc" : "NotoSans-Regular.ttf")).string().c_str(), m_font_size, nullptr, ranges.Data);
     if (font == nullptr) {
         font = io.Fonts->AddFontDefault();
         if (font == nullptr) {
@@ -1155,7 +1155,7 @@ void ImGuiWrapper::init_font(bool compress)
     ImFontConfig config;
     config.MergeMode = true;
     if (! m_font_cjk) {
-		// Apple keyboard shortcuts are only contained in the CJK fonts.
+        // Apple keyboard shortcuts are only contained in the CJK fonts.
         [[maybe_unused]]ImFont *font_cjk = io.Fonts->AddFontFromFileTTF((boost::filesystem::path(Slic3r::resources_dir()) / "fonts" / "NotoSansCJK-Regular.ttc").string().c_str(), m_font_size, &config, ranges_keyboard_shortcuts);
         assert(font_cjk != nullptr);
     }

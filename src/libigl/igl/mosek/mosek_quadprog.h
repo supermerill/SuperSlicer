@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_MOSEK_MOSEK_QUADPROG_H
 #define IGL_MOSEK_MOSEK_QUADPROG_H
@@ -38,7 +38,7 @@ namespace igl
     // Subject to: lc ≤ Ax ≤ uc
     //             lx ≤ x ≤ ux
     //
-    // where we are trying to find the optimal vector of values x. 
+    // where we are trying to find the optimal vector of values x.
     //
     // Note: Q⁰ must be symmetric and the ½ is a convention of MOSEK
     //
@@ -50,7 +50,7 @@ namespace igl
     // or
     // http://en.wikipedia.org/wiki/Sparse_matrix
     //   #Compressed_sparse_column_.28CSC_or_CCS.29
-    // 
+    //
     //
     // Templates:
     //   Index  type for index variables
@@ -61,11 +61,11 @@ namespace igl
     //       Q⁰
     //   Qj  vector of qnnz column indices of non-zeros in LOWER TRIANGLE ONLY
     //       of Q⁰
-    //   Qv  vector of qnnz values of non-zeros in LOWER TRIANGLE ONLY of Q⁰, 
+    //   Qv  vector of qnnz values of non-zeros in LOWER TRIANGLE ONLY of Q⁰,
     //       such that:
     //
     //           Q⁰(Qi[k],Qj[k]) = Qv[k] for k ∈ [0,Qnnz-1], where Qnnz is the
-    // 
+    //
     //       number of non-zeros in Q⁰
     //   c   (optional) vector of n values of c, transpose of coefficient row
     //       vector of linear terms, EMPTY means c == 0
@@ -86,7 +86,7 @@ namespace igl
     //   x  vector of size n to hold output of optimization
     // Return:
     //   true only if optimization was successful with no errors
-    // 
+    //
     // Note: All indices are 0-based
     //
     template <typename Index, typename Scalar>

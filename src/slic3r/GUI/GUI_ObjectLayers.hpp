@@ -70,7 +70,7 @@ public:
     ObjectLayers(wxWindow* parent);
     ~ObjectLayers() {}
 
-    
+
     // Button remembers the layer height range, for which it has been created.
     // The layer height range for this button is updated when the low or high boundary of the layer height range is updated
     // by the respective text edit field, so that this button emits an action for an up to date layer height range value.

@@ -62,7 +62,7 @@ namespace igl
     //  LocalMinima : Convergenged to a local minima / tolerance not fulfilled
     //  IterationLimit : Max iteration reached before tolerance was fulfilled
     //  Infeasible : not feasible -> has inverted elements (decrease eps?)
-  
+
     enum Energy { Dirichlet = 0, Laplacian=1, Green=2, ARAP=3, LSCM=4, Poisson=5, UniformLaplacian=6, Identity=7 };
     enum State { Uninitialized = -4, Infeasible = -3, IterationLimit = -2, LocalMinima = -1, Running = 0, Succeeded = 1 };
 
@@ -76,7 +76,7 @@ namespace igl
       double tolerance,
       int maxIteration,
       bool findLocalMinima);
-  
+
     State lim(
       Eigen::Matrix<double,Eigen::Dynamic,3>& vertices,
       const Eigen::Matrix<double,Eigen::Dynamic,3>& initialVertices,
@@ -92,7 +92,7 @@ namespace igl
       bool enableAlphaUpdate,
       double beta,
       double eps);
-  
+
     State lim(
       Eigen::Matrix<double,Eigen::Dynamic,3>& vertices,
       const Eigen::Matrix<double,Eigen::Dynamic,3>& initialVertices,
@@ -105,7 +105,7 @@ namespace igl
       double tolerance,
       int maxIteration,
       bool findLocalMinima);
-  
+
     State lim(
       Eigen::Matrix<double,Eigen::Dynamic,3>& vertices,
       const Eigen::Matrix<double,Eigen::Dynamic,3>& initialVertices,

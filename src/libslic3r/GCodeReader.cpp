@@ -40,7 +40,7 @@ const char* GCodeReader::parse_line_internal(const char *ptr, const char *end, G
     PROFILE_FUNC();
 
     assert(is_decimal_separator_point());
-    
+
     // command and args
     const char *c = ptr;
     {
@@ -50,11 +50,11 @@ const char* GCodeReader::parse_line_internal(const char *ptr, const char *end, G
         // Skip the command.
         c = command.second = skip_word(command.first);
         // Up to the end of line or comment.
-		while (! is_end_of_gcode_line(*c)) {
+        while (! is_end_of_gcode_line(*c)) {
             // Skip whitespaces.
             c = skip_whitespaces(c);
-			if (is_end_of_gcode_line(*c))
-				break;
+            if (is_end_of_gcode_line(*c))
+                break;
             // Check the name of the axis.
             Axis axis = NUM_AXES_WITH_UNKNOWN;
             switch (*c) {
@@ -67,8 +67,8 @@ const char* GCodeReader::parse_line_internal(const char *ptr, const char *end, G
                     if (m_extrusion_axis != 0)
                         axis = E;
                 } else if (*c >= 'A' && *c <= 'Z')
-                	// Unknown axis, but we still want to remember that such a axis was seen.
-                	axis = UNKNOWN_AXIS;
+                    // Unknown axis, but we still want to remember that such a axis was seen.
+                    axis = UNKNOWN_AXIS;
                 break;
             }
             if (axis != NUM_AXES_WITH_UNKNOWN) {
@@ -79,7 +79,7 @@ const char* GCodeReader::parse_line_internal(const char *ptr, const char *end, G
                 if (pend != c && is_end_of_word(*pend)) {
                     // The axis value has been parsed correctly.
                     if (axis != UNKNOWN_AXIS)
-	                    gline.m_axis[int(axis)] = float(v);
+                        gline.m_axis[int(axis)] = float(v);
                     gline.m_mask |= 1 << int(axis);
                     c = pend;
                 } else
@@ -90,7 +90,7 @@ const char* GCodeReader::parse_line_internal(const char *ptr, const char *end, G
                 c = skip_word(c);
         }
     }
-    
+
     if (gline.has(E) && m_config.use_relative_e_distances)
         m_position[E] = 0;
 
@@ -104,10 +104,10 @@ const char* GCodeReader::parse_line_internal(const char *ptr, const char *end, G
     }
 
     // Skip the trailing newlines.
-	if (*c == '\r')
-		++ c;
-	if (*c == '\n')
-		++ c;
+    if (*c == '\r')
+        ++ c;
+    if (*c == '\n')
+        ++ c;
 
     if (m_verbose)
         std::cout << gline.m_raw << std::endl;
@@ -170,7 +170,7 @@ bool GCodeReader::parse_file_raw_internal(const std::string &filename, ParseLine
             } else
                 gcode_line.insert(gcode_line.end(), it, it_end);
             // Skip EOL.
-            it = it_end; 
+            it = it_end;
             if (it != it_bufend && *it == '\r')
                 ++ it;
             if (it != it_bufend && *it == '\n') {
@@ -188,12 +188,12 @@ bool GCodeReader::parse_file_raw_internal(const std::string &filename, ParseLine
 template<typename ParseLineCallback, typename LineEndCallback>
 bool GCodeReader::parse_file_internal(const std::string &filename, ParseLineCallback parse_line_callback, LineEndCallback line_end_callback)
 {
-    GCodeLine gline;    
-    return this->parse_file_raw_internal(filename, 
+    GCodeLine gline;
+    return this->parse_file_raw_internal(filename,
         [this, &gline, parse_line_callback](const char *begin, const char *end) {
             gline.reset();
             this->parse_line(begin, end, gline, parse_line_callback);
-        }, 
+        },
         line_end_callback);
 }
 
@@ -211,7 +211,7 @@ bool GCodeReader::parse_file(const std::string &file, callback_t callback, std::
 bool GCodeReader::parse_file_raw(const std::string &filename, raw_line_callback_t line_callback)
 {
     return this->parse_file_raw_internal(filename,
-        [this, line_callback](const char *begin, const char *end) { line_callback(*this, begin, end); }, 
+        [this, line_callback](const char *begin, const char *end) { line_callback(*this, begin, end); },
         [](size_t){});
 }
 

@@ -11,7 +11,7 @@
 #include <wx/gbsizer.h>
 #include <wx/stc/stc.h>
 
-namespace Slic3r { 
+namespace Slic3r {
 namespace GUI {
 
 //can't be defeined here, so it will be defined in cpp (because of include sheanigans)
@@ -46,7 +46,7 @@ class FreeCADDialog : public DPIDialog
 public:
     FreeCADDialog(GUI_App* app, MainFrame* mainframe);
     virtual ~FreeCADDialog();
-    
+
 protected:
     void close_me(wxCommandEvent& event_args);
     void createSTC();

@@ -2,8 +2,8 @@
 // Anti-Grain Geometry - Version 2.4
 // Copyright (C) 2002-2005 Maxim Shemanarev (http://www.antigrain.com)
 //
-// Permission to copy, use, modify, sell and distribute this software 
-// is granted provided this copyright notice appears in all copies. 
+// Permission to copy, use, modify, sell and distribute this software
+// is granted provided this copyright notice appears in all copies.
 // This software is provided "as is" without express or implied
 // warranty, and with no claim as to its suitability for any purpose.
 //
@@ -49,7 +49,7 @@ namespace agg
         //--------------------------------------------------------------------
         const pixfmt_type& ren() const { return *m_ren;  }
         pixfmt_type& ren() { return *m_ren;  }
-          
+
         //--------------------------------------------------------------------
         unsigned width()  const { return m_ren->width();  }
         unsigned height() const { return m_ren->height(); }
@@ -132,7 +132,7 @@ namespace agg
                 }
             }
         }
-          
+
 
         //--------------------------------------------------------------------
         void fill(const color_type& c)
@@ -146,7 +146,7 @@ namespace agg
                 }
             }
         }
-        
+
         //--------------------------------------------------------------------
         void copy_pixel(int x, int y, const color_type& c)
         {
@@ -168,7 +168,7 @@ namespace agg
         //--------------------------------------------------------------------
         color_type pixel(int x, int y) const
         {
-            return inbox(x, y) ? 
+            return inbox(x, y) ?
                    m_ren->pixel(x, y) :
                    color_type::no_color();
         }
@@ -204,7 +204,7 @@ namespace agg
         }
 
         //--------------------------------------------------------------------
-        void blend_hline(int x1, int y, int x2, 
+        void blend_hline(int x1, int y, int x2,
                          const color_type& c, cover_type cover)
         {
             if(x1 > x2) { int t = x2; x2 = x1; x1 = t; }
@@ -220,7 +220,7 @@ namespace agg
         }
 
         //--------------------------------------------------------------------
-        void blend_vline(int x, int y1, int y2, 
+        void blend_vline(int x, int y1, int y2,
                          const color_type& c, cover_type cover)
         {
             if(y1 > y2) { int t = y2; y2 = y1; y1 = t; }
@@ -252,7 +252,7 @@ namespace agg
         }
 
         //--------------------------------------------------------------------
-        void blend_bar(int x1, int y1, int x2, int y2, 
+        void blend_bar(int x1, int y1, int x2, int y2,
                        const color_type& c, cover_type cover)
         {
             rect_i rc(x1, y1, x2, y2);
@@ -264,16 +264,16 @@ namespace agg
                 {
                     m_ren->blend_hline(rc.x1,
                                        y,
-                                       unsigned(rc.x2 - rc.x1 + 1), 
-                                       c, 
+                                       unsigned(rc.x2 - rc.x1 + 1),
+                                       c,
                                        cover);
                 }
             }
         }
 
         //--------------------------------------------------------------------
-        void blend_solid_hspan(int x, int y, int len, 
-                               const color_type& c, 
+        void blend_solid_hspan(int x, int y, int len,
+                               const color_type& c,
                                const cover_type* covers)
         {
             if(y > ymax()) return;
@@ -295,8 +295,8 @@ namespace agg
         }
 
         //--------------------------------------------------------------------
-        void blend_solid_vspan(int x, int y, int len, 
-                               const color_type& c, 
+        void blend_solid_vspan(int x, int y, int len,
+                               const color_type& c,
                                const cover_type* covers)
         {
             if(x > xmax()) return;
@@ -365,8 +365,8 @@ namespace agg
 
 
         //--------------------------------------------------------------------
-        void blend_color_hspan(int x, int y, int len, 
-                               const color_type* colors, 
+        void blend_color_hspan(int x, int y, int len,
+                               const color_type* colors,
                                const cover_type* covers,
                                cover_type cover = agg::cover_full)
         {
@@ -391,8 +391,8 @@ namespace agg
         }
 
         //--------------------------------------------------------------------
-        void blend_color_vspan(int x, int y, int len, 
-                               const color_type* colors, 
+        void blend_color_vspan(int x, int y, int len,
+                               const color_type* colors,
                                const cover_type* covers,
                                cover_type cover = agg::cover_full)
         {
@@ -462,15 +462,15 @@ namespace agg
 
         //--------------------------------------------------------------------
         template<class RenBuf>
-        void copy_from(const RenBuf& src, 
-                       const rect_i* rect_src_ptr = 0, 
-                       int dx = 0, 
+        void copy_from(const RenBuf& src,
+                       const rect_i* rect_src_ptr = 0,
+                       int dx = 0,
                        int dy = 0)
         {
             rect_i rsrc(0, 0, src.width(), src.height());
             if(rect_src_ptr)
             {
-                rsrc.x1 = rect_src_ptr->x1; 
+                rsrc.x1 = rect_src_ptr->x1;
                 rsrc.y1 = rect_src_ptr->y1;
                 rsrc.x2 = rect_src_ptr->x2 + 1;
                 rsrc.y2 = rect_src_ptr->y2 + 1;
@@ -495,7 +495,7 @@ namespace agg
                 }
                 while(rc.y2 > 0)
                 {
-                    m_ren->copy_from(src, 
+                    m_ren->copy_from(src,
                                      rdst.x1, rdst.y1,
                                      rsrc.x1, rsrc.y1,
                                      rc.x2);
@@ -508,16 +508,16 @@ namespace agg
 
         //--------------------------------------------------------------------
         template<class SrcPixelFormatRenderer>
-        void blend_from(const SrcPixelFormatRenderer& src, 
-                        const rect_i* rect_src_ptr = 0, 
-                        int dx = 0, 
+        void blend_from(const SrcPixelFormatRenderer& src,
+                        const rect_i* rect_src_ptr = 0,
+                        int dx = 0,
                         int dy = 0,
                         cover_type cover = agg::cover_full)
         {
             rect_i rsrc(0, 0, src.width(), src.height());
             if(rect_src_ptr)
             {
-                rsrc.x1 = rect_src_ptr->x1; 
+                rsrc.x1 = rect_src_ptr->x1;
                 rsrc.y1 = rect_src_ptr->y1;
                 rsrc.x2 = rect_src_ptr->x2 + 1;
                 rsrc.y2 = rect_src_ptr->y2 + 1;
@@ -578,17 +578,17 @@ namespace agg
 
         //--------------------------------------------------------------------
         template<class SrcPixelFormatRenderer>
-        void blend_from_color(const SrcPixelFormatRenderer& src, 
+        void blend_from_color(const SrcPixelFormatRenderer& src,
                               const color_type& color,
-                              const rect_i* rect_src_ptr = 0, 
-                              int dx = 0, 
+                              const rect_i* rect_src_ptr = 0,
+                              int dx = 0,
                               int dy = 0,
                               cover_type cover = agg::cover_full)
         {
             rect_i rsrc(0, 0, src.width(), src.height());
             if(rect_src_ptr)
             {
-                rsrc.x1 = rect_src_ptr->x1; 
+                rsrc.x1 = rect_src_ptr->x1;
                 rsrc.y1 = rect_src_ptr->y1;
                 rsrc.x2 = rect_src_ptr->x2 + 1;
                 rsrc.y2 = rect_src_ptr->y2 + 1;
@@ -650,17 +650,17 @@ namespace agg
 
         //--------------------------------------------------------------------
         template<class SrcPixelFormatRenderer>
-        void blend_from_lut(const SrcPixelFormatRenderer& src, 
+        void blend_from_lut(const SrcPixelFormatRenderer& src,
                             const color_type* color_lut,
-                            const rect_i* rect_src_ptr = 0, 
-                            int dx = 0, 
+                            const rect_i* rect_src_ptr = 0,
+                            int dx = 0,
                             int dy = 0,
                             cover_type cover = agg::cover_full)
         {
             rect_i rsrc(0, 0, src.width(), src.height());
             if(rect_src_ptr)
             {
-                rsrc.x1 = rect_src_ptr->x1; 
+                rsrc.x1 = rect_src_ptr->x1;
                 rsrc.y1 = rect_src_ptr->y1;
                 rsrc.x2 = rect_src_ptr->x2 + 1;
                 rsrc.y2 = rect_src_ptr->y2 + 1;

@@ -232,11 +232,11 @@ protected:
 public:
     /*!
      * Convert the tree into polylines
-     * 
+     *
      * At each junction one line is chosen at random to continue
-     * 
+     *
      * The lines start at a leaf and end in a junction
-     * 
+     *
      * \param output all branches in this tree connected into polylines
      */
     void convertToPolylines(Polylines &output, coord_t line_overlap) const;
@@ -250,11 +250,11 @@ public:
 protected:
     /*!
      * Convert the tree into polylines
-     * 
+     *
      * At each junction one line is chosen at random to continue
-     * 
+     *
      * The lines start at a leaf and end in a junction
-     * 
+     *
      * \param long_line a reference to a polyline in \p output which to continue building on in the recursion
      * \param output all branches in this tree connected into polylines
      */

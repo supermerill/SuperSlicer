@@ -20,21 +20,21 @@ public:
     // Return next layer height starting from the last print_z, using a quality measure
     // (quality in range from 0 to 1, 0 - highest quality at low layer heights, 1 - lowest print quality at high layer heights).
     // The layer height curve shall be centered roughly around the default profile's layer height for quality 0.5.
-	float next_layer_height(const float print_z, float quality, size_t &current_facet);
+    float next_layer_height(const float print_z, float quality, size_t &current_facet);
     float horizontal_facet_distance(float z);
 
-	struct FaceZ {
-		std::pair<float, float> z_span;
-		// Cosine of the normal vector towards the Z axis.
-		float					n_cos;
-		// Sine of the normal vector towards the Z axis.
-		float					n_sin;
-	};
+    struct FaceZ {
+        std::pair<float, float> z_span;
+        // Cosine of the normal vector towards the Z axis.
+        float                    n_cos;
+        // Sine of the normal vector towards the Z axis.
+        float                    n_sin;
+    };
 
 protected:
-	const SlicingParameters* m_slicing_params;
+    const SlicingParameters* m_slicing_params;
 
-	std::vector<FaceZ>		m_faces;
+    std::vector<FaceZ>        m_faces;
 };
 
 }; // namespace Slic3r

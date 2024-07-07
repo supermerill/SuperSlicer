@@ -26,7 +26,7 @@
  * For parallel port connected programmers, the pin definitions can be
  * changed via a config file.  See the config file for instructions on
  * how to add a programmer definition.
- *  
+ *
  */
 
 #include "ac_cfg.h"
@@ -207,7 +207,7 @@ int    ovsigck;     /* 1=override sig check, 0=don't */
  */
 static void usage(void)
 {
-  avrdude_message(MSG_INFO, 
+  avrdude_message(MSG_INFO,
  "Usage: %s [options]\n"
  "Options:\n"
  "  -p <partno>                Required. Specify AVR device.\n"
@@ -597,60 +597,60 @@ int avrdude_main(int argc, char * argv [])
         }
         break;
 
-      case 'B':	/* specify JTAG ICE bit clock period */
-	bitclock = strtod(optarg, &e);
-	if (*e != 0) {
-	  /* trailing unit of measure present */
-	  size_t suffixlen = strlen(e);
-	  switch (suffixlen) {
-	  case 2:
-	    if ((e[0] != 'h' && e[0] != 'H') || e[1] != 'z')
-	      bitclock = 0.0;
-	    else
-	      /* convert from Hz to microseconds */
-	      bitclock = 1E6 / bitclock;
-	    break;
+      case 'B':    /* specify JTAG ICE bit clock period */
+    bitclock = strtod(optarg, &e);
+    if (*e != 0) {
+      /* trailing unit of measure present */
+      size_t suffixlen = strlen(e);
+      switch (suffixlen) {
+      case 2:
+        if ((e[0] != 'h' && e[0] != 'H') || e[1] != 'z')
+          bitclock = 0.0;
+        else
+          /* convert from Hz to microseconds */
+          bitclock = 1E6 / bitclock;
+        break;
 
-	  case 3:
-	    if ((e[1] != 'h' && e[1] != 'H') || e[2] != 'z')
-	      bitclock = 0.0;
-	    else {
-	      switch (e[0]) {
-	      case 'M':
-	      case 'm':		/* no Millihertz here :) */
-		bitclock = 1.0 / bitclock;
-		break;
+      case 3:
+        if ((e[1] != 'h' && e[1] != 'H') || e[2] != 'z')
+          bitclock = 0.0;
+        else {
+          switch (e[0]) {
+          case 'M':
+          case 'm':        /* no Millihertz here :) */
+        bitclock = 1.0 / bitclock;
+        break;
 
-	      case 'k':
-		bitclock = 1E3 / bitclock;
-		break;
+          case 'k':
+        bitclock = 1E3 / bitclock;
+        break;
 
-	      default:
-		bitclock = 0.0;
-		break;
-	      }
-	    }
-	    break;
+          default:
+        bitclock = 0.0;
+        break;
+          }
+        }
+        break;
 
-	  default:
-	    bitclock = 0.0;
-	    break;
-	  }
-	  if (bitclock == 0.0)
-	    avrdude_message(MSG_INFO, "%s: invalid bit clock unit of measure '%s'\n",
-			    progname, e);
-	}
-	if ((e == optarg) || bitclock == 0.0) {
-	  avrdude_message(MSG_INFO, "%s: invalid bit clock period specified '%s'\n",
+      default:
+        bitclock = 0.0;
+        break;
+      }
+      if (bitclock == 0.0)
+        avrdude_message(MSG_INFO, "%s: invalid bit clock unit of measure '%s'\n",
+                progname, e);
+    }
+    if ((e == optarg) || bitclock == 0.0) {
+      avrdude_message(MSG_INFO, "%s: invalid bit clock period specified '%s'\n",
                   progname, optarg);
           return cleanup_main(1);
         }
         break;
 
-      case 'i':	/* specify isp clock delay */
-	ispdelay = strtol(optarg, &e,10);
-	if ((e == optarg) || (*e != 0) || ispdelay == 0) {
-	  avrdude_message(MSG_INFO, "%s: invalid isp clock delay specified '%s'\n",
+      case 'i':    /* specify isp clock delay */
+    ispdelay = strtol(optarg, &e,10);
+    if ((e == optarg) || (*e != 0) || ispdelay == 0) {
+      avrdude_message(MSG_INFO, "%s: invalid isp clock delay specified '%s'\n",
                   progname, optarg);
           return cleanup_main(1);
         }
@@ -687,16 +687,16 @@ int avrdude_main(int argc, char * argv [])
         break;
 
   //     case 'l':
-	// logfile = optarg;
-	// break;
+    // logfile = optarg;
+    // break;
 
       case 'n':
         uflags |= UF_NOWRITE;
         break;
 
       case 'O': /* perform RC oscillator calibration */
-	calibrate = 1;
-	break;
+    calibrate = 1;
+    break;
 
       case 'p' : /* specify AVR part */
         partdesc = optarg;
@@ -714,7 +714,7 @@ int avrdude_main(int argc, char * argv [])
         silentsafe = 1;
         safemode = 1;
         break;
-        
+
       case 't': /* enter terminal mode */
         terminal = 1;
         break;
@@ -780,7 +780,7 @@ int avrdude_main(int argc, char * argv [])
   //   if (newstderr == NULL) {
   //     /* Help!  There's no stderr to complain to anymore now. */
   //     printf("Cannot create logfile \"%s\": %s\n",
-	//      logfile, strerror(errno));
+    //      logfile, strerror(errno));
   //     return 1;
   //   }
   // }
@@ -1059,9 +1059,9 @@ int avrdude_main(int argc, char * argv [])
     avrdude_message(MSG_NOTICE, "%sUsing Port                    : %s\n", progbuf, port);
     avrdude_message(MSG_NOTICE, "%sUsing Programmer              : %s\n", progbuf, programmer);
     if ((strcmp(pgm->type, "avr910") == 0)) {
-	  avrdude_message(MSG_NOTICE, "%savr910_devcode (avrdude.conf) : ", progbuf);
+      avrdude_message(MSG_NOTICE, "%savr910_devcode (avrdude.conf) : ", progbuf);
       if(p->avr910_devcode)avrdude_message(MSG_INFO, "0x%x\n", p->avr910_devcode);
-	  else avrdude_message(MSG_NOTICE, "none\n");
+      else avrdude_message(MSG_NOTICE, "none\n");
     }
   }
 
@@ -1179,7 +1179,7 @@ int avrdude_main(int argc, char * argv [])
         goto main_exit;
       }
     }
-  
+
     sig = avr_locate_mem(p, "signature");
     if (sig == NULL) {
       avrdude_message(MSG_INFO, "%s: WARNING: signature data not defined for device \"%s\"\n",
@@ -1263,21 +1263,21 @@ int avrdude_main(int argc, char * argv [])
 
     if (rc != 0) {
 
-	  //Check if the programmer just doesn't support reading
-  	  if (rc == -5)
-			{
-				avrdude_message(MSG_NOTICE, "%s: safemode: Fuse reading not support by programmer.\n"
-						"              Safemode disabled.\n", progname);
-			}
+      //Check if the programmer just doesn't support reading
+        if (rc == -5)
+            {
+                avrdude_message(MSG_NOTICE, "%s: safemode: Fuse reading not support by programmer.\n"
+                        "              Safemode disabled.\n", progname);
+            }
       else
-			{
+            {
 
-      		avrdude_message(MSG_INFO, "%s: safemode: To protect your AVR the programming "
-            				    "will be aborted\n",
-               					 progname);
-      		exitrc = 1;
-		    goto main_exit;
-			}
+              avrdude_message(MSG_INFO, "%s: safemode: To protect your AVR the programming "
+                                "will be aborted\n",
+                                    progname);
+              exitrc = 1;
+            goto main_exit;
+            }
     } else {
       //Save the fuses as default
       safemode_memfuses(1, &safemode_lfuse, &safemode_hfuse, &safemode_efuse, &safemode_fuse);
@@ -1327,7 +1327,7 @@ int avrdude_main(int argc, char * argv [])
                       progname);
     } else {
       if (quell_progress < 2) {
-      	avrdude_message(MSG_INFO, "%s: erasing chip\n", progname);
+          avrdude_message(MSG_INFO, "%s: erasing chip\n", progname);
       }
       exitrc = avr_chip_erase(pgm, p);
       if(exitrc) goto main_exit;
@@ -1388,26 +1388,26 @@ int avrdude_main(int argc, char * argv [])
                         "I have given up and exited programming mode\n",
                         progname);
         exitrc = 1;
-        goto main_exit;        
+        goto main_exit;
       }
     }
-    
+
     /* Now check what fuses are against what they should be */
     if (safemodeafter_fuse != safemode_fuse) {
       fuses_updated = 1;
       avrdude_message(MSG_INFO, "%s: safemode: fuse changed! Was %x, and is now %x\n",
               progname, safemode_fuse, safemodeafter_fuse);
 
-              
+
       /* Ask user - should we change them */
-       
+
        if (silentsafe == 0)
             safemode_response = terminal_get_input("Would you like this fuse to be changed back? [y/n] ");
        else
             safemode_response = yes;
-       
+
        if (tolower((int)(safemode_response[0])) == 'y') {
-              
+
             /* Enough chit-chat, time to program some fuses and check them */
             if (safemode_writefuse (safemode_fuse, "fuse", pgm, p,
                                     10) == 0) {
@@ -1426,16 +1426,16 @@ int avrdude_main(int argc, char * argv [])
       avrdude_message(MSG_INFO, "%s: safemode: lfuse changed! Was %x, and is now %x\n",
               progname, safemode_lfuse, safemodeafter_lfuse);
 
-              
+
       /* Ask user - should we change them */
-       
+
        if (silentsafe == 0)
             safemode_response = terminal_get_input("Would you like this fuse to be changed back? [y/n] ");
        else
             safemode_response = yes;
-       
+
        if (tolower((int)(safemode_response[0])) == 'y') {
-              
+
             /* Enough chit-chat, time to program some fuses and check them */
             if (safemode_writefuse (safemode_lfuse, "lfuse", pgm, p,
                                     10) == 0) {
@@ -1453,7 +1453,7 @@ int avrdude_main(int argc, char * argv [])
       fuses_updated = 1;
       avrdude_message(MSG_INFO, "%s: safemode: hfuse changed! Was %x, and is now %x\n",
               progname, safemode_hfuse, safemodeafter_hfuse);
-              
+
       /* Ask user - should we change them */
        if (silentsafe == 0)
             safemode_response = terminal_get_input("Would you like this fuse to be changed back? [y/n] ");
@@ -1485,7 +1485,7 @@ int avrdude_main(int argc, char * argv [])
        else
             safemode_response = yes;
        if (tolower((int)(safemode_response[0])) == 'y') {
-              
+
             /* Enough chit-chat, time to program some fuses and check them */
             if (safemode_writefuse (safemode_efuse, "efuse", pgm, p,
                                     10) == 0) {

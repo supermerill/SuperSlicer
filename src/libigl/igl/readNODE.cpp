@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "readNODE.h"
 #include "matrix_to_list.h"
@@ -95,7 +95,7 @@ IGL_INLINE bool igl::readNODE(
 
   int line_no = 0;
   int p = 0;
-  while (fgets(line, LINE_MAX, node_file) != NULL) 
+  while (fgets(line, LINE_MAX, node_file) != NULL)
   {
     line_no++;
     // Skip comments and blank lines

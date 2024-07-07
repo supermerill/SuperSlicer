@@ -25,7 +25,7 @@ namespace igl
       // See also: string_to_mesh_boolean_type
       IGL_INLINE void mesh_boolean_type_to_funcs(
         const MeshBooleanType & type,
-        std::function<int(const Eigen::Matrix<int,1,Eigen::Dynamic>) >& 
+        std::function<int(const Eigen::Matrix<int,1,Eigen::Dynamic>) >&
           wind_num_op,
         std::function<int(const int, const int)> & keep);
     }

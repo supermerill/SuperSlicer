@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "is_symmetric.h"
 #include "find.h"
@@ -39,7 +39,7 @@ IGL_INLINE bool igl::is_symmetric(
 
 template <typename AType, typename epsilonT>
 IGL_INLINE bool igl::is_symmetric(
-  const Eigen::SparseMatrix<AType>& A, 
+  const Eigen::SparseMatrix<AType>& A,
   const epsilonT epsilon)
 {
   using namespace Eigen;
@@ -58,7 +58,7 @@ IGL_INLINE bool igl::is_symmetric(
   {
     return true;
   }
-  
+
   return AmATV.maxCoeff() < epsilon && AmATV.minCoeff() > -epsilon;
 }
 

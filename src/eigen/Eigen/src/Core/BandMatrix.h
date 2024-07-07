@@ -10,7 +10,7 @@
 #ifndef EIGEN_BANDMATRIX_H
 #define EIGEN_BANDMATRIX_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -45,7 +45,7 @@ class BandMatrixBase : public EigenBase<Derived>
     };
 
   public:
-    
+
     using Base::derived;
     using Base::rows;
     using Base::cols;
@@ -55,10 +55,10 @@ class BandMatrixBase : public EigenBase<Derived>
 
     /** \returns the number of sub diagonals */
     inline Index subs() const { return derived().subs(); }
-    
+
     /** \returns an expression of the underlying coefficient matrix */
     inline const CoefficientsType& coeffs() const { return derived().coeffs(); }
-    
+
     /** \returns an expression of the underlying coefficient matrix */
     inline CoefficientsType& coeffs() { return derived().coeffs(); }
 
@@ -130,7 +130,7 @@ class BandMatrixBase : public EigenBase<Derived>
       eigen_assert((i<0 && -i<=subs()) || (i>=0 && i<=supers()));
       return Block<const CoefficientsType,1,Dynamic>(coeffs(), supers()-i, std::max<Index>(0,i), 1, diagonalLength(i));
     }
-    
+
     template<typename Dest> inline void evalTo(Dest& dst) const
     {
       dst.resize(rows(),cols());

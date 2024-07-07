@@ -10,7 +10,7 @@
 #ifndef EIGEN_DOT_H
 #define EIGEN_DOT_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -78,7 +78,7 @@ MatrixBase<Derived>::dot(const MatrixBase<OtherDerived>& other) const
   typedef internal::scalar_conj_product_op<Scalar,typename OtherDerived::Scalar> func;
   EIGEN_CHECK_BINARY_COMPATIBILIY(func,Scalar,typename OtherDerived::Scalar);
 #endif
-  
+
   eigen_assert(size() == other.size());
 
   return internal::dot_nocheck<Derived,OtherDerived>::run(*this, other);

@@ -4,17 +4,17 @@ Microsoft Visual Studio Solution File, Format Version 10.00
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "generator", "generator.vcproj", "{086A2F1A-01B1-4EB3-A8FA-0926FF10E953}"
 EndProject
 Global
-	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Debug|Win32 = Debug|Win32
-		Release|Win32 = Release|Win32
-	EndGlobalSection
-	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{086A2F1A-01B1-4EB3-A8FA-0926FF10E953}.Debug|Win32.ActiveCfg = Debug|Win32
-		{086A2F1A-01B1-4EB3-A8FA-0926FF10E953}.Debug|Win32.Build.0 = Debug|Win32
-		{086A2F1A-01B1-4EB3-A8FA-0926FF10E953}.Release|Win32.ActiveCfg = Release|Win32
-		{086A2F1A-01B1-4EB3-A8FA-0926FF10E953}.Release|Win32.Build.0 = Release|Win32
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
-	EndGlobalSection
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|Win32 = Debug|Win32
+        Release|Win32 = Release|Win32
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        {086A2F1A-01B1-4EB3-A8FA-0926FF10E953}.Debug|Win32.ActiveCfg = Debug|Win32
+        {086A2F1A-01B1-4EB3-A8FA-0926FF10E953}.Debug|Win32.Build.0 = Debug|Win32
+        {086A2F1A-01B1-4EB3-A8FA-0926FF10E953}.Release|Win32.ActiveCfg = Release|Win32
+        {086A2F1A-01B1-4EB3-A8FA-0926FF10E953}.Release|Win32.Build.0 = Release|Win32
+    EndGlobalSection
+    GlobalSection(SolutionProperties) = preSolution
+        HideSolutionNode = FALSE
+    EndGlobalSection
 EndGlobal

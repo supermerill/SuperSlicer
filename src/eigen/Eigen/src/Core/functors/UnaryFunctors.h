@@ -777,7 +777,7 @@ struct scalar_sign_op<Scalar,true> {
 template<typename Scalar>
 struct functor_traits<scalar_sign_op<Scalar> >
 { enum {
-    Cost = 
+    Cost =
         NumTraits<Scalar>::IsComplex
         ? ( 8*NumTraits<Scalar>::MulCost  ) // roughly
         : ( 3*NumTraits<Scalar>::AddCost),

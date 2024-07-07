@@ -34,10 +34,10 @@ extern "C" {
 /*---------------------------------------------------------------------------*/
 
 typedef struct _ShinyNodeState {
-	ShinyNode *node;
-	int zoneUpdating;
+    ShinyNode *node;
+    int zoneUpdating;
 
-	struct _ShinyNodeState *_prev;
+    struct _ShinyNodeState *_prev;
 } ShinyNodeState;
 
 

@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "swept_volume_signed_distance.h"
 #include "LinSpaced.h"
@@ -60,7 +60,7 @@ IGL_INLINE void igl::swept_volume_signed_distance(
       {
         continue;
       }
-      const RowVector3d gv = 
+      const RowVector3d gv =
         (GV.row(g) - At.translation().transpose())*At.linear();
       // If outside of extended box, then consider it "far away enough"
       if(finite_iso && !box.contains(gv.transpose()))
@@ -71,9 +71,9 @@ IGL_INLINE void igl::swept_volume_signed_distance(
       int i;
       double sqrd,s;
       //signed_distance_pseudonormal(tree,V,F,FN,VN,EN,EMAP,gv,s,sqrd,i,c,n);
-      const double min_sqrd = 
-        finite_iso ? 
-        pow(sqrt(3.)*h+isolevel,2) : 
+      const double min_sqrd =
+        finite_iso ?
+        pow(sqrt(3.)*h+isolevel,2) :
         numeric_limits<double>::infinity();
       sqrd = tree.squared_distance(V,F,gv,min_sqrd,i,c);
       if(sqrd<min_sqrd)
@@ -117,6 +117,6 @@ IGL_INLINE void igl::swept_volume_signed_distance(
   using namespace igl;
   using namespace Eigen;
   S = VectorXd::Constant(GV.rows(),1,numeric_limits<double>::quiet_NaN());
-  return 
+  return
     swept_volume_signed_distance(V,F,transform,steps,GV,res,h,isolevel,S,S);
 }

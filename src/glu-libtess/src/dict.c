@@ -38,7 +38,7 @@
 
 /* really __gl_dictListNewDict */
 Dict *dictNewDict( void *frame,
-		   int (*leq)(void *frame, DictKey key1, DictKey key2) )
+           int (*leq)(void *frame, DictKey key1, DictKey key2) )
 {
   Dict *dict = (Dict *) memAlloc( sizeof( Dict ));
   DictNode *head;

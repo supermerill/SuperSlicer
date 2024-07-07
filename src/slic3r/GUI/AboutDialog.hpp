@@ -8,14 +8,14 @@
 #include "GUI_Utils.hpp"
 #include "wxExtensions.hpp"
 
-namespace Slic3r { 
+namespace Slic3r {
 namespace GUI {
 
 class AboutDialogLogo : public wxPanel
 {
 public:
     AboutDialogLogo(wxWindow* parent);
-    
+
 private:
     wxBitmap logo;
     void onRepaint(wxEvent &event);
@@ -30,17 +30,17 @@ public:
     ~CopyrightsDialog() {}
 
     struct Entry {
-        Entry(const std::string &lib_name, const std::string &copyright, const std::string &link) : 
+        Entry(const std::string &lib_name, const std::string &copyright, const std::string &link) :
             lib_name(lib_name), copyright(copyright), link(link) {}
 
         std::string     lib_name;
         std::string     copyright;
-        std::string   	link;
+        std::string       link;
     };
 
 protected:
     void on_dpi_changed(const wxRect &suggested_rect) override;
-    
+
 private:
     wxHtmlWindow*   m_html;
     std::vector<Entry> m_entries;
@@ -66,7 +66,7 @@ public:
 
 protected:
     void on_dpi_changed(const wxRect &suggested_rect) override;
-    
+
 private:
     void onLinkClicked(wxHtmlLinkEvent &event);
     void onCloseDialog(wxEvent &);

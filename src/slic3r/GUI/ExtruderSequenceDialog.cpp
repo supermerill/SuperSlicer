@@ -58,8 +58,8 @@ ExtruderSequenceDialog::ExtruderSequenceDialog(const DoubleSlider::ExtrudersSequ
     rb_by_layers->SetValue(!m_sequence.is_mm_intervals);
 
     wxStaticText* st_by_layers = new wxStaticText(this, wxID_ANY, _(L("layers")));
-    m_interval_by_layers = new wxTextCtrl(this, wxID_ANY, 
-                                          wxString::Format("%d", m_sequence.interval_by_layers), 
+    m_interval_by_layers = new wxTextCtrl(this, wxID_ANY,
+                                          wxString::Format("%d", m_sequence.interval_by_layers),
                                           wxDefaultPosition, editor_sz
 #ifdef _WIN32
         , wxBORDER_SIMPLE
@@ -79,7 +79,7 @@ ExtruderSequenceDialog::ExtruderSequenceDialog(const DoubleSlider::ExtrudersSequ
             m_interval_by_layers->SetValue("1");
             val = 1;
         }
-        
+
         if (m_sequence.interval_by_layers == val)
             return;
 
@@ -98,8 +98,8 @@ ExtruderSequenceDialog::ExtruderSequenceDialog(const DoubleSlider::ExtrudersSequ
     rb_by_mm->SetValue(m_sequence.is_mm_intervals);
 
     wxStaticText* st_by_mm = new wxStaticText(this, wxID_ANY, _(L("mm")));
-    m_interval_by_mm = new wxTextCtrl(this, wxID_ANY, 
-                                      double_to_string(sequence.interval_by_mm), 
+    m_interval_by_mm = new wxTextCtrl(this, wxID_ANY,
+                                      double_to_string(sequence.interval_by_mm),
                                       wxDefaultPosition, editor_sz, wxTE_PROCESS_ENTER
 #ifdef _WIN32
         | wxBORDER_SIMPLE
@@ -173,7 +173,7 @@ ExtruderSequenceDialog::ExtruderSequenceDialog(const DoubleSlider::ExtrudersSequ
     m_color_repetition->SetValue(m_sequence.color_repetition);
     m_color_repetition->SetToolTip(_L("If enabled, a repetition of the next random color will be allowed."));
     m_color_repetition->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent& e) {m_sequence.color_repetition = e.IsChecked();  });
-    
+
     auto extruders_box = new wxStaticBox(this, wxID_ANY, _(L("Set extruder(tool) sequence"))+ ": ");
     wxGetApp().UpdateDarkUI(extruders_box);
 

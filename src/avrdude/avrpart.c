@@ -49,7 +49,7 @@ OPCODE * avr_new_opcode(void)
 static OPCODE * avr_dup_opcode(OPCODE * op)
 {
   OPCODE * m;
-  
+
   /* this makes life easier */
   if (op == NULL) {
     return NULL;
@@ -498,17 +498,17 @@ AVRPART * avr_dup_part(AVRPART * d)
 void avr_free_part(AVRPART * d)
 {
 int i;
-	ldestroy_cb(d->mem, (void(*)(void *))avr_free_mem);
-	d->mem = NULL;
+    ldestroy_cb(d->mem, (void(*)(void *))avr_free_mem);
+    d->mem = NULL;
     for(i=0;i<sizeof(d->op)/sizeof(d->op[0]);i++)
     {
-    	if (d->op[i] != NULL)
-    	{
-    		avr_free_opcode(d->op[i]);
-    		d->op[i] = NULL;
-    	}
+        if (d->op[i] != NULL)
+        {
+            avr_free_opcode(d->op[i]);
+            d->op[i] = NULL;
+        }
     }
-	free(d);
+    free(d);
 }
 
 AVRPART * locate_part(LISTID parts, char * partdesc)

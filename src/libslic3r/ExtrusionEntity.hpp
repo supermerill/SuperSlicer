@@ -183,7 +183,7 @@ public:
 class ExtrusionEntity
 {
 protected:
-    // even if no_sort, allow to reverse() us (and our entities if they allow it, but they should) 
+    // even if no_sort, allow to reverse() us (and our entities if they allow it, but they should)
     bool m_can_reverse;
     ExtrusionEntity(bool can_reverse) : m_can_reverse(can_reverse) {}
 public:
@@ -306,10 +306,10 @@ public:
     ExtrusionPath3D(ExtrusionPath3D &&rhs) : ExtrusionPath(rhs), z_offsets(std::move(rhs.z_offsets)) { /*std::cout << "new2 path3D from path3D " << size() << "?" << z_offsets.size()<<"\n";*/ }
     //    ExtrusionPath(ExtrusionRole role, const Flow &flow) : m_role(role), mm3_per_mm(flow.mm3_per_mm()), width(flow.width), height(flow.height), feedrate(0.0f), extruder_id(0) {};
 
-    ExtrusionPath3D& operator=(const ExtrusionPath3D &rhs) { m_role = rhs.m_role; this->mm3_per_mm = rhs.mm3_per_mm; this->width = rhs.width; this->height = rhs.height; 
+    ExtrusionPath3D& operator=(const ExtrusionPath3D &rhs) { m_role = rhs.m_role; this->mm3_per_mm = rhs.mm3_per_mm; this->width = rhs.width; this->height = rhs.height;
         this->polyline = rhs.polyline; z_offsets = rhs.z_offsets; return *this;
     }
-    ExtrusionPath3D& operator=(ExtrusionPath3D &&rhs) { m_role = rhs.m_role; this->mm3_per_mm = rhs.mm3_per_mm; this->width = rhs.width; this->height = rhs.height; 
+    ExtrusionPath3D& operator=(ExtrusionPath3D &&rhs) { m_role = rhs.m_role; this->mm3_per_mm = rhs.mm3_per_mm; this->width = rhs.width; this->height = rhs.height;
         this->polyline = std::move(rhs.polyline); z_offsets = std::move(rhs.z_offsets); return *this;
     }
     virtual ExtrusionPath3D* clone() const override { return new ExtrusionPath3D(*this); }
@@ -317,7 +317,7 @@ public:
     virtual void visit(ExtrusionVisitor &visitor) override { visitor.use(*this); };
     virtual void visit(ExtrusionVisitorConst &visitor) const override { visitor.use(*this); };
 
-    void push_back(Point p, coord_t z_offset) { 
+    void push_back(Point p, coord_t z_offset) {
         assert(!polyline.has_arc());
         polyline.set_points().push_back(p);
         z_offsets.push_back(z_offset);
@@ -401,7 +401,7 @@ public:
     Polygons polygons_covered_by_width(const float scaled_epsilon = 0.f) const override{ Polygons out; this->polygons_covered_by_width(out, scaled_epsilon); return out; }
     Polygons polygons_covered_by_spacing(const float spacing_ratio, const float scaled_epsilon) const override { Polygons out; this->polygons_covered_by_spacing(out, spacing_ratio,  scaled_epsilon); return out; }
     void collect_polylines(PolylinesOrArcs &dst) const override { PolylineOrArc pl = this->as_polyline(); if (!pl.empty()) dst.emplace_back(std::move(pl)); }
-    void collect_points(Points &dst) const override { 
+    void collect_points(Points &dst) const override {
         size_t n = std::accumulate(paths.begin(), paths.end(), 0, [](const size_t n, const ExtrusionPath &p){ return n + p.polyline.size(); });
         dst.reserve(dst.size() + n);
         for (const ExtrusionPath &p : this->paths)
@@ -460,9 +460,9 @@ class ExtrusionLoop : public ExtrusionEntity
 {
 public:
     ExtrusionPaths paths;
-    
+
     ExtrusionLoop(ExtrusionLoopRole role = elrDefault) : m_loop_role(role) , ExtrusionEntity(false) {}
-    ExtrusionLoop(const ExtrusionPaths &paths, ExtrusionLoopRole role = elrDefault) : paths(paths), m_loop_role(role), ExtrusionEntity(false) { 
+    ExtrusionLoop(const ExtrusionPaths &paths, ExtrusionLoopRole role = elrDefault) : paths(paths), m_loop_role(role), ExtrusionEntity(false) {
         assert(!this->paths.empty());
         assert(this->first_point().coincides_with_epsilon(this->paths.back().polyline.back()));
     }
@@ -517,7 +517,7 @@ public:
         { Polygons out; this->polygons_covered_by_spacing(out, spacing_ratio, scaled_epsilon); return out; }
     PolylineOrArc as_polyline() const override;
     void   collect_polylines(PolylinesOrArcs &dst) const override { PolylineOrArc pl = this->as_polyline(); if (! pl.empty()) dst.emplace_back(std::move(pl)); }
-    void   collect_points(Points &dst) const override { 
+    void   collect_points(Points &dst) const override {
         size_t n = std::accumulate(paths.begin(), paths.end(), 0, [](const size_t n, const ExtrusionPath &p){ return n + p.polyline.size(); });
         dst.reserve(dst.size() + n);
         for (const ExtrusionPath &p : this->paths)
@@ -531,12 +531,12 @@ public:
     //static inline std::string role_to_string(ExtrusionLoopRole role);
 
 #ifndef NDEBUG
-	bool validate() const {
-		assert(this->first_point() == this->paths.back().polyline.back());
-		for (size_t i = 1; i < paths.size(); ++ i)
-			assert(this->paths[i - 1].polyline.back() == this->paths[i].polyline.front());
-		return true;
-	}
+    bool validate() const {
+        assert(this->first_point() == this->paths.back().polyline.back());
+        for (size_t i = 1; i < paths.size(); ++ i)
+            assert(this->paths[i - 1].polyline.back() == this->paths[i].polyline.front());
+        return true;
+    }
 #endif /* NDEBUG */
 
 private:
@@ -680,7 +680,7 @@ public:
     void set(ExtrusionEntityCollection &coll);
 };
 
-    
+
 #if _DEBUG
 struct LoopAssertVisitor : public ExtrusionVisitorRecursiveConst {
     virtual void default_use(const ExtrusionEntity& entity) override {};

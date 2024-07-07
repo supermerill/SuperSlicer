@@ -158,7 +158,7 @@ void Field::PostInitialize()
     BUILD();
 
     // For the mode, when settings are in non-modal dialog, neither dialog nor tabpanel doesn't receive wxEVT_KEY_UP event, when some field is selected.
-    // So, like a workaround check wxEVT_KEY_UP event for the Filed and switch between tabs if Ctrl+(1-6) was pressed 
+    // So, like a workaround check wxEVT_KEY_UP event for the Filed and switch between tabs if Ctrl+(1-6) was pressed
     if (getWindow())
         getWindow()->Bind(wxEVT_KEY_UP, [](wxKeyEvent& evt) {
             if ((evt.GetModifiers() & wxMOD_CONTROL) != 0 && (evt.GetModifiers() & wxMOD_ALT) == 0) {
@@ -786,7 +786,7 @@ void TextField::get_value_by_opt_type(wxString &str, const bool check_value /* =
                     wxString       str_from_m_value = double_to_string(val_from_m_value.value, m_opt.precision);
                     if (val_from_m_value.percent)
                         str_from_m_value += '%';
-                    
+
                     // at least check min, as we can want a 0 min
                     if (m_opt.min > val) {
                         if (!check_value) {
@@ -1263,7 +1263,7 @@ void CheckBox::BUILD() {
     window->SetFont(Slic3r::GUI::wxGetApp().normal_font());
     if (!wxOSX) window->SetBackgroundStyle(wxBG_STYLE_PAINT);
     if (m_opt.readonly) window->Enable(false);
-    
+
 
     //set value (need the window for the set_value)
     if (m_opt.is_script && !m_opt.default_script_value.empty())
@@ -1423,7 +1423,7 @@ void SpinCtrl::BUILD() {
         wxTE_PROCESS_ENTER | wxSP_ARROW_KEYS
 #ifdef _WIN32
         | wxBORDER_SIMPLE
-#endif 
+#endif
         , min_val, max_val, default_value);
 
 #ifdef __WXGTK3__
@@ -1619,7 +1619,7 @@ void Choice::BUILD() {
             on_change_field();
             m_disable_change_event = true;
         }else
-            on_change_field(); 
+            on_change_field();
     }, temp->GetId());
 
     if (m_is_editable) {
@@ -1815,7 +1815,7 @@ void Choice::set_any_value(const boost::any &value, bool change_event)
 
         // merill note: i don't like hacks like that. makes the code spagetti
         if (!m_value.empty() && m_opt.opt_key == "fill_density") {
-            // If m_value was changed before, then update m_value here too to avoid case 
+            // If m_value was changed before, then update m_value here too to avoid case
             // when control's value is already changed from the ConfigManipulation::update_print_fff_config(),
             // but m_value doesn't respect it.
             if (double val; text_value.ToDouble(&val))
@@ -2126,7 +2126,7 @@ void GraphButton::BUILD()
     window = dynamic_cast<wxWindow*>(bt_widget);
 
     //window->Bind(wxEVT_COLOURPICKER_CHANGED, ([this](wxCommandEvent e) { on_change_field(); }), window->GetId());
-    
+
     bt_widget->Bind(wxEVT_BUTTON, ([this](wxCommandEvent &e) {
         GraphSettings settings;
         assert(m_opt.graph_settings);

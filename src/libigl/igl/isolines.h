@@ -30,7 +30,7 @@ namespace igl
     //   isoE  #isoE by 2 list of isoline edge positions
     //
     //
-    
+
     template <typename DerivedV,
     typename DerivedF,
     typename DerivedZ,

@@ -31,12 +31,12 @@ template<> struct ItsWithNeighborsIndex_<indexed_triangle_set> {
 // Discover connected patches of facets one by one.
 template<class NeighborIndex>
 struct NeighborVisitor {
-    NeighborVisitor(const indexed_triangle_set &its, const NeighborIndex &neighbor_index) : 
+    NeighborVisitor(const indexed_triangle_set &its, const NeighborIndex &neighbor_index) :
         its(its), neighbor_index(neighbor_index) {
         m_visited.assign(its.indices.size(), false);
         m_facestack.reserve(its.indices.size());
     }
-    NeighborVisitor(const indexed_triangle_set &its, NeighborIndex &&aneighbor_index) : 
+    NeighborVisitor(const indexed_triangle_set &its, NeighborIndex &&aneighbor_index) :
         its(its), neighbor_index(m_neighbor_index_data), m_neighbor_index_data(std::move(aneighbor_index)) {
         m_visited.assign(its.indices.size(), false);
         m_facestack.reserve(its.indices.size());
@@ -123,7 +123,7 @@ void its_split(const Its &m, OutputIt out_it)
     std::vector<VertexConv> vidx_conv(its.vertices.size());
 
     meshsplit_detail::NeighborVisitor visitor(its, meshsplit_detail::ItsWithNeighborsIndex_<Its>::get_index(m));
-    
+
     std::vector<size_t> facets;
     for (size_t part_id = 0;; ++part_id) {
         // Collect all faces of the next patch.
@@ -168,7 +168,7 @@ std::vector<indexed_triangle_set> its_split(const Its &its)
     return ret;
 }
 
-template<class Its> 
+template<class Its>
 bool its_is_splittable(const Its &m)
 {
     meshsplit_detail::NeighborVisitor visitor(meshsplit_detail::ItsWithNeighborsIndex_<Its>::get_its(m), meshsplit_detail::ItsWithNeighborsIndex_<Its>::get_index(m));
@@ -221,7 +221,7 @@ std::vector<Vec3i32> create_face_neighbors_index(ExPolicy &&ex, const indexed_tr
             for (int edge_index = 0; edge_index < 3; ++edge_index) {
                 // check if done
                 int& neighbor_edge = neighbor[edge_index];
-                if (neighbor_edge != no_value) 
+                if (neighbor_edge != no_value)
                     // This edge already has a neighbor assigned.
                     continue;
                 Vec2i32 edge_indices = its_triangle_edge(triangle_indices, edge_index);

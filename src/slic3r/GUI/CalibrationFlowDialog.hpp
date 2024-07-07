@@ -3,7 +3,7 @@
 
 #include "CalibrationAbstractDialog.hpp"
 
-namespace Slic3r { 
+namespace Slic3r {
 namespace GUI {
 
 class CalibrationFlowDialog : public CalibrationAbstractDialog
@@ -12,7 +12,7 @@ class CalibrationFlowDialog : public CalibrationAbstractDialog
 public:
     CalibrationFlowDialog(GUI_App* app, MainFrame* mainframe) : CalibrationAbstractDialog(app, mainframe, "Flow calibration") { create(boost::filesystem::path("calibration") / "filament_flow","filament_flow.html", wxSize(900, 500));  }
     virtual ~CalibrationFlowDialog() {}
-    
+
 protected:
     void create_buttons(wxStdDialogButtonSizer* sizer) override;
     void create_geometry(float start, float delta);

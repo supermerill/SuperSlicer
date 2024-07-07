@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2017 Daniele Panozzo <daniele.panozzo@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_SPARSE_CACHED_H
 #define IGL_SPARSE_CACHED_H
@@ -13,7 +13,7 @@
 #include <Eigen/Sparse>
 namespace igl
 {
-  // Build a sparse matrix from list of indices and values (I,J,V), similarly to 
+  // Build a sparse matrix from list of indices and values (I,J,V), similarly to
   // the sparse function in matlab. Divides the construction in two phases, one
   // for fixing the sparsity pattern, and one to populate it with values. Compared to
   // igl::sparse, this version is slower for the first time (since it requires a
@@ -34,7 +34,7 @@ namespace igl
   //     m  number of rows
   //     n  number of cols
   // Outputs:
-  //   X  m by n matrix of type T whose entries are to be found 
+  //   X  m by n matrix of type T whose entries are to be found
   //
   // Example:
   //   Eigen::SparseMatrix<double> A;
@@ -55,7 +55,7 @@ namespace igl
     Eigen::VectorXi& data,
     Eigen::SparseMatrix<Scalar>& X
     );
-  
+
   template <typename Scalar>
   IGL_INLINE void sparse_cached_precompute(
     const std::vector<Eigen::Triplet<Scalar> >& triplets,
@@ -75,7 +75,7 @@ namespace igl
     const Eigen::VectorXi& data,
     Eigen::SparseMatrix<Scalar>& X
     );
-  
+
 }
 
 #ifndef IGL_STATIC_LIBRARY

@@ -148,7 +148,7 @@ template<> EIGEN_STRONG_INLINE Packet4cf preduxp<Packet4cf>(const Packet4cf* vec
   Packet8f t2 = _mm256_shuffle_ps(vecs[2].v, vecs[2].v, _MM_SHUFFLE(3, 1, 2 ,0));
   Packet8f t3 = _mm256_shuffle_ps(vecs[3].v, vecs[3].v, _MM_SHUFFLE(3, 1, 2 ,0));
   t2 = _mm256_hadd_ps(t2,t3);
-  
+
   t1 = _mm256_permute2f128_ps(t0,t2, 0 + (2<<4));
   t3 = _mm256_permute2f128_ps(t0,t2, 1 + (3<<4));
 
@@ -297,7 +297,7 @@ template<> EIGEN_STRONG_INLINE void pstoreu<std::complex<double> >(std::complex<
 template<> EIGEN_DEVICE_FUNC inline Packet2cd pgather<std::complex<double>, Packet2cd>(const std::complex<double>* from, Index stride)
 {
   return Packet2cd(_mm256_set_pd(std::imag(from[1*stride]), std::real(from[1*stride]),
-				 std::imag(from[0*stride]), std::real(from[0*stride])));
+                 std::imag(from[0*stride]), std::real(from[0*stride])));
 }
 
 template<> EIGEN_DEVICE_FUNC inline void pscatter<std::complex<double>, Packet2cd>(std::complex<double>* to, const Packet2cd& from, Index stride)

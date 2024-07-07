@@ -16,7 +16,7 @@ public:
     bool multiple_extruders = false;
     // override from region
     const PrintRegionConfig* config_region = nullptr;
-    
+
     GCodeWriter() {}
     Tool*               tool()             { return m_tool; }
     const Tool*         tool()     const   { return m_tool; }
@@ -48,7 +48,7 @@ public:
     std::string reset_e(bool force = false);
     std::string update_progress(uint32_t num, uint32_t tot, bool allow_100 = false) const;
     // return false if this extruder was already selected
-    bool        need_toolchange(uint16_t tool_id) const 
+    bool        need_toolchange(uint16_t tool_id) const
         { return m_tool == nullptr || m_tool->id() != tool_id; }
     std::string set_tool(uint16_t tool_id)
         { return this->need_toolchange(tool_id) ? this->toolchange(tool_id) : ""; }
@@ -88,7 +88,7 @@ public:
     static std::string get_default_color_change_gcode(const GCodeConfig &config);
 
 private:
-	// Extruders are sorted by their ID, so that binary search is possible.
+    // Extruders are sorted by their ID, so that binary search is possible.
     std::vector<Extruder> m_extruders;
     std::vector<Mill> m_millers;
     std::string     m_extrusion_axis = "E";
@@ -117,7 +117,7 @@ private:
     double          m_de_left = 0;
     std::pair<std::string, bool> _compute_de(double dE);
 
-    
+
     std::string _travel_to_z(double z, const std::string &comment);
     std::string _retract(double length, std::optional<double> restart_extra, std::optional<double> restart_extra_toolchange, const std::string &comment);
 
@@ -138,7 +138,7 @@ public:
         this->buf_end = buf + buflen;
 #ifndef DONT_USE_CHARCONV
         this->ptr_err.ptr = this->buf;
-#else 
+#else
         this->ptr_err_ptr = this->buf;
 #endif
     }
@@ -207,7 +207,7 @@ public:
 #ifndef DONT_USE_CHARCONV
         strncpy(ptr_err.ptr, s.c_str(), s.size());
         ptr_err.ptr += s.size();
-#else 
+#else
         strncpy(ptr_err_ptr, s.c_str(), s.size());
         ptr_err_ptr += s.size();
 #endif
@@ -217,7 +217,7 @@ public:
         if (allow_comments && ! comment.empty()) {
 #ifndef DONT_USE_CHARCONV
             *ptr_err.ptr ++ = ' '; *ptr_err.ptr ++ = ';'; *ptr_err.ptr ++ = ' ';
-#else 
+#else
             * ptr_err_ptr++ = ' '; *ptr_err_ptr++ = ';'; *ptr_err_ptr++ = ' ';
 #endif
             this->emit_string(comment);
@@ -228,7 +228,7 @@ public:
 #ifndef DONT_USE_CHARCONV
         *ptr_err.ptr ++ = '\n';
         return std::string(this->buf, ptr_err.ptr - buf);
-#else 
+#else
         * ptr_err_ptr++ = '\n';
         return std::string(this->buf, ptr_err_ptr - buf);
 #endif
@@ -240,7 +240,7 @@ protected:
     char* buf_end;
 #ifndef DONT_USE_CHARCONV
     std::to_chars_result            ptr_err;
-#else 
+#else
     char* ptr_err_ptr;
 #endif
 };

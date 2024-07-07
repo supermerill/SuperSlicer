@@ -10,7 +10,7 @@
 #ifndef EIGEN_ARRAYBASE_H
 #define EIGEN_ARRAYBASE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 template<typename ExpressionType> class MatrixWrapper;
 
@@ -60,7 +60,7 @@ template<typename Derived> class ArrayBase
     using Base::MaxSizeAtCompileTime;
     using Base::IsVectorAtCompileTime;
     using Base::Flags;
-    
+
     using Base::derived;
     using Base::const_cast_derived;
     using Base::rows;
@@ -109,7 +109,7 @@ template<typename Derived> class ArrayBase
       internal::call_assignment(derived(), other.derived());
       return derived();
     }
-    
+
     /** Set all the entries to \a value.
       * \sa DenseBase::setConstant(), DenseBase::fill() */
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE

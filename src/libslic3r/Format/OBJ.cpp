@@ -21,14 +21,14 @@ bool load_obj(const char *path, TriangleMesh *meshptr)
 {
     if (meshptr == nullptr)
         return false;
-    
+
     // Parse the OBJ file.
     ObjParser::ObjData data;
     if (! ObjParser::objparse(path, data)) {
         BOOST_LOG_TRIVIAL(error) << "load_obj: failed to parse " << path;
         return false;
     }
-    
+
     // Count the faces and verify, that all faces are triangular.
     size_t num_faces = 0;
     size_t num_quads = 0;
@@ -52,7 +52,7 @@ bool load_obj(const char *path, TriangleMesh *meshptr)
             i = j;
         }
     }
-    
+
     // Convert ObjData into indexed triangle set.
     indexed_triangle_set its;
     size_t num_vertices = data.coordinates.size() / 4;
@@ -101,9 +101,9 @@ bool load_obj(const char *path, TriangleMesh *meshptr)
 bool load_obj(const char *path, Model *model, const char *object_name_in)
 {
     TriangleMesh mesh;
-    
+
     bool ret = load_obj(path, &mesh);
-    
+
     if (ret) {
         std::string  object_name;
         if (object_name_in == nullptr) {
@@ -111,10 +111,10 @@ bool load_obj(const char *path, Model *model, const char *object_name_in)
             object_name.assign((last_slash == nullptr) ? path : last_slash + 1);
         } else
            object_name.assign(object_name_in);
-    
+
         model->add_object(object_name.c_str(), path, std::move(mesh));
     }
-    
+
     return ret;
 }
 

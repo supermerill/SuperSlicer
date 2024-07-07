@@ -15,8 +15,8 @@ const Point& Polyline::leftmost_point() const
 {
     const Point *p = &this->points.front();
     for (Points::const_iterator it = this->points.begin() + 1; it != this->points.end(); ++ it) {
-        if (it->x() < p->x()) 
-        	p = &(*it);
+        if (it->x() < p->x())
+            p = &(*it);
     }
     return *p;
 }
@@ -81,7 +81,7 @@ Points Polyline::equally_spaced_points(coordf_t distance) const
     Points points;
     points.emplace_back(this->first_point());
     double len = 0;
-    
+
     for (Points::const_iterator it = this->points.begin() + 1; it != this->points.end(); ++it) {
         Vec2d  p1 = (it-1)->cast<double>();
         Vec2d  v  = it->cast<double>() - p1;
@@ -113,7 +113,7 @@ template <class T>
 void Polyline::simplify_by_visibility(const T &area)
 {
     Points &pp = this->points;
-    
+
     size_t s = 0;
     bool did_erase = false;
     for (size_t i = s+2; i < pp.size(); i = s + 2) {
@@ -217,7 +217,7 @@ bool remove_degenerate(Polylines &polylines)
     size_t j = 0;
     for (size_t i = 0; i < polylines.size(); ++ i) {
         if (polylines[i].points.size() >= 2) {
-            if (j < i) 
+            if (j < i)
                 std::swap(polylines[i].points, polylines[j].points);
             ++ j;
         } else

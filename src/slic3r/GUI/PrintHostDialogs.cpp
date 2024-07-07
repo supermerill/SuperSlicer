@@ -37,8 +37,8 @@ static const char *CONFIG_KEY_PATH  = "printhost_path";
 static const char *CONFIG_KEY_GROUP = "printhost_group";
 
 PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUploadActions post_actions, const wxArrayString &groups)
-    : MsgDialog(static_cast<wxWindow*>(wxGetApp().mainframe), _L("Send G-Code to printer host"), _L("Upload to Printer Host with the following filename:"), 0) // Set style = 0 to avoid default creation of the "OK" button. 
-                                                                                                                                                               // All buttons will be added later in this constructor 
+    : MsgDialog(static_cast<wxWindow*>(wxGetApp().mainframe), _L("Send G-Code to printer host"), _L("Upload to Printer Host with the following filename:"), 0) // Set style = 0 to avoid default creation of the "OK" button.
+                                                                                                                                                               // All buttons will be added later in this constructor
     , txt_filename(new wxTextCtrl(this, wxID_ANY))
     , combo_groups(!groups.IsEmpty() ? new wxComboBox(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, groups, wxCB_READONLY) : nullptr)
     , post_upload_action(PrintHostPostUploadAction::None)
@@ -54,12 +54,12 @@ PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUplo
     content_sizer->Add(txt_filename, 0, wxEXPAND);
     content_sizer->Add(label_dir_hint);
     content_sizer->AddSpacer(VERT_SPACING);
-    
+
     if (combo_groups != nullptr) {
         // Repetier specific: Show a selection of file groups.
         auto *label_group = new wxStaticText(this, wxID_ANY, _L("Group"));
         content_sizer->Add(label_group);
-        content_sizer->Add(combo_groups, 0, wxBOTTOM, 2*VERT_SPACING);        
+        content_sizer->Add(combo_groups, 0, wxBOTTOM, 2*VERT_SPACING);
         wxString recent_group = from_u8(app_config->get("recent", CONFIG_KEY_GROUP));
         if (! recent_group.empty())
             combo_groups->SetValue(recent_group);
@@ -98,7 +98,7 @@ PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUplo
         }
     });
     txt_filename->SetFocus();
-    
+
     if (post_actions.has(PrintHostPostUploadAction::StartPrint)) {
         auto* btn_print = add_button(wxID_YES, false, _L("Upload and Print"));
         btn_print->Bind(wxEVT_BUTTON, [this, validate_path](wxCommandEvent&) {
@@ -116,7 +116,7 @@ PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUplo
             if (validate_path(txt_filename->GetValue())) {
                 post_upload_action = PrintHostPostUploadAction::StartSimulation;
                 EndDialog(wxID_OK);
-            }        
+            }
         });
     }
 
@@ -170,13 +170,13 @@ void PrintHostSendDialog::EndModal(int ret)
         // Persist path and print settings
         wxString path = txt_filename->GetValue();
         int last_slash = path.Find('/', true);
-		if (last_slash == wxNOT_FOUND)
-			path.clear();
-		else
+        if (last_slash == wxNOT_FOUND)
+            path.clear();
+        else
             path = path.SubString(0, last_slash);
-                
-		AppConfig *app_config = wxGetApp().app_config.get();
-		app_config->set("recent", CONFIG_KEY_PATH, into_u8(path));
+
+        AppConfig *app_config = wxGetApp().app_config.get();
+        app_config->set("recent", CONFIG_KEY_PATH, into_u8(path));
 
         if (combo_groups != nullptr) {
             wxString group = combo_groups->GetValue();
@@ -253,7 +253,7 @@ PrintHostQueueDialog::PrintHostQueueDialog(wxWindow *parent)
     append_text_column(_CTX(L_CONTEXT("Size", "OfFile"), "OfFile"), widths[4]);
     append_text_column(_L("Filename"),      widths[5]);
     append_text_column(_L("Error Message"), -1, wxALIGN_CENTER, wxDATAVIEW_COL_HIDDEN);
- 
+
     auto *btnsizer = new wxBoxSizer(wxHORIZONTAL);
     btn_cancel = new wxButton(this, wxID_DELETE, _L("Cancel selected"));
     btn_cancel->Disable();
@@ -277,10 +277,10 @@ PrintHostQueueDialog::PrintHostQueueDialog(wxWindow *parent)
     SetSize(load_user_data(UDT_SIZE, size) ? wxSize(size[0] * em, size[1] * em) : wxSize(HEIGHT * em, WIDTH * em));
 
     Bind(wxEVT_SIZE, [this](wxSizeEvent& evt) {
-        OnSize(evt); 
+        OnSize(evt);
         save_user_data(UDT_SIZE | UDT_POSITION | UDT_COLS);
      });
-    
+
     std::vector<int> pos;
     if (load_user_data(UDT_POSITION, pos))
         SetPosition(wxPoint(pos[0], pos[1]));
@@ -324,7 +324,7 @@ void PrintHostQueueDialog::append_job(const PrintHostJob &job)
         stream << "unknown";
         size_i = 0;
         BOOST_LOG_TRIVIAL(error) << ec.message();
-    } else 
+    } else
         stream << std::fixed << std::setprecision(2) << ((float)size_i / 1024 / 1024) << "MB";
     fields.push_back(wxVariant(stream.str()));
     fields.push_back(wxVariant(from_path(job.upload_data.upload_path)));
@@ -461,7 +461,7 @@ void PrintHostQueueDialog::get_active_jobs(std::vector<std::pair<std::string, st
         auto data = job_list->GetItemData(item);
         JobState st = static_cast<JobState>(data);
         if(st == JobState::ST_NEW || st == JobState::ST_PROGRESS)
-            ret.emplace_back(upload_names[i]);       
+            ret.emplace_back(upload_names[i]);
     }
     //job_list->data
 }
@@ -470,7 +470,7 @@ void PrintHostQueueDialog::save_user_data(int udt)
     const auto em = GetTextExtent("m").x;
     auto *app_config = wxGetApp().app_config.get();
     if (udt & UserDataType::UDT_SIZE) {
-        
+
         app_config->set("print_host_queue_dialog_height", std::to_string(this->GetSize().x / em));
         app_config->set("print_host_queue_dialog_width", std::to_string(this->GetSize().y / em));
     }
@@ -485,7 +485,7 @@ void PrintHostQueueDialog::save_user_data(int udt)
         {
             app_config->set("print_host_queue_dialog_column_" + std::to_string(i), std::to_string(job_list->GetColumn(i)->GetWidth()));
         }
-    }    
+    }
 }
 bool PrintHostQueueDialog::load_user_data(int udt, std::vector<int>& vector)
 {

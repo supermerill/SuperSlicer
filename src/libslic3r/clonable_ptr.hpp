@@ -42,7 +42,7 @@ public:
     }
     /// @brief Copy constructor, clones by calling the rhs.clone() method
     clonable_ptr(const clonable_ptr& rhs) :
-		px(rhs ? rhs.px->clone() : nullptr)
+        px(rhs ? rhs.px->clone() : nullptr)
     {
     }
     /// @brief Move constructor, never throws
@@ -54,14 +54,14 @@ public:
     /// @brief Assignment operator
     clonable_ptr& operator=(const clonable_ptr& rhs)
     {
-		delete px;
-		px = rhs ? rhs.px->clone() : nullptr;
+        delete px;
+        px = rhs ? rhs.px->clone() : nullptr;
         return *this;
     }
     /// @brief Move operator, never throws
     clonable_ptr& operator=(clonable_ptr&& rhs)
     {
-		delete px;
+        delete px;
         px = rhs.px;
         rhs.px = nullptr;
         return *this;

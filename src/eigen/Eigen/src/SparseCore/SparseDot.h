@@ -10,7 +10,7 @@
 #ifndef EIGEN_SPARSE_DOT_H
 #define EIGEN_SPARSE_DOT_H
 
-namespace Eigen { 
+namespace Eigen {
 
 template<typename Derived>
 template<typename OtherDerived>
@@ -52,7 +52,7 @@ SparseMatrixBase<Derived>::dot(const SparseMatrixBase<OtherDerived>& other) cons
 
   internal::evaluator<Derived> thisEval(derived());
   typename internal::evaluator<Derived>::InnerIterator i(thisEval, 0);
-  
+
   internal::evaluator<OtherDerived>  otherEval(other.derived());
   typename internal::evaluator<OtherDerived>::InnerIterator j(otherEval, 0);
 

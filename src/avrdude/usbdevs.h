@@ -39,14 +39,14 @@
 #define USB_DEVICE_FT2232      0x6010
 #define USB_DEVICE_FT245       0x6001
 
-#define	USBASP_SHARED_VID   0x16C0  /* VOTI */
-#define	USBASP_SHARED_PID   0x05DC  /* Obdev's free shared PID */
+#define    USBASP_SHARED_VID   0x16C0  /* VOTI */
+#define    USBASP_SHARED_PID   0x05DC  /* Obdev's free shared PID */
 
-#define	USBASP_OLD_VID      0x03EB  /* ATMEL */
-#define	USBASP_OLD_PID	    0xC7B4  /* (unoffical) USBasp */
+#define    USBASP_OLD_VID      0x03EB  /* ATMEL */
+#define    USBASP_OLD_PID        0xC7B4  /* (unoffical) USBasp */
 
-#define	USBASP_NIBOBEE_VID  0x16C0  /* VOTI */
-#define	USBASP_NIBOBEE_PID  0x092F  /* NIBObee PID */
+#define    USBASP_NIBOBEE_VID  0x16C0  /* VOTI */
+#define    USBASP_NIBOBEE_PID  0x092F  /* NIBObee PID */
 
 // these are specifically assigned to USBtiny,
 // if you need your own VID and PIDs you can get them for cheap from

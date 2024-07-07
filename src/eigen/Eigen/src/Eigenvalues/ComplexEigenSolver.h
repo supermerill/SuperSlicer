@@ -14,7 +14,7 @@
 
 #include "./ComplexSchur.h"
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \eigenvalues_module \ingroup Eigenvalues_Module
   *
@@ -236,12 +236,12 @@ template<typename _MatrixType> class ComplexEigenSolver
     }
 
   protected:
-    
+
     static void check_template_parameters()
     {
       EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar);
     }
-    
+
     EigenvectorType m_eivec;
     EigenvalueType m_eivalues;
     ComplexSchur<MatrixType> m_schur;
@@ -257,11 +257,11 @@ template<typename _MatrixType> class ComplexEigenSolver
 
 template<typename MatrixType>
 template<typename InputType>
-ComplexEigenSolver<MatrixType>& 
+ComplexEigenSolver<MatrixType>&
 ComplexEigenSolver<MatrixType>::compute(const EigenBase<InputType>& matrix, bool computeEigenvectors)
 {
   check_template_parameters();
-  
+
   // this code is inspired from Jampack
   eigen_assert(matrix.cols() == matrix.rows());
 
@@ -336,7 +336,7 @@ void ComplexEigenSolver<MatrixType>::sortEigenvalues(bool computeEigenvectors)
       k += i;
       std::swap(m_eivalues[k],m_eivalues[i]);
       if(computeEigenvectors)
-	m_eivec.col(i).swap(m_eivec.col(k));
+    m_eivec.col(i).swap(m_eivec.col(k));
     }
   }
 }

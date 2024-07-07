@@ -61,7 +61,7 @@ IGL_INLINE bool igl::writeOFF(
 
   //Check if RGB values are in the range [0..1] or [0..255]
   int rgbScale = (C.maxCoeff() <= 1.0)?255:1;
-  // Use RGB_Array instead of RGB because of clash with mingw macro 
+  // Use RGB_Array instead of RGB because of clash with mingw macro
   // (https://github.com/libigl/libigl/pull/679)
   Eigen::MatrixXd RGB_Array = rgbScale * C;
 

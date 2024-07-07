@@ -209,7 +209,7 @@ namespace Slic3r { namespace Geometry {
 //
 //    static const std::size_t EXTERNAL_COLOR = 1;
 //
-//    inline void color_exterior(const VD::edge_type* edge) 
+//    inline void color_exterior(const VD::edge_type* edge)
 //    {
 //        if (edge->color() == EXTERNAL_COLOR)
 //            return;
@@ -226,13 +226,13 @@ namespace Slic3r { namespace Geometry {
 //        } while (e != v->incident_edge());
 //    }
 //
-//    inline point_type retrieve_point(const std::vector<segment_type> &segments, const cell_type& cell) 
+//    inline point_type retrieve_point(const std::vector<segment_type> &segments, const cell_type& cell)
 //    {
 //        assert(cell.source_category() == boost::polygon::SOURCE_CATEGORY_SEGMENT_START_POINT || cell.source_category() == boost::polygon::SOURCE_CATEGORY_SEGMENT_END_POINT);
 //        return (cell.source_category() == boost::polygon::SOURCE_CATEGORY_SEGMENT_START_POINT) ? low(segments[cell.source_index()]) : high(segments[cell.source_index()]);
 //    }
 //
-//    inline void clip_infinite_edge(const std::vector<segment_type> &segments, const edge_type& edge, coordinate_type bbox_max_size, std::vector<point_type>* clipped_edge) 
+//    inline void clip_infinite_edge(const std::vector<segment_type> &segments, const edge_type& edge, coordinate_type bbox_max_size, std::vector<point_type>* clipped_edge)
 //    {
 //        const cell_type& cell1 = *edge.cell();
 //        const cell_type& cell2 = *edge.twin()->cell();
@@ -277,7 +277,7 @@ namespace Slic3r { namespace Geometry {
 //        }
 //    }
 //
-//    inline void sample_curved_edge(const std::vector<segment_type> &segments, const edge_type& edge, std::vector<point_type> &sampled_edge, coordinate_type max_dist) 
+//    inline void sample_curved_edge(const std::vector<segment_type> &segments, const edge_type& edge, std::vector<point_type> &sampled_edge, coordinate_type max_dist)
 //    {
 //        point_type point = edge.cell()->contains_point() ?
 //            retrieve_point(segments, *edge.cell()) :
@@ -294,7 +294,7 @@ namespace Slic3r { namespace Geometry {
 //{
 //    const double        scale                       = 0.2;
 //    const std::string   inputSegmentPointColor      = "lightseagreen";
-//    const coord_t       inputSegmentPointRadius     = coord_t(0.09 * scale / SCALING_FACTOR); 
+//    const coord_t       inputSegmentPointRadius     = coord_t(0.09 * scale / SCALING_FACTOR);
 //    const std::string   inputSegmentColor           = "lightseagreen";
 //    const coord_t       inputSegmentLineWidth       = coord_t(0.03 * scale / SCALING_FACTOR);
 //
@@ -330,9 +330,9 @@ namespace Slic3r { namespace Geometry {
 //    std::vector<Voronoi::Internal::segment_type> segments;
 //    for (Lines::const_iterator it = lines.begin(); it != lines.end(); ++ it)
 //        segments.push_back(Voronoi::Internal::segment_type(
-//            Voronoi::Internal::point_type(double(it->a(0)), double(it->a(1))), 
+//            Voronoi::Internal::point_type(double(it->a(0)), double(it->a(1))),
 //            Voronoi::Internal::point_type(double(it->b(0)), double(it->b(1)))));
-//    
+//
 //    // Color exterior edges.
 //    for (boost::polygon::voronoi_diagram<double>::const_edge_iterator it = vd.edges().begin(); it != vd.edges().end(); ++it)
 //        if (!it->is_finite())
@@ -449,13 +449,13 @@ namespace Slic3r { namespace Geometry {
 //MedialAxis::build(ThickPolylines* polylines)
 //{
 //    construct_voronoi(this->lines.begin(), this->lines.end(), &this->vd);
-//    
+//
 //    /*
 //    // DEBUG: dump all Voronoi edges
 //    {
 //        for (VD::const_edge_iterator edge = this->vd.edges().begin(); edge != this->vd.edges().end(); ++edge) {
 //            if (edge->is_infinite()) continue;
-//            
+//
 //            ThickPolyline polyline;
 //            polyline.points.push_back(Point( edge->vertex0()->x(), edge->vertex0()->y() ));
 //            polyline.points.push_back(Point( edge->vertex1()->x(), edge->vertex1()->y() ));
@@ -464,10 +464,10 @@ namespace Slic3r { namespace Geometry {
 //        return;
 //    }
 //    */
-//    
+//
 //    //typedef const VD::vertex_type vert_t;
 //    typedef const VD::edge_type   edge_t;
-//    
+//
 //    // collect valid edges (i.e. prune those not belonging to MAT)
 //    // note: this keeps twins, so it inserts twice the number of the valid edges
 //    this->valid_edges.clear();
@@ -477,37 +477,37 @@ namespace Slic3r { namespace Geometry {
 //            // if we only process segments representing closed loops, none if the
 //            // infinite edges (if any) would be part of our MAT anyway
 //            if (edge->is_secondary() || edge->is_infinite()) continue;
-//        
+//
 //            // don't re-validate twins
 //            if (seen_edges.find(&*edge) != seen_edges.end()) continue;  // TODO: is this needed?
 //            seen_edges.insert(&*edge);
 //            seen_edges.insert(edge->twin());
-//            
+//
 //            if (!this->validate_edge(&*edge)) continue;
 //            this->valid_edges.insert(&*edge);
 //            this->valid_edges.insert(edge->twin());
 //        }
 //    }
 //    this->edges = this->valid_edges;
-//    
+//
 //    // iterate through the valid edges to build polylines
 //    while (!this->edges.empty()) {
 //        const edge_t* edge = *this->edges.begin();
-//        
+//
 //        // start a polyline
 //        ThickPolyline polyline;
 //        polyline.points.push_back(Point( edge->vertex0()->x(), edge->vertex0()->y() ));
 //        polyline.points.push_back(Point( edge->vertex1()->x(), edge->vertex1()->y() ));
 //        polyline.width.push_back(this->thickness[edge].first);
 //        polyline.width.push_back(this->thickness[edge].second);
-//        
+//
 //        // remove this edge and its twin from the available edges
 //        (void)this->edges.erase(edge);
 //        (void)this->edges.erase(edge->twin());
-//        
+//
 //        // get next points
 //        this->process_edge_neighbors(edge, &polyline);
-//        
+//
 //        // get previous points
 //        {
 //            ThickPolyline rpolyline;
@@ -516,15 +516,15 @@ namespace Slic3r { namespace Geometry {
 //            polyline.width.insert(polyline.width.begin(), rpolyline.width.rbegin(), rpolyline.width.rend());
 //            polyline.endpoints.first = rpolyline.endpoints.second;
 //        }
-//        
+//
 //        assert(polyline.width.size() == polyline.points.size()*2 - 2);
-//        
+//
 //        // prevent loop endpoints from being extended
 //        if (polyline.first_point() == polyline.last_point()) {
 //            polyline.endpoints.first = false;
 //            polyline.endpoints.second = false;
 //        }
-//        
+//
 //        // append polyline to result
 //        polylines->push_back(polyline);
 //    }
@@ -561,21 +561,21 @@ namespace Slic3r { namespace Geometry {
 //        // to find neighbors on the ending point, we just swap edge with
 //        // its twin.
 //        const VD::edge_type* twin = edge->twin();
-//    
+//
 //        // count neighbors for this edge
 //        std::vector<const VD::edge_type*> neighbors;
 //        for (const VD::edge_type* neighbor = twin->rot_next(); neighbor != twin;
 //            neighbor = neighbor->rot_next()) {
 //            if (this->valid_edges.count(neighbor) > 0) neighbors.push_back(neighbor);
 //        }
-//    
+//
 //        // if we have a single neighbor then we can continue recursively
 //        if (neighbors.size() == 1) {
 //            const VD::edge_type* neighbor = neighbors.front();
-//            
+//
 //            // break if this is a closed loop
 //            if (this->edges.count(neighbor) == 0) return;
-//            
+//
 //            Point new_point(neighbor->vertex1()->x(), neighbor->vertex1()->y());
 //            polyline->points.push_back(new_point);
 //            polyline->width.push_back(this->thickness[neighbor].first);
@@ -597,8 +597,8 @@ namespace Slic3r { namespace Geometry {
 //{
 //    // prevent overflows and detect almost-infinite edges
 //#ifndef CLIPPERLIB_INT32
-//    if (std::abs(edge->vertex0()->x()) > double(CLIPPER_MAX_COORD_UNSCALED) || 
-//        std::abs(edge->vertex0()->y()) > double(CLIPPER_MAX_COORD_UNSCALED) || 
+//    if (std::abs(edge->vertex0()->x()) > double(CLIPPER_MAX_COORD_UNSCALED) ||
+//        std::abs(edge->vertex0()->y()) > double(CLIPPER_MAX_COORD_UNSCALED) ||
 //        std::abs(edge->vertex1()->x()) > double(CLIPPER_MAX_COORD_UNSCALED) ||
 //        std::abs(edge->vertex1()->y()) > double(CLIPPER_MAX_COORD_UNSCALED))
 //        return false;
@@ -609,7 +609,7 @@ namespace Slic3r { namespace Geometry {
 //        Point( edge->vertex0()->x(), edge->vertex0()->y() ),
 //        Point( edge->vertex1()->x(), edge->vertex1()->y() )
 //    );
-//    
+//
 //    // discard edge if it lies outside the supplied shape
 //    // this could maybe be optimized (checking inclusion of the endpoints
 //    // might give false positives as they might belong to the contour itself)
@@ -621,13 +621,13 @@ namespace Slic3r { namespace Geometry {
 //            if (!this->m_expolygon->contains(line)) return false;
 //        }
 //    }
-//    
+//
 //    // retrieve the original line segments which generated the edge we're checking
 //    const VD::cell_type* cell_l = edge->cell();
 //    const VD::cell_type* cell_r = edge->twin()->cell();
 //    const Line &segment_l = this->retrieve_segment(cell_l);
 //    const Line &segment_r = this->retrieve_segment(cell_r);
-//    
+//
 //    /*
 //    SVG svg("edge.svg");
 //    svg.draw(*this->m_expolygon);
@@ -636,36 +636,36 @@ namespace Slic3r { namespace Geometry {
 //    svg.draw(segment_r, "blue");
 //    svg.Close();
 //    */
-//    
+//
 //    /*  Calculate thickness of the cross-section at both the endpoints of this edge.
-//        Our Voronoi edge is part of a CCW sequence going around its Voronoi cell 
+//        Our Voronoi edge is part of a CCW sequence going around its Voronoi cell
 //        located on the left side. (segment_l).
-//        This edge's twin goes around segment_r. Thus, segment_r is 
+//        This edge's twin goes around segment_r. Thus, segment_r is
 //        oriented in the same direction as our main edge, and segment_l is oriented
 //        in the same direction as our twin edge.
 //        We used to only consider the (half-)distances to segment_r, and that works
-//        whenever segment_l and segment_r are almost specular and facing. However, 
+//        whenever segment_l and segment_r are almost specular and facing. However,
 //        at curves they are staggered and they only face for a very little length
 //        (our very short edge represents such visibility).
 //        Both w0 and w1 can be calculated either towards cell_l or cell_r with equal
 //        results by Voronoi definition.
 //        When cell_l or cell_r don't refer to the segment but only to an endpoint, we
 //        calculate the distance to that endpoint instead.  */
-//    
+//
 //    coordf_t w0 = cell_r->contains_segment()
 //        ? segment_r.distance_to(line.a)*2
 //        : (this->retrieve_endpoint(cell_r) - line.a).cast<double>().norm()*2;
-//    
+//
 //    coordf_t w1 = cell_l->contains_segment()
 //        ? segment_l.distance_to(line.b)*2
 //        : (this->retrieve_endpoint(cell_l) - line.b).cast<double>().norm()*2;
-//    
+//
 //    if (cell_l->contains_segment() && cell_r->contains_segment()) {
 //        // calculate the relative angle between the two boundary segments
 //        double angle = fabs(segment_r.orientation() - segment_l.orientation());
 //        if (angle > PI) angle = 2*PI - angle;
 //        assert(angle >= 0 && angle <= PI);
-//        
+//
 //        // fabs(angle) ranges from 0 (collinear, same direction) to PI (collinear, opposite direction)
 //        // we're interested only in segments close to the second case (facing segments)
 //        // so we allow some tolerance.
@@ -674,8 +674,8 @@ namespace Slic3r { namespace Geometry {
 //        // and the endpoint of another segment), since their orientation would not be meaningful
 //        if (PI - angle > PI/8) {
 //            // angle is not narrow enough
-//            
-//            // only apply this filter to segments that are not too short otherwise their 
+//
+//            // only apply this filter to segments that are not too short otherwise their
 //            // angle could possibly be not meaningful
 //            if (w0 < SCALED_EPSILON || w1 < SCALED_EPSILON || line.length() >= this->m_min_width)
 //                return false;
@@ -684,16 +684,16 @@ namespace Slic3r { namespace Geometry {
 //        if (w0 < SCALED_EPSILON || w1 < SCALED_EPSILON)
 //            return false;
 //    }
-//    
+//
 //    if (w0 < this->m_min_width && w1 < this->m_min_width)
 //        return false;
-//    
+//
 //    if (w0 > this->m_max_width && w1 > this->m_max_width)
 //        return false;
-//    
+//
 //    this->thickness[edge]         = std::make_pair(w0, w1);
 //    this->thickness[edge->twin()] = std::make_pair(w1, w0);
-//    
+//
 //    return true;
 //}
 //
@@ -1011,7 +1011,7 @@ MedialAxis::validate_edge(const VD::edge_type* edge, Lines& lines, const ExPolyg
     //    double angle = fabs(segment_r.orientation() - segment_l.orientation());
     //    if (angle > PI) angle = 2*PI - angle;
     //    assert(angle >= 0 && angle <= PI);
-    //    
+    //
     //    // fabs(angle) ranges from 0 (collinear, same direction) to PI (collinear, opposite direction)
     //    // we're interested only in segments close to the second case (facing segments)
     //    // so we allow some tolerance.
@@ -1020,8 +1020,8 @@ MedialAxis::validate_edge(const VD::edge_type* edge, Lines& lines, const ExPolyg
     //    // and the endpoint of another segment), since their orientation would not be meaningful
     //    if (PI - angle > PI/8) {
     //        // angle is not narrow enough
-    //        
-    //        // only apply this filter to segments that are not too short otherwise their 
+    //
+    //        // only apply this filter to segments that are not too short otherwise their
     //        // angle could possibly be not meaningful
     //        if (w0 < SCALED_EPSILON || w1 < SCALED_EPSILON || line.length() >= this->m_min_width)
     //            return false;
@@ -1100,7 +1100,7 @@ add_point_same_percent(ThickPolyline* pattern, ThickPolyline* to_modify)
     double percent_length = 0;
     for (size_t idx_point = 1; idx_point < pattern->points.size() - 1; ++idx_point) {
         percent_length += pattern->points[idx_point - 1].distance_to(pattern->points[idx_point]) / pattern_length;
-        //find position 
+        //find position
         size_t idx_other = 1;
         double percent_length_other_before = 0;
         double percent_length_other = 0;
@@ -1127,9 +1127,9 @@ add_point_same_percent(ThickPolyline* pattern, ThickPolyline* to_modify)
     }
 }
 
-/// find the nearest angle in the contour (or 2 nearest if it's difficult to choose) 
+/// find the nearest angle in the contour (or 2 nearest if it's difficult to choose)
 /// return 1 for an angle of 90° and 0 for an angle of 0° or 180°
-/// find the nearest angle in the contour (or 2 nearest if it's difficult to choose) 
+/// find the nearest angle in the contour (or 2 nearest if it's difficult to choose)
 /// return 1 for an angle of 90° and 0 for an angle of 0° or 180°
 double
 get_coeff_from_angle_countour(Point& point, const ExPolygon& contour, coord_t min_dist_between_point) {
@@ -1662,7 +1662,7 @@ MedialAxis::main_fusion(ThickPolylines& pp)
                 } else {
                     continue;
                 }
-                //std::cout << " try : " << i << ":" << j << " : " << 
+                //std::cout << " try : " << i << ":" << j << " : " <<
                 //    (polyline.points.size() < 2 && other.points.size() < 2) <<
                 //    (!polyline.endpoints.second || !other.endpoints.second) <<
                 //    ((polyline.points.back().distance_to(other.points.back())
@@ -1850,7 +1850,7 @@ MedialAxis::main_fusion(ThickPolylines& pp)
                     double value_from_dist = 2 * polyline.points[idx_point].distance_to(best_candidate->points[idx_point]);
                     value_from_dist *= sqrt(std::min(dot_poly_branch, dot_candidate_branch) / std::max(dot_poly_branch, dot_candidate_branch));
                     polyline.points_width[idx_point] = value_from_current_width + value_from_dist;
-                    //std::cout << "width:" << polyline.width[idx_point] << " = " << value_from_current_width << " + " << value_from_dist 
+                    //std::cout << "width:" << polyline.width[idx_point] << " = " << value_from_current_width << " + " << value_from_dist
                     //    << " (<" << m_max_width << " && " << (this->m_bounds.contour.closest_point(polyline.points[idx_point])->distance_to(polyline.points[idx_point]) * 2.1)<<")\n";
                     //failsafes
                     if (polyline.points_width[idx_point] > this->m_max_width)
@@ -2441,7 +2441,7 @@ MedialAxis::remove_too_short_polylines(ThickPolylines& pp)
             // Remove the shortest polylines : polyline that are shorter than wider
             // (we can't do this check before endpoints extension and clipping because we don't
             // know how long will the endpoints be extended since it depends on polygon thickness
-            // which is variable - extension will be <= m_max_width/2 on each side) 
+            // which is variable - extension will be <= m_max_width/2 on each side)
             if ((polyline.endpoints.first || polyline.endpoints.second)) {
                 coordf_t local_min_length = this->m_max_width / 2;
                 for (coordf_t w : polyline.points_width)
@@ -2890,7 +2890,7 @@ MedialAxis::build(ThickPolylines& polylines_out)
     //fusion right-angle corners.
     fusion_corners(pp);
 
-    // Loop through all returned polylines in order to extend their endpoints to the 
+    // Loop through all returned polylines in order to extend their endpoints to the
     //   expolygon boundaries (if done here, it may be cut later if not thick enough)
     if (m_stop_at_min_width) {
         //{
@@ -2946,7 +2946,7 @@ MedialAxis::build(ThickPolylines& polylines_out)
     //    svg.Close();
     //}
 
-    // Loop through all returned polylines in order to extend their endpoints to the 
+    // Loop through all returned polylines in order to extend their endpoints to the
     //   expolygon boundaries
     if (!m_stop_at_min_width) {
         extends_line_both_side(pp);
@@ -3188,7 +3188,7 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
         } else {
             coord_t thickness_delta = scale_t(fabs(current_flow.width() - wanted_width));
             if (thickness_delta <= tolerance / 2) {
-                // the width difference between this line and the current flow width is 
+                // the width difference between this line and the current flow width is
                 // within the accepted tolerance
                 path.polyline.append(line.b);
             } else {

@@ -304,8 +304,8 @@ bool as_is_percent_idx(std::string& key, int idx)
     const ConfigOption* opt = get_coll(key).second;
     if (opt == nullptr)
         throw NoDefinitionExceptionEmitLog("is_percent(): error, can't find percent option " + key);
-    return (opt->type() == ConfigOptionType::coPercent) || (opt->type() == ConfigOptionType::coPercents) 
-        || (opt->type() == ConfigOptionType::coFloatOrPercent && ((ConfigOptionFloatOrPercent*)opt)->percent) 
+    return (opt->type() == ConfigOptionType::coPercent) || (opt->type() == ConfigOptionType::coPercents)
+        || (opt->type() == ConfigOptionType::coFloatOrPercent && ((ConfigOptionFloatOrPercent*)opt)->percent)
         || (opt->type() == ConfigOptionType::coFloatsOrPercents && ((ConfigOptionFloatsOrPercents*)opt)->get_at(idx).percent);
 }
 bool as_is_percent(std::string &key) { return as_is_percent_idx(key, 0); }
@@ -744,9 +744,9 @@ float as_get_computed_float(std::string& key)
 {
     if ((current_script->tab()->get_printer_technology() & PrinterTechnology::ptFFF) != 0) {
         ConfigAdapter fullconfig(
-            &current_script->tab()->m_preset_bundle->fff_prints.get_edited_preset().config, 
+            &current_script->tab()->m_preset_bundle->fff_prints.get_edited_preset().config,
             new ConfigAdapter(
-                &current_script->tab()->m_preset_bundle->filaments.get_edited_preset().config, 
+                &current_script->tab()->m_preset_bundle->filaments.get_edited_preset().config,
                 new ConfigAdapter(&current_script->tab()->m_preset_bundle->printers.get_edited_preset().config)));
         try {
             return (float)fullconfig.get_computed_value(key, 0);
@@ -1027,13 +1027,13 @@ void ScriptContainer::call_script_function_set(const ConfigOptionDef& def, const
         break;
     }
     case coPoint:
-    case coPoints: { 
+    case coPoints: {
         Vec2d vec = boost::any_cast<Vec2d>(value);
         ctx->SetArgFloat(0, (float) vec.x());
         ctx->SetArgFloat(1, (float) vec.y());
         break;
     }
-    case coPoint3: { 
+    case coPoint3: {
         Vec3d vec = boost::any_cast<Vec3d>(value);
         ctx->SetArgFloat(0, (float) vec.x());
         ctx->SetArgFloat(1, (float) vec.y());
@@ -1194,7 +1194,7 @@ boost::any ScriptContainer::call_script_function_get_value(const ConfigOptionDef
     case coPercent:
     case coPercents:
     case coFloat:
-    case coFloats: 
+    case coFloats:
     case coFloatOrPercent:
     case coFloatsOrPercents: func_name = "float"; break;
     case coPoint:
@@ -1295,7 +1295,7 @@ boost::any ScriptContainer::call_script_function_get_value(const ConfigOptionDef
         opt_val     = Vec3d{pt_x, pt_x, pt_x};
         break;
     }
-    case coEnum: { 
+    case coEnum: {
         ret_int = ctx->GetReturnDWord();
         if (ret_int >= 0 && static_cast<size_t>(ret_int) < def.enum_values.size()) {
             opt_val = int32_t(ret_int);

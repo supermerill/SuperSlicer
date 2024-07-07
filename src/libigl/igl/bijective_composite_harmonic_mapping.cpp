@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2017 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "bijective_composite_harmonic_mapping.h"
 
@@ -55,7 +55,7 @@ IGL_INLINE bool igl::bijective_composite_harmonic_mapping(
   slice(V,b,1,bc0);
 
   // It's difficult to check for flips "robustly" in the sense that the input
-  // mesh might not have positive/consistent sign to begin with. 
+  // mesh might not have positive/consistent sign to begin with.
 
   while(nsteps<=max_steps)
   {

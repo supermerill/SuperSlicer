@@ -98,7 +98,7 @@ void FanMover::_put_in_middle_G1(std::list<BufferData>::iterator item_to_split, 
     if (nb_sec_since_itemtosplit_start > item_to_split->time * 0.9 && (item_to_split->time - nb_sec_since_itemtosplit_start) < max_time * 0.1) {
         // doesn't really need to be split, print it after
         m_buffer.insert(next(item_to_split), line_to_write);
-    } else 
+    } else
         // does it need to be split?
         // if it's almost at the start of the g1, and the time "lost" is less than 10%
         if (nb_sec_since_itemtosplit_start < item_to_split->time * 0.1 && nb_sec_since_itemtosplit_start < max_time * 0.1 &&

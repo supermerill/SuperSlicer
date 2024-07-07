@@ -15,7 +15,7 @@
 #include <boost/property_tree/ptree.hpp>
 
 namespace Slic3r {
-    
+
 namespace BBConfiguration {
 // BBS: add json support
 #define BBL_JSON_KEY_VERSION "version"
@@ -84,7 +84,7 @@ void init()
     key_translation_map["wall_filament"]                    = "perimeter_extruder";
     key_translation_map["first_layer_filament"]             = "first_layer_extruder";
     key_translation_map["spiral_mode"]                      = "spiral_vase";
-    
+
     // print
     key_translation_map["alternate_extra_wall"]             = "extra_perimeters_odd_layers";
     key_translation_map["is_infill_first"]                          = "infill_first";
@@ -447,7 +447,7 @@ void init()
     value_translation_map["support_material_top_interface_pattern"]["default"] = "auto";
     value_translation_map["support_material_bottom_interface_pattern"]["default"] = "auto";
     //value_translation_map["support_material_interface_pattern"]["rectilinear_interlaced"] = "???"; //can't convert let the config_substitutions emit the warning
- 
+
     //others
     value_translation_map["support_material_pattern"]["default"] = "rectilinear";
     //value_translation_map["support_material_pattern"]["lightning"] = ""; //can't convert, let the config_substitutions emit the warning
@@ -491,7 +491,7 @@ void init()
 
 void complicated_convert(t_config_option_key &opt_key, std::string &value, const std::map<std::string, std::string> &input, std::map<std::string, std::string> &output)
 {
-    
+
     if ("ironing_type" == opt_key && "no ironing" == value) {
         value = "top";
         output["ironing"] = "0";
@@ -816,7 +816,7 @@ std::map<std::string, std::string> read_ini_file_bambu(const std_path &temp_file
     std_ifstream ifs(GET_STD_PATH_FOR_IFSTREAM(temp_file));
     boost::property_tree::read_ini(ifs, tree);
     //return this->load(tree, compatibility_rule);
-        
+
         std::map<std::string, std::string> key_values;
     for (const boost::property_tree::ptree::value_type &v : tree) {
         key_values[v.first] = v.second.get_value<std::string>();
@@ -832,7 +832,7 @@ bool convert_settings_from_bambu(std::map<std::string, std::string> bambu_settin
     using namespace BBConfiguration;
     if (!is_init) // not thread-safe
         init();
-    
+
     // transform entries into susi config
     std::map<std::string, std::string>              good_key_values;
     for (auto &entry : bambu_settings_serialized) {
@@ -845,7 +845,7 @@ bool convert_settings_from_bambu(std::map<std::string, std::string> bambu_settin
         if (auto it = key_translation_map.find(opt_key); it != key_translation_map.end())
             opt_key = it->second;
         PrintConfigDef::handle_legacy(opt_key, value, false);
-        
+
         complicated_convert(opt_key, value, bambu_settings_serialized, good_key_values);
 
         if (auto it_key = value_translation_map.find(opt_key); it_key != value_translation_map.end())
@@ -855,7 +855,7 @@ bool convert_settings_from_bambu(std::map<std::string, std::string> bambu_settin
         if (!opt_key.empty())
             good_key_values[opt_key] = value;
     }
-    
+
 
     // push these into config
     const ConfigDef *config_def = print_config.def();
@@ -865,7 +865,7 @@ bool convert_settings_from_bambu(std::map<std::string, std::string> bambu_settin
         else
             config_substitutions.add(ConfigSubstitution(entry.first, entry.second));
     }
-    
+
     // final transform
     print_config.convert_from_prusa(with_phony);
     custom_gcode_transform(print_config);
@@ -882,7 +882,7 @@ bool convert_settings_from_bambu(std::map<std::string, std::string> bambu_settin
     using namespace BBConfiguration;
     if (!is_init) // not thread-safe
         init();
-    
+
     // transform entries into susi config
     std::map<std::string, std::string>              good_key_values;
     for (auto &entry : bambu_settings_serialized) {
@@ -891,7 +891,7 @@ bool convert_settings_from_bambu(std::map<std::string, std::string> bambu_settin
         if (auto it = key_translation_map.find(opt_key); it != key_translation_map.end())
             opt_key = it->second;
         PrintConfigDef::handle_legacy(opt_key, value, false);
-        
+
         complicated_convert(opt_key, value, bambu_settings_serialized, good_key_values);
 
         if (auto it_key = value_translation_map.find(opt_key); it_key != value_translation_map.end())
@@ -901,7 +901,7 @@ bool convert_settings_from_bambu(std::map<std::string, std::string> bambu_settin
         if (!opt_key.empty())
             good_key_values[opt_key] = value;
     }
-    
+
 
     // push these into config
     const ConfigDef *config_def = object_config.get().def();
@@ -911,7 +911,7 @@ bool convert_settings_from_bambu(std::map<std::string, std::string> bambu_settin
         else
             config_substitutions.add(ConfigSubstitution(entry.first, entry.second));
     }
-    
+
     // final transform
     object_config.convert_from_prusa(print_config, with_phony);
     return true;

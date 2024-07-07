@@ -31,7 +31,7 @@
 
 #elif defined(_WIN32)
 
-#include <stdlib.h>	    /* For _MAX_PATH definition */
+#include <stdlib.h>        /* For _MAX_PATH definition */
 #include <stdio.h>
 #include <malloc.h>
 

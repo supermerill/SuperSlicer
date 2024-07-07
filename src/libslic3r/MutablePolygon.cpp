@@ -75,11 +75,11 @@ void remove_duplicates(MutablePolygon &polygon, coord_t scaled_eps, const double
 // Return true if a hole was completely closed (degenerated to an empty polygon) or a single CCW triangle was left, which is not to be simplified any further.
 // it0, it2 are updated to the final clipping edge.
 static bool clip_narrow_corner(
-    const Vec2i64               p1, 
-    MutablePolygon::iterator   &it0, 
+    const Vec2i64               p1,
+    MutablePolygon::iterator   &it0,
     MutablePolygon::iterator   &it2,
     MutablePolygon::range      &unprocessed_range,
-    int64_t                     dist2_current, 
+    int64_t                     dist2_current,
     const int64_t               shortcut_length)
 {
     MutablePolygon &polygon = it0.polygon();
@@ -180,7 +180,7 @@ static bool clip_narrow_corner(
         // A hole degenerated to an empty polygon, or a tiny triangle remained.
 #ifndef NDEBUG
         bool blocked = forward == Blocked || backward == Blocked;
-        assert(polygon.size() < 3 || 
+        assert(polygon.size() < 3 ||
             // Remaining triangle is CCW oriented. Both sides must be "blocked", but the other side may have not been
             // updated after the the p02 / p22 became united into a single point.
             blocked ||

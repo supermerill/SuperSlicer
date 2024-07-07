@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "remove_duplicates.h"
 #include <vector>
@@ -28,14 +28,14 @@ IGL_INLINE void igl::remove_duplicates(
   using namespace std;
   //// build collapse map
   int n = V.rows();
-  
+
   I = Eigen::Matrix<typename DerivedF::Scalar, Eigen::Dynamic, 1>(n);
   I[0] = 0;
-  
+
   bool *VISITED = new bool[n];
   for (int i =0; i <n; ++i)
     VISITED[i] = false;
-  
+
   NV.resize(n,V.cols());
   int count = 0;
   Eigen::VectorXd d(n);
@@ -57,7 +57,7 @@ IGL_INLINE void igl::remove_duplicates(
       count ++;
     }
   }
-  
+
   NV.conservativeResize  (  count , Eigen::NoChange );
 
   count = 0;
@@ -77,7 +77,7 @@ IGL_INLINE void igl::remove_duplicates(
     }
   }
   NF.conservativeResize  (  count , Eigen::NoChange );
-  
+
   delete [] VISITED;
 }
 

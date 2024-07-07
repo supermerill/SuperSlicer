@@ -8,13 +8,13 @@ namespace {
 // std::string get_cfg_value(const DynamicPrintConfig &cfg, const std::string &key)
 // {
 //     std::string ret;
-    
+
 //     if (cfg.has(key)) {
 //         auto opt = cfg.option(key);
 //         if (opt) ret = opt->serialize();
 //     }
-    
-//     return ret;    
+
+//     return ret;
 // }
 
 } // namespace
@@ -32,12 +32,12 @@ std::unique_ptr<sla::RasterBase> SLAAbstractArchive::create_raster() const
 
     mirror[X] = this->config().display_mirror_x.get_bool();
     mirror[Y] = this->config().display_mirror_y.get_bool();
-    
+
     auto ro = this->config().display_orientation.get_int();
     sla::RasterBase::Orientation orientation =
         ro == sla::RasterBase::roPortrait ? sla::RasterBase::roPortrait :
                                             sla::RasterBase::roLandscape;
-    
+
     if (orientation == sla::RasterBase::roPortrait) {
         std::swap(w, h);
         std::swap(pw, ph);

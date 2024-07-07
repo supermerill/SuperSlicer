@@ -205,7 +205,7 @@ static unsigned char bitbang_txrx(PROGRAMMER * pgm, unsigned char byte)
   return rbyte;
 }
 
-static int bitbang_tpi_clk(PROGRAMMER * pgm) 
+static int bitbang_tpi_clk(PROGRAMMER * pgm)
 {
   unsigned char r = 0;
   pgm->setpin(pgm, PIN_AVR_SCK, 1);
@@ -217,7 +217,7 @@ static int bitbang_tpi_clk(PROGRAMMER * pgm)
   return r;
 }
 
-void bitbang_tpi_tx(PROGRAMMER * pgm, unsigned char byte) 
+void bitbang_tpi_tx(PROGRAMMER * pgm, unsigned char byte)
 {
   int i;
   unsigned char b, parity;
@@ -235,7 +235,7 @@ void bitbang_tpi_tx(PROGRAMMER * pgm, unsigned char byte)
     pgm->setpin(pgm, PIN_AVR_MOSI, b);
     bitbang_tpi_clk(pgm);
   }
-  
+
   /* parity bit */
   pgm->setpin(pgm, PIN_AVR_MOSI, parity);
   bitbang_tpi_clk(pgm);
@@ -246,7 +246,7 @@ void bitbang_tpi_tx(PROGRAMMER * pgm, unsigned char byte)
   bitbang_tpi_clk(pgm);
 }
 
-int bitbang_tpi_rx(PROGRAMMER * pgm) 
+int bitbang_tpi_rx(PROGRAMMER * pgm)
 {
   int i;
   unsigned char b, rbyte, parity;
@@ -289,7 +289,7 @@ int bitbang_tpi_rx(PROGRAMMER * pgm)
     avrdude_message(MSG_INFO, "bitbang_tpi_rx: stop bits not received correctly\n");
     return -1;
   }
-  
+
   return rbyte;
 }
 
@@ -332,17 +332,17 @@ int bitbang_cmd(PROGRAMMER * pgm, const unsigned char *cmd,
   }
 
     if(verbose >= 2)
-	{
+    {
         avrdude_message(MSG_NOTICE2, "bitbang_cmd(): [ ");
         for(i = 0; i < 4; i++)
             avrdude_message(MSG_NOTICE2, "%02X ", cmd[i]);
         avrdude_message(MSG_NOTICE2, "] [ ");
         for(i = 0; i < 4; i++)
-		{
+        {
             avrdude_message(MSG_NOTICE2, "%02X ", res[i]);
-		}
+        }
         avrdude_message(MSG_NOTICE2, "]\n");
-	}
+    }
 
   return 0;
 }
@@ -403,17 +403,17 @@ int bitbang_spi(PROGRAMMER * pgm, const unsigned char *cmd,
   pgm->setpin(pgm, PIN_LED_PGM, 1);
 
   if(verbose >= 2)
-	{
+    {
         avrdude_message(MSG_NOTICE2, "bitbang_cmd(): [ ");
         for(i = 0; i < count; i++)
             avrdude_message(MSG_NOTICE2, "%02X ", cmd[i]);
         avrdude_message(MSG_NOTICE2, "] [ ");
         for(i = 0; i < count; i++)
-		{
+        {
             avrdude_message(MSG_NOTICE2, "%02X ", res[i]);
-		}
+        }
         avrdude_message(MSG_NOTICE2, "]\n");
-	}
+    }
 
   return 0;
 }
@@ -540,9 +540,9 @@ int bitbang_initialize(PROGRAMMER * pgm, AVRPART * p)
       return -1;
     }
 
-	/* bring RESET high first */
+    /* bring RESET high first */
     pgm->setpin(pgm, PIN_AVR_RESET, 1);
-	usleep(1000);
+    usleep(1000);
 
     avrdude_message(MSG_NOTICE2, "doing MOSI-MISO link check\n");
 

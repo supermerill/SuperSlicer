@@ -27,7 +27,7 @@ void ExtrusionVisitorConst::use(const ExtrusionMultiPath &multipath) { default_u
 void ExtrusionVisitorConst::use(const ExtrusionMultiPath3D &multipath3D) { default_use(multipath3D); }
 void ExtrusionVisitorConst::use(const ExtrusionLoop &loop) { default_use(loop); }
 void ExtrusionVisitorConst::use(const ExtrusionEntityCollection &collection) { default_use(collection); }
-    
+
 void
 ExtrusionPath::intersect_expolygons(const ExPolygonCollection &collection, ExtrusionEntityCollection* retval) const
 {
@@ -82,8 +82,8 @@ void ExtrusionPath::polygons_covered_by_spacing(Polygons &out, const float spaci
     bool bridge = is_bridge(this->role()) || (this->width * 4 < this->height);
     assert(! bridge || this->width == this->height);
     //TODO: check BRIDGE_FLOW here
-    auto flow = bridge 
-        ? Flow::bridging_flow(this->width, 0.f) 
+    auto flow = bridge
+        ? Flow::bridging_flow(this->width, 0.f)
         : Flow::new_from_width(this->width, 0.f, this->height, spacing_ratio);
     polygons_append(out, offset(this->polyline.as_polyline(), 0.5f * float(flow.scaled_spacing()) + scaled_epsilon));
 }
@@ -250,9 +250,9 @@ void ExtrusionLoop::split_at(const Point &point, bool prefer_non_overhang, const
 {
     if (this->paths.empty())
         return;
-    
+
     auto [path_idx, segment_idx, p] = get_closest_path_and_point(point, prefer_non_overhang);
-    
+
     // Snap p to start or end of segment_idx if closer than scaled_epsilon.
     {
         const Point *p1 = this->paths[path_idx].polyline.get_points().data() + segment_idx;
@@ -265,17 +265,17 @@ void ExtrusionLoop::split_at(const Point &point, bool prefer_non_overhang, const
             if (d2_1 < thr2)
                 p = *p1;
         } else {
-            if (d2_2 < thr2) 
+            if (d2_2 < thr2)
                 p = *p2;
         }
     }
-    
+
     // now split path_idx in two parts
     const ExtrusionPath &path = this->paths[path_idx];
     ExtrusionPath p1(path.role(), path.mm3_per_mm, path.width, path.height, path.can_reverse());
     ExtrusionPath p2(path.role(), path.mm3_per_mm, path.width, path.height, path.can_reverse());
     path.polyline.split_at(p, &p1.polyline, &p2.polyline);
-    
+
     if (this->paths.size() == 1) {
         if (!p1.polyline.is_valid()) {
             this->paths.front().polyline.swap(p2.polyline);
@@ -291,7 +291,7 @@ void ExtrusionLoop::split_at(const Point &point, bool prefer_non_overhang, const
         if (p2.polyline.is_valid() && p2.polyline.length() > 0) this->paths.insert(this->paths.begin() + path_idx, p2);
         if (p1.polyline.is_valid() && p1.polyline.length() > 0) this->paths.insert(this->paths.begin() + path_idx, p1);
     }
-    
+
     // split at the new vertex
     this->split_at_vertex(p, 0.);
 }
@@ -299,7 +299,7 @@ void ExtrusionLoop::split_at(const Point &point, bool prefer_non_overhang, const
 ExtrusionPaths clip_end(ExtrusionPaths& paths, coordf_t distance)
 {
     ExtrusionPaths removed;
-    
+
     while (distance > 0 && !paths.empty()) {
         ExtrusionPath& last = paths.back();
         removed.push_back(last);
@@ -464,7 +464,7 @@ std::string looprole_to_code(ExtrusionLoopRole looprole)
     return code;
 }
 
-void ExtrusionPrinter::use(const ExtrusionPath &path) { 
+void ExtrusionPrinter::use(const ExtrusionPath &path) {
     ss << (json?"\"":"") << "ExtrusionPath" << (path.can_reverse()?"":"Oriented") << (json?"_":":") << role_to_code(path.role()) << (json?"\":":"") << "[";
     for (size_t i = 0; i < path.polyline.size(); i++) {
         if (i != 0) ss << ",";
@@ -501,7 +501,7 @@ void ExtrusionPrinter::use(const ExtrusionMultiPath3D &multipath3D) {
     }
     ss << "}";
 }
-void ExtrusionPrinter::use(const ExtrusionLoop &loop) { 
+void ExtrusionPrinter::use(const ExtrusionLoop &loop) {
     ss << (json?"\"":"") << "ExtrusionLoop" << (json?"_":":") << role_to_code(loop.role())<<"_" << looprole_to_code(loop.loop_role()) << (json?"\":":"") << "{";
     if(!loop.can_reverse()) ss << (json?"\"":"") << "oriented" << (json?"\":":"=") << "true,";
     for (size_t i = 0; i < loop.paths.size(); i++) {

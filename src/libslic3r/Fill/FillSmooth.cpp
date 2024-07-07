@@ -21,7 +21,7 @@ namespace Slic3r {
     void FillSmooth::perform_single_fill(const int idx, ExtrusionEntityCollection &eecroot, const Surface &srf_source,
         const FillParams &params) const {
         if (srf_source.expolygon.empty()) return;
-        
+
         // Save into layer smoothing path.
         ExtrusionEntityCollection *eec = new ExtrusionEntityCollection();
         eec->set_can_sort_reverse(!params.monotonic, !params.monotonic);
@@ -55,14 +55,14 @@ namespace Slic3r {
                 this->fill_expolygon(idx, *eec, surfaceNoOverlap, params_modifided);
             }
         }
-        
+
         if (eec->entities().empty()) delete eec;
         else eecroot.append(ExtrusionEntitiesPtr{ eec });
     }
-    
-    void FillSmooth::fill_expolygon(const int idx, ExtrusionEntityCollection &eec, const Surface &srf_to_fill, 
+
+    void FillSmooth::fill_expolygon(const int idx, ExtrusionEntityCollection &eec, const Surface &srf_to_fill,
         const FillParams &params_init) const {
-        
+
         FillParams params = params_init;
         std::unique_ptr<Fill> f2 = std::unique_ptr<Fill>(Fill::new_from_type(fillPattern[idx]));
         f2->bounding_box = this->bounding_box;
@@ -112,7 +112,7 @@ namespace Slic3r {
                 // print
                 mult_flow = (float)std::min(2., volume_to_occupy / extruded_volume);
                 BOOST_LOG_TRIVIAL(info) << "Layer " << layer_id << " Ironing process " << idx << " extrude " << extruded_volume << " mm3 for a volume of " << volume_to_occupy << " mm3 : we mult the flow by " << mult_flow;
-                
+
             }
 #if _DEBUG
             this->debug_verify_flow_mult = mult_flow;
@@ -154,8 +154,8 @@ namespace Slic3r {
         if (nbPass > 2){
             perform_single_fill(2, *eecroot, *surface, monotonic_params);
         }
-        
-        if (!eecroot->entities().empty()) 
+
+        if (!eecroot->entities().empty())
             out.push_back(eecroot);
         else delete eecroot;
 

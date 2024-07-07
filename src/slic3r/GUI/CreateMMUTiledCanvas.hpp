@@ -12,7 +12,7 @@
 #include <wx/combobox.h>
 #include <wx/gbsizer.h>
 
-namespace Slic3r { 
+namespace Slic3r {
 namespace GUI {
     class CreateMMUTiledCanvas;
 
@@ -64,7 +64,7 @@ namespace GUI {
     // 2: count pixels
     // 3: if spool assoc is set, use the spool color as print color (skip if spool unset) and remove it from sorting list & color list
     // 4: get smallest amount of pixel color, set merged to nearest color and add to it my pixels (and if it has a spool, use the spool) and remove it from sorting list & color list
-    // 5: repeat 5 as long as the color list 
+    // 5: repeat 5 as long as the color list
 
     struct ColorEntry;
     struct CmbColorAssoc {
@@ -140,7 +140,7 @@ public:
     BasicDrawPane* get_canvas() { return m_canvas; }
     void refresh_description();
     int find_extruder(wxColour color);
-    
+
     void close_me(wxCommandEvent& event_args);
 
     void on_dpi_changed(const wxRect& suggested_rect) override;

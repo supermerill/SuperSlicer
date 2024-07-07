@@ -11,23 +11,23 @@
 
 #include <wx/string.h>
 
-namespace Slic3r { 
-namespace GUI { 
+namespace Slic3r {
+namespace GUI {
 
 // Format input mixing UTF8 encoded strings (const char*, std::string) and wxStrings, return a wxString.
 template<typename... TArgs>
 inline wxString format_wxstr(const char* fmt, TArgs&&... args) {
-	boost::format message(fmt);
-	return wxString::FromUTF8(Slic3r::internal::format::format_recursive(message, std::forward<TArgs>(args)...).c_str());
+    boost::format message(fmt);
+    return wxString::FromUTF8(Slic3r::internal::format::format_recursive(message, std::forward<TArgs>(args)...).c_str());
 }
 template<typename... TArgs>
 inline wxString format_wxstr(const std::string& fmt, TArgs&&... args) {
-	boost::format message(fmt);
-	return wxString::FromUTF8(Slic3r::internal::format::format_recursive(message, std::forward<TArgs>(args)...).c_str());
+    boost::format message(fmt);
+    return wxString::FromUTF8(Slic3r::internal::format::format_recursive(message, std::forward<TArgs>(args)...).c_str());
 }
 template<typename... TArgs>
 inline wxString format_wxstr(const wxString& fmt, TArgs&&... args) {
-	return format_wxstr(fmt.ToUTF8().data(), std::forward<TArgs>(args)...);
+    return format_wxstr(fmt.ToUTF8().data(), std::forward<TArgs>(args)...);
 }
 template<typename... TArgs>
 inline std::string format(const char* fmt, TArgs&&... args) {
@@ -45,39 +45,39 @@ inline std::string format(const wxString& fmt, TArgs&&... args) {
 } // namespace GUI
 
 namespace internal {
-	namespace format {
-		// Wrapper around wxScopedCharBuffer to indicate that the content is UTF8 formatted.
-		struct utf8_buffer { 
-			// wxScopedCharBuffer is reference counted, therefore copying by value is cheap.
-			wxScopedCharBuffer data;
-		};
-		// Accept wxString and convert it to UTF8 to be processed by Slic3r::format().
-		inline const utf8_buffer cook(const wxString &arg) {
-			return utf8_buffer { arg.ToUTF8() };
-		}
-		// Vojtech seemingly does not understand perfect forwarding:
-		// Why Slic3r::internal::format::cook(T&& arg) is taken for non-const wxString reference?
-		inline const utf8_buffer cook(wxString &arg) {
-			return utf8_buffer { arg.ToUTF8() };
-		}
-		inline const utf8_buffer cook(wxString &&arg) {
-			return utf8_buffer{ arg.ToUTF8() };
-		}
-	}
+    namespace format {
+        // Wrapper around wxScopedCharBuffer to indicate that the content is UTF8 formatted.
+        struct utf8_buffer {
+            // wxScopedCharBuffer is reference counted, therefore copying by value is cheap.
+            wxScopedCharBuffer data;
+        };
+        // Accept wxString and convert it to UTF8 to be processed by Slic3r::format().
+        inline const utf8_buffer cook(const wxString &arg) {
+            return utf8_buffer { arg.ToUTF8() };
+        }
+        // Vojtech seemingly does not understand perfect forwarding:
+        // Why Slic3r::internal::format::cook(T&& arg) is taken for non-const wxString reference?
+        inline const utf8_buffer cook(wxString &arg) {
+            return utf8_buffer { arg.ToUTF8() };
+        }
+        inline const utf8_buffer cook(wxString &&arg) {
+            return utf8_buffer{ arg.ToUTF8() };
+        }
+    }
 }
 
 } // namespace Slic3r
 
 namespace boost {
-	namespace io {
-		namespace detail {
-			// Adaptor for boost::format to accept wxString converted to UTF8.
-			inline std::ostream& operator<<(std::ostream& os, const Slic3r::internal::format::utf8_buffer& str) {
-				os << str.data.data();
-				return os;
-			}
-		}
-	}
+    namespace io {
+        namespace detail {
+            // Adaptor for boost::format to accept wxString converted to UTF8.
+            inline std::ostream& operator<<(std::ostream& os, const Slic3r::internal::format::utf8_buffer& str) {
+                os << str.data.data();
+                return os;
+            }
+        }
+    }
 }
 
 #endif /* slic3r_GUI_format_hpp_ */

@@ -17,7 +17,7 @@
 
 namespace igl
 {
-    
+
   //This projection does nothing but render points into projP. Mostly used for "echoing" the global step
   IGL_INLINE bool shapeup_identity_projection(const Eigen::PlainObjectBase<Eigen::MatrixXd>& P, const Eigen::PlainObjectBase<Eigen::VectorXi>& SC, const Eigen::PlainObjectBase<Eigen::MatrixXi>& S,  Eigen::PlainObjectBase<Eigen::MatrixXd>& projP){
     projP.conservativeResize(SC.rows(), 3*SC.maxCoeff());
@@ -25,14 +25,14 @@ namespace igl
       Eigen::RowVector3d avgCurrP=Eigen::RowVector3d::Zero();
       for (int j=0;j<SC(i);j++)
         avgCurrP+=P.row(S(i,j))/(double)(SC(i));
-  
+
       for (int j=0;j<SC(i);j++)
         projP.block(i,3*j,1,3)=P.row(S(i,j))-avgCurrP;
     }
     return true;
   }
-  
-  
+
+
   //the projection assumes that the sets are vertices of polygons in order
   IGL_INLINE bool shapeup_regular_face_projection(const Eigen::PlainObjectBase<Eigen::MatrixXd>& P, const Eigen::PlainObjectBase<Eigen::VectorXi>& SC, const Eigen::PlainObjectBase<Eigen::MatrixXi>& S,  Eigen::PlainObjectBase<Eigen::MatrixXd>& projP){
     projP.conservativeResize(SC.rows(), 3*SC.maxCoeff());
@@ -45,14 +45,14 @@ namespace igl
       Eigen::MatrixXd sourcePolygon(N, 3);
       for (int j=0;j<N;j++)
         avgCurrP+=P.row(SRow(j))/(double)(N);
-  
+
       for (int j=0;j<N;j++)
         targetPolygon.row(j)=P.row(SRow(j))-avgCurrP;
-  
+
       //creating perfectly regular source polygon
       for (int j=0;j<N;j++)
         sourcePolygon.row(j)<<cos(2*igl::PI*(double)j/(double(N))), sin(2*igl::PI*(double)j/(double(N))),0.0;
-  
+
       //finding closest similarity transformation between source and target
       Eigen::MatrixXd corrMat=sourcePolygon.transpose()*targetPolygon;
       Eigen::JacobiSVD<Eigen::Matrix3d> svd(corrMat, Eigen::ComputeFullU | Eigen::ComputeFullV);
@@ -65,11 +65,11 @@ namespace igl
         targetEdgeLengths(j)=(targetPolygon.row((j+1)%N)-targetPolygon.row(j)).norm();
       }
       double scale=(targetEdgeLengths.cwiseQuotient(sourceEdgeLengths)).mean();
-  
+
       for (int j=0;j<N;j++)
         projP.block(currRow,3*j,1,3)=sourcePolygon.row(j)*R*scale;
     }
-  
+
     return true;
   }
 
@@ -94,23 +94,23 @@ namespace igl
       sudata.S=S;
       sudata.b=b;
       typedef typename DerivedP::Scalar Scalar;
-      
+
       //checking for consistency of the input
       assert(SC.rows()==S.rows());
       assert(SC.rows()==wShape.rows());
       assert(E.rows()==wSmooth.rows());
       assert(b.rows()!=0);  //would lead to matrix becoming SPD
-      
+
       sudata.DShape.conservativeResize(SC.sum(), P.rows());  //Shape matrix (integration);
       sudata.DClose.conservativeResize(b.rows(), P.rows());  //Closeness matrix for positional constraints
       sudata.DSmooth.conservativeResize(E.rows(), P.rows());  //smoothness matrix
-        
+
       //Building shape matrix
       std::vector<Triplet<Scalar> > DShapeTriplets;
       int currRow=0;
       for (int i=0;i<S.rows();i++){
           Scalar avgCoeff=1.0/(Scalar)SC(i);
-            
+
           for (int j=0;j<SC(i);j++){
             for (int k=0;k<SC(i);k++){
               if (j==k)
@@ -120,32 +120,32 @@ namespace igl
             }
           }
         currRow+=SC(i);
-        
+
       }
- 
+
       sudata.DShape.setFromTriplets(DShapeTriplets.begin(), DShapeTriplets.end());
 
       //Building closeness matrix
       std::vector<Triplet<Scalar> > DCloseTriplets;
       for (int i=0;i<b.size();i++)
         DCloseTriplets.push_back(Triplet<Scalar>(i,b(i), 1.0));
-      
+
       sudata.DClose.setFromTriplets(DCloseTriplets.begin(), DCloseTriplets.end());
-      
+
       //Building smoothness matrix
       std::vector<Triplet<Scalar> > DSmoothTriplets;
       for (int i=0; i<E.rows(); i++) {
         DSmoothTriplets.push_back(Triplet<Scalar>(i, E(i, 0), -1));
         DSmoothTriplets.push_back(Triplet<Scalar>(i, E(i, 1), 1));
       }
-        
+
       SparseMatrix<Scalar> tempMat;
       igl::cat(1, sudata.DShape, sudata.DClose, tempMat);
       igl::cat(1, tempMat, sudata.DSmooth, sudata.A);
-        
+
       //weight matrix
       vector<Triplet<Scalar> > WTriplets;
-        
+
       //one weight per set in S.
       currRow=0;
       for (int i=0;i<SC.rows();i++){
@@ -153,16 +153,16 @@ namespace igl
               WTriplets.push_back(Triplet<double>(currRow+j,currRow+j,sudata.shapeCoeff*wShape(i)));
           currRow+=SC(i);
       }
-        
+
       for (int i=0;i<b.size();i++)
           WTriplets.push_back(Triplet<double>(SC.sum()+i, SC.sum()+i, sudata.closeCoeff));
-        
+
       for (int i=0;i<E.rows();i++)
           WTriplets.push_back(Triplet<double>(SC.sum()+b.size()+i, SC.sum()+b.size()+i, sudata.smoothCoeff*wSmooth(i)));
-        
+
       sudata.W.conservativeResize(SC.sum()+b.size()+E.rows(), SC.sum()+b.size()+E.rows());
       sudata.W.setFromTriplets(WTriplets.begin(), WTriplets.end());
-        
+
       sudata.At=sudata.A.transpose();  //for efficieny, as we use the transpose a lot in the iteration
       sudata.Q=sudata.At*sudata.W*sudata.A;
 
@@ -186,31 +186,31 @@ namespace igl
     MatrixXd currP=P0;
     MatrixXd prevP=P0;
     MatrixXd projP;
-    
+
     assert(bc.rows()==sudata.b.rows());
-    
-		MatrixXd rhs(sudata.A.rows(), 3); rhs.setZero();
+
+        MatrixXd rhs(sudata.A.rows(), 3); rhs.setZero();
     rhs.block(sudata.DShape.rows(), 0, sudata.b.rows(),3)=bc;  //this stays constant throughout the iterations
-        
+
     if (!quietIterations){
         cout<<"Shapeup Iterations, "<<sudata.DShape.rows()<<" constraints, solution size "<<P0.size()<<endl;
         cout<<"**********************************************************************************************"<<endl;
     }
     projP.conservativeResize(sudata.SC.rows(), 3*sudata.SC.maxCoeff());
     for (int iter=0;iter<sudata.maxIterations;iter++){
-      
+
       local_projection(currP, sudata.SC,sudata.S,projP);
-            
+
       //constructing the projection part of the (DShape rows of the) right hand side
       int currRow=0;
       for (int i=0;i<sudata.S.rows();i++)
         for (int j=0;j<sudata.SC(i);j++)
           rhs.row(currRow++)=projP.block(i, 3*j, 1,3);
-      
+
       DerivedP lsrhs=-sudata.At*sudata.W*rhs;
       MatrixXd Y(0,3), Beq(0,3);  //We do not use the min_quad_solver fixed variables mechanism; they are treated with the closeness energy of ShapeUp.
       min_quad_with_fixed_solve(sudata.solver_data, lsrhs,Y,Beq,currP);
-      
+
       double currChange=(currP-prevP).lpNorm<Infinity>();
       if (!quietIterations)
         cout << "Iteration "<<iter<<", integration Linf error: "<<currChange<< endl;
@@ -220,10 +220,10 @@ namespace igl
         return true;
       }
     }
-    
+
     P=currP;
     return false;  //we went over maxIterations
-    
+
   }
 }
 

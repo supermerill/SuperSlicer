@@ -468,7 +468,7 @@ std::string GraphData::serialize() const
     }
     return ss.str();
 }
-    
+
 bool GraphData::deserialize(const std::string &str)
 {
     if (size_t pos = str.find('|'); pos != std::string::npos) {
@@ -569,59 +569,59 @@ void ConfigOptionDeleter::operator()(ConfigOption* p) {
 
 std::vector<std::string> ConfigOptionDef::cli_args(const std::string &key) const
 {
-	std::vector<std::string> args;
-	if (this->cli != ConfigOptionDef::nocli) {
+    std::vector<std::string> args;
+    if (this->cli != ConfigOptionDef::nocli) {
         const std::string &cli = this->cli;
         //FIXME What was that for? Check the "readline" documentation.
         // Neither '=' nor '!' is used in any of the cli parameters currently defined by PrusaSlicer.
 //        std::string cli = this->cli.substr(0, this->cli.find("="));
 //        boost::trim_right_if(cli, boost::is_any_of("!"));
-		if (cli.empty()) {
+        if (cli.empty()) {
             // Convert an option key to CLI argument by replacing underscores with dashes.
             std::string opt = key;
             boost::replace_all(opt, "_", "-");
             args.emplace_back(std::move(opt));
         } else
-			boost::split(args, cli, boost::is_any_of("|"));
+            boost::split(args, cli, boost::is_any_of("|"));
     }
     return args;
 }
 
 ConfigOption* ConfigOptionDef::create_empty_option() const
 {
-	if (this->nullable) {
-	    switch (this->type) {
-	    case coFloats:          return new ConfigOptionFloatsNullable();
-	    case coInts:            return new ConfigOptionIntsNullable();
-	    case coPercents:        return new ConfigOptionPercentsNullable();
+    if (this->nullable) {
+        switch (this->type) {
+        case coFloats:          return new ConfigOptionFloatsNullable();
+        case coInts:            return new ConfigOptionIntsNullable();
+        case coPercents:        return new ConfigOptionPercentsNullable();
         case coFloatsOrPercents: return new ConfigOptionFloatsOrPercentsNullable();
-	    case coBools:           return new ConfigOptionBoolsNullable();
-	    default:                throw ConfigurationError(std::string("Unknown option type for nullable option ") + this->label);
-	    }
-	} else {
-	    switch (this->type) {
-	    case coFloat:           return new ConfigOptionFloat();
-	    case coFloats:          return new ConfigOptionFloats();
-	    case coInt:             return new ConfigOptionInt();
-	    case coInts:            return new ConfigOptionInts();
-	    case coString:          return new ConfigOptionString();
-	    case coStrings:         return new ConfigOptionStrings();
-	    case coPercent:         return new ConfigOptionPercent();
-	    case coPercents:        return new ConfigOptionPercents();
-	    case coFloatOrPercent:  return new ConfigOptionFloatOrPercent();
+        case coBools:           return new ConfigOptionBoolsNullable();
+        default:                throw ConfigurationError(std::string("Unknown option type for nullable option ") + this->label);
+        }
+    } else {
+        switch (this->type) {
+        case coFloat:           return new ConfigOptionFloat();
+        case coFloats:          return new ConfigOptionFloats();
+        case coInt:             return new ConfigOptionInt();
+        case coInts:            return new ConfigOptionInts();
+        case coString:          return new ConfigOptionString();
+        case coStrings:         return new ConfigOptionStrings();
+        case coPercent:         return new ConfigOptionPercent();
+        case coPercents:        return new ConfigOptionPercents();
+        case coFloatOrPercent:  return new ConfigOptionFloatOrPercent();
         case coFloatsOrPercents: return new ConfigOptionFloatsOrPercents();
-	    case coPoint:           return new ConfigOptionPoint();
-	    case coPoints:          return new ConfigOptionPoints();
-	    case coPoint3:          return new ConfigOptionPoint3();
-	//    case coPoint3s:         return new ConfigOptionPoint3s();
-	    case coGraph:           return new ConfigOptionGraph();
-	    case coGraphs:          return new ConfigOptionGraphs();
-	    case coBool:            return new ConfigOptionBool();
-	    case coBools:           return new ConfigOptionBools();
-	    case coEnum:            return new ConfigOptionEnumGeneric(this->enum_keys_map);
-	    default:                throw ConfigurationError(std::string("Unknown option type for option ") + this->label);
-	    }
-	}
+        case coPoint:           return new ConfigOptionPoint();
+        case coPoints:          return new ConfigOptionPoints();
+        case coPoint3:          return new ConfigOptionPoint3();
+    //    case coPoint3s:         return new ConfigOptionPoint3s();
+        case coGraph:           return new ConfigOptionGraph();
+        case coGraphs:          return new ConfigOptionGraphs();
+        case coBool:            return new ConfigOptionBool();
+        case coBools:           return new ConfigOptionBools();
+        case coEnum:            return new ConfigOptionEnumGeneric(this->enum_keys_map);
+        default:                throw ConfigurationError(std::string("Unknown option type for option ") + this->label);
+        }
+    }
 }
 
 ConfigOption* ConfigOptionDef::create_default_option() const
@@ -637,7 +637,7 @@ ConfigOption* ConfigOptionDef::create_default_option() const
 // Assignment of the serialization IDs is not thread safe. The Defs shall be initialized from the main thread!
 ConfigOptionDef* ConfigDef::add(const t_config_option_key &opt_key, ConfigOptionType type)
 {
-	static size_t serialization_key_ordinal_last = 0;
+    static size_t serialization_key_ordinal_last = 0;
     ConfigOptionDef *opt = &this->options[opt_key];
     opt->opt_key = opt_key;
     opt->type = type;
@@ -648,9 +648,9 @@ ConfigOptionDef* ConfigDef::add(const t_config_option_key &opt_key, ConfigOption
 
 ConfigOptionDef* ConfigDef::add_nullable(const t_config_option_key &opt_key, ConfigOptionType type)
 {
-	ConfigOptionDef *def = this->add(opt_key, type);
-	def->nullable = true;
-	return def;
+    ConfigOptionDef *def = this->add(opt_key, type);
+    def->nullable = true;
+    return def;
 }
 
 std::ostream& ConfigDef::print_cli_help(std::ostream& out, bool show_defaults, std::function<bool(const ConfigOptionDef &)> filter) const
@@ -660,7 +660,7 @@ std::ostream& ConfigDef::print_cli_help(std::ostream& out, bool show_defaults, s
         std::istringstream words(text);
         std::ostringstream wrapped;
         std::string word;
- 
+
         if (words >> word) {
             wrapped << word;
             size_t space_left = line_length - word.length();
@@ -684,23 +684,23 @@ std::ostream& ConfigDef::print_cli_help(std::ostream& out, bool show_defaults, s
         if (filter(def))
             categories.insert(def.category);
     }
-    
+
     for (OptionCategory category : categories) {
         if (category != OptionCategory::none) {
             out << toString(category) << ":" << std::endl;
         } else if (categories.size() > 1) {
             out << "Misc options:" << std::endl;
         }
-        
+
         for (const auto& opt : this->options) {
             const ConfigOptionDef& def = opt.second;
-			if (def.category != category || def.cli == ConfigOptionDef::nocli || !filter(def))
+            if (def.category != category || def.cli == ConfigOptionDef::nocli || !filter(def))
                 continue;
-            
+
             // get all possible variations: --foo, --foobar, -f...
             std::vector<std::string> cli_args = def.cli_args(opt.first);
-			if (cli_args.empty())
-				continue;
+            if (cli_args.empty())
+                continue;
 
             for (auto& arg : cli_args) {
                 arg.insert(0, (arg.size() == 1) ? "-" : "--");
@@ -715,11 +715,11 @@ std::ostream& ConfigDef::print_cli_help(std::ostream& out, bool show_defaults, s
                     arg += " ABCD";
                 }
             }
-            
+
             // left: command line options
             const std::string cli = boost::algorithm::join(cli_args, ", ");
             out << " " << std::left << std::setw(20) << cli;
-            
+
             // right: option description
             std::string descr = def.tooltip;
             bool show_defaults_this = show_defaults || def.opt_key == "config_compatibility";
@@ -733,12 +733,12 @@ std::ostream& ConfigDef::print_cli_help(std::ostream& out, bool show_defaults, s
                 }
                 descr += "default: " + def.default_value->serialize() + ")";
             }
-            
+
             // wrap lines of description
             descr = wrap(descr, 80);
             std::vector<std::string> lines;
             boost::split(lines, descr, boost::is_any_of("\n"));
-            
+
             // if command line options are too long, print description in new line
             for (size_t i = 0; i < lines.size(); ++i) {
                 if (i == 0 && cli.size() > 19)
@@ -781,10 +781,10 @@ void ConfigBase::apply_only(const ConfigBase &other, const t_config_option_keys 
                 continue;
             throw UnknownOptionException(opt_key);
         }
-		const ConfigOption *other_opt = other.option(opt_key);
-		if (other_opt == nullptr) {
+        const ConfigOption *other_opt = other.option(opt_key);
+        if (other_opt == nullptr) {
             // The key was not found in the source config, therefore it will not be initialized!
-//			printf("Not found, therefore not initialized: %s\n", opt_key.c_str());
+//            printf("Not found, therefore not initialized: %s\n", opt_key.c_str());
         } else {
             try {
                 my_opt->set(other_opt);
@@ -797,7 +797,7 @@ void ConfigBase::apply_only(const ConfigBase &other, const t_config_option_keys 
 
 // Are the two configs equal? Ignoring options not present in both configs.
 bool ConfigBase::equals(const ConfigBase &other) const
-{ 
+{
     if(this->keys().size() != other.keys().size())
         return false;
     for (const t_config_option_key &opt_key : this->keys()) {
@@ -817,7 +817,7 @@ t_config_option_keys ConfigBase::diff(const ConfigBase &other, bool even_phony /
         const ConfigOption *this_opt  = this->option(opt_key);
         const ConfigOption *other_opt = other.option(opt_key);
         //dirty if both exist, they aren't both phony and value is different
-        if (this_opt != nullptr && other_opt != nullptr 
+        if (this_opt != nullptr && other_opt != nullptr
             && (even_phony || !(this_opt->is_phony() && other_opt->is_phony()))
             && ((*this_opt != *other_opt) || (this_opt->is_phony() != other_opt->is_phony())))
             diff.emplace_back(opt_key);
@@ -851,11 +851,11 @@ void ConfigBase::set(const std::string &opt_key, int32_t value, bool create)
 {
     ConfigOption *opt = this->option_throw(opt_key, create);
     switch (opt->type()) {
-    	case coInt:    static_cast<ConfigOptionInt*>(opt)->value = value; break;
-    	case coFloat:  static_cast<ConfigOptionFloat*>(opt)->value = value; break;
-		case coFloatOrPercent:  static_cast<ConfigOptionFloatOrPercent*>(opt)->value = value; static_cast<ConfigOptionFloatOrPercent*>(opt)->percent = false; break;
-		case coString: static_cast<ConfigOptionString*>(opt)->value = std::to_string(value); break;
-    	default: throw BadOptionTypeException("Configbase::set() - conversion from int not possible");
+        case coInt:    static_cast<ConfigOptionInt*>(opt)->value = value; break;
+        case coFloat:  static_cast<ConfigOptionFloat*>(opt)->value = value; break;
+        case coFloatOrPercent:  static_cast<ConfigOptionFloatOrPercent*>(opt)->value = value; static_cast<ConfigOptionFloatOrPercent*>(opt)->percent = false; break;
+        case coString: static_cast<ConfigOptionString*>(opt)->value = std::to_string(value); break;
+        default: throw BadOptionTypeException("Configbase::set() - conversion from int not possible");
     }
 }
 
@@ -863,10 +863,10 @@ void ConfigBase::set(const std::string &opt_key, double value, bool create)
 {
     ConfigOption *opt = this->option_throw(opt_key, create);
     switch (opt->type()) {
-    	case coFloat:  			static_cast<ConfigOptionFloat*>(opt)->value = value; break;
-    	case coFloatOrPercent:  static_cast<ConfigOptionFloatOrPercent*>(opt)->value = value; static_cast<ConfigOptionFloatOrPercent*>(opt)->percent = false; break;
-        case coString: 			static_cast<ConfigOptionString*>(opt)->value = float_to_string_decimal_point(value); break;
-    	default: throw BadOptionTypeException("Configbase::set() - conversion from float not possible");
+        case coFloat:              static_cast<ConfigOptionFloat*>(opt)->value = value; break;
+        case coFloatOrPercent:  static_cast<ConfigOptionFloatOrPercent*>(opt)->value = value; static_cast<ConfigOptionFloatOrPercent*>(opt)->percent = false; break;
+        case coString:             static_cast<ConfigOptionString*>(opt)->value = float_to_string_decimal_point(value); break;
+        default: throw BadOptionTypeException("Configbase::set() - conversion from float not possible");
     }
 }
 
@@ -922,8 +922,8 @@ void ConfigBase::set_deserialize(const t_config_option_key &opt_key_src, const s
 
 void ConfigBase::set_deserialize(std::initializer_list<SetDeserializeItem> items, ConfigSubstitutionContext& substitutions_ctxt)
 {
-	for (const SetDeserializeItem &item : items)
-		this->set_deserialize(item.opt_key, item.opt_value, substitutions_ctxt, item.append);
+    for (const SetDeserializeItem &item : items)
+        this->set_deserialize(item.opt_key, item.opt_value, substitutions_ctxt, item.append);
 }
 
 bool ConfigBase::set_deserialize_raw(const t_config_option_key &opt_key_src, const std::string &value, ConfigSubstitutionContext& substitutions_ctxt, bool append)
@@ -950,7 +950,7 @@ bool ConfigBase::set_deserialize_raw(const t_config_option_key &opt_key_src, con
         if (optdef == nullptr)
             throw UnknownOptionException(opt_key);
     }
-    
+
     if (! optdef->shortcut.empty()) {
         // Aliasing for example "solid_layers" to "top_solid_layers" and "bottom_solid_layers".
         for (const t_config_option_key &shortcut : optdef->shortcut)
@@ -959,7 +959,7 @@ bool ConfigBase::set_deserialize_raw(const t_config_option_key &opt_key_src, con
                 return false;
         return true;
     }
-    
+
     ConfigOption *opt = this->option(opt_key, true);
     if (opt == nullptr)
         throw new UnknownOptionException(opt_key);
@@ -1135,7 +1135,7 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
                 std::stringstream ss; ss << "ConfigBase::get_abs_value(): " << opt_key << " has no valid ratio_over to compute of";
                 throw ConfigurationError(ss.str());
             }
-        } 
+        }
     }
     std::stringstream ss; ss << "ConfigBase::get_abs_value(): "<< opt_key<<" has not a valid option type for get_abs_value()";
     throw ConfigurationError(ss.str());
@@ -1143,7 +1143,7 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
 
 // Return an absolute value of a possibly relative config variable.
 // For example, return absolute infill extrusion width, either from an absolute value, or relative to a provided value.
-double ConfigBase::get_abs_value(const t_config_option_key &opt_key, double ratio_over) const 
+double ConfigBase::get_abs_value(const t_config_option_key &opt_key, double ratio_over) const
 {
     // Get stored option value.
     const ConfigOption *raw_opt = this->option(opt_key);
@@ -1166,18 +1166,18 @@ void ConfigBase::setenv_() const
         ss << "SLIC3R_";
         ss << *it;
         std::string envname = ss.str();
-        
+
         // capitalize environment variable name
         for (size_t i = 0; i < envname.size(); ++i)
             envname[i] = (envname[i] <= 'z' && envname[i] >= 'a') ? envname[i]-('a'-'A') : envname[i];
-        
+
         boost::nowide::setenv(envname.c_str(), this->opt_serialize(*it).c_str(), 1);
     }
 }
 
 ConfigSubstitutions ConfigBase::load(const std::string &file, ForwardCompatibilitySubstitutionRule compatibility_rule)
 {
-    return is_gcode_file(file) ? 
+    return is_gcode_file(file) ?
         this->load_from_gcode_file(file, compatibility_rule) :
         this->load_from_ini(file, compatibility_rule);
 }
@@ -1328,7 +1328,7 @@ std::map<t_config_option_key, std::string> ConfigBase::load_gcode_string_legacy(
     return opt_key_values;
 }
 
-    
+
 size_t ConfigBase::load_from_gcode_string_legacy(ConfigBase& config, const char* str, ConfigSubstitutionContext& substitutions)
 {
     if (str == nullptr)
@@ -1484,7 +1484,7 @@ ConfigSubstitutions ConfigBase::load_from_gcode_file(const std::string &file, Fo
 
     if (has_delimiters)
     {
-        // Slic3r starting with 2.4.0 (and Prusaslicer from 2.4.0-alpha0) delimits the config section stored into G-code with 
+        // Slic3r starting with 2.4.0 (and Prusaslicer from 2.4.0-alpha0) delimits the config section stored into G-code with
         // ; SLIC3R_NAME_config = begin
         // ...
         // ; SLIC3R_NAME_config = end
@@ -1534,7 +1534,7 @@ ConfigSubstitutions ConfigBase::load_from_gcode_file(const std::string &file, Fo
                 }
             }
         }
-        if (! begin_found) 
+        if (! begin_found)
             throw Slic3r::RuntimeError(format("Configuration block opening tag \"; (.+)r_config = begin\" not found when reading %1%", file));
     }
     else
@@ -1543,8 +1543,8 @@ ConfigSubstitutions ConfigBase::load_from_gcode_file(const std::string &file, Fo
         // Try a heuristics reading the G-code from back.
         ifs.seekg(0, ifs.end);
         auto file_length = ifs.tellg();
-    	auto data_length = std::min<std::fstream::pos_type>(65535, file_length - header_end_pos);
-    	ifs.seekg(file_length - data_length, ifs.beg);
+        auto data_length = std::min<std::fstream::pos_type>(65535, file_length - header_end_pos);
+        ifs.seekg(file_length - data_length, ifs.beg);
         std::vector<char> data(size_t(data_length) + 1, 0);
         ifs.read(data.data(), data_length);
         ifs.close();
@@ -1581,14 +1581,14 @@ void ConfigBase::null_nullables()
         ConfigOption *opt = this->optptr(opt_key, false);
         assert(opt != nullptr);
         if (opt->nullable())
-        	opt->deserialize("nil", ForwardCompatibilitySubstitutionRule::Disable);
+            opt->deserialize("nil", ForwardCompatibilitySubstitutionRule::Disable);
     }
 }
 
 DynamicConfig::DynamicConfig(const ConfigBase& rhs, const t_config_option_keys& keys)
 {
-	for (const t_config_option_key& opt_key : keys)
-		this->options[opt_key] = std::unique_ptr<ConfigOption>(rhs.option(opt_key)->clone());
+    for (const t_config_option_key& opt_key : keys)
+        this->options[opt_key] = std::unique_ptr<ConfigOption>(rhs.option(opt_key)->clone());
 }
 
 bool DynamicConfig::operator==(const DynamicConfig &rhs) const
@@ -1598,23 +1598,23 @@ bool DynamicConfig::operator==(const DynamicConfig &rhs) const
     auto it2     = rhs.options.begin();
     auto it2_end = rhs.options.end();
     for (; it1 != it1_end && it2 != it2_end; ++ it1, ++ it2)
-		if (it1->first != it2->first || *it1->second != *it2->second)
-			// key or value differ
-			return false;
+        if (it1->first != it2->first || *it1->second != *it2->second)
+            // key or value differ
+            return false;
     return it1 == it1_end && it2 == it2_end;
 }
 
 // Remove options with all nil values, those are optional and it does not help to hold them.
 size_t DynamicConfig::remove_nil_options()
 {
-	size_t cnt_removed = 0;
-	for (auto it = options.begin(); it != options.end();)
-		if (it->second->is_nil()) {
-			it = options.erase(it);
-			++ cnt_removed;
-		} else
-			++ it;
-	return cnt_removed;
+    size_t cnt_removed = 0;
+    for (auto it = options.begin(); it != options.end();)
+        if (it->second->is_nil()) {
+            it = options.erase(it);
+            ++ cnt_removed;
+        } else
+            ++ it;
+    return cnt_removed;
 }
 
 ConfigOption* DynamicConfig::optptr(const t_config_option_key &opt_key, bool create)
@@ -1649,7 +1649,7 @@ const ConfigOption* DynamicConfig::optptr(const t_config_option_key &opt_key) co
             return parent->option(opt_key);
         else
             return nullptr;
-    }else 
+    }else
         return it->second.get();
 }
 
@@ -1660,7 +1660,7 @@ bool DynamicConfig::read_cli(int argc, const char* const argv[], t_config_option
     for (const auto &oit : this->def()->options)
         for (const std::string &t : oit.second.cli_args(oit.first))
             opts[t] = oit.first;
-    
+
     bool parse_options = true;
     for (size_t i = 1; i < static_cast<size_t>(argc); ++i) {
         std::string token = argv[i];
@@ -1740,9 +1740,9 @@ bool DynamicConfig::read_cli(int argc, const char* const argv[], t_config_option
         ConfigOption            *opt_base   = this->option(opt_key, true);
         ConfigOptionVectorBase  *opt_vector = opt_base->is_vector() ? static_cast<ConfigOptionVectorBase*>(opt_base) : nullptr;
         if (opt_vector) {
-			if (! existing)
-				// remove the default values
-				opt_vector->clear();
+            if (! existing)
+                // remove the default values
+                opt_vector->clear();
             // Vector values will be chained. Repeated use of a parameter will append the parameter or parameters
             // to the end of the value.
             if (opt_base->type() == coBools && value.empty())
@@ -1752,7 +1752,7 @@ bool DynamicConfig::read_cli(int argc, const char* const argv[], t_config_option
                 // they get deserialized from an .ini file. For ConfigOptionStrings, that means that the C-style unescape
                 // will be applied for values enclosed in quotes, while values non-enclosed in quotes are left to be
                 // unescaped by the calling shell.
-				opt_vector->deserialize(value, true);
+                opt_vector->deserialize(value, true);
         } else if (opt_base->type() == coBool) {
             if (value.empty())
                 static_cast<ConfigOptionBool*>(opt_base)->value = !no;
@@ -1798,12 +1798,12 @@ void StaticConfig::set_defaults()
     }
 }
 
-t_config_option_keys StaticConfig::keys() const 
+t_config_option_keys StaticConfig::keys() const
 {
     t_config_option_keys keys;
     assert(this->def() != nullptr);
     for (const auto &opt_def : this->def()->options)
-        if (this->option(opt_def.first) != nullptr) 
+        if (this->option(opt_def.first) != nullptr)
             keys.push_back(opt_def.first);
     return keys;
 }
@@ -1834,8 +1834,8 @@ static inline bool dynamic_config_iterate(const DynamicConfig &lhs, const Dynami
 
 // Are the two configs equal? Ignoring options not present in both configs and phony fields.
 bool DynamicConfig::equals(const DynamicConfig &other, bool even_phony /*=true*/) const
-{ 
-    return ! dynamic_config_iterate(*this, other, 
+{
+    return ! dynamic_config_iterate(*this, other,
         [even_phony](const t_config_option_key & /* key */, const ConfigOption *l, const ConfigOption *r) {
             return (l != nullptr && r != nullptr
                 && (even_phony || !(r->is_phony() && l->is_phony()))
@@ -1847,7 +1847,7 @@ bool DynamicConfig::equals(const DynamicConfig &other, bool even_phony /*=true*/
 t_config_option_keys DynamicConfig::diff(const DynamicConfig &other, bool even_phony /*=true*/) const
 {
     t_config_option_keys diff;
-    dynamic_config_iterate(*this, other, 
+    dynamic_config_iterate(*this, other,
         [&diff, even_phony](const t_config_option_key &key, const ConfigOption *l, const ConfigOption *r) {
             //if (*l != *r)
             if (l != nullptr && r != nullptr
@@ -1855,7 +1855,7 @@ t_config_option_keys DynamicConfig::diff(const DynamicConfig &other, bool even_p
                 && ((*r != *l) || (r->is_phony() != l->is_phony())))
                 diff.emplace_back(key);
             // Continue iterating.
-            return false; 
+            return false;
         });
     return diff;
 }
@@ -1864,7 +1864,7 @@ t_config_option_keys DynamicConfig::diff(const DynamicConfig &other, bool even_p
 t_config_option_keys DynamicConfig::equal(const DynamicConfig &other) const
 {
     t_config_option_keys equal;
-    dynamic_config_iterate(*this, other, 
+    dynamic_config_iterate(*this, other,
         [&equal](const t_config_option_key &key, const ConfigOption *l, const ConfigOption *r) {
             if (*l == *r)
                 equal.emplace_back(key);
@@ -1916,14 +1916,14 @@ CEREAL_REGISTER_TYPE(Slic3r::ConfigOptionEnumGeneric)
 CEREAL_REGISTER_TYPE(Slic3r::ConfigBase)
 CEREAL_REGISTER_TYPE(Slic3r::DynamicConfig)
 
-CEREAL_REGISTER_POLYMORPHIC_RELATION(Slic3r::ConfigOption, Slic3r::ConfigOptionSingle<double>) 
-CEREAL_REGISTER_POLYMORPHIC_RELATION(Slic3r::ConfigOption, Slic3r::ConfigOptionSingle<int32_t>) 
-CEREAL_REGISTER_POLYMORPHIC_RELATION(Slic3r::ConfigOption, Slic3r::ConfigOptionSingle<std::string>) 
+CEREAL_REGISTER_POLYMORPHIC_RELATION(Slic3r::ConfigOption, Slic3r::ConfigOptionSingle<double>)
+CEREAL_REGISTER_POLYMORPHIC_RELATION(Slic3r::ConfigOption, Slic3r::ConfigOptionSingle<int32_t>)
+CEREAL_REGISTER_POLYMORPHIC_RELATION(Slic3r::ConfigOption, Slic3r::ConfigOptionSingle<std::string>)
 CEREAL_REGISTER_POLYMORPHIC_RELATION(Slic3r::ConfigOption, Slic3r::ConfigOptionSingle<Slic3r::Vec2d>)
 CEREAL_REGISTER_POLYMORPHIC_RELATION(Slic3r::ConfigOption, Slic3r::ConfigOptionSingle<Slic3r::Vec3d>)
 CEREAL_REGISTER_POLYMORPHIC_RELATION(Slic3r::ConfigOption, Slic3r::ConfigOptionSingle<Slic3r::GraphData>)
-CEREAL_REGISTER_POLYMORPHIC_RELATION(Slic3r::ConfigOption, Slic3r::ConfigOptionSingle<bool>) 
-CEREAL_REGISTER_POLYMORPHIC_RELATION(Slic3r::ConfigOption, Slic3r::ConfigOptionVectorBase) 
+CEREAL_REGISTER_POLYMORPHIC_RELATION(Slic3r::ConfigOption, Slic3r::ConfigOptionSingle<bool>)
+CEREAL_REGISTER_POLYMORPHIC_RELATION(Slic3r::ConfigOption, Slic3r::ConfigOptionVectorBase)
 CEREAL_REGISTER_POLYMORPHIC_RELATION(Slic3r::ConfigOptionVectorBase, Slic3r::ConfigOptionVector<double>)
 CEREAL_REGISTER_POLYMORPHIC_RELATION(Slic3r::ConfigOptionVectorBase, Slic3r::ConfigOptionVector<int32_t>)
 CEREAL_REGISTER_POLYMORPHIC_RELATION(Slic3r::ConfigOptionVectorBase, Slic3r::ConfigOptionVector<std::string>)

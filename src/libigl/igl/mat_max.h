@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_MAT_MAX_H
 #define IGL_MAT_MAX_H
@@ -24,7 +24,7 @@ namespace igl
   //   X  m by n matrix
   //   dim  dimension along which to take max
   // Outputs:
-  //   Y  n-long vector (if dim == 1) 
+  //   Y  n-long vector (if dim == 1)
   //   or
   //   Y  m-long vector (if dim == 2)
   //   I  vector the same size as Y containing the indices along dim of maximum

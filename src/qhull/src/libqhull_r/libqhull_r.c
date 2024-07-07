@@ -495,7 +495,7 @@ At %02d:%02d:%02d & %2.5g CPU secs, qhull has created %d facets and merged %d.\n
       facet->visitid= 0;
   }
   zmax_(Zvvisit2max, (int)qh->vertex_visit/2);
-  if (qh->vertex_visit > (unsigned) INT_MAX) { /* 31 bits */ 
+  if (qh->vertex_visit > (unsigned) INT_MAX) { /* 31 bits */
     zinc_(Zvvisit);
     qh->vertex_visit= 0;
     FORALLvertices

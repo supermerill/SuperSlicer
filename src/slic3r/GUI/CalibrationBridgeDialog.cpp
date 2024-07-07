@@ -101,7 +101,7 @@ void CalibrationBridgeDialog::create_geometry(std::string setting_to_test, bool 
     } else {
         z_scale = 1;
     }
-    
+
     // it's rotated but not around the good origin: correct that
     double init_z_rotate_angle = Geometry::deg2rad(plat->config()->opt_float("init_z_rotate"));
     Matrix3d rot_matrix = Eigen::Quaterniond(Eigen::AngleAxisd(init_z_rotate_angle, Vec3d{0,0,1})).toRotationMatrix();

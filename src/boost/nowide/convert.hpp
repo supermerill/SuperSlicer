@@ -66,9 +66,9 @@ namespace nowide {
     ///
     /// Convert NULL terminated UTF source string to NULL terminated \a output string of size at
     /// most output_size (including NULL)
-    /// 
+    ///
     /// In case of success output is returned, if the input sequence is illegal,
-    /// or there is not enough room NULL is returned 
+    /// or there is not enough room NULL is returned
     ///
     inline char *narrow(char *output,size_t output_size,wchar_t const *source)
     {
@@ -77,9 +77,9 @@ namespace nowide {
     ///
     /// Convert UTF text in range [begin,end) to NULL terminated \a output string of size at
     /// most output_size (including NULL)
-    /// 
+    ///
     /// In case of success output is returned, if the input sequence is illegal,
-    /// or there is not enough room NULL is returned 
+    /// or there is not enough room NULL is returned
     ///
     inline char *narrow(char *output,size_t output_size,wchar_t const *begin,wchar_t const *end)
     {
@@ -88,9 +88,9 @@ namespace nowide {
     ///
     /// Convert NULL terminated UTF source string to NULL terminated \a output string of size at
     /// most output_size (including NULL)
-    /// 
+    ///
     /// In case of success output is returned, if the input sequence is illegal,
-    /// or there is not enough room NULL is returned 
+    /// or there is not enough room NULL is returned
     ///
     inline wchar_t *widen(wchar_t *output,size_t output_size,char const *source)
     {
@@ -99,9 +99,9 @@ namespace nowide {
     ///
     /// Convert UTF text in range [begin,end) to NULL terminated \a output string of size at
     /// most output_size (including NULL)
-    /// 
+    ///
     /// In case of success output is returned, if the input sequence is illegal,
-    /// or there is not enough room NULL is returned 
+    /// or there is not enough room NULL is returned
     ///
     inline wchar_t *widen(wchar_t *output,size_t output_size,char const *begin,char const *end)
     {
@@ -132,7 +132,7 @@ namespace nowide {
     ///
     /// boost::locale::conv::conversion_error is thrown in a case of a error
     ///
-    inline std::string narrow(std::wstring const &s) 
+    inline std::string narrow(std::wstring const &s)
     {
         return boost::locale::conv::utf_to_utf<char>(s);
     }
@@ -141,7 +141,7 @@ namespace nowide {
     ///
     /// boost::locale::conv::conversion_error is thrown in a case of a error
     ///
-    inline std::wstring widen(std::string const &s) 
+    inline std::wstring widen(std::string const &s)
     {
         return boost::locale::conv::utf_to_utf<wchar_t>(s);
     }

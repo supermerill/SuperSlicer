@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_RANDOM_POINTS_ON_MESH_H
 #define IGL_RANDOM_POINTS_ON_MESH_H
@@ -23,7 +23,7 @@ namespace igl
   // Outputs:
   //   B  n by 3 list of barycentric coordinates, ith row are coordinates of
   //     ith sampled point in face FI(i)
-  //   FI  n list of indices into F 
+  //   FI  n list of indices into F
   //
   template <typename DerivedV, typename DerivedF, typename DerivedB, typename DerivedFI>
   IGL_INLINE void random_points_on_mesh(

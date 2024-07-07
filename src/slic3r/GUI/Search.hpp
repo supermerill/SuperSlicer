@@ -76,7 +76,7 @@ struct Option {
 };
 
 struct FoundOption {
-	// UTF8 encoding, to be consumed by ImGUI by reference.
+    // UTF8 encoding, to be consumed by ImGUI by reference.
     std::string     label;
     std::string     marked_label;
     std::string     tooltip;
@@ -133,8 +133,8 @@ public:
     OptionsSearcher();
     ~OptionsSearcher();
 
-    void check_and_update(  PrinterTechnology pt_in, 
-                            ConfigOptionMode tags_in, 
+    void check_and_update(  PrinterTechnology pt_in,
+                            ConfigOptionMode tags_in,
                             std::vector<InputInfo> input_values);
     void append_script_option(const ConfigOptionDef &opt, Preset::Type preset_type, int16_t idx);
     bool search();

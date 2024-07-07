@@ -53,7 +53,7 @@ template<typename _MatrixType> struct traits<FullPivLU<_MatrixType> >
   * Output: \verbinclude class_FullPivLU.out
   *
   * This class supports the \link InplaceDecomposition inplace decomposition \endlink mechanism.
-  * 
+  *
   * \sa MatrixBase::fullPivLu(), MatrixBase::determinant(), MatrixBase::inverse()
   */
 template<typename _MatrixType> class FullPivLU

@@ -61,7 +61,7 @@ ObjectSettings::ObjectSettings(wxWindow* parent) :
     OG_Settings(parent, true)
 {
     m_og->activate();
-    m_og->set_name(_(L("Additional Settings")));    
+    m_og->set_name(_(L("Additional Settings")));
 
     m_settings_list_sizer = new wxBoxSizer(wxVERTICAL);
     m_og->sizer->Add(m_settings_list_sizer, 1, wxEXPAND | wxLEFT, 5);
@@ -80,7 +80,7 @@ bool ObjectSettings::update_settings_list()
     auto config         = wxGetApp().obj_list()->config();
 
     const auto item = objects_ctrl->GetSelection();
-    
+
     if (!item || !objects_model->IsSettingsItem(item) || !config || objects_ctrl->multiple_selection())
         return false;
 
@@ -89,31 +89,31 @@ bool ObjectSettings::update_settings_list()
 
     if (!cat_options.empty())
     {
-	    std::vector<Slic3r::OptionCategory> categories;
+        std::vector<Slic3r::OptionCategory> categories;
         categories.reserve(cat_options.size());
 
         auto extra_column = [config, this](wxWindow* parent, const Line& line)
-		{
-			auto opt_key = (line.get_options())[0].opt_id;  //we assume that we have one option per line
+        {
+            auto opt_key = (line.get_options())[0].opt_id;  //we assume that we have one option per line
 
-			auto btn = new ScalableButton(parent, wxID_ANY, m_bmp_delete);
+            auto btn = new ScalableButton(parent, wxID_ANY, m_bmp_delete);
             btn->SetToolTip(_(L("Remove parameter")));
 
             btn->SetBitmapFocus(m_bmp_delete_focus.bmp());
             btn->SetBitmapHover(m_bmp_delete_focus.bmp());
 
-			btn->Bind(wxEVT_BUTTON, [opt_key, config, this](wxEvent &event) {
+            btn->Bind(wxEVT_BUTTON, [opt_key, config, this](wxEvent &event) {
                 wxGetApp().plater()->take_snapshot(from_u8((boost::format(_utf8(L("Delete Option %s"))) % opt_key).str()));
-				config->erase(opt_key);
+                config->erase(opt_key);
                 wxGetApp().obj_list()->changed_object();
                 wxTheApp->CallAfter([this]() {
                     wxWindowUpdateLocker noUpdates(m_parent);
-                    update_settings_list(); 
-                    m_parent->Layout(); 
+                    update_settings_list();
+                    m_parent->Layout();
                 });
-			});
-			return btn;
-		};
+            });
+            return btn;
+        };
 
         for (auto& cat : cat_options)
         {
@@ -133,7 +133,7 @@ bool ObjectSettings::update_settings_list()
                 if (ctrl == nullptr)
                     return;
                 ctrl->SetBitmap_(m_bmp_delete);
-                ctrl->SetBitmapFocus(m_bmp_delete_focus.bmp()); 
+                ctrl->SetBitmapFocus(m_bmp_delete_focus.bmp());
                 ctrl->SetBitmapHover(m_bmp_delete_focus.bmp());
             };
 
@@ -177,8 +177,8 @@ bool ObjectSettings::update_settings_list()
     {
         objects_ctrl->select_item(objects_model->Delete(item));
         return false;
-    } 
-            
+    }
+
     return true;
 }
 
@@ -214,7 +214,7 @@ void ObjectSettings::update_config_values(ModelConfig* config)
     auto load_config = [this, config, &main_config]()
     {
         /* Additional check for overrided options.
-         * There is a case, when some options should to be added, 
+         * There is a case, when some options should to be added,
          * to avoid check loop in the next configuration update
          */
         bool is_added = add_missed_options(config, main_config);
@@ -255,7 +255,7 @@ void ObjectSettings::update_config_values(ModelConfig* config)
     {
         const int obj_idx = objects_model->GetObjectIdByItem(item);
         assert(obj_idx >= 0);
-        // for object's part first of all update konfiguration from object 
+        // for object's part first of all update konfiguration from object
         main_config.apply(wxGetApp().model().objects[obj_idx]->config.get(), true);
         // and then from its own config
     }
@@ -291,4 +291,4 @@ void ObjectSettings::sys_color_changed()
 }
 
 } //namespace GUI
-} //namespace Slic3r 
+} //namespace Slic3r

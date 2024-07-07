@@ -232,9 +232,9 @@ static int avr910_initialize(PROGRAMMER * pgm, AVRPART * p)
     while (1) {
       avr910_recv(pgm, &c, 1);
       if (devtype_1st == 0)
-	devtype_1st = c;
+    devtype_1st = c;
       if (c == 0)
-	break;
+    break;
       part = locate_part_by_avr910_devcode(part_list, c);
 
       avrdude_message(MSG_INFO, "    Device code: 0x%02x = %s\n", c, part ?  part->desc : "(unknown)");
@@ -242,7 +242,7 @@ static int avr910_initialize(PROGRAMMER * pgm, AVRPART * p)
       /* FIXME: Need to lookup devcode and report the device. */
 
       if (p->avr910_devcode == c)
-	dev_supported = 1;
+    dev_supported = 1;
     };
     avrdude_message(MSG_INFO, "\n");
 
@@ -250,7 +250,7 @@ static int avr910_initialize(PROGRAMMER * pgm, AVRPART * p)
       avrdude_message(MSG_INFO, "%s: %s: selected device is not supported by programmer: %s\n",
                       progname, ovsigck? "warning": "error", p->id);
       if (!ovsigck)
-	return -1;
+    return -1;
     }
     /* If the user forced the selection, use the first device
        type that is supported by the programmer. */
@@ -333,7 +333,7 @@ static int avr910_parseextparms(PROGRAMMER * pgm, LISTID extparms)
     if (strncmp(extended_param, "devcode=", strlen("devcode=")) == 0) {
       int devcode;
       if (sscanf(extended_param, "devcode=%i", &devcode) != 1 ||
-	  devcode <= 0 || devcode > 255) {
+      devcode <= 0 || devcode > 255) {
         avrdude_message(MSG_INFO, "%s: avr910_parseextparms(): invalid devcode '%s'\n",
                         progname, extended_param);
         rv = -1;
@@ -382,7 +382,7 @@ static int avr910_open(PROGRAMMER * pgm, char * port)
    * drain any extraneous input
    */
   avr910_drain (pgm, 0);
-	
+
   return 0;
 }
 
@@ -408,7 +408,7 @@ static void avr910_set_addr(PROGRAMMER * pgm, unsigned long addr)
   cmd[0] = 'A';
   cmd[1] = (addr >> 8) & 0xff;
   cmd[2] = addr & 0xff;
-  
+
   avr910_send(pgm, cmd, sizeof(cmd));
   avr910_vfy_cmd_sent(pgm, "set addr");
 }
@@ -496,7 +496,7 @@ static int avr910_read_byte(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
 }
 
 
-static int avr910_paged_write_flash(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m, 
+static int avr910_paged_write_flash(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
                                     unsigned int page_size,
                                     unsigned int addr, unsigned int n_bytes)
 {
@@ -609,7 +609,7 @@ static int avr910_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
       return -2;
 
     if (m->desc[0] == 'e') {
-      blocksize = 1;		/* Write to eeprom single bytes only */
+      blocksize = 1;        /* Write to eeprom single bytes only */
       wr_size = 1;
     } else {
       wr_size = 2;
@@ -619,7 +619,7 @@ static int avr910_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
 
     cmd = malloc(4 + blocksize);
     if (!cmd) return -1;
-     
+
     cmd[0] = 'B';
     cmd[3] = toupper((int)(m->desc[0]));
 

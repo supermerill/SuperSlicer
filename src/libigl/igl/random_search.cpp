@@ -3,9 +3,9 @@
 #include <cassert>
 
 template <
-  typename Scalar, 
-  typename DerivedX, 
-  typename DerivedLB, 
+  typename Scalar,
+  typename DerivedX,
+  typename DerivedLB,
   typename DerivedUB>
 IGL_INLINE Scalar igl::random_search(
   const std::function< Scalar (DerivedX &) > f,

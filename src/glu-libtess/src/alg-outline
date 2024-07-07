@@ -55,7 +55,7 @@ our purpose the accuracy of the normal is not important.  Instead we
 find three vertices which are widely separated, and compute the normal
 to the triangle they form.  The vertices are chosen so that the
 triangle has an area at least 1/sqrt(3) times the largest area of any
-triangle formed using the input vertices.  
+triangle formed using the input vertices.
 
 The contours do affect the orientation of the normal; after computing
 the normal, we check that the sum of the signed contour areas is
@@ -173,7 +173,7 @@ Invariants for the Edge Dictionary.
    where "event" is the current sweep line event.
  - No edge e has zero length.
  - No two edges have identical left and right endpoints.
- 
+
 Invariants for the Mesh (the processed portion).
 
  - The portion of the mesh left of the sweep line is a planar graph,
@@ -204,16 +204,16 @@ dictionary.  We achieve this by:
 
   1. Writing the numerical computations for maximum precision rather
      than maximum speed.
-     
+
   2. Making no assumptions at all about the results of the edge
      intersection calculations -- for sufficiently degenerate inputs,
      the computed location is not much better than a random number.
-     
+
   3. When numerical errors violate the invariants, restore them
      by making *topological* changes when necessary (ie. relinking
      the mesh structure).
-     
-     
+
+
 Triangulation and Grouping
 --------------------------
 

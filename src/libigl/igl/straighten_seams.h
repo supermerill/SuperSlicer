@@ -12,7 +12,7 @@ namespace igl
   // seams and boundaries in the texture-mapping and "straighten" them,
   // remapping vertices along the boundary and in the interior. This will be
   // careful to consistently straighten multiple seams in the texture-mesh
-  // corresponding to the same edge chains in the surface-mesh. 
+  // corresponding to the same edge chains in the surface-mesh.
   //
   // [UT] = straighten_seams(V,F,VT,FT)
   //
@@ -27,7 +27,7 @@ namespace igl
   // Outputs:
   //   UE  #UE by 2 list of indices into VT of coarse output polygon edges
   //   UT  #VT by 3 list of new texture coordinates
-  //   OT  #OT by 2 list of indices into VT of boundary edges 
+  //   OT  #OT by 2 list of indices into VT of boundary edges
   //
   // See also: simplify_curve, dpsimplify
   template <

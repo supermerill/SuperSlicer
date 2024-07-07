@@ -81,7 +81,7 @@
 #elif defined(HAVE_LIBFTDI) && defined(HAVE_USB_H)
 /* ftdi.h includes usb.h */
 #include <ftdi.h>
-#else 
+#else
 #warning No libftdi or libusb support. Install libftdi1/libusb-1.0 or libftdi/libusb and run configure/make again.
 #define DO_NOT_BUILD_FT245R
 #endif
@@ -126,21 +126,21 @@ void ft245r_initpgm(PROGRAMMER * pgm) {
 /* Mac OS X defines sem_init but actually does not implement them */
 #include <dispatch/dispatch.h>
 
-typedef dispatch_semaphore_t	sem_t;
+typedef dispatch_semaphore_t    sem_t;
 
-#define sem_init(psem,x,val)	*psem = dispatch_semaphore_create(val)
-#define sem_post(psem)		dispatch_semaphore_signal(*psem)
-#define sem_wait(psem)		dispatch_semaphore_wait(*psem, DISPATCH_TIME_FOREVER)
+#define sem_init(psem,x,val)    *psem = dispatch_semaphore_create(val)
+#define sem_post(psem)        dispatch_semaphore_signal(*psem)
+#define sem_wait(psem)        dispatch_semaphore_wait(*psem, DISPATCH_TIME_FOREVER)
 #else
 #include <semaphore.h>
 #endif
 
-#define FT245R_CYCLES	2
+#define FT245R_CYCLES    2
 #define FT245R_FRAGMENT_SIZE  512
-#define REQ_OUTSTANDINGS	10
+#define REQ_OUTSTANDINGS    10
 //#define USE_INLINE_WRITE_PAGE
 
-#define FT245R_DEBUG	0
+#define FT245R_DEBUG    0
 
 static struct ftdi_context *handle;
 
@@ -218,7 +218,7 @@ static int ft245r_drain(PROGRAMMER * pgm, int display) {
     unsigned char t;
 
     // flush the buffer in the chip by changing the mode.....
-    r = ftdi_set_bitmode(handle, 0, BITMODE_RESET); 	// reset
+    r = ftdi_set_bitmode(handle, 0, BITMODE_RESET);     // reset
     if (r) return -1;
     r = ftdi_set_bitmode(handle, ft245r_ddr, BITMODE_SYNCBB); // set Synchronuse BitBang
     if (r) return -1;
@@ -571,8 +571,8 @@ static int ft245r_open(PROGRAMMER * pgm, char * port) {
     if (usbpid) {
       pid = *(int *)(ldata(usbpid));
       if (lnext(usbpid))
-	avrdude_message(MSG_INFO, "%s: Warning: using PID 0x%04x, ignoring remaining PIDs in list\n",
-		progname, pid);
+    avrdude_message(MSG_INFO, "%s: Warning: using PID 0x%04x, ignoring remaining PIDs in list\n",
+        progname, pid);
     } else {
       pid = USB_DEVICE_FT245;
     }
@@ -587,7 +587,7 @@ static int ft245r_open(PROGRAMMER * pgm, char * port) {
         goto cleanup_no_usb;
     }
 
-    ft245r_ddr = 
+    ft245r_ddr =
          pgm->pin[PIN_AVR_SCK].mask[0]
        | pgm->pin[PIN_AVR_MOSI].mask[0]
        | pgm->pin[PIN_AVR_RESET].mask[0]

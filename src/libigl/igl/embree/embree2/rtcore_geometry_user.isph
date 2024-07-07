@@ -42,13 +42,13 @@ typedef void (*RTCIntersectFuncVarying)(void* uniform ptr,       /*!< pointer to
                                         uniform size_t item      /*< item to intersect */);
 
 /*! Type of occlusion function pointer for uniform rays. */
-typedef void (*RTCOccludedFuncUniform) (void* uniform ptr,       /*!< pointer to user data */ 
+typedef void (*RTCOccludedFuncUniform) (void* uniform ptr,       /*!< pointer to user data */
                                         uniform RTCRay1& ray,    /*!< ray to test occlusion */
                                         uniform size_t item      /*< item to test for occlusion */);
 
 
 /*! Type of occlusion function pointer for varying rays. */
-typedef void (*RTCOccludedFuncVarying) (void* uniform ptr,       /*!< pointer to user data */ 
+typedef void (*RTCOccludedFuncVarying) (void* uniform ptr,       /*!< pointer to user data */
                                         varying RTCRay& ray,     /*!< ray to test occlusion */
                                         uniform size_t item      /*< item to test for occlusion */);
 

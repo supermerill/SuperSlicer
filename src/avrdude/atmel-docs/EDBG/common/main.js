@@ -10,30 +10,30 @@ var noAnimations=false;
 
 $(document).ready(function() {
 
-	/* Local addition */
-	$("a").filter(function() {
-		return this.hostname && this.hostname !== location.hostname;
-	}).addClass('external');
+    /* Local addition */
+    $("a").filter(function() {
+        return this.hostname && this.hostname !== location.hostname;
+    }).addClass('external');
 
-	// When you click on a link to an anchor, scroll down 
-	// 105 px to cope with the fact that the banner
-	// hides the top 95px or so of the page.
-	// This code deals with the problem when 
-	// you click on a link within a page.
-	$('a[href*=#]').click(function() {
-		if (location.pathname.replace(/^\//,'') == this.pathname.replace(/^\//,'')
-		    && location.hostname == this.hostname) {
-		    var $target = $(this.hash);
-		    $target = $target.length && $target
-			|| $('[name=' + this.hash.slice(1) +']');
-		if (!(this.hash == "#searchDiv" || this.hash == "#treeDiv"  || this.hash == "") && $target.length) {
-			var targetOffset = $target.offset().top - 120;
-			$('html,body')
-			    .animate({scrollTop: targetOffset}, 200);
-			return false;
-		    }
-		}
-	    });
+    // When you click on a link to an anchor, scroll down
+    // 105 px to cope with the fact that the banner
+    // hides the top 95px or so of the page.
+    // This code deals with the problem when
+    // you click on a link within a page.
+    $('a[href*=#]').click(function() {
+        if (location.pathname.replace(/^\//,'') == this.pathname.replace(/^\//,'')
+            && location.hostname == this.hostname) {
+            var $target = $(this.hash);
+            $target = $target.length && $target
+            || $('[name=' + this.hash.slice(1) +']');
+        if (!(this.hash == "#searchDiv" || this.hash == "#treeDiv"  || this.hash == "") && $target.length) {
+            var targetOffset = $target.offset().top - 120;
+            $('html,body')
+                .animate({scrollTop: targetOffset}, 200);
+            return false;
+            }
+        }
+        });
 
     //  $("#showHideHighlight").button(); //add jquery button styling to 'Go' button
     //Generate tabs in nav-pane with JQuery
@@ -58,7 +58,7 @@ $(document).ready(function() {
     $("#tocLoading").attr("style", "display:none;");
     //    $("#ulTreeDiv").attr("style","display:block;");
 
-    //.searchButton is the css class applied to 'Go' button 
+    //.searchButton is the css class applied to 'Go' button
     $(function() {
         $("button", ".searchButton").button();
 
@@ -80,16 +80,16 @@ $(document).ready(function() {
     syncToc(); //Synchronize the toc tree with the content pane, when loading the page.
     //$("#doSearch").button(); //add jquery button styling to 'Go' button
 
-    // When you click on a link to an anchor, scroll down 
+    // When you click on a link to an anchor, scroll down
     // 120 px to cope with the fact that the banner
     // hides the top 95px or so of the page.
-    // This code deals with the problem when 
-    // you click on a link from another page. 
+    // This code deals with the problem when
+    // you click on a link from another page.
     var hash = window.location.hash;
-    if(hash){ 
-	var targetOffset = $(hash).offset().top - 120;
-	$('html,body').animate({scrollTop: targetOffset}, 200);
-	return false;
+    if(hash){
+    var targetOffset = $(hash).offset().top - 120;
+    $('html,body').animate({scrollTop: targetOffset}, 200);
+    return false;
     }
 });
 
@@ -213,7 +213,7 @@ function showHideToc() {
     if (showHideButton != undefined && showHideButton.hasClass("pointLeft")) {
         //Hide TOC
         showHideButton.removeClass('pointLeft').addClass('pointRight');
-	
+
         if(noAnimations) {
             leftNavigation.css("display", "none");
             content.css("margin", "125px 0 0 0");
@@ -244,7 +244,7 @@ function searchHighlight(searchText) {
     highlightOn = true;
     if (searchText != undefined) {
         var wList;
-        var sList = new Array();    //stem list 
+        var sList = new Array();    //stem list
         //Highlight the search terms
         searchText = searchText.toLowerCase().replace(/<\//g, "_st_").replace(/\$_/g, "_di_").replace(/\.|%2C|%3B|%21|%3A|@|\/|\*/g, " ").replace(/(%20)+/g, " ").replace(/_st_/g, "</").replace(/_di_/g, "%24_")
         searchText = searchText.replace(/  +/g, " ");

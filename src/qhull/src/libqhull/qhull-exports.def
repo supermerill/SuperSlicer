@@ -1,14 +1,14 @@
 ; qhull-exports.def -- msvc module-definition file
 ;
 ;   Generated from depends.exe by cut-and-paste of exported symbols by mingw gcc
-;   [mar'11] 399 symbols 
+;   [mar'11] 399 symbols
 ;   Annotate as DATA qh_last_random qh_qh qh_qhstat qhmem rbox rbox_inuse
 ;   Annotate as __declspec for outside access in win32 -- qh_qh qh_qhstat
 ;   Same as ../libqhullp/qhull_p-exports.def without qh_save_qhull and qh_restore_qhull
 ;
 ; $Id: //main/2015/qhull/src/libqhull/qhull-exports.def#3 $$Change: 2047 $
 ; $DateTime: 2016/01/04 22:03:18 $$Author: bbarber $
-; 
+;
 ; Define qhull_VERSION in CMakeLists.txt, Makefile, qhull-exports.def, qhull_p-exports.def, qhull_r-exports.def, and qhull-warn.pri
 VERSION 7.0
 EXPORTS
@@ -413,5 +413,5 @@ qh_voronoi_center
 qh_willdelete
 ; Mark as DATA, otherwise links a separate qhmem.  No __declspec
 qhmem                   DATA
-rbox			DATA
+rbox            DATA
 rbox_inuse              DATA

@@ -43,7 +43,7 @@ static const unsigned short crc_table[256] = {
 /* CRC calculation macros */
 #define CRC_INIT 0xFFFF
 #define CRC(crcval,newchar) crcval = (crcval >> 8) ^ \
-	crc_table[(crcval ^ newchar) & 0x00ff]
+    crc_table[(crcval ^ newchar) & 0x00ff]
 
 unsigned short
 crcsum(const unsigned char* message, unsigned long length,

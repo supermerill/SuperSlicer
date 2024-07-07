@@ -32,13 +32,13 @@ IGL_INLINE void igl::copyleft::cgal::half_space_box(
       max_sqrd = sqrd;
     }
   }
-  // L1 bbd 
-  const EScalar bbd = 
-    (EScalar(V.col(0).maxCoeff())- EScalar(V.col(0).minCoeff())) + 
-    (EScalar(V.col(1).maxCoeff())- EScalar(V.col(1).minCoeff())) + 
+  // L1 bbd
+  const EScalar bbd =
+    (EScalar(V.col(0).maxCoeff())- EScalar(V.col(0).minCoeff())) +
+    (EScalar(V.col(1).maxCoeff())- EScalar(V.col(1).minCoeff())) +
     (EScalar(V.col(2).maxCoeff())- EScalar(V.col(2).minCoeff()));
   Vector n = P.orthogonal_vector();
-  // now we have a center o2 and a vector u to the farthest point on the plane 
+  // now we have a center o2 and a vector u to the farthest point on the plane
   std::vector<Point> vBV;vBV.reserve(8);
   Vector v = CGAL::cross_product(u,n);
   // Scale u,v,n to be longer than bbd

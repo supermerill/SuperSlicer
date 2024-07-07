@@ -26,7 +26,7 @@
 /*! \brief Specifies the type of buffers when mapping buffers */
 enum RTCBufferType {
   RTC_INDEX_BUFFER         = 0x01000000,
-  
+
   RTC_VERTEX_BUFFER        = 0x02000000,
   RTC_VERTEX_BUFFER0       = 0x02000000,
   RTC_VERTEX_BUFFER1       = 0x02000001,
@@ -55,7 +55,7 @@ enum RTCMatrixType {
 };
 
 /*! \brief Supported geometry flags to specify handling in dynamic scenes. */
-enum RTCGeometryFlags 
+enum RTCGeometryFlags
 {
   RTC_GEOMETRY_STATIC     = 0,    //!< specifies static geometry that will change rarely
   RTC_GEOMETRY_DEFORMABLE = 1,    //!< specifies dynamic geometry with deformable motion (BVH refit possible)
@@ -103,7 +103,7 @@ typedef void (*RTCDisplacementFunc)(void* ptr,           /*!< pointer to user da
                                     float* pz,           /*!< z coordinates of points to displace (source and target) */
                                     size_t N             /*!< number of points to displace */ );
 
-/*! \brief Creates a new scene instance. 
+/*! \brief Creates a new scene instance.
 
   A scene instance contains a reference to a scene to instantiate and
   the transformation to instantiate the scene with. An implementation
@@ -115,7 +115,7 @@ RTCORE_API unsigned rtcNewInstance (RTCScene target,                  //!< the s
                                     RTCScene source                   //!< the scene to instantiate
   );
 
-/*! \brief Creates a new scene instance. 
+/*! \brief Creates a new scene instance.
 
   A scene instance contains a reference to a scene to instantiate and
   the transformation to instantiate the scene with. For motion blurred
@@ -139,10 +139,10 @@ RTCORE_API void rtcSetTransform (RTCScene scene,                          //!< s
 
 /*! \brief Sets transformation of the instance for specified timestep */
 RTCORE_API void rtcSetTransform2 (RTCScene scene,                         //!< scene handle
-                                  unsigned int geomID,                    //!< ID of geometry 
+                                  unsigned int geomID,                    //!< ID of geometry
                                   RTCMatrixType layout,                   //!< layout of transformation matrix
                                   const float* xfm,                       //!< pointer to transformation matrix
-                                  size_t timeStep = 0                     //!< timestep to set the matrix for 
+                                  size_t timeStep = 0                     //!< timestep to set the matrix for
   );
 
 /*! \brief Creates a new triangle mesh. The number of triangles
@@ -308,14 +308,14 @@ RTCORE_API unsigned rtcNewLineSegments (RTCScene scene,                    //!< 
 /*! \brief Sets 32 bit ray mask. */
 RTCORE_API void rtcSetMask (RTCScene scene, unsigned geomID, int mask);
 
-/*! \brief Sets boundary interpolation mode for subdivision surfaces */                                                                        
+/*! \brief Sets boundary interpolation mode for subdivision surfaces */
 RTCORE_API void rtcSetBoundaryMode(RTCScene scene, unsigned geomID, RTCBoundaryMode mode);
 
 /*! \brief Maps specified buffer. This function can be used to set index and
  *  vertex buffers of geometries. */
 RTCORE_API void* rtcMapBuffer(RTCScene scene, unsigned geomID, RTCBufferType type);
 
-/*! \brief Unmaps specified buffer. 
+/*! \brief Unmaps specified buffer.
 
   A buffer has to be unmapped before the rtcEnable, rtcDisable,
   rtcUpdate, or rtcDeleteGeometry calls are executed. */
@@ -333,13 +333,13 @@ RTCORE_API void rtcUnmapBuffer(RTCScene scene, unsigned geomID, RTCBufferType ty
  *  thus padding is required for some layouts. If this function is not
  *  called, Embree will allocate and manage buffers of the default
  *  layout. */
-RTCORE_API void rtcSetBuffer(RTCScene scene, unsigned geomID, RTCBufferType type, 
+RTCORE_API void rtcSetBuffer(RTCScene scene, unsigned geomID, RTCBufferType type,
                              const void* ptr, size_t byteOffset, size_t byteStride);
 
 /*! \brief Enable geometry. Enabled geometry can be hit by a ray. */
 RTCORE_API void rtcEnable (RTCScene scene, unsigned geomID);
 
-/*! \brief Update all geometry buffers. 
+/*! \brief Update all geometry buffers.
 
   Each time geometry buffers got modified, the user has to call some
   update function to tell the ray tracing engine which buffers got
@@ -347,7 +347,7 @@ RTCORE_API void rtcEnable (RTCScene scene, unsigned geomID);
   specified geometry as modified. */
 RTCORE_API void rtcUpdate (RTCScene scene, unsigned geomID);
 
-/*! \brief Update spefific geometry buffer. 
+/*! \brief Update spefific geometry buffer.
 
   Each time geometry buffers got modified, the user has to call some
   update function to tell the ray tracing engine which buffers got
@@ -355,7 +355,7 @@ RTCORE_API void rtcUpdate (RTCScene scene, unsigned geomID);
   some geometry as modified. */
 RTCORE_API void rtcUpdateBuffer (RTCScene scene, unsigned geomID, RTCBufferType type);
 
-/*! \brief Disable geometry. 
+/*! \brief Disable geometry.
 
   Disabled geometry is not hit by any ray. Disabling and enabling
   geometry gives higher performance than deleting and recreating
@@ -409,7 +409,7 @@ RTCORE_API void* rtcGetUserData (RTCScene scene, unsigned geomID);
  *  either valid or NULL. The buffer has to be padded at the end such
  *  that the last element can be read safely using SSE
  *  instructions. */
-RTCORE_API void rtcInterpolate(RTCScene scene, unsigned geomID, unsigned primID, float u, float v, RTCBufferType buffer, 
+RTCORE_API void rtcInterpolate(RTCScene scene, unsigned geomID, unsigned primID, float u, float v, RTCBufferType buffer,
                                float* P, float* dPdu, float* dPdv, size_t numFloats);
 
 /*! Interpolates user data to some u/v location. The data buffer
@@ -426,7 +426,7 @@ RTCORE_API void rtcInterpolate(RTCScene scene, unsigned geomID, unsigned primID,
  *  order derivatives by setting ddPdudu, ddPdvdv, and ddPdudv to
  *  NULL. The buffers have to be padded at the end such that the last
  *  element can be read or written safely using SSE instructions. */
-RTCORE_API void rtcInterpolate2(RTCScene scene, unsigned geomID, unsigned primID, float u, float v, RTCBufferType buffer, 
+RTCORE_API void rtcInterpolate2(RTCScene scene, unsigned geomID, unsigned primID, float u, float v, RTCBufferType buffer,
                                 float* P, float* dPdu, float* dPdv, float* ddPdudu, float* ddPdvdv, float* ddPdudv, size_t numFloats);
 
 /*! Interpolates user data to an array of u/v locations. The valid
@@ -445,9 +445,9 @@ RTCORE_API void rtcInterpolate2(RTCScene scene, unsigned geomID, unsigned primID
  *  structure of array (SoA) layout. The buffer has to be padded at
  *  the end such that the last element can be read safely using SSE
  *  instructions.*/
-RTCORE_API void rtcInterpolateN(RTCScene scene, unsigned geomID, 
-                                const void* valid, const unsigned* primIDs, const float* u, const float* v, size_t numUVs, 
-                                RTCBufferType buffer, 
+RTCORE_API void rtcInterpolateN(RTCScene scene, unsigned geomID,
+                                const void* valid, const unsigned* primIDs, const float* u, const float* v, size_t numUVs,
+                                RTCBufferType buffer,
                                 float* P, float* dPdu, float* dPdv, size_t numFloats);
 
 /*! Interpolates user data to an array of u/v locations. The valid
@@ -469,9 +469,9 @@ RTCORE_API void rtcInterpolateN(RTCScene scene, unsigned geomID,
  *  (SoA) layout. The buffer has to be padded at the end such that
  *  the last element can be read safely using SSE
  *  instructions. */
-RTCORE_API void rtcInterpolateN2(RTCScene scene, unsigned geomID, 
-                                const void* valid, const unsigned* primIDs, const float* u, const float* v, size_t numUVs, 
-                                RTCBufferType buffer, 
+RTCORE_API void rtcInterpolateN2(RTCScene scene, unsigned geomID,
+                                const void* valid, const unsigned* primIDs, const float* u, const float* v, size_t numUVs,
+                                RTCBufferType buffer,
                                 float* P, float* dPdu, float* dPdv, float* ddPdudu, float* ddPdvdv, float* ddPdudv, size_t numFloats);
 
 /*! \brief Deletes the geometry. */

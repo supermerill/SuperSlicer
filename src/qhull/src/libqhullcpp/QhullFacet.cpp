@@ -45,14 +45,14 @@ s_empty_facet= {0,0,0,0,{0},
 #//!\name Constructors
 
 QhullFacet::
-QhullFacet(const Qhull &q) 
+QhullFacet(const Qhull &q)
 : qh_facet(&s_empty_facet)
 , qh_qh(q.qh())
 {
 }
 
 QhullFacet::
-QhullFacet(const Qhull &q, facetT *f) 
+QhullFacet(const Qhull &q, facetT *f)
 : qh_facet(f ? f : &s_empty_facet)
 , qh_qh(q.qh())
 {
@@ -139,7 +139,7 @@ tricoplanarOwner() const
         }
         return QhullFacet(qh_qh, qh_facet->f.triowner);
     }
-    return QhullFacet(qh_qh); 
+    return QhullFacet(qh_qh);
 }//tricoplanarOwner
 
 QhullPoint QhullFacet::

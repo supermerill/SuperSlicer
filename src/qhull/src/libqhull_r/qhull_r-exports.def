@@ -1,12 +1,12 @@
 ; qhull_r-exports.def -- msvc module-definition file
 ;
 ;   Generated from depends.exe by cut-and-paste of exported symbols by mingw gcc
-;   [jan'14] 391 symbols 
+;   [jan'14] 391 symbols
 ;   Same as ../libqhullp/qhull-exports.def without DATA items (reentrant)
 ;
 ; $Id: //main/2015/qhull/src/libqhull_r/qhull_r-exports.def#3 $$Change: 2047 $
 ; $DateTime: 2016/01/04 22:03:18 $$Author: bbarber $
-; 
+;
 ; Define qhull_VERSION in CMakeLists.txt, Makefile, qhull-exports.def, qhull_p-exports.def, qhull_r-exports.def, and qhull-warn.pri
 VERSION 7.0
 EXPORTS

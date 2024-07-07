@@ -30,10 +30,10 @@ using PointSet = Eigen::MatrixXd;
 //  Implemented in libslic3r/SLA/Common.cpp
 class IndexedMesh {
     class AABBImpl;
-    
+
     const indexed_triangle_set* m_tm;
     double m_ground_level = 0, m_gnd_offset = 0;
-    
+
     std::unique_ptr<AABBImpl> m_aabb;
 
 #ifdef SLIC3R_HOLE_RAYCASTER
@@ -45,29 +45,29 @@ class IndexedMesh {
     template<class M> void init(const M &mesh, bool calculate_epsilon);
 
 public:
-    
+
     // calculate_epsilon ... calculate epsilon for triangle-ray intersection from an average triangle edge length.
     // If set to false, a default epsilon is used, which works for "reasonable" meshes.
     explicit IndexedMesh(const indexed_triangle_set &tmesh, bool calculate_epsilon = false);
     explicit IndexedMesh(const TriangleMesh &mesh, bool calculate_epsilon = false);
-    
+
     IndexedMesh(const IndexedMesh& other);
     IndexedMesh& operator=(const IndexedMesh&);
-    
+
     IndexedMesh(IndexedMesh &&other);
     IndexedMesh& operator=(IndexedMesh &&other);
-    
+
     ~IndexedMesh();
-    
+
     inline double ground_level() const { return m_ground_level + m_gnd_offset; }
     inline void ground_level_offset(double o) { m_gnd_offset = o; }
     inline double ground_level_offset() const { return m_gnd_offset; }
-    
+
     const std::vector<Vec3f>& vertices() const;
     const std::vector<Vec3i32>& indices()  const;
     const Vec3f& vertices(size_t idx) const;
     const Vec3i32& indices(size_t idx) const;
-    
+
     // Result of a raycast
     class hit_result {
         // m_t holds a distance from m_source to the intersection.
@@ -78,16 +78,16 @@ public:
         Vec3d m_source;
         Vec3d m_normal;
         friend class IndexedMesh;
-        
+
         // A valid object of this class can only be obtained from
         // IndexedMesh::query_ray_hit method.
         explicit inline hit_result(const IndexedMesh& em): m_mesh(&em) {}
     public:
         // This denotes no hit on the mesh.
         static inline constexpr double infty() { return std::numeric_limits<double>::infinity(); }
-        
+
         explicit inline hit_result(double val = infty()) : m_t(val) {}
-        
+
         inline double distance() const { return m_t; }
         inline const Vec3d& direction() const { return m_dir; }
         inline const Vec3d& source() const { return m_source; }
@@ -123,7 +123,7 @@ public:
 
     // Casting a ray on the mesh, returns the distance where the hit occures.
     hit_result query_ray_hit(const Vec3d &s, const Vec3d &dir) const;
-    
+
     // Casts a ray on the mesh and returns all hits
     std::vector<hit_result> query_ray_hits(const Vec3d &s, const Vec3d &dir) const;
 

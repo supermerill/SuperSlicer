@@ -407,11 +407,11 @@ Version 5.7:
 
       - ATXMEGA64A1
       - ATXMEGA192A1
-      -	ATXMEGA256A1
+      -    ATXMEGA256A1
       - ATXMEGA64A3
       - ATXMEGA128A3
       - ATXMEGA192A3
-      -	ATXMEGA256A3
+      -    ATXMEGA256A3
       - ATXMEGA256A3B
       - ATXMEGA16A4
       - ATXMEGA32A4
@@ -681,7 +681,7 @@ Version 4.1.0
   * Add support for avr910 type programmers (mcu00100, pavr avr910, etc).
 
   * Support new devices: ATmega8535, ATtiny26
-  
+
 
 Version 4.0.0
 

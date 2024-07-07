@@ -1,14 +1,14 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "planarize_quad_mesh.h"
 #include "quad_planarity.h"
 #include <Eigen/Sparse>
-#include <Eigen/Eigenvalues> 
+#include <Eigen/Eigenvalues>
 #include <iostream>
 
 namespace igl
@@ -22,22 +22,22 @@ namespace igl
     // references to the input faces and vertices
     const Eigen::PlainObjectBase<DerivedV> &Vin;
     const Eigen::PlainObjectBase<DerivedF> &Fin;
-    
+
     // vector consisting of the vertex positions stacked: [x;y;z;x;y;z...]
     // vector consisting of a weight per face (currently all set to 1)
     // vector consisting of the projected face vertices (might be different for the same vertex belonging to different faces)
     Eigen::Matrix<typename DerivedV::Scalar, Eigen::Dynamic, 1> Vv, weightsSqrt, P;
-    
+
     // Matrices as in the paper
     // Q: lhs matrix
     // Ni: matrix that subtracts the mean of a face from the 4 vertices of a face
     Eigen::SparseMatrix<typename DerivedV::Scalar > Q, Ni;
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<typename DerivedV::Scalar > > solver;
-    
+
     int maxIter;
     double threshold;
     const int ni = 4;
-    
+
     // Matrix assemblers
     inline void assembleQ();
     inline void assembleP();
@@ -46,8 +46,8 @@ namespace igl
     // Selects out of Vv the 4 vertices belonging to face fi
     inline void assembleSelector(int fi,
                           Eigen::SparseMatrix<typename DerivedV::Scalar > &S);
-    
-    
+
+
   public:
     // Init - assemble stacked vector and lhs matrix, factorize
     inline PlanarizerShapeUp(const Eigen::PlainObjectBase<DerivedV> &V_,
@@ -86,15 +86,15 @@ template <typename DerivedV, typename DerivedF>
 inline void igl::PlanarizerShapeUp<DerivedV, DerivedF>::assembleQ()
 {
   std::vector<Eigen::Triplet<typename DerivedV::Scalar> > tripletList;
-  
+
   // assemble the Ni matrix
   assembleNi();
-  
+
   for (int fi = 0; fi< numF; fi++)
   {
     Eigen::SparseMatrix<typename DerivedV::Scalar > Sfi;
     assembleSelector(fi, Sfi);
-    
+
     // the final matrix per face
     Eigen::SparseMatrix<typename DerivedV::Scalar > Qi = weightsSqrt(fi)*Ni*Sfi;
     // put it in the correct block of Q
@@ -108,7 +108,7 @@ inline void igl::PlanarizerShapeUp<DerivedV, DerivedF>::assembleQ()
         tripletList.push_back(Eigen::Triplet<typename DerivedV::Scalar>(row+3*ni*fi,col,val));
       }
   }
-  
+
   Q.resize(3*ni*numF,3*numV);
   Q.setFromTriplets(tripletList.begin(), tripletList.end());
   // the actual lhs matrix is Q'*Q
@@ -146,7 +146,7 @@ template <typename DerivedV, typename DerivedF>
 inline void igl::PlanarizerShapeUp<DerivedV, DerivedF>::assembleSelector(int fi,
                                                                             Eigen::SparseMatrix<typename DerivedV::Scalar > &S)
 {
-  
+
   std::vector<Eigen::Triplet<typename DerivedV::Scalar>> tripletList;
   for (int fvi = 0; fvi< ni; fvi++)
   {
@@ -155,10 +155,10 @@ inline void igl::PlanarizerShapeUp<DerivedV, DerivedF>::assembleSelector(int fi,
     tripletList.push_back(Eigen::Triplet<typename DerivedV::Scalar>(3*fvi+1,3*vi+1,1.));
     tripletList.push_back(Eigen::Triplet<typename DerivedV::Scalar>(3*fvi+2,3*vi+2,1.));
   }
-  
+
   S.resize(3*ni,3*numV);
   S.setFromTriplets(tripletList.begin(), tripletList.end());
-  
+
 }
 
 //project all faces to their closest planar face
@@ -172,13 +172,13 @@ inline void igl::PlanarizerShapeUp<DerivedV, DerivedF>::assembleP()
     Eigen::SparseMatrix<typename DerivedV::Scalar > Sfi;
     assembleSelector(fi, Sfi);
     Eigen::SparseMatrix<typename DerivedV::Scalar > NSi = Ni*Sfi;
-    
+
     Eigen::Matrix<typename DerivedV::Scalar, Eigen::Dynamic, 1> Vi = NSi*Vv;
     Eigen::Matrix<typename DerivedV::Scalar, Eigen::Dynamic, Eigen::Dynamic> CC(3,ni);
     for (int i = 0; i <ni; ++i)
       CC.col(i) = Vi.segment(3*i, 3);
     Eigen::Matrix<typename DerivedV::Scalar, 3, 3> C = CC*CC.transpose();
-    
+
     // Alec: Doesn't compile
     Eigen::EigenSolver<Eigen::Matrix<typename DerivedV::Scalar, 3, 3>> es(C);
     // the real() is for compilation purposes
@@ -190,7 +190,7 @@ inline void igl::PlanarizerShapeUp<DerivedV, DerivedF>::assembleP()
     Eigen::Matrix<typename DerivedV::Scalar, Eigen::Dynamic, Eigen::Dynamic> PP = U*U.transpose()*CC;
     for (int i = 0; i <ni; ++i)
      P.segment(3*ni*fi+3*i, 3) =  weightsSqrt[fi]*PP.col(i);
-    
+
   }
 }
 
@@ -200,7 +200,7 @@ inline void igl::PlanarizerShapeUp<DerivedV, DerivedF>::planarize(Eigen::PlainOb
 {
   Eigen::Matrix<typename DerivedV::Scalar, Eigen::Dynamic, 1> planarity;
   Vout = Vin;
-  
+
   for (int iter =0; iter<maxIter; ++iter)
   {
     igl::quad_planarity(Vout, Fin, planarity);
@@ -223,10 +223,10 @@ inline void igl::PlanarizerShapeUp<DerivedV, DerivedF>::planarize(Eigen::PlainOb
   oldMean = Vin.colwise().mean();
   newMean = Vout.colwise().mean();
   Vout.rowwise() += (oldMean - newMean);
-  
+
 };
 
-  
+
 
 template <typename DerivedV, typename DerivedF>
 IGL_INLINE void igl::planarize_quad_mesh(const Eigen::PlainObjectBase<DerivedV> &Vin,

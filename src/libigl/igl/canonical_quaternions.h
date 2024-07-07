@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_CANONICAL_QUATERNIONS_H
 #define IGL_CANONICAL_QUATERNIONS_H
@@ -24,7 +24,7 @@ namespace igl
   const float XZ_PLANE_QUAT_F[4] = {-SQRT_2_OVER_2,0,0,SQRT_2_OVER_2};
   // X points out, Y points right, and Z points up
   const float YZ_PLANE_QUAT_F[4] = {-0.5,-0.5,-0.5,0.5};
-  const float CANONICAL_VIEW_QUAT_F[][4] = 
+  const float CANONICAL_VIEW_QUAT_F[][4] =
     {
       {             0,             0,             0,             1}, // 0
       {             0,             0, SQRT_2_OVER_2, SQRT_2_OVER_2}, // 1
@@ -68,33 +68,33 @@ namespace igl
   const double XZ_PLANE_QUAT_D[4] = {-SQRT_2_OVER_2,0,0,SQRT_2_OVER_2};
   // X points out, Y points right, and Z points up
   const double YZ_PLANE_QUAT_D[4] = {-0.5,-0.5,-0.5,0.5};
-  const double CANONICAL_VIEW_QUAT_D[][4] = 
+  const double CANONICAL_VIEW_QUAT_D[][4] =
     {
       {             0,             0,             0,             1},
       {             0,             0, SQRT_2_OVER_2, SQRT_2_OVER_2},
       {             0,             0,             1,             0},
       {             0,             0, SQRT_2_OVER_2,-SQRT_2_OVER_2},
-  
+
       {             0,            -1,             0,             0},
       {-SQRT_2_OVER_2, SQRT_2_OVER_2,             0,             0},
       {            -1,             0,             0,             0},
       {-SQRT_2_OVER_2,-SQRT_2_OVER_2,             0,             0},
-  
+
       {          -0.5,          -0.5,          -0.5,           0.5},
       {             0,-SQRT_2_OVER_2,             0, SQRT_2_OVER_2},
       {           0.5,          -0.5,           0.5,           0.5},
       { SQRT_2_OVER_2,             0, SQRT_2_OVER_2,             0},
-  
+
       { SQRT_2_OVER_2,             0,-SQRT_2_OVER_2,             0},
       {           0.5,           0.5,          -0.5,           0.5},
       {             0, SQRT_2_OVER_2,             0, SQRT_2_OVER_2},
       {          -0.5,           0.5,           0.5,           0.5},
-  
+
       {             0, SQRT_2_OVER_2, SQRT_2_OVER_2,             0},
       {          -0.5,           0.5,           0.5,          -0.5},
       {-SQRT_2_OVER_2,             0,             0,-SQRT_2_OVER_2},
       {          -0.5,          -0.5,          -0.5,          -0.5},
-  
+
       {-SQRT_2_OVER_2,             0,             0, SQRT_2_OVER_2},
       {          -0.5,          -0.5,           0.5,           0.5},
       {             0,-SQRT_2_OVER_2, SQRT_2_OVER_2,             0},
@@ -105,19 +105,19 @@ namespace igl
 
   // NOTE: I want to rather be able to return a Q_type[][] but C++ is not
   // making it easy. So instead I've written a per-element accessor
-  
+
   // Return element [i][j] of the corresponding CANONICAL_VIEW_QUAT_* of the
   // given templated type
   // Inputs:
   //   i  index of quaternion
   //   j  index of coordinate in quaternion i
   // Returns values of CANONICAL_VIEW_QUAT_*[i][j]
-  template <typename Q_type> 
+  template <typename Q_type>
   IGL_INLINE Q_type CANONICAL_VIEW_QUAT(int i, int j);
   // Template specializations for float and double
-  template <> 
+  template <>
   IGL_INLINE float CANONICAL_VIEW_QUAT<float>(int i, int j);
-  template <> 
+  template <>
   IGL_INLINE double CANONICAL_VIEW_QUAT<double>(int i, int j);
 
 }

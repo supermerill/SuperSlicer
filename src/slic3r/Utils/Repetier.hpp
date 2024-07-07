@@ -28,7 +28,7 @@ public:
     PrintHostPostUploadActions get_post_upload_actions() const override { return PrintHostPostUploadAction::StartPrint; }
     bool supports_multiple_printers() const override { return true; }
     std::string get_host() const override { return host; }
-    
+
     bool get_groups(wxArrayString &groups) const override;
     bool get_printers(wxArrayString &printers) const override;
 

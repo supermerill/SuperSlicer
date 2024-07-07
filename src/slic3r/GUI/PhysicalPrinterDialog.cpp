@@ -70,7 +70,7 @@ PresetForPrinter::PresetForPrinter(PhysicalPrinterDialog* parent, const std::str
             m_parent->get_printer()->update_from_preset(*preset);
             // update values in parent (PhysicalPrinterDialog)
             m_parent->update(true);
-            
+
         }
 
         // update PrinterTechnology if it was changed
@@ -127,7 +127,7 @@ std::string PresetForPrinter::get_preset_name()
 void PresetForPrinter::SuppressDelete()
 {
     m_delete_preset_btn->Enable(false);
-    
+
     // this case means that now we have only one related preset for the printer
     // So, allow any selection
     m_presets_list->set_printer_technology(ptAny);
@@ -178,7 +178,7 @@ PhysicalPrinterDialog::PhysicalPrinterDialog(wxWindow* parent, wxString printer_
 
     m_add_preset_btn = new ScalableButton(this, wxID_ANY, "add_copies");
     m_add_preset_btn->SetFont(wxGetApp().normal_font());
-    m_add_preset_btn->SetToolTip(_L("Add preset for this printer device")); 
+    m_add_preset_btn->SetToolTip(_L("Add preset for this printer device"));
     m_add_preset_btn->Bind(wxEVT_BUTTON, &PhysicalPrinterDialog::AddPreset, this);
 
     m_printer_name    = new wxTextCtrl(this, wxID_ANY, printer_name, wxDefaultPosition, wxDefaultSize);
@@ -191,7 +191,7 @@ PhysicalPrinterDialog::PhysicalPrinterDialog(wxWindow* parent, wxString printer_
     m_printer_name->Bind(wxEVT_KILL_FOCUS, [this](wxFocusEvent& e) {
         if (m_printer_name->GetValue().empty()) m_printer_name->SetValue(m_default_name);
         e.Skip();
-    }); 
+    });
     PhysicalPrinterCollection& printers = wxGetApp().preset_bundle->physical_printers;
     PhysicalPrinter* printer = printers.find_printer(into_u8(printer_name));
     if (!printer) {
@@ -239,7 +239,7 @@ PhysicalPrinterDialog::PhysicalPrinterDialog(wxWindow* parent, wxString printer_
     topSizer->Add(nameSizer           , 0, wxEXPAND | wxLEFT | wxRIGHT, BORDER_W);
     topSizer->Add(m_presets_sizer     , 0, wxEXPAND | wxLEFT | wxRIGHT, BORDER_W);
     topSizer->Add(m_optgroup->sizer   , 1, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, BORDER_W);
-    topSizer->Add(btns                , 0, wxEXPAND | wxALL, BORDER_W); 
+    topSizer->Add(btns                , 0, wxEXPAND | wxALL, BORDER_W);
 
     SetSizer(topSizer);
     topSizer->SetSizeHints(this);
@@ -346,7 +346,7 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
         return sizer;
     };
 
-    auto printhost_browse = [=](wxWindow* parent) 
+    auto printhost_browse = [=](wxWindow* parent)
     {
         auto sizer = create_sizer_with_btn(parent, &m_printhost_browse_btn, "browse", _L("Browse") + " " + dots);
         m_printhost_browse_btn->Bind(wxEVT_BUTTON, [=](wxCommandEvent& e) {
@@ -505,7 +505,7 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
         m_optgroup->append_line(cafile_hint);
     }
     else {
-        
+
         Line line{ "", "" };
         line.full_width = 1;
 
@@ -524,7 +524,7 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
         m_optgroup->append_line(line);
     }
 
-    for (const std::string& opt_key : std::vector<std::string>{ "printhost_user", "printhost_password" }) {        
+    for (const std::string& opt_key : std::vector<std::string>{ "printhost_user", "printhost_password" }) {
         option           = m_optgroup->create_option_from_def(opt_key);
         option.opt.width = Field::def_width_wider();
         m_optgroup->append_single_option_line(option);
@@ -603,7 +603,7 @@ void PhysicalPrinterDialog::update(bool printer_change)
                 m_optgroup->hide_field(opt_key);
             supports_multiple_printers = opt && opt->value == htRepetier;
         }
-        
+
 
         // hide api key for klipper
         if (opt && opt->value == htKlipper) {
@@ -687,7 +687,7 @@ void PhysicalPrinterDialog::update_host_type(bool printer_change)
         m_config->set_key_value("host_type", new ConfigOptionEnum<PrintHostType>(type));
     };
     if ((printer_change && all_presets_are_from_mk3_family) || (!had_all_mk3 && all_presets_are_from_mk3_family))
-        set_to_choice_and_config(htPrusaLink);  
+        set_to_choice_and_config(htPrusaLink);
     else if ((printer_change && !all_presets_are_from_mk3_family) || (!all_presets_are_from_mk3_family && m_config->option<ConfigOptionEnum<PrintHostType>>("host_type")->value == htPrusaLink))
         set_to_choice_and_config(htOctoPrint);
     else

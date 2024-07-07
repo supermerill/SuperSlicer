@@ -11,7 +11,7 @@
 #ifndef EIGEN_SPARSEVIEW_H
 #define EIGEN_SPARSEVIEW_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -60,14 +60,14 @@ public:
 
   inline Index innerSize() const { return m_matrix.innerSize(); }
   inline Index outerSize() const { return m_matrix.outerSize(); }
-  
+
   /** \returns the nested expression */
   const typename internal::remove_all<MatrixTypeNested>::type&
   nestedExpression() const { return m_matrix; }
-  
+
   Scalar reference() const { return m_reference; }
   RealScalar epsilon() const { return m_epsilon; }
-  
+
 protected:
   MatrixTypeNested m_matrix;
   Scalar m_reference;
@@ -79,7 +79,7 @@ namespace internal {
 // TODO find a way to unify the two following variants
 // This is tricky because implementing an inner iterator on top of an IndexBased evaluator is
 // not easy because the evaluators do not expose the sizes of the underlying expression.
-  
+
 template<typename ArgType>
 struct unary_evaluator<SparseView<ArgType>, IteratorBased>
   : public evaluator_base<SparseView<ArgType> >
@@ -87,7 +87,7 @@ struct unary_evaluator<SparseView<ArgType>, IteratorBased>
     typedef typename evaluator<ArgType>::InnerIterator EvalIterator;
   public:
     typedef SparseView<ArgType> XprType;
-    
+
     class InnerIterator : public EvalIterator
     {
         typedef typename XprType::Scalar Scalar;
@@ -120,12 +120,12 @@ struct unary_evaluator<SparseView<ArgType>, IteratorBased>
           }
         }
     };
-    
+
     enum {
       CoeffReadCost = evaluator<ArgType>::CoeffReadCost,
       Flags = XprType::Flags
     };
-    
+
     explicit unary_evaluator(const XprType& xpr) : m_argImpl(xpr.nestedExpression()), m_view(xpr) {}
 
   protected:
@@ -144,7 +144,7 @@ struct unary_evaluator<SparseView<ArgType>, IndexBased>
     typedef typename XprType::Scalar Scalar;
     typedef typename XprType::StorageIndex StorageIndex;
   public:
-    
+
     class InnerIterator
     {
       public:
@@ -189,12 +189,12 @@ struct unary_evaluator<SparseView<ArgType>, IndexBased>
           }
         }
     };
-    
+
     enum {
       CoeffReadCost = evaluator<ArgType>::CoeffReadCost,
       Flags = XprType::Flags
     };
-    
+
     explicit unary_evaluator(const XprType& xpr) : m_argImpl(xpr.nestedExpression()), m_view(xpr) {}
 
   protected:

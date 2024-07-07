@@ -14,8 +14,8 @@
 #endif
 
 namespace libnest2d { namespace __parallel {
-    
-template<class It> 
+
+template<class It>
 using TIteratorValue = typename std::iterator_traits<It>::value_type;
 
 template<class Iterator>

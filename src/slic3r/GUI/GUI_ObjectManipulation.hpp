@@ -136,8 +136,8 @@ private:
     bool            m_dirty = false;
     // Cached labels for the delayed update, not localized!
     std::string     m_new_move_label_string;
-	std::string     m_new_rotate_label_string;
-	std::string     m_new_scale_label_string;
+    std::string     m_new_rotate_label_string;
+    std::string     m_new_scale_label_string;
     Vec3d           m_new_position;
     Vec3d           m_new_rotation;
     Vec3d           m_new_scale;
@@ -181,8 +181,8 @@ public:
     bool        use_colors() { return m_use_colors; }
 
     void        set_dirty() { m_dirty = true; }
-	// Called from the App to update the UI if dirty.
-	void		update_if_dirty();
+    // Called from the App to update the UI if dirty.
+    void        update_if_dirty();
 
     void        set_uniform_scaling(const bool uniform_scale);
     bool        get_uniform_scaling() const { return m_uniform_scale; }
@@ -206,7 +206,7 @@ public:
     void set_focused_editor(ManipulationEditor* focused_editor) {
 #ifndef __APPLE__
         m_focused_editor = focused_editor;
-#endif // __APPLE__        
+#endif // __APPLE__
     }
 
 private:
@@ -218,7 +218,7 @@ private:
     //Show or hide mirror buttons
     void update_mirror_buttons_visibility();
 
-    // change values 
+    // change values
     void change_position_value(int axis, double value);
     void change_rotation_value(int axis, double value);
     void change_scale_value(int axis, double value);

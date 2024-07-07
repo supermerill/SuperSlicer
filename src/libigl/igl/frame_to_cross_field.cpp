@@ -33,18 +33,18 @@ IGL_INLINE void igl::frame_to_cross_field(
 
   X.resize(F.rows(), 3);
 
-	for (int i=0;i<F.rows();i++)
-	{
-		Vector2d v1 = d1.row(i);
-		Vector2d v2 = d2.row(i);
+    for (int i=0;i<F.rows();i++)
+    {
+        Vector2d v1 = d1.row(i);
+        Vector2d v2 = d2.row(i);
 
     // define inverse map that maps the canonical axis to the given frame directions
-		Matrix2d A;
-		A <<    v1[0], v2[0],
+        Matrix2d A;
+        A <<    v1[0], v2[0],
             v1[1], v2[1];
 
-		// find the closest rotation
-		Eigen::JacobiSVD<Matrix<double,2,2> > svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV );
+        // find the closest rotation
+        Eigen::JacobiSVD<Matrix<double,2,2> > svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV );
     Matrix2d C = svd.matrixU() * svd.matrixV().transpose();
 
     Vector2d v = C.col(0);

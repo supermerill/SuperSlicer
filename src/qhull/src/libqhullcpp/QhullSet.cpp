@@ -26,7 +26,7 @@ s_empty_set;
 #//!\name Constructors
 
 QhullSetBase::
-QhullSetBase(const Qhull &q, setT *s) 
+QhullSetBase(const Qhull &q, setT *s)
 : qh_set(s ? s : &s_empty_set)
 , qh_qh(q.qh())
 {

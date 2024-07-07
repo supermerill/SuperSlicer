@@ -436,7 +436,7 @@ Also try 'user_eg2 T1 2>&1'\n\n");
   qh->NOerrexit= True;
   qh_freeqhull(qh, !qh_ALL);
   qh_memfreeshort(qh, &curlong, &totlong);
-  if (curlong || totlong) 
+  if (curlong || totlong)
       fprintf(stderr, "qhull warning (user_eg2, run 2): did not free %d bytes of long memory (%d pieces)\n",
          totlong, curlong);
   /*

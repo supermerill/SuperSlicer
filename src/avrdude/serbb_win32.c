@@ -47,23 +47,23 @@ static int dtr, rts, txd;
 /*
   serial port/pin mapping
 
-  1	cd	<-
-  2	(rxd)	<-
-  3	txd	->
-  4	dtr	->
-  5	GND
-  6	dsr	<-
-  7	rts	->
-  8	cts	<-
-  9	ri	<-
+  1    cd    <-
+  2    (rxd)    <-
+  3    txd    ->
+  4    dtr    ->
+  5    GND
+  6    dsr    <-
+  7    rts    ->
+  8    cts    <-
+  9    ri    <-
 */
 
 #define DB9PINS 9
 
 static int serbb_setpin(PROGRAMMER * pgm, int pinfunc, int value)
 {
-	int pin = pgm->pinno[pinfunc];
-	HANDLE hComPort = (HANDLE)pgm->fd.pfd;
+    int pin = pgm->pinno[pinfunc];
+    HANDLE hComPort = (HANDLE)pgm->fd.pfd;
         LPVOID lpMsgBuf;
         DWORD dwFunc;
         const char *name;
@@ -122,16 +122,16 @@ static int serbb_setpin(PROGRAMMER * pgm, int pinfunc, int value)
                 return -1;
         }
 
-	if (pgm->ispdelay > 1)
-	  bitbang_delay(pgm->ispdelay);
+    if (pgm->ispdelay > 1)
+      bitbang_delay(pgm->ispdelay);
 
         return 0;
 }
 
 static int serbb_getpin(PROGRAMMER * pgm, int pinfunc)
 {
-	int pin = pgm->pinno[pinfunc];
-	HANDLE hComPort = (HANDLE)pgm->fd.pfd;
+    int pin = pgm->pinno[pinfunc];
+    HANDLE hComPort = (HANDLE)pgm->fd.pfd;
         LPVOID lpMsgBuf;
         int invert, rv;
         const char *name;
@@ -217,7 +217,7 @@ static int serbb_getpin(PROGRAMMER * pgm, int pinfunc)
 
 static int serbb_highpulsepin(PROGRAMMER * pgm, int pinfunc)
 {
-	    int pin = pgm->pinno[pinfunc];
+        int pin = pgm->pinno[pinfunc];
         if ( (pin & PIN_MASK) < 1 || (pin & PIN_MASK) > DB9PINS )
           return -1;
 
@@ -256,58 +256,58 @@ static void serbb_powerdown(PROGRAMMER *pgm)
 static int serbb_open(PROGRAMMER *pgm, char *port)
 {
         DCB dcb;
-	LPVOID lpMsgBuf;
-	HANDLE hComPort = INVALID_HANDLE_VALUE;
+    LPVOID lpMsgBuf;
+    HANDLE hComPort = INVALID_HANDLE_VALUE;
 
-	if (bitbang_check_prerequisites(pgm) < 0)
-	    return -1;
+    if (bitbang_check_prerequisites(pgm) < 0)
+        return -1;
 
-	hComPort = CreateFileA(port, GENERIC_READ | GENERIC_WRITE, 0, NULL,
+    hComPort = CreateFileA(port, GENERIC_READ | GENERIC_WRITE, 0, NULL,
                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
-	if (hComPort == INVALID_HANDLE_VALUE) {
-		FormatMessage(
-			FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL,
-			GetLastError(),
-			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
-			(LPTSTR) &lpMsgBuf,
-			0,
-			NULL);
-		avrdude_message(MSG_INFO, "%s: ser_open(): can't open device \"%s\": %s\n",
+    if (hComPort == INVALID_HANDLE_VALUE) {
+        FormatMessage(
+            FORMAT_MESSAGE_ALLOCATE_BUFFER |
+            FORMAT_MESSAGE_FROM_SYSTEM |
+            FORMAT_MESSAGE_IGNORE_INSERTS,
+            NULL,
+            GetLastError(),
+            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
+            (LPTSTR) &lpMsgBuf,
+            0,
+            NULL);
+        avrdude_message(MSG_INFO, "%s: ser_open(): can't open device \"%s\": %s\n",
                         progname, port, (char*)lpMsgBuf);
-		LocalFree(lpMsgBuf);
+        LocalFree(lpMsgBuf);
                 return -1;
-	}
+    }
 
-	if (!SetupComm(hComPort, W32SERBUFSIZE, W32SERBUFSIZE))
-	{
-		CloseHandle(hComPort);
-		avrdude_message(MSG_INFO, "%s: ser_open(): can't set buffers for \"%s\"\n",
+    if (!SetupComm(hComPort, W32SERBUFSIZE, W32SERBUFSIZE))
+    {
+        CloseHandle(hComPort);
+        avrdude_message(MSG_INFO, "%s: ser_open(): can't set buffers for \"%s\"\n",
                         progname, port);
                 return -1;
-	}
+    }
 
 
-	ZeroMemory(&dcb, sizeof(DCB));
-	dcb.DCBlength = sizeof(DCB);
-	dcb.BaudRate = CBR_9600;
-	dcb.fBinary = 1;
-	dcb.fDtrControl = DTR_CONTROL_DISABLE;
-	dcb.fRtsControl = RTS_CONTROL_DISABLE;
-	dcb.ByteSize = 8;
-	dcb.Parity = NOPARITY;
-	dcb.StopBits = ONESTOPBIT;
+    ZeroMemory(&dcb, sizeof(DCB));
+    dcb.DCBlength = sizeof(DCB);
+    dcb.BaudRate = CBR_9600;
+    dcb.fBinary = 1;
+    dcb.fDtrControl = DTR_CONTROL_DISABLE;
+    dcb.fRtsControl = RTS_CONTROL_DISABLE;
+    dcb.ByteSize = 8;
+    dcb.Parity = NOPARITY;
+    dcb.StopBits = ONESTOPBIT;
 
-	if (!SetCommState(hComPort, &dcb))
-	{
-		CloseHandle(hComPort);
-		avrdude_message(MSG_INFO, "%s: ser_open(): can't set com-state for \"%s\"\n",
+    if (!SetCommState(hComPort, &dcb))
+    {
+        CloseHandle(hComPort);
+        avrdude_message(MSG_INFO, "%s: ser_open(): can't set com-state for \"%s\"\n",
                         progname, port);
                 return -1;
-	}
+    }
         avrdude_message(MSG_DEBUG, "%s: ser_open(): opened comm port \"%s\", handle %p\n",
                         progname, port, (void *)hComPort);
 
@@ -320,16 +320,16 @@ static int serbb_open(PROGRAMMER *pgm, char *port)
 
 static void serbb_close(PROGRAMMER *pgm)
 {
-	HANDLE hComPort=(HANDLE)pgm->fd.pfd;
-	if (hComPort != INVALID_HANDLE_VALUE)
-	{
-		pgm->setpin(pgm, PIN_AVR_RESET, 1);
-		CloseHandle (hComPort);
-	}
+    HANDLE hComPort=(HANDLE)pgm->fd.pfd;
+    if (hComPort != INVALID_HANDLE_VALUE)
+    {
+        pgm->setpin(pgm, PIN_AVR_RESET, 1);
+        CloseHandle (hComPort);
+    }
         avrdude_message(MSG_DEBUG, "%s: ser_close(): closed comm port handle %p\n",
                                 progname, (void *)hComPort);
 
-	hComPort = INVALID_HANDLE_VALUE;
+    hComPort = INVALID_HANDLE_VALUE;
 }
 
 const char serbb_desc[] = "Serial port bitbanging";

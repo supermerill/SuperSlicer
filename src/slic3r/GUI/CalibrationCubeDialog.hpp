@@ -3,7 +3,7 @@
 
 #include "CalibrationAbstractDialog.hpp"
 
-namespace Slic3r { 
+namespace Slic3r {
 namespace GUI {
 
 class CalibrationCubeDialog : public CalibrationAbstractDialog
@@ -12,7 +12,7 @@ class CalibrationCubeDialog : public CalibrationAbstractDialog
 public:
     CalibrationCubeDialog(GUI_App* app, MainFrame* mainframe) : CalibrationAbstractDialog(app, mainframe, "Calibration cube") { create(boost::filesystem::path("calibration") / "cube", "cube.html"); }
     virtual ~CalibrationCubeDialog(){ }
-    
+
 protected:
     void create_buttons(wxStdDialogButtonSizer* sizer) override;
     void create_geometry(std::string cube_path);

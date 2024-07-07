@@ -70,7 +70,7 @@ public:
     void                disableOutputStream() { qh_qh->disableOutputStream(); }
     void                enableOutputStream() { qh_qh->enableOutputStream(); }
     countT              facetCount() const { return qh_qh->num_facets; }
-    Coordinates         feasiblePoint() const; 
+    Coordinates         feasiblePoint() const;
     int                 hullDimension() const { return qh_qh->hull_dim; } //!< Dimension of the computed hull
     bool                hasOutputStream() const { return qh_qh->hasOutputStream(); }
     bool                initialized() const { return (qh_qh->hull_dim>0); }

@@ -97,13 +97,13 @@ port.
 Connecting to a serial port emulated on top of USB is likely to not
 work at all, or to work abysmally slow.
 .Pp
-If you happen to have a Linux system with at least 4 hardware GPIOs 
-available (like almost all embedded Linux boards) you can do without 
-any additional hardware - just connect them to the MOSI, MISO, RESET 
+If you happen to have a Linux system with at least 4 hardware GPIOs
+available (like almost all embedded Linux boards) you can do without
+any additional hardware - just connect them to the MOSI, MISO, RESET
 and SCK pins on the AVR and use the linuxgpio programmer type. It bitbangs
 the lines using the Linux sysfs GPIO interface. Of course, care should
-be taken about voltage level compatibility. Also, although not strictrly 
-required, it is strongly advisable to protect the GPIO pins from 
+be taken about voltage level compatibility. Also, although not strictrly
+required, it is strongly advisable to protect the GPIO pins from
 overcurrent situations in some way. The simplest would be to just put
 some resistors in series or better yet use a 3-state buffer driver like
 the 74HC244. Have a look at http://kolev.info/avrdude-linuxgpio for a more
@@ -176,12 +176,12 @@ has a firmware version of at least 6.11 (decimal).
 The avrftdi, USBasp ISP and USBtinyISP adapters are also supported, provided
 .Nm avrdude
 has been compiled with libusb support.
-USBasp ISP and USBtinyISP both feature simple firmware-only USB implementations, 
-running on an ATmega8 (or ATmega88), or ATtiny2313, respectively. If libftdi has 
-has been compiled in 
+USBasp ISP and USBtinyISP both feature simple firmware-only USB implementations,
+running on an ATmega8 (or ATmega88), or ATtiny2313, respectively. If libftdi has
+has been compiled in
 .Nm avrdude ,
-the avrftdi device adds support for many programmers using FTDI's 2232C/D/H 
-and 4232H parts running in MPSSE mode, which hard-codes (in the chip) 
+the avrftdi device adds support for many programmers using FTDI's 2232C/D/H
+and 4232H parts running in MPSSE mode, which hard-codes (in the chip)
 SCK to bit 1, MOSI to bit 2, and MISO to bit 3. Reset is usually bit 4.
 .Pp
 The Atmel DFU bootloader is supported in both, FLIP protocol version 1
@@ -286,7 +286,7 @@ keyword in your
 .Pa ${HOME}/.avrduderc
 file to assign a default programmer to keep from having to specify
 this option on every invocation.
-A full list of all supported programmers is output to the terminal 
+A full list of all supported programmers is output to the terminal
 by using ? as programmer-id.
 .It Fl C Ar config-file
 Use the specified config file to load configuration data.  This file
@@ -297,7 +297,7 @@ See the config file, located at
 .Pa ${PREFIX}/etc/avrdude.conf ,
 which contains a description of the format.
 .Pp
-If 
+If
 .Ar config-file
 is written as
 .Pa +filename
@@ -830,13 +830,13 @@ Leave terminal mode and thus
 option)
 .TS
 ll.
-\fBPin number\fP	\fBFunction\fP
-2-5	Vcc (optional power supply to MCU)
-7	/RESET (to MCU)
-8	SCK (to MCU)
-9	MOSI (to MCU)
-10	MISO (from MCU)
-18-25	GND
+\fBPin number\fP    \fBFunction\fP
+2-5    Vcc (optional power supply to MCU)
+7    /RESET (to MCU)
+8    SCK (to MCU)
+9    MOSI (to MCU)
+10    MISO (from MCU)
+18-25    GND
 .TE
 .Ss debugWire limitations
 The debugWire protocol is Atmel's proprietary one-wire (plus ground)
@@ -938,16 +938,16 @@ C programming language.
 .Bl -tag -offset indent -width indent
 .It Ar no_blockmode
 Disables the default checking for block transfer capability.
-Use 
+Use
 .Ar no_blockmode
 only if your
 .Ar AVR910
-programmer creates errors during initial sequence. 
+programmer creates errors during initial sequence.
 .El
 .It Ar buspirate
 .Bl -tag -offset indent -width indent
 .It Ar reset={cs,aux,aux2}
-The default setup assumes the BusPirate's CS output pin connected to 
+The default setup assumes the BusPirate's CS output pin connected to
 the RESET pin on AVR side. It is however possible to have multiple AVRs
 connected to the same BP with MISO, MOSI and SCK lines common for all of them.
 In such a case one AVR should have its RESET connected to BusPirate's
@@ -959,9 +959,9 @@ pin and if your BusPirate has an
 pin (only available on BusPirate version v1a with firmware 3.0 or newer)
 use that to activate RESET on the third AVR.
 .Pp
-It may be a good idea to decouple the BusPirate and the AVR's SPI buses from 
+It may be a good idea to decouple the BusPirate and the AVR's SPI buses from
 each other using a 3-state bus buffer. For example 74HC125 or 74HC244 are some
-good candidates with the latches driven by the appropriate reset pin (cs, 
+good candidates with the latches driven by the appropriate reset pin (cs,
 aux or aux2). Otherwise the SPI traffic in one active circuit may interfere
 with programming the AVR in the other design.
 .It Ar spifreq=<0..7>
@@ -989,12 +989,12 @@ The only advantage of the "raw-wire" mode is the different SPI frequencies
 available. Paged writing is not implemented in this mode.
 .It Ar ascii
 Attempt to use ASCII mode even when the firmware supports BinMode (binary
-mode). 
+mode).
 BinMode is supported in firmware 2.7 and newer, older FW's either don't
-have BinMode or their BinMode is buggy. ASCII mode is slower and makes 
+have BinMode or their BinMode is buggy. ASCII mode is slower and makes
 the above
 .Ar reset= , spifreq=
-and 
+and
 .Ar rawfreq=
 parameters unavailable. Be aware that ASCII mode is not guaranteed to work
 with newer firmware versions, and is retained only to maintain compatibility
@@ -1005,23 +1005,23 @@ whole pages to be written to AVR flash memory at once, resulting in a
 significant write speed increase. If use of this mode is not desirable for some
 reason, this option disables it.
 .It Ar nopagedread
-Newer firmware versions support in binary mode SPI command some AVR Extended 
+Newer firmware versions support in binary mode SPI command some AVR Extended
 Commands. Using the "Bulk Memory Read from Flash" results in a
 significant read speed increase. If use of this mode is not desirable for some
 reason, this option disables it.
 .It Ar cpufreq=<125..4000>
-This sets the AUX pin to output a frequency of 
+This sets the AUX pin to output a frequency of
 .Ar n
 kHz. Connecting
-the AUX pin to the XTAL1 pin of your MCU, you can provide it a clock, 
+the AUX pin to the XTAL1 pin of your MCU, you can provide it a clock,
 for example when it needs an external clock because of wrong fuses settings.
-Make sure the CPU frequency is at least four times the SPI frequency.  
+Make sure the CPU frequency is at least four times the SPI frequency.
 .It Ar serial_recv_timeout=<1...>
-This sets the serial receive timeout to the given value. 
-The timeout happens every time avrdude waits for the BusPirate prompt. 
-Especially in ascii mode this happens very often, so setting a smaller value 
-can speed up programming a lot. 
-The default value is 100ms. Using 10ms might work in most cases. 
+This sets the serial receive timeout to the given value.
+The timeout happens every time avrdude waits for the BusPirate prompt.
+Especially in ascii mode this happens very often, so setting a smaller value
+can speed up programming a lot.
+The default value is 100ms. Using 10ms might work in most cases.
 .El
 .It Ar Wiring
 When using the Wiring programmer type, the
@@ -1039,12 +1039,12 @@ is greater than 0.
 Connection to the PICkit2 programmer:
 .Bd -literal
 (AVR)    (PICkit2)
-RST  -   VPP/MCLR (1) 
-VDD  -   VDD Target (2) -- possibly optional if AVR self powered 
-GND  -   GND (3) 
-MISO -   PGD (4) 
-SCLK -   PDC (5) 
-MOSI -   AUX (6) 
+RST  -   VPP/MCLR (1)
+VDD  -   VDD Target (2) -- possibly optional if AVR self powered
+GND  -   GND (3)
+MISO -   PGD (4)
+SCLK -   PDC (5)
+MOSI -   AUX (6)
 
 .Ed
 Extended commandline parameters:
@@ -1135,6 +1135,6 @@ is supported.
 .Pp
 The avrftdi driver allows one to select specific devices using any combination of vid,pid
 serial number (usbsn) vendor description (usbvendoror part description (usbproduct)
-as seen with lsusb or whatever tool used to view USB device information. Multiple 
+as seen with lsusb or whatever tool used to view USB device information. Multiple
 devices can be on the bus at the same time. For the H parts, which have multiple MPSSE
 interfaces, the interface can also be selected.  It defaults to interface 'A'.

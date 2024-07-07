@@ -97,12 +97,12 @@ public:
             dpi = DPI_DEFAULT * custom_gui_size / 10.f;
         }
         m_prev_scale_factor = m_scale_factor;
-		m_normal_font = get_default_font_for_dpi(this, dpi);
+        m_normal_font = get_default_font_for_dpi(this, dpi);
 
-        /* Because of default window font is a primary display font, 
+        /* Because of default window font is a primary display font,
          * We should set correct font for window before getting em_unit value.
          */
-#ifndef __WXOSX__ // Don't call SetFont under OSX to avoid name cutting in ObjectList 
+#ifndef __WXOSX__ // Don't call SetFont under OSX to avoid name cutting in ObjectList
         this->SetFont(m_normal_font);
 #endif
         this->CenterOnParent();
@@ -271,7 +271,7 @@ private:
         m_prev_scale_factor = m_scale_factor;
     }
 
-#if 0 //#ifdef _WIN32  // #ysDarkMSW - Allow it when we deside to support the sustem colors for application 
+#if 0 //#ifdef _WIN32  // #ysDarkMSW - Allow it when we deside to support the sustem colors for application
     bool HandleSettingChange(WXWPARAM wParam, WXLPARAM lParam) override
     {
         update_dark_ui(this);

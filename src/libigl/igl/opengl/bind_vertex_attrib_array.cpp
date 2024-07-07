@@ -2,9 +2,9 @@
 
 IGL_INLINE GLint igl::opengl::bind_vertex_attrib_array(
   const GLuint program_shader,
-  const std::string &name, 
-  GLuint bufferID, 
-  const Eigen::Matrix<float,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> &M, 
+  const std::string &name,
+  GLuint bufferID,
+  const Eigen::Matrix<float,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> &M,
   bool refresh)
 {
   GLint id = glGetAttribLocation(program_shader, name.c_str());

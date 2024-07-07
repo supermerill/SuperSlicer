@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_FACES_FIRST_H
 #define IGL_FACES_FIRST_H
@@ -24,7 +24,7 @@ namespace igl
   // Input:
   //  V  # vertices by 3 vertex positions
   //  F  # faces by 3 list of face indices
-  // Output: 
+  // Output:
   //  RV  # vertices by 3 vertex positions, order such that if the jth vertex is
   //    some face in F, and the kth vertex is not then j comes before k
   //  RF  # faces by 3 list of face indices, reindexed to use RV
@@ -40,16 +40,16 @@ namespace igl
   //     &IM)).eval();
   template <typename MatV, typename MatF, typename VecI>
   IGL_INLINE void faces_first(
-    const MatV & V, 
-    const MatF & F, 
-    MatV & RV, 
-    MatF & RF, 
+    const MatV & V,
+    const MatF & F,
+    MatV & RV,
+    MatF & RF,
     VecI & IM);
   // Virtual "in place" wrapper
   template <typename MatV, typename MatF, typename VecI>
   IGL_INLINE void faces_first(
-    MatV & V, 
-    MatF & F, 
+    MatV & V,
+    MatF & F,
     VecI & IM);
 }
 

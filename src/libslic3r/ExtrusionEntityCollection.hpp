@@ -17,9 +17,9 @@ void filter_by_extrusion_role_in_place(ExtrusionEntitiesPtr &extrusion_entities,
 // Returned extrusion entities are shared with the source vector, they are NOT cloned, they are considered to be owned by extrusion_entities.
 inline ExtrusionEntitiesPtr filter_by_extrusion_role(const ExtrusionEntitiesPtr &extrusion_entities, ExtrusionRole role)
 {
-	ExtrusionEntitiesPtr out { extrusion_entities }; 
-	filter_by_extrusion_role_in_place(out, role);
-	return out;
+    ExtrusionEntitiesPtr out { extrusion_entities };
+    filter_by_extrusion_role_in_place(out, role);
+    return out;
 }
 
 class ExtrusionEntityCollection : public ExtrusionEntity
@@ -31,7 +31,7 @@ private:
 public:
     virtual ExtrusionEntityCollection* clone() const override { return new ExtrusionEntityCollection(*this); }
     // Create a new object, initialize it with this object using the move semantics.
-	virtual ExtrusionEntityCollection* clone_move() override { return new ExtrusionEntityCollection(std::move(*this)); }
+    virtual ExtrusionEntityCollection* clone_move() override { return new ExtrusionEntityCollection(std::move(*this)); }
 
 
     /// Owned ExtrusionEntities and descendent ExtrusionEntityCollections.
@@ -61,7 +61,7 @@ public:
 
     /// Operator to convert and flatten this collection to a single vector of ExtrusionPaths.
     explicit operator ExtrusionPaths() const;
-    
+
     bool is_collection() const override { return true; }
     ExtrusionRole role() const override {
         ExtrusionRole out = erNone;
@@ -83,7 +83,7 @@ public:
     void swap (ExtrusionEntityCollection &c);
     void append(const ExtrusionEntity &entity) { this->m_entities.emplace_back(entity.clone()); }
     void append(ExtrusionEntity &&entity) { this->m_entities.emplace_back(entity.clone_move()); }
-    void append(const ExtrusionEntitiesPtr &entities) { 
+    void append(const ExtrusionEntitiesPtr &entities) {
         this->m_entities.reserve(this->m_entities.size() + entities.size());
         for (const ExtrusionEntity *ptr : entities)
             this->m_entities.emplace_back(ptr->clone());
@@ -124,7 +124,7 @@ public:
     Polygons polygons_covered_by_spacing(const float spacing_ratio, const float scaled_epsilon) const
         { Polygons out; this->polygons_covered_by_spacing(out, spacing_ratio, scaled_epsilon); return out; }
 
-    /// Recursively count paths and loops contained in this collection 
+    /// Recursively count paths and loops contained in this collection
     size_t items_count() const;
     /// Returns a flattened copy of this ExtrusionEntityCollection. That is, all of the items in its entities() vector are not collections.
     /// You should be iterating over flatten().entities() if you are interested in the underlying ExtrusionEntities (and don't care about hierarchy).
@@ -150,7 +150,7 @@ public:
 
     double length() const override {
         throw Slic3r::RuntimeError("Calling length() on a ExtrusionEntityCollection");
-        return 0.;        
+        return 0.;
     }
     virtual void visit(ExtrusionVisitor &visitor) override { visitor.use(*this); };
     virtual void visit(ExtrusionVisitorConst &visitor) const override{ visitor.use(*this); };

@@ -70,34 +70,34 @@ extern "C" void GetHFAReturnDouble(asQWORD *out1, asQWORD *out2, asQWORD returnS
 extern "C" void GetHFAReturnFloat(asQWORD *out1, asQWORD *out2, asQWORD returnSize);
 
 extern "C" asQWORD CallARM64RetInMemory(
-	const asQWORD *gpRegArgs,    asQWORD numGPRegArgs,
-	const asQWORD *floatRegArgs, asQWORD numFloatRegArgs,
-	const asQWORD *stackArgs,    asQWORD numStackArgs,
-	void *retPointer,            asFUNCTION_t func
+    const asQWORD *gpRegArgs,    asQWORD numGPRegArgs,
+    const asQWORD *floatRegArgs, asQWORD numFloatRegArgs,
+    const asQWORD *stackArgs,    asQWORD numStackArgs,
+    void *retPointer,            asFUNCTION_t func
 );
 extern "C" double CallARM64Double(
-	const asQWORD *gpRegArgs,    asQWORD numGPRegArgs,
-	const asQWORD *floatRegArgs, asQWORD numFloatRegArgs,
-	const asQWORD *stackArgs,    asQWORD numStackArgs,
-	asFUNCTION_t func
+    const asQWORD *gpRegArgs,    asQWORD numGPRegArgs,
+    const asQWORD *floatRegArgs, asQWORD numFloatRegArgs,
+    const asQWORD *stackArgs,    asQWORD numStackArgs,
+    asFUNCTION_t func
 );
 extern "C" float CallARM64Float(
-	const asQWORD *gpRegArgs,    asQWORD numGPRegArgs,
-	const asQWORD *floatRegArgs, asQWORD numFloatRegArgs,
-	const asQWORD *stackArgs,    asQWORD numStackArgs,
-	asFUNCTION_t func
+    const asQWORD *gpRegArgs,    asQWORD numGPRegArgs,
+    const asQWORD *floatRegArgs, asQWORD numFloatRegArgs,
+    const asQWORD *stackArgs,    asQWORD numStackArgs,
+    asFUNCTION_t func
 );
 extern "C" asQWORD CallARM64(
-	const asQWORD *gpRegArgs,    asQWORD numGPRegArgs,
-	const asQWORD *floatRegArgs, asQWORD numFloatRegArgs,
-	const asQWORD *stackArgs,    asQWORD numStackArgs,
-	asFUNCTION_t func
+    const asQWORD *gpRegArgs,    asQWORD numGPRegArgs,
+    const asQWORD *floatRegArgs, asQWORD numFloatRegArgs,
+    const asQWORD *stackArgs,    asQWORD numStackArgs,
+    asFUNCTION_t func
 );
 extern "C" asQWORD CallARM64Ret128(
-	const asQWORD *gpRegArgs,    asQWORD numGPRegArgs,
-	const asQWORD *floatRegArgs, asQWORD numFloatRegArgs,
-	const asQWORD *stackArgs,    asQWORD numStackArgs,
-	asQWORD *higherQWORD,        asFUNCTION_t func
+    const asQWORD *gpRegArgs,    asQWORD numGPRegArgs,
+    const asQWORD *floatRegArgs, asQWORD numFloatRegArgs,
+    const asQWORD *stackArgs,    asQWORD numStackArgs,
+    asQWORD *higherQWORD,        asFUNCTION_t func
 );
 
 //
@@ -106,17 +106,17 @@ extern "C" asQWORD CallARM64Ret128(
 //
 static inline bool IsRegisterHFA(const asCDataType &type)
 {
-	const asCTypeInfo *const typeInfo = type.GetTypeInfo();
+    const asCTypeInfo *const typeInfo = type.GetTypeInfo();
 
-	if( typeInfo == nullptr ||
-		(typeInfo->flags & asOBJ_APP_CLASS_ALLFLOATS) == 0 ||
-		type.IsObjectHandle() && type.IsReference() )
-		return false;
+    if( typeInfo == nullptr ||
+        (typeInfo->flags & asOBJ_APP_CLASS_ALLFLOATS) == 0 ||
+        type.IsObjectHandle() && type.IsReference() )
+        return false;
 
-	const bool doubles = (typeInfo->flags & asOBJ_APP_CLASS_ALIGN8) != 0;
-	const int maxAllowedSize = doubles ? sizeof(double) * HFA_RET_REGISTERS : sizeof(float) * HFA_RET_REGISTERS;
+    const bool doubles = (typeInfo->flags & asOBJ_APP_CLASS_ALIGN8) != 0;
+    const int maxAllowedSize = doubles ? sizeof(double) * HFA_RET_REGISTERS : sizeof(float) * HFA_RET_REGISTERS;
 
-	return type.GetSizeInMemoryBytes() <= maxAllowedSize;
+    return type.GetSizeInMemoryBytes() <= maxAllowedSize;
 }
 
 //
@@ -125,198 +125,198 @@ static inline bool IsRegisterHFA(const asCDataType &type)
 //
 static inline bool IsRegisterHFAParameter(const asCDataType &type, const asQWORD numFloatRegArgs)
 {
-	if( !IsRegisterHFA(type) )
-		return false;
+    if( !IsRegisterHFA(type) )
+        return false;
 
-	const bool doubles = (type.GetTypeInfo()->flags & asOBJ_APP_CLASS_ALIGN8) != 0;
-	const int registersUsed = type.GetSizeInMemoryDWords() / (doubles ? sizeof(double) : sizeof(float));
+    const bool doubles = (type.GetTypeInfo()->flags & asOBJ_APP_CLASS_ALIGN8) != 0;
+    const int registersUsed = type.GetSizeInMemoryDWords() / (doubles ? sizeof(double) : sizeof(float));
 
-	return numFloatRegArgs + registersUsed <= FLOAT_ARG_REGISTERS;
+    return numFloatRegArgs + registersUsed <= FLOAT_ARG_REGISTERS;
 }
 
 asQWORD CallSystemFunctionNative(asCContext *context, asCScriptFunction *descr, void *obj, asDWORD *args, void *retPointer, asQWORD &retQW2, void *secondObject)
 {
-	asCScriptEngine *engine = context->m_engine;
-	const asSSystemFunctionInterface *const sysFunc = descr->sysFuncIntf;
-	const asCDataType &retType = descr->returnType;
-	const asCTypeInfo *const retTypeInfo = retType.GetTypeInfo();
-	asFUNCTION_t func = sysFunc->func;
-	int callConv = sysFunc->callConv;
-	asQWORD       retQW     = 0;
+    asCScriptEngine *engine = context->m_engine;
+    const asSSystemFunctionInterface *const sysFunc = descr->sysFuncIntf;
+    const asCDataType &retType = descr->returnType;
+    const asCTypeInfo *const retTypeInfo = retType.GetTypeInfo();
+    asFUNCTION_t func = sysFunc->func;
+    int callConv = sysFunc->callConv;
+    asQWORD       retQW     = 0;
 
-	asQWORD       gpRegArgs[GP_ARG_REGISTERS];
-	asQWORD       floatRegArgs[FLOAT_ARG_REGISTERS];
-	asQWORD       stackArgs[64]; // It's how many x64 users can have
-	asQWORD       numGPRegArgs    = 0;
-	asQWORD       numFloatRegArgs = 0;
-	asQWORD       numStackArgs    = 0;
+    asQWORD       gpRegArgs[GP_ARG_REGISTERS];
+    asQWORD       floatRegArgs[FLOAT_ARG_REGISTERS];
+    asQWORD       stackArgs[64]; // It's how many x64 users can have
+    asQWORD       numGPRegArgs    = 0;
+    asQWORD       numFloatRegArgs = 0;
+    asQWORD       numStackArgs    = 0;
 
-	asFUNCTION_t *vftable;
+    asFUNCTION_t *vftable;
 
-	// Optimization to avoid check 12 values (all ICC_ that contains THISCALL)
-	if( (callConv >= ICC_THISCALL && callConv <= ICC_VIRTUAL_THISCALL_RETURNINMEM) ||
-		(callConv >= ICC_THISCALL_OBJLAST && callConv <= ICC_VIRTUAL_THISCALL_OBJFIRST_RETURNINMEM) )
-	{
-		// Add the object pointer as the first parameter
-		gpRegArgs[numGPRegArgs++] = (asQWORD)obj;
-	}
+    // Optimization to avoid check 12 values (all ICC_ that contains THISCALL)
+    if( (callConv >= ICC_THISCALL && callConv <= ICC_VIRTUAL_THISCALL_RETURNINMEM) ||
+        (callConv >= ICC_THISCALL_OBJLAST && callConv <= ICC_VIRTUAL_THISCALL_OBJFIRST_RETURNINMEM) )
+    {
+        // Add the object pointer as the first parameter
+        gpRegArgs[numGPRegArgs++] = (asQWORD)obj;
+    }
 
-	if( callConv == ICC_CDECL_OBJFIRST || callConv == ICC_CDECL_OBJFIRST_RETURNINMEM )
-	{
-		// Add the object pointer as the first parameter
-		gpRegArgs[numGPRegArgs++] = (asQWORD)obj;
-	}
-	else if( callConv == ICC_THISCALL_OBJFIRST || callConv == ICC_THISCALL_OBJFIRST_RETURNINMEM ||
-		callConv == ICC_VIRTUAL_THISCALL_OBJFIRST || callConv == ICC_VIRTUAL_THISCALL_OBJFIRST_RETURNINMEM )
-	{
-		// Add the object pointer as the first parameter
-		gpRegArgs[numGPRegArgs++] = (asQWORD)secondObject;
-	}
+    if( callConv == ICC_CDECL_OBJFIRST || callConv == ICC_CDECL_OBJFIRST_RETURNINMEM )
+    {
+        // Add the object pointer as the first parameter
+        gpRegArgs[numGPRegArgs++] = (asQWORD)obj;
+    }
+    else if( callConv == ICC_THISCALL_OBJFIRST || callConv == ICC_THISCALL_OBJFIRST_RETURNINMEM ||
+        callConv == ICC_VIRTUAL_THISCALL_OBJFIRST || callConv == ICC_VIRTUAL_THISCALL_OBJFIRST_RETURNINMEM )
+    {
+        // Add the object pointer as the first parameter
+        gpRegArgs[numGPRegArgs++] = (asQWORD)secondObject;
+    }
 
-	if( callConv == ICC_VIRTUAL_THISCALL || callConv == ICC_VIRTUAL_THISCALL_RETURNINMEM || callConv == ICC_VIRTUAL_THISCALL_OBJFIRST ||
-	callConv == ICC_VIRTUAL_THISCALL_OBJFIRST_RETURNINMEM || callConv == ICC_VIRTUAL_THISCALL_OBJLAST || callConv == ICC_VIRTUAL_THISCALL_OBJLAST_RETURNINMEM )
-	{
-		// Get virtual function table from the object pointer
-		vftable = *(asFUNCTION_t**)obj;
-		func = vftable[FuncPtrToUInt(func)/sizeof(void*)];
-	}
+    if( callConv == ICC_VIRTUAL_THISCALL || callConv == ICC_VIRTUAL_THISCALL_RETURNINMEM || callConv == ICC_VIRTUAL_THISCALL_OBJFIRST ||
+    callConv == ICC_VIRTUAL_THISCALL_OBJFIRST_RETURNINMEM || callConv == ICC_VIRTUAL_THISCALL_OBJLAST || callConv == ICC_VIRTUAL_THISCALL_OBJLAST_RETURNINMEM )
+    {
+        // Get virtual function table from the object pointer
+        vftable = *(asFUNCTION_t**)obj;
+        func = vftable[FuncPtrToUInt(func)/sizeof(void*)];
+    }
 
-	asUINT argsPos = 0;
-	for( asUINT n = 0; n < descr->parameterTypes.GetLength(); n++ )
-	{
-		const asCDataType &parmType = descr->parameterTypes[n];
-		const asCTypeInfo *const parmTypeInfo = parmType.GetTypeInfo();
+    asUINT argsPos = 0;
+    for( asUINT n = 0; n < descr->parameterTypes.GetLength(); n++ )
+    {
+        const asCDataType &parmType = descr->parameterTypes[n];
+        const asCTypeInfo *const parmTypeInfo = parmType.GetTypeInfo();
 
-		if( parmType.IsObject() && !parmType.IsObjectHandle() && !parmType.IsReference() )
-		{
-			const asUINT parmDWords = parmType.GetSizeInMemoryDWords();
-			const asUINT parmQWords = (parmDWords >> 1) + (parmDWords & 1);
+        if( parmType.IsObject() && !parmType.IsObjectHandle() && !parmType.IsReference() )
+        {
+            const asUINT parmDWords = parmType.GetSizeInMemoryDWords();
+            const asUINT parmQWords = (parmDWords >> 1) + (parmDWords & 1);
 
-			const bool passedAsPointer = parmQWords <= 2;
-			const bool fitsInRegisters = passedAsPointer ? (numGPRegArgs < GP_ARG_REGISTERS) : (numGPRegArgs + parmQWords <= GP_ARG_REGISTERS);
-			asQWORD *const argsArray = fitsInRegisters ? gpRegArgs : stackArgs;
-			asQWORD &numArgs = fitsInRegisters ? numGPRegArgs : numStackArgs;
+            const bool passedAsPointer = parmQWords <= 2;
+            const bool fitsInRegisters = passedAsPointer ? (numGPRegArgs < GP_ARG_REGISTERS) : (numGPRegArgs + parmQWords <= GP_ARG_REGISTERS);
+            asQWORD *const argsArray = fitsInRegisters ? gpRegArgs : stackArgs;
+            asQWORD &numArgs = fitsInRegisters ? numGPRegArgs : numStackArgs;
 
-			if( (parmTypeInfo->flags & COMPLEX_MASK) )
-			{
-				argsArray[numArgs++] = *(asQWORD*)&args[argsPos];
-				argsPos += AS_PTR_SIZE;
-			}
-			else if( IsRegisterHFAParameter(parmType, numFloatRegArgs) )
-			{
-				if( (parmTypeInfo->flags & asOBJ_APP_CLASS_ALIGN8) != 0 )
-				{
-					const asQWORD *const contents = *(asQWORD**)&args[argsPos];
-					for( asUINT i = 0; i < parmQWords; i++ )
-						floatRegArgs[numFloatRegArgs++] = *(asQWORD*)&contents[i];
-				}
-				else
-				{
-					const asDWORD *const contents = *(asDWORD**)&args[argsPos];
-					for( asUINT i = 0; i < parmDWords; i++ )
-						floatRegArgs[numFloatRegArgs++] = *(asQWORD*)&contents[i];
-				}
-				engine->CallFree(*(char**)(args+argsPos));
-				argsPos += AS_PTR_SIZE;
-			}
-			else
-			{
-				// Copy the object's memory to the buffer
-				memcpy(&argsArray[numArgs], *(void**)(args+argsPos), parmType.GetSizeInMemoryBytes());
+            if( (parmTypeInfo->flags & COMPLEX_MASK) )
+            {
+                argsArray[numArgs++] = *(asQWORD*)&args[argsPos];
+                argsPos += AS_PTR_SIZE;
+            }
+            else if( IsRegisterHFAParameter(parmType, numFloatRegArgs) )
+            {
+                if( (parmTypeInfo->flags & asOBJ_APP_CLASS_ALIGN8) != 0 )
+                {
+                    const asQWORD *const contents = *(asQWORD**)&args[argsPos];
+                    for( asUINT i = 0; i < parmQWords; i++ )
+                        floatRegArgs[numFloatRegArgs++] = *(asQWORD*)&contents[i];
+                }
+                else
+                {
+                    const asDWORD *const contents = *(asDWORD**)&args[argsPos];
+                    for( asUINT i = 0; i < parmDWords; i++ )
+                        floatRegArgs[numFloatRegArgs++] = *(asQWORD*)&contents[i];
+                }
+                engine->CallFree(*(char**)(args+argsPos));
+                argsPos += AS_PTR_SIZE;
+            }
+            else
+            {
+                // Copy the object's memory to the buffer
+                memcpy(&argsArray[numArgs], *(void**)(args+argsPos), parmType.GetSizeInMemoryBytes());
 
-				// Delete the original memory
-				engine->CallFree(*(char**)(args+argsPos));
-				argsPos += AS_PTR_SIZE;
-				numArgs += parmQWords;
-			}
-		}
-		else if( parmType.IsFloatType() && !parmType.IsReference() )
-		{
-			if( numFloatRegArgs >= FLOAT_ARG_REGISTERS )
-				stackArgs[numStackArgs++] = args[argsPos];
-			else
-				floatRegArgs[numFloatRegArgs++] = args[argsPos];
-			argsPos++;
-		}
-		else if( parmType.IsDoubleType() && !parmType.IsReference() )
-		{
-			if( numFloatRegArgs >= FLOAT_ARG_REGISTERS )
-				stackArgs[numStackArgs++] = *(asQWORD*)&args[argsPos];
-			else
-				floatRegArgs[numFloatRegArgs++] = *(asQWORD*)&args[argsPos];
-			argsPos += 2;
-		}
-		else
-		{
-			// Copy the value directly
-			const asUINT parmDWords = parmType.GetSizeOnStackDWords();
-			const asUINT parmQWords = (parmDWords >> 1) + (parmDWords & 1);
+                // Delete the original memory
+                engine->CallFree(*(char**)(args+argsPos));
+                argsPos += AS_PTR_SIZE;
+                numArgs += parmQWords;
+            }
+        }
+        else if( parmType.IsFloatType() && !parmType.IsReference() )
+        {
+            if( numFloatRegArgs >= FLOAT_ARG_REGISTERS )
+                stackArgs[numStackArgs++] = args[argsPos];
+            else
+                floatRegArgs[numFloatRegArgs++] = args[argsPos];
+            argsPos++;
+        }
+        else if( parmType.IsDoubleType() && !parmType.IsReference() )
+        {
+            if( numFloatRegArgs >= FLOAT_ARG_REGISTERS )
+                stackArgs[numStackArgs++] = *(asQWORD*)&args[argsPos];
+            else
+                floatRegArgs[numFloatRegArgs++] = *(asQWORD*)&args[argsPos];
+            argsPos += 2;
+        }
+        else
+        {
+            // Copy the value directly
+            const asUINT parmDWords = parmType.GetSizeOnStackDWords();
+            const asUINT parmQWords = (parmDWords >> 1) + (parmDWords & 1);
 
-			const bool fitsInRegisters = numGPRegArgs + parmQWords <= GP_ARG_REGISTERS;
-			asQWORD *const argsArray = fitsInRegisters ? gpRegArgs : stackArgs;
-			asQWORD &numArgs = fitsInRegisters ? numGPRegArgs : numStackArgs;
+            const bool fitsInRegisters = numGPRegArgs + parmQWords <= GP_ARG_REGISTERS;
+            asQWORD *const argsArray = fitsInRegisters ? gpRegArgs : stackArgs;
+            asQWORD &numArgs = fitsInRegisters ? numGPRegArgs : numStackArgs;
 
-			memcpy(&argsArray[numArgs], (void*)(args+argsPos), parmDWords * 4);
-			argsPos += parmDWords;
-			numArgs += parmQWords;
-		}
-	}
+            memcpy(&argsArray[numArgs], (void*)(args+argsPos), parmDWords * 4);
+            argsPos += parmDWords;
+            numArgs += parmQWords;
+        }
+    }
 
-	if( callConv == ICC_CDECL_OBJLAST || callConv == ICC_CDECL_OBJLAST_RETURNINMEM )
-	{
-		// Add the object pointer as the last parameter
-		if( numGPRegArgs < GP_ARG_REGISTERS )
-			gpRegArgs[numGPRegArgs++] = (asQWORD)obj;
-		else
-			stackArgs[numStackArgs++] = (asQWORD)obj;
-	}
-	else if( callConv == ICC_THISCALL_OBJLAST || callConv == ICC_THISCALL_OBJLAST_RETURNINMEM ||
-		callConv == ICC_VIRTUAL_THISCALL_OBJLAST || callConv == ICC_VIRTUAL_THISCALL_OBJLAST_RETURNINMEM )
-	{
-		// Add the object pointer as the last parameter
-		if( numGPRegArgs < GP_ARG_REGISTERS )
-			gpRegArgs[numGPRegArgs++] = (asQWORD)secondObject;
-		else
-			stackArgs[numStackArgs++] = (asQWORD)secondObject;
-	}
+    if( callConv == ICC_CDECL_OBJLAST || callConv == ICC_CDECL_OBJLAST_RETURNINMEM )
+    {
+        // Add the object pointer as the last parameter
+        if( numGPRegArgs < GP_ARG_REGISTERS )
+            gpRegArgs[numGPRegArgs++] = (asQWORD)obj;
+        else
+            stackArgs[numStackArgs++] = (asQWORD)obj;
+    }
+    else if( callConv == ICC_THISCALL_OBJLAST || callConv == ICC_THISCALL_OBJLAST_RETURNINMEM ||
+        callConv == ICC_VIRTUAL_THISCALL_OBJLAST || callConv == ICC_VIRTUAL_THISCALL_OBJLAST_RETURNINMEM )
+    {
+        // Add the object pointer as the last parameter
+        if( numGPRegArgs < GP_ARG_REGISTERS )
+            gpRegArgs[numGPRegArgs++] = (asQWORD)secondObject;
+        else
+            stackArgs[numStackArgs++] = (asQWORD)secondObject;
+    }
 
-	if( IsRegisterHFA(retType) && !(retTypeInfo->flags & COMPLEX_MASK) )
-	{
-		// This is to deal with HFAs (Homogeneous Floating-point Aggregates):
-		// ARM64 will place all-float composite types (of equal precision)
-		// with <= 4 members in the float return registers
+    if( IsRegisterHFA(retType) && !(retTypeInfo->flags & COMPLEX_MASK) )
+    {
+        // This is to deal with HFAs (Homogeneous Floating-point Aggregates):
+        // ARM64 will place all-float composite types (of equal precision)
+        // with <= 4 members in the float return registers
 
-		const int structSize = retType.GetSizeInMemoryBytes();
+        const int structSize = retType.GetSizeInMemoryBytes();
 
-		CallARM64(gpRegArgs, numGPRegArgs, floatRegArgs, numFloatRegArgs, stackArgs, numStackArgs, func);
-		if( (retTypeInfo->flags & asOBJ_APP_CLASS_ALIGN8) != 0 )
-		{
-			if( structSize <= sizeof(double) * 2 )
-				GetHFAReturnDouble(&retQW, &retQW2, structSize);
-			else
-				GetHFAReturnDouble((asQWORD*)retPointer, ((asQWORD*)retPointer) + 1, structSize);
-		}
-		else
-			GetHFAReturnFloat(&retQW, &retQW2, structSize);
-	}
-	else if( sysFunc->hostReturnFloat )
-	{
-		if( sysFunc->hostReturnSize == 1 )
-			*(float*)&retQW = CallARM64Float(gpRegArgs, numGPRegArgs, floatRegArgs, numFloatRegArgs, stackArgs, numStackArgs, func);
-		else
-			*(double*)&retQW = CallARM64Double(gpRegArgs, numGPRegArgs, floatRegArgs, numFloatRegArgs, stackArgs, numStackArgs, func);
-	}
-	else if( sysFunc->hostReturnInMemory )
-		retQW = CallARM64RetInMemory(gpRegArgs, numGPRegArgs, floatRegArgs, numFloatRegArgs, stackArgs, numStackArgs, retPointer, func);
-	else
-	{
-		if( retType.GetSizeInMemoryBytes() > sizeof(asQWORD) )
-			retQW = CallARM64Ret128(gpRegArgs, numGPRegArgs, floatRegArgs, numFloatRegArgs, stackArgs, numStackArgs, &retQW2, func);
-		else
-			retQW = CallARM64(gpRegArgs, numGPRegArgs, floatRegArgs, numFloatRegArgs, stackArgs, numStackArgs, func);
-	}
+        CallARM64(gpRegArgs, numGPRegArgs, floatRegArgs, numFloatRegArgs, stackArgs, numStackArgs, func);
+        if( (retTypeInfo->flags & asOBJ_APP_CLASS_ALIGN8) != 0 )
+        {
+            if( structSize <= sizeof(double) * 2 )
+                GetHFAReturnDouble(&retQW, &retQW2, structSize);
+            else
+                GetHFAReturnDouble((asQWORD*)retPointer, ((asQWORD*)retPointer) + 1, structSize);
+        }
+        else
+            GetHFAReturnFloat(&retQW, &retQW2, structSize);
+    }
+    else if( sysFunc->hostReturnFloat )
+    {
+        if( sysFunc->hostReturnSize == 1 )
+            *(float*)&retQW = CallARM64Float(gpRegArgs, numGPRegArgs, floatRegArgs, numFloatRegArgs, stackArgs, numStackArgs, func);
+        else
+            *(double*)&retQW = CallARM64Double(gpRegArgs, numGPRegArgs, floatRegArgs, numFloatRegArgs, stackArgs, numStackArgs, func);
+    }
+    else if( sysFunc->hostReturnInMemory )
+        retQW = CallARM64RetInMemory(gpRegArgs, numGPRegArgs, floatRegArgs, numFloatRegArgs, stackArgs, numStackArgs, retPointer, func);
+    else
+    {
+        if( retType.GetSizeInMemoryBytes() > sizeof(asQWORD) )
+            retQW = CallARM64Ret128(gpRegArgs, numGPRegArgs, floatRegArgs, numFloatRegArgs, stackArgs, numStackArgs, &retQW2, func);
+        else
+            retQW = CallARM64(gpRegArgs, numGPRegArgs, floatRegArgs, numFloatRegArgs, stackArgs, numStackArgs, func);
+    }
 
-	return retQW;
+    return retQW;
 }
 
 END_AS_NAMESPACE

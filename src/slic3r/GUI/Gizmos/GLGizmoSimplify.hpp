@@ -17,7 +17,7 @@ namespace GUI {
 class NotificationManager; // for simplify suggestion
 
 class GLGizmoSimplify: public GLGizmoBase
-{    
+{
 public:
     GLGizmoSimplify(GLCanvas3D& parent, const std::string& icon_filename, unsigned int sprite_id);
     virtual ~GLGizmoSimplify();
@@ -37,7 +37,7 @@ protected:
     // must implement
     virtual bool on_init() override { return true;};
     virtual void on_render() override;
-    virtual void on_render_for_picking() override{};    
+    virtual void on_render_for_picking() override{};
 
     CommonGizmosDataID on_get_requirements() const override;
 
@@ -75,7 +75,7 @@ private:
     Configuration m_configuration;
 
     bool m_move_to_center; // opening gizmo
-        
+
     const ModelVolume *m_volume; // keep pointer to actual working volume
 
     bool m_show_wireframe;

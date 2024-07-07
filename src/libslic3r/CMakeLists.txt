@@ -151,8 +151,8 @@ add_library(libslic3r STATIC
     GCodeWriter.hpp
     Geometry.cpp
     Geometry.hpp
-	Geometry/ArcFitter.cpp
-	Geometry/ArcFitter.hpp
+    Geometry/ArcFitter.cpp
+    Geometry/ArcFitter.hpp
     Geometry/Bicubic.hpp
     Geometry/Circle.cpp
     Geometry/Circle.hpp

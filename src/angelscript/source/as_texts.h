@@ -2,23 +2,23 @@
    AngelCode Scripting Library
    Copyright (c) 2003-2019 Andreas Jonsson
 
-   This software is provided 'as-is', without any express or implied 
-   warranty. In no event will the authors be held liable for any 
+   This software is provided 'as-is', without any express or implied
+   warranty. In no event will the authors be held liable for any
    damages arising from the use of this software.
 
-   Permission is granted to anyone to use this software for any 
-   purpose, including commercial applications, and to alter it and 
+   Permission is granted to anyone to use this software for any
+   purpose, including commercial applications, and to alter it and
    redistribute it freely, subject to the following restrictions:
 
-   1. The origin of this software must not be misrepresented; you 
+   1. The origin of this software must not be misrepresented; you
       must not claim that you wrote the original software. If you use
-      this software in a product, an acknowledgment in the product 
+      this software in a product, an acknowledgment in the product
       documentation would be appreciated but is not required.
 
-   2. Altered source versions must be plainly marked as such, and 
+   2. Altered source versions must be plainly marked as such, and
       must not be misrepresented as being the original software.
 
-   3. This notice may not be removed or altered from any source 
+   3. This notice may not be removed or altered from any source
       distribution.
 
    The original version of this library can be located at:
@@ -368,35 +368,35 @@
 #define ERROR_NAME(x) #x
 static const char*const errorNames[] =
 {
-	ERROR_NAME(asSUCCESS),
-	ERROR_NAME(asERROR),
-	ERROR_NAME(asCONTEXT_ACTIVE),
-	ERROR_NAME(asCONTEXT_NOT_FINISHED),
-	ERROR_NAME(asCONTEXT_NOT_PREPARED),
-	ERROR_NAME(asINVALID_ARG),
-	ERROR_NAME(asNO_FUNCTION),
-	ERROR_NAME(asNOT_SUPPORTED),
-	ERROR_NAME(asINVALID_NAME),
-	ERROR_NAME(asNAME_TAKEN),
-	ERROR_NAME(asINVALID_DECLARATION),
-	ERROR_NAME(asINVALID_OBJECT),
-	ERROR_NAME(asINVALID_TYPE),
-	ERROR_NAME(asALREADY_REGISTERED),
-	ERROR_NAME(asMULTIPLE_FUNCTIONS),
-	ERROR_NAME(asNO_MODULE),
-	ERROR_NAME(asNO_GLOBAL_VAR),
-	ERROR_NAME(asINVALID_CONFIGURATION),
-	ERROR_NAME(asINVALID_INTERFACE),
-	ERROR_NAME(asCANT_BIND_ALL_FUNCTIONS),
-	ERROR_NAME(asLOWER_ARRAY_DIMENSION_NOT_REGISTERED),
-	ERROR_NAME(asWRONG_CONFIG_GROUP),
-	ERROR_NAME(asCONFIG_GROUP_IS_IN_USE),
-	ERROR_NAME(asILLEGAL_BEHAVIOUR_FOR_TYPE),
-	ERROR_NAME(asWRONG_CALLING_CONV),
-	ERROR_NAME(asBUILD_IN_PROGRESS),
-	ERROR_NAME(asINIT_GLOBAL_VARS_FAILED),
-	ERROR_NAME(asOUT_OF_MEMORY),
-	ERROR_NAME(asMODULE_IS_IN_USE)
+    ERROR_NAME(asSUCCESS),
+    ERROR_NAME(asERROR),
+    ERROR_NAME(asCONTEXT_ACTIVE),
+    ERROR_NAME(asCONTEXT_NOT_FINISHED),
+    ERROR_NAME(asCONTEXT_NOT_PREPARED),
+    ERROR_NAME(asINVALID_ARG),
+    ERROR_NAME(asNO_FUNCTION),
+    ERROR_NAME(asNOT_SUPPORTED),
+    ERROR_NAME(asINVALID_NAME),
+    ERROR_NAME(asNAME_TAKEN),
+    ERROR_NAME(asINVALID_DECLARATION),
+    ERROR_NAME(asINVALID_OBJECT),
+    ERROR_NAME(asINVALID_TYPE),
+    ERROR_NAME(asALREADY_REGISTERED),
+    ERROR_NAME(asMULTIPLE_FUNCTIONS),
+    ERROR_NAME(asNO_MODULE),
+    ERROR_NAME(asNO_GLOBAL_VAR),
+    ERROR_NAME(asINVALID_CONFIGURATION),
+    ERROR_NAME(asINVALID_INTERFACE),
+    ERROR_NAME(asCANT_BIND_ALL_FUNCTIONS),
+    ERROR_NAME(asLOWER_ARRAY_DIMENSION_NOT_REGISTERED),
+    ERROR_NAME(asWRONG_CONFIG_GROUP),
+    ERROR_NAME(asCONFIG_GROUP_IS_IN_USE),
+    ERROR_NAME(asILLEGAL_BEHAVIOUR_FOR_TYPE),
+    ERROR_NAME(asWRONG_CALLING_CONV),
+    ERROR_NAME(asBUILD_IN_PROGRESS),
+    ERROR_NAME(asINIT_GLOBAL_VARS_FAILED),
+    ERROR_NAME(asOUT_OF_MEMORY),
+    ERROR_NAME(asMODULE_IS_IN_USE)
 };
 
 #endif

@@ -14,7 +14,7 @@
 # define BOOST_SYMBOL_VISIBLE
 #endif
 
-#ifdef BOOST_HAS_DECLSPEC 
+#ifdef BOOST_HAS_DECLSPEC
 #   if defined(BOOST_ALL_DYN_LINK) || defined(BOOST_NOWIDE_DYN_LINK)
 #       ifdef BOOST_NOWIDE_SOURCE
 #           define BOOST_NOWIDE_DECL BOOST_SYMBOL_EXPORT
@@ -29,8 +29,8 @@
 #endif
 
 //
-// Automatically link to the correct build variant where possible. 
-// 
+// Automatically link to the correct build variant where possible.
+//
 #if !defined(BOOST_ALL_NO_LIB) && !defined(BOOST_NOWIDE_NO_LIB) && !defined(BOOST_NOWIDE_SOURCE)
 //
 // Set the name of our library, this will get undef'ed by auto_link.hpp

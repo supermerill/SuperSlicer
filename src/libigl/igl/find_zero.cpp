@@ -14,7 +14,7 @@ IGL_INLINE void igl::find_zero(
   int n = A.cols();
   // I starts by containing guess where 0 might be
   I = DerivedI::Zero(dim==1?n:m);
-  Eigen::Array<bool,Eigen::Dynamic,1> found = 
+  Eigen::Array<bool,Eigen::Dynamic,1> found =
     Eigen::Array<bool,Eigen::Dynamic,1>::Zero(dim==1?n:m);
   const auto func = [&I,&found,&dim](int i, int j, const int v)
   {

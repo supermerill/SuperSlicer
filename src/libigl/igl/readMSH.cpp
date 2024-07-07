@@ -1,10 +1,10 @@
 
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2018 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 //
 #include "readMSH.h"
@@ -77,7 +77,7 @@ IGL_INLINE bool igl::readMSH(
   const auto eat_white_space = [](std::ifstream& fin)
   {
     char next = fin.peek();
-    while (next == '\n' || next == ' ' || next == '\t' || next == '\r') 
+    while (next == '\n' || next == ' ' || next == '\t' || next == '\r')
     {
       fin.get();
       next = fin.peek();
@@ -100,7 +100,7 @@ IGL_INLINE bool igl::readMSH(
   fin >> buf;
   if (buf != "$EndMeshFormat") { return not_implemented(); }
 
-  const auto num_nodes_per_elem_type = [](int elem_type)->int 
+  const auto num_nodes_per_elem_type = [](int elem_type)->int
   {
     size_t nodes_per_element = 0;
     switch (elem_type) {
@@ -124,7 +124,7 @@ IGL_INLINE bool igl::readMSH(
     return nodes_per_element;
   };
 
-  const auto parse_nodes = [&](std::ifstream& fin) 
+  const auto parse_nodes = [&](std::ifstream& fin)
   {
     size_t num_nodes;
     fin >> num_nodes;
@@ -156,7 +156,7 @@ IGL_INLINE bool igl::readMSH(
     }
   };
 
-  const auto parse_elements = [&](std::ifstream& fin) 
+  const auto parse_elements = [&](std::ifstream& fin)
   {
     size_t num_elements;
     fin >> num_elements;
@@ -205,7 +205,7 @@ IGL_INLINE bool igl::readMSH(
     int glob_elem_type = -1;
 
 
-  if (m_binary) 
+  if (m_binary)
   {
     eat_white_space(fin);
     int elem_read = 0;
@@ -241,7 +241,7 @@ IGL_INLINE bool igl::readMSH(
 
         elem_read += num_elems;
     }
-  } else 
+  } else
   {
         for (size_t i=0; i<num_elements; i++) {
             // Parse per element header
@@ -297,7 +297,7 @@ IGL_INLINE bool igl::readMSH(
         m_element_type = 2;
     }
   };
-  const auto parse_element_field = [&](std::ifstream& fin) 
+  const auto parse_element_field = [&](std::ifstream& fin)
   {
     size_t num_string_tags;
     size_t num_real_tags;
@@ -366,7 +366,7 @@ IGL_INLINE bool igl::readMSH(
     m_element_fields[fieldname] = field;
   };
 
-  const auto parse_node_field = [&](std::ifstream& fin) 
+  const auto parse_node_field = [&](std::ifstream& fin)
   {
     size_t num_string_tags;
     size_t num_real_tags;
@@ -435,7 +435,7 @@ IGL_INLINE bool igl::readMSH(
     m_node_fields[fieldname] = field;
   };
   const auto parse_unknown_field = [](std::ifstream& fin,
-        const std::string& fieldname) 
+        const std::string& fieldname)
   {
     std::cerr << "Warning: \"" << fieldname << "\" not supported yet.  Ignored." << std::endl;
     std::string endmark = fieldname.substr(0,1) + "End"
@@ -475,7 +475,7 @@ IGL_INLINE bool igl::readMSH(
   }
   fin.close();
   V.resize(m_nodes.rows()/3,3);
-  for (int i = 0; i < m_nodes.rows() / 3; i++) 
+  for (int i = 0; i < m_nodes.rows() / 3; i++)
   {
     for (int j = 0; j < 3; j++)
     {
@@ -484,7 +484,7 @@ IGL_INLINE bool igl::readMSH(
   }
   int ss = num_nodes_per_elem_type(m_element_type);
   T.resize(m_elements.rows()/ss,ss);
-  for (int i = 0; i < m_elements.rows() / ss; i++) 
+  for (int i = 0; i < m_elements.rows() / ss; i++)
   {
     for (int j = 0; j < ss; j++)
     {

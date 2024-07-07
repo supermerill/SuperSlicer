@@ -10,7 +10,7 @@
 #ifndef EIGEN_TRIANGULAR_MATRIX_MATRIX_H
 #define EIGEN_TRIANGULAR_MATRIX_MATRIX_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -83,7 +83,7 @@ struct product_triangular_matrix_matrix<Scalar,Index,Mode,true,
                                            LhsStorageOrder,ConjugateLhs,
                                            RhsStorageOrder,ConjugateRhs,ColMajor,Version>
 {
-  
+
   typedef gebp_traits<Scalar,Scalar> Traits;
   enum {
     SmallPanelWidth   = 2 * EIGEN_PLAIN_ENUM_MAX(Traits::mr,Traits::nr),
@@ -116,7 +116,7 @@ EIGEN_DONT_INLINE void product_triangular_matrix_matrix<Scalar,Index,Mode,true,
     Index rows      = IsLower ? _rows : diagSize;
     Index depth     = IsLower ? diagSize : _depth;
     Index cols      = _cols;
-    
+
     typedef const_blas_data_mapper<Scalar, Index, LhsStorageOrder> LhsMapper;
     typedef const_blas_data_mapper<Scalar, Index, RhsStorageOrder> RhsMapper;
     typedef blas_data_mapper<typename Traits::ResScalar, Index, ColMajor> ResMapper;
@@ -273,7 +273,7 @@ EIGEN_DONT_INLINE void product_triangular_matrix_matrix<Scalar,Index,Mode,false,
     Index rows      = _rows;
     Index depth     = IsLower ? _depth : diagSize;
     Index cols      = IsLower ? diagSize : _cols;
-    
+
     typedef const_blas_data_mapper<Scalar, Index, LhsStorageOrder> LhsMapper;
     typedef const_blas_data_mapper<Scalar, Index, RhsStorageOrder> RhsMapper;
     typedef blas_data_mapper<typename Traits::ResScalar, Index, ColMajor> ResMapper;
@@ -403,14 +403,14 @@ struct triangular_product_impl<Mode,LhsIsTriangular,Lhs,false,Rhs,false>
     typedef typename Lhs::Scalar  LhsScalar;
     typedef typename Rhs::Scalar  RhsScalar;
     typedef typename Dest::Scalar Scalar;
-    
+
     typedef internal::blas_traits<Lhs> LhsBlasTraits;
     typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
     typedef typename internal::remove_all<ActualLhsType>::type ActualLhsTypeCleaned;
     typedef internal::blas_traits<Rhs> RhsBlasTraits;
     typedef typename RhsBlasTraits::DirectLinearAccessType ActualRhsType;
     typedef typename internal::remove_all<ActualRhsType>::type ActualRhsTypeCleaned;
-    
+
     typename internal::add_const_on_value_type<ActualLhsType>::type lhs = LhsBlasTraits::extract(a_lhs);
     typename internal::add_const_on_value_type<ActualRhsType>::type rhs = RhsBlasTraits::extract(a_rhs);
 

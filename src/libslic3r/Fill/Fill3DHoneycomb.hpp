@@ -16,12 +16,12 @@ public:
     ~Fill3DHoneycomb() override {}
 
 protected:
-	void _fill_surface_single(
-	    const FillParams                &params, 
-	    unsigned int                     thickness_layers,
-	    const std::pair<float, Point>   &direction, 
-	    ExPolygon                        expolygon, 
-	    Polylines                       &polylines_out) const override;
+    void _fill_surface_single(
+        const FillParams                &params,
+        unsigned int                     thickness_layers,
+        const std::pair<float, Point>   &direction,
+        ExPolygon                        expolygon,
+        Polylines                       &polylines_out) const override;
 };
 
 } // namespace Slic3r

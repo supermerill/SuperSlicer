@@ -17,7 +17,7 @@ std::pair<bool, std::string> GLShadersManager::init()
 {
     std::string error;
 
-    auto append_shader = [this, &error](const std::string& name, const GLShaderProgram::ShaderFilenames& filenames, 
+    auto append_shader = [this, &error](const std::string& name, const GLShaderProgram::ShaderFilenames& filenames,
         const std::initializer_list<std::string_view> &defines = {}) {
         m_shaders.push_back(std::make_unique<GLShaderProgram>());
         if (!m_shaders.back()->init_from_files(name, filenames, defines)) {

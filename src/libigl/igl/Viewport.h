@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_VIEWPORT_H
 #define IGL_VIEWPORT_H
@@ -16,8 +16,8 @@ namespace igl
     int x,y,width,height;
     // Constructors
     Viewport(
-      const int x=0, 
-      const int y=0, 
+      const int x=0,
+      const int y=0,
       const int width=0,
       const int height=0):
       x(x),
@@ -28,8 +28,8 @@ namespace igl
     };
     virtual ~Viewport(){}
     void reshape(
-      const int x, 
-      const int y, 
+      const int x,
+      const int y,
       const int width,
       const int height)
     {
@@ -59,8 +59,8 @@ namespace igl
     // Returns whether point (mx,my) is in extend of Viewport
     bool inside(const int mx, const int my) const
     {
-      return 
-        mx >= x && my >= y && 
+      return
+        mx >= x && my >= y &&
         mx < x+width && my < y+height;
     }
   };

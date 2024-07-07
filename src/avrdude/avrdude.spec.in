@@ -38,11 +38,11 @@ Documentation for avrdude in info, html, postscript and pdf formats.
 %build
 
 ./configure --prefix=%{_prefix} --sysconfdir=/etc --mandir=%{_mandir} \
-	--infodir=%{_infodir} \
+    --infodir=%{_infodir} \
 %if %{_with_docs}
-	--enable-doc=yes
+    --enable-doc=yes
 %else
-	--enable-doc=no
+    --enable-doc=no
 %endif
 
 make
@@ -50,10 +50,10 @@ make
 %install
 rm -rf $RPM_BUILD_ROOT
 make prefix=$RPM_BUILD_ROOT%{_prefix} \
-	sysconfdir=$RPM_BUILD_ROOT/etc \
-	mandir=$RPM_BUILD_ROOT%{_mandir} \
-	infodir=$RPM_BUILD_ROOT%{_infodir} \
-	install
+    sysconfdir=$RPM_BUILD_ROOT/etc \
+    mandir=$RPM_BUILD_ROOT%{_mandir} \
+    infodir=$RPM_BUILD_ROOT%{_infodir} \
+    install
 
 rm -rf $RPM_BUILD_ROOT%{_datadir}/doc/%{name}-%{version}
 rm -f $RPM_BUILD_ROOT%{_infodir}/dir
@@ -64,16 +64,16 @@ rm -rf $RPM_BUILD_ROOT
 %if %{_with_docs}
 %post docs
 [ -f %{_infodir}/avrdude.info ] && \
-	/sbin/install-info %{_infodir}/avrdude.info %{_infodir}/dir || :
+    /sbin/install-info %{_infodir}/avrdude.info %{_infodir}/dir || :
 [ -f %{_infodir}/avrdude.info.gz ] && \
-	/sbin/install-info %{_infodir}/avrdude.info.gz %{_infodir}/dir || :
+    /sbin/install-info %{_infodir}/avrdude.info.gz %{_infodir}/dir || :
 
 %preun docs
 if [ $1 = 0 ]; then
-	[ -f %{_infodir}/avrdude.info ] && \
-		/sbin/install-info --delete %{_infodir}/avrdude.info %{_infodir}/dir || :
-	[ -f %{_infodir}/avrdude.info.gz ] && \
-		/sbin/install-info --delete %{_infodir}/avrdude.info.gz %{_infodir}/dir || :
+    [ -f %{_infodir}/avrdude.info ] && \
+        /sbin/install-info --delete %{_infodir}/avrdude.info %{_infodir}/dir || :
+    [ -f %{_infodir}/avrdude.info.gz ] && \
+        /sbin/install-info --delete %{_infodir}/avrdude.info.gz %{_infodir}/dir || :
 fi
 %endif
 

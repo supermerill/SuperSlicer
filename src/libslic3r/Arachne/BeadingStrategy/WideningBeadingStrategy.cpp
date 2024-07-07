@@ -60,7 +60,7 @@ coord_t WideningBeadingStrategy::getOptimalBeadCount(coord_t thickness) const
     return ret;
 }
 
-coord_t WideningBeadingStrategy::getTransitioningLength(coord_t lower_bead_count) const 
+coord_t WideningBeadingStrategy::getTransitioningLength(coord_t lower_bead_count) const
 {
     return parent->getTransitioningLength(lower_bead_count);
 }

@@ -63,7 +63,7 @@ LimitedBeadingStrategy::Beading LimitedBeadingStrategy::compute(coord_t thicknes
     bead_count = ret.toolpath_locations.size();
     ret.left_over += thickness - ret.total_thickness;
     ret.total_thickness = thickness;
-    
+
     // Enforce symmetry
     if (bead_count % 2 == 1) {
         ret.toolpath_locations[bead_count / 2] = thickness / 2;
@@ -117,7 +117,7 @@ coord_t LimitedBeadingStrategy::getOptimalBeadCount(coord_t thickness) const
     } else if (parent_bead_count == max_bead_count + 1) {
         if (thickness < parent->getOptimalThickness(max_bead_count + 1) - scaled<coord_t>(0.01))
             return max_bead_count;
-        else 
+        else
             return max_bead_count + 1;
     }
     else return max_bead_count + 1;

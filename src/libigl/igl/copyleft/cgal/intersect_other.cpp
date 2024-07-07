@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2014 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "intersect_other.h"
 #include "CGAL_includes.hpp"
@@ -83,14 +83,14 @@ namespace igl
         typedef typename DerivedFA::Index Index;
         // 3D Primitives
         typedef CGAL::Point_3<Kernel>    Point_3;
-        typedef CGAL::Segment_3<Kernel>  Segment_3; 
-        typedef CGAL::Triangle_3<Kernel> Triangle_3; 
+        typedef CGAL::Segment_3<Kernel>  Segment_3;
+        typedef CGAL::Triangle_3<Kernel> Triangle_3;
         typedef CGAL::Plane_3<Kernel>    Plane_3;
-        typedef CGAL::Tetrahedron_3<Kernel> Tetrahedron_3; 
+        typedef CGAL::Tetrahedron_3<Kernel> Tetrahedron_3;
         // 2D Primitives
         typedef CGAL::Point_2<Kernel>    Point_2;
-        typedef CGAL::Segment_2<Kernel>  Segment_2; 
-        typedef CGAL::Triangle_2<Kernel> Triangle_2; 
+        typedef CGAL::Segment_2<Kernel>  Segment_2;
+        typedef CGAL::Triangle_2<Kernel> Triangle_2;
         // 2D Constrained Delaunay Triangulation types
         typedef CGAL::Triangulation_vertex_base_2<Kernel>  TVB_2;
         typedef CGAL::Constrained_triangulation_face_base_2<Kernel> CTAB_2;
@@ -100,11 +100,11 @@ namespace igl
         typedef std::vector<Triangle_3> Triangles;
         typedef typename Triangles::iterator TrianglesIterator;
         typedef typename Triangles::const_iterator TrianglesConstIterator;
-        typedef 
-          CGAL::Box_intersection_d::Box_with_handle_d<double,3,TrianglesIterator> 
+        typedef
+          CGAL::Box_intersection_d::Box_with_handle_d<double,3,TrianglesIterator>
           Box;
-        typedef 
-          std::map<Index,std::vector<std::pair<Index,CGAL::Object> > > 
+        typedef
+          std::map<Index,std::vector<std::pair<Index,CGAL::Object> > >
           OffendingMap;
         typedef std::map<std::pair<Index,Index>,std::vector<Index> >  EdgeMap;
         typedef std::pair<Index,Index> EMK;
@@ -113,15 +113,15 @@ namespace igl
         // Compute and process self intersections
         mesh_to_cgal_triangle_list(VA,FA,TA);
         mesh_to_cgal_triangle_list(VB,FB,TB);
-        // http://www.cgal.org/Manual/latest/doc_html/cgal_manual/Box_intersection_d/Chapter_main.html#Section_63.5 
+        // http://www.cgal.org/Manual/latest/doc_html/cgal_manual/Box_intersection_d/Chapter_main.html#Section_63.5
         // Create the corresponding vector of bounding boxes
         std::vector<Box> A_boxes,B_boxes;
         const auto box_up = [](Triangles & T, std::vector<Box> & boxes) -> void
         {
           boxes.reserve(T.size());
-          for ( 
-            TrianglesIterator tit = T.begin(); 
-            tit != T.end(); 
+          for (
+            TrianglesIterator tit = T.begin();
+            tit != T.end();
             ++tit)
           {
             boxes.push_back(Box(tit->bbox(), tit));
@@ -185,7 +185,7 @@ namespace igl
             )
           {
             IF(i,0) = (*ifit);
-            ifit++; 
+            ifit++;
             IF(i,1) = (*ifit);
             ifit++;
             i++;

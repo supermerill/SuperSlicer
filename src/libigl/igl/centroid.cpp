@@ -1,17 +1,17 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2014 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "centroid.h"
 #include <Eigen/Geometry>
 
 template <
-  typename DerivedV, 
-  typename DerivedF, 
-  typename Derivedc, 
+  typename DerivedV,
+  typename DerivedF,
+  typename Derivedc,
   typename Derivedvol>
 IGL_INLINE void igl::centroid(
   const Eigen::MatrixBase<DerivedV>& V,
@@ -40,15 +40,15 @@ IGL_INLINE void igl::centroid(
     // total volume via divergence theorem: ∫ 1
     vol += n.dot(a)/6.;
     // centroid via divergence theorem and midpoint quadrature: ∫ x
-    cen.array() += (1./24.*n.array()*((a+b).array().square() + (b+c).array().square() + 
+    cen.array() += (1./24.*n.array()*((a+b).array().square() + (b+c).array().square() +
         (c+a).array().square()).array());
   }
   cen *= 1./(2.*vol);
 }
 
 template <
-  typename DerivedV, 
-  typename DerivedF, 
+  typename DerivedV,
+  typename DerivedF,
   typename Derivedc>
 IGL_INLINE void igl::centroid(
   const Eigen::MatrixBase<DerivedV>& V,

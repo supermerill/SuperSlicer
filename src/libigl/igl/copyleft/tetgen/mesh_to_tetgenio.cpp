@@ -1,21 +1,21 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "mesh_to_tetgenio.h"
 
-// IGL includes 
+// IGL includes
 #include "../../matrix_to_list.h"
 
 // STL includes
 #include <cassert>
 
 IGL_INLINE bool igl::copyleft::tetgen::mesh_to_tetgenio(
-  const std::vector<std::vector<REAL > > & V, 
-  const std::vector<std::vector<int> > & F, 
+  const std::vector<std::vector<REAL > > & V,
+  const std::vector<std::vector<int> > & F,
   tetgenio & in)
 {
   using namespace std;

@@ -34,11 +34,11 @@
     <xsl:text>@multitable @columnfractions .15 .15 .6&#010;</xsl:text>
     <xsl:text>Routing card @tab Socket card @tab Devices&#010;</xsl:text>
     <xsl:for-each select="/STK600/ROUTING/CARD">
-	<xsl:text>@item @code{</xsl:text>
-	<xsl:value-of select="RC_NAME" />
-	<xsl:text>} @tab @code{</xsl:text>
-	<xsl:value-of select="SC_NAME" />
-	<xsl:text>} @tab</xsl:text>
+    <xsl:text>@item @code{</xsl:text>
+    <xsl:value-of select="RC_NAME" />
+    <xsl:text>} @tab @code{</xsl:text>
+    <xsl:value-of select="SC_NAME" />
+    <xsl:text>} @tab</xsl:text>
         <xsl:for-each select="TARGET">
            <xsl:text> </xsl:text>
            <xsl:value-of select="NAME" />

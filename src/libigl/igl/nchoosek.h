@@ -14,7 +14,7 @@
 
 #include <Eigen/Core>
 
-namespace igl 
+namespace igl
 {
   // NCHOOSEK  Like matlab's nchoosek.
   //
@@ -23,7 +23,7 @@ namespace igl
   //   k  size of sub-set to consider
   // Returns number of k-size combinations out of the set [1,...,n]
   IGL_INLINE double nchoosek(const int n, const int k);
-  // 
+  //
   // Inputs:
   //   V  n-long vector of elements
   //   k  size of sub-set to consider

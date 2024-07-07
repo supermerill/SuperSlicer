@@ -51,17 +51,17 @@ SHINY_API void ShinyPrintZones(char* output, const ShinyZone *a_root);
 #include <string>
 
 SHINY_INLINE std::string ShinyNodesToString(const ShinyNode *a_root, uint32_t a_count) {
-	std::string str;
-	str.resize(ShinyPrintNodesSize(a_count) - 1);
-	ShinyPrintNodes(&str[0], a_root);
-	return str;
+    std::string str;
+    str.resize(ShinyPrintNodesSize(a_count) - 1);
+    ShinyPrintNodes(&str[0], a_root);
+    return str;
 }
 
 SHINY_INLINE std::string ShinyZonesToString(const ShinyZone *a_root, uint32_t a_count) {
-	std::string str;
-	str.resize(ShinyPrintZonesSize(a_count) - 1);
-	ShinyPrintZones(&str[0], a_root);
-	return str;
+    std::string str;
+    str.resize(ShinyPrintZonesSize(a_count) - 1);
+    ShinyPrintZones(&str[0], a_root);
+    return str;
 }
 #endif /* __cplusplus */
 

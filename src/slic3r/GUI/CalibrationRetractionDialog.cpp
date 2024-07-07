@@ -84,7 +84,7 @@ void CalibrationRetractionDialog::remove_slowdown(wxCommandEvent& event_args) {
     ConfigOptionFloats *new_fil_conf = new ConfigOptionFloats(5);
     new_fil_conf->set(fil_conf);
     new_fil_conf->set_at(0, 0);
-    new_filament_config.set_key_value("slowdown_below_layer_time", new_fil_conf); 
+    new_filament_config.set_key_value("slowdown_below_layer_time", new_fil_conf);
 
     fil_conf = filament_config->option<ConfigOptionFloats>("fan_below_layer_time");
     new_fil_conf = new ConfigOptionFloats(60);
@@ -190,7 +190,7 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
             //model.objects[objs_idx[id_item]]->volumes[1]->rotate(Geometry::deg2rad(plat->config()->opt_float("init_z_rotate")), Axis::Z);
         }
         for (int num_retract = 0; num_retract < nb_retract; num_retract++) {
-            add_part(model.objects[objs_idx[id_item]], 
+            add_part(model.objects[objs_idx[id_item]],
                 (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "retraction" / "retraction_calibration_pillar.amf").string(),
                 Vec3d{ 0,0,scale * 0.7 - 0.3 + scale * num_retract }, Vec3d{ scale,scale,scale });
         }
@@ -237,7 +237,7 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
         current_obj->config.set_key_value("print_temperature", new ConfigOptionInt(int(temp - temp_decr * i)));
         current_obj->config.set_key_value("print_first_layer_temperature", new ConfigOptionInt(first_layer_temp));
         //set retraction override
-        
+
         const int mytemp = temp - temp_decr * i;
         const int extra_vol = (mytemp <= 285 && mytemp >= 180 && mytemp % 5 == 0) ? 2 : 1;
         for (size_t num_part = extra_vol; num_part < current_obj->volumes.size(); num_part++) {
@@ -247,7 +247,7 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
             current_obj->volumes[num_part]->config.set_key_value("external_perimeter_speed", new ConfigOptionFloatOrPercent(external_perimeter_speed, false));
             //current_obj->volumes[num_part + extra_vol]->config.set_key_value("small_perimeter_speed", new ConfigOptionFloatOrPercent(external_perimeter_speed, false));
             //current_obj->volumes[num_part + extra_vol]->config.set_key_value("infill_speed", new ConfigOptionFloatOrPercent(std::min(print_config->option<ConfigOptionFloatOrPercent>("infill_speed")->value, 10.*scale)), false);
-            
+
         }
     }
 

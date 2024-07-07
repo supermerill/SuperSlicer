@@ -19,7 +19,7 @@ public:
         void reset() { m_mask = 0; memset(m_axis, 0, sizeof(m_axis)); m_raw.clear(); }
 
         const std::string&      raw() const { return m_raw; }
-        const std::string_view  cmd() const { 
+        const std::string_view  cmd() const {
             const char *cmd = GCodeReader::skip_whitespaces(m_raw.c_str());
             return std::string_view(cmd, GCodeReader::skip_word(cmd) - cmd);
         }
@@ -64,7 +64,7 @@ public:
 
         static bool cmd_is(const std::string &gcode_line, const char *cmd_test) {
             const char *cmd = GCodeReader::skip_whitespaces(gcode_line.c_str());
-            size_t len = strlen(cmd_test); 
+            size_t len = strlen(cmd_test);
             return strncmp(cmd, cmd_test, len) == 0 && GCodeReader::is_end_of_word(cmd[len]);
         }
 
@@ -85,7 +85,7 @@ public:
 
     typedef std::function<void(GCodeReader&, const GCodeLine&)> callback_t;
     typedef std::function<void(GCodeReader&, const char*, const char*)> raw_line_callback_t;
-    
+
     GCodeReader() : m_verbose(false), m_extrusion_axis('E') { this->reset(); }
     void reset() { memset(m_position, 0, sizeof(m_position)); }
     void apply_config(const GCodeConfig &config);
@@ -160,12 +160,12 @@ private:
     static bool         is_end_of_line(char c)          { return c == '\r' || c == '\n' || c == 0; }
     static bool         is_end_of_gcode_line(char c)    { return c == ';' || is_end_of_line(c); }
     static bool         is_end_of_word(char c)          { return is_whitespace(c) || is_end_of_gcode_line(c); }
-    static const char*  skip_whitespaces(const char *c) { 
+    static const char*  skip_whitespaces(const char *c) {
         for (; is_whitespace(*c); ++ c)
             ; // silence -Wempty-body
         return c;
     }
-    static const char*  skip_word(const char *c) { 
+    static const char*  skip_word(const char *c) {
         for (; ! is_end_of_word(*c); ++ c)
             ; // silence -Wempty-body
         return c;

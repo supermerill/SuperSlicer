@@ -51,7 +51,7 @@ std::vector<ExPolygons> SupportTree::slice(const std::vector<float> &grid,
 
         auto bb = bounding_box(pad_mesh);
         auto maxzit = std::upper_bound(grid.begin(), grid.end(), bb.max.z());
-        
+
         auto cap = grid.end() - maxzit;
         auto padgrid = reserve_vector<float>(size_t(cap > 0 ? cap : 0));
         std::copy(grid.begin(), maxzit, std::back_inserter(padgrid));
@@ -83,7 +83,7 @@ SupportTree::UPtr SupportTree::create(const SupportableMesh &sm,
 {
     auto builder = make_unique<SupportTreeBuilder>();
     builder->m_ctl = ctl;
-    
+
     if (sm.cfg.enabled) {
         // Execute takes care about the ground_level
         SupportTreeBuildsteps::execute(*builder, sm);
@@ -92,7 +92,7 @@ SupportTree::UPtr SupportTree::create(const SupportableMesh &sm,
         // If a pad gets added later, it will be in the right Z level
         builder->ground_level = sm.emesh.ground_level();
     }
-    
+
     return std::move(builder);
 }
 

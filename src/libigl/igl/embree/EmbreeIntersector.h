@@ -399,7 +399,7 @@ inline bool igl::embree::EmbreeIntersector::intersectBeam(
       int mask,
       int geoId,
       bool closestHit,
-	  unsigned int samples) const
+      unsigned int samples) const
 {
   bool hasHit = false;
   Hit bestHit;
@@ -425,8 +425,8 @@ inline bool igl::embree::EmbreeIntersector::intersectBeam(
 
   for(int r=0;r<(int)samples;r++)
   {
-    if(intersectRay(origin+offset*eps,direction,hit,tnear,tfar,mask) && 
-        ((closestHit && (hit.t < bestHit.t)) || 
+    if(intersectRay(origin+offset*eps,direction,hit,tnear,tfar,mask) &&
+        ((closestHit && (hit.t < bestHit.t)) ||
            (!closestHit && (hit.t > bestHit.t)))  &&
         (hit.gid == geoId || geoId == -1))
     {

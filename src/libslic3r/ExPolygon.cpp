@@ -155,7 +155,7 @@ bool ExPolygon::overlaps(const ExPolygon &other) const
     svg.draw(pl_out, "red");
     #endif
     if (! pl_out.empty())
-        return true; 
+        return true;
     //FIXME ExPolygon::overlaps() shall be commutative, it is not!
     return ! other.contour.points.empty() && this->contains_b(other.contour.points.front());
 }
@@ -255,8 +255,8 @@ BoundingBox get_extents(const ExPolygons &expolygons)
     BoundingBox bbox;
     if (! expolygons.empty()) {
         for (size_t i = 0; i < expolygons.size(); ++ i)
-			if (! expolygons[i].contour.points.empty())
-				bbox.merge(get_extents(expolygons[i]));
+            if (! expolygons[i].contour.points.empty())
+                bbox.merge(get_extents(expolygons[i]));
     }
     return bbox;
 }
@@ -365,21 +365,21 @@ bool remove_small_and_small_holes(ExPolygons &expolygons, double min_area)
 
 void keep_largest_contour_only(ExPolygons &polygons)
 {
-	if (polygons.size() > 1) {
-	    double     max_area = 0.;
-	    ExPolygon* max_area_polygon = nullptr;
-	    for (ExPolygon& p : polygons) {
-	        double a = p.contour.area();
-	        if (a > max_area) {
-	            max_area         = a;
-	            max_area_polygon = &p;
-	        }
-	    }
-	    assert(max_area_polygon != nullptr);
-	    ExPolygon p(std::move(*max_area_polygon));
-	    polygons.clear();
-	    polygons.emplace_back(std::move(p));
-	}
+    if (polygons.size() > 1) {
+        double     max_area = 0.;
+        ExPolygon* max_area_polygon = nullptr;
+        for (ExPolygon& p : polygons) {
+            double a = p.contour.area();
+            if (a > max_area) {
+                max_area         = a;
+                max_area_polygon = &p;
+            }
+        }
+        assert(max_area_polygon != nullptr);
+        ExPolygon p(std::move(*max_area_polygon));
+        polygons.clear();
+        polygons.emplace_back(std::move(p));
+    }
 }
 
 } // namespace Slic3r

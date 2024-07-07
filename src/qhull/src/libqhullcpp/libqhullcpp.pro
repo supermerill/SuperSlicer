@@ -8,7 +8,7 @@ include(../qhull-warn.pri)
 
 DESTDIR = ../../lib
 TEMPLATE = lib
-# Do not create libqhullcpp as a shared library.  Qhull C++ classes may change layout and size. 
+# Do not create libqhullcpp as a shared library.  Qhull C++ classes may change layout and size.
 CONFIG += staticlib warn_on
 CONFIG -= qt rtti
 build_pass:CONFIG(debug, debug|release):{

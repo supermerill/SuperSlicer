@@ -1,11 +1,11 @@
 //**** ATMEL AVR - A P P L I C A T I O N   N O T E  ************************
 //*
-//* Title:		AVR061 - STK500 Communication Protocol
-//* Filename:		command.h
-//* Version:		1.0
-//* Last updated:	09.09.2002
+//* Title:        AVR061 - STK500 Communication Protocol
+//* Filename:        command.h
+//* Version:        1.0
+//* Last updated:    09.09.2002
 //*
-//* Support E-mail:	avr@atmel.com
+//* Support E-mail:    avr@atmel.com
 //*
 //**************************************************************************
 
@@ -39,7 +39,7 @@
 #define Cmnd_STK_SET_PARAMETER     0x40  // ' '
 #define Cmnd_STK_GET_PARAMETER     0x41  // ' '
 #define Cmnd_STK_SET_DEVICE        0x42  // ' '
-#define Cmnd_STK_SET_DEVICE_EXT    0x45  // ' '			
+#define Cmnd_STK_SET_DEVICE_EXT    0x45  // ' '
 
 #define Cmnd_STK_ENTER_PROGMODE    0x50  // ' '
 #define Cmnd_STK_LEAVE_PROGMODE    0x51  // ' '
@@ -54,7 +54,7 @@
 #define Cmnd_STK_PROG_FUSE         0x62  // ' '
 #define Cmnd_STK_PROG_LOCK         0x63  // ' '
 #define Cmnd_STK_PROG_PAGE         0x64  // ' '
-#define Cmnd_STK_PROG_FUSE_EXT     0x65  // ' '		
+#define Cmnd_STK_PROG_FUSE_EXT     0x65  // ' '
 
 #define Cmnd_STK_READ_FLASH        0x70  // ' '
 #define Cmnd_STK_READ_DATA         0x71  // ' '
@@ -63,8 +63,8 @@
 #define Cmnd_STK_READ_PAGE         0x74  // ' '
 #define Cmnd_STK_READ_SIGN         0x75  // ' '
 #define Cmnd_STK_READ_OSCCAL       0x76  // ' '
-#define Cmnd_STK_READ_FUSE_EXT     0x77  // ' '		
-#define Cmnd_STK_READ_OSCCAL_EXT   0x78  // ' '     
+#define Cmnd_STK_READ_FUSE_EXT     0x77  // ' '
+#define Cmnd_STK_READ_OSCCAL_EXT   0x78  // ' '
 
 // *****************[ STK Parameter constants ]***************************
 

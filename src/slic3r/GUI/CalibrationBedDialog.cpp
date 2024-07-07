@@ -53,7 +53,7 @@ void CalibrationBedDialog::create_geometry(wxCommandEvent& event_args) {
     assert(objs_idx.size() == 5);
     const DynamicPrintConfig* printConfig = this->gui_app->get_tab(Preset::TYPE_FFF_PRINT)->get_config();
     const DynamicPrintConfig* printerConfig = this->gui_app->get_tab(Preset::TYPE_PRINTER)->get_config();
-    
+
     /// --- scale ---
     //model is created for a 0.4 nozzle, scale xy with nozzle size.
     const ConfigOptionFloats* nozzle_diameter = printerConfig->option<ConfigOptionFloats>("nozzle_diameter");

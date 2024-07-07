@@ -35,8 +35,8 @@ IGL_INLINE void igl::vector_area_matrix(
 
   for(int k = 0; k < E.rows(); k++)
   {
-		int i = E(k,0);
-		int j = E(k,1);
+        int i = E(k,0);
+        int j = E(k,1);
         tripletList.push_back(Triplet<Scalar>(i+n, j, -0.25));
         tripletList.push_back(Triplet<Scalar>(j, i+n, -0.25));
         tripletList.push_back(Triplet<Scalar>(i, j+n, 0.25));

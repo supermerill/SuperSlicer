@@ -10,7 +10,7 @@
 #include <memory>
 #include <vector>
 
-namespace Slic3r 
+namespace Slic3r
 {
 class PrintObject;
 

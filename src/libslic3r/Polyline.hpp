@@ -64,7 +64,7 @@ public:
             src.points.clear();
         }
     }
-  
+
     const Point& last_point() const override { return this->points.back(); }
     const Point& leftmost_point() const;
     Lines lines() const override;
@@ -173,7 +173,7 @@ std::pair<int, Point> foot_pt(const Points& polyline, const Point& pt);
 /// ThickPolyline : a polyline with a width for each point
 /// This class has a vector of coordf_t, it must be the same size as points.
 /// it's used to store the size of the line at this point.
-/// Also, the endpoint let us know if the front() and back() of the polyline 
+/// Also, the endpoint let us know if the front() and back() of the polyline
 /// join something or is a dead-end.
 class ThickPolyline : public Polyline {
 public:
@@ -370,7 +370,7 @@ public:
     //bool is_straight() const;
     bool is_closed() const { return this->points.front() == this->points.back(); }
 
-    //BBS: 
+    //BBS:
     PolylineOrArc equally_spaced_lines(double distance) const;
 
     void ensure_fitting_result_valid() const {

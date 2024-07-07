@@ -31,7 +31,7 @@ public:
     virtual ~GLGizmoHollow() = default;
     void set_sla_support_data(ModelObject* model_object, const Selection& selection);
     bool gizmo_event(SLAGizmoEventType action, const Vec2d& mouse_position, bool shift_down, bool alt_down, bool control_down);
-    void delete_selected_points();    
+    void delete_selected_points();
     bool is_selection_rectangle_dragging() const {
         return m_selection_rectangle.is_dragging();
     }
@@ -64,7 +64,7 @@ private:
     sla::DrainHoles m_holes_in_drilled_mesh;
 
     sla::DrainHoles m_holes_stash;
-    
+
     // This map holds all translated description texts, so they can be easily referenced during layout calculations
     // etc. When language changes, GUI is recreated and this class constructed again, so the change takes effect.
     std::map<std::string, wxString> m_desc;

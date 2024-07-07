@@ -1,10 +1,10 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
 //                    Qingnan Zhou <qnzhou@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 //
 #ifndef IGL_COPYLEFT_CGAL_MESH_BOOLEAN_H
@@ -175,7 +175,7 @@ namespace igl
       //    VC  #VC by 3 list of vertex positions of boolean result mesh
       //    FC  #FC by 3 list of triangle indices into VC
       //    J  #FC list of birth parent indices
-      // 
+      //
       template <
         typename DerivedVV,
         typename DerivedFF,

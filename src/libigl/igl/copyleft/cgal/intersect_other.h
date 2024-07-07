@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_COPYLEFT_CGAL_INTERSECT_OTHER_H
 #define IGL_COPYLEFT_CGAL_INTERSECT_OTHER_H
@@ -21,7 +21,7 @@ namespace igl
       // INTERSECT_OTHER Given a triangle mesh (VA,FA) and another mesh (VB,FB)
       // find all pairs of intersecting faces. Note that self-intersections are
       // ignored.
-      // 
+      //
       // Inputs:
       //   VA  #V by 3 list of vertex positions
       //   FA  #F by 3 list of triangle indices into VA
@@ -86,6 +86,6 @@ namespace igl
 #ifndef IGL_STATIC_LIBRARY
 #  include "intersect_other.cpp"
 #endif
-  
+
 #endif
 

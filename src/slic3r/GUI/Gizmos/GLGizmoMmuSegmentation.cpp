@@ -48,7 +48,7 @@ std::string GLGizmoMmuSegmentation::on_get_name() const
 bool GLGizmoMmuSegmentation::on_is_selectable() const
 {
     return (wxGetApp().preset_bundle->printers.get_edited_preset().printer_technology() == ptFFF
-            && (wxGetApp().get_mode() != comSimple || wxGetApp().app_config->get("objects_always_expert") == "1") 
+            && (wxGetApp().get_mode() != comSimple || wxGetApp().app_config->get("objects_always_expert") == "1")
             && wxGetApp().extruders_edited_cnt() > 1);
 }
 
@@ -308,7 +308,7 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
     const std::string first_color_str = "first_color";
     const std::string second_color_str = "second_color";
     const std::string remove_str = "remove";
-    
+
     for (const std::string& t : {first_color_str, second_color_str, remove_str}) {
         caption_max    = std::max(caption_max, m_imgui->calc_text_size(m_desc[t + "_caption"]).x);
         total_text_max = std::max(total_text_max, m_imgui->calc_text_size(m_desc[t]).x);

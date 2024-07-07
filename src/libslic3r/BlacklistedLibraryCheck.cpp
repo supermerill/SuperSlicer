@@ -32,7 +32,7 @@ std::wstring BlacklistedLibraryCheck::get_blacklisted_string()
 }
 
 bool BlacklistedLibraryCheck::perform_check()
-{   
+{
     // Get the pseudo-handle for the current process.
     HANDLE  hCurrentProcess = GetCurrentProcess();
 
@@ -53,7 +53,7 @@ bool BlacklistedLibraryCheck::perform_check()
                     //wprintf(L"Contains library: %s\n", szModName);
                     if (std::find(m_found.begin(), m_found.end(), szModName) == m_found.end())
                         m_found.emplace_back(szModName);
-                } 
+                }
                 //wprintf(L"%s\n", szModName);
             }
         }

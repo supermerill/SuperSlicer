@@ -104,7 +104,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
 
     typedef typename internal::traits<Derived>::StorageKind StorageKind;
     typedef typename internal::traits<Derived>::Scalar Scalar;
-    
+
     typedef typename internal::packet_traits<Scalar>::type PacketScalar;
     typedef typename NumTraits<Scalar>::Real RealScalar;
     typedef Derived DenseType;
@@ -358,7 +358,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
       * remain row-vectors and vectors remain vectors.
       */
     template<typename OtherDerived>
-    EIGEN_DEVICE_FUNC 
+    EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE void resizeLike(const EigenBase<OtherDerived>& _other)
     {
       const OtherDerived& other = _other.derived();
@@ -383,7 +383,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
       * of rows and/or of columns, you can use conservativeResize(NoChange_t, Index) or
       * conservativeResize(Index, NoChange_t).
       *
-      * Matrices are resized relative to the top-left element. In case values need to be 
+      * Matrices are resized relative to the top-left element. In case values need to be
       * appended to the matrix they will be uninitialized.
       */
     EIGEN_DEVICE_FUNC
@@ -440,7 +440,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
       * of rows and/or of columns, you can use conservativeResize(NoChange_t, Index) or
       * conservativeResize(Index, NoChange_t).
       *
-      * Matrices are resized relative to the top-left element. In case values need to be 
+      * Matrices are resized relative to the top-left element. In case values need to be
       * appended to the matrix they will copied from \c other.
       */
     template<typename OtherDerived>
@@ -564,7 +564,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
       * \copydetails DenseBase::operator=(const EigenBase<OtherDerived> &other)
       */
     template<typename OtherDerived>
-    EIGEN_DEVICE_FUNC 
+    EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Derived& operator=(const EigenBase<OtherDerived> &other)
     {
       _resize_to_match(other);
@@ -678,7 +678,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
       * remain row-vectors and vectors remain vectors.
       */
     template<typename OtherDerived>
-    EIGEN_DEVICE_FUNC 
+    EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE void _resize_to_match(const EigenBase<OtherDerived>& other)
     {
       #ifdef EIGEN_NO_AUTOMATIC_RESIZING
@@ -708,7 +708,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     // aliasing is dealt once in internall::call_assignment
     // so at this stage we have to assume aliasing... and resising has to be done later.
     template<typename OtherDerived>
-    EIGEN_DEVICE_FUNC 
+    EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Derived& _set(const DenseBase<OtherDerived>& other)
     {
       internal::call_assignment(this->derived(), other.derived());
@@ -721,7 +721,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
       * \sa operator=(const MatrixBase<OtherDerived>&), _set()
       */
     template<typename OtherDerived>
-    EIGEN_DEVICE_FUNC 
+    EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Derived& _set_noalias(const DenseBase<OtherDerived>& other)
     {
       // I don't think we need this resize call since the lazyAssign will anyways resize
@@ -742,18 +742,18 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
                           FLOATING_POINT_ARGUMENT_PASSED__INTEGER_WAS_EXPECTED)
       resize(rows,cols);
     }
-    
+
     template<typename T0, typename T1>
-    EIGEN_DEVICE_FUNC 
+    EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE void _init2(const T0& val0, const T1& val1, typename internal::enable_if<Base::SizeAtCompileTime==2,T0>::type* = 0)
     {
       EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(PlainObjectBase, 2)
       m_storage.data()[0] = Scalar(val0);
       m_storage.data()[1] = Scalar(val1);
     }
-    
+
     template<typename T0, typename T1>
-    EIGEN_DEVICE_FUNC 
+    EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE void _init2(const Index& val0, const Index& val1,
                                     typename internal::enable_if<    (!internal::is_same<Index,Scalar>::value)
                                                                   && (internal::is_same<T0,Index>::value)
@@ -779,7 +779,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
                           FLOATING_POINT_ARGUMENT_PASSED__INTEGER_WAS_EXPECTED)
       resize(size);
     }
-    
+
     // We have a 1x1 matrix/array => the argument is interpreted as the value of the unique coefficient (case where scalar type can be implicitely converted)
     template<typename T>
     EIGEN_DEVICE_FUNC
@@ -788,7 +788,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
       EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(PlainObjectBase, 1)
       m_storage.data()[0] = val0;
     }
-    
+
     // We have a 1x1 matrix/array => the argument is interpreted as the value of the unique coefficient (case where scalar type match the index type)
     template<typename T>
     EIGEN_DEVICE_FUNC
@@ -844,7 +844,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     {
       this->derived() = r;
     }
-    
+
     // For fixed-size Array<Scalar,...>
     template<typename T>
     EIGEN_DEVICE_FUNC
@@ -856,7 +856,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     {
       Base::setConstant(val0);
     }
-    
+
     // For fixed-size Array<Index,...>
     template<typename T>
     EIGEN_DEVICE_FUNC
@@ -870,12 +870,12 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     {
       Base::setConstant(val0);
     }
-    
+
     template<typename MatrixTypeA, typename MatrixTypeB, bool SwapPointers>
     friend struct internal::matrix_swap_impl;
 
   public:
-    
+
 #ifndef EIGEN_PARSED_BY_DOXYGEN
     /** \internal
       * \brief Override DenseBase::swap() since for dynamic-sized matrices
@@ -888,7 +888,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
       enum { SwapPointers = internal::is_same<Derived, OtherDerived>::value && Base::SizeAtCompileTime==Dynamic };
       internal::matrix_swap_impl<Derived, OtherDerived, bool(SwapPointers)>::run(this->derived(), other.derived());
     }
-    
+
     /** \internal
       * \brief const version forwarded to DenseBase::swap
       */
@@ -896,8 +896,8 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     EIGEN_DEVICE_FUNC
     void swap(DenseBase<OtherDerived> const & other)
     { Base::swap(other.derived()); }
-    
-    EIGEN_DEVICE_FUNC 
+
+    EIGEN_DEVICE_FUNC
     static EIGEN_STRONG_INLINE void _check_template_params()
     {
       EIGEN_STATIC_ASSERT((EIGEN_IMPLIES(MaxRowsAtCompileTime==1 && MaxColsAtCompileTime!=1, (Options&RowMajor)==RowMajor)
@@ -985,7 +985,7 @@ struct conservative_resize_like_impl<Derived,OtherDerived,true>
   : conservative_resize_like_impl<Derived,OtherDerived,false>
 {
   using conservative_resize_like_impl<Derived,OtherDerived,false>::run;
-  
+
   static void run(DenseBase<Derived>& _this, Index size)
   {
     const Index new_rows = Derived::RowsAtCompileTime==1 ? 1 : size;

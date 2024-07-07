@@ -14,7 +14,7 @@
 
 #include "./RealQZ.h"
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \eigenvalues_module \ingroup Eigenvalues_Module
   *
@@ -75,7 +75,7 @@ template<typename _MatrixType> class GeneralizedEigenSolver
     typedef typename NumTraits<Scalar>::Real RealScalar;
     typedef Eigen::Index Index; ///< \deprecated since Eigen 3.3
 
-    /** \brief Complex scalar type for #MatrixType. 
+    /** \brief Complex scalar type for #MatrixType.
       *
       * This is \c std::complex<Scalar> if #Scalar is real (e.g.,
       * \c float or \c double) and just \c Scalar if #Scalar is
@@ -101,9 +101,9 @@ template<typename _MatrixType> class GeneralizedEigenSolver
       */
     typedef CwiseBinaryOp<internal::scalar_quotient_op<ComplexScalar,Scalar>,ComplexVectorType,VectorType> EigenvalueType;
 
-    /** \brief Type for matrix of eigenvectors as returned by eigenvectors(). 
+    /** \brief Type for matrix of eigenvectors as returned by eigenvectors().
       *
-      * This is a square matrix with entries of type #ComplexScalar. 
+      * This is a square matrix with entries of type #ComplexScalar.
       * The size is the same as the size of #MatrixType.
       */
     typedef Matrix<ComplexScalar, RowsAtCompileTime, ColsAtCompileTime, Options, MaxRowsAtCompileTime, MaxColsAtCompileTime> EigenvectorsType;
@@ -141,7 +141,7 @@ template<typename _MatrixType> class GeneralizedEigenSolver
     {}
 
     /** \brief Constructor; computes the generalized eigendecomposition of given matrix pair.
-      * 
+      *
       * \param[in]  A  Square matrix whose eigendecomposition is to be computed.
       * \param[in]  B  Square matrix whose eigendecomposition is to be computed.
       * \param[in]  computeEigenvectors  If true, both the eigenvectors and the
@@ -169,7 +169,7 @@ template<typename _MatrixType> class GeneralizedEigenSolver
       * \returns  %Matrix whose columns are the (possibly complex) right eigenvectors.
       * i.e. the eigenvectors that solve (A - l*B)x = 0. The ordering matches the eigenvalues.
       *
-      * \pre Either the constructor 
+      * \pre Either the constructor
       * GeneralizedEigenSolver(const MatrixType&,const MatrixType&, bool) or the member function
       * compute(const MatrixType&, const MatrixType& bool) has been called before, and
       * \p computeEigenvectors was set to true (the default).
@@ -189,12 +189,12 @@ template<typename _MatrixType> class GeneralizedEigenSolver
       * Not that betas might contain zeros. It is therefore not recommended to use this function,
       * but rather directly deal with the alphas and betas vectors.
       *
-      * \pre Either the constructor 
+      * \pre Either the constructor
       * GeneralizedEigenSolver(const MatrixType&,const MatrixType&,bool) or the member function
       * compute(const MatrixType&,const MatrixType&,bool) has been called before.
       *
       * The eigenvalues are repeated according to their algebraic multiplicity,
-      * so there are as many eigenvalues as rows in the matrix. The eigenvalues 
+      * so there are as many eigenvalues as rows in the matrix. The eigenvalues
       * are not sorted in any particular order.
       *
       * \sa alphas(), betas(), eigenvectors()
@@ -228,16 +228,16 @@ template<typename _MatrixType> class GeneralizedEigenSolver
     }
 
     /** \brief Computes generalized eigendecomposition of given matrix.
-      * 
+      *
       * \param[in]  A  Square matrix whose eigendecomposition is to be computed.
       * \param[in]  B  Square matrix whose eigendecomposition is to be computed.
       * \param[in]  computeEigenvectors  If true, both the eigenvectors and the
       *    eigenvalues are computed; if false, only the eigenvalues are
-      *    computed. 
+      *    computed.
       * \returns    Reference to \c *this
       *
       * This function computes the eigenvalues of the real matrix \p matrix.
-      * The eigenvalues() function can be used to retrieve them.  If 
+      * The eigenvalues() function can be used to retrieve them.  If
       * \p computeEigenvectors is true, then the eigenvectors are also computed
       * and can be retrieved by calling eigenvectors().
       *
@@ -267,13 +267,13 @@ template<typename _MatrixType> class GeneralizedEigenSolver
     }
 
   protected:
-    
+
     static void check_template_parameters()
     {
       EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar);
       EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::IsComplex, NUMERIC_TYPE_MUST_BE_REAL);
     }
-    
+
     EigenvectorsType m_eivec;
     ComplexVectorType m_alphas;
     VectorType m_betas;
@@ -287,7 +287,7 @@ GeneralizedEigenSolver<MatrixType>&
 GeneralizedEigenSolver<MatrixType>::compute(const MatrixType& A, const MatrixType& B, bool computeEigenvectors)
 {
   check_template_parameters();
-  
+
   using std::sqrt;
   using std::abs;
   eigen_assert(A.cols() == A.rows() && B.cols() == A.rows() && B.cols() == B.rows());

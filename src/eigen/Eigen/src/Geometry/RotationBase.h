@@ -10,7 +10,7 @@
 #ifndef EIGEN_ROTATIONBASE_H
 #define EIGEN_ROTATIONBASE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 // forward declaration
 namespace internal {
@@ -44,7 +44,7 @@ class RotationBase
     /** \returns an equivalent rotation matrix */
     EIGEN_DEVICE_FUNC inline RotationMatrixType toRotationMatrix() const { return derived().toRotationMatrix(); }
 
-    /** \returns an equivalent rotation matrix 
+    /** \returns an equivalent rotation matrix
       * This function is added to be conform with the Transform class' naming scheme.
       */
     EIGEN_DEVICE_FUNC inline RotationMatrixType matrix() const { return derived().toRotationMatrix(); }
@@ -78,7 +78,7 @@ class RotationBase
 
     /** \returns the concatenation of a scaling \a l with the rotation \a r */
     EIGEN_DEVICE_FUNC friend inline Transform<Scalar,Dim,Affine> operator*(const DiagonalMatrix<Scalar,Dim>& l, const Derived& r)
-    { 
+    {
       Transform<Scalar,Dim,Affine> res(r);
       res.linear().applyOnTheLeft(l);
       return res;

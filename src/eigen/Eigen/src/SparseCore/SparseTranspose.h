@@ -10,14 +10,14 @@
 #ifndef EIGEN_SPARSETRANSPOSE_H
 #define EIGEN_SPARSETRANSPOSE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
   template<typename MatrixType,int CompressedAccess=int(MatrixType::Flags&CompressedAccessBit)>
   class SparseTransposeImpl
     : public SparseMatrixBase<Transpose<MatrixType> >
   {};
-  
+
   template<typename MatrixType>
   class SparseTransposeImpl<MatrixType,CompressedAccessBit>
     : public SparseCompressedBase<Transpose<MatrixType> >
@@ -29,7 +29,7 @@ namespace internal {
     typedef typename Base::StorageIndex StorageIndex;
 
     inline Index nonZeros() const { return derived().nestedExpression().nonZeros(); }
-    
+
     inline const Scalar* valuePtr() const { return derived().nestedExpression().valuePtr(); }
     inline const StorageIndex* innerIndexPtr() const { return derived().nestedExpression().innerIndexPtr(); }
     inline const StorageIndex* outerIndexPtr() const { return derived().nestedExpression().outerIndexPtr(); }
@@ -41,7 +41,7 @@ namespace internal {
     inline StorageIndex* innerNonZeroPtr() { return derived().nestedExpression().innerNonZeroPtr(); }
   };
 }
-  
+
 template<typename MatrixType> class TransposeImpl<MatrixType,Sparse>
   : public internal::SparseTransposeImpl<MatrixType>
 {
@@ -50,7 +50,7 @@ template<typename MatrixType> class TransposeImpl<MatrixType,Sparse>
 };
 
 namespace internal {
-  
+
 template<typename ArgType>
 struct unary_evaluator<Transpose<ArgType>, IteratorBased>
   : public evaluator_base<Transpose<ArgType> >
@@ -58,7 +58,7 @@ struct unary_evaluator<Transpose<ArgType>, IteratorBased>
     typedef typename evaluator<ArgType>::InnerIterator        EvalIterator;
   public:
     typedef Transpose<ArgType> XprType;
-    
+
     inline Index nonZerosEstimate() const {
       return m_argImpl.nonZerosEstimate();
     }
@@ -69,16 +69,16 @@ struct unary_evaluator<Transpose<ArgType>, IteratorBased>
       EIGEN_STRONG_INLINE InnerIterator(const unary_evaluator& unaryOp, Index outer)
         : EvalIterator(unaryOp.m_argImpl,outer)
       {}
-      
+
       Index row() const { return EvalIterator::col(); }
       Index col() const { return EvalIterator::row(); }
     };
-    
+
     enum {
       CoeffReadCost = evaluator<ArgType>::CoeffReadCost,
       Flags = XprType::Flags
     };
-    
+
     explicit unary_evaluator(const XprType& op) :m_argImpl(op.nestedExpression()) {}
 
   protected:

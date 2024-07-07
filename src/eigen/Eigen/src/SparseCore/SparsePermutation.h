@@ -12,7 +12,7 @@
 
 // This file implements sparse * permutation products
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -29,7 +29,7 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, SparseShape>
       SrcStorageOrder = MatrixTypeCleaned::Flags&RowMajorBit ? RowMajor : ColMajor,
       MoveOuter = SrcStorageOrder==RowMajor ? Side==OnTheLeft : Side==OnTheRight
     };
-    
+
     typedef typename internal::conditional<MoveOuter,
         SparseMatrix<Scalar,SrcStorageOrder,StorageIndex>,
         SparseMatrix<Scalar,int(SrcStorageOrder)==RowMajor?ColMajor:RowMajor,StorageIndex> >::type ReturnType;
@@ -88,7 +88,7 @@ namespace internal {
 template <int ProductTag> struct product_promote_storage_type<Sparse,             PermutationStorage, ProductTag> { typedef Sparse ret; };
 template <int ProductTag> struct product_promote_storage_type<PermutationStorage, Sparse,             ProductTag> { typedef Sparse ret; };
 
-// TODO, the following two overloads are only needed to define the right temporary type through 
+// TODO, the following two overloads are only needed to define the right temporary type through
 // typename traits<permutation_sparse_matrix_product<Rhs,Lhs,OnTheRight,false> >::ReturnType
 // whereas it should be correctly handled by traits<Product<> >::PlainObject
 

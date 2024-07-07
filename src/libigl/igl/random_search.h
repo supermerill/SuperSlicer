@@ -8,8 +8,8 @@ namespace igl
   // Solve the problem:
   //
   //   minimize f(x)
-  //   subject to lb ≤ x ≤ ub 
-  // 
+  //   subject to lb ≤ x ≤ ub
+  //
   // by uniform random search.
   //
   // Inputs:
@@ -22,9 +22,9 @@ namespace igl
   // Returns f(X)
   //
   template <
-    typename Scalar, 
-    typename DerivedX, 
-    typename DerivedLB, 
+    typename Scalar,
+    typename DerivedX,
+    typename DerivedLB,
     typename DerivedUB>
   IGL_INLINE Scalar random_search(
     const std::function< Scalar (DerivedX &) > f,

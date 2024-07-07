@@ -1,23 +1,23 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2014 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "ray_sphere_intersect.h"
 
 template <
   typename Derivedo,
   typename Derivedd,
-  typename Derivedc, 
-  typename r_type, 
+  typename Derivedc,
+  typename r_type,
   typename t_type>
 IGL_INLINE int igl::ray_sphere_intersect(
   const Eigen::PlainObjectBase<Derivedo> & ao,
   const Eigen::PlainObjectBase<Derivedd> & d,
   const Eigen::PlainObjectBase<Derivedc> & ac,
-  r_type r, 
+  r_type r,
   t_type & t0,
   t_type & t1)
 {
@@ -30,8 +30,8 @@ IGL_INLINE int igl::ray_sphere_intersect(
 
   //Find discriminant
   double disc = b * b - 4 * a * c;
-    
-  // if discriminant is negative there are no real roots, so return 
+
+  // if discriminant is negative there are no real roots, so return
   // false as ray misses sphere
   if (disc < 0)
   {

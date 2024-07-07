@@ -39,7 +39,7 @@ public:
     virtual double extruded_volume() const;
     // Used filament length in mm.
     virtual double used_filament() const;
-    
+
     virtual double filament_diameter() const;
     double filament_crossection() const { return this->filament_diameter() * this->filament_diameter() * 0.25 * PI; }
     virtual double filament_density() const;
@@ -90,7 +90,7 @@ protected:
     // Private constructor to create a key for a search in std::set.
     Mill(uint16_t tool_id) : Tool(tool_id) {}
     uint16_t    m_mill_id;
-}; 
+};
 
 class Extruder : public Tool
 {

@@ -48,7 +48,7 @@
 struct pdata
 {
   unsigned char ext_addr_byte; /* Record ext-addr byte set in the
-				* target device (if used) */
+                * target device (if used) */
 };
 
 #define PDATA(pgm) ((struct pdata *)(pgm->cookie))
@@ -94,11 +94,11 @@ int stk500_getsync(PROGRAMMER * pgm)
    * get in sync */
   buf[0] = Cmnd_STK_GET_SYNC;
   buf[1] = Sync_CRC_EOP;
-  
+
   /*
-   * First send and drain a few times to get rid of line noise 
+   * First send and drain a few times to get rid of line noise
    */
-   
+
   stk500_send(pgm, buf, 2);
   stk500_drain(pgm, 0);
   stk500_send(pgm, buf, 2);
@@ -218,7 +218,7 @@ static int stk500_program_enable(PROGRAMMER * pgm, AVRPART * p)
   int tries=0;
 
  retry:
-  
+
   tries++;
 
   buf[0] = Cmnd_STK_ENTER_PROGMODE;
@@ -259,7 +259,7 @@ static int stk500_program_enable(PROGRAMMER * pgm, AVRPART * p)
   {
       avrdude_message(MSG_INFO, "%s: stk500_program_enable(): failed to enter programming mode\n",
                       progname);
-	  return -1;
+      return -1;
   }
 
 
@@ -279,7 +279,7 @@ static int stk500_set_extended_parms(PROGRAMMER * pgm, int n,
   int i;
 
  retry:
-  
+
   tries++;
 
   buf[0] = Cmnd_STK_SET_DEVICE_EXT;
@@ -325,7 +325,7 @@ static int stk500_set_extended_parms(PROGRAMMER * pgm, int n,
       avrdude_message(MSG_INFO, "%s: stk500_set_extended_parms(): failed to set extended "
                       "device programming parameters\n",
                       progname);
-	  return -1;
+      return -1;
   }
 
 
@@ -462,7 +462,7 @@ static int stk500_initialize(PROGRAMMER * pgm, AVRPART * p)
   avrdude_message(MSG_INFO, "%s: stk500_initialize(): n_extparms = %d\n",
           progname, n_extparms);
 #endif
-    
+
   buf[5] = 1; /* polling supported - XXX need this in config file */
   buf[6] = 1; /* programming is self-timed - XXX need in config file */
 
@@ -604,7 +604,7 @@ static void stk500_disable(PROGRAMMER * pgm)
   int tries=0;
 
  retry:
-  
+
   tries++;
 
   buf[0] = Cmnd_STK_LEAVE_PROGMODE;
@@ -798,7 +798,7 @@ static int stk500_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
                   "a_div     = %d\n"
                   "page_size = %d\n",
                   n_bytes, n, a_div, page_size);
-#endif     
+#endif
 
   for (; addr < n; addr += block_size) {
     // MIB510 uses fixed blocks size of 256 bytes
@@ -864,7 +864,7 @@ static int stk500_paged_write(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
                         progname, Resp_STK_INSYNC, buf[0]);
         return -4;
       }
-      
+
       if (stk500_recv(pgm, buf, 1) < 0)
         return -1;
       if (buf[0] != Resp_STK_OK) {
@@ -941,7 +941,7 @@ static int stk500_paged_load(PROGRAMMER * pgm, AVRPART * p, AVRMEM * m,
         return -3;
       }
       if (stk500_getsync(pgm) < 0)
-	return -1;
+    return -1;
       goto retry;
     }
     else if (buf[0] != Resp_STK_INSYNC) {
@@ -995,7 +995,7 @@ static int stk500_set_vtarget(PROGRAMMER * pgm, double v)
     avrdude_message(MSG_INFO, "%s: stk500_set_vtarget(): reducing V[aref] from %.1f to %.1f\n",
                     progname, uaref / 10.0, v);
     if (stk500_setparm(pgm, Parm_STK_VADJUST, utarg)
-	!= 0)
+    != 0)
       return -1;
   }
   return stk500_setparm(pgm, Parm_STK_VTARGET, utarg);
@@ -1050,7 +1050,7 @@ static int stk500_set_fosc(PROGRAMMER * pgm, double v)
       fosc = STK500_XTAL / 2;
     } else
       fosc = (unsigned)v;
-    
+
     for (idx = 0; idx < sizeof(ps) / sizeof(ps[0]); idx++) {
       if (fosc >= STK500_XTAL / (256 * ps[idx] * 2)) {
         /* this prescaler value can handle our frequency */
@@ -1065,11 +1065,11 @@ static int stk500_set_fosc(PROGRAMMER * pgm, double v)
       return -1;
     }
   }
-  
+
   if ((rc = stk500_setparm(pgm, Parm_STK_OSC_PSCALE, prescale)) != 0
       || (rc = stk500_setparm(pgm, Parm_STK_OSC_CMATCH, cmatch)) != 0)
     return rc;
-  
+
   return 0;
 }
 
@@ -1160,7 +1160,7 @@ static int stk500_getparm(PROGRAMMER * pgm, unsigned parm, unsigned * value)
   return 0;
 }
 
-  
+
 static int stk500_setparm(PROGRAMMER * pgm, unsigned parm, unsigned value)
 {
   unsigned char buf[16];
@@ -1199,7 +1199,7 @@ static int stk500_setparm(PROGRAMMER * pgm, unsigned parm, unsigned value)
   if (buf[0] == Resp_STK_OK)
     return 0;
 
-  parm = buf[0];	/* if not STK_OK, we've been echoed parm here */
+  parm = buf[0];    /* if not STK_OK, we've been echoed parm here */
   if (stk500_recv(pgm, buf, 1) < 0)
     return -1;
   if (buf[0] == Resp_STK_FAILED) {
@@ -1215,7 +1215,7 @@ static int stk500_setparm(PROGRAMMER * pgm, unsigned parm, unsigned value)
   }
 }
 
-  
+
 static void stk500_display(PROGRAMMER * pgm, const char * p)
 {
   unsigned maj, min, hdw, topcard;
@@ -1232,12 +1232,12 @@ static void stk500_display(PROGRAMMER * pgm, const char * p)
 
     switch (topcard) {
       case 1:
-	n = "STK502";
-	break;
+    n = "STK502";
+    break;
 
       case 2:
-	n = "STK501";
-	break;
+    n = "STK501";
+    break;
     }
     avrdude_message(MSG_INFO, "%sTopcard         : %s\n", p, n);
   }
@@ -1288,7 +1288,7 @@ static void stk500_print_parms1(PROGRAMMER * pgm, const char * p)
     avrdude_message(MSG_INFO, "%.3f %s\n", f, unit);
   }
   avrdude_message(MSG_INFO, "%sSCK period      : %.1f us\n", p,
-	  sck_duration * 8.0e6 / STK500_XTAL + 0.05);
+      sck_duration * 8.0e6 / STK500_XTAL + 0.05);
 
   return;
 }
@@ -1308,7 +1308,7 @@ static void stk500_setup(PROGRAMMER * pgm)
   }
   memset(pgm->cookie, 0, sizeof(struct pdata));
   PDATA(pgm)->ext_addr_byte = 0xff; /* Ensures it is programmed before
-				     * first memory address */
+                     * first memory address */
 }
 
 static void stk500_teardown(PROGRAMMER * pgm)

@@ -72,8 +72,8 @@ IGL_INLINE void igl::ramer_douglas_peucker(
 }
 
 template <
-  typename DerivedP, 
-  typename DerivedS, 
+  typename DerivedP,
+  typename DerivedS,
   typename DerivedJ,
   typename DerivedQ>
 IGL_INLINE void igl::ramer_douglas_peucker(

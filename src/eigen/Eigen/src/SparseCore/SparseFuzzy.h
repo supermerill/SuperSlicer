@@ -11,7 +11,7 @@
 #define EIGEN_SPARSE_FUZZY_H
 
 namespace Eigen {
-  
+
 template<typename Derived>
 template<typename OtherDerived>
 bool SparseMatrixBase<Derived>::isApprox(const SparseMatrixBase<OtherDerived>& other, const RealScalar &prec) const

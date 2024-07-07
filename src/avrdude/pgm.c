@@ -30,10 +30,10 @@
 
 static int  pgm_default_2 (struct programmer_t *, AVRPART *);
 static int  pgm_default_3 (struct programmer_t * pgm, AVRPART * p, AVRMEM * mem,
-			   unsigned long addr, unsigned char * value);
+               unsigned long addr, unsigned char * value);
 static void pgm_default_4 (struct programmer_t *);
 static int  pgm_default_5 (struct programmer_t * pgm, AVRPART * p, AVRMEM * mem,
-			   unsigned long addr, unsigned char data);
+               unsigned long addr, unsigned char data);
 static void pgm_default_6 (struct programmer_t *, const char *);
 
 
@@ -198,7 +198,7 @@ static int  pgm_default_2 (struct programmer_t * pgm, AVRPART * p)
 }
 
 static int  pgm_default_3 (struct programmer_t * pgm, AVRPART * p, AVRMEM * mem,
-			   unsigned long addr, unsigned char * value)
+               unsigned long addr, unsigned char * value)
 {
   pgm_default();
   return -1;
@@ -210,7 +210,7 @@ static void pgm_default_4 (struct programmer_t * pgm)
 }
 
 static int  pgm_default_5 (struct programmer_t * pgm, AVRPART * p, AVRMEM * mem,
-			   unsigned long addr, unsigned char data)
+               unsigned long addr, unsigned char data)
 {
   pgm_default();
   return -1;
@@ -233,7 +233,7 @@ void programmer_display(PROGRAMMER * pgm, const char * p)
 
 void pgm_display_generic_mask(PROGRAMMER * pgm, const char * p, unsigned int show)
 {
-  if(show & (1<<PPI_AVR_VCC)) 
+  if(show & (1<<PPI_AVR_VCC))
     avrdude_message(MSG_INFO, "%s  VCC     = %s\n", p, pins_to_str(&pgm->pin[PPI_AVR_VCC]));
   if(show & (1<<PPI_AVR_BUFF))
     avrdude_message(MSG_INFO, "%s  BUFF    = %s\n", p, pins_to_str(&pgm->pin[PPI_AVR_BUFF]));

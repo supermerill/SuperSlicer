@@ -22,7 +22,7 @@ IGL_INLINE bool igl::lscm(
 {
   using namespace Eigen;
   using namespace std;
-  
+
   // Assemble the area matrix (note that A is #Vx2 by #Vx2)
   SparseMatrix<double> A;
   igl::vector_area_matrix(F,A);
@@ -41,7 +41,7 @@ IGL_INLINE bool igl::lscm(
     b_flat.block(c*b.size(),0,b.rows(),1) = c*V.rows() + b.array();
     bc_flat.block(c*bc.rows(),0,bc.rows(),1) = bc.col(c);
   }
-  
+
   // Minimize the LSCM energy
   SparseMatrix<double> Q = -L_flat + 2.*A;
   const VectorXd B_flat = VectorXd::Zero(V.rows()*2);

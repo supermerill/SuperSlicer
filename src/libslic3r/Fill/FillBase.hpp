@@ -110,7 +110,7 @@ public:
     size_t      layer_id;
     // Z coordinate of the top print surface, in unscaled coordinates
     double      z;
-    // infill / perimeter overlap, in unscaled coordinates 
+    // infill / perimeter overlap, in unscaled coordinates
     double      overlap;
     ExPolygons  no_overlap_expolygons;
     // in radians, ccw, 0 = East
@@ -151,7 +151,7 @@ public:
 
     // This method have to fill the ExtrusionEntityCollection. It call fill_surface by default
     virtual void fill_surface_extrusion(const Surface *surface, const FillParams &params, ExtrusionEntitiesPtr &out) const;
-    
+
     // Perform the fill.
     virtual Polylines fill_surface(const Surface *surface, const FillParams &params) const;
     virtual ThickPolylines fill_surface_arachne(const Surface *surface, const FillParams &params) const;

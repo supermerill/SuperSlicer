@@ -27,7 +27,7 @@
 #ifndef EIGEN_INVERSE_SSE_H
 #define EIGEN_INVERSE_SSE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -40,7 +40,7 @@ struct compute_inverse_size4<Architecture::SSE, float, MatrixType, ResultType>
     StorageOrdersMatch  = (MatrixType::Flags&RowMajorBit) == (ResultType::Flags&RowMajorBit)
   };
   typedef typename conditional<(MatrixType::Flags&LinearAccessBit),MatrixType const &,typename MatrixType::PlainObject>::type ActualMatrixType;
-  
+
   static void run(const MatrixType& mat, ResultType& result)
   {
     ActualMatrixType matrix(mat);
@@ -172,7 +172,7 @@ struct compute_inverse_size4<Architecture::SSE, double, MatrixType, ResultType>
     StorageOrdersMatch  = (MatrixType::Flags&RowMajorBit) == (ResultType::Flags&RowMajorBit)
   };
   typedef typename conditional<(MatrixType::Flags&LinearAccessBit),MatrixType const &,typename MatrixType::PlainObject>::type ActualMatrixType;
-  
+
   static void run(const MatrixType& mat, ResultType& result)
   {
     ActualMatrixType matrix(mat);
@@ -187,7 +187,7 @@ struct compute_inverse_size4<Architecture::SSE, double, MatrixType, ResultType>
 
     // the four sub-matrices
     __m128d A1, A2, B1, B2, C1, C2, D1, D2;
-    
+
     if(StorageOrdersMatch)
     {
       A1 = matrix.template packet<MatrixAlignment>( 0); B1 = matrix.template packet<MatrixAlignment>( 2);
@@ -206,7 +206,7 @@ struct compute_inverse_size4<Architecture::SSE, double, MatrixType, ResultType>
       tmp = C1;
       C1 = _mm_unpacklo_pd(C1,C2);
       C2 = _mm_unpackhi_pd(tmp,C2);
-      
+
       B1 = matrix.template packet<MatrixAlignment>( 8); D1 = matrix.template packet<MatrixAlignment>(10);
       B2 = matrix.template packet<MatrixAlignment>(12); D2 = matrix.template packet<MatrixAlignment>(14);
       tmp = B1;
@@ -216,7 +216,7 @@ struct compute_inverse_size4<Architecture::SSE, double, MatrixType, ResultType>
       D1 = _mm_unpacklo_pd(D1,D2);
       D2 = _mm_unpackhi_pd(tmp,D2);
     }
-    
+
     __m128d iA1, iA2, iB1, iB2, iC1, iC2, iD1, iD2,     // partial invese of the sub-matrices
             DC1, DC2, AB1, AB2;
     __m128d dA, dB, dC, dD;     // determinant of the sub-matrices

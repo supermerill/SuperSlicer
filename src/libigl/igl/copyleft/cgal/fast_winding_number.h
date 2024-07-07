@@ -33,7 +33,7 @@ namespace igl
                                       const BetaType beta,
                                       Eigen::PlainObjectBase<DerivedWN>& WN
                                       );
-  
+
   // Evaluate the fast winding number for point data, without known areas. The
   // areas are calculated using igl::knn and
   // igl::point_areas. This function uses the default expansion
@@ -42,7 +42,7 @@ namespace igl
   // This function performes the precomputation and evaluation all in one.
   // If you need to acess the precomuptation for repeated evaluations, use the
   // two functions designed for exposed precomputation (described above).
-  
+
   // Inputs:
   //   P  #P by 3 list of point locations
   //   N  #P by 3 list of point normals

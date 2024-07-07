@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_ACTIVE_SET_H
 #define IGL_ACTIVE_SET_H
@@ -20,7 +20,7 @@ namespace igl
   // using QR decomposition otherwise:
   //   http://www.okstate.edu/sas/v8/sashtml/ormp/chap5/sect32.htm
   //
-  // ACTIVE_SET Minimize quadratic energy 
+  // ACTIVE_SET Minimize quadratic energy
   //
   // 0.5*Z'*A*Z + Z'*B + C with constraints
   //
@@ -50,9 +50,9 @@ namespace igl
   // secs, igl/min_quad_with_fixed.h 7.1 secs
   //
   template <
-    typename AT, 
+    typename AT,
     typename DerivedB,
-    typename Derivedknown, 
+    typename Derivedknown,
     typename DerivedY,
     typename AeqT,
     typename DerivedBeq,

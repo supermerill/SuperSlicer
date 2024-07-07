@@ -87,7 +87,7 @@ bool igl::embree::bone_heat(
     PP(i,J(i)) = 1;
     if(vis_mask(i,J(i)))
     {
-      double hii = pow(min_D(i),-2.); 
+      double hii = pow(min_D(i),-2.);
       Hdiag(i) = (hii>1e10?1e10:hii);
     }
   }

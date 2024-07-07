@@ -362,7 +362,7 @@ static unsigned int moveInside(const Polygons& polygons, Point& from, int distan
                     {
                         bestDist2 = dist2;
                         bestPoly = poly_idx;
-                        if (distance == 0) { 
+                        if (distance == 0) {
                             ret = x;
                         } else {
                             // inward direction irrespective of sign of [distance]

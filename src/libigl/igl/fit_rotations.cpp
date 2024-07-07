@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "fit_rotations.h"
 #include "polar_svd3x3.h"
@@ -66,7 +66,7 @@ template <typename DerivedS, typename DerivedD>
 IGL_INLINE void igl::fit_rotations_planar(
   const Eigen::PlainObjectBase<DerivedS> & S,
         Eigen::PlainObjectBase<DerivedD> & R)
-{ 
+{
   using namespace std;
   const int dim = S.cols();
   const int nr = S.rows()/dim;
@@ -101,7 +101,7 @@ IGL_INLINE void igl::fit_rotations_planar(
       ri = ui * vi.transpose();
     }
     assert(ri.determinant() >= 0);
-#endif  
+#endif
 
     // Not sure why polar_dec computes transpose...
     R.block(0,r*dim,dim,dim).setIdentity();
@@ -112,14 +112,14 @@ IGL_INLINE void igl::fit_rotations_planar(
 
 #ifdef __SSE__
 IGL_INLINE void igl::fit_rotations_SSE(
-  const Eigen::MatrixXf & S, 
+  const Eigen::MatrixXf & S,
   Eigen::MatrixXf & R)
 {
   const int cStep = 4;
 
   assert(S.cols() == 3);
   const int dim = 3; //S.cols();
-  const int nr = S.rows()/dim;  
+  const int nr = S.rows()/dim;
   assert(nr * dim == S.rows());
 
   // resize output
@@ -144,7 +144,7 @@ IGL_INLINE void igl::fit_rotations_SSE(
       }
     }
     Eigen::Matrix<float, 3*cStep, 3> ri;
-    polar_svd3x3_sse(siBig, ri);    
+    polar_svd3x3_sse(siBig, ri);
 
     for (int k=0; k<cStep; k++)
       assert(ri.block(3*k, 0, 3, 3).determinant() >= 0);
@@ -153,7 +153,7 @@ IGL_INLINE void igl::fit_rotations_SSE(
     for (int k=0; k<numMats; k++)
     {
       R.block(0, (r + k)*dim, dim, dim) = ri.block(3*k, 0, dim, dim).transpose();
-    }    
+    }
   }
 }
 
@@ -177,7 +177,7 @@ IGL_INLINE void igl::fit_rotations_AVX(
 
   assert(S.cols() == 3);
   const int dim = 3; //S.cols();
-  const int nr = S.rows()/dim;  
+  const int nr = S.rows()/dim;
   assert(nr * dim == S.rows());
 
   // resize output
@@ -202,7 +202,7 @@ IGL_INLINE void igl::fit_rotations_AVX(
       }
     }
     Eigen::Matrix<float, 3*cStep, 3> ri;
-    polar_svd3x3_avx(siBig, ri);    
+    polar_svd3x3_avx(siBig, ri);
 
     for (int k=0; k<cStep; k++)
       assert(ri.block(3*k, 0, 3, 3).determinant() >= 0);
@@ -211,7 +211,7 @@ IGL_INLINE void igl::fit_rotations_AVX(
     for (int k=0; k<numMats; k++)
     {
       R.block(0, (r + k)*dim, dim, dim) = ri.block(3*k, 0, dim, dim).transpose();
-    }    
+    }
   }
 }
 #endif

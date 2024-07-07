@@ -60,7 +60,7 @@ void FillLine::_fill_surface_single(
     // clip paths against a slightly larger expolygon, so that the first and last paths
     // are kept even if the expolygon has vertical sides
     // the minimum offset for preventing edge lines from being clipped is SCALED_EPSILON;
-    // however we use a larger offset to support expolygons with slightly skewed sides and 
+    // however we use a larger offset to support expolygons with slightly skewed sides and
     // not perfectly straight
     //FIXME Vojtech: Update the intersecton function to work directly with lines.
     Polylines polylines_src;
@@ -110,9 +110,9 @@ void FillLine::_fill_surface_single(
                 const Point &last_point = pts_end.back();
                 // Distance in X, Y.
                 const Vector distance = last_point - first_point;
-                // TODO: we should also check that both points are on a fill_boundary to avoid 
+                // TODO: we should also check that both points are on a fill_boundary to avoid
                 // connecting paths on the boundaries of internal regions
-                if (this->_can_connect(std::abs(distance(0)), std::abs(distance(1))) && 
+                if (this->_can_connect(std::abs(distance(0)), std::abs(distance(1))) &&
                     expolygon_off.contains(Line(last_point, first_point))) {
                     // Append the polyline.
                     pts_end.insert(pts_end.end(), polyline.points.begin(), polyline.points.end());

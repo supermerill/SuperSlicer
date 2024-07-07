@@ -90,7 +90,7 @@ IGL_INLINE bool igl::readOBJ(
           fclose(obj_file);
           return false;
         }
-      
+
         V.push_back(vertex);
       }else if(type == vn)
       {
@@ -241,9 +241,9 @@ IGL_INLINE bool igl::readOBJ(
 }
 
 template <
-  typename DerivedV, 
-  typename DerivedTC, 
-  typename DerivedCN, 
+  typename DerivedV,
+  typename DerivedTC,
+  typename DerivedCN,
   typename DerivedF,
   typename DerivedFTC,
   typename DerivedFN>

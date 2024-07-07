@@ -17,13 +17,13 @@ rbox \- generate point distributions for qhull
 Command "rbox" (w/o arguments) lists the options.
 .SH DESCRIPTION
 .PP
-rbox generates random or regular points according to the options given, and 
+rbox generates random or regular points according to the options given, and
 outputs
-the points to stdout. The points are generated in a cube, unless 's' or  'k' 
+the points to stdout. The points are generated in a cube, unless 's' or  'k'
 option is
 given. The format of the output is the following: first line
-contains the dimension and a comment, 
-second line contains the number of points, and the 
+contains the dimension and a comment,
+second line contains the number of points, and the
 following lines contain the points, one point per line. Points are represented
 by their coordinate values.
 .SH EXAMPLES
@@ -45,9 +45,9 @@ a 5\[hy]d hypercube with one corner at the origin.
 .TP
 rbox d D10
 a 10\[hy]d diamond.
-.TP 
+.TP
 rbox x 1000 r W0
-100 random points on the surface of a fixed simplex 
+100 random points on the surface of a fixed simplex
 .TP
 rbox y D12
 a 12\[hy]d simplex.
@@ -76,7 +76,7 @@ two cospherical 100\-gons plus another cospherical point.
 .TP
 100 s Z1
 a cone of points.
-.TP 
+.TP
 100 s Z1e\-7
 a narrow cone of points with many precision errors.
 .SH OPTIONS
@@ -97,9 +97,9 @@ Ln
 lens distribution of radius n.  May be used with 's', 'r', 'G', and 'W'.
 .TP
 Mn,m,r
-lattice (Mesh) rotated by {[n,\-m,0], [m,n,0], [0,0,r], ...}.  
-Use 'Mm,n' for a rigid rotation with r = sqrt(n^2+m^2).  'M1,0' is an 
-orthogonal lattice.  For example, '27 M1,0' is {0,1,2} x {0,1,2} x 
+lattice (Mesh) rotated by {[n,\-m,0], [m,n,0], [0,0,r], ...}.
+Use 'Mm,n' for a rigid rotation with r = sqrt(n^2+m^2).  'M1,0' is an
+orthogonal lattice.  For example, '27 M1,0' is {0,1,2} x {0,1,2} x
 {0,1,2}. '27 M3,4 z' is a rotated integer lattice.
 .TP
 s
@@ -126,7 +126,7 @@ add a unit diamond to the output.
 d Gm
 add a diamond made of 0, +m and \-m to the output
 .TP
-Cn,r,m  
+Cn,r,m
 add n nearly coincident points within radius r of m points
 .TP
 Pn,m,r
@@ -145,17 +145,17 @@ tn
 set the random number seed to n.
 .TP
 z
-generate integer coordinates.  Use 'Bn' to change the range.  
+generate integer coordinates.  Use 'Bn' to change the range.
 The default is 'B1e6' for six\[hy]digit coordinates.  In R^4, seven\[hy]digit
 coordinates will overflow hyperplane normalization.
 .TP
 Zn s
-restrict points to a disk about the z+ axis and the sphere (default Z1.0). 
+restrict points to a disk about the z+ axis and the sphere (default Z1.0).
 Includes the opposite pole.  'Z1e\-6' generates degenerate points under
 single precision.
 .TP
 Zn Gm s
-same as Zn with an empty center (default G0.5). 
+same as Zn with an empty center (default G0.5).
 .TP
 r s D2
 generate a regular polygon
@@ -165,7 +165,7 @@ generate a regular cone
 .SH BUGS
 Some combinations of arguments generate odd results.
 
-Report bugs to qhull_bug@qhull.org, other correspondence to qhull@qhull.org 
+Report bugs to qhull_bug@qhull.org, other correspondence to qhull@qhull.org
 .SH SEE ALSO
 qhull(1)
 .SH AUTHOR

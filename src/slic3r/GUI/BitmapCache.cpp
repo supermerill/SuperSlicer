@@ -202,7 +202,7 @@ wxBitmap* BitmapCache::insert(const std::string &bitmap_key, const wxBitmap *beg
         x += bmp->GetScaledWidth();
 #else
         x += bmp->GetWidth();
-#endif 
+#endif
     }
     memDC.SelectObject(wxNullBitmap);
     return bitmap;
@@ -233,8 +233,8 @@ wxBitmap* BitmapCache::insert_raw_rgba(const std::string &bitmap_key, unsigned w
 wxBitmap* BitmapCache::load_png(const std::string &bitmap_name, unsigned width, unsigned height,
     uint32_t color/* = false*/)
 {
-    std::string bitmap_key = bitmap_name + ( height !=0 ? 
-                                           "-h" + std::to_string(height) : 
+    std::string bitmap_key = bitmap_name + ( height !=0 ?
+                                           "-h" + std::to_string(height) :
                                            "-w" + std::to_string(width))
                                          + ((color == 9079434) ? "-gs" : "");
 
@@ -280,7 +280,7 @@ NSVGimage* BitmapCache::nsvgParseFromFileWithReplace(const char* filename, const
     data = (char*)malloc(size + 1);
     if (data == NULL) goto error;
     if (fread(data, 1, size, fp) != size) goto error;
-    data[size] = '\0';	// Must be null terminated.
+    data[size] = '\0';    // Must be null terminated.
     fclose(fp);
 
     if (replaces.empty())

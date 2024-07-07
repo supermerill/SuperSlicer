@@ -22,14 +22,14 @@ IGL_INLINE void igl::copyleft::cgal::delaunay_triangulation(
   typedef typename DerivedV::Scalar Scalar;
   igl::delaunay_triangulation(V, orient2D<Scalar>, incircle<Scalar>, F);
   // This function really exists to test our igl::delaunay_triangulation
-  // 
+  //
   // It's currently much faster to call cgal's native Delaunay routine
   //
 //#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 //#include <CGAL/Delaunay_triangulation_2.h>
 //#include <CGAL/Triangulation_vertex_base_with_info_2.h>
 //#include <vector>
-//  const auto delaunay = 
+//  const auto delaunay =
 //    [&](const Eigen::MatrixXd & V,Eigen::MatrixXi & F)
 //  {
 //    typedef CGAL::Exact_predicates_inexact_constructions_kernel            Kernel;
@@ -48,7 +48,7 @@ IGL_INLINE void igl::copyleft::cgal::delaunay_triangulation(
 //    {
 //      int j = 0;
 //      for(Delaunay::Finite_faces_iterator fit = triangulation.finite_faces_begin();
-//          fit != triangulation.finite_faces_end(); ++fit) 
+//          fit != triangulation.finite_faces_end(); ++fit)
 //      {
 //        Delaunay::Face_handle face = fit;
 //        F(j,0) = face->vertex(0)->info();

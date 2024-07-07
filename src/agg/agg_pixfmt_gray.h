@@ -2,8 +2,8 @@
 // Anti-Grain Geometry - Version 2.4
 // Copyright (C) 2002-2005 Maxim Shemanarev (http://www.antigrain.com)
 //
-// Permission to copy, use, modify, sell and distribute this software 
-// is granted provided this copyright notice appears in all copies. 
+// Permission to copy, use, modify, sell and distribute this software
+// is granted provided this copyright notice appears in all copies.
 // This software is provided "as is" without express or implied
 // warranty, and with no claim as to its suitability for any purpose.
 //
@@ -13,12 +13,12 @@
 //          http://www.antigrain.com
 //----------------------------------------------------------------------------
 //
-// Adaptation for high precision colors has been sponsored by 
+// Adaptation for high precision colors has been sponsored by
 // Liberty Technology Systems, Inc., visit http://lib-sys.com
 //
 // Liberty Technology Systems, Inc. is the provider of
 // PostScript and PDF technology for software developers.
-// 
+//
 //----------------------------------------------------------------------------
 
 #ifndef AGG_PIXFMT_GRAY_INCLUDED
@@ -30,7 +30,7 @@
 
 namespace agg
 {
- 
+
     //============================================================blender_gray
     template<class ColorT> struct blender_gray
     {
@@ -43,13 +43,13 @@ namespace agg
         // compositing function. Since the render buffer is opaque we skip the
         // initial premultiply and final demultiply.
 
-        static AGG_INLINE void blend_pix(value_type* p, 
+        static AGG_INLINE void blend_pix(value_type* p,
             value_type cv, value_type alpha, cover_type cover)
         {
             blend_pix(p, cv, color_type::mult_cover(alpha, cover));
         }
 
-        static AGG_INLINE void blend_pix(value_type* p, 
+        static AGG_INLINE void blend_pix(value_type* p,
             value_type cv, value_type alpha)
         {
             *p = color_type::lerp(*p, cv, alpha);
@@ -66,21 +66,21 @@ namespace agg
         typedef typename color_type::long_type long_type;
 
         // Blend pixels using the premultiplied form of Alvy-Ray Smith's
-        // compositing function. 
+        // compositing function.
 
-        static AGG_INLINE void blend_pix(value_type* p, 
+        static AGG_INLINE void blend_pix(value_type* p,
             value_type cv, value_type alpha, cover_type cover)
         {
             blend_pix(p, color_type::mult_cover(cv, cover), color_type::mult_cover(alpha, cover));
         }
 
-        static AGG_INLINE void blend_pix(value_type* p, 
+        static AGG_INLINE void blend_pix(value_type* p,
             value_type cv, value_type alpha)
         {
             *p = color_type::prelerp(*p, cv, alpha);
         }
     };
-    
+
 
 
     //=====================================================apply_gamma_dir_gray
@@ -134,7 +134,7 @@ namespace agg
         typedef int                               order_type; // A fake one
         typedef typename color_type::value_type   value_type;
         typedef typename color_type::calc_type    calc_type;
-        enum 
+        enum
         {
             num_components = 1,
             pix_width = sizeof(value_type) * Step,
@@ -188,8 +188,8 @@ namespace agg
 
     private:
         //--------------------------------------------------------------------
-        AGG_INLINE void blend_pix(pixel_type* p, 
-            value_type v, value_type a, 
+        AGG_INLINE void blend_pix(pixel_type* p,
+            value_type v, value_type a,
             unsigned cover)
         {
             blender_type::blend_pix(p->c, v, a, cover);
@@ -260,7 +260,7 @@ namespace agg
             if (r.clip(rect_i(0, 0, pixf.width()-1, pixf.height()-1)))
             {
                 int stride = pixf.stride();
-                m_rbuf->attach(pixf.pix_ptr(r.x1, stride < 0 ? r.y2 : r.y1), 
+                m_rbuf->attach(pixf.pix_ptr(r.x1, stride < 0 ? r.y2 : r.y1),
                                (r.x2 - r.x1) + 1,
                                (r.y2 - r.y1) + 1,
                                stride);
@@ -280,37 +280,37 @@ namespace agg
         row_data     row(int y)     const { return m_rbuf->row(y); }
 
         //--------------------------------------------------------------------
-        AGG_INLINE int8u* pix_ptr(int x, int y) 
-        { 
+        AGG_INLINE int8u* pix_ptr(int x, int y)
+        {
             return m_rbuf->row_ptr(y) + sizeof(value_type) * (x * pix_step + pix_offset);
         }
 
-        AGG_INLINE const int8u* pix_ptr(int x, int y) const 
-        { 
+        AGG_INLINE const int8u* pix_ptr(int x, int y) const
+        {
             return m_rbuf->row_ptr(y) + sizeof(value_type) * (x * pix_step + pix_offset);
         }
 
         // Return pointer to pixel value, forcing row to be allocated.
-        AGG_INLINE pixel_type* pix_value_ptr(int x, int y, unsigned len) 
+        AGG_INLINE pixel_type* pix_value_ptr(int x, int y, unsigned len)
         {
             return (pixel_type*)(m_rbuf->row_ptr(x, y, len) + sizeof(value_type) * (x * pix_step + pix_offset));
         }
 
         // Return pointer to pixel value, or null if row not allocated.
-        AGG_INLINE const pixel_type* pix_value_ptr(int x, int y) const 
+        AGG_INLINE const pixel_type* pix_value_ptr(int x, int y) const
         {
             int8u* p = m_rbuf->row_ptr(y);
             return p ? (pixel_type*)(p + sizeof(value_type) * (x * pix_step + pix_offset)) : 0;
         }
 
         // Get pixel pointer from raw buffer pointer.
-        AGG_INLINE static pixel_type* pix_value_ptr(void* p) 
+        AGG_INLINE static pixel_type* pix_value_ptr(void* p)
         {
             return (pixel_type*)((value_type*)p + pix_offset);
         }
 
         // Get pixel pointer from raw buffer pointer.
-        AGG_INLINE static const pixel_type* pix_value_ptr(const void* p) 
+        AGG_INLINE static const pixel_type* pix_value_ptr(const void* p)
         {
             return (const pixel_type*)((const value_type*)p + pix_offset);
         }
@@ -358,8 +358,8 @@ namespace agg
         }
 
         //--------------------------------------------------------------------
-        AGG_INLINE void copy_hline(int x, int y, 
-                                   unsigned len, 
+        AGG_INLINE void copy_hline(int x, int y,
+                                   unsigned len,
                                    const color_type& c)
         {
             pixel_type* p = pix_value_ptr(x, y, len);
@@ -374,7 +374,7 @@ namespace agg
 
         //--------------------------------------------------------------------
         AGG_INLINE void copy_vline(int x, int y,
-                                   unsigned len, 
+                                   unsigned len,
                                    const color_type& c)
         {
             do
@@ -387,7 +387,7 @@ namespace agg
 
         //--------------------------------------------------------------------
         void blend_hline(int x, int y,
-                         unsigned len, 
+                         unsigned len,
                          const color_type& c,
                          int8u cover)
         {
@@ -419,7 +419,7 @@ namespace agg
 
         //--------------------------------------------------------------------
         void blend_vline(int x, int y,
-                         unsigned len, 
+                         unsigned len,
                          const color_type& c,
                          int8u cover)
         {
@@ -447,7 +447,7 @@ namespace agg
 
         //--------------------------------------------------------------------
         void blend_solid_hspan(int x, int y,
-                               unsigned len, 
+                               unsigned len,
                                const color_type& c,
                                const int8u* covers)
         {
@@ -455,7 +455,7 @@ namespace agg
             {
                 pixel_type* p = pix_value_ptr(x, y, len);
 
-                do 
+                do
                 {
                     if (c.is_opaque() && *covers == cover_mask)
                     {
@@ -475,13 +475,13 @@ namespace agg
 
         //--------------------------------------------------------------------
         void blend_solid_vspan(int x, int y,
-                               unsigned len, 
+                               unsigned len,
                                const color_type& c,
                                const int8u* covers)
         {
             if (!c.is_transparent())
             {
-                do 
+                do
                 {
                     pixel_type* p = pix_value_ptr(x, y++, 1);
 
@@ -502,12 +502,12 @@ namespace agg
 
         //--------------------------------------------------------------------
         void copy_color_hspan(int x, int y,
-                              unsigned len, 
+                              unsigned len,
                               const color_type* colors)
         {
             pixel_type* p = pix_value_ptr(x, y, len);
 
-            do 
+            do
             {
                 p->set(*colors++);
                 p = p->next();
@@ -518,10 +518,10 @@ namespace agg
 
         //--------------------------------------------------------------------
         void copy_color_vspan(int x, int y,
-                              unsigned len, 
+                              unsigned len,
                               const color_type* colors)
         {
-            do 
+            do
             {
                 pix_value_ptr(x, y++, 1)->set(*colors++);
             }
@@ -531,7 +531,7 @@ namespace agg
 
         //--------------------------------------------------------------------
         void blend_color_hspan(int x, int y,
-                               unsigned len, 
+                               unsigned len,
                                const color_type* colors,
                                const int8u* covers,
                                int8u cover)
@@ -540,7 +540,7 @@ namespace agg
 
             if (covers)
             {
-                do 
+                do
                 {
                     copy_or_blend_pix(p, *colors++, *covers++);
                     p = p->next();
@@ -551,7 +551,7 @@ namespace agg
             {
                 if (cover == cover_mask)
                 {
-                    do 
+                    do
                     {
                         copy_or_blend_pix(p, *colors++);
                         p = p->next();
@@ -560,7 +560,7 @@ namespace agg
                 }
                 else
                 {
-                    do 
+                    do
                     {
                         copy_or_blend_pix(p, *colors++, cover);
                         p = p->next();
@@ -569,18 +569,18 @@ namespace agg
                 }
             }
         }
-        
+
 
         //--------------------------------------------------------------------
         void blend_color_vspan(int x, int y,
-                               unsigned len, 
+                               unsigned len,
                                const color_type* colors,
                                const int8u* covers,
                                int8u cover)
         {
             if (covers)
             {
-                do 
+                do
                 {
                     copy_or_blend_pix(pix_value_ptr(x, y++, 1), *colors++, *covers++);
                 }
@@ -590,7 +590,7 @@ namespace agg
             {
                 if (cover == cover_mask)
                 {
-                    do 
+                    do
                     {
                         copy_or_blend_pix(pix_value_ptr(x, y++, 1), *colors++);
                     }
@@ -598,7 +598,7 @@ namespace agg
                 }
                 else
                 {
-                    do 
+                    do
                     {
                         copy_or_blend_pix(pix_value_ptr(x, y++, 1), *colors++, cover);
                     }
@@ -642,15 +642,15 @@ namespace agg
 
         //--------------------------------------------------------------------
         template<class RenBuf2>
-        void copy_from(const RenBuf2& from, 
+        void copy_from(const RenBuf2& from,
                        int xdst, int ydst,
                        int xsrc, int ysrc,
                        unsigned len)
         {
             if (const int8u* p = from.row_ptr(ysrc))
             {
-                memmove(m_rbuf->row_ptr(xdst, ydst, len) + xdst * pix_width, 
-                        p + xsrc * pix_width, 
+                memmove(m_rbuf->row_ptr(xdst, ydst, len) + xdst * pix_width,
+                        p + xsrc * pix_width,
                         len * pix_width);
             }
         }
@@ -658,7 +658,7 @@ namespace agg
         //--------------------------------------------------------------------
         // Blend from single color, using grayscale surface as alpha channel.
         template<class SrcPixelFormatRenderer>
-        void blend_from_color(const SrcPixelFormatRenderer& from, 
+        void blend_from_color(const SrcPixelFormatRenderer& from,
                               const color_type& color,
                               int xdst, int ydst,
                               int xsrc, int ysrc,
@@ -672,7 +672,7 @@ namespace agg
             {
                 pixel_type* pdst = pix_value_ptr(xdst, ydst, len);
 
-                do 
+                do
                 {
                     copy_or_blend_pix(pdst, color, src_color_type::scale_cover(cover, psrc->c[0]));
                     psrc = psrc->next();
@@ -686,7 +686,7 @@ namespace agg
         // Blend from color table, using grayscale surface as indexes into table.
         // Obviously, this only works for integer value types.
         template<class SrcPixelFormatRenderer>
-        void blend_from_lut(const SrcPixelFormatRenderer& from, 
+        void blend_from_lut(const SrcPixelFormatRenderer& from,
                             const color_type* color_lut,
                             int xdst, int ydst,
                             int xsrc, int ysrc,
@@ -699,7 +699,7 @@ namespace agg
             {
                 pixel_type* pdst = pix_value_ptr(xdst, ydst, len);
 
-                do 
+                do
                 {
                     copy_or_blend_pix(pdst, color_lut[psrc->c[0]], cover);
                     psrc = psrc->next();

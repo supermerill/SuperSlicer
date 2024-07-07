@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_COMBINE_H
 #define IGL_COMBINE_H
@@ -15,7 +15,7 @@
 namespace igl
 {
   // Concatenate k meshes into a single >=k connected component mesh with a
-  // single vertex list and face list. Similar to Maya's Combine operation. 
+  // single vertex list and face list. Similar to Maya's Combine operation.
   //
   // Inputs:
   //   VV  k-long list of lists of mesh vertex positions
@@ -34,9 +34,9 @@ namespace igl
   //
   //
   template <
-    typename DerivedVV, 
-    typename DerivedFF, 
-    typename DerivedV, 
+    typename DerivedVV,
+    typename DerivedFF,
+    typename DerivedV,
     typename DerivedF,
     typename DerivedVsizes,
     typename DerivedFsizes>
@@ -48,9 +48,9 @@ namespace igl
     Eigen::PlainObjectBase<DerivedVsizes> & Vsizes,
     Eigen::PlainObjectBase<DerivedFsizes> & Fsizes);
   template <
-    typename DerivedVV, 
-    typename DerivedFF, 
-    typename DerivedV, 
+    typename DerivedVV,
+    typename DerivedFF,
+    typename DerivedV,
     typename DerivedF>
   IGL_INLINE void combine(
     const std::vector<DerivedVV> & VV,

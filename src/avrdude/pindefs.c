@@ -202,7 +202,7 @@ const char * pinmask_to_str(const pinmask_t * const pinmask) {
 
 /**
  * This function checks all pin of pgm against the constraints given in the checklist.
- * It checks if 
+ * It checks if
  * @li any invalid pins are used
  * @li valid pins are used inverted when not allowed
  * @li any pins are used by more than one function

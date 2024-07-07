@@ -17,7 +17,7 @@ class MultiPoint
 public:
     //TODO: makes that private?
     Points points;
-    
+
     MultiPoint() {}
     MultiPoint(const MultiPoint &other) : points(other.points) {}
     MultiPoint(MultiPoint &&other) : points(std::move(other.points)) {}
@@ -142,7 +142,7 @@ inline double length(const Points &pts) {
 inline double area(const Points &polygon) {
     double area = 0.;
     for (size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i ++)
-		area += double(polygon[i](0) + polygon[j](0)) * double(polygon[i](1) - polygon[j](1));
+        area += double(polygon[i](0) + polygon[j](0)) * double(polygon[i](1) - polygon[j](1));
     return area;
 }
 

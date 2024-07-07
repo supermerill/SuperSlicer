@@ -26,7 +26,7 @@ namespace orgQhull {
     class QhullQh;
 
 #//!\name Defined here
-    //! QhullFacetList -- List of QhullFacet/facetT, as a C++ class.  
+    //! QhullFacetList -- List of QhullFacet/facetT, as a C++ class.
     //!\see QhullFacetSet.h
     class QhullFacetList;
     //! QhullFacetListIterator -- if(f.isGood()){ ... }

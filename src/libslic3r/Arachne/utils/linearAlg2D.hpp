@@ -68,10 +68,10 @@ inline static bool isInsideCorner(const Point &a, const Point &b, const Point &c
 
 /*!
      * Returns the determinant of the 2D matrix defined by the the vectors ab and ap as rows.
-     * 
+     *
      * The returned value is zero for \p p lying (approximately) on the line going through \p a and \p b
      * The value is positive for values lying to the left and negative for values lying to the right when looking from \p a to \p b.
-     * 
+     *
      * \param p the point to check
      * \param a the from point of the line
      * \param b the to point of the line

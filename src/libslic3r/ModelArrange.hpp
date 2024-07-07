@@ -4,7 +4,7 @@
 #include <libslic3r/Arrange.hpp>
 
 namespace Slic3r {
-    
+
 class Model;
 class ModelInstance;
 class PrintBase;
@@ -19,7 +19,7 @@ using arrangement::CircleBed;
 // Do something with ArrangePolygons in virtual beds
 using VirtualBedFn = std::function<void(arrangement::ArrangePolygon&)>;
 
-[[noreturn]] inline void throw_if_out_of_bed(arrangement::ArrangePolygon&) 
+[[noreturn]] inline void throw_if_out_of_bed(arrangement::ArrangePolygon&)
 {
     throw Slic3r::RuntimeError("Objects could not fit on the bed");
 }
@@ -40,7 +40,7 @@ bool arrange_objects(Model &              model,
     ModelInstancePtrs instances;
     ArrangePolygons input = get_arrange_polys(model, instances);
     arrangement::arrange(input, bed, params);
-    
+
     return apply_arrange_polys(input, instances, vfn);
 }
 

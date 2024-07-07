@@ -37,7 +37,7 @@
 #include "priorityq-heap.h"
 #include "memalloc.h"
 
-#define INIT_SIZE	32
+#define INIT_SIZE    32
 
 #ifndef TRUE
 #define TRUE 1
@@ -47,11 +47,11 @@
 #endif
 
 #ifdef FOR_TRITE_TEST_PROGRAM
-#define LEQ(x,y)	(*pq->leq)(x,y)
+#define LEQ(x,y)    (*pq->leq)(x,y)
 #else
 /* Violates modularity, but a little faster */
 #include "geom.h"
-#define LEQ(x,y)	VertLeq((GLUvertex *)x, (GLUvertex *)y)
+#define LEQ(x,y)    VertLeq((GLUvertex *)x, (GLUvertex *)y)
 #endif
 
 /* really __gl_pqHeapNewPriorityQ */
@@ -79,7 +79,7 @@ PriorityQ *pqNewPriorityQ( int (*leq)(PQkey key1, PQkey key2) )
   pq->freeList = 0;
   pq->leq = leq;
 
-  pq->nodes[1].handle = 1;	/* so that Minimum() returns NULL */
+  pq->nodes[1].handle = 1;    /* so that Minimum() returns NULL */
   pq->handles[1].key = NULL;
   return pq;
 }
@@ -104,7 +104,7 @@ static void FloatDown( PriorityQ *pq, long curr )
   for( ;; ) {
     child = curr << 1;
     if( child < pq->size && LEQ( h[n[child+1].handle].key,
-				 h[n[child].handle].key )) {
+                 h[n[child].handle].key )) {
       ++child;
     }
 
@@ -172,17 +172,17 @@ PQhandle pqInsert( PriorityQ *pq, PQkey keyNew )
 
     /* If the heap overflows, double its size. */
     pq->max <<= 1;
-    pq->nodes = (PQnode *)memRealloc( pq->nodes, 
-				     (size_t) 
-				     ((pq->max + 1) * sizeof( pq->nodes[0] )));
+    pq->nodes = (PQnode *)memRealloc( pq->nodes,
+                     (size_t)
+                     ((pq->max + 1) * sizeof( pq->nodes[0] )));
     if (pq->nodes == NULL) {
-       pq->nodes = saveNodes;	/* restore ptr to free upon return */
+       pq->nodes = saveNodes;    /* restore ptr to free upon return */
        return LONG_MAX;
     }
     pq->handles = (PQhandleElem *)memRealloc( pq->handles,
-			                     (size_t)
-			                      ((pq->max + 1) * 
-					       sizeof( pq->handles[0] )));
+                                 (size_t)
+                                  ((pq->max + 1) *
+                           sizeof( pq->handles[0] )));
     if (pq->handles == NULL) {
        pq->handles = saveHandles; /* restore ptr to free upon return */
        return LONG_MAX;

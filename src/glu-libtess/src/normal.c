@@ -46,7 +46,7 @@
 #define FALSE 0
 #endif
 
-#define Dot(u,v)	(u[0]*v[0] + u[1]*v[1] + u[2]*v[2])
+#define Dot(u,v)    (u[0]*v[0] + u[1]*v[1] + u[2]*v[2])
 
 #if 0
 static void Normalize( GLdouble v[3] )
@@ -61,8 +61,8 @@ static void Normalize( GLdouble v[3] )
 }
 #endif
 
-#undef	ABS
-#define ABS(x)	((x) < 0 ? -(x) : (x))
+#undef    ABS
+#define ABS(x)    ((x) < 0 ? -(x) : (x))
 
 static int LongAxis( GLdouble v[3] )
 {
@@ -171,8 +171,8 @@ static void CheckOrientation( GLUtesselator *tess )
 #ifdef FOR_TRITE_TEST_PROGRAM
 #include <stdlib.h>
 extern int RandomSweep;
-#define S_UNIT_X	(RandomSweep ? (2*drand48()-1) : 1.0)
-#define S_UNIT_Y	(RandomSweep ? (2*drand48()-1) : 0.0)
+#define S_UNIT_X    (RandomSweep ? (2*drand48()-1) : 1.0)
+#define S_UNIT_Y    (RandomSweep ? (2*drand48()-1) : 0.0)
 #else
 #if defined(SLANTED_SWEEP)
 /* The "feature merging" is not intended to be complete.  There are
@@ -184,11 +184,11 @@ extern int RandomSweep;
  * direction to be something unusual (ie. not parallel to one of the
  * coordinate axes).
  */
-#define S_UNIT_X	0.50941539564955385	/* Pre-normalized */
-#define S_UNIT_Y	0.86052074622010633
+#define S_UNIT_X    0.50941539564955385    /* Pre-normalized */
+#define S_UNIT_Y    0.86052074622010633
 #else
-#define S_UNIT_X	1.0
-#define S_UNIT_Y	0.0
+#define S_UNIT_X    1.0
+#define S_UNIT_Y    0.0
 #endif
 #endif
 

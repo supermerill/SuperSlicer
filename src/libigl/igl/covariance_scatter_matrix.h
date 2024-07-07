@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_COVARIANCE_SCATTER_MATRIX_H
 #define IGL_COVARIANCE_SCATTER_MATRIX_H
@@ -12,7 +12,7 @@
 #include "ARAPEnergyType.h"
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
- 
+
 namespace igl
 {
   // Construct the covariance scatter matrix for a given arap energy
@@ -26,7 +26,7 @@ namespace igl
   //     the diagonal so that when multiplied by V gives covariance matrix
   //     elements, can be used to speed up covariance matrix computation
   IGL_INLINE void covariance_scatter_matrix(
-    const Eigen::MatrixXd & V, 
+    const Eigen::MatrixXd & V,
     const Eigen::MatrixXi & F,
     const ARAPEnergyType energy,
     Eigen::SparseMatrix<double>& CSM);

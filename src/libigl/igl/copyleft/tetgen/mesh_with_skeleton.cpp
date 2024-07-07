@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "mesh_with_skeleton.h"
 #include "tetrahedralize.h"
@@ -31,7 +31,7 @@ IGL_INLINE bool igl::copyleft::tetgen::mesh_with_skeleton(
 {
   using namespace Eigen;
   using namespace std;
-  const string eff_tetgen_flags = 
+  const string eff_tetgen_flags =
     (tetgen_flags.length() == 0?DEFAULT_TETGEN_FLAGS:tetgen_flags);
   // Collect all edges that need samples:
   MatrixXi BECE = cat(1,BE,CE);

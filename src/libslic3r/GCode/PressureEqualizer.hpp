@@ -101,14 +101,14 @@ private:
 
     struct GCodeLine
     {
-        GCodeLine() : 
+        GCodeLine() :
             type(GCODELINETYPE_INVALID),
             raw_length(0),
             modified(false),
-            extruder_id(0), 
-            volumetric_extrusion_rate(0.f), 
-            volumetric_extrusion_rate_start(0.f), 
-            volumetric_extrusion_rate_end(0.f) 
+            extruder_id(0),
+            volumetric_extrusion_rate(0.f),
+            volumetric_extrusion_rate_start(0.f),
+            volumetric_extrusion_rate_end(0.f)
             {}
 
         bool        moving_xy()     const { return fabs(pos_end[0] - pos_start[0]) > 0.f || fabs(pos_end[1] - pos_start[1]) > 0.f; }
@@ -126,8 +126,8 @@ private:
         float       feedrate()      const { return pos_end[4]; }
         float       time()          const { return dist_xyz() / feedrate(); }
         float       time_inv()      const { return feedrate() / dist_xyz(); }
-        float       volumetric_correction_avg() const { 
-            float avg_correction = 0.5f * (volumetric_extrusion_rate_start + volumetric_extrusion_rate_end) / volumetric_extrusion_rate; 
+        float       volumetric_correction_avg() const {
+            float avg_correction = 0.5f * (volumetric_extrusion_rate_start + volumetric_extrusion_rate_end) / volumetric_extrusion_rate;
             assert(avg_correction > 0.f);
             assert(avg_correction <= 1.00000001f);
             return avg_correction;

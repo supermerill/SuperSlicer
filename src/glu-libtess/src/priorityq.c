@@ -35,7 +35,7 @@
 #include "gluos.h"
 #include <stddef.h>
 #include <assert.h>
-#include <limits.h>		/* LONG_MAX */
+#include <limits.h>        /* LONG_MAX */
 #include "memalloc.h"
 
 /* Include all the code for the regular heap-based queue here. */
@@ -76,7 +76,7 @@ PriorityQ *pqNewPriorityQ( int (*leq)(PQkey key1, PQkey key2) )
 /* really __gl_pqSortDeletePriorityQ */
 void pqDeletePriorityQ( PriorityQ *pq )
 {
-  assert(pq != NULL); 
+  assert(pq != NULL);
   if (pq->heap != NULL) __gl_pqHeapDeletePriorityQ( pq->heap );
   if (pq->order != NULL) memFree( pq->order );
   if (pq->keys != NULL) memFree( pq->keys );
@@ -84,9 +84,9 @@ void pqDeletePriorityQ( PriorityQ *pq )
 }
 
 
-#define LT(x,y)		(! LEQ(y,x))
-#define GT(x,y)		(! LEQ(x,y))
-#define Swap(a,b)	do{PQkey *tmp = *a; *a = *b; *b = tmp;}while(0)
+#define LT(x,y)        (! LEQ(y,x))
+#define GT(x,y)        (! LEQ(x,y))
+#define Swap(a,b)    do{PQkey *tmp = *a; *a = *b; *b = tmp;}while(0)
 
 /* really __gl_pqSortInit */
 int pqInit( PriorityQ *pq )
@@ -132,31 +132,31 @@ int pqInit( PriorityQ *pq )
       i = p - 1;
       j = r + 1;
       do {
-	do { ++i; } while( GT( **i, *piv ));
-	do { --j; } while( LT( **j, *piv ));
-	Swap( i, j );
+    do { ++i; } while( GT( **i, *piv ));
+    do { --j; } while( LT( **j, *piv ));
+    Swap( i, j );
       } while( i < j );
-      Swap( i, j );	/* Undo last swap */
+      Swap( i, j );    /* Undo last swap */
       if( i - p < r - j ) {
-	top->p = j+1; top->r = r; ++top;
-	r = i-1;
+    top->p = j+1; top->r = r; ++top;
+    r = i-1;
       } else {
-	top->p = p; top->r = i-1; ++top;
-	p = j+1;
+    top->p = p; top->r = i-1; ++top;
+    p = j+1;
       }
     }
     /* Insertion sort small lists */
     for( i = p+1; i <= r; ++i ) {
       piv = *i;
       for( j = i; j > p && LT( **(j-1), *piv ); --j ) {
-	*j = *(j-1);
+    *j = *(j-1);
       }
       *j = piv;
     }
   }
   pq->max = pq->size;
   pq->initialized = TRUE;
-  __gl_pqHeapInit( pq->heap );	/* always succeeds */
+  __gl_pqHeapInit( pq->heap );    /* always succeeds */
 
 #ifndef NDEBUG
   p = pq->order;
@@ -170,7 +170,7 @@ int pqInit( PriorityQ *pq )
 }
 
 /* really __gl_pqSortInsert */
-/* returns LONG_MAX iff out of memory */ 
+/* returns LONG_MAX iff out of memory */
 PQhandle pqInsert( PriorityQ *pq, PQkey keyNew )
 {
   long curr;
@@ -184,15 +184,15 @@ PQhandle pqInsert( PriorityQ *pq, PQkey keyNew )
 
     /* If the heap overflows, double its size. */
     pq->max <<= 1;
-    pq->keys = (PQHeapKey *)memRealloc( pq->keys, 
-	 	                        (size_t)
-	                                 (pq->max * sizeof( pq->keys[0] )));
-    if (pq->keys == NULL) {	
-       pq->keys = saveKey;	/* restore ptr to free upon return */
+    pq->keys = (PQHeapKey *)memRealloc( pq->keys,
+                                 (size_t)
+                                     (pq->max * sizeof( pq->keys[0] )));
+    if (pq->keys == NULL) {
+       pq->keys = saveKey;    /* restore ptr to free upon return */
        return LONG_MAX;
     }
   }
-  assert(curr != LONG_MAX);	
+  assert(curr != LONG_MAX);
   pq->keys[curr] = keyNew;
 
   /* Negative handles index the sorted array. */

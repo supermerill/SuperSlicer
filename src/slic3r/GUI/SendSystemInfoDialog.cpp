@@ -287,7 +287,7 @@ static std::string get_unique_id()
     if (GetAdaptersInfo(AdapterInfo, &dwBufLen) == ERROR_BUFFER_OVERFLOW) {
         free(AdapterInfo);
         AdapterInfo = (IP_ADAPTER_INFO*)malloc(dwBufLen);
-    }    
+    }
     if (GetAdaptersInfo(AdapterInfo, &dwBufLen) == NO_ERROR) {
         const IP_ADAPTER_INFO* pAdapterInfo = AdapterInfo;
         std::vector<std::vector<unsigned char>> macs;

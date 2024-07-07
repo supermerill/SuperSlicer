@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "mat_to_quat.h"
 #include <cmath>
@@ -20,11 +20,11 @@ static inline Q_type ReciprocalSqrt( const Q_type x )
 //template <typename Q_type>
 //IGL_INLINE void igl::mat4_to_quat(const Q_type * m, Q_type * q)
 //{
-//  Q_type t = + m[0 * 4 + 0] + m[1 * 4 + 1] + m[2 * 4 + 2] + 1.0f; 
+//  Q_type t = + m[0 * 4 + 0] + m[1 * 4 + 1] + m[2 * 4 + 2] + 1.0f;
 //  Q_type s = ReciprocalSqrt( t ) * 0.5f;
 //  q[3] = s * t;
-//  q[2] = ( m[0 * 4 + 1] - m[1 * 4 + 0] ) * s; 
-//  q[1] = ( m[2 * 4 + 0] - m[0 * 4 + 2] ) * s; 
+//  q[2] = ( m[0 * 4 + 1] - m[1 * 4 + 0] ) * s;
+//  q[1] = ( m[2 * 4 + 0] - m[0 * 4 + 2] ) * s;
 //  q[0] = ( m[1 * 4 + 2] - m[2 * 4 + 1] ) * s;
 //}
 
@@ -38,7 +38,7 @@ IGL_INLINE void igl::mat4_to_quat(const Q_type * mat, Q_type * q)
   int i;
   int j;
   int k;
-  
+
   static int next[3] = { 1, 2, 0 };
 
   trace = mat[0 * 4 + 0] + mat[1 * 4 + 1] + mat[2 * 4 + 2];
@@ -89,7 +89,7 @@ IGL_INLINE void igl::mat3_to_quat(const Q_type * mat, Q_type * q)
   int i;
   int j;
   int k;
-  
+
   static int next[3] = { 1, 2, 0 };
 
   trace = mat[0 * 3 + 0] + mat[1 * 3 + 1] + mat[2 * 3 + 2];

@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_OPENGL2_ROTATE_WIDGET_H
 #define IGL_OPENGL2_ROTATE_WIDGET_H
@@ -46,7 +46,7 @@ namespace igl
         inline RotateWidget();
         // Vector from origin to mouse click "Unprojected" onto plane with depth of
         // origin and scale to so that outer radius is 1
-        // 
+        //
         // Inputs:
         //   x  mouse x position
         //   y  mouse y position
@@ -61,8 +61,8 @@ namespace igl
         //   hit  position of hit
         // Returns true only if there was a hit
         inline bool intersect(
-          const int x, 
-          const int y, 
+          const int x,
+          const int y,
           Eigen::Vector3d & hit) const;
         inline double unprojected_inner_radius() const;
         inline bool down(const int x, const int y);
@@ -141,13 +141,13 @@ inline igl::opengl2::RotateWidget::RotateWidget():
   outer_radius_on_screen(91.),
   outer_over_inner(1.13684210526),
   m_is_enabled(true),
-  down_type(DOWN_TYPE_NONE), 
+  down_type(DOWN_TYPE_NONE),
   selected_type(DOWN_TYPE_NONE)
 {
 }
 
 inline Eigen::Vector3d igl::opengl2::RotateWidget::unproject_onto(
-  const int x, 
+  const int x,
   const int y) const
 {
   using namespace Eigen;
@@ -173,7 +173,7 @@ inline Eigen::Vector3d igl::opengl2::RotateWidget::unproject_onto(
 }
 
 inline bool igl::opengl2::RotateWidget::intersect(
-  const int x, 
+  const int x,
   const int y,
   Eigen::Vector3d & hit) const
 {
@@ -234,8 +234,8 @@ inline bool igl::opengl2::RotateWidget::down(const int x, const int y)
       //cout<<"~~~!is_hit"<<endl;
     }
     auto on_meridian = [&](
-      const Vector3d & hit, 
-      const Quaterniond & rot, 
+      const Vector3d & hit,
+      const Quaterniond & rot,
       const Quaterniond & m,
       Vector3d & pl_hit) -> bool
     {
@@ -469,10 +469,10 @@ inline void igl::opengl2::RotateWidget::draw_guide() const
   using namespace Eigen;
   using namespace std;
   glPushAttrib(
-    GL_DEPTH_BUFFER_BIT | 
-    GL_ENABLE_BIT | 
-    GL_POLYGON_BIT | 
-    GL_POINT_BIT | 
+    GL_DEPTH_BUFFER_BIT |
+    GL_ENABLE_BIT |
+    GL_POLYGON_BIT |
+    GL_POINT_BIT |
     GL_TRANSFORM_BIT |
     GL_STENCIL_BUFFER_BIT |
     GL_LIGHTING_BIT);
@@ -509,7 +509,7 @@ inline void igl::opengl2::RotateWidget::draw_guide() const
       break;
   }
   {
-    const Vector3d nudown(udown.normalized()), 
+    const Vector3d nudown(udown.normalized()),
       nudrag(udrag.normalized());
     glPushMatrix();
     glDisable(GL_CULL_FACE);

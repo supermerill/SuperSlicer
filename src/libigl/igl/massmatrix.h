@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_MASSMATRIX_TYPE_H
 #define IGL_MASSMATRIX_TYPE_H
@@ -13,7 +13,7 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
-namespace igl 
+namespace igl
 {
 
   enum MassMatrixType
@@ -40,15 +40,15 @@ namespace igl
   //     MASSMATRIX_TYPE_BARYCENTRIC  barycentric
   //     MASSMATRIX_TYPE_VORONOI voronoi-hybrid {default}
   //     MASSMATRIX_TYPE_FULL full {not implemented}
-  // Outputs: 
+  // Outputs:
   //   M  #V by #V mass matrix
   //
   // See also: adjacency_matrix
   //
   template <typename DerivedV, typename DerivedF, typename Scalar>
   IGL_INLINE void massmatrix(
-    const Eigen::MatrixBase<DerivedV> & V, 
-    const Eigen::MatrixBase<DerivedF> & F, 
+    const Eigen::MatrixBase<DerivedV> & V,
+    const Eigen::MatrixBase<DerivedF> & F,
     const MassMatrixType type,
     Eigen::SparseMatrix<Scalar>& M);
 }

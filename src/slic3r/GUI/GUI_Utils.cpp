@@ -95,8 +95,8 @@ int get_dpi_for_window(const wxWindow *window)
     static auto GetDpiForWindow_fn = winapi_get_function<GetDpiForWindow_t>(L"User32.dll", "GetDpiForWindow");
     static auto GetDpiForMonitor_fn = winapi_get_function<GetDpiForMonitor_t>(L"Shcore.dll", "GetDpiForMonitor");
 
-	// Desktop Window is the window of the primary monitor.
-	const HWND hwnd = (window == nullptr) ? ::GetDesktopWindow() : window->GetHandle();
+    // Desktop Window is the window of the primary monitor.
+    const HWND hwnd = (window == nullptr) ? ::GetDesktopWindow() : window->GetHandle();
 
     if (GetDpiForWindow_fn != nullptr) {
         // We're on Windows 10, we have per-screen DPI settings
@@ -172,7 +172,7 @@ bool check_dark_mode() {
 
 
 #ifdef _WIN32
-void update_dark_ui(wxWindow* window) 
+void update_dark_ui(wxWindow* window)
 {
     bool is_dark = wxGetApp().app_config->get("dark_color_mode") == "1";// ? true : check_dark_mode();// #ysDarkMSW - Allow it when we deside to support the sustem colors for application
     window->SetBackgroundColour(is_dark ? wxColour(43,  43,  43)  : wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));

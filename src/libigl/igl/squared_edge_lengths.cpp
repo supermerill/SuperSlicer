@@ -8,7 +8,7 @@
 #include "squared_edge_lengths.h"
 #include "parallel_for.h"
 #include <iostream>
-  
+
 template <typename DerivedV, typename DerivedF, typename DerivedL>
 IGL_INLINE void igl::squared_edge_lengths(
   const Eigen::MatrixBase<DerivedV>& V,

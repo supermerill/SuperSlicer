@@ -49,7 +49,7 @@ bool Repetier::test(wxString &msg) const
 
     auto http = Http::get(std::move(url));
     set_auth(http);
-    
+
     http.on_error([&](std::string body, std::string error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error getting version: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
             res = false;
@@ -182,7 +182,7 @@ std::string Repetier::make_url(const std::string &path) const
 bool Repetier::get_groups(wxArrayString& groups) const
 {
     bool res = true;
-    
+
     const char *name = get_name();
     auto url = make_url((boost::format("printer/api/%1%") % port).str());
 
@@ -232,14 +232,14 @@ bool Repetier::get_printers(wxArrayString& printers) const
 
     auto http = Http::get(std::move(url));
     set_auth(http);
-    
+
     http.on_error([&](std::string body, std::string error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error listing printers: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
             res = false;
         })
         .on_complete([&](std::string body, unsigned http_status) {
             BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: Got printers: %2%, HTTP status: %3%") % name % body % http_status;
-            
+
             if (http_status != 200)
                 throw HostNetworkError(GUI::format(_L("HTTP status: %1%\nMessage body: \"%2%\""), http_status, body));
 
@@ -250,7 +250,7 @@ bool Repetier::get_printers(wxArrayString& printers) const
             } catch (const pt::ptree_error &err) {
                 throw HostNetworkError(GUI::format(_L("Parsing of host response failed.\nMessage body: \"%1%\"\nError: \"%2%\""), body, err.what()));
             }
-            
+
             const auto error = ptree.get_optional<std::string>("error");
             if (error)
                 throw HostNetworkError(*error);

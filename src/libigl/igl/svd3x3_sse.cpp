@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifdef __SSE__
 #include "svd3x3_sse.h"
@@ -20,15 +20,15 @@
 
 // disable runtime asserts on xor eax,eax type of stuff (doesn't always work,
 // disable explicitly in compiler settings)
-#pragma runtime_checks( "u", off )  
+#pragma runtime_checks( "u", off )
 template<typename T>
 IGL_INLINE void igl::svd3x3_sse(
-  const Eigen::Matrix<T, 3*4, 3>& A, 
-  Eigen::Matrix<T, 3*4, 3> &U, 
-  Eigen::Matrix<T, 3*4, 1> &S, 
+  const Eigen::Matrix<T, 3*4, 3>& A,
+  Eigen::Matrix<T, 3*4, 3> &U,
+  Eigen::Matrix<T, 3*4, 1> &S,
   Eigen::Matrix<T, 3*4, 3>&V)
 {
-  // this code assumes USE_SSE_IMPLEMENTATION is defined 
+  // this code assumes USE_SSE_IMPLEMENTATION is defined
   float Ashuffle[9][4], Ushuffle[9][4], Vshuffle[9][4], Sshuffle[3][4];
   for (int i=0; i<3; i++)
   {

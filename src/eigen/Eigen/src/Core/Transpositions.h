@@ -10,13 +10,13 @@
 #ifndef EIGEN_TRANSPOSITIONS_H
 #define EIGEN_TRANSPOSITIONS_H
 
-namespace Eigen { 
+namespace Eigen {
 
 template<typename Derived>
 class TranspositionsBase
 {
     typedef internal::traits<Derived> Traits;
-    
+
   public:
 
     typedef typename Traits::IndicesType IndicesType;
@@ -33,7 +33,7 @@ class TranspositionsBase
       indices() = other.indices();
       return derived();
     }
-    
+
     #ifndef EIGEN_PARSED_BY_DOXYGEN
     /** This is a special case of the templated operator=. Its purpose is to
       * prevent a default operator= from hiding the templated operator=.
@@ -266,7 +266,7 @@ class Map<Transpositions<SizeAtCompileTime,MaxSizeAtCompileTime,_StorageIndex>,P
 
     /** const version of indices(). */
     const IndicesType& indices() const { return m_indices; }
-    
+
     /** \returns a reference to the stored array representing the transpositions. */
     IndicesType& indices() { return m_indices; }
 
@@ -395,7 +395,7 @@ class Transpose<TranspositionsBase<TranspositionsDerived> >
     {
       return Product<Transpose, OtherDerived, AliasFreeProduct>(*this, matrix.derived());
     }
-    
+
     const TranspositionType& nestedExpression() const { return m_transpositions; }
 
   protected:

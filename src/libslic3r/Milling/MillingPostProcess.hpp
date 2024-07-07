@@ -19,7 +19,7 @@ public:
     const PrintRegionConfig     *config;
     const PrintObjectConfig     *object_config;
     const PrintConfig           *print_config;
-    
+
     MillingPostProcess(
         // Input:
         const SurfaceCollection*    slices,

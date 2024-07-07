@@ -18,7 +18,7 @@ IGL_INLINE Eigen::MatrixXd igl::rotate_vectors(
   for (unsigned i=0; i<V.rows();++i)
   {
     double norm = V.row(i).norm();
-    
+
     // project onto the tangent plane and convert to angle
     double a = atan2(B2.row(i).dot(V.row(i)),B1.row(i).dot(V.row(i)));
 

@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "polyhedron_to_mesh.h"
 #include <CGAL/Polyhedron_3.h>
@@ -43,7 +43,7 @@ IGL_INLINE void igl::copyleft::cgal::polyhedron_to_mesh(
       facet != poly.facets_end();
       ++facet)
     {
-      typename Polyhedron::Halfedge_around_facet_const_circulator he = 
+      typename Polyhedron::Halfedge_around_facet_const_circulator he =
         facet->facet_begin();
       // Facets in polyhedral surfaces are at least triangles.
       assert(CGAL::circulator_size(he) == 3 && "Facets should be triangles");

@@ -13,7 +13,7 @@ Purpose:    Give direct port I/O access to a user mode process.
 /*
  *  The name of our device driver.
  */
-#define DEVICE_NAME_STRING	L"giveio"
+#define DEVICE_NAME_STRING    L"giveio"
 
 /*
  *  This is the "structure" of the IOPM.  It is just a simple
@@ -24,7 +24,7 @@ Purpose:    Give direct port I/O access to a user mode process.
  * access to the corresponding port for user mode processes.  Any 1
  * bits will disallow I/O access to the corresponding port.
  */
-#define	IOPM_SIZE	0x2000
+#define    IOPM_SIZE    0x2000
 typedef UCHAR IOPM[IOPM_SIZE];
 
 /*
@@ -54,15 +54,15 @@ void Ke386IoSetAccessProcess(PEPROCESS, int);
 *********************************************************************/
 VOID GiveioUnload(IN PDRIVER_OBJECT DriverObject)
 {
-	WCHAR DOSNameBuffer[] = L"\\DosDevices\\" DEVICE_NAME_STRING;
-	UNICODE_STRING uniDOSString;
+    WCHAR DOSNameBuffer[] = L"\\DosDevices\\" DEVICE_NAME_STRING;
+    UNICODE_STRING uniDOSString;
 
-	if(IOPM_local)
-		MmFreeNonCachedMemory(IOPM_local, sizeof(IOPM));
+    if(IOPM_local)
+        MmFreeNonCachedMemory(IOPM_local, sizeof(IOPM));
 
-	RtlInitUnicodeString(&uniDOSString, DOSNameBuffer);
-	IoDeleteSymbolicLink (&uniDOSString);
-	IoDeleteDevice(DriverObject->DeviceObject);
+    RtlInitUnicodeString(&uniDOSString, DOSNameBuffer);
+    IoDeleteSymbolicLink (&uniDOSString);
+    IoDeleteDevice(DriverObject->DeviceObject);
 }
 
 /*********************************************************************
@@ -73,13 +73,13 @@ access.  If it is 0, access is removed.
 *********************************************************************/
 VOID SetIOPermissionMap(int OnFlag)
 {
-	Ke386IoSetAccessProcess(PsGetCurrentProcess(), OnFlag);
-	Ke386SetIoAccessMap(1, IOPM_local);
+    Ke386IoSetAccessProcess(PsGetCurrentProcess(), OnFlag);
+    Ke386SetIoAccessMap(1, IOPM_local);
 }
 
 void GiveIO(void)
 {
-	SetIOPermissionMap(1);
+    SetIOPermissionMap(1);
 }
 
 /*********************************************************************
@@ -100,7 +100,7 @@ NTSTATUS GiveioCreateDispatch(
     IN  PIRP            Irp
     )
 {
-	GiveIO();			// give the calling process I/O access
+    GiveIO();            // give the calling process I/O access
 
     Irp->IoStatus.Information = 0;
     Irp->IoStatus.Status = STATUS_SUCCESS;
@@ -124,45 +124,45 @@ NTSTATUS DriverEntry(
     IN PUNICODE_STRING RegistryPath
     )
 {
-	PDEVICE_OBJECT deviceObject;
-	NTSTATUS status;
-	WCHAR NameBuffer[] = L"\\Device\\" DEVICE_NAME_STRING;
-	WCHAR DOSNameBuffer[] = L"\\DosDevices\\" DEVICE_NAME_STRING;
-	UNICODE_STRING uniNameString, uniDOSString;
+    PDEVICE_OBJECT deviceObject;
+    NTSTATUS status;
+    WCHAR NameBuffer[] = L"\\Device\\" DEVICE_NAME_STRING;
+    WCHAR DOSNameBuffer[] = L"\\DosDevices\\" DEVICE_NAME_STRING;
+    UNICODE_STRING uniNameString, uniDOSString;
 
-	//
-	//  Allocate a buffer for the local IOPM and zero it.
-	//
-	IOPM_local = MmAllocateNonCachedMemory(sizeof(IOPM));
-	if(IOPM_local == 0)
-		return STATUS_INSUFFICIENT_RESOURCES;
-	RtlZeroMemory(IOPM_local, sizeof(IOPM));
+    //
+    //  Allocate a buffer for the local IOPM and zero it.
+    //
+    IOPM_local = MmAllocateNonCachedMemory(sizeof(IOPM));
+    if(IOPM_local == 0)
+        return STATUS_INSUFFICIENT_RESOURCES;
+    RtlZeroMemory(IOPM_local, sizeof(IOPM));
 
-	//
-	//  Set up device driver name and device object.
-	//
-	RtlInitUnicodeString(&uniNameString, NameBuffer);
-	RtlInitUnicodeString(&uniDOSString, DOSNameBuffer);
+    //
+    //  Set up device driver name and device object.
+    //
+    RtlInitUnicodeString(&uniNameString, NameBuffer);
+    RtlInitUnicodeString(&uniDOSString, DOSNameBuffer);
 
-	status = IoCreateDevice(DriverObject, 0,
-					&uniNameString,
-					FILE_DEVICE_UNKNOWN,
-					0, FALSE, &deviceObject);
+    status = IoCreateDevice(DriverObject, 0,
+                    &uniNameString,
+                    FILE_DEVICE_UNKNOWN,
+                    0, FALSE, &deviceObject);
 
-	if(!NT_SUCCESS(status))
-		return status;
+    if(!NT_SUCCESS(status))
+        return status;
 
-	status = IoCreateSymbolicLink (&uniDOSString, &uniNameString);
+    status = IoCreateSymbolicLink (&uniDOSString, &uniNameString);
 
-	if (!NT_SUCCESS(status))
-		return status;
+    if (!NT_SUCCESS(status))
+        return status;
 
     //
     //  Initialize the Driver Object with driver's entry points.
-	// All we require are the Create and Unload operations.
+    // All we require are the Create and Unload operations.
     //
     DriverObject->MajorFunction[IRP_MJ_CREATE] = GiveioCreateDispatch;
-	DriverObject->DriverUnload = GiveioUnload;
+    DriverObject->DriverUnload = GiveioUnload;
     return STATUS_SUCCESS;
 }
 

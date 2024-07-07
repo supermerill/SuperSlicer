@@ -15,7 +15,7 @@ namespace Eigen {
 enum {
   StandardCompressedFormat = 2 /**< used by Ref<SparseMatrix> to specify whether the input storage must be in standard compressed form */
 };
-  
+
 namespace internal {
 
 template<typename Derived> class SparseRefBase;
@@ -37,7 +37,7 @@ struct traits<Ref<SparseMatrix<MatScalar,MatOptions,MatIndex>, _Options, _Stride
     };
     typedef typename internal::conditional<MatchAtCompileTime,internal::true_type,internal::false_type>::type type;
   };
-  
+
 };
 
 template<typename MatScalar, int MatOptions, typename MatIndex, int _Options, typename _StrideType>
@@ -91,7 +91,7 @@ public:
   SparseRefBase()
     : Base(RowsAtCompileTime==Dynamic?0:RowsAtCompileTime,ColsAtCompileTime==Dynamic?0:ColsAtCompileTime, 0, 0, 0, 0, 0)
   {}
-  
+
 protected:
 
   template<typename Expression>
@@ -107,7 +107,7 @@ protected:
 } // namespace internal
 
 
-/** 
+/**
   * \ingroup SparseCore_Module
   *
   * \brief A sparse matrix expression referencing an existing sparse expression
@@ -148,7 +148,7 @@ class Ref<SparseMatrixType, Options>
       eigen_assert( ((Options & int(StandardCompressedFormat))==0) || (expr.isCompressed()) );
       Base::construct(expr.derived());
     }
-    
+
     template<int OtherOptions>
     inline Ref(MappedSparseMatrix<MatScalar,OtherOptions,MatIndex>& expr)
     {
@@ -156,7 +156,7 @@ class Ref<SparseMatrixType, Options>
       eigen_assert( ((Options & int(StandardCompressedFormat))==0) || (expr.isCompressed()) );
       Base::construct(expr.derived());
     }
-    
+
     template<typename Derived>
     inline Ref(const SparseCompressedBase<Derived>& expr)
     #else
@@ -355,7 +355,7 @@ struct evaluator<Ref<SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, Strid
   : evaluator<SparseCompressedBase<Ref<SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, StrideType> > >
 {
   typedef evaluator<SparseCompressedBase<Ref<SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, StrideType> > > Base;
-  typedef Ref<SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, StrideType> XprType;  
+  typedef Ref<SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, StrideType> XprType;
   evaluator() : Base() {}
   explicit evaluator(const XprType &mat) : Base(mat) {}
 };
@@ -365,7 +365,7 @@ struct evaluator<Ref<const SparseMatrix<MatScalar,MatOptions,MatIndex>, Options,
   : evaluator<SparseCompressedBase<Ref<const SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, StrideType> > >
 {
   typedef evaluator<SparseCompressedBase<Ref<const SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, StrideType> > > Base;
-  typedef Ref<const SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, StrideType> XprType;  
+  typedef Ref<const SparseMatrix<MatScalar,MatOptions,MatIndex>, Options, StrideType> XprType;
   evaluator() : Base() {}
   explicit evaluator(const XprType &mat) : Base(mat) {}
 };

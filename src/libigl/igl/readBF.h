@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_READBF_H
 #define IGL_READBF_H
@@ -20,7 +20,7 @@ namespace igl
   //   P  #B list of parent indices into B, -1 for roots
   //   O  #B by 3 list of tip offset vectors from parent (or position for roots)
   // Returns true on success, false on errors
-  template < 
+  template <
     typename DerivedWI,
     typename DerivedP,
     typename DerivedO>
@@ -42,9 +42,9 @@ namespace igl
   //   BE  #BE by 3 list of bone indices into C, in order of weight index
   //   P  #BE list of parent bone indices into BE, -1 means root bone
   // Returns true on success, false on errors
-  //   
+  //
   // See also: readTGF, bone_parents, forward_kinematics
-  template < 
+  template <
     typename DerivedWI,
     typename DerivedbfP,
     typename DerivedO,

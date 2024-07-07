@@ -101,7 +101,7 @@ std::string create_help_text() {
     ss << "cone(r1,r2,h)\n";
     ss << "iso_thread(d,p,h\n  ,internal,offset)\n";
     ss << "solid_slices(...)\n";
-    ss << "importStl(file)\n"; 
+    ss << "importStl(file)\n";
     ss << " == 3D op ==\n";
     ss << "cut()(...3D)\n";
     ss << "union()(...3D)\n";
@@ -235,7 +235,7 @@ FreeCADDialog::FreeCADDialog(GUI_App* app, MainFrame* mainframe)
 
     this->main_sizer->AddGrowableCol(1);
     this->main_sizer->AddGrowableRow(2);
-    
+
     wxStdDialogButtonSizer* buttons = new wxStdDialogButtonSizer();
 
     wxButton* bt_new = new wxButton(this, wxID_FILE1, _(L("New")));
@@ -306,7 +306,7 @@ void FreeCADDialog::close_me(wxCommandEvent& event_args) {
 void FreeCADDialog::load_script(wxCommandEvent& event_args) {
     wxFileDialog dialog(this,
         _(L("Choose one file (py):")),
-        gui_app->app_config->get_last_dir(), 
+        gui_app->app_config->get_last_dir(),
         "",
         "FreePySCAD files (*.py)|*.py",
         wxFD_OPEN | wxFD_FILE_MUST_EXIST);
@@ -510,7 +510,7 @@ void FreeCADDialog::on_char_add(wxStyledTextEvent& event) {
         stc->SetTargetStart(current_pos);
         stc->SetTargetEnd(current_pos + 1);
         stc->ReplaceTarget("");
-    } else if (stc->GetTextLength() > current_pos && event.GetKey() == int('"') && stc->GetCharAt(current_pos - 1) == '"' 
+    } else if (stc->GetTextLength() > current_pos && event.GetKey() == int('"') && stc->GetCharAt(current_pos - 1) == '"'
         && (stc->GetCharAt(current_pos) == ')' || stc->GetCharAt(current_pos) == ',') ) {
         stc->InsertText(current_pos, "\"");
     }
@@ -638,7 +638,7 @@ void FreeCADDialog::on_key_type(wxKeyEvent& event)
                     m_text->SetTargetEnd(current_pos + del_more);
                 }
                 m_text->ReplaceTarget("");
-                return; // don't use the backdel event, it's already del 
+                return; // don't use the backdel event, it's already del
             }
         }
         event.Skip(true);
@@ -703,7 +703,7 @@ void FreeCADDialog::createSTC()
     m_text->StyleSetBold(wxSTC_P_DEFNAME, true),
     m_text->StyleSetForeground(wxSTC_P_OPERATOR, wxColour(255u, 0u, 0u));
     m_text->StyleSetBold(wxSTC_P_OPERATOR, true),
-    
+
     m_text->StyleSetForeground(wxSTC_P_IDENTIFIER, wxColour(255u, 64u, 255u)); // function call and almost all defined words in the language, violet
 
     //add text if the saved file exist
@@ -730,7 +730,7 @@ void FreeCADDialog::on_dpi_changed(const wxRect& suggested_rect)
 time_t parse_iso_time(std::string &str) {
     int y, M, d, h, m;
     float s;
-    sscanf(str.c_str(), "%d-%d-%dT%d:%d:%fZ", &y, &M, &d, &h, &m, &s); 
+    sscanf(str.c_str(), "%d-%d-%dT%d:%d:%fZ", &y, &M, &d, &h, &m, &s);
     tm time;
     time.tm_year = y - 1900; // Year since 1900
     time.tm_mon = M - 1;     // 0-11
@@ -829,7 +829,7 @@ bool FreeCADDialog::init_start_python() {
     } else if (!this->update_done) {
         this->update_done = true;
         //try to check last version on website
-        //it's async so maybe you won't update it in time, but it's not the end of the world. 
+        //it's async so maybe you won't update it in time, but it's not the end of the world.
         const boost::filesystem::path pyscad_path = scripts_path / "FreePySCAD";
         std::function<void(FreeCADDialog*, std::string&)> truc = &FreeCADDialog::test_update_script_file;
         get_string_from_web_async("https://api.github.com/repos/supermerill/FreePySCAD/commits/master", this, &FreeCADDialog::test_update_script_file);
@@ -854,7 +854,7 @@ bool FreeCADDialog::init_start_python() {
 #endif
 #ifdef __linux__
     exec_var->pyin << "set_font_dir([\"/usr/share/fonts/\",\"~/.fonts/\"])" << std::endl;
-    // also add 
+    // also add
 #endif
 
     return true;
@@ -931,11 +931,11 @@ void FreeCADDialog::create_geometry(wxCommandEvent& event_args) {
             boost::filesystem::path temp_stl(Slic3r::data_dir());
             temp_stl = temp_stl / "temp" / ss.str();
             TriangleMesh mesh = (idx_plater_obj == 0) ? this->main_frame->plater()->model().mesh() : this->main_frame->plater()->model().objects[idx_plater_obj - 1]->mesh();
-            Slic3r::store_stl(temp_stl.generic_string().c_str(), 
+            Slic3r::store_stl(temp_stl.generic_string().c_str(),
                 &mesh,
                 true);
         } else {
-            m_errors->AppendText("Error, cannot find object " + std::to_string(idx_plater_obj) 
+            m_errors->AppendText("Error, cannot find object " + std::to_string(idx_plater_obj)
                 + ", there is only "+ std::to_string(this->main_frame->plater()->model().objects.size()) +" objects!");
             return;
         }
@@ -967,7 +967,7 @@ void FreeCADDialog::create_geometry(wxCommandEvent& event_args) {
     boost::replace_all(cleaned, "Type \"help\", \"copyright\", \"credits\" or \"license\" for more information.\n", "");
     boost::replace_all(cleaned, "\n\n", "\n");
     m_errors->AppendText(cleaned);
-    
+
     if (!exists(object_path)) {
         m_errors->AppendText("\nError, no object generated.");
         return;

@@ -27,8 +27,8 @@ IGL_INLINE void igl::AtA_cached_precompute(
   for (unsigned k=0; k<A.outerSize(); ++k)
   {
     unsigned outer_index = *(A.outerIndexPtr()+k);
-    unsigned next_outer_index = (k+1 == A.outerSize()) ? A.nonZeros() : *(A.outerIndexPtr()+k+1); 
-    
+    unsigned next_outer_index = (k+1 == A.outerSize()) ? A.nonZeros() : *(A.outerIndexPtr()+k+1);
+
     for (unsigned l=outer_index; l<next_outer_index; ++l)
     {
       int col = k;
@@ -67,8 +67,8 @@ IGL_INLINE void igl::AtA_cached_precompute(
   for (unsigned k=0; k<AtA.outerSize(); ++k)
   {
     unsigned outer_index = *(AtA.outerIndexPtr()+k);
-    unsigned next_outer_index = (k+1 == AtA.outerSize()) ? AtA.nonZeros() : *(AtA.outerIndexPtr()+k+1); 
-    
+    unsigned next_outer_index = (k+1 == AtA.outerSize()) ? AtA.nonZeros() : *(AtA.outerIndexPtr()+k+1);
+
     for (unsigned l=outer_index; l<next_outer_index; ++l)
     {
       int col = k;
@@ -95,7 +95,7 @@ IGL_INLINE void igl::AtA_cached_precompute(
             data.I_w.push_back(Col_RowPtr[col][j]);
             ++i;
             ++j;
-          } else 
+          } else
           if (Col_RowPtr[row][i] > Col_RowPtr[col][j])
             ++j;
           else

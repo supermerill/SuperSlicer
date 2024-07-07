@@ -3,205 +3,205 @@
 <meta content="IE=edge" http-equiv="X-UA-Compatible" />
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type" />
 <title>CMD: QUERY -  - Atmel EDBG-based Tools Protocols</title><meta content="DocBook XSL Stylesheets V1.78.1" name="generator" /><link rel="home" href="index.html" title="Atmel EDBG-based Tools Protocols" /><link rel="up" href="ch04s05.html" title="Housekeeping Protocol" /><link rel="prev" href="ch04s05.html" title="Housekeeping Protocol" /><link rel="next" href="section_i5v_3yz_rl.html" title="Housekeeping QUERY contexts" /><meta content="CMD: QUERY" name="Section-title" /><script type="text/javascript">
-			//The id for tree cookie
-			var treeCookieId = "treeview-10619";
-			var language = "en";
-			var w = new Object();
-			//Localization
-			txt_filesfound = 'Results';
-			txt_enter_at_least_1_char = "You must enter at least one character.";
-			txt_browser_not_supported = "JavaScript is disabled on your browser. Please enable JavaScript to enjoy all the features of this site.";
-			txt_please_wait = "Please wait. Search in progress...";
-			txt_results_for = "Results for: ";
-		</script><link type="image/x-icon" href="../favicon.ico" rel="shortcut icon" /><link href="../common/css/positioning.css" type="text/css" rel="stylesheet" /><link href="../common/jquery/theme-redmond/jquery-ui-1.8.2.custom.css" type="text/css" rel="stylesheet" /><link href="../common/jquery/treeview/jquery.treeview.css" type="text/css" rel="stylesheet" /><style type="text/css">
-			#noscript{
-			font-weight:bold;
-			background-color:#55AA55;
-			font-weight:bold;
-			height:25spx;
-			z-index:3000;
-			top:0px;
-			width:100%;
-			position:relative;
-			border-bottom:solid 5px black;
-			text-align:center;
-			color:white;
-			}
-			
-			input{
-			margin-bottom:5px;
-			margin-top:2px;
-			}
-			.folder{
-			display:block;
-			height:22px;
-			padding-left:20px;
-			background:transparent url(../common/jquery/treeview/images/folder.gif) 0 0px no-repeat;
-			}
-			.dochome{
-			display:block;
-			margin:10px 0 0 0;
-			padding-left:20px;
-			background:transparent url(../common/images/Library.png) 0 0px no-repeat;
-			}
-			.root{
-			display:block;
-			margin:10px 0 0 2px;
-			padding-left:20px;
-			background:transparent url(../common/images/Book_Open.png) 0 0px no-repeat;
-			}
-			.dochome a,
-			.root a {
-			text-decoration:none;
-			font-size:12px;
-			color:#517291;
-			}
-			span.contentsTab{
-			padding-left:20px;
-			background:url(../common/images/toc-icon.png) no-repeat 0 center;
-			}
-			span.searchTab{
-			padding-left:20px;
-			background:url(../common/images/search-icon.png) no-repeat 0 center;
-			}
-			
-			/* Overide jquery treeview's defaults for ul. */
-			.treeview ul{
-			background-color:transparent;
-			margin-top:4px;
-			}
-			#webhelp-currentid{
-			background-color:#D8D8D8 !important;
-			}
-			.treeview .hover{
-			color:black;
-			}
-			.filetree li span a{
-			text-decoration:none;
-			font-size:12px;
-			color:#517291;
-			}
-			
-			.filetree span.file {
-			background: url(../common/images/Document_Text.png) 0 0 no-repeat;
-			}
-			
-			/* Override jquery-ui's default css customizations. These are supposed to take precedence over those.*/
-			.ui-widget-content{
-			border:0px;
-			background:none;
-			color:none;
-			}
-			.ui-widget-header{
-			color:#e9e8e9;
-			border-left:1px solid #e5e5e5;
-			border-right:1px solid #e5e5e5;
-			border-bottom:1px solid #bbc4c5;
-			border-top:4px solid #e5e5e5;
-			border:medium none;
-			background:#F4F4F4; /* old browsers */
-			background:-moz-linear-gradient(top, #F4F4F4 0%, #E6E4E5 100%); /* firefox */
-			background:-webkit-gradient(linear, left top, left bottom, color-stop(0%, #F4F4F4), color-stop(100%, #E6E4E5)); /* webkit */
-			font-weight:none;
-			}
-			.ui-widget-header a{
-			color:none;
-			}
-			.ui-state-default,
-			.ui-widget-content .ui-state-default,
-			.ui-widget-header .ui-state-default{
-			border:none;
-			background:none;
-			font-weight:none;
-			color:none;
-			}
-			.ui-state-default a,
-			.ui-state-default a:link,
-			.ui-state-default a:visited{
-			color:black;
-			text-decoration:none;
-			}
-			.ui-state-hover,
-			.ui-widget-content .ui-state-hover,
-			.ui-widget-header .ui-state-hover,
-			.ui-state-focus,
-			.ui-widget-content .ui-state-focus,
-			.ui-widget-header .ui-state-focus{
-			border:none;
-			background:none;
-			font-weight:none;
-			color:none;
-			}
-			
-			.ui-state-active,
-			.ui-widget-content .ui-state-active,
-			.ui-widget-header .ui-state-active{
-			border:none;
-			background:none;
-			font-weight:none;
-			color:none;
-			}
-			.ui-state-active a,
-			.ui-state-active a:link,
-			.ui-state-active a:visited{
-			color:black;
-			text-decoration:none;
-			background:#C6C6C6; /* old browsers */
-			background:-moz-linear-gradient(top, #C6C6C6 0%, #D8D8D8 100%); /* firefox */
-			background:-webkit-gradient(linear, left top, left bottom, color-stop(0%, #C6C6C6), color-stop(100%, #D8D8D8)); /* webkit */
-			-webkit-border-radius:15px;
-			-moz-border-radius:10px;
-			border:1px solid #f1f1f1;
-			}
-			.ui-corner-all{
-			border-radius:0 0 0 0;
-			}
-			
-			.ui-tabs{
-			padding:.2em;
-			}
-			.ui-tabs .ui-tabs-panel {
-			padding-top: 6px;
-			}
-			.ui-tabs .ui-tabs-nav li{
-			top:0px;
-			margin:-2px 0 1px;
-			text-transform:uppercase;
-			font-size:10.5px;
-			}
-			.ui-tabs .ui-tabs-nav li a{
-			padding:.25em 2em .25em 1em;
-			margin:.5em;
-			text-shadow:0 1px 0 rgba(255, 255, 255, .5);
-			}
-			/**
-			*	Basic Layout Theme
-			* 
-			*	This theme uses the default layout class-names for all classes
-			*	Add any 'custom class-names', from options: paneClass, resizerClass, togglerClass
-			*/
-			
-			.ui-layout-resizer{ /* all 'resizer-bars' */
-			background:#DDD;
-			top:100px
-			}
-			
-			.ui-layout-toggler{ /* all 'toggler-buttons' */
-			background:#AAA;
-			}
-		</style><!--[if IE]>
-	<link rel="stylesheet" type="text/css" href="../common/css/ie.css"/>
-	<![endif]--><script src="../common/browserDetect.js" type="text/javascript"><!----></script><script src="../common/jquery/jquery-1.7.2.min.js" type="text/javascript"><!----></script><script src="../common/jquery/jquery.ui.all.js" type="text/javascript"><!----></script><script src="../common/jquery/jquery.cookie.js" type="text/javascript"><!----></script><script src="../common/jquery/treeview/jquery.treeview.min.js" type="text/javascript"><!----></script><script src="../common/jquery/layout/jquery.layout.js" type="text/javascript"><!----></script><script src="search/l10n.js" type="text/javascript"><!----></script><script src="search/htmlFileInfoList.js" type="text/javascript"><!----></script><script src="search/nwSearchFnt.js" type="text/javascript"><!----></script><script src="search/stemmers/en_stemmer.js" type="text/javascript" /><script src="search/index-1.js" type="text/javascript"><!----></script><script src="search/index-2.js" type="text/javascript"><!----></script><script src="search/index-3.js" type="text/javascript"><!----></script><meta name="date" content="" /><meta name="dc.date.created" content="" /><link rel="stylesheet" type="text/css" href="../common/css/docbook.css" /><link media="print" rel="stylesheet" type="text/css" href="../common/css/print.css" /><script type="text/javascript">
-				  var _gaq = _gaq || [];
-				  _gaq.push(['_setAccount', 'UA-41389295-1']);
-				  _gaq.push(['_trackPageview']);
+            //The id for tree cookie
+            var treeCookieId = "treeview-10619";
+            var language = "en";
+            var w = new Object();
+            //Localization
+            txt_filesfound = 'Results';
+            txt_enter_at_least_1_char = "You must enter at least one character.";
+            txt_browser_not_supported = "JavaScript is disabled on your browser. Please enable JavaScript to enjoy all the features of this site.";
+            txt_please_wait = "Please wait. Search in progress...";
+            txt_results_for = "Results for: ";
+        </script><link type="image/x-icon" href="../favicon.ico" rel="shortcut icon" /><link href="../common/css/positioning.css" type="text/css" rel="stylesheet" /><link href="../common/jquery/theme-redmond/jquery-ui-1.8.2.custom.css" type="text/css" rel="stylesheet" /><link href="../common/jquery/treeview/jquery.treeview.css" type="text/css" rel="stylesheet" /><style type="text/css">
+            #noscript{
+            font-weight:bold;
+            background-color:#55AA55;
+            font-weight:bold;
+            height:25spx;
+            z-index:3000;
+            top:0px;
+            width:100%;
+            position:relative;
+            border-bottom:solid 5px black;
+            text-align:center;
+            color:white;
+            }
 
-				  (function() {
-					var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
-					ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
-					var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
-				  })();
-		</script></head><body><noscript><link rel="stylesheet" type="text/css" href="../common/css/print.css" /><div id="noscript">JavaScript is disabled on your browser. Please enable JavaScript to enjoy all the features of this site.</div></noscript><div id="header"><a href="http://www.atmel.com/webdoc"><img id="logo" alt="Atmel Logo" src="../common/images/logo.png" /></a><h1>Atmel EDBG-based Tools Protocols<br />Housekeeping Protocol</h1><div id="navheader"><!----><table class="navLinks"><tr><td><a title="Hide TOC tree" tabindex="5" class="pointLeft" onclick="myLayout.toggle('west')" href="#" id="showHideButton">Sidebar
+            input{
+            margin-bottom:5px;
+            margin-top:2px;
+            }
+            .folder{
+            display:block;
+            height:22px;
+            padding-left:20px;
+            background:transparent url(../common/jquery/treeview/images/folder.gif) 0 0px no-repeat;
+            }
+            .dochome{
+            display:block;
+            margin:10px 0 0 0;
+            padding-left:20px;
+            background:transparent url(../common/images/Library.png) 0 0px no-repeat;
+            }
+            .root{
+            display:block;
+            margin:10px 0 0 2px;
+            padding-left:20px;
+            background:transparent url(../common/images/Book_Open.png) 0 0px no-repeat;
+            }
+            .dochome a,
+            .root a {
+            text-decoration:none;
+            font-size:12px;
+            color:#517291;
+            }
+            span.contentsTab{
+            padding-left:20px;
+            background:url(../common/images/toc-icon.png) no-repeat 0 center;
+            }
+            span.searchTab{
+            padding-left:20px;
+            background:url(../common/images/search-icon.png) no-repeat 0 center;
+            }
+
+            /* Overide jquery treeview's defaults for ul. */
+            .treeview ul{
+            background-color:transparent;
+            margin-top:4px;
+            }
+            #webhelp-currentid{
+            background-color:#D8D8D8 !important;
+            }
+            .treeview .hover{
+            color:black;
+            }
+            .filetree li span a{
+            text-decoration:none;
+            font-size:12px;
+            color:#517291;
+            }
+
+            .filetree span.file {
+            background: url(../common/images/Document_Text.png) 0 0 no-repeat;
+            }
+
+            /* Override jquery-ui's default css customizations. These are supposed to take precedence over those.*/
+            .ui-widget-content{
+            border:0px;
+            background:none;
+            color:none;
+            }
+            .ui-widget-header{
+            color:#e9e8e9;
+            border-left:1px solid #e5e5e5;
+            border-right:1px solid #e5e5e5;
+            border-bottom:1px solid #bbc4c5;
+            border-top:4px solid #e5e5e5;
+            border:medium none;
+            background:#F4F4F4; /* old browsers */
+            background:-moz-linear-gradient(top, #F4F4F4 0%, #E6E4E5 100%); /* firefox */
+            background:-webkit-gradient(linear, left top, left bottom, color-stop(0%, #F4F4F4), color-stop(100%, #E6E4E5)); /* webkit */
+            font-weight:none;
+            }
+            .ui-widget-header a{
+            color:none;
+            }
+            .ui-state-default,
+            .ui-widget-content .ui-state-default,
+            .ui-widget-header .ui-state-default{
+            border:none;
+            background:none;
+            font-weight:none;
+            color:none;
+            }
+            .ui-state-default a,
+            .ui-state-default a:link,
+            .ui-state-default a:visited{
+            color:black;
+            text-decoration:none;
+            }
+            .ui-state-hover,
+            .ui-widget-content .ui-state-hover,
+            .ui-widget-header .ui-state-hover,
+            .ui-state-focus,
+            .ui-widget-content .ui-state-focus,
+            .ui-widget-header .ui-state-focus{
+            border:none;
+            background:none;
+            font-weight:none;
+            color:none;
+            }
+
+            .ui-state-active,
+            .ui-widget-content .ui-state-active,
+            .ui-widget-header .ui-state-active{
+            border:none;
+            background:none;
+            font-weight:none;
+            color:none;
+            }
+            .ui-state-active a,
+            .ui-state-active a:link,
+            .ui-state-active a:visited{
+            color:black;
+            text-decoration:none;
+            background:#C6C6C6; /* old browsers */
+            background:-moz-linear-gradient(top, #C6C6C6 0%, #D8D8D8 100%); /* firefox */
+            background:-webkit-gradient(linear, left top, left bottom, color-stop(0%, #C6C6C6), color-stop(100%, #D8D8D8)); /* webkit */
+            -webkit-border-radius:15px;
+            -moz-border-radius:10px;
+            border:1px solid #f1f1f1;
+            }
+            .ui-corner-all{
+            border-radius:0 0 0 0;
+            }
+
+            .ui-tabs{
+            padding:.2em;
+            }
+            .ui-tabs .ui-tabs-panel {
+            padding-top: 6px;
+            }
+            .ui-tabs .ui-tabs-nav li{
+            top:0px;
+            margin:-2px 0 1px;
+            text-transform:uppercase;
+            font-size:10.5px;
+            }
+            .ui-tabs .ui-tabs-nav li a{
+            padding:.25em 2em .25em 1em;
+            margin:.5em;
+            text-shadow:0 1px 0 rgba(255, 255, 255, .5);
+            }
+            /**
+            *    Basic Layout Theme
+            *
+            *    This theme uses the default layout class-names for all classes
+            *    Add any 'custom class-names', from options: paneClass, resizerClass, togglerClass
+            */
+
+            .ui-layout-resizer{ /* all 'resizer-bars' */
+            background:#DDD;
+            top:100px
+            }
+
+            .ui-layout-toggler{ /* all 'toggler-buttons' */
+            background:#AAA;
+            }
+        </style><!--[if IE]>
+    <link rel="stylesheet" type="text/css" href="../common/css/ie.css"/>
+    <![endif]--><script src="../common/browserDetect.js" type="text/javascript"><!----></script><script src="../common/jquery/jquery-1.7.2.min.js" type="text/javascript"><!----></script><script src="../common/jquery/jquery.ui.all.js" type="text/javascript"><!----></script><script src="../common/jquery/jquery.cookie.js" type="text/javascript"><!----></script><script src="../common/jquery/treeview/jquery.treeview.min.js" type="text/javascript"><!----></script><script src="../common/jquery/layout/jquery.layout.js" type="text/javascript"><!----></script><script src="search/l10n.js" type="text/javascript"><!----></script><script src="search/htmlFileInfoList.js" type="text/javascript"><!----></script><script src="search/nwSearchFnt.js" type="text/javascript"><!----></script><script src="search/stemmers/en_stemmer.js" type="text/javascript" /><script src="search/index-1.js" type="text/javascript"><!----></script><script src="search/index-2.js" type="text/javascript"><!----></script><script src="search/index-3.js" type="text/javascript"><!----></script><meta name="date" content="" /><meta name="dc.date.created" content="" /><link rel="stylesheet" type="text/css" href="../common/css/docbook.css" /><link media="print" rel="stylesheet" type="text/css" href="../common/css/print.css" /><script type="text/javascript">
+                  var _gaq = _gaq || [];
+                  _gaq.push(['_setAccount', 'UA-41389295-1']);
+                  _gaq.push(['_trackPageview']);
+
+                  (function() {
+                    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+                    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+                    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+                  })();
+        </script></head><body><noscript><link rel="stylesheet" type="text/css" href="../common/css/print.css" /><div id="noscript">JavaScript is disabled on your browser. Please enable JavaScript to enjoy all the features of this site.</div></noscript><div id="header"><a href="http://www.atmel.com/webdoc"><img id="logo" alt="Atmel Logo" src="../common/images/logo.png" /></a><h1>Atmel EDBG-based Tools Protocols<br />Housekeeping Protocol</h1><div id="navheader"><!----><table class="navLinks"><tr><td><a title="Hide TOC tree" tabindex="5" class="pointLeft" onclick="myLayout.toggle('west')" href="#" id="showHideButton">Sidebar
                             </a></td><td><a tabindex="5" class="navLinkPrevious" accesskey="p" href="ch04s05.html">Prev</a>
                                         |
                                         <a tabindex="5" class="navLinkUp" accesskey="u" href="ch04s05.html">Up</a>

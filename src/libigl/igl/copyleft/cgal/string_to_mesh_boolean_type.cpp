@@ -3,14 +3,14 @@
 #include <cassert>
 #include <vector>
 
-IGL_INLINE bool igl::copyleft::cgal::string_to_mesh_boolean_type( 
+IGL_INLINE bool igl::copyleft::cgal::string_to_mesh_boolean_type(
   const std::string & s,
   MeshBooleanType & type)
 {
   using namespace std;
   string eff_s = s;
   transform(eff_s.begin(), eff_s.end(), eff_s.begin(), ::tolower);
-  const auto & find_any = 
+  const auto & find_any =
     [](const vector<string> & haystack, const string & needle)->bool
   {
     return find(haystack.begin(), haystack.end(), needle) != haystack.end();
@@ -39,13 +39,13 @@ IGL_INLINE bool igl::copyleft::cgal::string_to_mesh_boolean_type(
   return true;
 }
 
-IGL_INLINE igl::MeshBooleanType 
-igl::copyleft::cgal::string_to_mesh_boolean_type( 
+IGL_INLINE igl::MeshBooleanType
+igl::copyleft::cgal::string_to_mesh_boolean_type(
   const std::string & s)
 {
   MeshBooleanType type;
 #ifndef NDEBUG
-  const bool ret = 
+  const bool ret =
 #endif
     string_to_mesh_boolean_type(s,type);
   assert(ret && "Unknown MeshBooleanType name");

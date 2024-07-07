@@ -139,7 +139,7 @@ public:
         m_data.clear();
         m_head      = IndexType(-1);
         m_head_free = { IndexType(-1) };
-        this->assign_inner(begin, end, reserve);  
+        this->assign_inner(begin, end, reserve);
     };
 
     void assign(const Polygon &rhs, size_t reserve = 0) {
@@ -285,8 +285,8 @@ private:
     */
 };
 
-inline bool operator==(const MutablePolygon &p1, const MutablePolygon &p2) 
-{ 
+inline bool operator==(const MutablePolygon &p1, const MutablePolygon &p2)
+{
     if (p1.size() != p2.size())
         return false;
     if (p1.empty())
@@ -334,7 +334,7 @@ inline ExPolygons remove_duplicates(ExPolygons expolygons, coord_t scaled_eps, d
 void smooth_outward(MutablePolygon &polygon, coord_t clip_dist_scaled);
 
 inline Polygon smooth_outward(Polygon polygon, coord_t clip_dist_scaled)
-{ 
+{
     MutablePolygon mp(polygon, polygon.size() * 2);
     smooth_outward(mp, clip_dist_scaled);
     mp.polygon(polygon);
@@ -342,7 +342,7 @@ inline Polygon smooth_outward(Polygon polygon, coord_t clip_dist_scaled)
 }
 
 inline Polygons smooth_outward(Polygons polygons, coord_t clip_dist_scaled)
-{ 
+{
     MutablePolygon mp;
     for (Polygon &polygon : polygons) {
         mp.assign(polygon, polygon.size() * 2);

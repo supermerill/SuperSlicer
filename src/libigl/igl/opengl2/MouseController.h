@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_OPENGL2_MOUSECONTROLLER_H
 #define IGL_OPENGL2_MOUSECONTROLLER_H
@@ -56,7 +56,7 @@ namespace igl
           NUM_WIDGET_MODES = 2,
         };
       private:
-        // m_is_selecting  whether currently selecting 
+        // m_is_selecting  whether currently selecting
         // m_selection  #m_rotations list of whether a bone is selected
         // m_down_x  x-coordinate of mouse location at down
         // m_down_y  y-coordinate 〃
@@ -84,13 +84,13 @@ namespace igl
           Eigen::Quaterniond,
           Eigen::aligned_allocator<Eigen::Quaterniond> > RotationList;
         typedef std::vector< Eigen::Vector3d > TranslationList;
-        RotationList 
+        RotationList
           m_rotations,
           m_rotations_at_selection,
           m_fk_rotations_at_selection,
           m_parent_rotations_at_selection;
-        TranslationList 
-          m_translations, 
+        TranslationList
+          m_translations,
           m_translations_at_selection,
           m_fk_translations_at_selection;
         bool m_root_enabled;
@@ -113,7 +113,7 @@ namespace igl
         //
         // Inputs:
         //   x  x-coordinate of mouse click with respect to container
-        //   y  y-coordinate 〃 
+        //   y  y-coordinate 〃
         // Returns true if accepted (action taken).
         inline bool down(const int x, const int y);
         inline bool drag(const int x, const int y);
@@ -248,10 +248,10 @@ inline bool igl::opengl2::MouseController::down(const int x, const int y)
   using namespace std;
   m_down_x = m_drag_x =x;
   m_down_y = m_drag_y =y;
-  const bool widget_down = any_selection() && 
+  const bool widget_down = any_selection() &&
     (
      (m_widget_mode == WIDGET_MODE_ROTATE && m_widget.down(x,m_height-y)) ||
-     (m_widget_mode == WIDGET_MODE_TRANSLATE && 
+     (m_widget_mode == WIDGET_MODE_TRANSLATE &&
         m_trans_widget.down(x,m_height-y))
     );
   if(!widget_down)
@@ -289,9 +289,9 @@ inline bool igl::opengl2::MouseController::drag(const int x, const int y)
           if(m_selection(e))
           {
             // Let:
-            //     w.θr = w.θ ⋅ w.θ₀*  
+            //     w.θr = w.θ ⋅ w.θ₀*
             // w.θr takes (absolute) frame of w.θ₀ to w.θ:
-            //     w.θ = w.θr ⋅ w.θ₀ 
+            //     w.θ = w.θr ⋅ w.θ₀
             // Define:
             //     w.θ₀ = θfk ⋅ θx,
             // the absolute rotation of the x axis to the deformed bone at
@@ -313,9 +313,9 @@ inline bool igl::opengl2::MouseController::drag(const int x, const int y)
             // frame.
             //
             const Quaterniond & frame = m_fk_rotations_at_selection[e];
-            m_rotations[e] = 
+            m_rotations[e] =
               m_rotations_at_selection[e] *
-              frame.conjugate() * 
+              frame.conjugate() *
               (m_widget.rot*m_widget_rot_at_selection.conjugate()) *
               frame;
           }
@@ -334,8 +334,8 @@ inline bool igl::opengl2::MouseController::drag(const int x, const int y)
         {
           if(m_selection(e))
           {
-            m_translations[e] = 
-              m_translations_at_selection[e] + 
+            m_translations[e] =
+              m_translations_at_selection[e] +
               m_parent_rotations_at_selection[e].conjugate()*
                 m_trans_widget.m_trans;
           }
@@ -451,7 +451,7 @@ inline void igl::opengl2::MouseController::set_selection(
 {
   using namespace Eigen;
   using namespace std;
-  vector<Quaterniond,aligned_allocator<Quaterniond> > & vQ = 
+  vector<Quaterniond,aligned_allocator<Quaterniond> > & vQ =
     m_fk_rotations_at_selection;
   vector<Vector3d> & vT = m_fk_translations_at_selection;
   forward_kinematics(C,BE,P,m_rotations,m_translations,vQ,vT);
@@ -522,7 +522,7 @@ inline void igl::opengl2::MouseController::set_selection(
   // Now selection should contain just bone roots of m_selection subtrees
   if(m_selection.array().any())
   {
-    // Taking average 
+    // Taking average
     Vector3d avg_pos(0,0,0);
     //m_trans_widget_trans_at_selection.setConstant(0);
     m_widget_rot_at_selection.coeffs().setConstant(0);

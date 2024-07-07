@@ -29,8 +29,8 @@ do
     touch foo.c
     if ${CC} -c foo.c 2> /dev/null
     then
-	rm -f foo.*
-	break
+    rm -f foo.*
+    break
     fi
 done
 tgt=$(expr "$CC" : "\(.*\)-gcc")

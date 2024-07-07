@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_PARULA_H
 #define IGL_PARULA_H
@@ -16,7 +16,7 @@ namespace igl
   // PARULA like MATLAB's parula
   //
   // Inputs:
-  //   m  number of colors 
+  //   m  number of colors
   // Outputs:
   //   J  m by list of RGB colors between 0 and 1
   //
@@ -34,7 +34,7 @@ namespace igl
   template <typename T>
   IGL_INLINE void parula(const T f, T & r, T & g, T & b);
   // Inputs:
-  //   Z  #Z list of factors 
+  //   Z  #Z list of factors
   //   normalize  whether to normalize Z to be tightly between [0,1]
   // Outputs:
   //   C  #C by 3 list of rgb colors
@@ -53,7 +53,7 @@ namespace igl
     const double max_Z,
     Eigen::PlainObjectBase<DerivedC> & C);
 };
-  
+
 #ifndef IGL_STATIC_LIBRARY
 #  include "parula.cpp"
 #endif

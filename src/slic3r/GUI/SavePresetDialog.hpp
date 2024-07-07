@@ -22,7 +22,7 @@ class SavePresetDialog : public DPIDialog
     {
         ChangePreset,
         AddPreset,
-        Switch, 
+        Switch,
         UndefAction
     };
 
@@ -47,7 +47,7 @@ class SavePresetDialog : public DPIDialog
     private:
         Preset::Type    m_type;
         ValidationType  m_valid_type;
-        std::string		m_preset_name;
+        std::string        m_preset_name;
 
         SavePresetDialog*   m_parent        {nullptr};
         wxStaticBitmap*     m_valid_bmp     {nullptr};
@@ -63,7 +63,7 @@ class SavePresetDialog : public DPIDialog
 
     wxBoxSizer*         m_presets_sizer     {nullptr};
     wxStaticText*       m_label             {nullptr};
-    wxBoxSizer*         m_radio_sizer       {nullptr};  
+    wxBoxSizer*         m_radio_sizer       {nullptr};
     ActionType          m_action            {UndefAction};
 
     std::string         m_ph_printer_name;

@@ -49,15 +49,15 @@ static struct termios oldmode;
 /*
   serial port/pin mapping
 
-  1	cd	<-
-  2	(rxd)	<-
-  3	txd	->
-  4	dtr	->
-  5	GND
-  6	dsr	<-
-  7	rts	->
-  8	cts	<-
-  9	ri	<-
+  1    cd    <-
+  2    (rxd)    <-
+  3    txd    ->
+  4    dtr    ->
+  5    GND
+  6    dsr    <-
+  7    rts    ->
+  8    cts    <-
+  9    ri    <-
 */
 
 #define DB9PINS 9
@@ -72,7 +72,7 @@ static char *serpins[DB9PINS + 1] =
 
 static int serbb_setpin(PROGRAMMER * pgm, int pinfunc, int value)
 {
-  unsigned int	ctl;
+  unsigned int    ctl;
   int           r;
   int pin = pgm->pinno[pinfunc]; // get its value
 
@@ -92,29 +92,29 @@ static int serbb_setpin(PROGRAMMER * pgm, int pinfunc, int value)
   switch ( pin )
   {
     case 3:  /* txd */
-	     r = ioctl(pgm->fd.ifd, value ? TIOCSBRK : TIOCCBRK, 0);
-	     if (r < 0) {
-	       perror("ioctl(\"TIOCxBRK\")");
-	       return -1;
-	     }
+         r = ioctl(pgm->fd.ifd, value ? TIOCSBRK : TIOCCBRK, 0);
+         if (r < 0) {
+           perror("ioctl(\"TIOCxBRK\")");
+           return -1;
+         }
              break;
 
     case 4:  /* dtr */
     case 7:  /* rts */
              r = ioctl(pgm->fd.ifd, TIOCMGET, &ctl);
- 	     if (r < 0) {
-	       perror("ioctl(\"TIOCMGET\")");
-	       return -1;
- 	     }
+          if (r < 0) {
+           perror("ioctl(\"TIOCMGET\")");
+           return -1;
+          }
              if ( value )
                ctl |= serregbits[pin];
              else
                ctl &= ~(serregbits[pin]);
-	     r = ioctl(pgm->fd.ifd, TIOCMSET, &ctl);
- 	     if (r < 0) {
-	       perror("ioctl(\"TIOCMSET\")");
-	       return -1;
- 	     }
+         r = ioctl(pgm->fd.ifd, TIOCMSET, &ctl);
+          if (r < 0) {
+           perror("ioctl(\"TIOCMSET\")");
+           return -1;
+          }
              break;
 
     default: /* impossible */
@@ -129,7 +129,7 @@ static int serbb_setpin(PROGRAMMER * pgm, int pinfunc, int value)
 
 static int serbb_getpin(PROGRAMMER * pgm, int pinfunc)
 {
-  unsigned int	ctl;
+  unsigned int    ctl;
   unsigned char invert;
   int           r;
   int pin = pgm->pinno[pinfunc]; // get its value
@@ -154,10 +154,10 @@ static int serbb_getpin(PROGRAMMER * pgm, int pinfunc)
     case 8:  /* cts */
     case 9:  /* ri  */
              r = ioctl(pgm->fd.ifd, TIOCMGET, &ctl);
- 	     if (r < 0) {
-	       perror("ioctl(\"TIOCMGET\")");
-	       return -1;
- 	     }
+          if (r < 0) {
+           perror("ioctl(\"TIOCMGET\")");
+           return -1;
+          }
              if ( !invert )
              {
 #ifdef DEBUG
@@ -262,14 +262,14 @@ static int serbb_open(PROGRAMMER *pgm, char *port)
   if (flags == -1)
     {
       avrdude_message(MSG_INFO, "%s: Can not get flags: %s\n",
-	      progname, strerror(errno));
+          progname, strerror(errno));
       return(-1);
     }
   flags &= ~O_NONBLOCK;
   if (fcntl(pgm->fd.ifd, F_SETFL, flags) == -1)
     {
       avrdude_message(MSG_INFO, "%s: Can not clear nonblock flag: %s\n",
-	      progname, strerror(errno));
+          progname, strerror(errno));
       return(-1);
     }
 
@@ -280,9 +280,9 @@ static void serbb_close(PROGRAMMER *pgm)
 {
   if (pgm->fd.ifd != -1)
   {
-	  (void)tcsetattr(pgm->fd.ifd, TCSANOW, &oldmode);
-	  pgm->setpin(pgm, PIN_AVR_RESET, 1);
-	  close(pgm->fd.ifd);
+      (void)tcsetattr(pgm->fd.ifd, TCSANOW, &oldmode);
+      pgm->setpin(pgm, PIN_AVR_RESET, 1);
+      close(pgm->fd.ifd);
   }
   return;
 }

@@ -93,7 +93,7 @@ if (SLIC3R_GUI)
         list(FILTER wxWidgets_LIBRARIES EXCLUDE REGEX expat)
         list(APPEND wxWidgets_LIBRARIES libexpat)
     endif ()
-    
+
     # This is an issue in the new wxWidgets cmake build, doesn't deal with librt
     find_library(LIBRT rt)
     if(LIBRT)
@@ -176,10 +176,10 @@ target_link_libraries(Slic3r libslic3r_gui)
     endif ()
     if (WIN32)
         find_library(PSAPI_LIB NAMES Psapi)
-		if(NOT PSAPI_LIB)
+        if(NOT PSAPI_LIB)
             message("WARNING: Psapi can't be find, trying again with hint to ${CMAKE_WINDOWS_KITS_10_DIR}/Lib/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/um/x64")
-			find_library(PSAPI_LIB Psapi PATH "${CMAKE_WINDOWS_KITS_10_DIR}/Lib/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/um/x64")
-		endif()
+            find_library(PSAPI_LIB Psapi PATH "${CMAKE_WINDOWS_KITS_10_DIR}/Lib/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/um/x64")
+        endif()
         target_link_libraries(Slic3r ${PSAPI_LIB})
     endif ()
 endif ()
@@ -190,7 +190,7 @@ if (WIN32)
     if (MINGW)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -municode")
     endif()
-	
+
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/libslic3r/libslic3r_version.h.in ${CMAKE_CURRENT_BINARY_DIR}/libslic3r_version.h @ONLY)
 
     add_executable(Slic3r_app_gui WIN32 PrusaSlicer_app_msvc.cpp ${CMAKE_CURRENT_BINARY_DIR}/${SLIC3R_APP_KEY}.rc)
@@ -216,7 +216,7 @@ if (WIN32)
     target_link_libraries(Slic3r_app_console PRIVATE boost_headeronly)
 
     add_executable(PrusaSlicer_app_gcodeviewer WIN32 PrusaSlicer_app_msvc.cpp ${CMAKE_CURRENT_BINARY_DIR}/${SLIC3R_APP_KEY}-gcodeviewer.rc ${CMAKE_CURRENT_BINARY_DIR}/libslic3r_version.h)
-	target_include_directories(PrusaSlicer_app_gcodeviewer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+    target_include_directories(PrusaSlicer_app_gcodeviewer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
     # Generate debug symbols even in release mode.
     if (MSVC)
         target_link_options(PrusaSlicer_app_gcodeviewer PUBLIC "$<$<CONFIG:RELEASE>:/DEBUG>")
@@ -287,7 +287,7 @@ else ()
     endif ()
      add_custom_command(TARGET Slic3r POST_BUILD
         # COMMAND ln -sfn "${SLIC3R_RESOURCES_DIR}" "${BIN_RESOURCES_DIR}" # make[3]: stat: src/Slic3r: Too many levels of symbolic links
-		 COMMAND cp -r "${SLIC3R_RESOURCES_DIR}" "${BIN_RESOURCES_DIR}"
+         COMMAND cp -r "${SLIC3R_RESOURCES_DIR}" "${BIN_RESOURCES_DIR}"
          COMMENT "Symlinking the resources directory into the build tree"
          VERBATIM)
 endif ()

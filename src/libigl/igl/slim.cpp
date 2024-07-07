@@ -404,7 +404,7 @@ namespace igl
       build_linear_system(s,L);
 
       igl::Timer t;
-      
+
       //t.start();
       // solve
       Eigen::VectorXd Uc;
@@ -499,7 +499,7 @@ namespace igl
     {
       // formula (35) in paper
       std::vector<Eigen::Triplet<double> > IJV;
-      
+
       #ifdef SLIM_CACHED
       buildA(s,IJV);
       if (s.A.rows() == 0)
@@ -538,7 +538,7 @@ namespace igl
       else
         igl::AtA_cached(s.A,s.AtA_data,s.AtA);
 
-      L = s.AtA + s.proximal_p * id_m; //add also a proximal 
+      L = s.AtA + s.proximal_p * id_m; //add also a proximal
       L.makeCompressed();
 
       #else
@@ -897,12 +897,12 @@ namespace igl
 /// Slim Implementation
 
 IGL_INLINE void igl::slim_precompute(
-  const Eigen::MatrixXd &V, 
-  const Eigen::MatrixXi &F, 
-  const Eigen::MatrixXd &V_init, 
+  const Eigen::MatrixXd &V,
+  const Eigen::MatrixXi &F,
+  const Eigen::MatrixXd &V_init,
   SLIMData &data,
-  SLIMData::SLIM_ENERGY slim_energy, 
-  Eigen::VectorXi &b, 
+  SLIMData::SLIM_ENERGY slim_energy,
+  Eigen::VectorXi &b,
   Eigen::MatrixXd &bc,
   double soft_p)
 {

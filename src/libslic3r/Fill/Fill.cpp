@@ -45,7 +45,7 @@ struct SurfaceFillParams : FillParams
 #define RETURN_COMPARE_NON_EQUAL_TYPED(TYPE, KEY) if (TYPE(this->KEY) < TYPE(rhs.KEY)) return true; if (TYPE(this->KEY) > TYPE(rhs.KEY)) return false;
 
         // Sort first by decreasing bridging angle, so that the bridges are processed with priority when trimming one layer by the other.
-        if (this->bridge_angle > rhs.bridge_angle) return true; 
+        if (this->bridge_angle > rhs.bridge_angle) return true;
         if (this->bridge_angle < rhs.bridge_angle) return false;
 
         RETURN_COMPARE_NON_EQUAL(bridge_type);
@@ -165,7 +165,7 @@ float compute_fill_angle(const PrintRegionConfig &region_config, size_t layer_id
     angle += region_config.fill_angle_increment.value * layer_id;
     // make compute in degre, then normalize and convert into rad.
     angle = float(Geometry::deg2rad(angle));
-    
+
     return angle;
 }
 
@@ -259,7 +259,7 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
                 params.bridge_angle = float(surface.bridge_angle);
                 params.angle         = (is_denser) ? 0 : compute_fill_angle(region_config, layerm.layer()->id());
                 params.can_angle_cross = region_config.fill_angle_cross;
-		        params.anchor_length = std::min(params.anchor_length, params.anchor_length_max);
+                params.anchor_length = std::min(params.anchor_length, params.anchor_length_max);
 
                 //adjust flow (to over-extrude when needed)
                 params.flow_mult = 1;
@@ -293,7 +293,7 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
                         layer.id()
                     );
                 }
-                
+
                 // Calculate flow spacing for infill pattern generation.
                 if (surface.has_fill_solid() || is_bridge) {
                     params.spacing = params.flow.spacing();
@@ -306,7 +306,7 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
                     // Internal infill. Calculating infill line spacing independent of the current layer height and 1st layer status,
                     // so that internall infill will be aligned over all layers of the current region.
                     //params.spacing = layerm.region().flow(*layer.object(), frInfill, layer.heigh, false).spacing();
-                    // it's internal infill, so we can calculate a generic flow spacing 
+                    // it's internal infill, so we can calculate a generic flow spacing
                     // for all layers, for avoiding the ugly effect of
                     // misaligned infill on first layer because of different extrusion width and
                     // layer height
@@ -326,7 +326,7 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
                     if (region_config.infill_anchor_max.percent)
                         params.anchor_length_max = float(params.anchor_length_max * 0.01 * params.spacing);
                     params.anchor_length = std::min(params.anchor_length, params.anchor_length_max);
-                    
+
                     //sparse infill, compute the max width if needed
                     if (region_config.fill_aligned_z) {
                         //don't use fill_aligned_z if the pattern can't use it.
@@ -458,7 +458,7 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
                     layer.height,         // extrusion height
                     layer.id()
                 );
-                params.spacing = params.flow.spacing();            
+                params.spacing = params.flow.spacing();
                 surface_fills.emplace_back(params);
                 surface_fills.back().surface.surface_type = (stPosInternal | stDensSolid);
                 surface_fills.back().surface.thickness = layer.height;
@@ -490,7 +490,7 @@ void export_group_fills_to_svg(const char *path, const std::vector<SurfaceFill> 
         for (const auto &expoly : fill.expolygons)
             svg.draw(expoly, surface_type_to_color_name(fill.surface.surface_type), transparency);
     export_surface_type_legend_to_svg(svg, legend_pos);
-    svg.Close(); 
+    svg.Close();
 }
 #endif
 
@@ -546,13 +546,13 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
     //surface_fills is sorted by region_id
     size_t current_region_id = -1;
     for (SurfaceFill &surface_fill : surface_fills) {
-        // store the region fill when changing region. 
+        // store the region fill when changing region.
         if (current_region_id != size_t(-1) && current_region_id != surface_fill.region_id) {
             store_fill(current_region_id);
         }
         current_region_id = surface_fill.region_id;
         const LayerRegion* layerm = this->m_regions[surface_fill.region_id];
-        
+
         // Create the filler object.
         std::unique_ptr<Fill> f = std::unique_ptr<Fill>(Fill::new_from_type(surface_fill.params.pattern));
         f->set_bounding_box(bbox);
@@ -582,7 +582,7 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         //FIXME FLOW decide if using surface_fill.params.flow.bridge() or surface_fill.params.bridge (default but deleted)
         //bool using_internal_flow = ! surface_fill.surface.has_fill_solid() && !surface_fill.params.flow.bridge();
         //init spacing, it may also use & modify a bit the surface_fill.params, so most of these should be set before.
-        // note that the bridge overlap is applied here via the rectilinear init_spacing. 
+        // note that the bridge overlap is applied here via the rectilinear init_spacing.
         f->init_spacing(surface_fill.params.spacing, surface_fill.params);
         double link_max_length = 0.;
         //FIXME FLOW decide if using surface_fill.params.flow.bridge() or surface_fill.params.bridge (default but deleted)
@@ -856,7 +856,7 @@ void Layer::make_ironing()
         // ironing flowrate (5% percent)
         // ironing speed (10 mm/sec)
 
-        // Kisslicer: 
+        // Kisslicer:
         // iron off, Sweep, Group
         // ironing speed: 15 mm/sec
 
@@ -875,9 +875,9 @@ void Layer::make_ironing()
         if (! layerm->slices().empty()) {
             IroningParams ironing_params;
             const PrintRegionConfig &config = layerm->region().config();
-            if (config.ironing && 
+            if (config.ironing &&
                 (config.ironing_type == IroningType::AllSolid ||
-                     (config.top_solid_layers > 0 && 
+                     (config.top_solid_layers > 0 &&
                         (config.ironing_type == IroningType::TopSurfaces ||
                          (config.ironing_type == IroningType::TopmostOnly && layerm->layer()->upper_layer == nullptr))))) {
                 if (config.perimeter_extruder == config.solid_infill_extruder || config.perimeters == 0) {
@@ -909,7 +909,7 @@ void Layer::make_ironing()
         }
     std::sort(by_extruder.begin(), by_extruder.end());
 
-    FillRectilinear 	fill;
+    FillRectilinear     fill;
     FillParams             fill_params;
     fill.set_bounding_box(this->object()->bounding_box());
     fill.layer_id           = this->id();
@@ -938,8 +938,8 @@ void Layer::make_ironing()
             Polygons infills;
             for (size_t k = i; k < j; ++k) {
                 const IroningParams& ironing_params = by_extruder[k];
-                bool					  iron_everything = region_config.ironing_type == IroningType::AllSolid;
-                bool					  iron_completely = iron_everything;
+                bool                      iron_everything = region_config.ironing_type == IroningType::AllSolid;
+                bool                      iron_completely = iron_everything;
                 if (iron_everything) {
                     // Check whether there is any non-solid hole in the regions.
                     bool internal_infill_solid = region_config.fill_density.value > 95.;

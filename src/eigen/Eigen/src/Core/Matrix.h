@@ -29,7 +29,7 @@ private:
       required_alignment = unpacket_traits<PacketScalar>::alignment,
       packet_access_bit = (packet_traits<_Scalar>::Vectorizable && (EIGEN_UNALIGNED_VECTORIZE || (actual_alignment>=required_alignment))) ? PacketAccessBit : 0
     };
-    
+
 public:
   typedef _Scalar Scalar;
   typedef Dense StorageKind;
@@ -44,7 +44,7 @@ public:
     Options = _Options,
     InnerStrideAtCompileTime = 1,
     OuterStrideAtCompileTime = (Options&RowMajor) ? ColsAtCompileTime : RowsAtCompileTime,
-    
+
     // FIXME, the following flag in only used to define NeedsToAlign in PlainObjectBase
     EvaluatorFlags = LinearAccessBit | DirectAccessBit | packet_access_bit | row_major_bit,
     Alignment = actual_alignment
@@ -311,7 +311,7 @@ class Matrix
       * This is useful for dynamic-size vectors. For fixed-size vectors,
       * it is redundant to pass these parameters, so one should use the default constructor
       * Matrix() instead.
-      * 
+      *
       * \warning This constructor is disabled for fixed-size \c 1x1 matrices. For instance,
       * calling Matrix<double,1,1>(1) will call the initialization constructor: Matrix(const Scalar&).
       * For fixed-size \c 1x1 matrices it is therefore recommended to use the default
@@ -326,7 +326,7 @@ class Matrix
       * This is useful for dynamic-size matrices. For fixed-size matrices,
       * it is redundant to pass these parameters, so one should use the default constructor
       * Matrix() instead.
-      * 
+      *
       * \warning This constructor is disabled for fixed-size \c 1x2 and \c 2x1 vectors. For instance,
       * calling Matrix2f(2,1) will call the initialization constructor: Matrix(const Scalar& x, const Scalar& y).
       * For fixed-size \c 1x2 or \c 2x1 vectors it is therefore recommended to use the default
@@ -335,7 +335,7 @@ class Matrix
       */
     EIGEN_DEVICE_FUNC
     Matrix(Index rows, Index cols);
-    
+
     /** \brief Constructs an initialized 2D vector with given coefficients */
     Matrix(const Scalar& x, const Scalar& y);
     #endif

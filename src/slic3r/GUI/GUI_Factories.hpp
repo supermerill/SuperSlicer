@@ -23,7 +23,7 @@ namespace GUI {
 
 struct SettingsFactory
 {
-//				     category ->       vector ( option )
+//                     category ->       vector ( option )
     typedef std::map<Slic3r::OptionCategory, std::vector<std::string>> Bundle;
     static std::map<Slic3r::OptionCategory, std::string>               CATEGORY_ICON;
 

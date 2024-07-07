@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2016 Alec Jacobson
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 //
 #ifndef IGL_COPYLET_CGAL_SUBMESH_AABB_TREE_H
@@ -47,7 +47,7 @@ namespace igl
         const Eigen::PlainObjectBase<DerivedI>& I,
         CGAL::AABB_tree<
           CGAL::AABB_traits<
-            Kernel, 
+            Kernel,
             CGAL::AABB_triangle_primitive<
               Kernel, typename std::vector<
                 typename Kernel::Triangle_3 >::iterator > > > & tree,

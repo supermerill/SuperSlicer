@@ -10,7 +10,7 @@
 #ifndef EIGEN_SPARSESPARSEPRODUCTWITHPRUNING_H
 #define EIGEN_SPARSESPARSEPRODUCTWITHPRUNING_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -39,10 +39,10 @@ static void sparse_sparse_product_with_pruning_impl(const Lhs& lhs, const Rhs& r
     res.resize(cols, rows);
   else
     res.resize(rows, cols);
-  
+
   evaluator<Lhs> lhsEval(lhs);
   evaluator<Rhs> rhsEval(rhs);
-  
+
   // estimate the number of non zero entries
   // given a rhs column containing Y non zeros, we assume that the respective Y columns
   // of the lhs differs in average of one non zeros, thus the number of non zeros for

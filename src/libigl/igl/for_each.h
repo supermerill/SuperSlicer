@@ -69,7 +69,7 @@ inline void igl::for_each(
       }
     }
   }
-  
+
 }
 
 //#ifndef IGL_STATIC_LIBRARY

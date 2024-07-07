@@ -39,14 +39,14 @@
 ; http://msdn.microsoft.com/en-us/library/hh873190.aspx
 
 
-    AREA	|.rdata|, DATA, READONLY
+    AREA    |.rdata|, DATA, READONLY
     EXPORT armFunc
     EXPORT armFuncR0
     EXPORT armFuncR0R1
     EXPORT armFuncObjLast
     EXPORT armFuncR0ObjLast
 
-    AREA	|.text|, CODE, ARM, ALIGN=3
+    AREA    |.text|, CODE, ARM, ALIGN=3
 
     ALIGN   8
 armFunc PROC
@@ -103,7 +103,7 @@ armFuncObjLast PROC
     ldrge   r0, [r6],#4
     cmp     r7, #2*4
     ldrge   r1, [r6],#4
-    ldrlt   r1, [sp]    
+    ldrlt   r1, [sp]
     cmp     r7, #3*4
     ldrge   r2, [r6],#4
     ldrlt   r2, [sp]

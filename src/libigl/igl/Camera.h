@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_CAMERA_H
 #define IGL_CAMERA_H
@@ -67,7 +67,7 @@ namespace igl
       //     glMultMatrixd(projection().data());
       //
       inline Eigen::Matrix4d projection() const;
-      // Return an Affine transformation (rigid actually) that 
+      // Return an Affine transformation (rigid actually) that
       // takes relative coordinates and tramsforms them into world 3d
       // coordinates: moves the camera into the scene.
       inline Eigen::Affine3d affine() const;
@@ -186,7 +186,7 @@ inline Eigen::Matrix4d igl::Camera::projection() const
     const double yScale = tan(PI*0.5 - 0.5*m_angle*PI/180.);
     // http://stackoverflow.com/a/14975139/148668
     const double xScale = yScale/m_aspect;
-    P<< 
+    P<<
       xScale, 0, 0, 0,
       0, yScale, 0, 0,
       0, 0, -(far+near)/(far-near), -1,
@@ -283,7 +283,7 @@ inline void igl::Camera::dolly_zoom(const double da)
     m_angle += da;
     m_angle = min(89.,max(IGL_CAMERA_MIN_ANGLE,m_angle));
     // change in distance
-    const double s = 
+    const double s =
       (2.*tan(old_angle/2./180.*igl::PI)) /
       (2.*tan(m_angle/2./180.*igl::PI)) ;
     const double old_at_dist = m_at_dist;
@@ -315,9 +315,9 @@ inline void igl::Camera::orbit(const Eigen::Quaterniond & q)
   // at_1 = R_1 * t_1 - R_1 * z = at_0
   // t_1 = R_1' * (at_0 + R_1 * z)
   m_rotation_conj = q.conjugate();
-  m_translation = 
-    m_rotation_conj * 
-      (old_at + 
+  m_translation =
+    m_rotation_conj *
+      (old_at +
          m_rotation_conj.conjugate() * Vector3d(0,0,1) * m_at_dist);
   assert((old_at - at()).squaredNorm() < DOUBLE_EPS);
 }
@@ -350,7 +350,7 @@ inline void igl::Camera::look_at(
   //cout<<"eye()-at(): "<<(this->eye()-this->at()).normalized().transpose()<<endl;
   //cout<<"eye-this->eye(): "<<(eye-this->eye()).squaredNorm()<<endl;
   assert(           (eye-this->eye()).squaredNorm() < DOUBLE_EPS);
-  //assert((F-(this->eye()-this->at()).normalized()).squaredNorm() < 
+  //assert((F-(this->eye()-this->at()).normalized()).squaredNorm() <
   //  DOUBLE_EPS);
   assert(           (at-this->at()).squaredNorm() < DOUBLE_EPS);
   //assert(        (proj_up-this->up()).squaredNorm() < DOUBLE_EPS);

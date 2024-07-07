@@ -117,7 +117,7 @@ class Array
     {
       return Base::_set(other);
     }
-    
+
     /** Default constructor.
       *
       * For fixed-size matrices, does nothing.

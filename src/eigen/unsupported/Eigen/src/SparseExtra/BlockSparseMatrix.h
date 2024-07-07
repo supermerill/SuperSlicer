@@ -11,7 +11,7 @@
 #ifndef EIGEN_SPARSEBLOCKMATRIX_H
 #define EIGEN_SPARSEBLOCKMATRIX_H
 
-namespace Eigen { 
+namespace Eigen {
 /** \ingroup SparseCore_Module
   *
   * \class BlockSparseMatrix

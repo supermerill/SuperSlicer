@@ -73,9 +73,9 @@ public:
 
     /*!
      * If an edge is too small, collapse it and its twin and fix the surrounding edges to ensure a consistent graph.
-     * 
+     *
      * Don't collapse support edges, unless we can collapse the whole quad.
-     * 
+     *
      * o-,
      * |  "-o
      * |    | > Don't collapse this edge only.
@@ -87,7 +87,7 @@ public:
 
     /*!
      * Insert a node into the graph and connect it to the input polygon using ribs
-     * 
+     *
      * \return the last edge which replaced [edge], which points to the same [to] node
      */
     edge_t* insertNode(edge_t* edge, Point mid, coord_t mide_node_bead_count);
@@ -102,4 +102,4 @@ protected:
 };
 
 }
-#endif 
+#endif

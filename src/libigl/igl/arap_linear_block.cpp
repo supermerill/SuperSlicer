@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 #include "arap_linear_block.h"
 #include "verbose.h"
@@ -59,7 +59,7 @@ IGL_INLINE void igl::arap_linear_block_spokes(
     Kd.reserve(7*V.rows());
     Kd_IJV.reserve(7*V.rows());
     edges.resize(3,2);
-    edges << 
+    edges <<
       1,2,
       2,0,
       0,1;
@@ -69,7 +69,7 @@ IGL_INLINE void igl::arap_linear_block_spokes(
     Kd.reserve(17*V.rows());
     Kd_IJV.reserve(17*V.rows());
     edges.resize(6,2);
-    edges << 
+    edges <<
       1,2,
       2,0,
       0,1,
@@ -124,7 +124,7 @@ IGL_INLINE void igl::arap_linear_block_spokes_and_rims(
     Kd.reserve(7*V.rows());
     Kd_IJV.reserve(7*V.rows());
     edges.resize(3,2);
-    edges << 
+    edges <<
       1,2,
       2,0,
       0,1;
@@ -134,7 +134,7 @@ IGL_INLINE void igl::arap_linear_block_spokes_and_rims(
     Kd.reserve(17*V.rows());
     Kd_IJV.reserve(17*V.rows());
     edges.resize(6,2);
-    edges << 
+    edges <<
       1,2,
       2,0,
       0,1,
@@ -206,7 +206,7 @@ IGL_INLINE void igl::arap_linear_block_elements(
     Kd.reserve(7*V.rows());
     Kd_IJV.reserve(7*V.rows());
     edges.resize(3,2);
-    edges << 
+    edges <<
       1,2,
       2,0,
       0,1;
@@ -216,7 +216,7 @@ IGL_INLINE void igl::arap_linear_block_elements(
     Kd.reserve(17*V.rows());
     Kd_IJV.reserve(17*V.rows());
     edges.resize(6,2);
-    edges << 
+    edges <<
       1,2,
       2,0,
       0,1,

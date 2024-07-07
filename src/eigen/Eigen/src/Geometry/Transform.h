@@ -12,7 +12,7 @@
 #ifndef EIGEN_TRANSFORM_H
 #define EIGEN_TRANSFORM_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -47,7 +47,7 @@ struct transform_left_product_impl;
 
 template< typename Lhs,
           typename Rhs,
-          bool AnyProjective = 
+          bool AnyProjective =
             transform_traits<Lhs>::IsProjective ||
             transform_traits<Rhs>::IsProjective>
 struct transform_transform_product_impl;
@@ -239,7 +239,7 @@ public:
   typedef const Block<ConstMatrixType,Dim,1,!(internal::traits<MatrixType>::Flags & RowMajorBit)> ConstTranslationPart;
   /** corresponding translation type */
   typedef Translation<Scalar,Dim> TranslationType;
-  
+
   // this intermediate enum is needed to avoid an ICE with gcc 3.4 and 4.0
   enum { TransformTimeDiagonalMode = ((Mode==int(Isometry))?Affine:int(Mode)) };
   /** The return type of the product between a diagonal matrix and a transform */
@@ -308,7 +308,7 @@ public:
     internal::transform_construct_from_matrix<OtherDerived,Mode,Options,Dim,HDim>::run(this, other.derived());
     return *this;
   }
-  
+
   template<int OtherOptions>
   EIGEN_DEVICE_FUNC inline Transform(const Transform<Scalar,Dim,Mode,OtherOptions>& other)
   {
@@ -380,7 +380,7 @@ public:
   inline Transform& operator=(const QTransform& other);
   inline QTransform toQTransform(void) const;
   #endif
-  
+
   EIGEN_DEVICE_FUNC Index rows() const { return int(Mode)==int(Projective) ? m_matrix.cols() : (m_matrix.cols()-1); }
   EIGEN_DEVICE_FUNC Index cols() const { return m_matrix.cols(); }
 
@@ -456,7 +456,7 @@ public:
   /** \returns The product expression of a transform \a a times a diagonal matrix \a b
     *
     * The rhs diagonal matrix is interpreted as an affine scaling transformation. The
-    * product results in a Transform of the same type (mode) as the lhs only if the lhs 
+    * product results in a Transform of the same type (mode) as the lhs only if the lhs
     * mode is no isometry. In that case, the returned transform is an affinity.
     */
   template<typename DiagonalDerived>
@@ -471,7 +471,7 @@ public:
   /** \returns The product expression of a diagonal matrix \a a times a transform \a b
     *
     * The lhs diagonal matrix is interpreted as an affine scaling transformation. The
-    * product results in a Transform of the same type (mode) as the lhs only if the lhs 
+    * product results in a Transform of the same type (mode) as the lhs only if the lhs
     * mode is no isometry. In that case, the returned transform is an affinity.
     */
   template<typename DiagonalDerived>
@@ -494,7 +494,7 @@ public:
   {
     return internal::transform_transform_product_impl<Transform,Transform>::run(*this,other);
   }
-  
+
   #if EIGEN_COMP_ICC
 private:
   // this intermediate structure permits to workaround a bug in ICC 11:
@@ -503,13 +503,13 @@ private:
   //  (the meaning of a name may have changed since the template declaration -- the type of the template is:
   // "Eigen::internal::transform_transform_product_impl<Eigen::Transform<double, 3, 32, 0>,
   //     Eigen::Transform<double, 3, Mode, Options>, <expression>>::ResultType (const Eigen::Transform<double, 3, Mode, Options> &) const")
-  // 
+  //
   template<int OtherMode,int OtherOptions> struct icc_11_workaround
   {
     typedef internal::transform_transform_product_impl<Transform,Transform<Scalar,Dim,OtherMode,OtherOptions> > ProductType;
     typedef typename ProductType::ResultType ResultType;
   };
-  
+
 public:
   /** Concatenates two different transformations */
   template<int OtherMode,int OtherOptions>
@@ -542,7 +542,7 @@ public:
   }
 
   template<typename OtherDerived>
-  EIGEN_DEVICE_FUNC 
+  EIGEN_DEVICE_FUNC
   inline Transform& scale(const MatrixBase<OtherDerived> &other);
 
   template<typename OtherDerived>
@@ -572,18 +572,18 @@ public:
   EIGEN_DEVICE_FUNC Transform& preshear(const Scalar& sx, const Scalar& sy);
 
   EIGEN_DEVICE_FUNC inline Transform& operator=(const TranslationType& t);
-  
+
   EIGEN_DEVICE_FUNC
   inline Transform& operator*=(const TranslationType& t) { return translate(t.vector()); }
-  
+
   EIGEN_DEVICE_FUNC inline Transform operator*(const TranslationType& t) const;
 
-  EIGEN_DEVICE_FUNC 
+  EIGEN_DEVICE_FUNC
   inline Transform& operator=(const UniformScaling<Scalar>& t);
-  
+
   EIGEN_DEVICE_FUNC
   inline Transform& operator*=(const UniformScaling<Scalar>& s) { return scale(s.factor()); }
-  
+
   EIGEN_DEVICE_FUNC
   inline TransformTimeDiagonalReturnType operator*(const UniformScaling<Scalar>& s) const
   {
@@ -684,7 +684,7 @@ public:
   #ifdef EIGEN_TRANSFORM_PLUGIN
   #include EIGEN_TRANSFORM_PLUGIN
   #endif
-  
+
 protected:
   #ifndef EIGEN_PARSED_BY_DOXYGEN
     EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void check_template_params()
@@ -1156,7 +1156,7 @@ struct transform_make_affine<AffineCompact>
 {
   template<typename MatrixType> EIGEN_DEVICE_FUNC static void run(MatrixType &) { }
 };
-    
+
 // selector needed to avoid taking the inverse of a 3x4 matrix
 template<typename TransformType, int Mode=TransformType::Mode>
 struct projective_transform_inverse
@@ -1297,8 +1297,8 @@ struct transform_construct_from_matrix<Other, AffineCompact,Options,Dim,HDim, HD
 template<int LhsMode,int RhsMode>
 struct transform_product_result
 {
-  enum 
-  { 
+  enum
+  {
     Mode =
       (LhsMode == (int)Projective    || RhsMode == (int)Projective    ) ? Projective :
       (LhsMode == (int)Affine        || RhsMode == (int)Affine        ) ? Affine :
@@ -1321,8 +1321,8 @@ struct transform_right_product_impl< TransformType, MatrixType, 0, RhsCols>
 template< typename TransformType, typename MatrixType, int RhsCols>
 struct transform_right_product_impl< TransformType, MatrixType, 1, RhsCols>
 {
-  enum { 
-    Dim = TransformType::Dim, 
+  enum {
+    Dim = TransformType::Dim,
     HDim = TransformType::HDim,
     OtherRows = MatrixType::RowsAtCompileTime,
     OtherCols = MatrixType::ColsAtCompileTime
@@ -1339,7 +1339,7 @@ struct transform_right_product_impl< TransformType, MatrixType, 1, RhsCols>
     ResultType res(other.rows(),other.cols());
     TopLeftLhs(res, 0, 0, Dim, other.cols()).noalias() = T.affine() * other;
     res.row(OtherRows-1) = other.row(OtherRows-1);
-    
+
     return res;
   }
 };
@@ -1347,8 +1347,8 @@ struct transform_right_product_impl< TransformType, MatrixType, 1, RhsCols>
 template< typename TransformType, typename MatrixType, int RhsCols>
 struct transform_right_product_impl< TransformType, MatrixType, 2, RhsCols>
 {
-  enum { 
-    Dim = TransformType::Dim, 
+  enum {
+    Dim = TransformType::Dim,
     HDim = TransformType::HDim,
     OtherRows = MatrixType::RowsAtCompileTime,
     OtherCols = MatrixType::ColsAtCompileTime

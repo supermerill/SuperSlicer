@@ -15,14 +15,14 @@ namespace igl
   // positions (e.g. mouse) and a model-view projection constellation.
   //
   // Inputs:
-  //   pos  2d screen-space position (x,y) 
+  //   pos  2d screen-space position (x,y)
   //   model  4x4 model-view matrix
   //   proj  4x4 projection matrix
   //   viewport  4-long viewport vector
   // Outputs:
   //   s  source of ray (pos unprojected with z=0)
   ///  dir  direction of ray (d - s) where d is pos unprojected with z=1
-  // 
+  //
   template <
     typename Derivedpos,
     typename Derivedmodel,

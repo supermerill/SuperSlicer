@@ -11,7 +11,7 @@
 #ifndef EIGEN_VECTORBLOCK_H
 #define EIGEN_VECTORBLOCK_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 template<typename VectorType, int Size>

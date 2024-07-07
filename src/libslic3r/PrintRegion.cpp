@@ -42,7 +42,7 @@ Flow PrintRegion::flow(const PrintObject &object, FlowRole role, double layer_he
             value_oddlayer = m_config.external_perimeter_extrusion_change_odd_layers.get_abs_value(1.);
         }
 
-		overlap = this->config().external_perimeter_overlap.get_abs_value(1);
+        overlap = this->config().external_perimeter_overlap.get_abs_value(1);
     } else if (role == frPerimeter) {
         config_width = m_config.perimeter_extrusion_width;
         config_spacing = m_config.perimeter_extrusion_spacing;
@@ -52,7 +52,7 @@ Flow PrintRegion::flow(const PrintObject &object, FlowRole role, double layer_he
             value_oddlayer = m_config.perimeter_extrusion_change_odd_layers.get_abs_value(1.);
         }
 
-		overlap = this->config().perimeter_overlap.get_abs_value(1);
+        overlap = this->config().perimeter_overlap.get_abs_value(1);
     } else if (role == frInfill) {
         config_width = m_config.infill_extrusion_width;
         config_spacing = m_config.infill_extrusion_spacing;
@@ -70,7 +70,7 @@ Flow PrintRegion::flow(const PrintObject &object, FlowRole role, double layer_he
             is_ratio_oddlayer = m_config.solid_infill_extrusion_change_odd_layers.percent;
             value_oddlayer = m_config.solid_infill_extrusion_change_odd_layers.get_abs_value(1.);
         }
-        
+
         overlap = this->config().solid_infill_overlap.get_abs_value(1);
     } else if (role == frTopSolidInfill) {
         config_width = m_config.top_infill_extrusion_width;
@@ -88,7 +88,7 @@ Flow PrintRegion::flow(const PrintObject &object, FlowRole role, double layer_he
         config_width = object.config().extrusion_width;
         config_spacing = object.config().extrusion_spacing;
     }
-    
+
     // Get the configured nozzle_diameter for the extruder associated to the flow role requested.
     // Here this->extruder(role) - 1 may underflow to MAX_INT, but then the get_at() will follback to zero'th element, so everything is all right.
     double nozzle_diameter = object.print()->config().nozzle_diameter.get_at(this->extruder(role, object) - 1);
@@ -141,8 +141,8 @@ float  PrintRegion::width(FlowRole role, bool first_layer, const PrintObject& ob
 
 coordf_t PrintRegion::nozzle_dmr_avg(const PrintConfig &print_config) const
 {
-    return (print_config.nozzle_diameter.get_at(m_config.perimeter_extruder.value    - 1) + 
-            print_config.nozzle_diameter.get_at(m_config.infill_extruder.value       - 1) + 
+    return (print_config.nozzle_diameter.get_at(m_config.perimeter_extruder.value    - 1) +
+            print_config.nozzle_diameter.get_at(m_config.infill_extruder.value       - 1) +
             print_config.nozzle_diameter.get_at(m_config.solid_infill_extruder.value - 1)) / 3.;
 }
 
@@ -151,15 +151,15 @@ void PrintRegion::collect_object_printing_extruders(const PrintConfig &print_con
     // These checks reflect the same logic used in the GUI for enabling/disabling extruder selection fields.
     auto num_extruders = (int)print_config.nozzle_diameter.size();
     auto emplace_extruder = [num_extruders, &object_extruders](int extruder_id) {
-    	int i = std::max(0, extruder_id - 1);
+        int i = std::max(0, extruder_id - 1);
         object_extruders.insert((i >= num_extruders) ? 0 : i);
     };
     if (region_config.perimeters.value > 0 || object_config.brim_width.value > 0 || object_config.brim_width_interior > 0)
-    	emplace_extruder(region_config.perimeter_extruder);
+        emplace_extruder(region_config.perimeter_extruder);
     if (region_config.fill_density.value > 0)
-    	emplace_extruder(region_config.infill_extruder);
+        emplace_extruder(region_config.infill_extruder);
     if (region_config.top_solid_layers.value > 0 || region_config.bottom_solid_layers.value > 0)
-    	emplace_extruder(region_config.solid_infill_extruder);
+        emplace_extruder(region_config.solid_infill_extruder);
 }
 
 void PrintRegion::collect_object_printing_extruders(const Print& print, std::set<uint16_t> &object_extruders) const

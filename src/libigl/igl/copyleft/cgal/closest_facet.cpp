@@ -1,9 +1,9 @@
 // This file is part of libigl, a simple c++ geometry processing library.
-// 
+//
 // Copyright (C) 2015 Qingnan Zhou <qnzhou@gmail.com>
-// 
-// This Source Code Form is subject to the terms of the Mozilla Public License 
-// v. 2.0. If a copy of the MPL was not distributed with this file, You can 
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
 // obtain one at http://mozilla.org/MPL/2.0/.
 //
 #include "closest_facet.h"
@@ -85,7 +85,7 @@ IGL_INLINE void igl::copyleft::cgal::closest_facet(
     const std::vector<std::vector<size_t> > & VFi,
     const CGAL::AABB_tree<
       CGAL::AABB_traits<
-        Kernel, 
+        Kernel,
         CGAL::AABB_triangle_primitive<
           Kernel, typename std::vector<
             typename Kernel::Triangle_3 >::iterator > > > & tree,
@@ -132,7 +132,7 @@ IGL_INLINE void igl::copyleft::cgal::closest_facet(
     return false;
   };
 
-  auto get_orientation = [&](size_t fid, size_t s, size_t d) -> bool 
+  auto get_orientation = [&](size_t fid, size_t s, size_t d) -> bool
   {
     const auto& f = F.row(fid);
     if      ((size_t)f[0] == s && (size_t)f[1] == d) return false;
@@ -177,7 +177,7 @@ IGL_INLINE void igl::copyleft::cgal::closest_facet(
       size_t query_idx,
       const size_t s, const size_t d,
       size_t preferred_facet,
-      bool& orientation) -> size_t 
+      bool& orientation) -> size_t
   {
     Point_3 query_point(
       P(query_idx, 0),
@@ -186,18 +186,18 @@ IGL_INLINE void igl::copyleft::cgal::closest_facet(
 
     size_t corner_idx = std::numeric_limits<size_t>::max();
     if ((s == F(preferred_facet, 0) && d == F(preferred_facet, 1)) ||
-        (s == F(preferred_facet, 1) && d == F(preferred_facet, 0))) 
+        (s == F(preferred_facet, 1) && d == F(preferred_facet, 0)))
     {
       corner_idx = 2;
     } else if ((s == F(preferred_facet, 0) && d == F(preferred_facet, 2)) ||
-        (s == F(preferred_facet, 2) && d == F(preferred_facet, 0))) 
+        (s == F(preferred_facet, 2) && d == F(preferred_facet, 0)))
     {
       corner_idx = 1;
     } else if ((s == F(preferred_facet, 1) && d == F(preferred_facet, 2)) ||
-        (s == F(preferred_facet, 2) && d == F(preferred_facet, 1))) 
+        (s == F(preferred_facet, 2) && d == F(preferred_facet, 1)))
     {
       corner_idx = 0;
-    } else 
+    } else
     {
       std::cerr << "s: " << s << "\t d:" << d << std::endl;
       std::cerr << F.row(preferred_facet) << std::endl;
@@ -208,10 +208,10 @@ IGL_INLINE void igl::copyleft::cgal::closest_facet(
     auto ueid = EMAP(preferred_facet + corner_idx * F.rows());
     auto eids = uE2E[ueid];
     std::vector<size_t> intersected_face_indices;
-    for (auto eid : eids) 
+    for (auto eid : eids)
     {
       const size_t fid = eid % F.rows();
-      if (in_I[fid]) 
+      if (in_I[fid])
       {
         intersected_face_indices.push_back(fid);
       }
@@ -229,7 +229,7 @@ IGL_INLINE void igl::copyleft::cgal::closest_facet(
         });
 
     assert(num_intersected_faces >= 1);
-    if (num_intersected_faces == 1) 
+    if (num_intersected_faces == 1)
     {
       // The edge must be a boundary edge.  Thus, the orientation can be
       // simply determined by checking if the query point is on the
@@ -283,9 +283,9 @@ IGL_INLINE void igl::copyleft::cgal::closest_facet(
   //     query (parity unclear)
   // Returns face guaranteed to be "exposed" to P(query_idx,:)
   auto process_vertex_case = [&](
-    const size_t query_idx, 
+    const size_t query_idx,
     size_t s,
-    size_t preferred_facet, 
+    size_t preferred_facet,
     bool& orientation) -> size_t
   {
     const Point_3 query_point(
@@ -298,11 +298,11 @@ IGL_INLINE void igl::copyleft::cgal::closest_facet(
       const auto& all_adj_faces = VF[s];
       const auto& all_adj_face_corners = VFi[s];
       const size_t num_all_adj_faces = all_adj_faces.size();
-      for (size_t i=0; i<num_all_adj_faces; i++) 
+      for (size_t i=0; i<num_all_adj_faces; i++)
       {
         const size_t fid = all_adj_faces[i];
         // Shouldn't this always be true if I is a full connected component?
-        if (in_I[fid]) 
+        if (in_I[fid])
         {
           adj_faces.push_back(fid);
           adj_face_corners.push_back(all_adj_face_corners[i]);
@@ -314,7 +314,7 @@ IGL_INLINE void igl::copyleft::cgal::closest_facet(
 
     std::set<size_t> adj_vertices_set;
     std::unordered_multimap<size_t, size_t> v2f;
-    for (size_t i=0; i<num_adj_faces; i++) 
+    for (size_t i=0; i<num_adj_faces; i++)
     {
       const size_t fid = adj_faces[i];
       const size_t cid = adj_face_corners[i];
@@ -331,7 +331,7 @@ IGL_INLINE void igl::copyleft::cgal::closest_facet(
         adj_vertices.begin());
 
     std::vector<Point_3> adj_points;
-    for (size_t vid : adj_vertices) 
+    for (size_t vid : adj_vertices)
     {
       adj_points.emplace_back(V(vid,0), V(vid,1), V(vid,2));
     }

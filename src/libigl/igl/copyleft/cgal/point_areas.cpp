@@ -22,7 +22,7 @@ typedef Kernel::Point_2                                               Point;
 namespace igl {
   namespace copyleft{
     namespace cgal{
-      
+
       template <typename DerivedP, typename DerivedI, typename DerivedN,
       typename DerivedA>
       IGL_INLINE void point_areas(
@@ -34,8 +34,8 @@ namespace igl {
         Eigen::MatrixXd T;
         point_areas(P,I,N,A,T);
       }
-      
-      
+
+
       template <typename DerivedP, typename DerivedI, typename DerivedN,
       typename DerivedA, typename DerivedT>
       IGL_INLINE void point_areas(
@@ -50,24 +50,24 @@ namespace igl {
         typedef typename DerivedA::Scalar scalarA;
         typedef Eigen::Matrix<real,1,3> RowVec3;
         typedef Eigen::Matrix<real,1,2> RowVec2;
-        
+
         typedef Eigen::Matrix<real, Eigen::Dynamic, Eigen::Dynamic> MatrixP;
         typedef Eigen::Matrix<scalarN, Eigen::Dynamic, Eigen::Dynamic> MatrixN;
         typedef Eigen::Matrix<typename DerivedN::Scalar,
                   Eigen::Dynamic, Eigen::Dynamic> VecotorO;
         typedef Eigen::Matrix<typename DerivedI::Scalar,
                   Eigen::Dynamic, Eigen::Dynamic> MatrixI;
-        
-        
-        
+
+
+
         const int n = P.rows();
-        
+
         assert(P.cols() == 3 && "P must have exactly 3 columns");
         assert(P.rows() == N.rows()
                && "P and N must have the same number of rows");
         assert(P.rows() == I.rows()
                && "P and I must have the same number of rows");
-        
+
         A.setZero(n,1);
         T.setZero(n,3);
         igl::parallel_for(P.rows(),[&](int i)
@@ -96,16 +96,16 @@ namespace igl {
             Eigen::JacobiSVD<MatrixP> svd(mean_centered,
                                     Eigen::ComputeThinU | Eigen::ComputeThinV);
             MatrixP scores = svd.matrixU() * svd.singularValues().asDiagonal();
-            
+
             T.row(i) = svd.matrixV().col(2).transpose();
             if(T.row(i).dot(N.row(i)) < 0){
               T.row(i) *= -1;
             }
-            
+
             MatrixP plane;
             igl::slice(scores,igl::colon<int>(0,scores.rows()-1),
                      igl::colon<int>(0,1),plane);
-            
+
             std::vector< std::pair<Point,unsigned> > points;
             //This is where we obtain a delaunay triangulation of the points
             for(unsigned iter = 0; iter < plane.rows(); iter++){
@@ -125,7 +125,7 @@ namespace igl {
                                                 (int)face->vertex(2)->info());
               f_row++;
             }
-            
+
             //Here we calculate the voronoi area of the point
             scalarA area_accumulator = 0;
             for(int f = 0; f < F.rows(); f++){
@@ -148,7 +148,7 @@ namespace igl {
                 Eigen::Matrix<scalarA,1,3> barycentric;
                 barycentric << x*cosX, y*cosY, z*cosZ;
                 barycentric /= (barycentric(0)+barycentric(1)+barycentric(2));
-                
+
                 //TODO: to make numerically stable, reorder so that x≥y≥z:
                 scalarA full_area = 0.25*std::sqrt(
                                     (x+(y+z))*(z-(x-y))*(z+(x-y))*(x+(y-z)));
@@ -163,7 +163,7 @@ namespace igl {
                 }
               }
             }
-            
+
             if(std::isfinite(area_accumulator)){
               A(i) = area_accumulator;
             } else {

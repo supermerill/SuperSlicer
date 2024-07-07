@@ -31,7 +31,7 @@ public:
                    PConfig&& pconfig = PConfig())
     {
         using Placer = PlacementStrategyLike<TPlacer>;
-        
+
         store_.clear();
         auto total = last-first;
         store_.reserve(total);
@@ -58,9 +58,9 @@ public:
         auto sortfunc = [](Item& i1, Item& i2) {
             return i1.area() > i2.area();
         };
-        
+
         this->template remove_unpackable_items<Placer>(store_, bin, pconfig);
-        
+
         std::sort(store_.begin(), store_.end(), sortfunc);
 
         Placer placer(bin);

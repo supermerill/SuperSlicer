@@ -7,7 +7,7 @@ namespace igl
   // Compute the Moore-Penrose pseudoinverse
   //
   // Inputs:
-  //   A  m by n matrix 
+  //   A  m by n matrix
   //   tol  tolerance (if negative then default is used)
   // Outputs:
   //   X  n by m matrix so that A*X*A = A and X*A*X = X and A*X = (A*X)' and

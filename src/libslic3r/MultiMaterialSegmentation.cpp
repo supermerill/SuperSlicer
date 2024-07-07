@@ -1830,7 +1830,7 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
                             edge_grids[layer_idx].visit_cells_intersecting_line(line_to_test.a, line_to_test.b, visitor);
                         }
                     }
-                }); // end of parallel_for 
+                }); // end of parallel_for
             }
         }); // end of parallel_for
     }

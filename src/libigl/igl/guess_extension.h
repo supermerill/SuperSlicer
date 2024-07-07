@@ -12,7 +12,7 @@ namespace igl
   // Inputs:
   //   fp  file pointer (see output)
   // Outputs:
-  //   fp  file pointer rewound 
+  //   fp  file pointer rewound
   //   guess  extension as string. One of "mesh",{"obj"},"off","ply","stl", or
   //     "wrl"
   //

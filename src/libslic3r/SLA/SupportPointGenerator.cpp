@@ -69,7 +69,7 @@ SupportPointGenerator::SupportPointGenerator(
 SupportPointGenerator::SupportPointGenerator(
         const IndexedMesh &emesh,
         const SupportPointGenerator::Config &config,
-        std::function<void ()> throw_on_cancel, 
+        std::function<void ()> throw_on_cancel,
         std::function<void (int)> statusfn)
     : m_config(config)
     , m_emesh(emesh)
@@ -568,12 +568,12 @@ void SupportPointGenerator::uniformly_cover(const ExPolygons& islands, Structure
 
     const float density_horizontal = m_config.tear_pressure() / m_config.support_force();
     //FIXME why?
-    float poisson_radius		= std::max(m_config.minimal_distance, 1.f / (5.f * density_horizontal));
+    float poisson_radius        = std::max(m_config.minimal_distance, 1.f / (5.f * density_horizontal));
 //    const float poisson_radius     = 1.f / (15.f * density_horizontal);
     const float samples_per_mm2 = 30.f / (float(M_PI) * poisson_radius * poisson_radius);
     // Minimum distance between samples, in 3D space.
-//    float min_spacing			= poisson_radius / 3.f;
-    float min_spacing			= poisson_radius;
+//    float min_spacing            = poisson_radius / 3.f;
+    float min_spacing            = poisson_radius;
 
     //FIXME share the random generator. The random generator may be not so cheap to initialize, also we don't want the random generator to be restarted for each polygon.
 

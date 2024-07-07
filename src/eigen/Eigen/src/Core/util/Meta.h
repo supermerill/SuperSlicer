@@ -486,7 +486,7 @@ template<typename T, typename U> struct scalar_product_traits
 } // end namespace internal
 
 namespace numext {
-  
+
 #if defined(__CUDA_ARCH__)
 template<typename T> EIGEN_DEVICE_FUNC   void swap(T &a, T &b) { T tmp = b; b = a; a = tmp; }
 #else

@@ -35,71 +35,71 @@
 // CommandLine - Supplies the command line to which we append the encoded argument string.
 static void quote_argv_winapi(const std::wstring &argument, std::wstring &commmand_line_out)
 {
-	// Don't quote unless we actually need to do so --- hopefully avoid problems if programs won't parse quotes properly.
-	if (argument.empty() == false && argument.find_first_of(L" \t\n\v\"") == argument.npos)
-		commmand_line_out.append(argument);
-	else {
-		commmand_line_out.push_back(L'"');
-		for (auto it = argument.begin(); ; ++ it) {
-			unsigned number_backslashes = 0;
-			while (it != argument.end() && *it == L'\\') {
-				++ it;
-				++ number_backslashes;
-			}
-			if (it == argument.end()) {
-				// Escape all backslashes, but let the terminating double quotation mark we add below be interpreted as a metacharacter.
-				commmand_line_out.append(number_backslashes * 2, L'\\');
-				break;
-			} else if (*it == L'"') {
-				// Escape all backslashes and the following double quotation mark.
-				commmand_line_out.append(number_backslashes * 2 + 1, L'\\');
-				commmand_line_out.push_back(*it);
-			} else {
-				// Backslashes aren't special here.
-				commmand_line_out.append(number_backslashes, L'\\');
-				commmand_line_out.push_back(*it);
-			}
-		}
-		commmand_line_out.push_back(L'"');
-	}
+    // Don't quote unless we actually need to do so --- hopefully avoid problems if programs won't parse quotes properly.
+    if (argument.empty() == false && argument.find_first_of(L" \t\n\v\"") == argument.npos)
+        commmand_line_out.append(argument);
+    else {
+        commmand_line_out.push_back(L'"');
+        for (auto it = argument.begin(); ; ++ it) {
+            unsigned number_backslashes = 0;
+            while (it != argument.end() && *it == L'\\') {
+                ++ it;
+                ++ number_backslashes;
+            }
+            if (it == argument.end()) {
+                // Escape all backslashes, but let the terminating double quotation mark we add below be interpreted as a metacharacter.
+                commmand_line_out.append(number_backslashes * 2, L'\\');
+                break;
+            } else if (*it == L'"') {
+                // Escape all backslashes and the following double quotation mark.
+                commmand_line_out.append(number_backslashes * 2 + 1, L'\\');
+                commmand_line_out.push_back(*it);
+            } else {
+                // Backslashes aren't special here.
+                commmand_line_out.append(number_backslashes, L'\\');
+                commmand_line_out.push_back(*it);
+            }
+        }
+        commmand_line_out.push_back(L'"');
+    }
 }
 
 static DWORD execute_process_winapi(const std::wstring &command_line)
 {
     // Extract the current environment to be passed to the child process.
-	std::wstring envstr;
-	{
-		wchar_t *env = GetEnvironmentStrings();
-		assert(env != nullptr);
-		const wchar_t* var = env;
-		size_t totallen = 0;
-		size_t len;
-		while ((len = wcslen(var)) > 0) {
-			totallen += len + 1;
-			var += len + 1;
-		}
-		envstr = std::wstring(env, totallen);
-		FreeEnvironmentStrings(env);
-	}
+    std::wstring envstr;
+    {
+        wchar_t *env = GetEnvironmentStrings();
+        assert(env != nullptr);
+        const wchar_t* var = env;
+        size_t totallen = 0;
+        size_t len;
+        while ((len = wcslen(var)) > 0) {
+            totallen += len + 1;
+            var += len + 1;
+        }
+        envstr = std::wstring(env, totallen);
+        FreeEnvironmentStrings(env);
+    }
 
-	STARTUPINFOW startup_info;
-	memset(&startup_info, 0, sizeof(startup_info));
-	startup_info.cb			 = sizeof(STARTUPINFO);
+    STARTUPINFOW startup_info;
+    memset(&startup_info, 0, sizeof(startup_info));
+    startup_info.cb             = sizeof(STARTUPINFO);
 #if 0
-	startup_info.dwFlags	 = STARTF_USESHOWWINDOW;
-	startup_info.wShowWindow = SW_HIDE;
+    startup_info.dwFlags     = STARTF_USESHOWWINDOW;
+    startup_info.wShowWindow = SW_HIDE;
 #endif
-	PROCESS_INFORMATION process_info;
-	if (! ::CreateProcessW(
+    PROCESS_INFORMATION process_info;
+    if (! ::CreateProcessW(
             nullptr /* lpApplicationName */, (LPWSTR)command_line.c_str(), nullptr /* lpProcessAttributes */, nullptr /* lpThreadAttributes */, false /* bInheritHandles */,
-			CREATE_UNICODE_ENVIRONMENT /* | CREATE_NEW_CONSOLE */ /* dwCreationFlags */, (LPVOID)envstr.c_str(), nullptr /* lpCurrentDirectory */, &startup_info, &process_info))
-		throw Slic3r::RuntimeError(std::string("Failed starting the script ") + boost::nowide::narrow(command_line) + ", Win32 error: " + std::to_string(int(::GetLastError())));
-	::WaitForSingleObject(process_info.hProcess, INFINITE);
-	ULONG rc = 0;
-	::GetExitCodeProcess(process_info.hProcess, &rc);
-	::CloseHandle(process_info.hThread);
-	::CloseHandle(process_info.hProcess);
-	return rc;
+            CREATE_UNICODE_ENVIRONMENT /* | CREATE_NEW_CONSOLE */ /* dwCreationFlags */, (LPVOID)envstr.c_str(), nullptr /* lpCurrentDirectory */, &startup_info, &process_info))
+        throw Slic3r::RuntimeError(std::string("Failed starting the script ") + boost::nowide::narrow(command_line) + ", Win32 error: " + std::to_string(int(::GetLastError())));
+    ::WaitForSingleObject(process_info.hProcess, INFINITE);
+    ULONG rc = 0;
+    ::GetExitCodeProcess(process_info.hProcess, &rc);
+    ::CloseHandle(process_info.hThread);
+    ::CloseHandle(process_info.hProcess);
+    return rc;
 }
 
 // Run the script. If it is a perl script, run it through the bundled perl interpreter.
@@ -112,7 +112,7 @@ static int run_script(const std::string &script, const std::string &gcode, std::
     LPWSTR *szArglist = CommandLineToArgvW(boost::nowide::widen(script).c_str(), &nArgs);
     if (szArglist == nullptr || nArgs <= 0) {
         // CommandLineToArgvW failed. Maybe the command line escapment is invalid?
-		throw Slic3r::RuntimeError(std::string("Post processing script ") + script + " on file " + gcode + " failed. CommandLineToArgvW() refused to parse the command line path.");
+        throw Slic3r::RuntimeError(std::string("Post processing script ") + script + " on file " + gcode + " failed. CommandLineToArgvW() refused to parse the command line path.");
     }
 
     std::wstring command_line;
@@ -137,7 +137,7 @@ static int run_script(const std::string &script, const std::string &gcode, std::
         command_line = L"cmd.exe /C ";
         need_absolute_path = true;
     }
-    
+
     std::wstring absolute_command_path;
     //check if it's an exe
     if (!need_absolute_path && boost::iends_with(command, ".exe")) {
@@ -161,7 +161,7 @@ static int run_script(const std::string &script, const std::string &gcode, std::
         command_line += L" ";
     }
     LocalFree(szArglist);
-	quote_argv_winapi(boost::nowide::widen(gcode), command_line);
+    quote_argv_winapi(boost::nowide::widen(gcode), command_line);
     BOOST_LOG_TRIVIAL(debug) << (boost::format("Executing script : %1%") % boost::nowide::narrow(command_line));
     return (int)execute_process_winapi(command_line);
 }
@@ -259,7 +259,7 @@ bool run_post_process_scripts(std::string &src_path, bool make_copy, const std::
 {
     const auto *post_process = config.opt<ConfigOptionStrings>("post_process");
     if (// likely running in SLA mode
-        post_process == nullptr || 
+        post_process == nullptr ||
         // no post-processing script
         post_process->empty())
         return false;
@@ -322,8 +322,8 @@ bool run_post_process_scripts(std::string &src_path, bool make_copy, const std::
 
     try {
         for (const std::string &scripts : post_process->get_values()) {
-    		std::vector<std::string> lines;
-    		boost::split(lines, scripts, boost::is_any_of("\r\n"));
+            std::vector<std::string> lines;
+            boost::split(lines, scripts, boost::is_any_of("\r\n"));
             for (std::string script : lines) {
                 // Ignore empty post processing script lines.
                 boost::trim(script);

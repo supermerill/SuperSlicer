@@ -11,7 +11,7 @@
 #ifndef EIGEN_BIDIAGONALIZATION_H
 #define EIGEN_BIDIAGONALIZATION_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 // UpperBidiagonalization will probably be replaced by a Bidiagonalization class, don't want to make it stable API.
@@ -44,7 +44,7 @@ template<typename _MatrixType> class UpperBidiagonalization
               Diagonal<const MatrixType,1>,
               OnTheRight
             > HouseholderVSequenceType;
-    
+
     /**
     * \brief Default Constructor.
     *
@@ -60,13 +60,13 @@ template<typename _MatrixType> class UpperBidiagonalization
     {
       compute(matrix);
     }
-    
+
     UpperBidiagonalization& compute(const MatrixType& matrix);
     UpperBidiagonalization& computeUnblocked(const MatrixType& matrix);
-    
+
     const MatrixType& householder() const { return m_householder; }
     const BidiagonalType& bidiagonal() const { return m_bidiagonal; }
-    
+
     const HouseholderUSequenceType householderU() const
     {
       eigen_assert(m_isInitialized && "UpperBidiagonalization is not initialized.");
@@ -80,7 +80,7 @@ template<typename _MatrixType> class UpperBidiagonalization
              .setLength(m_householder.cols()-1)
              .setShift(1);
     }
-    
+
   protected:
     MatrixType m_householder;
     BidiagonalType m_bidiagonal;
@@ -135,7 +135,7 @@ void upperbidiagonalization_inplace_unblocked(MatrixType& mat,
   * Helper routine for the block reduction to upper bidiagonal form.
   *
   * Let's partition the matrix A:
-  * 
+  *
   *      | A00 A01 |
   *  A = |         |
   *      | A10 A11 |
@@ -146,7 +146,7 @@ void upperbidiagonalization_inplace_unblocked(MatrixType& mat,
   *   A22 -= V * Y^T - X * U^T
   * where V and U contains the left and right Householder vectors. U and V are stored in A10, and A01
   * respectively, and the update matrices X and Y are computed during the reduction.
-  * 
+  *
   */
 template<typename MatrixType>
 void upperbidiagonalization_blocked_helper(MatrixType& A,
@@ -167,7 +167,7 @@ void upperbidiagonalization_blocked_helper(MatrixType& A,
   typedef Ref<Matrix<Scalar, Dynamic, 1>, 0, ColInnerStride>    SubColumnType;
   typedef Ref<Matrix<Scalar, 1, Dynamic>, 0, RowInnerStride>    SubRowType;
   typedef Ref<Matrix<Scalar, Dynamic, Dynamic, StorageOrder > > SubMatType;
-  
+
   Index brows = A.rows();
   Index bcols = A.cols();
 
@@ -185,15 +185,15 @@ void upperbidiagonalization_blocked_helper(MatrixType& A,
     SubColumnType v_k = A.col(k).tail(remainingRows);
           v_k -= V_k1 * Y.row(k).head(k).adjoint();
     if(k) v_k -= X_k1 * A.col(k).head(k);
-    
+
     // 2 - construct left Householder transform in-place
     v_k.makeHouseholderInPlace(tau_v, diagonal[k]);
-       
+
     if(k+1<bcols)
     {
       SubMatType Y_k  ( Y.block(k+1,0, remainingCols, k+1) );
       SubMatType U_k1 ( A.block(0,k+1, k,remainingCols) );
-      
+
       // this eases the application of Householder transforAions
       // A(k,k) will store tau_v later
       A(k,k) = Scalar(1);
@@ -201,7 +201,7 @@ void upperbidiagonalization_blocked_helper(MatrixType& A,
       // 3 - Compute y_k^T = tau_v * ( A^T*v_k - Y_k-1*V_k-1^T*v_k - U_k-1*X_k-1^T*v_k )
       {
         SubColumnType y_k( Y.col(k).tail(remainingCols) );
-        
+
         // let's use the begining of column k of Y as a temporary vector
         SubColumnType tmp( Y.col(k).head(k) );
         y_k.noalias()  = A.block(k,k+1, remainingRows,remainingCols).adjoint() * v_k; // bottleneck
@@ -230,12 +230,12 @@ void upperbidiagonalization_blocked_helper(MatrixType& A,
       // 6 - Compute x_k = tau_u * ( A*u_k - X_k-1*U_k-1^T*u_k - V_k*Y_k^T*u_k )
       {
         SubColumnType x_k ( X.col(k).tail(remainingRows-1) );
-        
+
         // let's use the begining of column k of X as a temporary vectors
         // note that tmp0 and tmp1 overlaps
         SubColumnType tmp0 ( X.col(k).head(k) ),
                       tmp1 ( X.col(k).head(k+1) );
-                    
+
         x_k.noalias()   = A.block(k+1,k+1, remainingRows-1,remainingCols) * u_k.transpose(); // bottleneck
         tmp0.noalias()  = U_k1 * u_k.transpose();
         x_k.noalias()  -= X_k1.bottomRows(remainingRows-1) * tmp0;
@@ -254,7 +254,7 @@ void upperbidiagonalization_blocked_helper(MatrixType& A,
 
     A.coeffRef(k,k) = tau_v;
   }
-  
+
   if(bs<bcols)
     A.coeffRef(bs-1,bs) = tau_u_prev;
 
@@ -314,7 +314,7 @@ void upperbidiagonalization_inplace_blocked(MatrixType& A, BidiagType& bidiagona
     Index bcols = cols - k;                   // columns of the block
 
     // partition the matrix A:
-    // 
+    //
     //      | A00 A01 A02 |
     //      |             |
     // A  = | A10 A11 A12 |
@@ -328,7 +328,7 @@ void upperbidiagonalization_inplace_blocked(MatrixType& A, BidiagType& bidiagona
     //      | A21 A22 |
 
     BlockType B = A.block(k,k,brows,bcols);
-    
+
     // This stage performs the bidiagonalization of A11, A21, A12, and updating of A22.
     // Finally, the algorithm continue on the updated A22.
     //
@@ -389,7 +389,7 @@ UpperBidiagonalization<_MatrixType>& UpperBidiagonalization<_MatrixType>::comput
 
   m_householder = matrix;
   upperbidiagonalization_inplace_blocked(m_householder, m_bidiagonal);
-            
+
   m_isInitialized = true;
   return *this;
 }

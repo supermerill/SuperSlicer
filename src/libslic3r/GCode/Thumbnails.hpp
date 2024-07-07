@@ -52,7 +52,7 @@ inline void export_thumbnails_to_file(ThumbnailsGeneratorCallback &thumbnail_cb,
                 if (compressed->data && compressed->size) {
                     if (format == GCodeThumbnailsFormat::BIQU) {
                         // BIQU firmware need to have nothing before the thumbnail
-                        //output((boost::format("\n;\n; %s begin %dx%d %d\n") 
+                        //output((boost::format("\n;\n; %s begin %dx%d %d\n")
                         //    % (with_tag_format ? compressed->tag() : EMPTY_TAG)
                         //    % data.width % data.height % (compressed->size - 1)).str().c_str());
                         //print size in hex
@@ -71,7 +71,7 @@ inline void export_thumbnails_to_file(ThumbnailsGeneratorCallback &thumbnail_cb,
                         encoded.resize(boost::beast::detail::base64::encoded_size(compressed->size));
                         encoded.resize(boost::beast::detail::base64::encode((void*)encoded.data(), (const void*)compressed->data, compressed->size));
 
-                        output((boost::format("\n;\n; %s begin %dx%d %d\n") 
+                        output((boost::format("\n;\n; %s begin %dx%d %d\n")
                             % (with_tag_format ? compressed->tag() : EMPTY_TAG)
                             % data.width % data.height % encoded.size()).str().c_str());
                         while (encoded.size() > max_row_length) {

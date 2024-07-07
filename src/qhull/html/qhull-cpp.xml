@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <?xml-stylesheet type="text/xsl" href="../../road-faq/xsl/road-faq.xsl"?>
 
-<rf:topic xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"  
-    xsi:schemaLocation="http://schemas.roadintranet.org/road-faq-1 /road/road-faq/xsl/road-faq.xsd"  
+<rf:topic xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://schemas.roadintranet.org/road-faq-1 /road/road-faq/xsl/road-faq.xsd"
    xmlns:rf="http://schemas.roadintranet.org/road-faq-1"
  title=" C++ interface to Qhull"
  file="qhull-cpp.xml"
@@ -16,7 +16,7 @@
        <div>
            <p> This draft
                document records some of the design decisions for Qhull C++.  Convert it to HTML by road-faq.xsl from <a href="http://www.qhull.org/road/road-faq/road-faq.html">road-faq</a>.
-               
+
                Please send comments and suggestions to <a
                    href="mailto:bradb@shore.net">bradb@shore.net</a>
            </p>
@@ -38,20 +38,20 @@
        <div>
            . <!-- clear the two column display -->
        </div>
-       
+
    </rf:section>
     <rf:section id="qhull-api" title="Qhull's collection classes">
-  
+
          <rf:item id="collection-api" title="API for Qhull collections" date="Feb 2009" author="bbarber">
-             Qhull's collection APIs are modeled on Qt's collection API (QList, QVector, QHash) w/o QT_STRICT_ITERATORS.  They support STL and Qt programming.  
-             
-             <p>Some of Qhull's collection classes derive from STL classes.  If so, 
+             Qhull's collection APIs are modeled on Qt's collection API (QList, QVector, QHash) w/o QT_STRICT_ITERATORS.  They support STL and Qt programming.
+
+             <p>Some of Qhull's collection classes derive from STL classes.  If so,
              please avoid additional STL functions and operators added by inheritance.
              These collection classes may be rewritten to derive from Qt classes instead.
              See Road's <rf:iref item="cpp-collection-api"/>.
-	     </p>
-	     
-             
+         </p>
+
+
              Qhull's collection API (where applicable).  For documentation, see Qt's QList, QMap, QListIterator, QMapIterator, QMutableListIterator, and QMutableMapIterator
              <ul><li>
                  STL types [list, qlinkedlist, qlist, qvector, vector] -- const_iterator, iterator
@@ -75,7 +75,7 @@
                  Get/set -- configuration options for class
              </li><li>
                  STL-style iterator - begin, constBegin, constEnd, end, key, value, =, *, [], ->, ++, --, +, -, ==, !=, &lt;,
-                 &lt;=, &gt;, &gt;=, const_iterator(iterator), iterator COMPARE const_iterator.  
+                 &lt;=, &gt;, &gt;=, const_iterator(iterator), iterator COMPARE const_iterator.
                  An iterator is an abstraction of a pointer.  It is not aware of its container.
              </li><li>
                  Java-style iterator [qiterator.h] - countRemaining, findNext, findPrevious, hasNext, hasPrevious, next, peekNext, peekPrevious, previous, toBack, toFront, = Coordinates
@@ -178,7 +178,7 @@
              <ul><li>
              </li><li>
              </li><li>
-               Not applicable to Qhash -- lowerBound, unite, upperBound, 
+               Not applicable to Qhash -- lowerBound, unite, upperBound,
              </li><li>
                Qt adds -- squeeze
              </li></ul>

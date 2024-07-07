@@ -10,7 +10,7 @@
 #ifndef EIGEN_CONJUGATE_GRADIENT_H
 #define EIGEN_CONJUGATE_GRADIENT_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -34,16 +34,16 @@ void conjugate_gradient(const MatrixType& mat, const Rhs& rhs, Dest& x,
   typedef typename Dest::RealScalar RealScalar;
   typedef typename Dest::Scalar Scalar;
   typedef Matrix<Scalar,Dynamic,1> VectorType;
-  
+
   RealScalar tol = tol_error;
   Index maxIters = iters;
-  
+
   Index n = mat.cols();
 
   VectorType residual = rhs - mat * x; //initial residual
 
   RealScalar rhsNorm2 = rhs.squaredNorm();
-  if(rhsNorm2 == 0) 
+  if(rhsNorm2 == 0)
   {
     x.setZero();
     iters = 0;
@@ -73,11 +73,11 @@ void conjugate_gradient(const MatrixType& mat, const Rhs& rhs, Dest& x,
     Scalar alpha = absNew / p.dot(tmp);         // the amount we travel on dir
     x += alpha * p;                             // update solution
     residual -= alpha * tmp;                    // update residual
-    
+
     residualNorm2 = residual.squaredNorm();
     if(residualNorm2 < threshold)
       break;
-    
+
     z = precond.solve(residual);                // approximately solve for "A z = residual"
 
     RealScalar absOld = absNew;
@@ -124,14 +124,14 @@ struct traits<ConjugateGradient<_MatrixType,_UpLo,_Preconditioner> >
   * The maximal number of iterations and tolerance value can be controlled via the setMaxIterations()
   * and setTolerance() methods. The defaults are the size of the problem for the maximal number of iterations
   * and NumTraits<Scalar>::epsilon() for the tolerance.
-  * 
+  *
   * The tolerance corresponds to the relative residual error: |Ax-b|/|b|
-  * 
+  *
   * \b Performance: Even though the default value of \c _UpLo is \c Lower, significantly higher performance is
   * achieved when using a complete matrix and \b Lower|Upper as the \a _UpLo template parameter. Moreover, in this
   * case multi-threading can be exploited if the user code is compiled with OpenMP enabled.
   * See \ref TopicMultiThreading for details.
-  * 
+  *
   * This class can be used as the direct solver classes. Here is a typical usage example:
     \code
     int n = 10000;
@@ -146,10 +146,10 @@ struct traits<ConjugateGradient<_MatrixType,_UpLo,_Preconditioner> >
     // update b, and solve again
     x = cg.solve(b);
     \endcode
-  * 
+  *
   * By default the iterations start with x=0 as an initial guess of the solution.
   * One can control the start using the solveWithGuess() method.
-  * 
+  *
   * ConjugateGradient can also be used in a matrix-free context, see the following \link MatrixfreeSolverExample example \endlink.
   *
   * \sa class LeastSquaresConjugateGradient, class SimplicialCholesky, DiagonalPreconditioner, IdentityPreconditioner
@@ -179,10 +179,10 @@ public:
   ConjugateGradient() : Base() {}
 
   /** Initialize the solver with matrix \a A for further \c Ax=b solving.
-    * 
+    *
     * This constructor is a shortcut for the default constructor followed
     * by a call to compute().
-    * 
+    *
     * \warning this class stores a reference to the matrix A as well as some
     * precomputed values that depend on it. Therefore, if \a A is changed
     * this class becomes invalid. Call compute() to update it with the new
@@ -227,7 +227,7 @@ public:
     m_isInitialized = true;
     m_info = m_error <= Base::m_tolerance ? Success : NoConvergence;
   }
-  
+
   /** \internal */
   using Base::_solve_impl;
   template<typename Rhs,typename Dest>

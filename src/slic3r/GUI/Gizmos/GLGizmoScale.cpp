@@ -5,7 +5,7 @@
 
 #include <GL/glew.h>
 
-#include <wx/utils.h> 
+#include <wx/utils.h>
 
 namespace Slic3r {
 namespace GUI {
@@ -40,7 +40,7 @@ std::string GLGizmoScale3D::get_tooltip() const
         return "Y: " + format(scale(1), 4) + "%";
     else if (m_hover_id == 4 || m_hover_id == 5 || m_grabbers[4].dragging || m_grabbers[5].dragging)
         return "Z: " + format(scale(2), 4) + "%";
-    else if (m_hover_id == 6 || m_hover_id == 7 || m_hover_id == 8 || m_hover_id == 9 || 
+    else if (m_hover_id == 6 || m_hover_id == 7 || m_hover_id == 8 || m_hover_id == 9 ||
         m_grabbers[6].dragging || m_grabbers[7].dragging || m_grabbers[8].dragging || m_grabbers[9].dragging)
     {
         std::string tooltip = "X: " + format(scale(0), 4) + "%\n";
@@ -127,7 +127,7 @@ void GLGizmoScale3D::on_render()
 
     m_box.reset();
     m_transform = Transform3d::Identity();
-    // Transforms grabbers' offsets to world refefence system 
+    // Transforms grabbers' offsets to world refefence system
     Transform3d offsets_transform = Transform3d::Identity();
     m_offsets_transform = Transform3d::Identity();
     Vec3d angles = Vec3d::Zero();

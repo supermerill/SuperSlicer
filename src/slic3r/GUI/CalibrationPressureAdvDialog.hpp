@@ -3,17 +3,17 @@
 
 #include "CalibrationAbstractDialog.hpp"
 //pressure advance PressureAdv
-namespace Slic3r { 
+namespace Slic3r {
 namespace GUI {
 
 class CalibrationPressureAdvDialog : public CalibrationAbstractDialog
 {
 
 public:
-    CalibrationPressureAdvDialog(GUI_App* app, MainFrame* mainframe) : CalibrationAbstractDialog(app, mainframe, "Pressure calibration") 
+    CalibrationPressureAdvDialog(GUI_App* app, MainFrame* mainframe) : CalibrationAbstractDialog(app, mainframe, "Pressure calibration")
     { create(boost::filesystem::path("calibration") / "filament_pressure", "filament_pressure.html", wxSize(1600, 600)); Centre(wxBOTH);}
     virtual ~CalibrationPressureAdvDialog(){ }
-    
+
 protected:
     void create_buttons(wxStdDialogButtonSizer* sizer) override;
     void create_geometry(wxCommandEvent& event_args);

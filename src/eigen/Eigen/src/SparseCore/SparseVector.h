@@ -10,7 +10,7 @@
 #ifndef EIGEN_SPARSEVECTOR_H
 #define EIGEN_SPARSEVECTOR_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \ingroup SparseCore_Module
   * \class SparseVector
@@ -70,14 +70,14 @@ class SparseVector
     EIGEN_SPARSE_PUBLIC_INTERFACE(SparseVector)
     EIGEN_SPARSE_INHERIT_ASSIGNMENT_OPERATOR(SparseVector, +=)
     EIGEN_SPARSE_INHERIT_ASSIGNMENT_OPERATOR(SparseVector, -=)
-    
+
     typedef internal::CompressedStorage<Scalar,StorageIndex> Storage;
     enum { IsColVector = internal::traits<SparseVector>::IsColVector };
-    
+
     enum {
       Options = _Options
     };
-    
+
     EIGEN_STRONG_INLINE Index rows() const { return IsColVector ? m_size : 1; }
     EIGEN_STRONG_INLINE Index cols() const { return IsColVector ? 1 : m_size; }
     EIGEN_STRONG_INLINE Index innerSize() const { return m_size; }
@@ -93,7 +93,7 @@ class SparseVector
     inline StorageIndex* outerIndexPtr() { return 0; }
     inline const StorageIndex* innerNonZeroPtr() const { return 0; }
     inline StorageIndex* innerNonZeroPtr() { return 0; }
-    
+
     /** \internal */
     inline Storage& data() { return m_data; }
     /** \internal */
@@ -156,7 +156,7 @@ class SparseVector
       m_data.append(0, i);
       return m_data.value(m_data.size()-1);
     }
-    
+
     Scalar& insertBackByOuterInnerUnordered(Index outer, Index inner)
     {
       EIGEN_UNUSED_VARIABLE(outer);
@@ -172,7 +172,7 @@ class SparseVector
     inline Scalar& insert(Index row, Index col)
     {
       eigen_assert(IsColVector ? (col==0 && row>=0 && row<m_size) : (row==0 && col>=0 && col<m_size));
-      
+
       Index inner = IsColVector ? row : col;
       Index outer = IsColVector ? col : row;
       EIGEN_ONLY_USED_FOR_DEBUG(outer);
@@ -182,7 +182,7 @@ class SparseVector
     Scalar& insert(Index i)
     {
       eigen_assert(i>=0 && i<m_size);
-      
+
       Index startId = 0;
       Index p = Index(m_data.size()) - 1;
       // TODO smart realloc
@@ -381,25 +381,25 @@ class SparseVector
 
     /** \internal \deprecated use finalize() */
     EIGEN_DEPRECATED void endFill() {}
-    
+
     // These two functions were here in the 3.1 release, so let's keep them in case some code rely on them.
     /** \internal \deprecated use data() */
     EIGEN_DEPRECATED Storage& _data() { return m_data; }
     /** \internal \deprecated use data() */
     EIGEN_DEPRECATED const Storage& _data() const { return m_data; }
-    
+
 #   ifdef EIGEN_SPARSEVECTOR_PLUGIN
 #     include EIGEN_SPARSEVECTOR_PLUGIN
 #   endif
 
 protected:
-  
+
     static void check_template_parameters()
     {
       EIGEN_STATIC_ASSERT(NumTraits<StorageIndex>::IsSigned,THE_INDEX_TYPE_MUST_BE_A_SIGNED_TYPE);
       EIGEN_STATIC_ASSERT((_Options&(ColMajor|RowMajor))==Options,INVALID_MATRIX_TEMPLATE_PARAMETERS);
     }
-    
+
     Storage m_data;
     Index m_size;
 };
@@ -414,26 +414,26 @@ struct evaluator<SparseVector<_Scalar,_Options,_Index> >
   typedef evaluator_base<SparseVectorType> Base;
   typedef typename SparseVectorType::InnerIterator InnerIterator;
   typedef typename SparseVectorType::ReverseInnerIterator ReverseInnerIterator;
-  
+
   enum {
     CoeffReadCost = NumTraits<_Scalar>::ReadCost,
     Flags = SparseVectorType::Flags
   };
 
   evaluator() : Base() {}
-  
+
   explicit evaluator(const SparseVectorType &mat) : m_matrix(&mat)
   {
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
-  
+
   inline Index nonZerosEstimate() const {
     return m_matrix->nonZeros();
   }
-  
+
   operator SparseVectorType&() { return m_matrix->const_cast_derived(); }
   operator const SparseVectorType&() const { return *m_matrix; }
-  
+
   const SparseVectorType *m_matrix;
 };
 

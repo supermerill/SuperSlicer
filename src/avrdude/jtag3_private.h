@@ -151,20 +151,20 @@
 #define EVT3_POWER                 0x10 /* General scope */
 
 /* memory types */
-#define MTYPE_SRAM        0x20	/* target's SRAM or [ext.] IO registers */
-#define MTYPE_EEPROM      0x22	/* EEPROM, what way? */
-#define MTYPE_SPM         0xA0	/* flash through LPM/SPM */
-#define MTYPE_FLASH_PAGE  0xB0	/* flash in programming mode */
-#define MTYPE_EEPROM_PAGE 0xB1	/* EEPROM in programming mode */
-#define MTYPE_FUSE_BITS   0xB2	/* fuse bits in programming mode */
-#define MTYPE_LOCK_BITS   0xB3	/* lock bits in programming mode */
-#define MTYPE_SIGN_JTAG   0xB4	/* signature in programming mode */
-#define MTYPE_OSCCAL_BYTE 0xB5	/* osccal cells in programming mode */
-#define MTYPE_FLASH       0xc0	/* xmega (app.) flash - undocumented in AVR067 */
-#define MTYPE_BOOT_FLASH  0xc1	/* xmega boot flash - undocumented in AVR067 */
-#define MTYPE_EEPROM_XMEGA 0xc4	/* xmega EEPROM in debug mode - undocumented in AVR067 */
-#define MTYPE_USERSIG     0xc5	/* xmega user signature - undocumented in AVR067 */
-#define MTYPE_PRODSIG     0xc6	/* xmega production signature - undocumented in AVR067 */
+#define MTYPE_SRAM        0x20    /* target's SRAM or [ext.] IO registers */
+#define MTYPE_EEPROM      0x22    /* EEPROM, what way? */
+#define MTYPE_SPM         0xA0    /* flash through LPM/SPM */
+#define MTYPE_FLASH_PAGE  0xB0    /* flash in programming mode */
+#define MTYPE_EEPROM_PAGE 0xB1    /* EEPROM in programming mode */
+#define MTYPE_FUSE_BITS   0xB2    /* fuse bits in programming mode */
+#define MTYPE_LOCK_BITS   0xB3    /* lock bits in programming mode */
+#define MTYPE_SIGN_JTAG   0xB4    /* signature in programming mode */
+#define MTYPE_OSCCAL_BYTE 0xB5    /* osccal cells in programming mode */
+#define MTYPE_FLASH       0xc0    /* xmega (app.) flash - undocumented in AVR067 */
+#define MTYPE_BOOT_FLASH  0xc1    /* xmega boot flash - undocumented in AVR067 */
+#define MTYPE_EEPROM_XMEGA 0xc4    /* xmega EEPROM in debug mode - undocumented in AVR067 */
+#define MTYPE_USERSIG     0xc5    /* xmega user signature - undocumented in AVR067 */
+#define MTYPE_PRODSIG     0xc6    /* xmega production signature - undocumented in AVR067 */
 
 /*
  * Parameters are divided into sections, where the section number
@@ -300,20 +300,20 @@ struct mega_device_desc {
 
 /* Xmega device descriptor */
 struct xmega_device_desc {
-    unsigned char nvm_app_offset[4];	// NVM offset for application flash
-    unsigned char nvm_boot_offset[4];	// NVM offset for boot flash
+    unsigned char nvm_app_offset[4];    // NVM offset for application flash
+    unsigned char nvm_boot_offset[4];    // NVM offset for boot flash
     unsigned char nvm_eeprom_offset[4]; // NVM offset for EEPROM
-    unsigned char nvm_fuse_offset[4];	// NVM offset for fuses
-    unsigned char nvm_lock_offset[4];	// NVM offset for lock bits
+    unsigned char nvm_fuse_offset[4];    // NVM offset for fuses
+    unsigned char nvm_lock_offset[4];    // NVM offset for lock bits
     unsigned char nvm_user_sig_offset[4]; // NVM offset for user signature row
     unsigned char nvm_prod_sig_offset[4]; // NVM offset for production sign. row
-    unsigned char nvm_data_offset[4];	// NVM offset for data memory (SRAM + IO)
-    unsigned char app_size[4];		// size of application flash
-    unsigned char boot_size[2];		// size of boot flash
-    unsigned char flash_page_size[2];	// flash page size
-    unsigned char eeprom_size[2];	// size of EEPROM
-    unsigned char eeprom_page_size;	// EEPROM page size
-    unsigned char nvm_base_addr[2];	// IO space base address of NVM controller
-    unsigned char mcu_base_addr[2];	// IO space base address of MCU control
+    unsigned char nvm_data_offset[4];    // NVM offset for data memory (SRAM + IO)
+    unsigned char app_size[4];        // size of application flash
+    unsigned char boot_size[2];        // size of boot flash
+    unsigned char flash_page_size[2];    // flash page size
+    unsigned char eeprom_size[2];    // size of EEPROM
+    unsigned char eeprom_page_size;    // EEPROM page size
+    unsigned char nvm_base_addr[2];    // IO space base address of NVM controller
+    unsigned char mcu_base_addr[2];    // IO space base address of MCU control
 };
 #endif /* JTAG3_PRIVATE_EXPORTED */

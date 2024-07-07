@@ -34,7 +34,7 @@
 #ifndef EIGEN_QR_LAPACKE_H
 #define EIGEN_QR_LAPACKE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 

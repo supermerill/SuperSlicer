@@ -85,9 +85,9 @@ IGL_INLINE void igl::triangle::triangulate(
   using namespace std;
   using namespace Eigen;
 
-  assert( (VM.size() == 0 || V.rows() == VM.size()) && 
+  assert( (VM.size() == 0 || V.rows() == VM.size()) &&
     "Vertex markers must be empty or same size as V");
-  assert( (EM.size() == 0 || E.rows() == EM.size()) && 
+  assert( (EM.size() == 0 || E.rows() == EM.size()) &&
     "Segment markers must be empty or same size as E");
   assert(V.cols() == 2);
   assert(E.size() == 0 || E.cols() == 2);
