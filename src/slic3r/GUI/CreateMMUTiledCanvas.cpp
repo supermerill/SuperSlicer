@@ -253,7 +253,7 @@ namespace GUI {
                     color = c.widget_spool->get_print_color()->get_printed_color(use_spool_colors);
                 }
                 //get nearest
-                for (int i = 0; i < parent->m_used_colors.size(); i++) {
+                for (size_t i = 0; i < parent->m_used_colors.size(); i++) {
                     if (parent->m_used_colors[i]->get_printed_color(use_spool_colors) == color) {
                         idx_extruder = i;
                         break;
@@ -330,7 +330,7 @@ namespace GUI {
             timestamp += (second->GetValue());
             timestamp += delta;
             //it's ordered
-            int idx = 0;
+            size_t idx = 0;
             while (idx < rplace_timestamp.size() && timestamp > rplace_timestamp[idx]) { idx++; }
             //if after the last or ( if not found, and it not before the begin, and only if we don't want the next.)
             if (idx >= rplace_timestamp.size() || (timestamp != rplace_timestamp[idx] && idx > 0 && delta<=0)) idx--;
@@ -428,27 +428,27 @@ void CreateMMUTiledCanvas::recompute_colors()
     wxSize offset(std::min(int(offset_dbl.x()), std::max(0, bmp.GetSize().x - 1)), std::min(int(offset_dbl.y()), std::max(0, bmp.GetSize().y - 1)));
     Vec2d size_dbl = m_config.option<ConfigOptionPoint>("size")->value;
     wxSize size(std::min(int(size_dbl.x()), bmp.GetSize().x - offset.x), std::min(int(size_dbl.y()), bmp.GetSize().y - offset.y));
-    Vec2d pixel_size = m_config.option<ConfigOptionPoint>("size_px")->value;
-    double separation = m_config.opt_float("separation_xy");
+    //Vec2d pixel_size = m_config.option<ConfigOptionPoint>("size_px")->value;
+    //double separation = m_config.opt_float("separation_xy");
 
     //compute pixel per mm
-    double max_x_mm = (size.x * (pixel_size.x() + separation) - separation);
-    double max_y_mm = (size.y * (pixel_size.y() + separation) - separation);
-    float mm_per_pixel = std::max(max_x_mm / (GetSize().x - 4), max_y_mm / (GetSize().y - 4));
+    //double max_x_mm = (size.x * (pixel_size.x() + separation) - separation);
+    //double max_y_mm = (size.y * (pixel_size.y() + separation) - separation);
+    //float mm_per_pixel = std::max(max_x_mm / (GetSize().x - 4), max_y_mm / (GetSize().y - 4));
 
     //compute pixel per tile & per separation
-    int pixels_separation = int(separation / mm_per_pixel) + (separation - int(separation / mm_per_pixel) > mm_per_pixel / 2 ? 1 : 0);
-    int ratiox = std::min(1, int(pixel_size.x() / pixel_size.y()));
-    int ratioy = std::min(1, int(pixel_size.y() / pixel_size.x()));
-    int pixels_reste_x = (GetSize().x - 4 - pixels_separation * (size.x - 1));
-    int pixels_reste_y = (GetSize().y - 4 - pixels_separation * (size.y - 1));
-    double pixels_per_tile_dbl_x = (pixels_reste_x / double(size.x * (pixel_size.x() / pixel_size.y())));
-    double pixels_per_tile_dbl_y = (pixels_reste_y / double(size.y * (pixel_size.y() / pixel_size.x())));
-    double pixels_per_tile = std::min(pixels_per_tile_dbl_x, pixels_per_tile_dbl_y);
-    int pixels_per_tile_x = std::max(1, int(pixels_per_tile * ratiox));
-    int pixels_per_tile_y = std::max(1, int(pixels_per_tile * ratioy));
+    //int pixels_separation = int(separation / mm_per_pixel) + (separation - int(separation / mm_per_pixel) > mm_per_pixel / 2 ? 1 : 0);
+    //int ratiox = std::min(1, int(pixel_size.x() / pixel_size.y()));
+    //int ratioy = std::min(1, int(pixel_size.y() / pixel_size.x()));
+    //int pixels_reste_x = (GetSize().x - 4 - pixels_separation * (size.x - 1));
+    //int pixels_reste_y = (GetSize().y - 4 - pixels_separation * (size.y - 1));
+    //double pixels_per_tile_dbl_x = (pixels_reste_x / double(size.x * (pixel_size.x() / pixel_size.y())));
+    //double pixels_per_tile_dbl_y = (pixels_reste_y / double(size.y * (pixel_size.y() / pixel_size.x())));
+    //double pixels_per_tile = std::min(pixels_per_tile_dbl_x, pixels_per_tile_dbl_y);
+    //int pixels_per_tile_x = std::max(1, int(pixels_per_tile * ratiox));
+    //int pixels_per_tile_y = std::max(1, int(pixels_per_tile * ratioy));
 
-    bool show_original = m_config.option<ConfigOptionBool>("original")->value;
+    m_config.option<ConfigOptionBool>("original")->value;
     wxColour background_color{ wxString{ m_config.option<ConfigOptionString>("background_color")->value } };
 
     for (ColorEntry& col : m_pixel_colors) {
@@ -458,7 +458,7 @@ void CreateMMUTiledCanvas::recompute_colors()
     //create background color
     {
         int idx = -1;
-        for (int i = 0; i < m_pixel_colors.size(); i++) {
+        for (size_t i = 0; i < m_pixel_colors.size(); i++) {
             if (m_pixel_colors[i].real_color == background_color) {
                 idx = i;
                 break;
@@ -484,7 +484,7 @@ void CreateMMUTiledCanvas::recompute_colors()
             for (int x = 0; x < size.x; x++, ++p) {
                 wxColour color(p.Red(), p.Green(), p.Blue());
                 int idx = -1;
-                for (int i = 0; i < m_pixel_colors.size(); i++) {
+                for (size_t i = 0; i < m_pixel_colors.size(); i++) {
                     if (m_pixel_colors[i].real_color == color) {
                         idx = i;
                         break;
@@ -525,7 +525,7 @@ void CreateMMUTiledCanvas::recompute_colors()
                 c->printing_color->nb_pixels_real += c->nb_pixels_sum;
             } else {
                 c->printing_color = &m_spools[0];
-                for (int i = 1; i < m_spools.size(); i++) {
+                for (size_t i = 1; i < m_spools.size(); i++) {
                     if ((color_dist(color_algo, m_spools[i].get_printed_color(use_spool), c->real_color) < color_dist(color_algo, c->printing_color->get_printed_color(use_spool), c->real_color))) {
                         c->printing_color = &m_spools[i];
                     }
@@ -546,10 +546,10 @@ void CreateMMUTiledCanvas::recompute_colors()
 
     // merge until nb_extruder is enough
     std::sort(m_used_colors.begin(), m_used_colors.end(), [](ColorEntry* e1, ColorEntry* e2) { return e1->nb_pixels_sum > e2->nb_pixels_sum; });
-    while (use_near_color && m_used_colors.size() > nb_extruders) {
+    while (use_near_color && m_used_colors.size() > static_cast<std::vector<Slic3r::GUI::ColorEntry*>::size_type>(nb_extruders)) {
         //move the smallest color into the nearest one
         int idx_extruder = 0;
-        for (int i = 1; i < m_used_colors.size() - 1; i++) {
+        for (size_t i = 1; i < m_used_colors.size() - 1; i++) {
             if ((color_dist(color_algo, m_used_colors[i]->real_color, m_used_colors.back()->real_color) < color_dist(color_algo, m_used_colors[idx_extruder]->real_color, m_used_colors.back()->real_color))) {
                 idx_extruder = i;
             }
@@ -1048,7 +1048,7 @@ void CreateMMUTiledCanvas::create_main_tab(wxPanel* tab)
 #endif
                 }
             }
-            catch (Exception) {}
+            catch (const Slic3r::Exception& ex){}
         }
         }));
     m_filename_ctrl = new wxTextCtrl(tab, wxID_ANY, "");
@@ -1240,7 +1240,7 @@ public:
         }));
         clr_bt->GetPickerCtrl()->Bind(wxEVT_RIGHT_DOWN, ([clr_bt, sizer](wxMouseEvent& e) {
             //remove this color
-            for (int i = 0; i < s_main_app->m_spools.size(); i++) {
+            for (size_t i = 0; i < s_main_app->m_spools.size(); i++) {
                 if (s_main_app->m_spools[i].widget == clr_bt && sizer->GetItem(i)->GetWindow() == clr_bt) {
                     s_main_app->m_spools.erase(s_main_app->m_spools.begin() + i);
                     s_main_app->refresh_color_conversion(i, false);
@@ -1312,7 +1312,7 @@ public:
             dc.SetBrush(*wxBLACK_BRUSH);
             dc.DrawLabel(_L("Automatic"), rect, wxALIGN_CENTER_HORIZONTAL | wxALIGN_CENTER_VERTICAL);
         } else {
-            if (item-1 < m_main_app->m_spools.size()) {
+            if (static_cast<decltype(m_main_app->m_spools.size())>(item - 1) < m_main_app->m_spools.size()) {
                 dc.SetBrush(*wxTheBrushList->FindOrCreateBrush(m_main_app->m_spools[item-1].get_printed_color()));
                 dc.DrawRectangle(rect);
             } else {
@@ -1346,7 +1346,7 @@ int CreateMMUTiledCanvas::find_extruder(wxColour color) {
     const int color_algo = m_config.option<ConfigOptionInt>("color_comp")->value;
     bool use_near_color = m_config.option<ConfigOptionBool>("near_color")->value;
     int idx_extruder = 0;
-    for (int i = 0; i < m_used_colors.size() && i < nb_extruders; i++) {
+    for (size_t i = 0; i < m_used_colors.size() && static_cast<int>(i) < nb_extruders; i++) {
         if (m_used_colors[i]->get_printed_color() == color) {
             idx_extruder = 1 + i;
             break;
@@ -1373,7 +1373,7 @@ void CreateMMUTiledCanvas::recreate_color_conversion()
         
         MywxOwnerDrawnComboBox* clr_set = new MywxOwnerDrawnComboBox(this, line, _L("Automatic"), index);
         clr_set->Append(_L("Automatic"));
-        for (int i = 0; i < this->m_spools.size(); i++) {
+        for (size_t i = 0; i < this->m_spools.size(); i++) {
             clr_set->Append(std::to_string(i + 1));
         }
         clr_set->SetSelection(0);
@@ -1391,7 +1391,7 @@ void CreateMMUTiledCanvas::recreate_color_conversion()
     };
 
     std::vector<ColorEntry*> used;
-    for (int idx = 0; idx < m_pixel_colors.size(); idx++) {
+    for (size_t idx = 0; idx < m_pixel_colors.size(); idx++) {
         ColorEntry& c = m_pixel_colors[idx];
         if (c.nb_pixels_real > 0) {
             used.push_back(&c);
@@ -1417,7 +1417,7 @@ void CreateMMUTiledCanvas::recreate_color_conversion()
 
 //refresh color from comboboxes & destroyed links
 void CreateMMUTiledCanvas::refresh_color_conversion(int del_idx, bool is_add_not_del) {
-    for (int i = 0; i < m_pixel_colors.size(); i++) {
+    for (size_t i = 0; i < m_pixel_colors.size(); i++) {
         ColorEntry& c = m_pixel_colors[i];
         if (c.widget_spool && !c.widget_spool->is_detached()) {
             MywxOwnerDrawnComboBox* clr_set = (MywxOwnerDrawnComboBox*)c.widget_spool->get_widget();
@@ -1476,7 +1476,7 @@ void CreateMMUTiledCanvas::create_color_tab(wxPanel* tab)
     //row of available colors
     //group_colors->append_single_option_line(group_colors->get_option("available_colors"));
     ConfigOptionStrings* available_colors = m_config.option<ConfigOptionStrings>("available_colors");
-    for (int i = 0; i < available_colors->size(); i++) {
+    for (size_t i = 0; i < available_colors->size(); i++) {
         MywxColourPickerCtrl::add_color_bt(available_colors->get_at(i), color_row_sizer);
     }
     tab->Refresh();
@@ -1576,7 +1576,7 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
     plat->set_project_filename(L("Mosaic"));
 
     const DynamicPrintConfig* print_config = this->m_gui_app->get_tab(Preset::TYPE_FFF_PRINT)->get_config();
-    const DynamicPrintConfig* filament_config = this->m_gui_app->get_tab(Preset::TYPE_FFF_FILAMENT)->get_config();
+    //const DynamicPrintConfig* filament_config = this->m_gui_app->get_tab(Preset::TYPE_FFF_FILAMENT)->get_config();
     const DynamicPrintConfig* printer_config = this->m_gui_app->get_tab(Preset::TYPE_PRINTER)->get_config();
 
     Vec2d offset_dbl = m_config.option<ConfigOptionPoint>("offset")->value;
@@ -1618,7 +1618,7 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
     if (use_near_color) {
         //find extruder
         wxColor color (background_color);
-        for (int i = 0; i < m_used_colors.size() && i < nb_extruders; i++) {
+        for (size_t i = 0; i < m_used_colors.size() && i < static_cast<size_t>(nb_extruders); i++) {
             if (idx_extruder_base <= 0 || (color_dist(color_algo, m_used_colors[i]->get_printed_color(use_spool_colors), color) < color_dist(color_algo, m_used_colors[idx_extruder_base - 1]->get_printed_color(use_spool_colors), color))) {
                 idx_extruder_base = 1 + i;
             }
@@ -1633,7 +1633,7 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
 #ifdef _DEBUG
         check_model_ids_validity(model);
 #endif /* _DEBUG */
-        auto bb = mesh.bounding_box();
+        // auto bb = mesh.bounding_box();
         ModelObject* new_object = model.add_object();
         new_object->name = into_u8(_L("Base Tile"));
         new_object->add_instance(); // each object should have at list one instance
@@ -1763,7 +1763,7 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
         //{m_impl=L"#800040" m_convertedToChar={m_str=0x0000000000000000 <NULL> m_len=0 } }
         const ConfigOptionStrings* color_conf = printer_config->option<ConfigOptionStrings>("extruder_colour");
         ConfigOptionStrings* new_color_conf = static_cast<ConfigOptionStrings*>(color_conf->clone());
-        for(int idx_col = 0; idx_col < this->m_used_colors.size() && idx_col < new_color_conf->size(); idx_col++){
+        for(size_t idx_col = 0; idx_col < this->m_used_colors.size() && idx_col < new_color_conf->size(); idx_col++){
             wxColour col = this->m_used_colors[idx_col]->get_printed_color(use_spool_colors);
             new_color_conf->get_at(idx_col) = "#" + AppConfig::int2hex(col.GetRGB());
         }

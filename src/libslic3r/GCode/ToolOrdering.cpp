@@ -63,15 +63,18 @@ uint16_t LayerTools::extruder(const ExtrusionEntityCollection &extrusions, const
 	assert(region.config().solid_infill_extruder.value > 0);
 	// 1 based extruder ID.
     uint16_t extruder = this->extruder_override;
-    if (this->extruder_override == 0)
-        if (HasRoleVisitor::search(extrusions, HasInfillVisitor{}))
-            if (HasRoleVisitor::search(extrusions, HasSolidInfillVisitor{}))
+    if (this->extruder_override == 0) {
+        if (HasRoleVisitor::search(extrusions, HasInfillVisitor{})) {
+            if (HasRoleVisitor::search(extrusions, HasSolidInfillVisitor{})) {
                 extruder = region.config().solid_infill_extruder;
-            else
+            } else {
                 extruder = region.config().infill_extruder;
-        else
+            }
+        } else {
             extruder = region.config().perimeter_extruder.value;
-	return (extruder == 0) ? 0 : extruder - 1;
+        }
+    }
+    return (extruder == 0) ? 0 : extruder - 1;
 }
 
 static double calc_max_layer_height(const PrintConfig &config, double max_object_layer_height)
@@ -420,7 +423,7 @@ void ToolOrdering::fill_wipe_tower_partitions(const PrintConfig &config, coordf_
     // and maybe other problems. We will therefore go through layer_tools and detect and fix this.
     // So, if there is a non-object layer starting with different extruder than the last one ended with (or containing more than one extruder),
     // we'll mark it with has_wipe tower.
-    for (uint16_t i=0; i+1<m_layer_tools.size(); ++i) {
+    for (size_t i=0; i+1<m_layer_tools.size(); ++i) {
         LayerTools& lt = m_layer_tools[i];
         LayerTools& lt_next = m_layer_tools[i+1];
         if (lt.extruders.empty() || lt_next.extruders.empty())

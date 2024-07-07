@@ -420,12 +420,13 @@ void OptionsGroup::activate_line(Line& line)
             // add sidetext if any
             if ((!option.sidetext.empty() || sidetext_width > 0) && option.sidetext_width != 0){
                 wxString textstring;
-                if(!option.sidetext.empty())
+                if (!option.sidetext.empty()) {
                     if (option.sidetext.at(option.sidetext.size() - 1) != '_') {
                         textstring = _(option.sidetext);
                     } else {
                         textstring = option.sidetext.substr(0, option.sidetext.size() - 1);
                     }
+                }         
                 wxSize wxsize{ -1,-1 };
                 if (option.sidetext_width >= 0) {
                     if (option.sidetext_width != 0)
@@ -785,7 +786,7 @@ void ConfigOptionsGroup::reload_config()
 		const std::string &opt_key   = kvp.second.first;
 		// index in the vector option, zero for scalars
 		int 			   opt_index = kvp.second.second;
-		const ConfigOptionDef &option = m_options.at(opt_id).opt;
+		m_options.at(opt_id).opt;
         this->set_value(opt_id, m_config->option(opt_key)->get_any(opt_index));
 	}
     update_script_presets();
@@ -832,7 +833,7 @@ bool ConfigOptionsGroup::is_visible(ConfigOptionMode mode)
         return get_invisible_idx(m_options_mode[0], mode).empty();
 
     size_t hidden_row_cnt = 0;
-    for (size_t i = 0; i < opt_mode_size; i++) {
+    for (size_t i = 0; i < static_cast<size_t>(opt_mode_size); i++){
         if ((m_options_mode[i].size() == 1
             && m_options_mode[i].begin()->second.size() == 1
             && m_options_mode[i].begin()->second[0] == (size_t)-1
@@ -842,7 +843,7 @@ bool ConfigOptionsGroup::is_visible(ConfigOptionMode mode)
         }
     }
 
-    return hidden_row_cnt != opt_mode_size;
+    return hidden_row_cnt != static_cast<size_t>(opt_mode_size);
 }
 
 bool ConfigOptionsGroup::update_visibility(ConfigOptionMode mode)
@@ -874,7 +875,7 @@ bool ConfigOptionsGroup::update_visibility(ConfigOptionMode mode)
             && (m_options_mode[i].begin()->first != comNone && (m_options_mode[i].begin()->first & mode) != mode))
                 || get_visible_idx(m_options_mode[i], mode).empty()) {
             hidden_row_cnt++;
-            for (size_t idx =0; idx < cols; idx++)
+            for (size_t idx = 0; idx < static_cast<size_t>(cols); idx++) 
                 m_grid_sizer->Show(idx_item + idx, false);
         }else
             for (size_t idx : get_invisible_idx(m_options_mode[i], mode))

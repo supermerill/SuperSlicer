@@ -113,7 +113,7 @@ bool Model::equals(const Model& rhs) const {
     // check objects
     if (this->objects.size() != rhs.objects.size())
         return false;
-    for (int i = 0; i < rhs.objects.size(); i++) {
+    for (size_t i = 0; i < rhs.objects.size(); i++) {
         // Copy including the ID, leave ID set to invalid (zero).
         if (rhs.objects[i]->equals(*objects[i]))
             return false;

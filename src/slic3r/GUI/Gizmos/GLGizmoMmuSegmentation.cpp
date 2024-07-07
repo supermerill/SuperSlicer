@@ -305,7 +305,11 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
 
     float caption_max    = 0.f;
     float total_text_max = 0.f;
-    for (const std::string& t : {"first_color", "second_color", "remove"}) {
+    const std::string first_color_str = "first_color";
+    const std::string second_color_str = "second_color";
+    const std::string remove_str = "remove";
+    
+    for (const std::string& t : {first_color_str, second_color_str, remove_str}) {
         caption_max    = std::max(caption_max, m_imgui->calc_text_size(m_desc[t + "_caption"]).x);
         total_text_max = std::max(total_text_max, m_imgui->calc_text_size(m_desc[t]).x);
     }
@@ -328,7 +332,7 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
         m_imgui->text(text);
     };
 
-    for (const std::string& t : {"first_color", "second_color", "remove"})
+    for (const std::string& t : {first_color_str, second_color_str, remove_str})
         draw_text_with_caption(m_desc.at(t + "_caption"), m_desc.at(t));
 
     ImGui::Separator();

@@ -88,31 +88,31 @@ static inline void check_add_eol(std::string& gcode)
     
 
 // Return true if tch_prefix is found in custom_gcode
-static bool custom_gcode_changes_tool(const std::string& custom_gcode, const std::string& tch_prefix, unsigned next_extruder)
-{
-bool ok = false;
-size_t from_pos = 0;
-size_t pos = 0;
-while ((pos = custom_gcode.find(tch_prefix, from_pos)) != std::string::npos) {
-        if (pos + 1 == custom_gcode.size())
-        break;
-        from_pos = pos + 1;
-    // only whitespace is allowed before the command
-    while (--pos < custom_gcode.size() && custom_gcode[pos] != '\n') {
-            if (!std::isspace(custom_gcode[pos]))
-            goto NEXT;
-    }
-    {
-        // we should also check that the extruder changes to what was expected
-        std::istringstream ss(custom_gcode.substr(from_pos, std::string::npos));
-        unsigned num = 0;
-        if (ss >> num)
-            ok = (num == next_extruder);
-    }
-    NEXT:;
-    }
-    return ok;
-}
+// static bool custom_gcode_changes_tool(const std::string& custom_gcode, const std::string& tch_prefix, unsigned next_extruder)
+// {
+// bool ok = false;
+// size_t from_pos = 0;
+// size_t pos = 0;
+// while ((pos = custom_gcode.find(tch_prefix, from_pos)) != std::string::npos) {
+//         if (pos + 1 == custom_gcode.size())
+//         break;
+//         from_pos = pos + 1;
+//     // only whitespace is allowed before the command
+//     while (--pos < custom_gcode.size() && custom_gcode[pos] != '\n') {
+//             if (!std::isspace(custom_gcode[pos]))
+//             goto NEXT;
+//     }
+//     {
+//         // we should also check that the extruder changes to what was expected
+//         std::istringstream ss(custom_gcode.substr(from_pos, std::string::npos));
+//         unsigned num = 0;
+//         if (ss >> num)
+//             ok = (num == next_extruder);
+//     }
+//     NEXT:;
+//     }
+//     return ok;
+// }
 
 double get_default_acceleration(PrintConfig& config) {
     double max = 0;
@@ -192,7 +192,7 @@ void Wipe::append(const Polyline &poly)
 {
     assert(!poly.empty());
     if (!this->path.empty() && path.last_point().coincides_with_epsilon(poly.first_point())) {
-        int copy_start_idx = 0;
+        size_t copy_start_idx = 0;
         while (copy_start_idx < poly.size() && poly.points[copy_start_idx].distance_to(this->path.last_point()) < SCALED_EPSILON) {
             copy_start_idx++;
         }
@@ -241,7 +241,7 @@ std::string Wipe::wipe(GCode& gcodegen, bool toolchange)
         /*  Take the stored wipe path and replace first point with the current actual position
             (they might be different, for example, in case of loop clipping).  */
         Polyline wipe_path;
-        int copy_start_idx = 0;
+        size_t copy_start_idx = 0;
         // Compute a min dist between point, to avoid going under the precision.
         assert(gcodegen.m_last_width < SCALED_EPSILON);
         coordf_t precision = pow(10, -gcodegen.config().gcode_precision_xyz.value) * 1.5;
@@ -606,7 +606,7 @@ std::string WipeTowerIntegration::post_process_wipe_tower_moves(const WipeTower:
     const std::vector<std::string> ColorPrintColors::Colors = { "#C0392B", "#E67E22", "#F1C40F", "#27AE60", "#1ABC9C", "#2980B9", "#9B59B6" };
 
 #define EXTRUDER_CONFIG_WITH_DEFAULT(OPT,DEF) (m_writer.tool_is_extruder()?m_config.OPT.get_at(m_writer.tool()->id()):DEF)
-#define BOOL_EXTRUDER_CONFIG(OPT) m_writer.tool_is_extruder() && m_config.OPT.get_at(m_writer.tool()->id())
+#define BOOL_EXTRUDER_CONFIG(OPT) (m_writer.tool_is_extruder() && m_config.OPT.get_at(m_writer.tool()->id()))
 
 constexpr float SMALL_PERIMETER_SPEED_RATIO_OFFSET = (-10);
 
@@ -689,7 +689,7 @@ std::vector<GCode::LayerToPrint> GCode::collect_layers_to_print(const PrintObjec
          || (layer_to_print.support_layer /* && layer_to_print.support_layer->has_extrusions() */)) {
 
             double extra_gap = (layer_to_print.support_layer ? bottom_cd : top_cd);
-            if (object.config().raft_layers.value > 0 && layer_to_print.layer()->id() <= object.config().raft_layers.value) {
+            if (object.config().raft_layers.value > 0 && layer_to_print.layer()->id() <= static_cast<size_t>(object.config().raft_layers.value)) {
                 extra_gap = raft_cd;
             }
             if (object.config().support_material_contact_distance_type.value == SupportZDistanceType::zdNone) {
@@ -1167,7 +1167,7 @@ namespace DoExport {
 	    std::vector<double> mm3_per_mm;
 	    for (auto object : print.objects()) {
 	        for (size_t region_id = 0; region_id < object->num_printing_regions(); ++ region_id) {
-	            const PrintRegion &region = object->printing_region(region_id);
+	            object->printing_region(region_id);
 	            for (auto layer : object->layers()) {
 	                const LayerRegion* layerm = layer->regions()[region_id];
                     if (compute_min_mm3_per_mm.is_compatible({ erPerimeter, erExternalPerimeter, erOverhangPerimeter }))
@@ -2887,7 +2887,7 @@ std::string emit_custom_gcode_per_print_z(
             //update stats : length
             double previously_extruded = 0;
             for (const auto &tuple : status_emitter.stats().color_extruderid_to_used_filament)
-                if (tuple.first == m600_extruder_before_layer)
+                if (tuple.first == static_cast<long unsigned int>(m600_extruder_before_layer))
                     previously_extruded += tuple.second;
             status_emitter.stats().color_extruderid_to_used_filament.emplace_back(m600_extruder_before_layer, gcodegen.writer().get_tool(m600_extruder_before_layer)->used_filament() - previously_extruded);
         }
@@ -3482,7 +3482,7 @@ LayerResult GCode::process_layer(
             //object skirt & brim use the object settings.
             m_config.apply(print_object->config(), true);
             this->set_origin(unscale(print_object->instances()[single_object_instance_idx].shift));
-            if (this->m_layer != nullptr && (this->m_layer->id() < m_config.skirt_height || print.has_infinite_skirt() )) {
+            if (this->m_layer != nullptr && (static_cast<size_t>(this->m_layer->id()) < static_cast<size_t>(m_config.skirt_height) || print.has_infinite_skirt())) {
                 if(first_layer && print.skirt_first_layer())
                     for (const ExtrusionEntity* ee : print_object->skirt_first_layer()->entities())
                         gcode += this->extrude_entity(*ee, "");
@@ -4186,7 +4186,7 @@ void GCode::split_at_seam_pos(ExtrusionLoop& loop, bool was_clockwise)
 #if _DEBUG
     ExtrusionLoop old_loop = loop;
     for (const ExtrusionPath &path : loop.paths)
-        for (int i = 1; i < path.polyline.get_points().size(); ++i)
+        for (size_t i = 1; i < path.polyline.get_points().size(); ++i)
             assert(!path.polyline.get_points()[i - 1].coincides_with_epsilon(path.polyline.get_points()[i]));
     for (auto it = std::next(loop.paths.begin()); it != loop.paths.end(); ++it) {
         assert(it->polyline.size() >= 2);
@@ -4223,7 +4223,7 @@ void GCode::split_at_seam_pos(ExtrusionLoop& loop, bool was_clockwise)
     }
 #if _DEBUG
     for (const ExtrusionPath &path : loop.paths)
-        for (int i = 1; i < path.polyline.get_points().size(); ++i)
+        for (size_t i = 1; i < path.polyline.get_points().size(); ++i)
             assert(!path.polyline.get_points()[i - 1].coincides_with_epsilon(path.polyline.get_points()[i]));
     for (auto it = std::next(loop.paths.begin()); it != loop.paths.end(); ++it) {
         assert(it->polyline.size() >= 2);
@@ -4267,7 +4267,7 @@ namespace check_wipe {
         coord_t delta = wipe_inside_depth - nozzle_width / 2;
         bool success = check_reduce(external_polygon, current_dist, compute_point(current_dist), nozzle_width / 2);
         if (!success) {
-            int iter = 0;
+            size_t iter = 0;
             const size_t nb_iter = size_t(std::sqrt(int(delta / nozzle_width)));
             for (iter = 0; iter < nb_iter; ++iter) {
                 delta /= 2;
@@ -4319,7 +4319,7 @@ void GCode::seam_notch(const ExtrusionLoop& original_loop,
                     Point center = polygon_to_test.centroid();
                     double diameter_min = std::numeric_limits<float>::max(), diameter_max = 0;
                     double diameter_sum = 0;
-                    for (int i = 0; i < polygon_to_test.points.size(); ++i) {
+                    for (size_t i = 0; i < polygon_to_test.points.size(); ++i) {
                         double dist = polygon_to_test.points[i].distance_to(center);
                         diameter_min = std::min(diameter_min, dist);
                         diameter_max = std::max(diameter_max, dist);
@@ -4593,7 +4593,6 @@ void GCode::seam_notch(const ExtrusionLoop& original_loop,
             Point p1 = Line(moved_end, control_end_point).midpoint();
             Point p2 = Line(p1, building_paths.back().last_point()).midpoint();
             p2 = Line(p2, control_end_point).midpoint();
-            float flow_ratio = 0.75f;
             auto check_length_clipped = [&building_paths, &end_point, length_clipped](const Point& pt_to_check) {
                 if (length_clipped > 0) {
                     double dist = pt_to_check.projection_onto(Line(building_paths.back().last_point(), end_point)).distance_to(end_point);
@@ -4650,7 +4649,7 @@ std::string GCode::extrude_loop(const ExtrusionLoop &original_loop, const std::s
     // next copies (if any) would not detect the correct orientation
     ExtrusionLoop loop_to_seam = original_loop;
     for (const ExtrusionPath &path : loop_to_seam.paths)
-        for (int i = 1; i < path.polyline.get_points().size(); ++i)
+        for (size_t i = 1; i < path.polyline.get_points().size(); ++i)
             assert(!path.polyline.get_points()[i - 1].coincides_with_epsilon(path.polyline.get_points()[i]));
 
 
@@ -4665,7 +4664,7 @@ std::string GCode::extrude_loop(const ExtrusionLoop &original_loop, const std::s
         is_hole_loop = false;
     }
     for (const ExtrusionPath &path : loop_to_seam.paths)
-        for (int i = 1; i < path.polyline.get_points().size(); ++i)
+        for (size_t i = 1; i < path.polyline.get_points().size(); ++i)
             assert(!path.polyline.get_points()[i - 1].coincides_with_epsilon(path.polyline.get_points()[i]));
 
     split_at_seam_pos(loop_to_seam, is_hole_loop);
@@ -4684,7 +4683,7 @@ std::string GCode::extrude_loop(const ExtrusionLoop &original_loop, const std::s
     // we discard it in that case
     ExtrusionPaths& building_paths = loop_to_seam.paths;
     for (const ExtrusionPath &path : building_paths)
-        for (int i = 1; i < path.polyline.get_points().size(); ++i)
+        for (size_t i = 1; i < path.polyline.get_points().size(); ++i)
             assert(!path.polyline.get_points()[i - 1].coincides_with_epsilon(path.polyline.get_points()[i]));
     //direction is now set, make the path unreversable
     for (ExtrusionPath& path : building_paths) {
@@ -4732,7 +4731,7 @@ std::string GCode::extrude_loop(const ExtrusionLoop &original_loop, const std::s
 
     const ExtrusionPaths& wipe_paths = building_paths;
     for (const ExtrusionPath &path : wipe_paths)
-        for (int i = 1; i < path.polyline.get_points().size(); ++i)
+        for (size_t i = 1; i < path.polyline.get_points().size(); ++i)
             assert(!path.polyline.get_points()[i - 1].coincides_with_epsilon(path.polyline.get_points()[i]));
 
     ExtrusionPaths notch_extrusion_start;
@@ -4742,7 +4741,7 @@ std::string GCode::extrude_loop(const ExtrusionLoop &original_loop, const std::s
 
     const ExtrusionPaths& paths = building_paths;
     for (const ExtrusionPath &path : paths)
-        for (int i = 1; i < path.polyline.get_points().size(); ++i)
+        for (size_t i = 1; i < path.polyline.get_points().size(); ++i)
             assert(!path.polyline.get_points()[i - 1].coincides_with_epsilon(path.polyline.get_points()[i]));
 
     // apply the small perimeter speed
@@ -4879,7 +4878,7 @@ std::string GCode::extrude_loop(const ExtrusionLoop &original_loop, const std::s
             coordf_t wipe_dist = scale_(dist_wipe_extra_perimeter);
             ExtrusionPaths paths_wipe;
             m_wipe.reset_path();
-            for (int i = 0; i < wipe_paths.size(); i++) {
+            for (size_t i = 0; i < wipe_paths.size(); i++) {
                 const ExtrusionPath& path = wipe_paths[i];
                 if (wipe_dist > 0) {
                     //first, we use the polyline for wipe_extra_perimeter
@@ -4979,7 +4978,7 @@ std::string GCode::extrude_loop(const ExtrusionLoop &original_loop, const std::s
                 // also shift the wipe on retract if wipe_inside_end
                 // go to the inside (use clipper for easy shift)
                 Polygon original_polygon = original_loop.polygon();
-                for (int i = 1; i < original_polygon.points.size(); ++i)
+                for (size_t i = 1; i < original_polygon.points.size(); ++i)
                     assert(!original_polygon.points[i - 1].coincides_with_epsilon(original_polygon.points[i]));
                 Polygons polys = offset(original_polygon, -dist);
                 if (!polys.empty()) {
@@ -4989,7 +4988,7 @@ std::string GCode::extrude_loop(const ExtrusionLoop &original_loop, const std::s
                         size_t nearest_pt_idx;
                         size_t   nearest_poly_idx = size_t(-1);
                         coordf_t best_dist_sqr    = dist * dist * 100;
-                        for (int idx_poly = 0; idx_poly < polys.size(); ++idx_poly) {
+                        for (size_t idx_poly = 0; idx_poly < polys.size(); ++idx_poly) {
                             Polygon &poly = polys[idx_poly];
                             // use projection  
                             auto [near_pt, near_idx] = poly.point_projection(pt_inside);
@@ -5006,7 +5005,7 @@ std::string GCode::extrude_loop(const ExtrusionLoop &original_loop, const std::s
                             polys = offset(original_polygon, -dist / 2);
                             assert(!polys.empty());
                             if (!polys.empty()) {
-                                for (int idx_poly = 0; idx_poly < polys.size(); ++idx_poly) {
+                                for (size_t idx_poly = 0; idx_poly < polys.size(); ++idx_poly) {
                                     Polygon &poly = polys[idx_poly];
                                     auto [near_pt, near_idx] = poly.point_projection(pt_inside);
                                     if (coordf_t test_dist = pt_inside.distance_to_square(near_pt);
@@ -5050,7 +5049,7 @@ std::string GCode::extrude_loop(const ExtrusionLoop &original_loop, const std::s
                     int      pop_in = 0;
                     Point    last_pop_in;
                     Polygon &poly = polys.front();
-                    for (int idxpt = 1; idxpt < poly.points.size(); ++idxpt) {
+                    for (size_t idxpt = 1; idxpt < poly.points.size(); ++idxpt) {
                         if (poly.points[idxpt - 1].distance_to_square(poly.points[idxpt]) < min_dist_sqr) {
                             last_pop_in = poly.points[idxpt];
                             poly.points.erase(poly.points.begin() + idxpt);
@@ -5068,14 +5067,14 @@ std::string GCode::extrude_loop(const ExtrusionLoop &original_loop, const std::s
                     }
                 }
                 // find nearest point
-                size_t         best_poly_idx = 0;
+                // size_t         best_poly_idx = 0;
                 size_t         best_pt_idx   = 0;
                 const coordf_t max_sqr_dist  = dist * dist * 8; // 2*nozzle²
                 coordf_t       best_sqr_dist = max_sqr_dist;
                 Point          start_point   = pt_inside;
                 if (!polys.empty()) {
                     Polygon &poly = polys.front();
-                    for (int i = 1; i < poly.points.size(); ++i)
+                    for (size_t i = 1; i < poly.points.size(); ++i)
                         assert(!poly.points[i - 1].coincides_with_epsilon(poly.points[i]));
                     if (poly.is_clockwise() ^ original_polygon.is_clockwise())
                         poly.reverse();
@@ -5279,7 +5278,7 @@ void GCode::use(const ExtrusionEntityCollection &collection) {
 std::string GCode::extrude_path(const ExtrusionPath &path, const std::string &description, double speed_mm_per_sec) {
     std::string gcode;
     ExtrusionPath simplifed_path = path;
-    for (int i = 1; i < simplifed_path.polyline.get_points().size(); ++i)
+    for (size_t i = 1; i < simplifed_path.polyline.get_points().size(); ++i)
         assert(!simplifed_path.polyline.get_points()[i - 1].coincides_with_epsilon(simplifed_path.polyline.get_points()[i]));
 
     //check if we should reverse it
@@ -5331,7 +5330,7 @@ std::string GCode::extrude_path(const ExtrusionPath &path, const std::string &de
         return gcode;
     }
 
-    for(int i=1;i<simplifed_path.polyline.get_points().size();++i)
+    for(size_t i=1;i<simplifed_path.polyline.get_points().size();++i)
         assert(!simplifed_path.polyline.get_points()[i-1].coincides_with_epsilon(simplifed_path.polyline.get_points()[i]));
     gcode += this->_extrude(simplifed_path, description, speed_mm_per_sec);
 
@@ -6240,7 +6239,7 @@ std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string 
                 Polyline poly_start = this->travel_to(gcode, path.first_point(), path.role());
                 coordf_t length = poly_start.length();
                 // compute some numbers
-                double previous_accel = m_writer.get_acceleration(); // in mm/s²
+                // double previous_accel = m_writer.get_acceleration(); // in mm/s²
                 double previous_speed = m_writer.get_speed(); // in mm/s
                 double travel_speed = m_config.get_computed_value("travel_speed");
                 // first, the acceleration distance

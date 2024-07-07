@@ -294,12 +294,12 @@ void MainFrame::update_icon() {
 
 #ifndef _USE_CUSTOM_NOTEBOOK
     // icons for ESettingsLayout::Hidden
-    wxImageList* img_list = nullptr;
+
     int icon_size = 0;
     try {
         icon_size = atoi(wxGetApp().app_config->get("tab_icon_size").c_str());
     }
-    catch (std::exception e) {}
+    catch (const std::exception& e) {}
     switch (m_layout)
     {
     case ESettingsLayout::Unknown:
@@ -509,7 +509,7 @@ void MainFrame::update_layout()
         if (m_plater->GetParent() != this)
             m_plater->Reparent(this);
 #ifndef _USE_CUSTOM_NOTEBOOK
-        for (int i = 0; i < m_tabpanel->GetPageCount();  i++) {
+        for (size_t i = 0; i < m_tabpanel->GetPageCount();  i++) {
             m_tabpanel->SetPageImage(i, -1);
         }
         m_tabpanel->SetImageList(nullptr); //clear
@@ -538,7 +538,7 @@ void MainFrame::update_layout()
         }
 #else
         //clear if previous was tabs
-        for (int i = 0; i < m_tabpanel->GetPageCount() - 3; i++)
+        for (size_t i = 0; i < m_tabpanel->GetPageCount() - 3; i++)
             if (m_tabpanel->GetPage(i)->GetChildren().empty() && m_tabpanel->GetPage(i)->GetSizer()->GetItemCount() > 0) {
                 clean_sizer(m_tabpanel->GetPage(i)->GetSizer());
             }
@@ -931,7 +931,7 @@ void MainFrame::change_tab(Tab* old_tab, Tab* new_tab)
     else
 #endif
     {
-        int page_id = m_tabpanel->FindPage(old_tab);
+        size_t page_id = m_tabpanel->FindPage(old_tab);
         if (page_id >= 0 && page_id < m_tabpanel->GetPageCount()) {
             m_tabpanel->GetPage(page_id)->Show(false);
             m_tabpanel->RemovePage(page_id);
@@ -1014,7 +1014,7 @@ void MainFrame::init_tabpanel()
     try {
         icon_size = atoi(wxGetApp().app_config->get("tab_icon_size").c_str());
     }
-    catch (std::exception e) {}
+    catch (const std::exception& e) {}
     // icons for m_tabpanel tabs
     wxImageList* img_list = nullptr;
     if (icon_size >= 8) {
@@ -1054,15 +1054,15 @@ void MainFrame::init_tabpanel()
 
         std::vector<Tab*>& tabs_list = wxGetApp().tabs_list;
         int last_selected_plater_tab = m_last_selected_plater_tab;
-        int last_selected_setting_tab = m_last_selected_setting_tab;
         if (tab && std::find(tabs_list.begin(), tabs_list.end(), tab) != tabs_list.end()) {
             // On GTK, the wxEVT_NOTEBOOK_PAGE_CHANGED event is triggered
             // before the MainFrame is fully set up.
             tab->OnActivate();
-            if (this->m_layout == ESettingsLayout::Dlg)
-                last_selected_setting_tab = m_tabpanel->GetSelection();
-            else
-                last_selected_setting_tab = m_tabpanel->GetSelection() - 1;
+            m_tabpanel->GetSelection();
+            // if (this->m_layout == ESettingsLayout::Dlg)
+            //     m_tabpanel->GetSelection();
+            // else
+            //     m_tabpanel->GetSelection() - 1;
         } else if (this->m_layout == ESettingsLayout::Tabs) {
 #ifdef _USE_CUSTOM_NOTEBOOK
             int bt_idx_sel = 0;
@@ -1109,7 +1109,6 @@ void MainFrame::init_tabpanel()
 #ifdef __APPLE__
             BOOST_LOG_TRIVIAL(debug) << "I switched to tab  " << m_tabpanel->GetSelection() << " and so i need to change the panel position & content\n";
 #endif
-            size_t new_tab = m_tabpanel->GetSelection();
 
             size_t max = 0;
             for (int i = 0; i < 3; i++)
@@ -2480,7 +2479,11 @@ void MainFrame::select_tab(Tab* tab)
     case Preset::Type::TYPE_PRINTER:
         tab_type = ETabType::PrinterSettings;
         break;
+    default: {
+        break;
+    }        
     }
+    
     select_tab(tab_type);
 
 }

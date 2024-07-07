@@ -333,8 +333,7 @@ bool FreeCADDialog::load_text_from_file(const boost::filesystem::path &path) {
             in.read(result.data(), sz);
             m_text->SetTextRaw(result.c_str());
             in.close();
-        }
-        catch (std::exception ex) {
+        } catch (std::exception& ex) {
             //TODO: emit error meessage on std / boost
             return false;
         }
@@ -375,7 +374,7 @@ bool FreeCADDialog::write_text_in_file(const wxString &towrite, const boost::fil
         out << towrite;
         out.close();
     }
-    catch (std::exception ex) {
+    catch (std::exception& ex) {
         return false;
     }
     return true;
@@ -773,7 +772,7 @@ void FreeCADDialog::test_update_script_file(std::string &json) {
             get_file_from_web("https://raw.githubusercontent.com/supermerill/FreePySCAD/master/freepyscad.py", pyscad_path / "freepyscad.py");
         }
     }
-    catch (std::exception ex) {
+    catch (std::exception& ex) {
         BOOST_LOG_TRIVIAL(error) << "Error, cannot parse https://api.github.com/repos/supermerill/FreePySCAD/commits/master: " << ex.what();
     }
 }

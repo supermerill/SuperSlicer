@@ -28,16 +28,16 @@ static wxSize get_bitmap_size(const wxBitmap& bmp)
 #endif
 }
 
-static wxString get_url(const wxString& path_end, bool get_default = false) 
-{
-    if (path_end.IsEmpty())
-        return wxEmptyString;
+// static wxString get_url(const wxString& path_end, bool get_default = false) 
+// {
+//     if (path_end.IsEmpty())
+//         return wxEmptyString;
 
-    wxString language = wxGetApp().app_config->get("translation_language");
-    wxString lang_marker = language.IsEmpty() ? "en" : language.BeforeFirst('_');
+//     wxString language = wxGetApp().app_config->get("translation_language");
+//     wxString lang_marker = language.IsEmpty() ? "en" : language.BeforeFirst('_');
 
-    return wxString("https://help.prusa3d.com/") + lang_marker + "/article/" + path_end;
-}
+//     return wxString("https://help.prusa3d.com/") + lang_marker + "/article/" + path_end;
+// }
 
 int OG_CustomCtrl::m_has_icon = (-1);
 
@@ -131,14 +131,14 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
             line_height = win_height;
     };
 
-    auto correct_horiz_pos = [this](int& h_pos, Field* field) {
-        if (m_max_win_width > 0 && field->getWindow()) {
-            int win_width = field->getWindow()->GetSize().GetWidth();
-            if (dynamic_cast<CheckBox*>(field))
-                win_width *= 0.5;
-            h_pos += m_max_win_width - win_width;
-        }
-    };
+    // auto correct_horiz_pos = [this](int& h_pos, Field* field) {
+    //     if (m_max_win_width > 0 && field->getWindow()) {
+    //         int win_width = field->getWindow()->GetSize().GetWidth();
+    //         if (dynamic_cast<CheckBox*>(field))
+    //             win_width *= 0.5;
+    //         h_pos += m_max_win_width - win_width;
+    //     }
+    // };
 
     for (CtrlLine& ctrl_line : ctrl_lines) {
         if (&ctrl_line.og_line == &line)
@@ -793,7 +793,7 @@ wxCoord OG_CustomCtrl::CtrlLine::draw_mode_bmp(wxDC& dc, wxCoord v_pos)
 
     ConfigOptionMode mode = og_line.get_options()[0].opt.mode;
     //get the easiest setting
-    for (int i = 1; i < og_line.get_options().size(); i++)
+    for (size_t i = 1; i < og_line.get_options().size(); i++)
         mode |= og_line.get_options()[i].opt.mode;
     std::string bmp_name = "mode_other";
     if ((mode & ConfigOptionMode::comSimple) != 0)

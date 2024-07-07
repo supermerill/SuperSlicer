@@ -256,7 +256,7 @@ void ConfigManipulation::update_print_fff_config(DynamicPrintConfig* config, con
         }
     }
 
-    static bool support_material_overhangs_queried = false;
+    // static bool support_material_overhangs_queried = false;
 
     // Check "support_material" and "overhangs" relations only on global settings level
     if (is_global_config && config->opt_bool("support_material")) {
@@ -279,7 +279,7 @@ void ConfigManipulation::update_print_fff_config(DynamicPrintConfig* config, con
                     } else if (answer == wxID_CANCEL) {
                         // Disable supports.
                         new_conf.set_key_value("support_material", new ConfigOptionBool(false));
-                        support_material_overhangs_queried = false;
+                        // support_material_overhangs_queried = false;
                     }
                     apply(config, &new_conf);
                 }
@@ -651,8 +651,6 @@ void ConfigManipulation::update_printer_fff_config(DynamicPrintConfig *config,
 }
 void ConfigManipulation::toggle_printer_fff_options(DynamicPrintConfig *config, DynamicPrintConfig &full_config)
 {
-    Field* field;
-
     size_t extruder_count = config->option("nozzle_diameter")->size();
     toggle_field("toolchange_gcode", extruder_count > 1);
     toggle_field("single_extruder_multi_material", extruder_count > 1);

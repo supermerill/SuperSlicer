@@ -753,7 +753,7 @@ void process_perimeter_polylines(const PolylineWithEnd &orig_polyline, float z_c
             for (size_t point_idx = longest_patch.first;
                  point_idx       != longest_patch.second;
                  point_idx        = is_polygon ? next_index(point_idx) : (1 + point_idx)) {
-                size_t viable_points_indices_count = viable_points_indices.size();
+                //size_t viable_points_indices_count = viable_points_indices.size();
                 viable_points_indices.push_back(point_idx);
                 if (std::abs(result.points[point_idx].local_ccw_angle)
                         > SeamPlacer::sharp_angle_snapping_threshold) {
@@ -1551,13 +1551,12 @@ void SeamPlacer::align_seam_points(const PrintObject *po, const SeamPlacerImpl::
                 Point nearest_point;
                 Vec3f nearest_old_point;
                 size_t nearest_pt_idx;
-                size_t next_pt_idx;
                 double nearest_sqr_dist = std::numeric_limits<double>::max();
                 for (const Perimeter* lower_peri : layer2seams[current_layer_idx - 1]) {
                     //old point
                     Point lower_pt{ scale_t(lower_peri->final_seam_position.x()), scale_t(lower_peri->final_seam_position.y()) };
                     //for each segment
-                    for (int i = perimeter.start_index; i < perimeter.end_index-1; i++) {
+                    for (size_t i = perimeter.start_index; i < perimeter.end_index-1; i++) {
                         Line l = Line{ Point{scale_t(points[i].position.x()), scale_t(points[i].position.y())}, Point{scale_t(points[i + 1].position.x()), scale_t(points[i + 1].position.y())} };
                         Point pt = lower_pt.projection_onto(l);
                         double dist_sqr = pt.distance_to_square(lower_pt);
@@ -1565,7 +1564,6 @@ void SeamPlacer::align_seam_points(const PrintObject *po, const SeamPlacerImpl::
                             nearest_sqr_dist = dist_sqr;
                             nearest_point = pt;
                             nearest_pt_idx = i;
-                            next_pt_idx = i + 1;
                             nearest_old_point = lower_peri->final_seam_position;
                         }
                     }
@@ -1577,7 +1575,7 @@ void SeamPlacer::align_seam_points(const PrintObject *po, const SeamPlacerImpl::
                             nearest_sqr_dist = dist_sqr;
                             nearest_point = pt;
                             nearest_pt_idx = perimeter.end_index - 1;
-                            next_pt_idx = perimeter.start_index;
+                            // next_pt_idx = perimeter.start_index;
                             nearest_old_point = lower_peri->final_seam_position;
                         }
                     }
@@ -1831,7 +1829,7 @@ std::tuple<bool,std::optional<Vec3f>> get_seam_from_modifier(const Layer& layer,
     if (has_custom_seam_modifier) {
         Polygon polygon = loop.polygon();
         polygon.densify(MINIMAL_POLYGON_SIDE);
-        bool was_clockwise = polygon.make_counter_clockwise();
+        // bool was_clockwise = polygon.make_counter_clockwise();
         // Look for all lambda-seam-modifiers below current z, choose the highest one
         ModelVolume* v_lambda_seam = nullptr;
         Vec3d lambda_pos;

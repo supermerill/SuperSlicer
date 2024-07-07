@@ -5142,14 +5142,14 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             if (is_bbl_3mf && boost::ends_with(current_object->uuid, OBJECT_UUID_SUFFIX) && top_importer->m_load_restore) {
                 std::istringstream iss(current_object->uuid);
                 int backup_id;
-                bool need_replace = false;
+                // bool need_replace = false;
                 if (iss >> std::hex >> backup_id) {
-                    need_replace = (current_object->id != backup_id);
+                    // need_replace = (current_object->id != backup_id);
                     current_object->id = backup_id;
                 }
                 //if (need_replace)
                 {
-                    for (int index = 0; index < current_object->components.size(); index++)
+                    for (size_t index = 0; index < current_object->components.size(); index++)
                     {
                         int temp_id = (index + 1) << 16 | backup_id;
                         Component& component = current_object->components[index];

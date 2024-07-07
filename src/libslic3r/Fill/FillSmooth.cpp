@@ -129,7 +129,6 @@ namespace Slic3r {
 
     void FillSmooth::fill_surface_extrusion(const Surface *surface, const FillParams &params, ExtrusionEntitiesPtr &out) const
     {
-        coordf_t init_spacing = this->get_spacing();
 
         //create root node
         ExtrusionEntityCollection *eecroot = new ExtrusionEntityCollection();

@@ -122,14 +122,13 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
         };
 
     //add 8 others
-    float zshift = (1 - xyzScale) / 2;
     if (temperature > 175 && temperature < 290 && temperature%5==0) {
         Vec3d translate{ 0 - xyzScale * 3.75, -xyzScale * 2.7, xyzScale * (0 * 10 - 2.45) };
         add_part(model.objects[objs_idx[0]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_temp" / ("t"+std::to_string(temperature)+".amf")).string(),
             translate, Vec3d{ xyzScale, xyzScale, xyzScale * 0.43 });
         translate_from_rotation(0, translate);
     }
-    for (int16_t i = 1; i < nb_items; i++) {
+    for (int16_t i = 1; i < static_cast<int16_t>(nb_items); i++) {
         add_part(model.objects[objs_idx[0]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_temp" / ("Smart_compact_temperature_calibration_item.amf")).string(),
             Vec3d{ 0,0, i * 10 * xyzScale }, Vec3d{ xyzScale, xyzScale * 0.5, xyzScale });
         int sub_temp = temperature - i * step_temp;
@@ -158,11 +157,10 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
     /// -- generate the heat change gcode
     //std::string str_layer_gcode = "{if layer_num > 0 and layer_z  <= " + std::to_string(2 * xyzScale) + "}\nM104 S" + std::to_string(temperature - (int8_t)nb_delta * 5);
     //    double print_z, std::string gcode,int extruder, std::string color
-    double firstChangeHeight = print_config->get_abs_value("first_layer_height", nozzle_diameter);
     //model.custom_gcode_per_print_z.gcodes.emplace_back(CustomGCode::Item{ firstChangeHeight + nozzle_diameter/2, CustomGCode::Type::Custom, -1, "", "M104 S" + std::to_string(temperature) + " ; ground floor temp tower set" });
     model.objects[objs_idx[0]]->config.set_key_value("print_temperature", new ConfigOptionInt(temperature));
     model.objects[objs_idx[0]]->config.set_key_value("print_first_layer_temperature", new ConfigOptionInt(first_layer_temperature));
-    for (int16_t i = 1; i < nb_items; i++) {
+    for (int16_t i = 1; i < static_cast<int16_t>(nb_items); i++) {
         model.custom_gcode_per_print_z.gcodes.emplace_back(CustomGCode::Item{ (i * 10 * xyzScale), CustomGCode::Type::Custom , -1, "", "M104 S" + std::to_string(temperature - i * step_temp) + " ; floor " + std::to_string(i) + " of the temp tower set" });
         //str_layer_gcode += "\n{ elsif layer_z >= " + std::to_string(i * 10 * xyzScale) + " and layer_z <= " + std::to_string((1 + i * 10) * xyzScale) + " }\nM104 S" + std::to_string(temperature - (int8_t)nb_delta * 5 + i * 5);
     }

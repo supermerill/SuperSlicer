@@ -391,7 +391,8 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
         er_width = std::round(er_width * 100.0) / 100.0;  // Change number to percentage and round
     }
     else{
-        for (int i = 0; i < sizeof(choice_extrusion_role) / sizeof(choice_extrusion_role[0]); i++) {
+        for (int i = 0; i < static_cast<int>(sizeof(choice_extrusion_role) / sizeof(choice_extrusion_role[0])); i++) {
+
             
             if (er_width_ToOptionKey.find(extrusion_role) != er_width_ToOptionKey.end()) {
 
@@ -546,7 +547,7 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
                 const double extra_size_x = xy_scaled_number_x;
 
                 const double magical_transformation_x_pos = 20.6;//what is this, and how is this calculated ? >:(
-                const double magical_transformation_y_pos = 10.47;//load a model without moving its pos to find see what it is.the number doesn't seem to change regardless of layer heights/nozzle size
+//                const double magical_transformation_y_pos = 10.47;//load a model without moving its pos to find see what it is.the number doesn't seem to change regardless of layer heights/nozzle size
                 Eigen::Vector3d bend_pos_first = bend_90_positions[0];
                 Eigen::Vector3d bend_pos_mid = bend_90_positions[countincrements/2];
                 Eigen::Vector3d bend_pos_last = bend_90_positions[countincrements-1];
@@ -608,7 +609,7 @@ struct ExtrusionSettings {// think a struct is better instead of all the maps ?
                 Eigen::Vector3d bend_90_pos = bend_90_positions[nb_bends];
                 const double magical_transformation_y_pos = 10.47;
                 const double magical_transformation_num_x_pos = 1.03;
-                const double magical_transformation_num_y_pos = 2.06;// -2.03
+//                const double magical_transformation_num_y_pos = 2.06;// -2.03
                 const double magical_transformation_z_pos = 0.12;//0.1 is the transformation value, but set slightly higher so numbers would be "inside" right border this might be dependant on z_scale_factor
 
                 double bend_90_y = bend_90_pos.y() + magical_transformation_y_pos + (xy_scaled_90_bend_y/2);

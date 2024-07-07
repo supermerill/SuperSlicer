@@ -360,7 +360,7 @@ PrintObjectSupportMaterial::PrintObjectSupportMaterial(const PrintObject *object
     m_support_params.support_layer_height_min = 1000000.;
     const ConfigOptionFloatsOrPercents& min_layer_height = m_print_config->min_layer_height;
     const ConfigOptionFloats& nozzle_diameter = m_print_config->nozzle_diameter;
-    for (int extr_id = 0; extr_id < min_layer_height.size(); ++extr_id) {
+    for (size_t extr_id = 0; extr_id < min_layer_height.size(); ++extr_id) {
         double min_from_extr = min_layer_height.get_abs_value(extr_id, nozzle_diameter.get_at(extr_id));
         if(min_from_extr > 0)
             m_support_params.support_layer_height_min = std::min(m_support_params.support_layer_height_min, min_from_extr);
@@ -370,7 +370,7 @@ PrintObjectSupportMaterial::PrintObjectSupportMaterial(const PrintObject *object
             m_support_params.support_layer_height_min = std::min(m_support_params.support_layer_height_min, layer->height);
     }
     if (m_support_params.support_layer_height_min >= 1000000.) {
-        for (int extr_id = 0; extr_id < min_layer_height.size(); ++extr_id) {
+        for (size_t extr_id = 0; extr_id < min_layer_height.size(); ++extr_id) {
             m_support_params.support_layer_height_min = std::min(m_support_params.support_layer_height_min, nozzle_diameter.get_at(extr_id) / 10);
         }
     }
@@ -429,24 +429,29 @@ PrintObjectSupportMaterial::PrintObjectSupportMaterial(const PrintObject *object
     m_support_params.interface_fill_pattern = (m_support_params.interface_density > 0.95 ? ipRectilinear : ipSupportBase);
     m_support_params.contact_top_fill_pattern   = m_object_config->support_material_top_interface_pattern;
     m_support_params.contact_bottom_fill_pattern   = m_object_config->support_material_bottom_interface_pattern;
-    if (m_support_params.contact_top_fill_pattern == ipAuto)
-        if (m_slicing_params->soluble_interface)
+    if (m_support_params.contact_top_fill_pattern == ipAuto) {
+        if (m_slicing_params->soluble_interface) {
             m_support_params.contact_top_fill_pattern = ipConcentric;
-        else if (m_support_params.interface_density > 0.95)
+        } else if (m_support_params.interface_density > 0.95) {
             m_support_params.contact_top_fill_pattern = ipRectilinear;
-        else
+        } else {
             m_support_params.contact_top_fill_pattern = ipSupportBase;
-    if (m_support_params.contact_bottom_fill_pattern == ipAuto)
-        if(m_support_params.contact_top_fill_pattern != ipHilbertCurve
+        }
+    }
+
+    if (m_support_params.contact_bottom_fill_pattern == ipAuto) {
+        if (m_support_params.contact_top_fill_pattern != ipHilbertCurve
             && m_support_params.contact_top_fill_pattern != ipSmooth
-            && m_support_params.contact_top_fill_pattern != ipSawtooth)
+            && m_support_params.contact_top_fill_pattern != ipSawtooth) {
             m_support_params.contact_bottom_fill_pattern = m_support_params.contact_top_fill_pattern;
-        else if (m_slicing_params->soluble_interface)
+        } else if (m_slicing_params->soluble_interface) {
             m_support_params.contact_bottom_fill_pattern = ipConcentric;
-        else if (m_support_params.interface_density > 0.95)
+        } else if (m_support_params.interface_density > 0.95) {
             m_support_params.contact_bottom_fill_pattern = ipRectilinear;
-        else
+        } else {
             m_support_params.contact_bottom_fill_pattern = ipSupportBase;
+        }
+    }
 }
 
 // Using the std::deque as an allocator.
@@ -1275,10 +1280,12 @@ private:
 namespace SupportMaterialInternal {
     static inline bool has_bridging_perimeters(const ExtrusionLoop &loop)
     {
-        for (const ExtrusionPath &ep : loop.paths)
-            if (ep.role() == erOverhangPerimeter && ! ep.polyline.empty())
+        for (const ExtrusionPath &ep : loop.paths) {
+            if (ep.role() == erOverhangPerimeter && !ep.polyline.empty()) {
                 return int(ep.size()) >= (ep.is_closed() ? 3 : 2);
-            return false;
+            }
+        }
+        return false;
     }
     static bool has_bridging_perimeters(const ExtrusionEntityCollection &perimeters)
     {
@@ -2708,8 +2715,7 @@ PrintObjectSupportMaterial::MyLayersPtr PrintObjectSupportMaterial::raft_and_int
             size_t      n_layers_total = 0;
             coordf_t    step_interface = support_interface_layer_height;
             coordf_t    step = 0;
-            auto compute_step = []() {
-            };
+            // auto compute_step = []() {};
             {
                 n_layers_top = m_object_config->support_material_interface_layers.value;
                 coordf_t height_top_interface = std::max(0., support_interface_layer_height * n_layers_top);
@@ -4487,7 +4493,7 @@ void PrintObjectSupportMaterial::generate_toolpaths(
                 assert(! base_layer.layer->bridging);
                 auto flow = m_support_params.support_material_flow.with_height(float(base_layer.layer->height));
                 float density = float(m_support_params.support_density);
-                bool  sheath  = m_support_params.with_sheath;
+                // bool  sheath  = m_support_params.with_sheath;
                 if (base_layer.layer->bottom_z < EPSILON) {
 					filler = filler_first_layer_ptr.get();
 					filler->angle = Geometry::deg2rad(float(m_object_config->support_material_angle.value + 90.));

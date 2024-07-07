@@ -580,7 +580,7 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
 
         // calculate flow spacing for infill pattern generation
         //FIXME FLOW decide if using surface_fill.params.flow.bridge() or surface_fill.params.bridge (default but deleted)
-        bool using_internal_flow = ! surface_fill.surface.has_fill_solid() && !surface_fill.params.flow.bridge();
+        //bool using_internal_flow = ! surface_fill.surface.has_fill_solid() && !surface_fill.params.flow.bridge();
         //init spacing, it may also use & modify a bit the surface_fill.params, so most of these should be set before.
         // note that the bridge overlap is applied here via the rectilinear init_spacing. 
         f->init_spacing(surface_fill.params.spacing, surface_fill.params);

@@ -74,7 +74,7 @@ void CalibrationBridgeDialog::create_geometry(std::string setting_to_test, bool 
     }
 
     std::vector<std::string> items;
-    for (size_t i = 0; i < nb_items; i++)
+    for (size_t i = 0; i < static_cast<size_t>(nb_items); i++)
         items.emplace_back((boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "bridge_flow" / "bridge_test.amf").string());
     std::vector<size_t> objs_idx = plat->load_files(items, true, false, false, false);
 
@@ -96,7 +96,7 @@ void CalibrationBridgeDialog::create_geometry(std::string setting_to_test, bool 
     float z_scale = nozzle_diameter / 0.4;
     //do scaling
     if (z_scale < 0.9 || 1.2 < z_scale) {
-        for (size_t i = 0; i < nb_items; i++)
+        for (size_t i = 0; i < static_cast<size_t>(nb_items); i++)
             model.objects[objs_idx[i]]->scale(1, 1, z_scale);
     } else {
         z_scale = 1;
@@ -116,7 +116,7 @@ void CalibrationBridgeDialog::create_geometry(std::string setting_to_test, bool 
     const ConfigOptionPercent* bridge_flow_ratio = print_config->option<ConfigOptionPercent>(setting_to_test);
     int start = bridge_flow_ratio->value;
     float zshift = 2.3 * (1 - z_scale);
-    for (size_t i = 0; i < nb_items; i++) {
+    for (size_t i = 0; i < static_cast<size_t>(nb_items); i++) {
         int step_num = (start + (add ? 1 : -1) * i * step);
         if (step_num < 180 && step_num > 20 && step_num%5 == 0) {
             add_part(model.objects[objs_idx[i]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "bridge_flow" / ("f" + std::to_string(step_num) + ".amf")).string(), Vec3d{ -10, 0, zshift + 4.6 * z_scale }, Vec3d{ 1,1,z_scale });
@@ -149,7 +149,7 @@ void CalibrationBridgeDialog::create_geometry(std::string setting_to_test, bool 
     }
 
     /// --- custom config ---
-    for (size_t i = 0; i < nb_items; i++) {
+    for (size_t i = 0; i < static_cast<size_t>(nb_items); i++) {
         model.objects[objs_idx[i]]->config.set_key_value("brim_width", new ConfigOptionFloat(brim_width));
         model.objects[objs_idx[i]]->config.set_key_value("brim_ears", new ConfigOptionBool(false));
         model.objects[objs_idx[i]]->config.set_key_value("perimeters", new ConfigOptionInt(2));
@@ -170,10 +170,10 @@ void CalibrationBridgeDialog::create_geometry(std::string setting_to_test, bool 
             z_step = 0.1;
         double max_height = full_print_config.get_computed_value("max_layer_height",0);
         if (max_height > first_layer_height + z_step)
-            for (size_t i = 0; i < nb_items; i++)
+            for (size_t i = 0; i < static_cast<size_t>(nb_items); i++)
                 model.objects[objs_idx[i]]->config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(first_layer_height + z_step, false));
         else
-            for (size_t i = 0; i < nb_items; i++)
+            for (size_t i = 0; i < static_cast<size_t>(nb_items); i++)
                 model.objects[objs_idx[i]]->config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(first_layer_height - z_step, false));
     }
 

@@ -161,7 +161,7 @@ void LayerRegion::process_external_surfaces(const Layer *lower_layer, const Poly
     if ((this->region().config().perimeters > 0)) {
         max_margin = this->flow(frExternalPerimeter).scaled_width() + this->flow(frPerimeter).scaled_spacing() * (this->region().config().perimeters.value - 1);
     }
-    const Surfaces &surfaces = this->fill_surfaces.surfaces;
+    
     const bool has_infill = this->region().config().fill_density.value > 0.;
     coord_t margin = scale_t(this->region().config().external_infill_margin.get_abs_value(unscaled(max_margin)));
     coord_t margin_bridged = scale_t(this->region().config().bridged_infill_margin.get_abs_value(this->flow(frExternalPerimeter).width()));
@@ -551,7 +551,7 @@ void LayerRegion::prepare_fill_surfaces()
                         //not possible ot have multiple intersect no cut from a single expoly.
                         assert(!cut.empty());
                         surface->expolygon = std::move(intersect[0]);
-                        for (int i = 1; i < intersect.size(); i++) {
+                        for (size_t i = 1; i < intersect.size(); i++) {
                             srfs_to_add.emplace_back(*surface, std::move(intersect[i]));
                         }
                         for (ExPolygon& expoly : cut) {

@@ -24,7 +24,7 @@ namespace Slic3r {
             int32_t first_point_idx = -1;
             const coordf_t dist_max_square = coordf_t(milling_diameter) * coordf_t(milling_diameter / 4);
             coordf_t best_dist = dist_max_square;
-            for (int32_t idx = 0; idx < poly.points.size(); idx++) {
+            for (size_t idx = 0; idx < poly.points.size(); idx++) {
                 if (poly.points[idx].distance_to_square(best_polyline.points[first_point_extract_idx]) < best_dist) {
                     best_dist = poly.points[idx].distance_to_square(best_polyline.points[first_point_extract_idx]);
                     first_point_idx = idx;
@@ -33,7 +33,7 @@ namespace Slic3r {
             if (first_point_idx > -1) {
                 //now search the second one
                 int32_t second_point_idx = -1;
-                for (int32_t idx = first_point_idx +1; idx < poly.points.size(); idx++) {
+                for (size_t idx = first_point_idx +1; idx < poly.points.size(); idx++) {
                     if (poly.points[idx].distance_to_square(poly.points[first_point_idx]) > dist_max_square) {
                         second_point_idx = idx;
                         break;
@@ -53,7 +53,7 @@ namespace Slic3r {
                 } else {
                     //now see if an other extract point is nearer
                     best_dist = poly.points[second_point_idx].distance_to_square(best_polyline.points[second_point_extract_idx]);
-                    for (int32_t idx = 0; idx < best_polyline.points.size(); idx++) {
+                    for (size_t idx = 0; idx < best_polyline.points.size(); idx++) {
                         if (poly.points[second_point_idx].distance_to_square(best_polyline.points[idx]) < best_dist) {
                             best_dist = poly.points[second_point_idx].distance_to_square(best_polyline.points[idx]);
                             second_point_extract_idx = idx;
@@ -66,11 +66,11 @@ namespace Slic3r {
                 contour.width = (float)this->print_config->milling_diameter.get_at(0);
                 contour.height = (float)layer->height;
                 contour.polyline.append(best_polyline.points[first_point_extract_idx]);
-                for (int32_t idx = first_point_idx; idx < poly.points.size(); idx++) {
+                for (size_t idx = first_point_idx; idx < poly.points.size(); idx++) {
                     contour.polyline.append(poly.points[idx]);
                 }
                 if (second_point_idx <= first_point_idx) {
-                    for (int32_t idx = 0; idx < poly.points.size(); idx++) {
+                    for (size_t idx = 0; idx < poly.points.size(); idx++) {
                         contour.polyline.append(poly.points[idx]);
                     }
                 }

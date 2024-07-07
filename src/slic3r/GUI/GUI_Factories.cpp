@@ -1172,16 +1172,45 @@ void MenuFactory::append_menu_items_instance_manipulation(wxMenu* menu)
 
 }
 
+// void MenuFactory::update_menu_items_instance_manipulation(MenuType type)
+// {
+//     wxMenu* menu = type == mtObjectFFF ? &m_object_menu : type == mtObjectSLA ? &m_sla_object_menu : nullptr;
+//     if (menu)
+//         return;
+//     // Remove/Prepend "increase/decrease instances" menu items according to the view mode.
+//     // Suppress to show those items for a Simple mode
+//     if (wxGetApp().get_mode() == comSimple) {
+//         if (menu->FindItem(_L("Add instance")) != wxNOT_FOUND)
+//         {
+//             // Detach an items from the menu, but don't delete them
+//             // so that they can be added back later
+//             // (after switching to the Advanced/Expert mode)
+//             menu->Remove(items_increase[type]);
+//             menu->Remove(items_decrease[type]);
+//             menu->Remove(items_set_number_of_copies[type]);
+//         }
+//     }
+//     else {
+//         if (menu->FindItem(_L("Add instance")) == wxNOT_FOUND)
+//         {
+//             // Prepend items to the menu, if those aren't not there
+//             menu->Prepend(items_set_number_of_copies[type]);
+//             menu->Prepend(items_decrease[type]);
+//             menu->Prepend(items_increase[type]);
+//         }
+//     }
+// }
+
 void MenuFactory::update_menu_items_instance_manipulation(MenuType type)
 {
     wxMenu* menu = type == mtObjectFFF ? &m_object_menu : type == mtObjectSLA ? &m_sla_object_menu : nullptr;
-    if (menu)
+    if (!menu) // Check if the menu is null
         return;
+
     // Remove/Prepend "increase/decrease instances" menu items according to the view mode.
     // Suppress to show those items for a Simple mode
     if (wxGetApp().get_mode() == comSimple) {
-        if (menu->FindItem(_L("Add instance")) != wxNOT_FOUND)
-        {
+        if (menu->FindItem(_L("Add instance")) != wxNOT_FOUND) {
             // Detach an items from the menu, but don't delete them
             // so that they can be added back later
             // (after switching to the Advanced/Expert mode)
@@ -1189,17 +1218,16 @@ void MenuFactory::update_menu_items_instance_manipulation(MenuType type)
             menu->Remove(items_decrease[type]);
             menu->Remove(items_set_number_of_copies[type]);
         }
-    }
-    else {
-        if (menu->FindItem(_L("Add instance")) == wxNOT_FOUND)
-        {
-            // Prepend items to the menu, if those aren't not there
+    } else {
+        if (menu->FindItem(_L("Add instance")) == wxNOT_FOUND) {
+            // Prepend items to the menu, if those aren't there
             menu->Prepend(items_set_number_of_copies[type]);
             menu->Prepend(items_decrease[type]);
             menu->Prepend(items_increase[type]);
         }
     }
 }
+
 
 void MenuFactory::update_object_menu()
 {

@@ -8219,12 +8219,13 @@ void _deserialize_maybe_from_prusa(const std::map<t_config_option_key, std::stri
             t_config_option_key opt_key = key;
             std::string opt_value = value;
             PrintConfigDef::handle_legacy(opt_key, opt_value, false);
-            if (!opt_key.empty())
+            if (!opt_key.empty()) {
                 if (!def->has(opt_key) || (check_prusa && prusa_import_to_review_keys.find(opt_key) != prusa_import_to_review_keys.end())) {
                     unknown_keys.emplace(key, value);
                 } else {
                     config.set_deserialize(opt_key, opt_value, config_substitutions);
                 }
+            }
         } catch (UnknownOptionException & /* e */) {
             // log & ignore
             if (config_substitutions.rule != ForwardCompatibilitySubstitutionRule::Disable)
@@ -8805,7 +8806,7 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
         const ConfigOptionFloats *nozzle_diameters = all_conf.option<ConfigOptionFloats>("nozzle_diameter");
         assert(current_opt && nozzle_diameters);
         assert(current_opt->size() == nozzle_diameters->size());
-        for (int i = 0; i < current_opt->size(); i++) {
+        for (size_t i = 0; i < current_opt->size(); i++) {
             computed_opt.set_at(current_opt->get_abs_value(i, nozzle_diameters->get_at(i)), i);
         }
         assert(computed_opt.size() == nozzle_diameters->size());
@@ -9542,7 +9543,7 @@ std::set<const DynamicPrintConfig*> DynamicPrintConfig::value_changed(const t_co
                 //        this->set_key_value("skirt_extrusion_spacing", new ConfigOptionFloatOrPercent(std::round(flow.spacing() * 10000) / 10000, false));
                 //    something_changed = true;
                 //}
-            } catch (FlowErrorNegativeSpacing) {
+            } catch (const FlowErrorNegativeSpacing& e) {
                 if (spacing_option != nullptr) {
                     width_option->set_phony(true);
                     spacing_option->set_phony(false);

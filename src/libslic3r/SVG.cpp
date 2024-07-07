@@ -204,7 +204,7 @@ void SVG::draw(const ThickPolylines& thickpolylines, const float scale, const st
         if (poly.points.size() < 2) continue;
         Line l{ poly.points.front(), poly.points[1] };
         this->draw(Line{ poly.points.front(), l.midpoint() }, stroke, poly.points_width.front()  * scale);
-        for (int i = 1; i < poly.points.size()-1; ++i) {
+        for (size_t i = 1; i < poly.points.size()-1; ++i) {
             Point first_point = l.midpoint();
             l=Line{ poly.points[i], poly.points[i+1] };
             this->draw(Line{ first_point, l.midpoint() }, stroke, poly.points_width[i] * scale);

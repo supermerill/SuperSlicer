@@ -639,19 +639,24 @@ void PlaterPresetComboBox::OnSelect(wxCommandEvent &evt)
         if (marker >= LABEL_ITEM_MARKER && marker < LABEL_ITEM_MAX) {
         this->SetSelection(m_last_selected);
             evt.StopPropagation();
-        if (marker == LABEL_ITEM_MARKER)
+        if (marker == LABEL_ITEM_MARKER) {
             return;
-            if (marker == LABEL_ITEM_WIZARD_PRINTERS)
-                show_add_menu();
-        else {
-                ConfigWizard::StartPage sp = ConfigWizard::SP_WELCOME;
-                switch (marker) {
-                case LABEL_ITEM_WIZARD_FILAMENTS: sp = ConfigWizard::SP_FILAMENTS; break;
-                case LABEL_ITEM_WIZARD_MATERIALS: sp = ConfigWizard::SP_MATERIALS; break;
-                default: break;
-                }
-            wxTheApp->CallAfter([sp]() { run_wizard(sp); });
+        } else if (marker == LABEL_ITEM_WIZARD_PRINTERS) {
+            show_add_menu();
+        } else {
+            ConfigWizard::StartPage sp = ConfigWizard::SP_WELCOME;
+            switch (marker) {
+                case LABEL_ITEM_WIZARD_FILAMENTS:
+                    sp = ConfigWizard::SP_FILAMENTS;
+                    break;
+                case LABEL_ITEM_WIZARD_MATERIALS:
+                    sp = ConfigWizard::SP_MATERIALS;
+                    break;
+                default:
+                    break;
             }
+            wxTheApp->CallAfter([sp]() { run_wizard(sp); });
+        }    
         return;
     }
     else if (marker == LABEL_ITEM_PHYSICAL_PRINTER || m_last_selected != selected_item || m_collection->current_is_dirty())

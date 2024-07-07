@@ -595,10 +595,12 @@ bool Control::is_wipe_tower_layer(int tick) const
         return false;
     if (tick == 0 || (tick == (int)m_values.size() - 1 && m_values[tick] > m_values[tick - 1]))
         return false;
-    if (m_values.size() > tick + 1 && (m_values[tick - 1] == m_values[tick + 1] && m_values[tick] < m_values[tick + 1]) ||
-        (tick > 0 && m_values[tick] < m_values[tick - 1]) ) // if there is just one wiping on the layer 
+    if ((m_values.size() > static_cast<size_t>(tick + 1)) &&
+        (((m_values[tick - 1] == m_values[tick + 1]) && (m_values[tick] < m_values[tick + 1])) ||
+        ((m_values.size() > static_cast<size_t>(tick + 1)) &&
+        ((m_values[tick - 1] == m_values[tick + 1]) && (m_values[tick] > m_values[tick + 1]))))) {
         return true;
-
+        }
     return false;
 }
 
@@ -1225,8 +1227,7 @@ void Control::draw_ruler(wxDC& dc)
                 assert(current_tick < m_values.size());
                 assert(max_tick < m_values.size());
                 assert(max_tick <= m_max_tick);
-                double current_value = m_values[current_tick];
-                while (current_tick + m_ruler.short_step <= max_tick) {
+                  while (current_tick + m_ruler.short_step <= max_tick) {
                     wxCoord pos = get_position_from_tick(current_tick);
                     draw_ticks_pair(dc, pos, mid, 2);
                     // go to next value
@@ -1253,7 +1254,6 @@ void Control::draw_ruler(wxDC& dc)
             }
             int prev_y_pos = -1;
             wxCoord label_height = dc.GetMultiLineTextExtent("0").y - 2;
-            int values_size = (int)m_values.size();
             assert(m_values.size() > m_max_tick);
             //iterate on all layer z values
             while (tick <= m_max_tick) {
@@ -1602,8 +1602,7 @@ wxString Control::get_tooltip(int tick/*=-1*/)
         assert(tick < m_values.size() && !m_values.empty());
         // If tick is marked as a conflict (exclamation icon),
         // we should to explain why
-        ConflictType conflict = m_ticks.is_conflict_tick(*tick_code_it, m_mode, m_only_extruder, tick < m_values.size() ? m_values[tick] : m_values.back());
-        if (conflict != ctNone)
+        ConflictType conflict = m_ticks.is_conflict_tick(*tick_code_it, m_mode, m_only_extruder, tick < static_cast<int>(m_values.size()) ? m_values[tick] : m_values.back());        if (conflict != ctNone)
             tooltip += "\n\n" + _L("Note") + "! ";
         if (conflict == ctModeConflict)
             tooltip +=  _L("G-code associated to this tick mark is in a conflict with print mode.\n"
@@ -1763,8 +1762,7 @@ void Control::append_add_color_change_menu_item(wxMenu* menu, bool switch_curren
     if (extruders_cnt > 1) {
         int tick = m_selection == ssLower ? m_lower_tick : m_higher_tick; 
         assert(tick < m_values.size() && !m_values.empty());
-        std::set<int> used_extruders_for_tick = m_ticks.get_used_extruders_for_tick(tick, m_only_extruder, tick < m_values.size() ? m_values[tick] : m_values.back());
-
+        std::set<int> used_extruders_for_tick = m_ticks.get_used_extruders_for_tick(tick, m_only_extruder, tick < static_cast<int>(m_values.size()) ? m_values[tick] : m_values.back());
         wxMenu* add_color_change_menu = new wxMenu();
 
         for (int i = 1; i <= extruders_cnt; i++) {
@@ -2386,8 +2384,8 @@ static std::string get_custom_code(const std::string& code_in, double height)
     bool valid = true;
     std::string value;
     do {
-    if (dlg.ShowModal() != wxID_OK)
-        return "";
+        if (dlg.ShowModal() != wxID_OK)
+            return "";
 
         value = into_u8(dlg.GetValue());
         valid = GUI::Tab::validate_custom_gcode("Custom G-code", value);
@@ -2446,8 +2444,7 @@ void Control::add_code_as_tick(Type type, int selected_extruder/* = -1*/)
     if ( it == m_ticks.ticks.end() ) {
         // try to add tick
         assert(tick < m_values.size() && !m_values.empty());
-        if (!m_ticks.add_tick(tick, type, extruder, tick < m_values.size() ? m_values[tick] : m_values.back()))
-            return;
+        if (!m_ticks.add_tick(tick, type, extruder, tick < static_cast<int>(m_values.size()) ? m_values[tick] : m_values.back()))            return;
     }
     else if (type == ToolChange || type == ColorChange) {
         // try to switch tick code to ToolChange or ColorChange accordingly

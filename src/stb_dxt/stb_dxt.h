@@ -852,8 +852,8 @@ void rgbToYCoCgBlock( unsigned char * dst, const unsigned char * src )
     int extents = 0;
     int n = 0;
     int iY, iCo, iCg; //, r, g, b;
-    int blockCo[16];
-    int blockCg[16];
+   //  int blockCo[16];
+   //  int blockCg[16];
     int i;
 
     const unsigned char *px = src;
@@ -866,8 +866,8 @@ void rgbToYCoCgBlock( unsigned char * dst, const unsigned char * src )
         if(-iCg > extents) extents = -iCg;
         if( iCg > extents) extents = iCg;
 
-        blockCo[n] = iCo;
-        blockCg[n++] = iCg;
+      //   blockCo[n] = iCo;
+      //   blockCg[n++] = iCg;
 
         px += 4;
     }
@@ -979,48 +979,48 @@ void rygCompressYCoCg( unsigned char *dst, unsigned char *src, int w, int h )
 
 }
 
-static void stbgl__compress(unsigned char *p, unsigned char *rgba, int w, int h, int isDxt5)
-{
-   int i,j,y,y2;
-   int alpha = isDxt5;
+// static void stbgl__compress(unsigned char *p, unsigned char *rgba, int w, int h, int isDxt5)
+// {
+//    int i,j,y,y2;
+//    int alpha = isDxt5;
    
-   for (j=0; j < w; j += 4) {
-      int x=4;
-      for (i=0; i < h; i += 4) {
-         unsigned char block[16*4];
-         if (i+3 >= w) x = w-i;
-         for (y=0; y < 4; ++y) {
-            if (j+y >= h) break;
-            memcpy(block+y*16, rgba + w*4*(j+y) + i*4, x*4);
-         }
-         if (x < 4) {
-            switch (x) {
-               case 0: assert(0);
-               case 1:
-                  for (y2=0; y2 < y; ++y2) {
-                     memcpy(block+y2*16+1*4, block+y2*16+0*4, 4);
-                     memcpy(block+y2*16+2*4, block+y2*16+0*4, 8);
-                  }
-                  break;
-               case 2:
-                  for (y2=0; y2 < y; ++y2)
-                     memcpy(block+y2*16+2*4, block+y2*16+0*4, 8);
-                  break;
-               case 3:
-                  for (y2=0; y2 < y; ++y2)
-                     memcpy(block+y2*16+3*4, block+y2*16+1*4, 4);
-                  break;
-            }
-         }
-         y2 = 0;
-         for(; y<4; ++y,++y2)
-            memcpy(block+y*16, block+y2*16, 4*4);
-         stb_compress_dxt_block(p, block, alpha, 10);
-         p += alpha ? 16 : 8;
-      }
-   }
-  // assert(p <= end);
-}
+//    for (j=0; j < w; j += 4) {
+//       int x=4;
+//       for (i=0; i < h; i += 4) {
+//          unsigned char block[16*4];
+//          if (i+3 >= w) x = w-i;
+//          for (y=0; y < 4; ++y) {
+//             if (j+y >= h) break;
+//             memcpy(block+y*16, rgba + w*4*(j+y) + i*4, x*4);
+//          }
+//          if (x < 4) {
+//             switch (x) {
+//                case 0: assert(0);
+//                case 1:
+//                   for (y2=0; y2 < y; ++y2) {
+//                      memcpy(block+y2*16+1*4, block+y2*16+0*4, 4);
+//                      memcpy(block+y2*16+2*4, block+y2*16+0*4, 8);
+//                   }
+//                   break;
+//                case 2:
+//                   for (y2=0; y2 < y; ++y2)
+//                      memcpy(block+y2*16+2*4, block+y2*16+0*4, 8);
+//                   break;
+//                case 3:
+//                   for (y2=0; y2 < y; ++y2)
+//                      memcpy(block+y2*16+3*4, block+y2*16+1*4, 4);
+//                   break;
+//             }
+//          }
+//          y2 = 0;
+//          for(; y<4; ++y,++y2)
+//             memcpy(block+y*16, block+y2*16, 4*4);
+//          stb_compress_dxt_block(p, block, alpha, 10);
+//          p += alpha ? 16 : 8;
+//       }
+//    }
+//   // assert(p <= end);
+// }
 
 static inline unsigned char linearize(unsigned char inByte)
 {

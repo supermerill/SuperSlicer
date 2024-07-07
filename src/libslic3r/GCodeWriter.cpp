@@ -235,7 +235,7 @@ std::string GCodeWriter::set_temperature(const int16_t temperature, bool wait, i
 
 std::string GCodeWriter::set_bed_temperature(uint32_t temperature, bool wait)
 {
-    if (temperature == m_last_bed_temperature && (! wait || m_last_bed_temperature_reached))
+    if (static_cast<uint32_t>(temperature) == static_cast<uint32_t>(m_last_bed_temperature) && (!wait || m_last_bed_temperature_reached))
         return std::string();
 
     m_last_bed_temperature = temperature;
@@ -271,7 +271,7 @@ std::string GCodeWriter::set_bed_temperature(uint32_t temperature, bool wait)
 
 std::string GCodeWriter::set_chamber_temperature(uint32_t temperature, bool wait)
 {
-    if (temperature == m_last_chamber_temperature && !wait)
+    if (static_cast<uint32_t>(temperature) == static_cast<uint32_t>(m_last_chamber_temperature) && !wait)
         return std::string();
 
     if (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfRepRap) || FLAVOR_IS(gcfMachinekit)) {
@@ -580,7 +580,7 @@ std::string GCodeWriter::travel_to_z(double z, const std::string &comment)
         we don't perform the move but we only adjust the nominal Z by
         reducing the lift amount that will be used for unlift. */
     // note that if we move but it's lower and we are lifted, we can wait a bit for unlifting, to avoid possible dance on layer change.
-    if (!this->will_move_z(z) || z < m_pos.z() && m_lifted > EPSILON) {
+    if (!this->will_move_z(z) || (z < m_pos.z() && std::fabs(m_lifted) > EPSILON)){
         double nominal_z = m_pos.z() - m_lifted;
         m_lifted -= (z - nominal_z);
         if (std::abs(m_lifted) < EPSILON)

@@ -160,7 +160,6 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
     const ConfigOptionFloats* nozzle_diameter_config = printer_config->option<ConfigOptionFloats>("nozzle_diameter");
     assert(nozzle_diameter_config->size() > 0);
     float nozzle_diameter = nozzle_diameter_config->get_at(0);
-    float xyScale = nozzle_diameter / 0.4;
     //scale z to have 6 layers
     const ConfigOptionFloatOrPercent* first_layer_height_setting = print_config->option<ConfigOptionFloatOrPercent>("first_layer_height");
     double first_layer_height = first_layer_height_setting->get_abs_value(nozzle_diameter);
@@ -199,18 +198,14 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
 
     /// --- translate ---;
     bool has_to_arrange = plat->config()->opt_float("init_z_rotate") != 0;
-    const ConfigOptionFloat* extruder_clearance_radius = print_config->option<ConfigOptionFloat>("extruder_clearance_radius");
     const ConfigOptionPoints* bed_shape = printer_config->option<ConfigOptionPoints>("bed_shape");
-    const float brim_width = std::max(print_config->option<ConfigOptionFloat>("brim_width")->value, nozzle_diameter * 5.);
     Vec2d bed_size = BoundingBoxf(bed_shape->get_values()).size();
     Vec2d bed_min = BoundingBoxf(bed_shape->get_values()).min;
-    float offset = 4 + 26 * scale * 1 + extruder_clearance_radius->value + brim_width + (brim_width > extruder_clearance_radius->value ? brim_width - extruder_clearance_radius->value : 0);
     if (nb_items == 1) {
         model.objects[objs_idx[0]]->translate({ bed_min.x() + bed_size.x() / 2, bed_min.y() + bed_size.y() / 2, zscale_number });
     } else {
         has_to_arrange = true;
     }
-
 
     /// --- custom config ---
     assert(filament_temp_item_name.size() == nb_items);

@@ -40,7 +40,6 @@ namespace GUI {
 
         // fonts
         const wxFont& font = wxGetApp().normal_font();
-        const wxFont& bold_font = wxGetApp().bold_font();
         SetFont(font);
 
     }

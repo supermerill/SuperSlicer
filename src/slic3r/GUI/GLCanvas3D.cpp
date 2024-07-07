@@ -3298,7 +3298,7 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
             if (!m_hover_volume_idxs.empty()) {
                 if (evt.LeftDown() && m_moving_enabled && m_mouse.drag.move_volume_idx == -1) {
                     // Only accept the initial position, if it is inside the volume bounding box.
-                    int volume_idx = get_first_hover_volume_idx();
+                    size_t volume_idx = get_first_hover_volume_idx();
                     if (m_volumes.volumes.size() > volume_idx) { //can fail if the screen takes a bit of time to refresh
                         BoundingBoxf3 volume_bbox = m_volumes.volumes[volume_idx]->transformed_bounding_box();
                         volume_bbox.offset(1.0);
@@ -4217,16 +4217,17 @@ bool GLCanvas3D::_render_arrange_menu(float pos_x)
     if (imgui->slider_float(_L("Spacing"), &settings.distance, dist_min, 100.0f, "%5.2f") || dist_min > settings.distance) {
         if (dist_min > settings.distance) {
             const ConfigOptionFloat* dd_opt = this->m_config->option<ConfigOptionFloat>("duplicate_distance");
-            if (dd_opt)
-                if (dd_opt->value == 0)
+            if (dd_opt) {
+                if (dd_opt->value == 0) {
                     settings_out.distance = settings.previously_used_distance;
-                else
+                } else {
                     settings.distance = dist_min + dd_opt->value;
+                }
+            }
         }
         settings_out.distance = settings.distance;
         settings_changed = true;
     }
-
     if (imgui->checkbox(_L("Enable rotations (slow)"), settings.enable_rotation)) {
         settings_out.enable_rotation = settings.enable_rotation;
         settings_changed = true;
@@ -4237,15 +4238,16 @@ bool GLCanvas3D::_render_arrange_menu(float pos_x)
     if (imgui->button(_L("Reset"))) {
         settings_out = ArrangeSettings{};
         const ConfigOptionFloat* dd_opt = this->m_config->option<ConfigOptionFloat>("duplicate_distance");
-        if (dd_opt)
-            if (dd_opt->value == 0)
+        if (dd_opt) {
+            if (dd_opt->value == 0) {
                 settings_out.distance = settings.previously_used_distance;
-            else
+            } else {
                 settings_out.distance = dist_min + dd_opt->value;
+            }
+        }
         settings_out.distance = std::max(dist_min, settings_out.distance);
         settings_changed = true;
     }
-
     ImGui::SameLine();
 
     if (imgui->button(_L("Arrange"))) {

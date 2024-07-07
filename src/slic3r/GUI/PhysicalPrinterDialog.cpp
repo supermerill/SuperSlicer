@@ -297,7 +297,7 @@ void PhysicalPrinterDialog::update_printers()
             rs->disable();
         } else {
             std::vector<std::string> slugs;
-            for (int i = 0; i < printers.size(); i++) {
+            for (size_t i = 0; i < printers.size(); i++) {
                 slugs.push_back(printers[i].ToStdString());
             }
 
@@ -314,7 +314,7 @@ void PhysicalPrinterDialog::update_printers()
             }
             rs->enable();
         }
-    } catch (HostNetworkError error) {
+    } catch (const HostNetworkError& error) {
         show_error(this, error.what());
     }
 }

@@ -1327,7 +1327,6 @@ static void pinch_contours_insert_phony_outer_intersections(std::vector<Segmente
             //these can trigger....(2 segments, high then low) but less if I check for il.intersections.size() > 2 instead of !empty()
             assert(il.intersections.front().type == SegmentIntersection::OUTER_LOW);
             assert(il.intersections.back().type == SegmentIntersection::OUTER_HIGH);
-            auto end = il.intersections.end() - 1;
             insert_after.clear();
             size_t idx = 1;
             while(idx < il.intersections.size()) {

@@ -481,7 +481,7 @@ wxBitmap create_scaled_bitmap(  const std::string& bmp_name_in,
             color_int = Slic3r::GUI::wxGetApp().app_config->create_color(0.86f, 0.93f);
             color = color_to_hex(color_int);
         }
-        catch (std::exception /*e*/) {
+        catch (const std::exception& e) {
             color = "";
             color_int = 0xFFFFFFFF;
         }

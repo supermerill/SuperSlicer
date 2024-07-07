@@ -105,7 +105,7 @@ std::string PrintBase::output_filename(const std::string &format, const std::str
                 try {
                     filename = std::regex_replace(filename, std::regex(forbidden_base), "_");
                     regexp_used = true;
-                }catch(std::exception){}
+                } catch(const std::exception& ex) {}
             }
             if (!regexp_used) {
                 for(size_t i = 0; i < forbidden_base.size(); i++)

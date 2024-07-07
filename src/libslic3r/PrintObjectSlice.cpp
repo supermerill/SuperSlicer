@@ -820,7 +820,7 @@ void PrintObject::_transform_hole_to_polyholes()
                                 Point center = hole.centroid();
                                 double diameter_min = std::numeric_limits<float>::max(), diameter_max = 0;
                                 double diameter_sum = 0;
-                                for (int i = 0; i < hole.points.size(); ++i) {
+                                for (size_t i = 0; i < hole.points.size(); ++i) {
                                     double dist = hole.points[i].distance_to(center);
                                     diameter_min = std::min(diameter_min, dist);
                                     diameter_max = std::max(diameter_max, dist);

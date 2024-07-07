@@ -99,7 +99,10 @@ void GLGizmoSeam::on_render_input_window(float x, float y, float bottom_limit)
 
     float caption_max = 0.f;
     float total_text_max = 0.f;
-    for (const std::string& t : {"enforce", "block", "remove"}) {
+    const std::string enforce = "enforce";
+    const std::string block = "block";
+    const std::string remove = "remove";
+    for (const std::string& t : {enforce, block, remove}) {
         caption_max    = std::max(caption_max, m_imgui->calc_text_size(m_desc[t + "_caption"]).x);
         total_text_max = std::max(total_text_max, m_imgui->calc_text_size(m_desc[t]).x);
     }
@@ -120,7 +123,7 @@ void GLGizmoSeam::on_render_input_window(float x, float y, float bottom_limit)
         m_imgui->text(text);
     };
 
-    for(const std::string& t : {"enforce", "block", "remove"})
+    for (const std::string& t : {enforce, block, remove}) 
         draw_text_with_caption(m_desc.at(t + "_caption"), m_desc.at(t));
 
     ImGui::Separator();

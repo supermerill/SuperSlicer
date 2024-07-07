@@ -486,8 +486,8 @@ void GalleryDialog::change_thumbnail()
 
 void GalleryDialog::select(wxListEvent& event)
 {
-    int idx = event.GetIndex();
-    Item item { into_u8(m_list_ctrl->GetItemText(idx)), idx < m_sys_item_count };
+    long idx = event.GetIndex();
+    Item item { into_u8(m_list_ctrl->GetItemText(idx)), static_cast<size_t>(idx) < m_sys_item_count };
 
     m_selected_items.push_back(item);
 }

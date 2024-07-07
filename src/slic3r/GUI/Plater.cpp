@@ -508,7 +508,6 @@ void FreqChangedParams::init()
             PageShp page = tab_freq_sla->get_page(0);
             m_og_sla->copy_for_freq_settings(*(page->m_optgroups[0].get()));
             // hacks
-            Line *line_for_purge = nullptr;
             for (Line &l : page->m_optgroups[0]->set_lines()) {
                 if (l.get_options().size() == 1 && l.get_options().front().opt.full_width) {
                     l.append_widget(empty_widget);
@@ -5916,7 +5915,7 @@ void Plater::export_gcode(bool prefer_removable)
         if (printer_technology() == ptFFF) {
             const ConfigOptionStrings* filaments = fff_print().full_print_config().opt<ConfigOptionStrings>("filament_settings_id");
             assert(filaments->size() == fff_print().config().filament_type.size());
-            for (int i = 0; i < filaments->size(); i++) {
+            for (size_t i = 0; i < filaments->size(); i++) {
                 str_material += "\n" + format(_L("'%1%' of type %2%"), filaments->get_at(i), fff_print().config().filament_type.get_at(i));
             }
         } else if (printer_technology() == ptSLA) {
@@ -6187,7 +6186,7 @@ void Plater::export_platter()
             p->view3D->get_canvas3d()->render_thumbnail(thumbnail_data, THUMBNAIL_SIZE_3MF.first, THUMBNAIL_SIZE_3MF.second, thumbnail_params, collection, Camera::EType::Ortho);
 
             //store 3mf
-            bool ret = Slic3r::store_3mf(path_u8.c_str(),
+            Slic3r::store_3mf(path_u8.c_str(),
                 &model_to_save,
                 &full_config,
                 OptionStore3mf{}
@@ -6198,7 +6197,7 @@ void Plater::export_platter()
             );
         } else if (dlg.GetFilterIndex() == 2) {
             //store amf
-            bool ret = Slic3r::store_amf(path_u8,
+            Slic3r::store_amf(path_u8,
                 &model_to_save,
                 &full_config,
                 OptionStoreAmf{}

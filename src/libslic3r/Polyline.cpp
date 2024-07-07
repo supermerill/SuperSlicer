@@ -412,7 +412,7 @@ void concatThickPolylines(ThickPolylines& pp) {
 // removes the given distance from the end of the polyline
 void PolylineOrArc::clip_end(coordf_t distance)
 {
-    bool last_point_inserted = false;
+    // bool last_point_inserted = false;
     size_t remove_after_index = MultiPoint::size();
     while (distance > 0) {
         Vec2d  last_point = this->last_point().cast<coordf_t>();
@@ -426,7 +426,7 @@ void PolylineOrArc::clip_end(coordf_t distance)
         coordf_t lsqr = v.squaredNorm();
         if (lsqr > distance * distance) {
             this->points.emplace_back((last_point + v * (distance / sqrt(lsqr))).cast<coord_t>());
-            last_point_inserted = true;
+            // last_point_inserted = true;
             break;
         }
         distance -= sqrt(lsqr);
