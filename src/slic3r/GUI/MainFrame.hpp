@@ -184,9 +184,9 @@ public:
     void        update_menubar();
     // Open item in menu by menu and item name (in actual language)
     void        open_menubar_item(const wxString& menu_name,const wxString& item_name);
-#ifdef _WIN32
+
     void        show_tabs_menu(bool show);
-#endif
+
     void        update_ui_from_settings();
     bool        is_loaded() const { return m_loaded; }
     bool        is_last_input_file() const  { return !m_qs_last_input_file.IsEmpty(); }

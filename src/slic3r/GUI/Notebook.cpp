@@ -1,7 +1,5 @@
 #include "Notebook.hpp"
 
-#ifdef _WIN32
-
 #include "libslic3r/AppConfig.hpp"
 
 #include "GUI_App.hpp"
@@ -22,18 +20,27 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, bool add_mode_buttons/* = fal
 #endif //__WINDOWS__
 
     int em = em_unit(this);// Slic3r::GUI::wxGetApp().em_unit();
-    m_btn_margin  = std::lround(0.3 * em);
+#ifdef __WINDOWS__
+    m_btn_margin = std::lround(0.3 * em);
+#else
+    m_btn_margin = std::lround(0.4 * em);
+#endif
     m_line_margin = std::lround(0.1 * em);
 
     m_sizer = new wxBoxSizer(wxHORIZONTAL);
     this->SetSizer(m_sizer);
 
+    // Create the buttons sizer with adjustable gaps
     m_buttons_sizer = new wxFlexGridSizer(1, m_btn_margin, m_btn_margin);
+#ifdef __APPLE__
+    m_buttons_sizer->SetHGap(m_btn_margin);  // Horizontal gap between buttons
+    m_buttons_sizer->SetVGap(m_btn_margin);  // Vertical gap between buttons
+#endif
     m_sizer->Add(m_buttons_sizer, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxBOTTOM, m_btn_margin);
 
     if (add_mode_buttons) {
         m_mode_sizer = new Slic3r::GUI::ModeSizer(this, m_btn_margin, 0);
-        m_sizer->AddStretchSpacer(20);
+        m_sizer->AddStretchSpacer(20);  // Adjust the stretch spacer to ensure buttons align correctly
         m_sizer->Add(m_mode_sizer, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT | wxBOTTOM, m_btn_margin);
     }
 
@@ -48,45 +55,42 @@ void ButtonsListCtrl::OnPaint(wxPaintEvent&)
 
     if (m_selection < 0 || m_selection >= (int)m_pageButtons.size())
         return;
-    
+
     const wxColour& selected_btn_bg  = Slic3r::GUI::wxGetApp().get_color_selected_btn_bg();
     const wxColour& default_btn_bg   = Slic3r::GUI::wxGetApp().get_highlight_default_clr();
-    const wxColour& btn_marker_color = Slic3r::GUI::wxGetApp().get_color_hovered_btn(); //Slic3r::GUI::wxGetApp().get_color_hovered_btn_label();
+    const wxColour& btn_marker_color = Slic3r::GUI::wxGetApp().get_color_hovered_btn();
 
     // highlight selected notebook button
-
     for (int idx = 0; idx < int(m_pageButtons.size()); idx++) {
         wxButton* btn = m_pageButtons[idx];
-
         btn->SetBackgroundColour(idx == m_selection ? selected_btn_bg : default_btn_bg);
-
+#ifdef __APPLE__
+        // Adding border to make it look more like buttons
+        btn->SetWindowStyle(wxBORDER_SUNKEN | wxBORDER_SIMPLE);
+#else
         wxPoint pos = btn->GetPosition();
         wxSize size = btn->GetSize();
         const wxColour& clr = idx == m_selection ? btn_marker_color : default_btn_bg;
         dc.SetPen(clr);
         dc.SetBrush(clr);
         dc.DrawRectangle(pos.x, pos.y + size.y, size.x, sz.y - size.y);
+#endif
     }
 
     // highlight selected mode button
-
     if (m_mode_sizer) {
         const std::vector<Slic3r::GUI::ModeButton*>& mode_btns = m_mode_sizer->get_btns();
         for (int idx = 0; idx < int(mode_btns.size()); idx++) {
             Slic3r::GUI::ModeButton* btn = mode_btns[idx];
             btn->SetBackgroundColour(btn->is_selected() ? selected_btn_bg : default_btn_bg);
-
-            //wxPoint pos = btn->GetPosition();
-            //wxSize size = btn->GetSize();
-            //const wxColour& clr = btn->is_selected() ? btn_marker_color : default_btn_bg;
-            //dc.SetPen(clr);
-            //dc.SetBrush(clr);
-            //dc.DrawRectangle(pos.x, pos.y + size.y, size.x, sz.y - size.y);
+#ifdef __APPLE_
+            // Adding border to make it look more like buttons
+            btn->SetWindowStyle(wxBORDER_SUNKEN | wxBORDER_SIMPLE);
+#endif
         }
     }
 
     // Draw orange bottom line
-
     dc.SetPen(btn_marker_color);
     dc.SetBrush(btn_marker_color);
     dc.DrawRectangle(1, sz.y - m_line_margin, sz.x, m_line_margin);
@@ -104,10 +108,18 @@ void ButtonsListCtrl::Rescale()
         btn->msw_rescale();
 
     int em = em_unit(this);
+
+#ifdef __APPLE__
+    // Adjust margins and sizes specifically for macOS
+    m_btn_margin = std::lround(0.4 * em);
+    m_line_margin = std::lround(0.1 * em);
+#else
     m_btn_margin = std::lround(0.3 * em);
     m_line_margin = std::lround(0.1 * em);
-    m_buttons_sizer->SetVGap(m_btn_margin);
-    m_buttons_sizer->SetHGap(m_btn_margin);
+#endif //__APPLE__
+
+    m_buttons_sizer->SetVGap(m_btn_margin);  // Adjust vertical gap here
+    m_buttons_sizer->SetHGap(m_btn_margin);  // Adjust horizontal gap here
 
     m_sizer->Layout();
 }
@@ -122,7 +134,18 @@ void ButtonsListCtrl::SetSelection(int sel)
 
 bool ButtonsListCtrl::InsertPage(size_t n, const wxString& text, bool bSelect/* = false*/, const std::string& bmp_name/* = ""*/, const int bmp_size)
 {
-    ScalableButton* btn = new ScalableButton(this, wxID_ANY, bmp_name, text, wxDefaultSize, wxDefaultPosition, wxBU_EXACTFIT | wxNO_BORDER | (bmp_name.empty() ? 0 : wxBU_LEFT), false, bmp_size);
+
+    ScalableButton* btn = new ScalableButton(this, wxID_ANY, bmp_name, text, wxDefaultSize, wxDefaultPosition,
+#ifdef __APPLE__
+        wxBU_EXACTFIT | wxBORDER_SIMPLE | (bmp_name.empty() ? 0 : wxBU_LEFT),
+#else
+        wxBU_EXACTFIT | wxNO_BORDER | (bmp_name.empty() ? 0 : wxBU_LEFT),
+#endif //__APPLE__
+        false, bmp_size);
+
+    // Set custom background color for the button
+    btn->SetBackgroundColour(Slic3r::GUI::wxGetApp().get_color_hovered_btn());
+
     btn->Bind(wxEVT_BUTTON, [this, btn](wxCommandEvent& event) {
         if (auto it = std::find(m_pageButtons.begin(), m_pageButtons.end(), btn); it != m_pageButtons.end()) {
             m_selection = (it - m_pageButtons.begin());
@@ -131,7 +154,7 @@ bool ButtonsListCtrl::InsertPage(size_t n, const wxString& text, bool bSelect/* 
             wxPostEvent(this->GetParent(), evt);
             Refresh();
         }
-        });
+    });
     Slic3r::GUI::wxGetApp().UpdateDarkUI(btn);
     m_pageButtons.insert(m_pageButtons.begin() + n, btn);
     m_spacers.insert(m_spacers.begin() + n, false);
@@ -247,6 +270,4 @@ void Notebook::EmitEventSelChanged(int16_t new_sel) {
         }
     }
 }
-#endif // _WIN32
-
-
+ 

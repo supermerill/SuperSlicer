@@ -92,6 +92,8 @@ private:
     std::vector<Extruder> m_extruders;
     std::vector<Mill> m_millers;
     std::string     m_extrusion_axis = "E";
+    std::string     m_current_per_object_gcode;
+    std::string     m_last_per_object_gcode;
     bool            m_single_extruder_multi_material = false;
     Tool*           m_tool = nullptr;
     uint32_t        m_last_acceleration = 0;
