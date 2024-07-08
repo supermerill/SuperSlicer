@@ -1,13 +1,13 @@
 #!/bin/sh
 
 #
-# This script build the CaribouSlicer appimage.
+# This script build the SuperSlicer appimage.
 #
 # Original script from SuperSclier by supermerill https://github.com/supermerill/SuperSlicer
 #
 # Change log:
 #
-# 20 Nov 2023, wschadow, branding and minor changes
+# 20 Nov 2023, wschadow, minor changes
 #
 
 APPIMAGETOOLURL="https://github.com/AppImage/AppImageKit/releases/latest/download/appimagetool-x86_64.AppImage"
@@ -19,7 +19,7 @@ wget ${APPIMAGETOOLURL} -O ../appimagetool.AppImage
 chmod +x ../appimagetool.AppImage
 
 sed -i -e 's#/usr#././#g' bin/@SLIC3R_APP_NAME@
-cp @SLIC3R_APP_NAME@ AppRun
+cp @SLIC3R_APP_CMD@ AppRun
 chmod +x AppRun
 
 cp resources/icons/@SLIC3R_APP_KEY@_192px.png @SLIC3R_APP_KEY@.png
@@ -35,9 +35,7 @@ Categories=Utility;
 MimeType=model/stl;application/vnd.ms-3mfdocument;application/prs.wavefront-obj;application/x-amf;
 EOF
 
-
 ../appimagetool.AppImage .
 mv @SLIC3R_APP_KEY@-x86_64.AppImage ${APP_IMAGE}
 chmod +x ${APP_IMAGE}
-rm AppRun CaribouSlicer.desktop .DirIcon CaribouSlicer.png
 rm -fr usr

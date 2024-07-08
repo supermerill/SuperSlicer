@@ -291,7 +291,7 @@ then
     # make SuperSlicer
     echo -e "\n[6/9] Building SuperSlicer ...\n"
     make -j$NCORES Slic3r
-    make -j$NCORES OCCT
+    make -j$NCORES OCCTWrapper
     echo -e "\n ... done"
 
     echo -e "\n[7/9] Generating language files ...\n"

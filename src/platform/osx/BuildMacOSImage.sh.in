@@ -84,11 +84,11 @@ then
 echo -e "\n[9/9] Creating .tgz and DMG Image for distribution..."
 {
 
-    tar -czvf @SLIC3R_APP_KEY@-@SLIC3R_VERSION_FULL@-@SLIC3R_GITBUILD_NR@-macOS.tgz pack/@SLIC3R_APP_KEY@
+    tar -czvf @SLIC3R_APP_KEY@-@SLIC3R_VERSION_FULL@-macOS.tgz pack/@SLIC3R_APP_KEY@
 
     # create dmg
     hdiutil create -ov -fs HFS+ -volname "@SLIC3R_APP_KEY@" -srcfolder "pack/@SLIC3R_APP_KEY@" temp.dmg
-    hdiutil convert temp.dmg -format UDZO -o @SLIC3R_APP_KEY@-@SLIC3R_VERSION_FULL@-@SLIC3R_GITBUILD_NR@-macOS.dmg
+    hdiutil convert temp.dmg -format UDZO -o @SLIC3R_APP_KEY@-@SLIC3R_VERSION_FULL@-macOS.dmg
     rm -f temp.dmg
 
     popd

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# This script can download and compile dependencies, compile CaribouSlicer
+# This script can download and compile dependencies, compile SuperSlicer
 # and optional build a .tgz and an appimage.
 #
 # Original script from SuperSclier by supermerill https://github.com/supermerill/SuperSlicer
@@ -8,7 +8,7 @@
 # Change log:
 #
 # 20 Nov 2023, wschadow, branding and minor changes
-# 01 Jan 2024, wschadow, debranding for the Prusa version, added build options
+# 01 Jan 2024, wschadow, added build options
 #
 
 export ROOT=`pwd`
@@ -84,7 +84,7 @@ while getopts ":idaxbhcsltwr" opt; do
         BUILD_DEBUG="1"
         ;;
     s )
-        BUILD_CARIBOUSLICER="1"
+        BUILD_SUPERSLICER="1"
         ;;
     l )
         UPDATE_POTFILE="1"
@@ -107,7 +107,7 @@ while getopts ":idaxbhcsltwr" opt; do
         echo "   -b: build with debug symbols"
         echo "   -c: build for XCode"
         echo "   -d: build dependencies"
-        echo "   -s: build CaribouSlicer"
+        echo "   -s: build SuperSlicer"
         echo "   -t: build tests (in combination with -s)"
         echo "   -i: generate .tgz and DMG image (optional)\n"
         exit 0
@@ -126,7 +126,7 @@ then
     echo "   -b: build with debug symbols"
     echo "   -c: build for XCode"
     echo "   -d: build dependencies"
-    echo "   -s: build CaribouSlicer"
+    echo "   -s: build SuperSlicer"
     echo "   -t: build tests (in combination with -s)"
     echo -e "   -i: Generate .tgz and DMG image (optional)\n"
     exit 0
@@ -193,9 +193,9 @@ then
     echo -e "\n ... done\n"
 fi
 
-if [[ -n "$BUILD_CARIBOUSLICER" ]]
+if [[ -n "$BUILD_SUPERSLICER" ]]
 then
-    echo -e "[5/9] Configuring CaribouSlicer ...\n"
+    echo -e "[5/9] Configuring SuperSlicer ...\n"
 
     if [[ -n $BUILD_WIPE ]]
     then
@@ -239,7 +239,7 @@ then
     # make Slic3r
     if [[ -z "$BUILD_XCODE" ]]
     then
-        echo -e "\n[6/9] Building CaribouSlicer ...\n"
+        echo -e "\n[6/9] Building SuperSlicer ...\n"
         make -j$NCORES
         echo -e "\n ... done"
     fi
