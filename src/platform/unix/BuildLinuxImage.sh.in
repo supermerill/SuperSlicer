@@ -1,5 +1,17 @@
 #!/bin/bash
 
+#
+# This script can download and compile dependencies, compile AMSlicer
+# and optional build a .tgz and an appimage.
+#
+# Original script from SuperSclier by supermerill https://github.com/supermerill/SuperSlicer
+#
+# Change log:
+#
+# 20 Nov 2023, wschadow, branding and minor changes
+# 01 Jan 2024, wschadow, debranding for the Prusa version, added build options
+#
+
 # Our sysctl call may be run as normal user,
 # but /sbin is not always in normal users' PATH.
 if [[ -f /sbin/sysctl && -x /sbin/sysctl ]]; then sysctl_bin=/sbin/sysctl
@@ -7,22 +19,32 @@ else sysctl_bin=sysctl  # If not found in sbin, hope
 fi
 
 export ROOT=`pwd`
-export NCORES=`"$sysctl_bin" -n hw.ncpu`
+export NCORES=`nproc`
 
-while getopts ":ih" opt; do
+while getopts ":ihag" opt; do
   case ${opt} in
     i )
         export BUILD_IMAGE="1"
         ;;
-    h ) echo "Usage: ./BuildLinuxImage.sh [-i]"
-        echo "   -i: Generate Appimage (optional)"
+    a )
+        export BUILD_APP="1"
+        ;;
+    g )
+        export FORCE_GTK2="1"
+        ;;
+    h ) echo "Usage: ./BuildLinuxImage.sh [-g][-i][-a][-h]"
+        echo "   -g: force gtk2 build"
+        echo "   -i: generate .tgz and Appimage (optional)"
+        echo "   -a: generate app (optional)"
+        echo "   -h: help"
         exit 0
         ;;
   esac
 done
 
-echo -n "[9/9] Generating Linux app..."
-#{
+if [[ -n "$BUILD_APP" ]]
+then
+    echo -e "\n[8/9] Generating Linux app ..."
     # create directory and copy into it
     if [ -d "package" ]
     then
@@ -34,33 +56,52 @@ echo -n "[9/9] Generating Linux app..."
     mkdir package/bin
 
     # copy Resources
-    cp -Rf ../resources package/resources
+    cp -rf ../resources/ package/resources
     cp -f src/@SLIC3R_APP_CMD@ package/bin/@SLIC3R_APP_CMD@
+    cp -f src/OCCTWrapper.so package/bin    
+    ln -rs package/bin/@SLIC3R_APP_CMD@ package/bin/@GCODEVIEWER_APP_CMD@
     # remove unneeded po from resources
     find package/resources/localization -name "*.po" -type f -delete
-    
+    find package/resources/localization -name "*.pot" -type f -delete
+    find package/resources/localization -name "*.ini" -type f -delete
+    find package/resources/localization -name "*.py" -type f -delete
+    find package/resources/localization -name "*.md" -type f -delete
+    find package/resources/localization -name "*.txt" -type f -delete
+    find package/resources/localization -name "*database*" -type f -delete
+    find package/resources/localization -name "CaribouSlicer.mo" -type f -delete
+    find package/resources/localization -name "Slic3r.mo" -type f -delete
+
     # copy occtwrapper
     cp src/OCCTWrapper.so package/bin/OCCTWrapper.so
 
     # create bin
-    echo -e '#!/bin/bash\nDIR=$(readlink -f "$0" | xargs dirname)\nexport LD_LIBRARY_PATH="$DIR/bin"\nexec "$DIR/bin/@SLIC3R_APP_CMD@" "$@"' >@SLIC3R_APP_CMD@
-    chmod ug+x @SLIC3R_APP_CMD@
-    cp -f @SLIC3R_APP_CMD@ package/@SLIC3R_APP_CMD@
-    pushd package
-    tar -cvf ../@SLIC3R_APP_KEY@.tar .  &>/dev/null
-    popd
-#} &> $ROOT/Build.log # Capture all command output
-echo "done"
+    echo -e '#!/bin/bash\nDIR=$(readlink -f "$0" | xargs dirname)\nexport LD_LIBRARY_PATH="$DIR/bin"\nexec "$DIR/bin/@SLIC3R_APP_CMD@" "$@"' > package/@SLIC3R_APP_CMD@
+    chmod ug+x package/@SLIC3R_APP_CMD@
+    echo -e '#!/bin/bash\nDIR=$(readlink -f "$0" | xargs dirname)\nexport LD_LIBRARY_PATH="$DIR/bin"\nexec "$DIR/bin/@GCODEVIEWER_APP_CMD@" "$@"' > package/@GCODEVIEWER_APP_CMD@
+    chmod ug+x package/@GCODEVIEWER_APP_CMD@
+    echo -e "\n... done\n"
+fi
 
 if [[ -n "$BUILD_IMAGE" ]]
 then
-echo -n "Creating Appimage for distribution..."
-#{
-    pushd package
-    chmod +x ../build_appimage.sh
-    ../build_appimage.sh
-    popd
-    mv package/"@SLIC3R_APP_KEY@_ubu64.AppImage" "@SLIC3R_APP_KEY@_ubu64.AppImage"
-#} &> $ROOT/Build.log # Capture all command output
-echo "done"
+    echo -e "\n[9/9] Creating .tgz and Appimage for distribution ...\n"
+
+    pushd package > /dev/null
+    if [[ -z "$FORCE_GTK2" ]]
+    then
+       tar -czvf ../@SLIC3R_APP_KEY@-@SLIC3R_VERSION_FULL@-@SLIC3R_GITBUILD_NR@-linux-x64-GTK3.tgz .  &>/dev/null
+    else
+       tar -czvf ../@SLIC3R_APP_KEY@-@SLIC3R_VERSION_FULL@-@SLIC3R_GITBUILD_NR@-linux-x64-GTK2.tgz .  &>/dev/null
+    fi
+
+    chmod +x ../src/build_appimage.sh
+    ../src/build_appimage.sh
+    popd  > /dev/null
+    if [[ -z "$FORCE_GTK2" ]]
+    then
+        mv package/"@SLIC3R_APP_KEY@_ubu64.AppImage" "@SLIC3R_APP_KEY@-@SLIC3R_VERSION_FULL@-@SLIC3R_GITBUILD_NR@-linux-x64-GTK3.AppImage"
+    else
+        mv package/"@SLIC3R_APP_KEY@_ubu64.AppImage" "@SLIC3R_APP_KEY@-@SLIC3R_VERSION_FULL@-@SLIC3R_GITBUILD_NR@-linux-x64-GTK2.AppImage"
+    fi
+    echo -e "\n... done\n"
 fi

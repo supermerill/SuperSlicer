@@ -1,0 +1,77 @@
+
+REQUIRED_DEV_PACKAGES=(
+    autoconf
+    build-essential
+    cmake
+#    eglexternalplatform-dev
+    extra-cmake-modules
+    file
+    gettext
+    git
+    libcurl4-openssl-dev
+    libdbus-1-dev
+    libglew-dev
+#    libgstreamerd-3-dev
+    libmspack-dev
+    libosmesa6-dev
+    libsecret-1-dev
+    libssl-dev
+    libtool
+    libudev-dev
+#    libwebkit2gtk-4.0-dev
+#    ninja-build
+    m4
+    texinfo
+    wget
+)
+
+if [[ -n "$FORCE_GTK2" ]]
+then
+    REQUIRED_DEV_PACKAGES+=("libgtk2.0-dev")
+else
+    REQUIRED_DEV_PACKAGES+=("libgtk-3-dev")
+fi
+
+if [[ -n "$UPDATE_LIB" ]]
+then
+    echo -e "\nupdating packages ... \n"
+    # for ubuntu 22+ and 23+:
+    ubu_major_version="$(grep VERSION_ID /etc/os-release | cut -d "=" -f 2 | cut -d "." -f 1 | tr -d /\"/)"
+    if [ $ubu_major_version == "22" ] || [ $ubu_major_version == "23" ]
+    then
+        REQUIRED_DEV_PACKAGES+=(curl libfuse-dev libssl-dev libcurl4-openssl-dev m4)
+    fi
+    if [[ -n "$BUILD_DEBUG" ]]
+    then
+        REQUIRED_DEV_PACKAGES+=(libssl-dev libcurl4-openssl-dev)
+    fi
+    # TODO: optimize this by checking which, if any, packages are already installed
+
+    # install them all at once
+    sudo apt update
+    sudo apt install -y ${REQUIRED_DEV_PACKAGES[@]}
+
+    echo -e "\n... done\n"
+    exit 0
+else
+    echo -e "\nchecking if required packages are installed ... \n"
+    NEEDED_PKGS=""
+    for PKG in ${REQUIRED_DEV_PACKAGES[@]}; do
+        if !(dpkg-query -W -f='${Status}' ${PKG} 2>/dev/null | grep -q "install ok installed"); then
+            NEEDED_PKGS+=" ${PKG}"
+        else
+            echo " ${PKG} installed"
+        fi
+    done
+
+    if [ -n "${NEEDED_PKGS}" ]; then
+        echo -e "\n\e[31mPlease install the following package(s):\e[0m\n"
+        for PKG in ${NEEDED_PKGS[@]}; do
+            echo  "   ${PKG}"
+        done
+        echo -e "\n ... or run sudo BuildLinux -u\n"
+        exit 0
+    fi
+    echo -e "\n ... done"
+fi
+
