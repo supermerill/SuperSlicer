@@ -1,65 +1,97 @@
 #!/bin/bash
 
-export ROOT=`pwd`
-export NCORES=`sysctl -n hw.ncpu`
+#
+# This script builds the SuperSlicer appimage.
+#
+# Original script from SuperSclier by supermerill https://github.com/supermerill/SuperSlicer
+#
+# Change log:
+#
+# 20 Nov 2023, wschadow, branding and minor changes
+# 10 Mar 2024, wschadow, added options
+#
 
-while getopts ":ih" opt; do
+while getopts ":ihag" opt; do
   case ${opt} in
     i )
         export BUILD_IMAGE="1"
         ;;
-    h ) echo "Usage: ./BuildMacOSImage.sh [-i]"
-        echo "   -i: Generate DMG image (optional)"
+    a )
+        export BUILD_APP="1"
+        ;;
+    g )
+        export FORCE_GTK2="1"
+        ;;
+    h ) echo "Usage: ./BuildLinuxImage.sh [-g][-i][-a][-h]"
+        echo "   -g: force gtk2 build"
+        echo "   -i: generate Appimage (optional)"
+	    echo "   -a: generate tgz (optional)"
+        echo "   -h: help"
         exit 0
         ;;
   esac
 done
 
-echo -n "[9/9] Generating MacOS app..."
-{
-    # update Info.plist
-    pushd src
-    sed "s/+UNKNOWN/_$(date '+%F')/" Info.plist >Info.date.plist
-    popd
+if [[ -n "$BUILD_APP" ]]
+then
+    echo -e "\n[8/9] Generating MacOS app..."
+    {
+        # update Info.plist
+        pushd src
+        sed "s/+UNKNOWN/_$(date '+%F')/" Info.plist >Info.date.plist
+        popd
 
-    # create directory and copy into it
-    if [ -d "pack" ]
-    then
-        rm -rf pack/*
-    fi
-    mkdir pack
-    mkdir pack/@SLIC3R_APP_KEY@
-    mkdir pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app
-    mkdir pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents
-    mkdir pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/_CodeSignature
-    mkdir pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Frameworks
-    mkdir pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/MacOS
+        # create directory and copy into it
+        if [ -d "pack" ]
+        then
+            rm -rf pack/*
+        fi
+        mkdir pack
+        mkdir pack/@SLIC3R_APP_KEY@
+        mkdir pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app
+        mkdir pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents
+        mkdir pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/_CodeSignature
+        mkdir pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Frameworks
+        mkdir pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/MacOS
 
-    # copy Resources
-    cp -Rf ../resources pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Resources
-    cp pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Resources/icons/@SLIC3R_APP_KEY@.icns pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/resources/@SLIC3R_APP_KEY@.icns
-    cp src/Info.date.plist pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Info.plist
-    echo -n -e 'APPL????\x0a' > PkgInfo
-    cp PkgInfo pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/PkgInfo
-    # remove unneeded po from resources
-    find pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Resources/localization -name "*.po" -type f -delete
+        # copy Resources
+        cp -Rf ../resources pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Resources
+        cp pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Resources/icons/@SLIC3R_APP_KEY@.icns pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/resources/@SLIC3R_APP_KEY@.icns
+        cp src/Info.date.plist pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Info.plist
+        echo -n -e 'APPL????\x0a' > PkgInfo
+        cp PkgInfo pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/PkgInfo
+        # remove unneeded po from resources
+        find pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Resources/localization -name "*.po" -type f -delete
+        find pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Resources/localization -name "*.pot" -type f -delete
+        find pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Resources/localization -name "*.ini" -type f -delete
+        find pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Resources/localization -name "*.py" -type f -delete
+        find pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Resources/localization -name "*.md" -type f -delete
+        find pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Resources/localization -name "*.txt" -type f -delete
+        find pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Resources/localization -name "*database.mo" -type f -delete
+        find pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/Resources/localization -name "Slic3r.mo" -type f -delete
 
-    # copy bin and do not let it lower case
-    cp -f src/@SLIC3R_APP_CMD@ pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/MacOS/@SLIC3R_APP_KEY@
-    chmod u+x pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/MacOS/@SLIC3R_APP_KEY@
-} &> $ROOT/Build.log # Capture all command output
-echo "done"
+        # copy bin and do not let it lower case
+        cp -f src/@SLIC3R_APP_CMD@ pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/MacOS/@SLIC3R_APP_KEY@
+        chmod u+x pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/MacOS/@SLIC3R_APP_KEY@
+        cp /usr/local/opt/zstd/lib/libzstd.1.dylib pack/@SLIC3R_APP_KEY@/@SLIC3R_APP_KEY@.app/Contents/MacOS/libzstd.1.dylib
+
+     } &> $ROOT/Build.log # Capture all command output
+    echo -e "\n ... done\n"
+fi
 
 if [[ -n "$BUILD_IMAGE" ]]
 then
-echo -n "Creating DMG Image for distribution..."
+echo -e "\n[9/9] Creating .tgz and DMG Image for distribution..."
 {
-    tar -cvf @SLIC3R_APP_KEY@.tar pack/@SLIC3R_APP_KEY@
+
+    tar -czvf @SLIC3R_APP_KEY@-@SLIC3R_VERSION_FULL@-macOS.tgz pack/@SLIC3R_APP_KEY@
 
     # create dmg
     hdiutil create -ov -fs HFS+ -volname "@SLIC3R_APP_KEY@" -srcfolder "pack/@SLIC3R_APP_KEY@" temp.dmg
-    hdiutil convert temp.dmg -format UDZO -o @SLIC3R_APP_KEY@.dmg
+    hdiutil convert temp.dmg -format UDZO -o @SLIC3R_APP_KEY@-@SLIC3R_VERSION_FULL@-macOS.dmg
+    rm -f temp.dmg
+
     popd
 } &> $ROOT/Build.log # Capture all command output
-echo "done"
+echo -e "\n ... done\n"
 fi
