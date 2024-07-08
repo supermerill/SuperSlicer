@@ -359,14 +359,12 @@ public:
     //add toolchange_temp -skinnydip
     WipeTowerWriter& wait_for_toolchange_temp(int tc_temp, bool fan_on, int fan_speed, bool fast)
     {
-        //char all[128];
-        if (fan_on == true){
+        if (fan_on == true) {
             set_fan(fan_speed, " ;Part fan on to cool hotend");
         }
-        //sprintf(all, "M109 S%d ;SKINNYDIP TOOLCHANGE WAIT FOR TEMP %s\n", tc_temp, fast ? "FAST MODE":"NORMAL MODE");
-        //this->append(all);
-        set_extruder_temp(tc_temp, this->m_current_tool, true, ";SKINNYDIP TOOLCHANGE WAIT FOR TEMP " + fast ? "FAST MODE" : "NORMAL MODE");
-        if (fan_on == true){
+        std::string mode = fast ? "FAST MODE" : "NORMAL MODE";
+        set_extruder_temp(tc_temp, this->m_current_tool, true, std::string(";SKINNYDIP TOOLCHANGE WAIT FOR TEMP ") + mode);
+        if (fan_on == true) {
             set_fan(m_last_fan_speed, " ;restore cooling");
         }
         return *this;
@@ -375,10 +373,8 @@ public:
     //begin toolchange_temp -skinnydip
     WipeTowerWriter& begin_toolchange_temp(int tc_temp, bool fast)
     {
-        //char tdbuf[128];
-        //sprintf(tdbuf, "M104 S%d  ;SKINNYDIP BEGIN TOOLCHANGE TEMP %s\n", tc_temp, fast ? "FAST MODE":"NORMAL MODE");
-        //m_gcode += tdbuf;
-        set_extruder_temp(tc_temp, this->m_current_tool, false, ";SKINNYDIP BEGIN TOOLCHANGE TEMP " + fast ? "FAST MODE" : "NORMAL MODE");
+        std::string mode = fast ? "FAST MODE" : "NORMAL MODE";
+        set_extruder_temp(tc_temp, this->m_current_tool, false, std::string(";SKINNYDIP BEGIN TOOLCHANGE TEMP ") + mode);
         return *this;
     }
 
@@ -388,10 +384,9 @@ public:
         //char tdbuf[128];
         //sprintf(tdbuf, "M104 S%d  ;RESTORE PRE-TOOLCHANGE TEMP %s\n", tc_temp, fast ? "FAST MODE":"NORMAL MODE");
         //m_gcode += tdbuf;
-        set_extruder_temp(tc_temp, this->m_current_tool , false, ";RESTORE PRE-TOOLCHANGE TEMP " + fast ? "FAST MODE" : "NORMAL MODE");
+        set_extruder_temp(tc_temp, this->m_current_tool , false, std::string(";RESTORE PRE-TOOLCHANGE TEMP ") + (fast ? "FAST MODE" : "NORMAL MODE"));
         return *this;
     }
-
     // Set extruder temperature, don't wait by default.
     WipeTowerWriter& set_extruder_temp(unsigned int temperature, size_t tool, bool wait = false, std::string comment = "")
     {
@@ -423,7 +418,7 @@ public:
         }
         gcode << temperature;
         bool multiple_tools = false; // ?
-        if (this->m_current_tool != -1 && (multiple_tools || this->m_gcode_flavor == (gcfMakerWare) || this->m_gcode_flavor == (gcfSailfish))) {
+        if (this->m_current_tool != static_cast<size_t>(-1) && (multiple_tools || this->m_gcode_flavor == (gcfMakerWare) || this->m_gcode_flavor == (gcfSailfish))) {
             if (this->m_gcode_flavor != (gcfRepRap)) {
                 gcode << " T" << tool;
             }

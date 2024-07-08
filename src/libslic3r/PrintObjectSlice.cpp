@@ -1327,7 +1327,7 @@ void PrintObject::slice_volumes()
                     //FIXME only apply the compensation if no raft is enabled.
                     float first_layer_compensation = 0.f;
                     int first_layers = m_config.first_layer_size_compensation_layers.value;
-                    if (layer_id < first_layers && m_config.raft_layers == 0 && m_config.first_layer_size_compensation.value != 0) {
+                    if (static_cast<int>(layer_id) < first_layers && m_config.raft_layers == 0 && m_config.first_layer_size_compensation.value != 0) {
                         // Only enable Elephant foot compensation if printing directly on the print bed.
                         first_layer_compensation = float(scale_(m_config.first_layer_size_compensation.value));
                         // reduce first_layer_compensation for every layer over the first one.
@@ -1373,7 +1373,7 @@ void PrintObject::slice_volumes()
                             expolygons = _shrink_contour_holes(std::max(0.f, outter_delta), std::max(0.f, inner_delta), std::max(0.f, hole_delta), expolygons);
                         }
                         // Apply the elephant foot compensation.
-                        if (layer_id < first_layers && first_layer_compensation != 0.f) {
+                        if (static_cast<int>(layer_id) < first_layers && first_layer_compensation != 0.f) {
                             expolygons = union_ex(Slic3r::elephant_foot_compensation(expolygons, layerm->flow(frExternalPerimeter),
                                 unscale<double>(-first_layer_compensation)));
                         }
@@ -1433,7 +1433,7 @@ void PrintObject::slice_volumes()
                             // Apply the negative XY compensation. (the ones that is <0)
                             ExPolygons trimming;
                             static const float eps = float(scale_(m_config.slice_closing_radius.value) * 1.5);
-                            if (layer_id < first_layers && first_layer_compensation < 0.f) {
+                            if (static_cast<int>(layer_id) < first_layers && first_layer_compensation < 0.f) {
                                 ExPolygons expolygons_first_layer = offset_ex(layer->merged(eps), -eps);
                                 trimming = Slic3r::elephant_foot_compensation(expolygons_first_layer,
                                     layer->regions().front()->flow(frExternalPerimeter), unscale<double>(-first_layer_compensation));

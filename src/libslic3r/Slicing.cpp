@@ -106,8 +106,8 @@ std::shared_ptr<SlicingParameters> SlicingParameters::create_from_config(
     for (uint16_t extruder_id : object_extruders)
         assert(first_layer_height >=
                print_config.min_layer_height.get_abs_value(extruder_id, print_config.nozzle_diameter.get_at(extruder_id)) - EPSILON);
-    if (first_layer_height <= EPSILON)
-        object_config.layer_height.value;
+    // if (first_layer_height <= EPSILON)
+    //     object_config.layer_height.value;
     first_layer_height = check_z_step(first_layer_height, print_config.z_step);
     assert(first_layer_height > 0);
 

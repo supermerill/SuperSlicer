@@ -778,7 +778,7 @@ void PerimeterGenerator::process()
             nb_loop_holes = std::max(0, nb_loop_contour);
 
             if (print_config->spiral_vase) {
-                if (layer->id() >= config->bottom_solid_layers) {
+                if (layer->id() >= static_cast<size_t>(config->bottom_solid_layers)) {
                     nb_loop_contour = 1;
                     nb_loop_holes = 0;
                 }
@@ -1780,7 +1780,7 @@ ProcessSurfaceResult PerimeterGenerator::process_classic(int& contour_count, int
                 assert(holes_count > perimeter_idx);
                 //assert(contours.size() == perimeter_idx);
                 contour_count = perimeter_idx + 1;
-                while (contours.size() < contour_count) {
+                while (contours.size() < static_cast<std::vector<std::vector<Slic3r::PerimeterGeneratorLoop>>::size_type>(contour_count)) {
                     contours.emplace_back();
                 }
             }
@@ -1934,7 +1934,7 @@ ProcessSurfaceResult PerimeterGenerator::process_classic(int& contour_count, int
                     }
                 }
                 // no perimeter, then add the hole like a perimeter.
-                while(d >= contours.size())
+                while (d >= static_cast<int>(contours.size())) 
                     contours.emplace_back();
                 contours[d].push_back(loop);
                 holes_d.erase(holes_d.begin() + hole_idx);
@@ -3188,7 +3188,7 @@ ExtrusionEntityCollection PerimeterGenerator::_traverse_loops(
         ExtrusionPaths paths;
 
         bool can_overhang = this->config->overhangs_width_speed.value > 0
-            && this->layer->id() > object_config->raft_layers;
+            && this->layer->id() > static_cast<size_t>(object_config->raft_layers);
         if(this->object_config->support_material && this->object_config->support_material_contact_distance_type.value == zdNone)
             can_overhang = false;
         if (can_overhang) {
@@ -3385,7 +3385,7 @@ ExtrusionEntityCollection PerimeterGenerator::_traverse_extrusions(std::vector<P
 
         ExtrusionPaths paths;
         // detect overhanging/bridging perimeters
-        if (this->config->overhangs_width_speed > 0 && this->layer->id() > this->object_config->raft_layers
+        if (this->config->overhangs_width_speed > 0 && this->layer->id() > static_cast<size_t>(this->object_config->raft_layers)
             && !((this->object_config->support_material || this->object_config->support_material_enforce_layers > 0) &&
                 this->object_config->support_material_contact_distance.value == 0)) {
             ClipperLib_Z::Path extrusion_path;

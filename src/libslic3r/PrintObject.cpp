@@ -2088,12 +2088,13 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
                                     // than running the union_ all at once.
                                     shell = union_ex(shell);
                                 }
-                                if (nb_perimeter_layers_for_solid_fill != 0 && (idx_layer > min_layer_no_solid || print_z < min_z_no_solid)) {
+                                if (nb_perimeter_layers_for_solid_fill != 0 && (idx_layer > static_cast<size_t>(min_layer_no_solid) || print_z < min_z_no_solid)) {
                                     if (!cache.top_fill_surfaces.empty()) {
                                         expolygons_append(fill_shell, cache.top_fill_surfaces);
                                         fill_shell = union_ex(fill_shell);
                                     }
-                                    if (nb_perimeter_layers_for_solid_fill > 1 && i - idx_layer < nb_perimeter_layers_for_solid_fill) {
+                                    if (nb_perimeter_layers_for_solid_fill > 1 && static_cast<size_t>(i) - static_cast<size_t>(idx_layer) < static_cast<size_t>(nb_perimeter_layers_for_solid_fill)) {
+
                                         expolygons_append(max_perimeter_shell, cache.top_perimeter_surfaces);
                                         max_perimeter_shell = union_ex(max_perimeter_shell);
                                     }
@@ -2117,12 +2118,13 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
                                     // than running the union_ all at once.
                                     shell = union_ex(shell);
                                 }
-                                if (nb_perimeter_layers_for_solid_fill != 0 && (idx_layer > min_layer_no_solid || layer->print_z < min_z_no_solid)) {
+                                if (nb_perimeter_layers_for_solid_fill != 0 && (static_cast<size_t>(idx_layer) > static_cast<size_t>(min_layer_no_solid) || layer->print_z < min_z_no_solid)) {
+
                                     if (!cache.bottom_fill_surfaces.empty()) {
                                         expolygons_append(fill_shell, cache.bottom_fill_surfaces);
                                         fill_shell = union_ex(fill_shell);
                                     }
-                                    if (nb_perimeter_layers_for_solid_fill > 1 && idx_layer - i < nb_perimeter_layers_for_solid_fill) {
+                                    if (nb_perimeter_layers_for_solid_fill > 1 && static_cast<size_t>(idx_layer) - static_cast<size_t>(i) < static_cast<size_t>(nb_perimeter_layers_for_solid_fill)) {
                                         expolygons_append(max_perimeter_shell, cache.bottom_perimeter_surfaces);
                                         max_perimeter_shell = union_ex(max_perimeter_shell);
                                     }
@@ -2195,9 +2197,9 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
                         expolygons_append(shell, diff_ex(polygonsInternal, holes));
                         shell = union_ex(shell);
                         //check if a polygon is only over perimeter, in this case evict it (depends from nb_perimeter_layers_for_solid_fill value)
-                        if (nb_perimeter_layers_for_solid_fill != 0 && (idx_layer > min_layer_no_solid || layer->print_z < min_z_no_solid)) {
+                        if (nb_perimeter_layers_for_solid_fill != 0 && (static_cast<size_t>(idx_layer) > static_cast<size_t>(min_layer_no_solid) || layer->print_z < min_z_no_solid)) {
                             ExPolygons toadd;
-                            for (int i = 0; i < shell.size(); i++) {
+                            for (size_t i = 0; i < shell.size(); i++) {
                                 if (nb_perimeter_layers_for_solid_fill < 2 || intersection_ex(ExPolygons{ shell[i] }, max_perimeter_shell, ApplySafetyOffset::No).empty()) {
                                     ExPolygons expoly = intersection_ex(ExPolygons{ shell[i] }, fill_shell);
                                     toadd.insert(toadd.end(), expoly.begin(), expoly.end());
@@ -2309,150 +2311,150 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
         if (region.config().fill_density.value == 100)
             continue;
 
-            for (LayerPtrs::iterator layer_it = m_layers.begin(); layer_it != m_layers.end(); ++layer_it) {
-                // skip first layer
-                if (layer_it == m_layers.begin())
-                    continue;
+        for (LayerPtrs::iterator layer_it = m_layers.begin(); layer_it != m_layers.end(); ++layer_it) {
+            // skip first layer
+            if (layer_it == m_layers.begin())
+                continue;
 
-                Layer       *layer       = *layer_it;
-                LayerRegion *layerm      = layer->m_regions[region_id];
-                const Flow         bridge_flow = layerm->bridging_flow(frSolidInfill);
-                const float        bridge_height = std::max(float(layer->height + EPSILON), bridge_flow.height());
-                const coord_t      bridge_width = bridge_flow.scaled_width();
+            Layer       *layer       = *layer_it;
+            LayerRegion *layerm      = layer->m_regions[region_id];
+            const Flow         bridge_flow = layerm->bridging_flow(frSolidInfill);
+            // const float        bridge_height = std::max(float(layer->height + EPSILON), bridge_flow.height());
+            const coord_t      bridge_width = bridge_flow.scaled_width();
 
-                // extract the stInternalSolid surfaces that might be transformed into bridges
-                Polygons internal_solid;
-                layerm->fill_surfaces.filter_by_type(stPosInternal | stDensSolid, &internal_solid);
+            // extract the stInternalSolid surfaces that might be transformed into bridges
+            Polygons internal_solid;
+            layerm->fill_surfaces.filter_by_type(stPosInternal | stDensSolid, &internal_solid);
 
-                // check whether the lower area is deep enough for absorbing the extra flow
-                // (for obvious physical reasons but also for preventing the bridge extrudates
-                // from overflowing in 3D preview)
-                ExPolygons to_bridge;
+            // check whether the lower area is deep enough for absorbing the extra flow
+            // (for obvious physical reasons but also for preventing the bridge extrudates
+            // from overflowing in 3D preview)
+            ExPolygons to_bridge;
+            {
+                Polygons to_bridge_pp = internal_solid;
+
+                // iterate through lower layers spanned by bridge_flow
+                double bottom_z = layer->print_z - (bridge_flow.height()+0.1) - EPSILON;
+                //TODO take into account sparse ratio! double protrude_by = bridge_flow.height - layer->height;
+                for (int i = int(layer_it - m_layers.begin()) - 1; i >= 0; --i) {
+                    const Layer* lower_layer = m_layers[i];
+
+                    // stop iterating if layer is lower than bottom_z
+                    if (lower_layer->print_z < bottom_z) break;
+
+                    // iterate through regions and collect internal surfaces
+                    Polygons lower_internal;
+                    for (LayerRegion* lower_layerm : lower_layer->m_regions)
+                        lower_layerm->fill_surfaces.filter_by_type(stPosInternal | stDensSparse, &lower_internal);
+
+                    // intersect such lower internal surfaces with the candidate solid surfaces
+                    to_bridge_pp = intersection(to_bridge_pp, lower_internal);
+                }
+                if (to_bridge_pp.empty()) continue;
+
+                //put to_bridge_pp into to_bridge
+                // there's no point in bridging too thin/short regions
+                //FIXME Vojtech: The offset2 function is not a geometric offset,
+                // therefore it may create 1) gaps, and 2) sharp corners, which are outside the original contour.
+                // The gaps will be filled by a separate region, which makes the infill less stable and it takes longer.
+
                 {
-                    Polygons to_bridge_pp = internal_solid;
-
-                    // iterate through lower layers spanned by bridge_flow
-                    double bottom_z = layer->print_z - (bridge_flow.height()+0.1) - EPSILON;
-                    //TODO take into account sparse ratio! double protrude_by = bridge_flow.height - layer->height;
-                    for (int i = int(layer_it - m_layers.begin()) - 1; i >= 0; --i) {
-                        const Layer* lower_layer = m_layers[i];
-
-                        // stop iterating if layer is lower than bottom_z
-                        if (lower_layer->print_z < bottom_z) break;
-
-                        // iterate through regions and collect internal surfaces
-                        Polygons lower_internal;
-                        for (LayerRegion* lower_layerm : lower_layer->m_regions)
-                            lower_layerm->fill_surfaces.filter_by_type(stPosInternal | stDensSparse, &lower_internal);
-
-                        // intersect such lower internal surfaces with the candidate solid surfaces
-                        to_bridge_pp = intersection(to_bridge_pp, lower_internal);
-                    }
-                    if (to_bridge_pp.empty()) continue;
-
-                    //put to_bridge_pp into to_bridge
-                    // there's no point in bridging too thin/short regions
-                    //FIXME Vojtech: The offset2 function is not a geometric offset,
-                    // therefore it may create 1) gaps, and 2) sharp corners, which are outside the original contour.
-                    // The gaps will be filled by a separate region, which makes the infill less stable and it takes longer.
-
-                    {
-                        to_bridge.clear();
-                        //choose between two offsets the one that split the less the surface.
-                        float min_width = float(bridge_width) * 3.f;
-                        // opening : offset2-+
-                        ExPolygons to_bridgeOK = opening_ex(to_bridge_pp, min_width, min_width);
-                        for (ExPolygon& expolys_to_check_for_thin : union_ex(to_bridge_pp)) {
-                            ExPolygons collapsed = offset2_ex(ExPolygons{ expolys_to_check_for_thin }, -min_width, +min_width * 1.25f);
-                            ExPolygons bridge = intersection_ex(collapsed, ExPolygons{ expolys_to_check_for_thin });
-                            ExPolygons not_bridge = diff_ex(ExPolygons{ expolys_to_check_for_thin }, collapsed);
-                            int try1_count = bridge.size() + not_bridge.size();
-                            if (try1_count > 1) {
-                                min_width = float(bridge_width) * 1.5f;
-                                collapsed = offset2_ex(ExPolygons{ expolys_to_check_for_thin }, -min_width, +min_width * 1.5f);
-                                ExPolygons bridge2 = intersection_ex(collapsed, ExPolygons{ expolys_to_check_for_thin });
-                                not_bridge = diff_ex(ExPolygons{ expolys_to_check_for_thin }, collapsed);
-                                int try2_count = bridge2.size() + not_bridge.size();
-                                if(try2_count < try1_count)
-                                    to_bridge.insert(to_bridge.begin(), bridge2.begin(), bridge2.end());
-                                else
-                                    to_bridge.insert(to_bridge.begin(), bridge.begin(), bridge.end());
-                            } else {
+                    to_bridge.clear();
+                    //choose between two offsets the one that split the less the surface.
+                    float min_width = float(bridge_width) * 3.f;
+                    // opening : offset2-+
+                    ExPolygons to_bridgeOK = opening_ex(to_bridge_pp, min_width, min_width);
+                    for (ExPolygon& expolys_to_check_for_thin : union_ex(to_bridge_pp)) {
+                        ExPolygons collapsed = offset2_ex(ExPolygons{ expolys_to_check_for_thin }, -min_width, +min_width * 1.25f);
+                        ExPolygons bridge = intersection_ex(collapsed, ExPolygons{ expolys_to_check_for_thin });
+                        ExPolygons not_bridge = diff_ex(ExPolygons{ expolys_to_check_for_thin }, collapsed);
+                        int try1_count = bridge.size() + not_bridge.size();
+                        if (try1_count > 1) {
+                            min_width = float(bridge_width) * 1.5f;
+                            collapsed = offset2_ex(ExPolygons{ expolys_to_check_for_thin }, -min_width, +min_width * 1.5f);
+                            ExPolygons bridge2 = intersection_ex(collapsed, ExPolygons{ expolys_to_check_for_thin });
+                            not_bridge = diff_ex(ExPolygons{ expolys_to_check_for_thin }, collapsed);
+                            int try2_count = bridge2.size() + not_bridge.size();
+                            if(try2_count < try1_count)
+                                to_bridge.insert(to_bridge.begin(), bridge2.begin(), bridge2.end());
+                            else
                                 to_bridge.insert(to_bridge.begin(), bridge.begin(), bridge.end());
-                            }
+                        } else {
+                            to_bridge.insert(to_bridge.begin(), bridge.begin(), bridge.end());
                         }
                     }
-                    if (to_bridge.empty()) continue;
-
-                    // union not needed as we already did one for polygon->expoly conversion, and there was only collapse (no grow) after that.
-                    //to_bridge = union_ex(to_bridge);
                 }
+                if (to_bridge.empty()) continue;
+
+                // union not needed as we already did one for polygon->expoly conversion, and there was only collapse (no grow) after that.
+                //to_bridge = union_ex(to_bridge);
+            }
 #ifdef SLIC3R_DEBUG
-                printf("Bridging %zu internal areas at layer %zu\n", to_bridge.size(), layer->id());
+            printf("Bridging %zu internal areas at layer %zu\n", to_bridge.size(), layer->id());
 #endif
 
-                //add a bit of overlap for the internal bridge, note that this can only be useful in inverted slopes and with extra_perimeters_odd_layers
-                coord_t overlap_width = 0;
-                // if extra_perimeters_odd_layers, fill the void if possible
-                if (region.config().extra_perimeters_odd_layers.value) {
-                    overlap_width = layerm->flow(frPerimeter).scaled_width();
-                } else
-                {
-                    //half a perimeter should be enough for most of the cases.
-                    overlap_width = layerm->flow(frPerimeter).scaled_width() / 2;
-                }
-                if (overlap_width > 0)
-                    to_bridge = offset_ex(to_bridge, overlap_width);
+            //add a bit of overlap for the internal bridge, note that this can only be useful in inverted slopes and with extra_perimeters_odd_layers
+            coord_t overlap_width = 0;
+            // if extra_perimeters_odd_layers, fill the void if possible
+            if (region.config().extra_perimeters_odd_layers.value) {
+                overlap_width = layerm->flow(frPerimeter).scaled_width();
+            } else
+            {
+                //half a perimeter should be enough for most of the cases.
+                overlap_width = layerm->flow(frPerimeter).scaled_width() / 2;
+            }
+            if (overlap_width > 0)
+                to_bridge = offset_ex(to_bridge, overlap_width);
 
-                // compute the remaning internal solid surfaces as difference
-            ExPolygons not_to_bridge = diff_ex(internal_solid, to_bridge, ApplySafetyOffset::Yes);
-            to_bridge = intersection_ex(to_bridge, internal_solid, ApplySafetyOffset::Yes);
-                // build the new collection of fill_surfaces
-                layerm->fill_surfaces.remove_type(stPosInternal | stDensSolid);
-                for (ExPolygon& ex : to_bridge)
-                    layerm->fill_surfaces.surfaces.push_back(Surface(stPosInternal | stDensSolid | stModBridge, ex));
-                for (ExPolygon& ex : not_to_bridge)
-                    layerm->fill_surfaces.surfaces.push_back(Surface(stPosInternal | stDensSolid, ex));
-                /*
-                # exclude infill from the layers below if needed
-                # see discussion at https://github.com/alexrj/Slic3r/issues/240
-                # Update: do not exclude any infill. Sparse infill is able to absorb the excess material.
-                if (0) {
-                    my $excess = $layerm->extruders->{infill}->bridge_flow->width - $layerm->height;
-                    for (my $i = $layer_id-1; $excess >= $self->get_layer($i)->height; $i--) {
-                        Slic3r::debugf "  skipping infill below those areas at layer %d\n", $i;
-                        foreach my $lower_layerm (@{$self->get_layer($i)->regions}) {
-                            my @new_surfaces = ();
-                            # subtract the area from all types of surfaces
-                            foreach my $group (@{$lower_layerm->fill_surfaces->group}) {
-                                push @new_surfaces, map $group->[0]->clone(expolygon => $_),
-                                    @{diff_ex(
-                                        [ map $_->p, @$group ],
-                                        [ map @$_, @$to_bridge ],
-                                    )};
-                                push @new_surfaces, map Slic3r::Surface->new(
-                                    expolygon       => $_,
-                                    surface_type    => stInternalVoid,
-                                ), @{intersection_ex(
+            // compute the remaning internal solid surfaces as difference
+        ExPolygons not_to_bridge = diff_ex(internal_solid, to_bridge, ApplySafetyOffset::Yes);
+        to_bridge = intersection_ex(to_bridge, internal_solid, ApplySafetyOffset::Yes);
+            // build the new collection of fill_surfaces
+            layerm->fill_surfaces.remove_type(stPosInternal | stDensSolid);
+            for (ExPolygon& ex : to_bridge)
+                layerm->fill_surfaces.surfaces.push_back(Surface(stPosInternal | stDensSolid | stModBridge, ex));
+            for (ExPolygon& ex : not_to_bridge)
+                layerm->fill_surfaces.surfaces.push_back(Surface(stPosInternal | stDensSolid, ex));
+            /*
+            # exclude infill from the layers below if needed
+            # see discussion at https://github.com/alexrj/Slic3r/issues/240
+            # Update: do not exclude any infill. Sparse infill is able to absorb the excess material.
+            if (0) {
+                my $excess = $layerm->extruders->{infill}->bridge_flow->width - $layerm->height;
+                for (my $i = $layer_id-1; $excess >= $self->get_layer($i)->height; $i--) {
+                    Slic3r::debugf "  skipping infill below those areas at layer %d\n", $i;
+                    foreach my $lower_layerm (@{$self->get_layer($i)->regions}) {
+                        my @new_surfaces = ();
+                        # subtract the area from all types of surfaces
+                        foreach my $group (@{$lower_layerm->fill_surfaces->group}) {
+                            push @new_surfaces, map $group->[0]->clone(expolygon => $_),
+                                @{diff_ex(
                                     [ map $_->p, @$group ],
                                     [ map @$_, @$to_bridge ],
                                 )};
-                            }
-                            $lower_layerm->fill_surfaces->clear;
-                            $lower_layerm->fill_surfaces->append($_) for @new_surfaces;
+                            push @new_surfaces, map Slic3r::Surface->new(
+                                expolygon       => $_,
+                                surface_type    => stInternalVoid,
+                            ), @{intersection_ex(
+                                [ map $_->p, @$group ],
+                                [ map @$_, @$to_bridge ],
+                            )};
                         }
-
-                        $excess -= $self->get_layer($i)->height;
+                        $lower_layerm->fill_surfaces->clear;
+                        $lower_layerm->fill_surfaces->append($_) for @new_surfaces;
                     }
+
+                    $excess -= $self->get_layer($i)->height;
                 }
-                */
+            }
+            */
 
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
-                layerm->export_region_slices_to_svg_debug("7_bridge_over_infill");
-                layerm->export_region_fill_surfaces_to_svg_debug("7_bridge_over_infill");
+            layerm->export_region_slices_to_svg_debug("7_bridge_over_infill");
+            layerm->export_region_fill_surfaces_to_svg_debug("7_bridge_over_infill");
 #endif /* SLIC3R_DEBUG_SLICE_PROCESSING */
-                m_print->throw_if_canceled();
-            }
+            m_print->throw_if_canceled();
+        }
         }
     }
 
@@ -2557,18 +2559,18 @@ static constexpr const std::initializer_list<const std::string_view> keys_extrud
                 out.perimeter_extruder.value = extruder;
             }
         // 2) Copy the rest of the values.
-        for (auto it = in.cbegin(); it != in.cend(); ++it)
-        if (it->first != key_extruder)
-            if (ConfigOption* my_opt = out.option(it->first, false); my_opt != nullptr) {
-                if (one_of(it->first, keys_extruders)) {
-                    assert(dynamic_cast<ConfigOptionInt*>(my_opt));
-                    // Ignore "default" extruders.
-                    int extruder = static_cast<const ConfigOptionInt*>(it->second.get())->value;
-                    if (extruder > 0)
-                        static_cast<ConfigOptionInt *>(my_opt)->value = (extruder);
-                } else
-                    my_opt->set(it->second.get());
-            }
+    for (auto it = in.cbegin(); it != in.cend(); ++it)
+    if (it->first != key_extruder)
+        if (ConfigOption* my_opt = out.option(it->first, false); my_opt != nullptr) {
+            if (one_of(it->first, keys_extruders)) {
+                assert(dynamic_cast<ConfigOptionInt*>(my_opt));
+                // Ignore "default" extruders.
+                int extruder = static_cast<const ConfigOptionInt*>(it->second.get())->value;
+                if (extruder > 0)
+                    static_cast<ConfigOptionInt *>(my_opt)->value = (extruder);
+            } else
+                my_opt->set(it->second.get());
+        }
     }
 
 PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &default_or_parent_region_config, const DynamicPrintConfig *layer_range_config, const ModelVolume &volume, size_t num_extruders)
@@ -2601,7 +2603,7 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
         config.fill_density.value = std::min(config.fill_density.value, 100.);
     if (config.fuzzy_skin.value != FuzzySkinType::None && (config.fuzzy_skin_point_dist.value < 0.01 || config.fuzzy_skin_thickness.value < 0.001))
         config.fuzzy_skin.value = FuzzySkinType::None;
-        return config;
+    return config;
     }
 
     void PrintObject::update_slicing_parameters()
@@ -2732,48 +2734,48 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
     if (! has_infill)
         return;
 
-        // We only want infill under ceilings; this is almost like an
-        // internal support material.
-        // Proceed top-down, skipping the bottom layer.
-        Polygons upper_internal;
-        for (int layer_id = int(m_layers.size()) - 1; layer_id > 0; --layer_id) {
-            Layer* layer = m_layers[layer_id];
-            Layer* lower_layer = m_layers[layer_id - 1];
-            // Detect things that we need to support.
-            // Cummulative fill surfaces.
-            Polygons fill_surfaces;
-            // Solid surfaces to be supported.
-            Polygons overhangs;
-            for (const LayerRegion* layerm : layer->m_regions)
-                for (const Surface& surface : layerm->fill_surfaces.surfaces) {
-                    Polygons polygons = to_polygons(surface.expolygon);
-                    if (surface.has_fill_solid())
-                        polygons_append(overhangs, polygons);
-                    polygons_append(fill_surfaces, std::move(polygons));
-                }
-            Polygons lower_layer_fill_surfaces;
-            Polygons lower_layer_internal_surfaces;
-            for (const LayerRegion* layerm : lower_layer->m_regions)
-                for (const Surface& surface : layerm->fill_surfaces.surfaces) {
-                    Polygons polygons = to_polygons(surface.expolygon);
-                    if (surface.has_pos_internal() && (surface.has_fill_sparse() || surface.has_fill_void()))
-                        polygons_append(lower_layer_internal_surfaces, polygons);
-                    polygons_append(lower_layer_fill_surfaces, std::move(polygons));
-                }
-            // We also need to support perimeters when there's at least one full unsupported loop
-            {
-                // Get perimeters area as the difference between slices and fill_surfaces
-                // Only consider the area that is not supported by lower perimeters
-            Polygons perimeters = intersection(diff(layer->lslices, fill_surfaces), lower_layer_fill_surfaces);
-                // Only consider perimeter areas that are at least one extrusion width thick.
-                //FIXME Offset2 eats out from both sides, while the perimeters are create outside in.
-                //Should the pw not be half of the current value?
-                float pw = FLT_MAX;
-                for (const LayerRegion* layerm : layer->m_regions)
-                    pw = std::min(pw, (float)layerm->flow(frPerimeter).scaled_width());
-                // Append such thick perimeters to the areas that need support
-            polygons_append(overhangs, opening(perimeters, pw));
+    // We only want infill under ceilings; this is almost like an
+    // internal support material.
+    // Proceed top-down, skipping the bottom layer.
+    Polygons upper_internal;
+    for (int layer_id = int(m_layers.size()) - 1; layer_id > 0; --layer_id) {
+        Layer* layer = m_layers[layer_id];
+        Layer* lower_layer = m_layers[layer_id - 1];
+        // Detect things that we need to support.
+        // Cummulative fill surfaces.
+        Polygons fill_surfaces;
+        // Solid surfaces to be supported.
+        Polygons overhangs;
+        for (const LayerRegion* layerm : layer->m_regions)
+            for (const Surface& surface : layerm->fill_surfaces.surfaces) {
+                Polygons polygons = to_polygons(surface.expolygon);
+                if (surface.has_fill_solid())
+                    polygons_append(overhangs, polygons);
+                polygons_append(fill_surfaces, std::move(polygons));
             }
+        Polygons lower_layer_fill_surfaces;
+        Polygons lower_layer_internal_surfaces;
+        for (const LayerRegion* layerm : lower_layer->m_regions)
+            for (const Surface& surface : layerm->fill_surfaces.surfaces) {
+                Polygons polygons = to_polygons(surface.expolygon);
+                if (surface.has_pos_internal() && (surface.has_fill_sparse() || surface.has_fill_void()))
+                    polygons_append(lower_layer_internal_surfaces, polygons);
+                polygons_append(lower_layer_fill_surfaces, std::move(polygons));
+            }
+        // We also need to support perimeters when there's at least one full unsupported loop
+        {
+            // Get perimeters area as the difference between slices and fill_surfaces
+            // Only consider the area that is not supported by lower perimeters
+        Polygons perimeters = intersection(diff(layer->lslices, fill_surfaces), lower_layer_fill_surfaces);
+            // Only consider perimeter areas that are at least one extrusion width thick.
+            //FIXME Offset2 eats out from both sides, while the perimeters are create outside in.
+            //Should the pw not be half of the current value?
+            float pw = FLT_MAX;
+            for (const LayerRegion* layerm : layer->m_regions)
+                pw = std::min(pw, (float)layerm->flow(frPerimeter).scaled_width());
+            // Append such thick perimeters to the areas that need support
+        polygons_append(overhangs, opening(perimeters, pw));
+        }
         // Merge the new overhangs, find new internal infill.
         polygons_append(upper_internal, std::move(overhangs));
         static constexpr const auto closing_radius = scaled<float>(2.f);
@@ -2798,13 +2800,13 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
                 // If there are voids it means that our internal infill is not adjacent to
                 // perimeters. In this case it would be nice to add a loop around infill to
                 // make it more robust and nicer. TODO.
-#ifdef SLIC3R_DEBUG_SLICE_PROCESSING
+    #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
                 layerm->export_region_fill_surfaces_to_svg_debug("6_clip_fill_surfaces");
-#endif
-            }
-            m_print->throw_if_canceled();
+    #endif
         }
+        m_print->throw_if_canceled();
     }
+}
 
     void PrintObject::discover_horizontal_shells()
     {
@@ -3057,13 +3059,13 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
                         coord_t extrusion_width = lregion->flow(frInfill).scaled_width();
                         merge_surfaces(lregion);
                         // collapse too thin solid surfaces.
-                        bool changed_type = false;
+                        // bool changed_type = false;
                         for (Surface& surface : lregion->fill_surfaces.surfaces) {
                             if (surface.has_fill_solid() && surface.has_pos_internal()) {
                                 if (offset2_ex(ExPolygons{ surface.expolygon }, -extrusion_width / 2, extrusion_width / 2).empty()) {
                                     //convert to sparse
                                     surface.surface_type = (surface.surface_type ^ SurfaceType::stDensSolid) | SurfaceType::stDensSparse;
-                                    changed_type = true;
+//                                    changed_type = true;
                                 }
                             }
                         }

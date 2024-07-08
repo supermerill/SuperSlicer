@@ -557,7 +557,7 @@ namespace agg
     if (neg1 != neg2)
         return std::fabs(v1) < epsilon && std::fabs(v2) < epsilon;
 
-        int int1, int2;
+    int int1, int2;
     std::frexp(v1, &int1);
     std::frexp(v2, &int2);
     int min12 = int1 < int2 ? int1 : int2;
