@@ -298,54 +298,50 @@ void MainFrame::update_icon() {
     int icon_size = 0;
     try {
         icon_size = atoi(wxGetApp().app_config->get("tab_icon_size").c_str());
+    } catch (const std::exception& e) {
+        // Handle exception (optional logging)
     }
-    catch (std::exception e) {}
-    switch (m_layout)
-    {
-    case ESettingsLayout::Unknown:
-    {
-        break;
-    } case ESettingsLayout::Old:
-      case ESettingsLayout::Hidden:
-    {
-        if (m_tabpanel->GetPageCount() == 4 && icon_size >= 8) {
-            m_tabpanel->SetPageImage(0, 0);
-            m_tabpanel->SetPageImage(1, 3);
-            m_tabpanel->SetPageImage(2, m_plater->printer_technology() == PrinterTechnology::ptSLA ? 6 : 4);
-            m_tabpanel->SetPageImage(3, m_plater->printer_technology() == PrinterTechnology::ptSLA ? 7 : 5);
-        }
-        break;
-    }
-    case ESettingsLayout::Tabs:
-    {
+
+    switch (m_layout) {
+        case ESettingsLayout::Unknown:
+            break;
+
+        case ESettingsLayout::Old:
+        case ESettingsLayout::Hidden:
+            if (m_tabpanel->GetPageCount() == 4 && icon_size >= 8) {
+                m_tabpanel->SetPageImage(0, 0);
+                m_tabpanel->SetPageImage(1, 3);
+                m_tabpanel->SetPageImage(2, m_plater->printer_technology() == PrinterTechnology::ptSLA ? 6 : 4);
+                m_tabpanel->SetPageImage(3, m_plater->printer_technology() == PrinterTechnology::ptSLA ? 7 : 5);
+            }
+            break;
+
+        case ESettingsLayout::Tabs:
 #ifdef __APPLE__
-        // no icons for macos
-        break;
+            // no icons for macOS
+            break;
 #else
-        if (icon_size >= 8)
-        {
-            m_tabpanel->SetPageImage(0, 0);
-            m_tabpanel->SetPageImage(1, 1);
-            m_tabpanel->SetPageImage(2, 2);
-            m_tabpanel->SetPageImage(3, m_plater->printer_technology() == PrinterTechnology::ptSLA ? 6 : 3);
-            m_tabpanel->SetPageImage(4, m_plater->printer_technology() == PrinterTechnology::ptSLA ? 7 : 4);
-            m_tabpanel->SetPageImage(5, m_plater->printer_technology() == PrinterTechnology::ptSLA ? 8 : 5);
-        }
-        break;
+            if (icon_size >= 8) {
+                m_tabpanel->SetPageImage(0, 0);
+                m_tabpanel->SetPageImage(1, 1);
+                m_tabpanel->SetPageImage(2, 2);
+                m_tabpanel->SetPageImage(3, m_plater->printer_technology() == PrinterTechnology::ptSLA ? 6 : 3);
+                m_tabpanel->SetPageImage(4, m_plater->printer_technology() == PrinterTechnology::ptSLA ? 7 : 4);
+                m_tabpanel->SetPageImage(5, m_plater->printer_technology() == PrinterTechnology::ptSLA ? 8 : 5);
+            }
+            break;
 #endif
-    case ESettingsLayout::Dlg:
-    {
-        if (m_tabpanel->GetPageCount() == 4 && icon_size >= 8) {
-            m_tabpanel->SetPageImage(0, 3);
-            m_tabpanel->SetPageImage(1, m_plater->printer_technology() == PrinterTechnology::ptSLA ? 6 : 4);
-            m_tabpanel->SetPageImage(2, m_plater->printer_technology() == PrinterTechnology::ptSLA ? 7 : 5);
-        }
-        break;
-    }
-    case ESettingsLayout::GCodeViewer:
-    {
-        break;
-    }
+
+        case ESettingsLayout::Dlg:
+            if (m_tabpanel->GetPageCount() == 4 && icon_size >= 8) {
+                m_tabpanel->SetPageImage(0, 3);
+                m_tabpanel->SetPageImage(1, m_plater->printer_technology() == PrinterTechnology::ptSLA ? 6 : 4);
+                m_tabpanel->SetPageImage(2, m_plater->printer_technology() == PrinterTechnology::ptSLA ? 7 : 5);
+            }
+            break;
+
+        case ESettingsLayout::GCodeViewer:
+            break;
     }
 #endif
 }

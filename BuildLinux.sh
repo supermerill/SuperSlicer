@@ -1,7 +1,7 @@
 #!/bin/bash
 
 export ROOT=`pwd`
-export NCORES=`nproc --all`
+export NCORES=`nproc`
 FOUND_GTK2=$(dpkg -l libgtk* | grep gtk2)
 FOUND_GTK3=$(dpkg -l libgtk* | grep gtk-3)
 
