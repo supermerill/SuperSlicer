@@ -1,5 +1,7 @@
 #include "CalibrationPressureAdvDialog.hpp"
 #include "I18N.hpp"
+#include "format.hpp"
+#include "wxExtensions.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/CustomGCode.hpp"
 #include "libslic3r/Model.hpp"
@@ -31,6 +33,19 @@ namespace Slic3r {
 namespace GUI {
 
 //BUG: custom gcode ' between extrusion role changes' should that be before or after region gcode?
+
+double wxStringToDouble(const wxString& str) {
+    std::string stdStr = std::string(str.mb_str());
+    std::replace(stdStr.begin(), stdStr.end(), ',', '.'); // Ensure dot is used as the decimal separator
+    std::istringstream iss(stdStr);
+    iss.imbue(std::locale("C")); // Use classic "C" locale
+    double value;
+    iss >> value;
+    if (iss.fail()) {
+        throw std::invalid_argument("Invalid number format");
+    }
+    return value;
+}
 
 void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
     /*
@@ -129,7 +144,6 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
     {"FirstLayer", "first_layer_speed"}
     };
 
-
     Plater* plat = this->main_frame->plater();
     Model& model = plat->model();
     if (!plat->new_project(L("Pressure calibration")))
@@ -181,12 +195,10 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
     double spacing_ratio_external = full_print_config.get_computed_value("external_perimeter_overlap");
     double filament_max_overlap = filament_config->get_computed_value("filament_max_overlap",0);//maybe check for extruderID ?
 
-
     // --- translate ---
     //bool autocenter = gui_app->app_config->get("autocenter") == "1";
     bool has_to_arrange = plat->config()->opt_float("init_z_rotate") != 0;
     has_to_arrange = true;
-
     
     /*if (!autocenter) {
         const ConfigOptionPoints* bed_shape = printer_config->option<ConfigOptionPoints>("bed_shape");
@@ -195,13 +207,12 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         model.objects[objs_idx[0]]->translate({ bed_min.x() + bed_size.x() / 2, bed_min.y() + bed_size.y() / 2, 5 * xyzScale - 5 });
     }*/
     
-
     std::vector < std::vector<ModelObject*>> pressure_tower;
     bool smooth_time = false;
 
     std::string nozzle_diameter_str = std::to_string(nozzle_diameter);
+    std::replace(nozzle_diameter_str.begin(), nozzle_diameter_str.end(), ',', '.');
     nozzle_diameter_str.erase(nozzle_diameter_str.find_last_not_of('0') + 2, std::string::npos);
-
     
     if (nozzle_diameter_str.back() == '.') {//if nozzle_diameter_str broke fix it by adding '0' to end, prob not needed?
         nozzle_diameter_str += '0';
@@ -219,6 +230,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
     std::string extrusion_role = dynamicExtrusionRole[0]->GetValue().ToStdString();
 
     for (int id_item = 0; id_item < currentTestCount; id_item++) {
+
         //need to move this to another function.....
         wxString firstPaValue = dynamicFirstPa[id_item]->GetValue();
         wxString startPaValue = dynamicStartPa[id_item]->GetValue();
@@ -227,18 +239,22 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         wxString erPaValue = dynamicExtrusionRole[id_item]->GetValue();
         smooth_time = dynamicEnableST[id_item]->GetValue();
 
-        double first_pa = wxAtof(firstPaValue);
-        double start_pa = wxAtof(startPaValue);
-        double end_pa = wxAtof(endPaValue);
-        double pa_increment = wxAtof(paIncrementValue);
+        double first_pa, start_pa, end_pa, pa_increment;
+   
+        first_pa = wxStringToDouble(firstPaValue);
+        start_pa = wxStringToDouble(startPaValue);
+        end_pa = wxStringToDouble(endPaValue);
+        pa_increment = wxStringToDouble(paIncrementValue);
         extrusion_role = dynamicExtrusionRole[id_item]->GetValue().ToStdString();
 
         int countincrements = 0;
         int sizeofarray = static_cast<int>((end_pa - start_pa) / pa_increment) + 2;//'+2' needed for odd/even numbers 
+
         std::vector<double> pa_values(sizeofarray);
         std::vector<std::string> c_pa_values_c(sizeofarray);
 
         double incremented_pa_value = start_pa;
+
         while (incremented_pa_value <= end_pa + pa_increment / 2) {//this makes a number to be used to load x number of 90 bend models for the PA test.
             if (incremented_pa_value <= end_pa) {
                 double rounded_Pa = std::round(incremented_pa_value * 1000000.0) / 1000000.0;
@@ -329,7 +345,6 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         double xy_scaled_number_y = initial_number_y * xyzScale * er_width_to_scale;
         double xy_scaled_point_xy = initial_point_xy * xyzScale * er_width_to_scale;
 
-
         double thickness_offset = nozzle_diameter * er_width_to_scale * 2;
         //double z_scale_90_bend = xyzScale * 1.8 / initial_model_height;
         double z_scale_90_bend = (xyzScale + first_layer_height) / initial_model_height;
@@ -345,8 +360,6 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
             //      this can cause the numbers to not "show up" on the preview because the z scale is calculated wrong.
             // ie; first_layer_height=0.1 and base_layer_height =0.20
             //BUG: if first/base layer height are both .02 numbers don't show up when sliced. doesn't happen with windows, it did for linux ?
-        
-
         
         std::vector<Eigen::Vector3d> bend_90_positions;
         std::vector<Eigen::Vector3d> number_positions;
@@ -487,6 +500,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                 double ypos = ypos_inital;
                 
                 std::string pa_values_string = std::to_string(pa_values[nb_bends]);
+                std::replace(pa_values_string.begin(), pa_values_string.end(), ',', '.');                
                 std::string threemf =".3mf";
             
                 for (int j = 0; j < 7; ++j) {//not sure how the code will respond with a positive array list? ie ; 100.2 this moves decimal point thus breaking the code from loading model since "..3mf" not a real file
@@ -515,6 +529,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
             }
         }
     
+
     }
     /// --- main config ---
     // => settings that are for object or region should be added to the model (see below, in the for loop), not here
@@ -539,10 +554,12 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         wxString erPaValue = dynamicExtrusionRole[id_item]->GetValue();
         smooth_time = dynamicEnableST[id_item]->GetValue();
 
-        double first_pa = wxAtof(firstPaValue);
-        double start_pa = wxAtof(startPaValue);
-        double end_pa = wxAtof(endPaValue);
-        double pa_increment = wxAtof(paIncrementValue);
+        double first_pa, start_pa, end_pa, pa_increment;
+        // Convert std::string to double using std::stod
+        first_pa = wxStringToDouble(firstPaValue);
+        start_pa = wxStringToDouble(startPaValue);
+        end_pa = wxStringToDouble(endPaValue);
+        pa_increment = wxStringToDouble(paIncrementValue);
         extrusion_role = dynamicExtrusionRole[id_item]->GetValue().ToStdString();
 
         int countincrements = 0;
@@ -649,13 +666,19 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
             model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value("external_perimeter_acceleration", new ConfigOptionFloatOrPercent(er_accel, false));
             model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value("gap_fill_acceleration", new ConfigOptionFloatOrPercent(er_accel, false));
 
+            std::string first_pa_str = std::to_string(first_pa);
+            std::replace(first_pa_str.begin(), first_pa_str.end(), ',', '.');
+
             if (extrusion_role == "Verify") {
                 model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value("region_gcode", new ConfigOptionString(set_advance_prefix + " ; " + er_role ));//user manual type in values
-                new_printer_config.set_key_value("before_layer_gcode", new ConfigOptionString(std::string("{if layer_num == 0} ") + set_advance_prefix + std::to_string(first_pa) + " {endif}"));
+                new_printer_config.set_key_value("before_layer_gcode", new ConfigOptionString(std::string("{if layer_num == 0} ") + set_advance_prefix + first_pa_str  + " {endif}"));
             }
             else{//add '\n' in?
-                model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value("region_gcode", new ConfigOptionString(set_advance_prefix + std::to_string(pa_values[num_part]) + " ; " + er_role ));
-                new_printer_config.set_key_value("before_layer_gcode", new ConfigOptionString(std::string("{if layer_num == 0} ") + set_advance_prefix + std::to_string(first_pa) + " {endif}"));
+                std::string pa_value_str = std::to_string(pa_values[num_part]);
+                std::replace(pa_value_str.begin(), pa_value_str.end(), ',', '.');
+
+                model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value("region_gcode", new ConfigOptionString(set_advance_prefix + pa_value_str + " ; " + er_role ));
+                new_printer_config.set_key_value("before_layer_gcode", new ConfigOptionString(std::string("{if layer_num == 0} ") + set_advance_prefix + first_pa_str + " {endif}"));
             }
             num_part++;
         }
@@ -729,7 +752,6 @@ void CalibrationPressureAdvDialog::create_buttons(wxStdDialogButtonSizer* button
 
     std::string prefix = (gcfMarlinFirmware == flavor) ? " LA " : ((gcfKlipper == flavor || gcfRepRap == flavor) ? " PA " : "unsupported firmware type");
 
-
     if (prefix != "unsupported firmware type") {
 
         wxString number_of_runs[] = { "1", "2", "3", "4", "5" };
@@ -779,17 +801,19 @@ void CalibrationPressureAdvDialog::create_row_controls(wxBoxSizer* parent_sizer,
 
         wxComboBox* firstPaCombo = new wxComboBox(this, wxID_ANY, wxString{ "0.040" }, wxDefaultPosition, wxDefaultSize, 6, choices_first_layerPA);
         //rowSizer->Add(new wxStaticText(this, wxID_ANY, _L( prefix + " Test " + std::to_string(i) + ": " ))); rowSizer->AddSpacer(5);
-        rowSizer->Add(new wxStaticText(this, wxID_ANY, _L("First Layers" + prefix + "value: ")));
-        firstPaCombo->SetToolTip(_L("Select the first layer" + prefix +" value to be used for the first layer only."));
-        firstPaCombo->SetSelection(3);
-        rowSizer->Add(firstPaCombo);
+        rowSizer->Add(new wxStaticText(this, wxID_ANY, format_wxstr(_L("First Layer %1% value: "), prefix)));
+        firstPaCombo->SetToolTip(format_wxstr(_L("Select the first layer %1% value to be used for the first layer only."), prefix));
+
+
+        firstPaCombo->SetSelection(3); 
+        rowSizer->Add(firstPaCombo);    
         dynamicFirstPa.push_back(firstPaCombo);
 
         rowSizer->AddSpacer(15);
 
         wxComboBox* startPaCombo = new wxComboBox(this, wxID_ANY, wxString{ "0.0" }, wxDefaultPosition, wxDefaultSize, 6, choices_start_PA);
-        rowSizer->Add(new wxStaticText(this, wxID_ANY, _L("Starting" + prefix + "value: ")));
-        startPaCombo->SetToolTip(_L("Select the starting " + prefix + " value to be used."));
+        rowSizer->Add(new wxStaticText(this, wxID_ANY, format_wxstr(_L("Starting %1% value: "),prefix)));
+        startPaCombo->SetToolTip(format_wxstr(_L("Select the starting %1% value to be used."),prefix));
         startPaCombo->SetSelection(0);
         rowSizer->Add(startPaCombo);
         dynamicStartPa.push_back(startPaCombo);
@@ -797,8 +821,8 @@ void CalibrationPressureAdvDialog::create_row_controls(wxBoxSizer* parent_sizer,
         rowSizer->AddSpacer(15);
 
         wxComboBox* endPaCombo = new wxComboBox(this, wxID_ANY, wxString{ "0.10" }, wxDefaultPosition, wxDefaultSize, 10, choices_end_PA);
-        rowSizer->Add(new wxStaticText(this, wxID_ANY, _L("Ending" + prefix + "value: ")));
-        endPaCombo->SetToolTip(_L("Select the ending " + prefix + " value to be used."));
+        rowSizer->Add(new wxStaticText(this, wxID_ANY, format_wxstr(_L("Ending %1% value: "),prefix)));
+        endPaCombo->SetToolTip(format_wxstr(_L("Select the ending %1% value to be used."),prefix));
         endPaCombo->SetSelection(0);
         rowSizer->Add(endPaCombo);
         dynamicEndPa.push_back(endPaCombo);
@@ -806,8 +830,8 @@ void CalibrationPressureAdvDialog::create_row_controls(wxBoxSizer* parent_sizer,
         rowSizer->AddSpacer(15);
 
         wxComboBox* paIncrementCombo = new wxComboBox(this, wxID_ANY, wxString{ "0.005" }, wxDefaultPosition, wxDefaultSize, 8, choices_increment_PA);
-        rowSizer->Add(new wxStaticText(this, wxID_ANY, _L(prefix + "increments: ")));
-        paIncrementCombo->SetToolTip(_L("Select the " + prefix + " increment amount."));
+        rowSizer->Add(new wxStaticText(this, wxID_ANY, format_wxstr(_L("%1% increments: "),prefix)));
+        paIncrementCombo->SetToolTip(format_wxstr(_L("Select the %1% increment amount."),prefix));
         paIncrementCombo->SetSelection(3);
         rowSizer->Add(paIncrementCombo);
         dynamicPaIncrement.push_back(paIncrementCombo);

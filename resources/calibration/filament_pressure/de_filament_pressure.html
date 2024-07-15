@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Pressure Advance Kalibrierung</title>
+</head>
+<body>
+
+<table width="100%">
+  <tbody>
+  <tr>
+  <td style="text-align: center;">
+    <h1>Pressure/Linear Advance</h1>  
+  </td>
+  </tr>
+  <tr>
+  <td style="text-align: right;"><strong>
+    <table><tr><td>Voraussetzung:</td>
+          <td style="text-align: left;">Bettnivellierung</td>
+          <td style="text-align: left;">Fluss</td>
+          <td style="text-align: left;">Temperatur</td></tr>
+      </table>
+      </strong>
+  </tr>
+  </tbody>
+  </table>
+
+
+<p><strong>Dieser Test befindet sich noch in der Entwicklung, die Beta-Version sollte aber vorerst "gut" funktionieren. 
+  Diese Seite wird zusammen mit ihm aktualisiert werden :)<br> Ihre aktuellen Druckeinstellungen m&uuml;ssen gespeichert werden, bevor
+   Sie auf "Generieren" klicken, da das Programm 
+  die gespeicherten Werte zur Erstellung des Modells verwendet</strong></p>
+<p>Hinweis: Dieser Test zieht automatisch alle aktuell geladenen Konfigurationsparameter und erstellt ein Modell, das Sie 
+  drucken!<br> Um die Geschwindigkeits-/Verarbeitungsbeschr&auml;nkungen der Firmware zu umgehen, ist es empfehlenswert, die meisten 
+  Extrusionsarten auf Geschwindigkeiten zu setzen (aber das muss nicht sein!)</p>
+
+<h2>Wie Sie Ihren Drucker f&uuml;r den Druck/Linearvorschub einstellen</h2>
+<p>F&uuml;r den Anfang</p>
+<ul>
+<li>W&auml;hlen Sie die Anzahl der zu erstellenden Tests aus. Wenn Sie mehr als 1 ausw&auml;hlen, m&uuml;ssen Sie die Gr&ouml;&szlig;e des Fensters 
+  manuell anpassen (klicken und ziehen Sie das Fenster von unten rechts)</li>
+<li>W&auml;hlen Sie die Werte f&uuml;r die Start-/End-/Inkrement-/Extrusionsarten</li>
+<li>jede Zeile ist die Konfiguration f&uuml;r jedes Basistestmodell, z.B.: erste Zeile = externalPerimeter zweite Zeile = firstLayer  </li>
+<li>Da jedes Modell seine eigene Konfiguration hat, kann es sein, dass ein Testmodell schneller/langsamer ist als die anderen, das ist 
+  erwartet und normall</li>
+<li>Ich empfehle, 'first_layer_speed' und 'first_layer_min_speed' auf die gleichen Werte zu setzen </li>
+
+</ul>
+
+<p>Was bedeutet die Option "&Uuml;berpr&uuml;fen"<br>
+  Sie werden feststellen, dass es die Option "&Uuml;berpr&uuml;fen" im Dropdown-Men&uuml; der Extrusionsart gibt, diese Funktion funktioniert derzeit nicht.
+  (Sie k&ouml;nnen sie trotzdem verwenden, aber jede Rolle, die eine L&uuml;ckenf&uuml;llung hat, wird falsch sein und der Test f&uuml;r diese Rolle sollte 
+  ignoriert werden.) <br>
+  Wenn ich es zum Laufen bringe, soll es den Zweck erf&uuml;llen, dass man leicht erkennen kann, welche Extrusionsrollen ihre PA-Werte abstimmen m&uuml;ssen. 
+  Es wird ein Modell f&uuml;r jede ER-Rolle erstellen und die Geschwindigkeit/Beschleunigung/Breite/Abstand dieser Rolle dem einzelnen 
+  Modell<br>
+  Sie k&ouml;nnen dann den Druckvorschubbefehl manuell in das Feld "Pro Region g-code" einf&uuml;gen, aufschneiden und drucken.
+</p>
+
+<h2>Hinweis</h2>
+<p>Bevor Sie diesen Test durchf&uuml;hren, sollten Sie zun&auml;chst alle anderen Einstellungen vornehmen!<br>Ich w&uuml;rde empfehlen, XXXX 
+  auf die gleichen Geschwindigkeiten, XXX auf eine langsame Geschwindigkeit und ebenfalls alles andere, was Sie einstellen k&ouml;nnen.</p>
+<p>Hinweis: Eine gro&szlig;e Varianz bei den ER-Geschwindigkeiten kann die Druckqualit&auml;t/Ma&szlig;haltigkeit beeintr&auml;chtigen; dieser Effekt wird 
+  wird haupts&auml;chlich dadurch verursacht, dass der innere Umfang beim Abk&uuml;hlen n&auml;her an den &auml;u&szlig;eren Umfang gezogen wird, da
+   jeder Umfang eine andere Temperatur hat.</p>
+<p>Ich empfehle, 'first_layer_speed' und 'first_layer_min_speed' auf die gleichen Werte zu setzen </p>
+<p><strong>TODO Dinge &uuml;ber PA und die korrekte Einstellung der ersten Ebene hinzuf&uuml;gen<br>Hinweise zur L&uuml;ftergeschwindigkeit und 
+  Deaktivieren der L&uuml;ftergeschwindigkeit f&uuml;r diesen Test, oder habe ich ein Kontrollk&auml;stchen in der GUI, das automatisch den entsprechenden
+   UI-Reiter &auml;ndert?</strong></p>
+
+   
+<h2>Notiz</h2>
+<p> TODO: Anerkennung f&uuml;r Andrew Ellis' Testmethode hinzuf&uuml;gen</p>
+</body>
+</html>
