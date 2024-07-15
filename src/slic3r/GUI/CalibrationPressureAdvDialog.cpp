@@ -1,5 +1,7 @@
 #include "CalibrationPressureAdvDialog.hpp"
 #include "I18N.hpp"
+#include "format.hpp"
+#include "wxExtensions.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/CustomGCode.hpp"
 #include "libslic3r/Model.hpp"
@@ -211,7 +213,6 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
     std::string nozzle_diameter_str = std::to_string(nozzle_diameter);
     std::replace(nozzle_diameter_str.begin(), nozzle_diameter_str.end(), ',', '.');
     nozzle_diameter_str.erase(nozzle_diameter_str.find_last_not_of('0') + 2, std::string::npos);
-    std::cout << "Nozzle: " << nozzle_diameter_str << std::endl;
     
     if (nozzle_diameter_str.back() == '.') {//if nozzle_diameter_str broke fix it by adding '0' to end, prob not needed?
         nozzle_diameter_str += '0';
@@ -227,8 +228,6 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
 
     std::string bend_90_nozzle_size_3mf = "90_bend_" + nozzle_diameter_str + ".3mf";
     std::string extrusion_role = dynamicExtrusionRole[0]->GetValue().ToStdString();
-
-    std::cout << "currentTestCount: " << currentTestCount << std::endl;
 
     for (int id_item = 0; id_item < currentTestCount; id_item++) {
 
@@ -802,17 +801,19 @@ void CalibrationPressureAdvDialog::create_row_controls(wxBoxSizer* parent_sizer,
 
         wxComboBox* firstPaCombo = new wxComboBox(this, wxID_ANY, wxString{ "0.040" }, wxDefaultPosition, wxDefaultSize, 6, choices_first_layerPA);
         //rowSizer->Add(new wxStaticText(this, wxID_ANY, _L( prefix + " Test " + std::to_string(i) + ": " ))); rowSizer->AddSpacer(5);
-        rowSizer->Add(new wxStaticText(this, wxID_ANY, _L("First Layers" + prefix + "value: ")));
-        firstPaCombo->SetToolTip(_L("Select the first layer" + prefix +" value to be used for the first layer only."));
-        firstPaCombo->SetSelection(3);
-        rowSizer->Add(firstPaCombo);
+        rowSizer->Add(new wxStaticText(this, wxID_ANY, format_wxstr(_L("First Layer %1% value: "), prefix)));
+        firstPaCombo->SetToolTip(format_wxstr(_L("Select the first layer %1% value to be used for the first layer only."), prefix));
+
+
+        firstPaCombo->SetSelection(3); 
+        rowSizer->Add(firstPaCombo);    
         dynamicFirstPa.push_back(firstPaCombo);
 
         rowSizer->AddSpacer(15);
 
         wxComboBox* startPaCombo = new wxComboBox(this, wxID_ANY, wxString{ "0.0" }, wxDefaultPosition, wxDefaultSize, 6, choices_start_PA);
-        rowSizer->Add(new wxStaticText(this, wxID_ANY, _L("Starting" + prefix + "value: ")));
-        startPaCombo->SetToolTip(_L("Select the starting " + prefix + " value to be used."));
+        rowSizer->Add(new wxStaticText(this, wxID_ANY, format_wxstr(_L("Starting %1% value: "),prefix)));
+        startPaCombo->SetToolTip(format_wxstr(_L("Select the starting %1% value to be used."),prefix));
         startPaCombo->SetSelection(0);
         rowSizer->Add(startPaCombo);
         dynamicStartPa.push_back(startPaCombo);
@@ -820,8 +821,8 @@ void CalibrationPressureAdvDialog::create_row_controls(wxBoxSizer* parent_sizer,
         rowSizer->AddSpacer(15);
 
         wxComboBox* endPaCombo = new wxComboBox(this, wxID_ANY, wxString{ "0.10" }, wxDefaultPosition, wxDefaultSize, 10, choices_end_PA);
-        rowSizer->Add(new wxStaticText(this, wxID_ANY, _L("Ending" + prefix + "value: ")));
-        endPaCombo->SetToolTip(_L("Select the ending " + prefix + " value to be used."));
+        rowSizer->Add(new wxStaticText(this, wxID_ANY, format_wxstr(_L("Ending %1% value: "),prefix)));
+        endPaCombo->SetToolTip(format_wxstr(_L("Select the ending %1% value to be used."),prefix));
         endPaCombo->SetSelection(0);
         rowSizer->Add(endPaCombo);
         dynamicEndPa.push_back(endPaCombo);
@@ -829,8 +830,8 @@ void CalibrationPressureAdvDialog::create_row_controls(wxBoxSizer* parent_sizer,
         rowSizer->AddSpacer(15);
 
         wxComboBox* paIncrementCombo = new wxComboBox(this, wxID_ANY, wxString{ "0.005" }, wxDefaultPosition, wxDefaultSize, 8, choices_increment_PA);
-        rowSizer->Add(new wxStaticText(this, wxID_ANY, _L(prefix + "increments: ")));
-        paIncrementCombo->SetToolTip(_L("Select the " + prefix + " increment amount."));
+        rowSizer->Add(new wxStaticText(this, wxID_ANY, format_wxstr(_L("%1% increments: "),prefix)));
+        paIncrementCombo->SetToolTip(format_wxstr(_L("Select the %1% increment amount."),prefix));
         paIncrementCombo->SetSelection(3);
         rowSizer->Add(paIncrementCombo);
         dynamicPaIncrement.push_back(paIncrementCombo);
