@@ -3094,11 +3094,30 @@ LayerResult GCode::process_layer(
     // Set new layer - this will change Z and force a retraction if retract_layer_change is enabled.
     coordf_t previous_print_z = m_layer != nullptr ? m_layer->print_z : 0;
     if (! print.config().before_layer_gcode.value.empty()) {
+        std::vector<double> layer_used_filament(m_writer.extruders().size());
+
+        PrintStatistics & stats = status_monitor.stats();
+        if (! m_writer.extruders().empty()) {
+            for (const Extruder &extruder : m_writer.extruders()) {
+                double used_filament   = extruder.used_filament() + (print.has_wipe_tower() ? print.wipe_tower_data().used_filament[extruder.id()] : 0.f);
+
+                if (extruder.id() >= layer_used_filament.size()) {
+                    layer_used_filament.resize(extruder.id() + 1);
+                }
+
+                double layer_filament = used_filament - stats.total_used_filament_before_current_layer[extruder.id()];
+
+                layer_used_filament[extruder.id()] = ((layer_filament > 0.f) ? layer_filament : 0.f);
+                stats.total_used_filament_before_current_layer[extruder.id()] = used_filament;
+            }
+        }
+
         DynamicConfig config;
         config.set_key_value("previous_layer_z", new ConfigOptionFloat(previous_print_z));
         config.set_key_value("layer_num", new ConfigOptionInt(m_layer_index + 1));
         config.set_key_value("layer_z",     new ConfigOptionFloat(print_z));
         config.set_key_value("max_layer_z", new ConfigOptionFloat(m_max_layer_z));
+        config.set_key_value("layer_used_filament", new ConfigOptionFloats(layer_used_filament));
         gcode += this->placeholder_parser_process("before_layer_gcode",
             print.config().before_layer_gcode.value, m_writer.tool()->id(), &config)
             + "\n";

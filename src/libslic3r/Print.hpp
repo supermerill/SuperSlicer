@@ -498,6 +498,7 @@ struct PrintStatistics
     std::string                     initial_filament_type;
     std::string                     printing_filament_types;
     std::map<size_t, double>        filament_stats; // extruder id -> volume in mm3
+    std::map<size_t, double>        total_used_filament_before_current_layer; // extruder id -> mm (length)
 
     std::atomic_bool is_computing_gcode;
 
@@ -520,6 +521,7 @@ struct PrintStatistics
         initial_filament_type.clear();
         printing_filament_types.clear();
         filament_stats.clear();
+        total_used_filament_before_current_layer.clear();
         printing_extruders.clear();
         is_computing_gcode = false;
     }
