@@ -345,6 +345,10 @@ group:label_width$8:sidetext_width$7:Speed for print moves
 	line:Wipe tower
 		setting:width$4:label$Main speed:wipe_tower_speed
 		setting:width$4:label$Wipe starting speed:wipe_tower_wipe_starting_speed
+group:Exclude print speeds (beta)
+	line:Exclude print speeds
+		setting:label_width$12:width$26:exclude_print_speed_ranges
+		setting:exclude_print_speed_adjustment_direction
 group:Speed for non-print moves
 	line:Travel speed
 		setting:label$xy:travel_speed

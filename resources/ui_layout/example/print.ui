@@ -335,6 +335,10 @@ group:Speed for non-print moves
 		setting:label$xy:travel_speed
 		setting:label$z:travel_speed_z
 	end_line
+group:Exclude print speeds (beta)
+	line:Exclude print speeds
+		setting:label_width$12:width$26:exclude_print_speed_ranges
+		setting:exclude_print_speed_adjustment_direction
 group:sidetext_width$7:Modifiers
 	line:First layer speed
 		setting:label_width$8:width$4:first_layer_min_speed

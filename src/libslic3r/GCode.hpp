@@ -11,6 +11,7 @@
 #include "PlaceholderParser.hpp"
 #include "PrintConfig.hpp"
 #include "GCode/AvoidCrossingPerimeters.hpp"
+#include "GCode/ExcludePrintSpeeds.hpp"
 #include "GCode/CoolingBuffer.hpp"
 #include "GCode/FanMover.hpp"
 #include "GCode/FindReplace.hpp"
@@ -485,6 +486,7 @@ private:
     std::unique_ptr<GCodeFindReplace>   m_find_replace;
     std::unique_ptr<PressureEqualizer>  m_pressure_equalizer;
     std::unique_ptr<WipeTowerIntegration> m_wipe_tower;
+    std::unique_ptr<ExcludePrintSpeeds> m_exclude_print_speeds;
 
     // Heights (print_z) at which the skirt has already been extruded.
     std::vector<coordf_t>               m_skirt_done;

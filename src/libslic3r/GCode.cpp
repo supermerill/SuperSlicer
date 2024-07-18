@@ -1473,6 +1473,16 @@ void GCode::_do_export(Print& print_mod, GCodeOutputStream &file, ThumbnailsGene
         m_pressure_equalizer = make_unique<PressureEqualizer>(print.config());
     m_enable_extrusion_role_markers = (bool)m_pressure_equalizer;
 
+    try {
+        if (!print.config().exclude_print_speed_ranges.empty()) {
+            m_exclude_print_speeds =
+                make_unique<ExcludePrintSpeeds>(print.config().exclude_print_speed_ranges,
+                                                print.config().exclude_print_speed_adjustment_direction);
+        }
+    } catch (std::exception &e) {
+        throw Slic3r::SlicingError(_(L("Error on excluded print speeds:\n") + _(L(e.what()))));
+    }
+
     std::string preamble_to_put_start_layer = "";
 
     
@@ -5674,8 +5684,8 @@ std::string GCode::_extrude(const ExtrusionPath &path, const std::string &descri
     return gcode;
 }
 
-double_t GCode::_compute_speed_mm_per_sec(const ExtrusionPath& path, double speed) {
-
+double_t GCode::_compute_speed_mm_per_sec(const ExtrusionPath& path, double speed)
+{
     float factor = 1;
     // set speed
     if (speed < 0) {
@@ -5688,12 +5698,18 @@ double_t GCode::_compute_speed_mm_per_sec(const ExtrusionPath& path, double spee
             speed = m_config.get_computed_value("perimeter_speed");
         } else if (path.role() == erExternalPerimeter) {
             speed = m_config.get_computed_value("external_perimeter_speed");
+            if (m_exclude_print_speeds) {
+                speed = m_exclude_print_speeds->adjust_speed_if_in_forbidden_range(speed);
+            }
         } else if (path.role() == erBridgeInfill) {
             speed = m_config.get_computed_value("bridge_speed");
         } else if (path.role() == erInternalBridgeInfill) {
             speed = m_config.get_computed_value("bridge_speed_internal");
         } else if (path.role() == erOverhangPerimeter) {
             speed = m_config.get_computed_value("overhangs_speed");
+            if (m_exclude_print_speeds) {
+                speed = m_exclude_print_speeds->adjust_speed_if_in_forbidden_range(speed);
+            }
         } else if (path.role() == erInternalInfill) {
             speed = m_config.get_computed_value("infill_speed");
         } else if (path.role() == erSolidInfill) {
@@ -5770,6 +5786,7 @@ double_t GCode::_compute_speed_mm_per_sec(const ExtrusionPath& path, double spee
     // Apply small perimeter 'modifier
     //  don't modify bridge speed
     if (factor < 1 && !(is_bridge(path.role()))) {
+        // TODO - This does not work as expected. Needs to be fixed.
         float small_speed = (float)m_config.small_perimeter_speed.get_abs_value(m_config.get_computed_value("perimeter_speed"));
         if (small_speed > 0)
             //apply factor between feature speed and small speed
