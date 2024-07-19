@@ -87,6 +87,8 @@ void OG_CustomCtrl::init_ctrl_lines()
             !line.get_extra_widgets().empty())
             )
             continue;
+        if (line.is_separator())
+            continue;
 
         const std::vector<Option>& option_set = line.get_options();
         wxCoord height;
@@ -834,16 +836,21 @@ wxCoord OG_CustomCtrl::CtrlLine::draw_mode_bmp(wxDC& dc, wxCoord v_pos)
         return ctrl->m_h_gap;
 
     ConfigOptionMode mode = og_line.get_options()[0].opt.mode;
+    int pix_cnt = wxOSX ? 10 : 12;
+
+    if (mode == ConfigOptionMode::comNone)
+        return pix_cnt + ctrl->m_h_gap;
+
     //get all tags
     for (int i = 1; i < og_line.get_options().size(); i++)
         mode |= og_line.get_options()[i].opt.mode;
-    int pix_cnt = wxOSX ? 10 : 12;
     wxBitmapBundle* bmp = get_bmp_bundle("mode", pix_cnt, pix_cnt, wxGetApp().get_first_mode_btn_color(mode));
     wxCoord y_draw = v_pos + lround((height - get_bitmap_size(bmp, ctrl).GetHeight()) / 2);
 
     if (og_line.get_options().front().opt.gui_type != ConfigOptionDef::GUIType::legend)
         dc.DrawBitmap(bmp->GetBitmapFor(ctrl), 0, y_draw);
 
+    assert(get_bitmap_size(bmp, ctrl).GetWidth() == pix_cnt);
     return get_bitmap_size(bmp, ctrl).GetWidth() + ctrl->m_h_gap;
 }
 

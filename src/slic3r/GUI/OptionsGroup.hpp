@@ -128,7 +128,7 @@ class OptionsGroup {
 protected:
 	wxStaticBox*	stb {nullptr};
 public:
-    const bool		staticbox {true};
+    const bool		staticbox {true}; // false if title is empty.
     const wxString	title;
     int             title_width = 20;// {200};
     bool            no_title = false;
@@ -291,8 +291,8 @@ public:
 	ConfigOptionsGroup(	wxWindow* parent, const wxString& title, ModelConfig* config, 
 						bool is_tab_opt = false, column_t extra_clmn = nullptr) :
 		OptionsGroup(parent, title, is_tab_opt, extra_clmn), m_config(&config->get()), m_modelconfig(config), m_config_mutable(nullptr) {}
-	ConfigOptionsGroup(	wxWindow* parent) :
-		OptionsGroup(parent, wxEmptyString, true, nullptr) {}
+	ConfigOptionsGroup(	wxWindow* parent, const wxString& title, bool is_tab_opt) :
+		OptionsGroup(parent, title, is_tab_opt, nullptr) {}
     ~ConfigOptionsGroup() override = default;
 
 	const wxString& config_category() const throw() { return m_config_category; }

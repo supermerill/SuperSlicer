@@ -66,7 +66,7 @@ struct Option {
 
     // Fuzzy matching works at a character level. Thus matching with wide characters is a safer bet than with short characters,
     // though for some languages (Chinese?) it may not work correctly.
-    std::wstring    key;
+    std::wstring    key; // opt_key (without the 'type;' as suffix)
     Preset::Type    type {Preset::TYPE_INVALID};
     int16_t         idx;
     ConfigOptionMode tags;
@@ -80,7 +80,9 @@ struct Option {
     std::wstring    tooltip_local;
     std::wstring    tooltip_lowercase;
     std::wstring    tooltip_local_lowercase;
+
     std::string     opt_key_with_idx() const;
+    std::string     opt_key() const;
 };
 
 struct FoundOption {

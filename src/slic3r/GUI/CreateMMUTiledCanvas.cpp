@@ -343,7 +343,7 @@ namespace GUI {
         }
 
 
-        GetRPlaceDialog(wxWindow* p, wxWindowID id, const wxString& title) : DPIDialog(p, id, title, wxDefaultPosition, wxDefaultSize){
+        GetRPlaceDialog(wxWindow* p, wxWindowID id, const wxString& title) : DPIDialog(p, id, title, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE, "getrplace"){
             int spin_options = wxTE_PROCESS_ENTER | wxSP_ARROW_KEYS
 #ifdef _WIN32
                 | wxBORDER_SIMPLE
@@ -884,7 +884,7 @@ void CreateMMUTiledCanvas::load_config()
 CreateMMUTiledCanvas::CreateMMUTiledCanvas(GUI_App* app, MainFrame* mainframe)
     : DPIDialog(NULL, wxID_ANY, wxString(SLIC3R_APP_NAME) + " - " + _L("Creating Mosaic tiled canvas"),
 //#if ENABLE_SCROLLABLE
-        wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+        wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER, "createmmu")
 //#else
 //    wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE)
 //#endif // ENABLE_SCROLLABLE

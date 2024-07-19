@@ -373,8 +373,8 @@ class HighlighterForWx : public Highlighter
 // - using a BlinkingBitmap. Change state of this bitmap
     BlinkingBitmap* m_blinking_bitmap   { nullptr };
 // - using OG_CustomCtrl where arrow will be rendered and flag indicated "show/hide" state of this arrow
-    OG_CustomCtrl*  m_custom_ctrl       { nullptr };
-    bool*           m_show_blink_ptr    { nullptr };
+    wxWindow*       m_custom_ctrl       { nullptr }; // for calling Refresh()
+    bool*           m_show_blink_ptr    { nullptr }; // to set true/false
 
 public:
     HighlighterForWx() {}
@@ -382,7 +382,7 @@ public:
 
     void bind_timer(wxWindow* owner) override;
     void init(BlinkingBitmap* blinking_bitmap);
-    void init(std::pair<OG_CustomCtrl*, bool*>);
+    void init(wxWindow*, bool*);
     void blink();
     void invalidate();
 };

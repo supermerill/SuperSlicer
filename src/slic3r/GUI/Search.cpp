@@ -59,11 +59,19 @@ static char marker_by_type(Preset::Type type, PrinterTechnology pt)
 
 std::string Option::opt_key_with_idx() const
 {
-    std::string str = boost::nowide::narrow(key);
+    std::string opt_key = boost::nowide::narrow(key);
+    assert(opt_key.find(';') == std::string::npos);
     if (idx >= 0) {
-        str += "#" + std::to_string(idx);
+        opt_key += "#" + std::to_string(idx);
     }
-    return str;
+    return opt_key;
+}
+
+std::string Option::opt_key() const
+{
+    std::string opt_key = boost::nowide::narrow(key);
+    assert(opt_key.find(';') == std::string::npos);
+    return opt_key;
 }
 
 void FoundOption::get_marked_label_and_tooltip(const char** label_, const char** tooltip_) const
@@ -611,7 +619,7 @@ void OptionsSearcher::append_preferences_option(const GUI::Line& opt_line)
     if (gc.group.IsEmpty() || gc.category.IsEmpty())
         return;        
         
-    preferences_options.emplace_back(Search::Option{ boost::nowide::widen(key), type, 
+    preferences_options.emplace_back(Search::Option{ boost::nowide::widen(opt_line.get_options().front().opt_id), type, 
                                 -1, ConfigOptionMode::comSimpleAE,
                                 label.ToStdWstring(), _(label).ToStdWstring(),
                                 gc.group.ToStdWstring(), _(gc.group).ToStdWstring(),
@@ -697,7 +705,6 @@ Option OptionsSearcher::get_option_names(const std::string& opt_key, Preset::Typ
         return create_option(opt_key, idx, type, get_group_and_category(zero_opt_key, ConfigOptionMode::comNone));
     }
 
-    
     const GroupAndCategory& gc = get_group_and_category(key, ConfigOptionMode::comNone);
     if (gc.group.IsEmpty() || gc.category.IsEmpty())
         return *it;
@@ -763,7 +770,7 @@ static const std::map<const char, int> icon_idxs = {
 };
 
 SearchDialog::SearchDialog(OptionsSearcher* searcher)
-    : GUI::DPIDialog(GUI::wxGetApp().tab_panel(), wxID_ANY, _L("Search"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER),
+    : GUI::DPIDialog(GUI::wxGetApp().tab_panel(), wxID_ANY, _L("Search"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER, "search"),
     searcher(searcher)
 {
     SetFont(GUI::wxGetApp().normal_font());

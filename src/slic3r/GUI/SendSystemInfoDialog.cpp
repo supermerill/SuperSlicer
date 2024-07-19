@@ -559,7 +559,7 @@ static std::string generate_system_info_json()
 SendSystemInfoDialog::SendSystemInfoDialog(wxWindow* parent)
     : m_system_info_json{generate_system_info_json()},
     GUI::DPIDialog(parent, wxID_ANY, _L("Send system info"), wxDefaultPosition, wxDefaultSize,
-           wxDEFAULT_DIALOG_STYLE)
+           wxDEFAULT_DIALOG_STYLE, "sendsysteminfo")
 {
     const int em = GUI::wxGetApp().em_unit();
 

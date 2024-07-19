@@ -139,7 +139,7 @@ FreeCADDialog::~FreeCADDialog() {
 FreeCADDialog::FreeCADDialog(GUI_App* app, MainFrame* mainframe)
     : DPIDialog(NULL, wxID_ANY, wxString(SLIC3R_APP_NAME) + " - " + _L("FreePySCAD : script engine for FreeCAD"),
 //#if ENABLE_SCROLLABLE
-        wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+        wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER, "freecad")
 //#else
 //    wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE)
 //#endif // ENABLE_SCROLLABLE

@@ -2989,9 +2989,9 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
     menu->Append(local_menu, _L("&Configuration"));
 }
 
-void GUI_App::open_preferences(const std::string& highlight_option /*= std::string()*/, const std::string& tab_name/*= std::string()*/)
+void GUI_App::open_preferences(const std::string& highlight_option /*= std::string()*/, const std::string& group_name/*= std::string()*/)
 {
-    mainframe->preferences_dialog->show(highlight_option, tab_name);
+    mainframe->preferences_dialog->show(highlight_option, group_name);
 
     if (mainframe->preferences_dialog->recreate_GUI())
         recreate_GUI(_L("Restart application") + dots);

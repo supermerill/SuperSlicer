@@ -366,12 +366,14 @@ error:
 wxBitmapBundle* BitmapCache::from_svg(const std::string& bitmap_name, unsigned target_width, unsigned target_height,
                                       /*const bool dark_mode, */ColorReplaces& color_changes /*= ""*/)
 {
+    //create hash from ColorReplaces
     uint32_t color_change_hash = 0;
     for (size_t i = 0; i < color_changes.changes.size(); ++i) {
-        color_change_hash |= rgb2int(color_changes.changes[i].color_to_replace) << uint8_t(i%8);
-        color_change_hash |= rgb2int(color_changes.changes[i].new_color) << uint8_t(i%8);
+        color_change_hash ^= rgb2int(color_changes.changes[i].color_to_replace) << uint8_t((i + 4) % 8);
+        color_change_hash ^= rgb2int(color_changes.changes[i].new_color) << uint8_t(i % 8);
     }
-    color_change_hash = ((color_change_hash >> 16) & 0x0000FFFF) | (color_change_hash & 0x0000FFFF);
+    //reduce hash to 16b
+    color_change_hash = ((color_change_hash >> 16) & 0x0000FFFF) ^ (color_change_hash & 0x0000FFFF);
 
     if (target_width == 0)
         target_width = target_height;

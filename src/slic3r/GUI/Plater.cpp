@@ -1243,7 +1243,7 @@ void Sidebar::jump_to_option(size_t selected)
 {
     const Search::Option& opt = p->searcher.get_option(selected);
     if (opt.type == Preset::TYPE_PREFERENCES)
-        wxGetApp().open_preferences(boost::nowide::narrow(opt.key), boost::nowide::narrow(opt.group));
+        wxGetApp().open_preferences(opt.opt_key(), boost::nowide::narrow(opt.group));
     else {
         ConfigOptionMode mode = wxGetApp().get_mode();
         if ((opt.tags & mode) != mode) {
@@ -5985,7 +5985,7 @@ protected:
 LoadProjectsDialog::LoadProjectsDialog(const std::vector<fs::path>& paths)
     : DPIDialog(static_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY,
         format_wxstr(_L("%1% - Multiple projects file"), SLIC3R_APP_NAME), wxDefaultPosition,
-        wxDefaultSize, wxDEFAULT_DIALOG_STYLE)
+        wxDefaultSize, wxDEFAULT_DIALOG_STYLE, "loadproject")
 {
     SetFont(wxGetApp().normal_font());
 
@@ -6376,7 +6376,7 @@ protected:
 ProjectDropDialog::ProjectDropDialog(const std::string& filename)
     : DPIDialog(static_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY,
         format_wxstr("%1% - %2%", SLIC3R_APP_NAME, _L("Load project file")), wxDefaultPosition,
-        wxDefaultSize, wxDEFAULT_DIALOG_STYLE)
+        wxDefaultSize, wxDEFAULT_DIALOG_STYLE, "projectdrop")
 {
     SetFont(wxGetApp().normal_font());
 

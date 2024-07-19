@@ -327,7 +327,7 @@ public:
     wxString 		current_language_code_safe() const;
     bool            is_localized() const { return m_wxLocale->GetLocale() != "English"; }
 
-    void            open_preferences(const std::string& highlight_option = std::string(), const std::string& tab_name = std::string());
+    void            open_preferences(const std::string& highlight_option = std::string(), const std::string& group_name = std::string());
 
     virtual bool OnExceptionInMainLoop() override;
     // Calls wxLaunchDefaultBrowser if user confirms in dialog.

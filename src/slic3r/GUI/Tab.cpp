@@ -1552,7 +1552,8 @@ void Tab::activate_option(const std::string& opt_key, const wxString& category)
             set_focus(field->getWindow());
     }
 
-    m_highlighter.init(get_custom_ctrl_with_blinking_ptr(opt_key));
+    auto [custom_ctrl, blink_ptr] = get_custom_ctrl_with_blinking_ptr(opt_key);
+    m_highlighter.init(custom_ctrl, blink_ptr);
 }
 
 void TabFrequent::activate_option(const std::string &opt_key, const wxString &category){

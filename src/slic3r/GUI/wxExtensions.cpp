@@ -887,14 +887,14 @@ void HighlighterForWx::bind_timer(wxWindow* owner)
 }
 
 // using OG_CustomCtrl where arrow will be rendered and flag indicated "show/hide" state of this arrow
-void HighlighterForWx::init(std::pair<OG_CustomCtrl*, bool*> params)
+void HighlighterForWx::init(wxWindow* refresh_panel, bool* blink_bool)
 {
     invalidate();
-    if (!Highlighter::init(!params.first && !params.second))
+    if (!Highlighter::init(!refresh_panel && !blink_bool))
         return;
 
-    m_custom_ctrl = params.first;
-    m_show_blink_ptr = params.second;
+    m_custom_ctrl = refresh_panel;
+    m_show_blink_ptr = blink_bool;
 
     *m_show_blink_ptr = true;
     m_custom_ctrl->Refresh();
