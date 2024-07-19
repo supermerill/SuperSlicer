@@ -412,3 +412,55 @@ void s_noperi_set(string &out set_val, int idx)
 	if (idx == 0) set_int("no_perimeter_unsupported_algo",0);
 	else set_string("no_perimeter_unsupported_algo", "filled");
 }
+
+// quick settings bed temp
+int s_bed_temp_fff_get(string &out get_val)
+{
+    int bed_temperature = get_int("bed_temperature");
+    int fl_bed_temperature = get_int("first_layer_bed_temperature");
+    if (bed_temperature >= 70 && fl_bed_temperature >= 70) {
+        return 0; //hot
+    }
+    if (bed_temperature >= 45 && fl_bed_temperature >= 45) {
+        return 1; //mild
+    }
+    return 2; // cold
+}
+void s_bed_temp_fff_set(string &in new_val, int idx)
+{
+	if(idx == 0) { // hot
+		set_int("bed_temperature", 70);
+		set_int("first_layer_bed_temperature", 75);
+	} else if(idx == 1) { // mild
+		set_int("bed_temperature", 45);
+		set_int("first_layer_bed_temperature", 50);
+	} else if(idx == 2) { // cold
+		set_int("bed_temperature", 0);
+		set_int("first_layer_bed_temperature", 0);
+	}
+}
+
+
+// quick settings orientation
+int s_orientation_fff_get(string &out get_val)
+{
+    float orientation = get_float("init_z_rotate");
+    if (orientation == 0) {
+        return 0; // normal
+    }
+    if (orientation == 45) {
+        return 1; // 45°
+    }
+    return 3; // custom
+}
+void s_orientation_fff_set(string &in new_val, int idx)
+{
+	if(idx == 0) { // normal
+		set_float("init_z_rotate", 0);
+	} else if(idx == 1) { // 45°
+		set_float("init_z_rotate", 45);
+	} else if(idx == 2) { // reset
+		back_initial_value("init_z_rotate");
+	}
+}
+

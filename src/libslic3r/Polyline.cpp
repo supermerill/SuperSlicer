@@ -600,9 +600,22 @@ void ArcPolyline::append(const ArcPolyline &src)
     this->m_only_strait &= src.m_only_strait;
     if (m_path.empty()) {
         m_path = std::move(src.m_path);
+    } else if (src.m_path.front().point == this->m_path.back().point) {
+        if (src.size() > 1) {
+            const size_t next_size = m_path.size() + src.m_path.size() - 1;
+            m_path.reserve(next_size);
+            //std::move(src.m_path.begin() + 1, src.m_path.end(), std::back_inserter(m_path));
+            this->m_path.insert(this->m_path.end(), src.m_path.begin() + 1, src.m_path.end());
+            assert(next_size == m_path.size());
+        }
     } else {
-        m_path.reserve(m_path.size() + src.m_path.size());
-        std::move(src.m_path.begin(), src.m_path.end(), std::back_inserter(m_path));
+        // weird, are you sure you want to append it?
+        assert(false);
+        const size_t next_size = m_path.size() + src.m_path.size();
+        m_path.reserve(next_size);
+        //std::move(src.m_path.begin(), src.m_path.end(), std::back_inserter(m_path));
+        this->m_path.insert(this->m_path.end(), src.m_path.begin(), src.m_path.end());
+        assert(next_size == m_path.size());
     }
 }
 void ArcPolyline::append(ArcPolyline &&src)
@@ -610,9 +623,20 @@ void ArcPolyline::append(ArcPolyline &&src)
     this->m_only_strait &= src.m_only_strait;
     if (m_path.empty()) {
         m_path = std::move(src.m_path);
+    } else if (src.m_path.front().point == this->m_path.back().point) {
+        if (src.size() > 1) {
+            const size_t next_size = m_path.size() + src.m_path.size() - 1;
+            m_path.reserve(next_size);
+            m_path.insert(m_path.end(), std::make_move_iterator(src.m_path.begin() + 1), std::make_move_iterator(src.m_path.end()));
+            assert(next_size == m_path.size());
+        }
     } else {
-        m_path.reserve(m_path.size() + src.m_path.size());
+        // weird, are you sure you want to append it?
+        assert(false);
+        const size_t next_size = m_path.size() + src.m_path.size();
+        m_path.reserve(next_size);
         m_path.insert(m_path.end(), std::make_move_iterator(src.m_path.begin()), std::make_move_iterator(src.m_path.end()));
+        assert(next_size == m_path.size());
     }
 }
 
@@ -838,10 +862,12 @@ void ArcPolyline::split_at(Point &point, ArcPolyline &p1, ArcPolyline &p2) const
     Geometry::ArcWelder::PathSegmentProjection result = Geometry::ArcWelder::point_to_path_projection(m_path, point);
     assert(result.center != Point(0, 0) || this->m_path[result.segment_id].radius == 0); // if no radius, then no center
     assert(result.center == Point(0, 0) || this->m_path[result.segment_id].radius != 0); // if center defined, then the radius isn't null
+    // the point to add is between m_path[result.segment_id] and m_path[result.segment_id + 1]
+    assert(result.segment_id + 1 < this->m_path.size());
     //split and update point
     p1.clear();
-    p1.m_path.reserve(result.segment_id + 1);
-    p1.m_path.insert(p1.m_path.begin(), this->m_path.begin(), this->m_path.begin() + result.segment_id + 1);
+    p1.m_path.reserve(result.segment_id + 2);
+    p1.m_path.insert(p1.m_path.begin(), this->m_path.begin(), this->m_path.begin() + result.segment_id + 2);
     p1.m_path.back().point = result.point;
     p1.m_only_strait       = not_arc(p1);
     p2.clear();
@@ -1076,9 +1102,61 @@ void ArcPolyline::simplify(coordf_t tolerance, ArcFittingType with_fitting_arc, 
         }
         this->m_only_strait = not_arc(*this);
     } else {
-        douglas_peucker<double>(this->m_path.begin(), this->m_path.end(), this->m_path.begin(), tolerance,
+        auto it_end = douglas_peucker<double>(this->m_path.begin(), this->m_path.end(), this->m_path.begin(), tolerance,
                                         [](const Geometry::ArcWelder::Segment &s) { return s.point; });
+        if (it_end != this->m_path.end()) {
+            size_t new_size = size_t(it_end-this->m_path.begin());
+            this->m_path.resize(size_t(it_end - this->m_path.begin()));
+        }
     }
+}
+
+// return false if the length of this path is (now) too short. 
+bool ArcPolyline::normalize() {
+    assert(!has_arc() ); // TODO: with arc, if needed.
+    // remove points that are too near each other (if possible)
+    if (size() > 2) {
+        Point prev = get_point(size() - 2);
+        Point curr = get_point(size() - 1);
+        Point next = get_point(0);
+        Point next_next = get_point(1);
+        for (size_t i_pt = 0; i_pt < size() - 1; ++i_pt) {
+            prev = curr;
+            curr = next;
+            next = next_next;
+            next_next = get_point((i_pt + 2) % size());
+            assert(prev == get_point((i_pt - 1 + size()) % size()));
+            assert(curr == get_point(i_pt));
+            assert(next == get_point(i_pt + 1));
+            assert(next_next == get_point((i_pt + 2) % size()));
+            if (curr.coincides_with_epsilon(next)) {
+                // check longest segment : before or after
+                //but don't remove forst or last pt (enless exaclty the same)
+                coordf_t dist_before_sqr = i_pt == size() - 1 ? 0 : curr.distance_to_square(prev);
+                coordf_t dist_after_sqr =  i_pt == 0 ? 0 : next.distance_to_square(next_next);
+                if (dist_before_sqr < dist_after_sqr) {
+                    // remove curr
+                    assert(i_pt >= 0 && i_pt < size());
+                    m_path.erase(m_path.begin() + i_pt);
+                    --i_pt;
+                    curr = prev;
+                } else {
+                    // remove next
+                    assert(i_pt + 1 >= 0 && i_pt + 1 < size());
+                    m_path.erase(m_path.begin() + i_pt + 1);
+                    --i_pt;
+                    next = curr;
+                    curr = prev;
+                }
+                if (size() < 3) {
+                    return length() > SCALED_EPSILON;
+                }
+            }
+        }
+    } else {
+        return length() > SCALED_EPSILON;
+    }
+    return true;
 }
 
 //////////////// PolylineOrArc ////////////////////////

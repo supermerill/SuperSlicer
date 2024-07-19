@@ -3,19 +3,25 @@
 
 #include "miniz_extension.hpp"
 
+
+#include <map>
+
 #ifdef __APPLE__
     #include <boost/filesystem.hpp>
+    #include <boost/nowide/fstream.hpp>
     typedef boost::filesystem::path std_path;
     typedef boost::nowide::ifstream std_ifstream;
     #define GET_STD_PATH_FOR_IFSTREAM(PARAM) PARAM.string()
 #else
     #include <filesystem>
+    #include <fstream>
     typedef std::filesystem::path std_path;
     typedef std::ifstream std_ifstream;
     #define GET_STD_PATH_FOR_IFSTREAM(PARAM) PARAM
 #endif
 
 namespace Slic3r {
+struct ConfigSubstitutionContext;
 class DynamicPrintConfig;
 class Model;
 class ModelConfigObject;

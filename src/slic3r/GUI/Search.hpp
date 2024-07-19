@@ -114,6 +114,7 @@ class OptionsSearcher
     ConfigOptionMode                        current_tags {comNone};
 
     std::vector<Option>                     options{};
+    bool sorted = false;
     std::vector<Option>                     script_options{};
     std::vector<Option>                     preferences_options {};
     std::vector<FoundOption>                found {};
@@ -123,6 +124,7 @@ class OptionsSearcher
 
     void sort_options() {
         std::sort(options.begin(), options.end());
+        sorted = true;
     }
     void sort_found() {
         std::sort(found.begin(), found.end(), [](const FoundOption& f1, const FoundOption& f2) {
@@ -162,10 +164,7 @@ public:
     const GroupAndCategory&         get_group_and_category (const std::string& opt_key, ConfigOptionMode tags) const;
     std::string& search_string() { return search_line; }
 
-    void sort_options_by_key() {
-        sort_options();
-    }
-    void sort_options_by_label() { sort_options(); }
+    bool is_sorted() { return sorted; }
 
     void show_dialog();
     void dlg_sys_color_changed();

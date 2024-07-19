@@ -455,6 +455,7 @@ Slic3r::ExPolygons diff_ex(const Slic3r::SurfacesPtr &subject, const Slic3r::ExP
 Slic3r::Polylines  diff_pl(const Slic3r::Polyline &subject, const Slic3r::Polygons &clip);
 Slic3r::Polylines  diff_pl(const Slic3r::Polylines &subject, const Slic3r::Polygons &clip);
 Slic3r::Polylines  diff_pl(const Slic3r::Polyline &subject, const Slic3r::ExPolygon &clip);
+Slic3r::Polylines  diff_pl(const Slic3r::Polyline &subject, const Slic3r::Polygon &clip);
 Slic3r::Polylines  diff_pl(const Slic3r::Polyline &subject, const Slic3r::ExPolygons &clip);
 Slic3r::Polylines  diff_pl(const Slic3r::Polylines &subject, const Slic3r::ExPolygon &clip);
 Slic3r::Polylines  diff_pl(const Slic3r::Polylines &subject, const Slic3r::ExPolygons &clip);

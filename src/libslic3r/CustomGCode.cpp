@@ -19,14 +19,13 @@ extern void update_custom_gcode_per_print_z_from_config(Info& info, DynamicPrint
 	auto *colorprint_heights = config->option<ConfigOptionFloats>("colorprint_heights");
     if (colorprint_heights == nullptr)
         return;
-    if (info.gcodes.empty() && ! colorprint_heights->values.empty()) {
+    if (info.gcodes.empty() && ! colorprint_heights->empty()) {
 		// Convert the old colorprint_heighs only if there is no equivalent data in a new format.
         const std::vector<std::string>& colors = ColorPrintColors::get();
-	    const auto& colorprint_values = colorprint_heights->values;
         info.gcodes.clear();
-        info.gcodes.reserve(colorprint_values.size());
+        info.gcodes.reserve(colorprint_heights->size());
         int i = 0;
-        for (auto val : colorprint_values)
+        for (auto val : colorprint_heights->get_values())
             info.gcodes.emplace_back(Item{ val, ColorChange, 1, colors[(++i)%7] });
 
         info.mode = SingleExtruder;

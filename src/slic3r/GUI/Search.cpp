@@ -77,10 +77,10 @@ template<class T>
 void change_opt_key(std::string& opt_key, DynamicPrintConfig* config, int& cnt)
 {
     T* opt_cur = static_cast<T*>(config->option(opt_key));
-    cnt = opt_cur->values.size();
+    cnt = opt_cur->size();
     return;
 
-    if (opt_cur->values.size() > 0)
+    if (opt_cur->size() > 0)
         opt_key += "#" + std::to_string(0);
 }
 
@@ -134,10 +134,10 @@ static std::string get_key(const std::string& opt_key, Preset::Type type)
 void change_opt_keyFoP(std::string& opt_key, DynamicPrintConfig* config, int& cnt)
 {
     ConfigOptionFloatsOrPercents* opt_cur = static_cast<ConfigOptionFloatsOrPercents*>(config->option(opt_key));
-    cnt = opt_cur->values.size();
+    cnt = opt_cur->size();
     return;
 
-    if (opt_cur->values.size() > 0)
+    if (opt_cur->size() > 0)
         opt_key += "#" + std::to_string(0);
 }
 const GroupAndCategory& OptionsSearcher::get_group_and_category(const std::string& opt_key, ConfigOptionMode tags) const
@@ -156,13 +156,17 @@ const GroupAndCategory& OptionsSearcher::get_group_and_category(const std::strin
 
 void OptionsSearcher::append_options(DynamicPrintConfig* config, Preset::Type type)
 {
-    const ConfigDef* defs = config->def();
+    //const ConfigDef* defs = config->def();
     auto emplace_option = [this, type](std::string grp_key, const int16_t id)
     {
+
         //TODO:test that new if
         if (id >= 0)
             // ! It's very important to use "#". opt_key#n is a real option key used in GroupAndCategory
             grp_key += "#" + std::to_string(id);
+
+        assert(groups_and_categories.find(grp_key) == groups_and_categories.end()
+            || !groups_and_categories[grp_key].empty());
 
         for (const GroupAndCategory& gc : groups_and_categories[grp_key]) {
             if (gc.group.IsEmpty() || gc.category.IsEmpty())
@@ -171,6 +175,7 @@ void OptionsSearcher::append_options(DynamicPrintConfig* config, Preset::Type ty
             Option option = create_option(gc.gui_opt.opt_key, id, type, gc);
             if (!option.label.empty()) {
                 options.push_back(std::move(option));
+                sorted = false;
             }
 
             //wxString suffix;
@@ -210,7 +215,7 @@ void OptionsSearcher::append_options(DynamicPrintConfig* config, Preset::Type ty
 
         int cnt = 0;
 
-        if ( type != Preset::TYPE_FFF_FILAMENT && type != Preset::TYPE_SLA_MATERIAL && opt.is_vector_extruder )
+        if ( (type == Preset::TYPE_SLA_MATERIAL || type == Preset::TYPE_FFF_FILAMENT || type == Preset::TYPE_PRINTER || opt.is_vector_extruder) && opt_key != "bed_shape")
             switch (config->option(opt_key)->type())
             {
             case coInts:	change_opt_key<ConfigOptionInts		>(opt_key, config, cnt);	break;
@@ -221,6 +226,7 @@ void OptionsSearcher::append_options(DynamicPrintConfig* config, Preset::Type ty
             case coPoints:	change_opt_key<ConfigOptionPoints	>(opt_key, config, cnt);	break;
             //case coFloatsOrPercents:	change_opt_key<ConfigOptionFloatsOrPercents	>(opt_key, config, cnt);	break;
             case coFloatsOrPercents:change_opt_keyFoP(opt_key, config, cnt);	break;
+            case coGraphs:	change_opt_key<ConfigOptionGraphs	>(opt_key, config, cnt);	break;
             default:		break;
             }
 
@@ -236,6 +242,9 @@ void OptionsSearcher::append_options(DynamicPrintConfig* config, Preset::Type ty
             emplace_option(key, -1);
         else
             for (int i = 0; i < cnt; ++i)
+                // // ! It's very important to use "#". opt_key#n is a real option key used in GroupAndCategory
+                // emplace_option(key + "#" + std::to_string(i), i);
+                // ??? please prusa, make your mind...
                 emplace_option(key, i);
     }
 }
@@ -323,39 +332,43 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
     auto get_label = [this, &sep](const Option& opt, bool marked = true)
     {
         std::wstring out;
-        if (marked)
+        if (marked) {
             out += marker_by_type(opt.type, printer_technology);
+        }
         const std::wstring* prev = nullptr;
         for (const std::wstring* const s : {
             view_params.category ?  &opt.category_local : nullptr,
             view_params.category ?  &opt.group_local : nullptr,
-                                    & opt.label_local })
+                                    & opt.label_local }) {
             if (s != nullptr && (prev == nullptr || *prev != *s)) {
                 if (out.size() > 2)
                     out += sep;
                 out += *s;
                 prev = s;
             }
-            return out;
+        }
+        return out;
     };
 
     auto get_label_english = [this, &sep](const Option& opt, bool marked = true)
     {
         std::wstring out;
-        if (marked)
+        if (marked) {
             out += marker_by_type(opt.type, printer_technology);
-        const std::wstring* prev = nullptr;
+        }
+        const std::wstring *prev = nullptr;
         for (const std::wstring* const s : {
             view_params.category ? &opt.category : nullptr,
                 view_params.category ? &opt.group : nullptr,
-                & opt.label })
+                & opt.label }) {
             if (s != nullptr && (prev == nullptr || *prev != *s)) {
                 if (out.size() > 2)
                     out += sep;
                 out += *s;
                 prev = s;
             }
-            return out;
+        }
+        return out;
     };
 
     auto get_tooltip = [this, &sep](const Option& opt)
@@ -364,13 +377,15 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
         std::wstring tooltip;
         int length = 0;
         for (int i = 0; i < opt.tooltip_local.size(); i++) {
-            if (length >= 80 && opt.tooltip_local[i] == u' ')
+            if (length >= 80 && opt.tooltip_local[i] == u' ') {
                 tooltip.push_back(u'\n');
-            else
+            } else {
                 tooltip.push_back(opt.tooltip_local[i]);
+            }
             length++;
-            if (tooltip.back() == u'\n')
+            if (tooltip.back() == u'\n') {
                 length = 0;
+            }
         }
 
 
@@ -524,12 +539,14 @@ void OptionsSearcher::check_and_update(PrinterTechnology pt_in, ConfigOptionMode
         return;
 
     options.clear();
+    sorted = false;
 
     printer_technology = pt_in;
     current_tags = tags_in;
 
     for (auto i : input_values)
-        append_options(i.config, i.type);
+        if(i.config != nullptr)
+            append_options(i.config, i.type);
 
     for (Option &opt : script_options) {
         if (Preset::get_tech(opt.type))
@@ -1058,7 +1075,7 @@ void SearchDialog::on_sys_color_changed()
 SearchListModel::SearchListModel(wxWindow* parent) : wxDataViewVirtualListModel(0)
 {
     int icon_id = 0;
-    for (const std::string& icon : { "cog", "printer", "sla_printer", "spool", "resin", "notification_preferences" })
+    for (const std::string icon : { "cog", "printer", "sla_printer", "spool", "resin", "notification_preferences" })
         m_icon[icon_id++] = ScalableBitmap(parent, icon);    
 }
 
@@ -1074,8 +1091,8 @@ void SearchListModel::Prepend(const std::string& label)
     wxString   str    = from_u8(label).Remove(0, 1);
 
     int        icon_idx = 0; 
-    if(icon_c < icon_idxs.size())
-        icon_idx = icon_idxs.at(icon_c);
+    if(auto it = icon_idxs.find(icon_c); it != icon_idxs.end())
+        icon_idx = it->second;
     m_values.emplace_back(str, icon_idx);
 
     RowPrepended();

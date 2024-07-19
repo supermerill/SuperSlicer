@@ -61,7 +61,7 @@ TreeSupportMeshGroupSettings::TreeSupportMeshGroupSettings(const PrintObject &pr
     this->support_floor_layers      = this->support_floor_enable ? config.support_material_bottom_interface_layers.value : 0;
 //    this->minimum_roof_area         = 
 //    this->support_roof_angles       = 
-    this->support_roof_pattern      = config.support_material_interface_pattern.value;
+    this->support_roof_pattern      = config.support_material_top_interface_pattern.value;
     this->support_pattern           = config.support_material_pattern;
     this->support_line_spacing      = scaled<coord_t>(config.support_material_spacing.value);
 //    this->support_bottom_offset     = 

@@ -82,14 +82,14 @@ void CalibrationRetractionDialog::remove_slowdown(wxCommandEvent& event_args) {
 
     const ConfigOptionFloats *fil_conf = filament_config->option<ConfigOptionFloats>("slowdown_below_layer_time");
     ConfigOptionFloats *new_fil_conf = new ConfigOptionFloats(5);
-    new_fil_conf->values = fil_conf->values;
-    new_fil_conf->values[0] = 0;
+    new_fil_conf->set(fil_conf);
+    new_fil_conf->set_at(0, 0);
     new_filament_config.set_key_value("slowdown_below_layer_time", new_fil_conf); 
 
     fil_conf = filament_config->option<ConfigOptionFloats>("fan_below_layer_time");
     new_fil_conf = new ConfigOptionFloats(60);
-    new_fil_conf->values = fil_conf->values;
-    new_fil_conf->values[0] = 0;
+    new_fil_conf->set(fil_conf);
+    new_fil_conf->set_at(0, 0);
     new_filament_config.set_key_value("fan_below_layer_time", new_fil_conf);
 
     this->gui_app->get_tab(Preset::TYPE_FFF_FILAMENT)->load_config(new_filament_config);
@@ -146,6 +146,7 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
     double retraction_start = 0;
     std::string str = temp_start->GetValue().ToStdString();
     int temp = int((2 + filament_config->option<ConfigOptionInts>("temperature")->get_at(0)) / 5) * 5;
+    int first_layer_temp = filament_config->option<ConfigOptionInts>("first_layer_temperature")->get_at(0);
     if (str.find_first_not_of("0123456789") == std::string::npos)
         temp = std::atoi(str.c_str());
 
@@ -157,8 +158,8 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
     /// --- scale ---
     // model is created for a 0.4 nozzle, scale xy with nozzle size.
     const ConfigOptionFloats* nozzle_diameter_config = printer_config->option<ConfigOptionFloats>("nozzle_diameter");
-    assert(nozzle_diameter_config->values.size() > 0);
-    float nozzle_diameter = nozzle_diameter_config->values[0];
+    assert(nozzle_diameter_config->size() > 0);
+    float nozzle_diameter = nozzle_diameter_config->get_at(0);
     float xyScale = nozzle_diameter / 0.4;
     //scale z to have 6 layers
     const ConfigOptionFloatOrPercent* first_layer_height_setting = print_config->option<ConfigOptionFloatOrPercent>("first_layer_height");
@@ -201,8 +202,8 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
     const ConfigOptionFloat* extruder_clearance_radius = print_config->option<ConfigOptionFloat>("extruder_clearance_radius");
     const ConfigOptionPoints* bed_shape = printer_config->option<ConfigOptionPoints>("bed_shape");
     const float brim_width = std::max(print_config->option<ConfigOptionFloat>("brim_width")->value, nozzle_diameter * 5.);
-    Vec2d bed_size = BoundingBoxf(bed_shape->values).size();
-    Vec2d bed_min = BoundingBoxf(bed_shape->values).min;
+    Vec2d bed_size = BoundingBoxf(bed_shape->get_values()).size();
+    Vec2d bed_min = BoundingBoxf(bed_shape->get_values()).min;
     float offset = 4 + 26 * scale * 1 + extruder_clearance_radius->value + brim_width + (brim_width > extruder_clearance_radius->value ? brim_width - extruder_clearance_radius->value : 0);
     if (nb_items == 1) {
         model.objects[objs_idx[0]]->translate({ bed_min.x() + bed_size.x() / 2, bed_min.y() + bed_size.y() / 2, zscale_number });
@@ -239,6 +240,7 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
         current_obj->config.set_key_value("layer_height", new ConfigOptionFloat(nozzle_diameter / 2.));
         //temp
         current_obj->config.set_key_value("print_temperature", new ConfigOptionInt(int(temp - temp_decr * i)));
+        current_obj->config.set_key_value("print_first_layer_temperature", new ConfigOptionInt(first_layer_temp));
         //set retraction override
         
         const int mytemp = temp - temp_decr * i;

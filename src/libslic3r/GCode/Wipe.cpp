@@ -73,12 +73,15 @@ void Wipe::set_path(const ExtrusionPaths &paths, bool reversed)
     assert(m_path.empty() || m_path.size() > 1);
 }
 
-double Wipe::calc_wipe_speed(const GCodeWriter &writer)
+std::pair<double, bool> Wipe::calc_wipe_speed(const GCodeWriter &writer)
 {
     double wipe_speed = writer.gcode_config().get_computed_value("travel_speed") * 0.8;
-    if(writer.tool_is_extruder() && writer.gcode_config().wipe_speed.get_at(writer.tool()->id()) > 0)
+    bool use_wipe_speed = false;
+    if (writer.tool_is_extruder() && writer.gcode_config().wipe_speed.get_at(writer.tool()->id()) > 0) {
         wipe_speed = writer.gcode_config().wipe_speed.get_at(writer.tool()->id());
-    return wipe_speed;
+        use_wipe_speed = true;
+    }
+    return {wipe_speed, use_wipe_speed};
 }
 
 std::string Wipe::wipe(GCodeGenerator &gcodegen, bool toolchange)
@@ -102,22 +105,37 @@ std::string Wipe::wipe(GCodeGenerator &gcodegen, bool toolchange)
     if (retract_length > 0 && this->has_path()) {
         // Delayed emitting of a wipe start tag.
         bool wiped = false;
-        const double wipe_speed = this->calc_wipe_speed(gcodegen.writer());
-        auto start_wipe = [&wiped, &gcode, &gcodegen, wipe_speed](){
+        std::pair<double, bool> wipe_speed = this->calc_wipe_speed(gcodegen.writer());
+        auto start_wipe = [&wiped, &gcode, &gcodegen, &wipe_speed](){
             if (! wiped) {
                 wiped = true;
                 gcode += ";" + GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Wipe_Start) + "\n";
-                gcode += gcodegen.writer().set_speed(wipe_speed * 60, {}, gcodegen.enable_cooling_markers() ? ";_WIPE"sv : ""sv);
+                gcode += gcodegen.writer().set_speed(wipe_speed.first * 60, gcodegen.config().gcode_comments ? wipe_speed.second? "wipe_speed"sv : "travel_speed * 0.8"sv : ""sv , gcodegen.enable_cooling_markers() ? ";_WIPE"sv : ""sv);
             }
         };
         const double xy_to_e    = this->calc_xy_to_e_ratio(gcodegen.writer(), extruder.id());
         auto         wipe_linear = [&gcode, &gcodegen, &retract_length, xy_to_e, use_firmware_retract](const Vec2d &prev_quantized, Vec2d &p) {
             Vec2d  p_quantized = gcodegen.writer().get_default_gcode_formatter().quantize(p);
             if (p_quantized == prev_quantized) {
-                p = p_quantized;
+                p = p_quantized; // keep old prev
                 return false;
             }
             double segment_length = (p_quantized - prev_quantized).norm();
+            // Compute a min dist between point, to avoid going under the precision.
+            {
+                assert(gcodegen.m_last_width < SCALED_EPSILON);
+                coordf_t precision = pow(10, -gcodegen.config().gcode_precision_xyz.value) * 1.5;
+                precision = std::max(precision, coordf_t(SCALED_EPSILON * 10));
+                if (gcodegen.config().resolution.value > 0) {
+                    precision = std::max(precision, scale_d(gcodegen.config().resolution.value));
+                } else {
+                    precision = std::max(precision, scale_d(gcodegen.m_last_width / 10));
+                }
+                if (segment_length < precision) {
+                    p = p_quantized; // keep old prev
+                    return false;
+                }
+            }
             // Quantize E axis as it is to be extruded as a whole segment.
             double dE = gcodegen.writer().get_default_gcode_formatter().quantize_e(xy_to_e * segment_length);
             bool   done = false;
@@ -195,7 +213,7 @@ std::string Wipe::wipe(GCodeGenerator &gcodegen, bool toolchange)
         if (! done) {
             prev = p;
             auto end = this->path().end();
-            for (; it != end && ! done; ++ it) {
+            for (; it != end; ++ it) {
                 p = gcodegen.point_to_gcode(it->point + m_offset);
                 if (p != prev) {
                     start_wipe();
@@ -366,4 +384,33 @@ std::optional<Point> wipe_hide_seam(const ExtrusionPaths &paths, bool is_hole, d
     return {};
 }
 
+// Superslicer methods
+//
+//void Wipe::append(const Point &p)
+//{
+//    assert(this->path.empty() || !this->path.last_point().coincides_with_epsilon(p));
+//    this->path.append(p);
+//}
+//
+//void Wipe::append(const Polyline &poly)
+//{
+//    assert(!poly.empty());
+//    if (!this->path.empty() && path.last_point().coincides_with_epsilon(poly.first_point())) {
+//        int copy_start_idx = 0;
+//        while (copy_start_idx < poly.size() && poly.points[copy_start_idx].distance_to(this->path.last_point()) < SCALED_EPSILON) {
+//            copy_start_idx++;
+//        }
+//        if (copy_start_idx >= poly.size())
+//            return;
+//        assert(!this->path.last_point().coincides_with_epsilon(poly.points[copy_start_idx]));
+//        this->path.append(poly.points.begin() + copy_start_idx, poly.points.end());
+//    } else {
+//        this->path.append(poly);
+//    }
+//}
+//
+//void Wipe::set(const Polyline &p)
+//{
+//    path = p;
+//}
 } // namespace Slic3r::GCode

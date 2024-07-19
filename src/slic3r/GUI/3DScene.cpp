@@ -895,7 +895,7 @@ void GLVolumeCollection::update_colors_by_extruder(const DynamicPrintConfig* con
         if (filamemts_opt == nullptr)
             return;
 
-        size_t colors_count = std::max(extruders_opt->values.size(), filamemts_opt->values.size());
+        size_t colors_count = std::max(extruders_opt->size(), filamemts_opt->size());
         if (colors_count == 0)
             return;
         colors.resize(colors_count);
@@ -1553,7 +1553,7 @@ void ExtrusionToVertMap::use(const ExtrusionPath& path) { _3DScene::extrusionent
 void ExtrusionToVertMap::use(const ExtrusionPath3D& path3D) { _3DScene::extrusionentity_to_verts(path3D, print_z, copy, get_geometry(path3D)); }
 void ExtrusionToVertMap::use(const ExtrusionMultiPath& multipath) { _3DScene::extrusionentity_to_verts(multipath, print_z, copy, get_geometry(multipath)); }
 void ExtrusionToVertMap::use(const ExtrusionMultiPath3D& multipath3D) { _3DScene::extrusionentity_to_verts(multipath3D, print_z, copy, get_geometry(multipath3D)); }
-void ExtrusionToVertMap::use(const ExtrusionLoop& loop) { _3DScene::extrusionentity_to_verts(loop, print_z, copy, get_geometry(loop)); }
+void ExtrusionToVertMap::use(const ExtrusionLoop& loop) { for (const ExtrusionPath &path : loop.paths) _3DScene::extrusionentity_to_verts(path, print_z, copy, get_geometry(path)); }//_3DScene::extrusionentity_to_verts(loop, print_z, copy, get_geometry(loop)); }
 void ExtrusionToVertMap::use(const ExtrusionEntityCollection& collection) { for (const ExtrusionEntity* extrusion_entity : collection.entities()) extrusion_entity->visit(*this); }
 GUI::GLModel::Geometry& ExtrusionToVertMap::get_geometry(const ExtrusionEntity& e) {
     auto it = geometries.find(extrusion_role_to_gcode_extrusion_role(e.role()));

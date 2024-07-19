@@ -14,7 +14,7 @@
 #include "../Point.hpp"
 #include "../PrintConfig.hpp"
 #include "CoolingBuffer.hpp"
-#include "GcodeFormatter.hpp"
+#include "GCodeFormatter.hpp"
 
 #include <string>
 #include <string_view>
@@ -57,6 +57,7 @@ public:
     std::string postamble() const;
     std::string set_temperature(int16_t temperature, bool wait = false, int tool = -1);
     std::string set_bed_temperature(uint32_t temperature, bool wait = false);
+    std::string set_chamber_temperature(uint32_t temperature, bool wait = false);
     void        set_acceleration(uint32_t acceleration);
     void        set_travel_acceleration(uint32_t acceleration);
     uint32_t    get_acceleration() const;
@@ -98,7 +99,7 @@ public:
     // Z coordinate of current position contains zhop. If zhop is applied (this->zhop() > 0),
     // then the print_z = this->get_position().z() - this->zhop().
     Vec3d       get_position() const { return m_pos; }
-    Vec3d       get_unlifted_position() const { return m_pos - Vec3d{0, 0, m_lifted}; }
+    Vec3d       get_unlifted_position() const { return m_pos - Vec3d{0, 0, m_extra_lift + m_lifted}; }
     // Update position of the print head based on the final position returned by a custom G-code block.
     // The new position Z coordinate contains the Z-hop.
     // GCodeWriter expects the custom script to NOT change print_z, only Z-hop, thus the print_z is maintained
@@ -127,8 +128,8 @@ private:
     std::string     m_extrusion_axis = "E";
     bool            m_single_extruder_multi_material = false;
     Tool*           m_tool = nullptr;
-    uint32_t        m_last_acceleration = uint32_t(-1);
-    uint32_t        m_last_travel_acceleration = uint32_t(-1);
+    uint32_t        m_last_acceleration = uint32_t(0);
+    uint32_t        m_last_travel_acceleration = uint32_t(0);
     uint32_t        m_current_acceleration = 0;
     uint32_t        m_current_travel_acceleration = 0;
     //uint32_t        m_max_acceleration;
@@ -139,14 +140,21 @@ private:
     int16_t         m_last_temperature_with_offset = 0;
     int16_t         m_last_bed_temperature = 0;
     bool            m_last_bed_temperature_reached = true;
+    int16_t         m_last_chamber_temperature = 0;
     // if positive, it's set, and the next lift wil have this extra lift
     double          m_extra_lift = 0;
     // current lift, to remove from m_pos to have the current height.
     double          m_lifted = 0;
     Vec3d           m_pos = Vec3d::Zero();
+    // cached string representation of x & y m_pos
+    std::string     m_pos_str_x;
+    std::string     m_pos_str_y;
+    // stored de that wasn't written, because of the rounding
+    double          m_de_left = 0;
+    
     
     GCodeFormatter  m_formatter {0,0};
-
+    
     std::string _retract(double length, std::optional<double> restart_extra, std::optional<double> restart_extra_toolchange, const std::string_view comment = {});
 
 };

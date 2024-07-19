@@ -210,7 +210,7 @@ public:
     static Points visivalingam(const Points &src, const double tolerance);
 
     // Projection of a point onto the lines defined by the points.
-    virtual Point point_projection(const Point &point) const;
+    virtual std::pair<Point, size_t> point_projection(const Point &point) const;
 
     inline auto begin()        { return points.begin(); }
     inline auto begin()  const { return points.begin(); }

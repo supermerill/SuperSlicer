@@ -37,7 +37,7 @@ Mill::Mill(uint16_t mill_id, GCodeConfig &config) :
     Tool(mill_id, config)
 {
     m_mill_id = mill_id;
-    m_id = mill_id + (uint16_t)config.retract_length.values.size();
+    m_id = mill_id + (uint16_t)config.retract_length.size();
 }
 
 std::pair<double, double> Tool::extrude(double dE)
@@ -252,7 +252,7 @@ double Extruder::retract_length() const
     assert(!m_config->retract_length.is_nil());
     assert(m_config->retract_length.get_at(m_id) < std::numeric_limits<int32_t>::max());
     assert(m_config->retract_length.get_at(m_id) > -std::numeric_limits<int32_t>::max());
-    assert(m_config->retract_length.values.size() > m_id);
+    assert(m_config->retract_length.size() > m_id);
     return m_config->retract_length.get_at(m_id);
 }
 
@@ -261,7 +261,7 @@ double Extruder::retract_lift() const
     assert(!m_config->retract_lift.is_nil());
     assert(m_config->retract_lift.get_at(m_id) < std::numeric_limits<int32_t>::max());
     assert(m_config->retract_lift.get_at(m_id) > -std::numeric_limits<int32_t>::max());
-    assert(m_config->retract_lift.values.size() > m_id);
+    assert(m_config->retract_lift.size() > m_id);
     return m_config->retract_lift.get_at(m_id);
 }
 
@@ -281,7 +281,7 @@ double Extruder::retract_restart_extra() const
     assert(!m_config->retract_restart_extra.is_nil());
     assert(m_config->retract_restart_extra.get_at(m_id) < std::numeric_limits<int32_t>::max());
     assert(m_config->retract_restart_extra.get_at(m_id) > -std::numeric_limits<int32_t>::max());
-    assert(m_config->retract_restart_extra.values.size() > m_id);
+    assert(m_config->retract_restart_extra.size() > m_id);
     return m_config->retract_restart_extra.get_at(m_id);
 }
 
@@ -295,7 +295,7 @@ double Extruder::retract_restart_extra_toolchange() const
     assert(!m_config->retract_restart_extra_toolchange.is_nil());
     assert(m_config->retract_restart_extra_toolchange.get_at(m_id) < std::numeric_limits<int32_t>::max());
     assert(m_config->retract_restart_extra_toolchange.get_at(m_id) > -std::numeric_limits<int32_t>::max());
-    assert(m_config->retract_restart_extra_toolchange.values.size() > m_id);
+    assert(m_config->retract_restart_extra_toolchange.size() > m_id);
     return m_config->retract_restart_extra_toolchange.get_at(m_id);
 }
 

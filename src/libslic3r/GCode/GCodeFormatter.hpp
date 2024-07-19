@@ -73,13 +73,17 @@ public:
         return {quantize(pt.x(), m_gcode_precision_xyz), quantize(pt.y(), m_gcode_precision_xyz), quantize(pt.z(), m_gcode_precision_xyz)};
     }
 
-    void emit_axis(const char axis, const double v, size_t digits);
-
+    // retunr the pointer to the begining of the digit written (without the axis)
+    char* emit_axis(const char axis, const double v, size_t digits);
+    
     void emit_xy(const Vec2d &point)
     {
         this->emit_axis('X', point.x(), m_gcode_precision_xyz);
         this->emit_axis('Y', point.y(), m_gcode_precision_xyz);
     }
+
+    // update old_x & old_y with new strings. Return false if they are both the same.
+    bool emit_xy(const Vec2d &point, std::string &old_x, std::string &old_y);
 
     void emit_xyz(const Vec3d &point)
     {
@@ -98,13 +102,8 @@ public:
             this->emit_axis('J', point.y(), m_gcode_precision_xyz);
     }
 
-    void emit_e(const std::string_view axis, double v)
-    {
-        if (!axis.empty()) {
-            // not gcfNoExtrusion
-            this->emit_axis(axis[0], v, m_gcode_precision_e);
-        }
-    }
+    // return the de that isn't emmited as it's truncated
+    double emit_e(const std::string_view axis, double v);
 
     void emit_f(double speed) { this->emit_axis('F', speed, m_gcode_precision_xyz); }
 
@@ -128,6 +127,22 @@ public:
     std::string string()
     {
         *ptr_err.ptr++ = '\n';
+#ifdef _DEBUG
+        // no 'Z-0'
+        std::string to_check(this->buf, ptr_err.ptr - buf);
+        assert(to_check.find("X-0 ") == std::string::npos);
+        assert(to_check.find("X-0\n") == std::string::npos);
+        assert(to_check.find("Y-0 ") == std::string::npos);
+        assert(to_check.find("Y-0\n") == std::string::npos);
+        assert(to_check.find("Z-0 ") == std::string::npos);
+        assert(to_check.find("Z-0\n") == std::string::npos);
+        assert(to_check.find("E-0 ") == std::string::npos);
+        assert(to_check.find("E-0\n") == std::string::npos);
+        assert(to_check.find("F-0 ") == std::string::npos);
+        assert(to_check.find("F-0\n") == std::string::npos);
+        assert(to_check.find("S-0 ") == std::string::npos);
+        assert(to_check.find("S-0\n") == std::string::npos);
+#endif
         return std::string(this->buf, ptr_err.ptr - buf);
     }
 

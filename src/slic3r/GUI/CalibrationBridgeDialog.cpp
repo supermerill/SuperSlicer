@@ -91,8 +91,8 @@ void CalibrationBridgeDialog::create_geometry(std::string setting_to_test, bool 
     /// --- scale ---
     // model is created for a 0.4 nozzle, scale xy with nozzle size.
     const ConfigOptionFloats* nozzle_diameter_config = printer_config->option<ConfigOptionFloats>("nozzle_diameter");
-    assert(nozzle_diameter_config->values.size() > 0);
-    float nozzle_diameter = nozzle_diameter_config->values[0];
+    assert(nozzle_diameter_config->size() > 0);
+    float nozzle_diameter = nozzle_diameter_config->get_at(0);
     float z_scale = nozzle_diameter / 0.4;
     //do scaling
     if (z_scale < 0.9 || 1.2 < z_scale) {
@@ -128,8 +128,8 @@ void CalibrationBridgeDialog::create_geometry(std::string setting_to_test, bool 
     const float brim_width = std::max(print_config->option<ConfigOptionFloat>("brim_width")->value, nozzle_diameter * 5.);
     const ConfigOptionFloat* extruder_clearance_radius = print_config->option<ConfigOptionFloat>("extruder_clearance_radius");
     const ConfigOptionPoints* bed_shape = printer_config->option<ConfigOptionPoints>("bed_shape");
-    Vec2d bed_size = BoundingBoxf(bed_shape->values).size();
-    Vec2d bed_min = BoundingBoxf(bed_shape->values).min;
+    Vec2d bed_size = BoundingBoxf(bed_shape->get_values()).size();
+    Vec2d bed_min = BoundingBoxf(bed_shape->get_values()).min;
     float offsety = 2 + 10 * 1 + extruder_clearance_radius->value + brim_width + (brim_width > extruder_clearance_radius->value ? brim_width - extruder_clearance_radius->value : 0);
     model.objects[objs_idx[0]]->translate({ bed_min.x() + bed_size.x() / 2, bed_min.y() + bed_size.y() / 2, 2.5 * z_scale });
     for (int i = 1; i < nb_items; i++) {

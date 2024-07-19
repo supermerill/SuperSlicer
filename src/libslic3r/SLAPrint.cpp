@@ -1112,13 +1112,13 @@ Vec3d SLAPrint::relative_correction() const
 {
     Vec3d corr(1., 1., 1.);
 
-    if(printer_config().relative_correction.values.size() >= 2) {
+    if(printer_config().relative_correction.size() >= 2) {
         corr.x() = printer_config().relative_correction_x.value;
         corr.y() = printer_config().relative_correction_y.value;
         corr.z() = printer_config().relative_correction_z.value;
     }
 
-    if(material_config().material_correction.values.size() >= 2) {
+    if(material_config().material_correction.size() >= 2) {
         corr.x() *= material_config().material_correction_x.value;
         corr.y() *= material_config().material_correction_y.value;
         corr.z() *= material_config().material_correction_z.value;

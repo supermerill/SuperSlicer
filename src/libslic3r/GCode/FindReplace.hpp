@@ -13,7 +13,7 @@ namespace Slic3r {
 
 class GCodeFindReplace {
 public:
-    GCodeFindReplace(const PrintConfig &print_config) : GCodeFindReplace(print_config.gcode_substitutions.values) {}
+    GCodeFindReplace(const PrintConfig &print_config) : GCodeFindReplace(print_config.gcode_substitutions.get_values()) {}
     GCodeFindReplace(const std::vector<std::string> &gcode_substitutions);
 
 

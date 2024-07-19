@@ -44,7 +44,7 @@ WallToolPaths::WallToolPaths(const Polygons& outline, const coord_t bead_spacing
     , print_object_config(print_object_config)
 {
     assert(!print_config.nozzle_diameter.empty());
-    this->min_nozzle_diameter = float(*std::min_element(print_config.nozzle_diameter.values.begin(), print_config.nozzle_diameter.values.end()));
+    this->min_nozzle_diameter = float(*std::min_element(print_config.nozzle_diameter.get_values().begin(), print_config.nozzle_diameter.get_values().end()));
 
     if (const auto &min_feature_size_opt = print_object_config.min_feature_size; min_feature_size_opt.percent)
         this->min_feature_size = scaled<coord_t>(min_feature_size_opt.value * 0.01 * this->min_nozzle_diameter);

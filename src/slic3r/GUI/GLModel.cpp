@@ -769,12 +769,6 @@ void GLModel::render(const std::pair<size_t, size_t>& range)
     if (range.second == range.first)
         return;
 
-    // nothing to draw (TODO: fix this thing. I added it so it triggers the assert when everything is empty)
-    if (m_render_data.vertices_count == 0) {
-        assert(m_render_data.vbo_id == 0);
-        return;
-    }
-
     GLShaderProgram* shader = wxGetApp().get_current_shader();
     if (shader == nullptr)
         return;

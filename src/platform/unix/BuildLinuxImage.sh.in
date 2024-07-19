@@ -38,6 +38,9 @@ echo -n "[9/9] Generating Linux app..."
     cp -f src/@SLIC3R_APP_CMD@ package/bin/@SLIC3R_APP_CMD@
     # remove unneeded po from resources
     find package/resources/localization -name "*.po" -type f -delete
+    
+    # copy occtwrapper
+    cp src/OCCTWrapper.so package/bin/OCCTWrapper.so
 
     # create bin
     echo -e '#!/bin/bash\nDIR=$(readlink -f "$0" | xargs dirname)\nexport LD_LIBRARY_PATH="$DIR/bin"\nexec "$DIR/bin/@SLIC3R_APP_CMD@" "$@"' >@SLIC3R_APP_CMD@

@@ -1248,6 +1248,8 @@ Slic3r::Polylines diff_pl(const Slic3r::Polylines &subject, const Slic3r::Polygo
     { return _clipper_pl_open(ClipperLib::ctDifference, ClipperUtils::PolylinesProvider(subject), ClipperUtils::PolygonsProvider(clip)); }
 Slic3r::Polylines diff_pl(const Slic3r::Polyline &subject, const Slic3r::ExPolygon &clip)
     { return _clipper_pl_open(ClipperLib::ctDifference, ClipperUtils::SinglePathProvider(subject.points), ClipperUtils::ExPolygonProvider(clip)); }
+Slic3r::Polylines diff_pl(const Slic3r::Polyline &subject, const Slic3r::Polygon &clip)
+    { return _clipper_pl_open(ClipperLib::ctDifference, ClipperUtils::SinglePathProvider(subject.points), ClipperUtils::SinglePathProvider(clip.points)); }
 Slic3r::Polylines diff_pl(const Slic3r::Polyline &subject, const Slic3r::ExPolygons &clip)
     { return _clipper_pl_open(ClipperLib::ctDifference, ClipperUtils::SinglePathProvider(subject.points), ClipperUtils::ExPolygonsProvider(clip)); }
 Slic3r::Polylines diff_pl(const Slic3r::Polylines &subject, const Slic3r::ExPolygon &clip)

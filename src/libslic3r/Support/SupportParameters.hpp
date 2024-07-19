@@ -88,7 +88,8 @@ struct SupportParameters {
     // Pattern of the raft interface and contact layers.
     InfillPattern           raft_interface_fill_pattern;
     // Pattern of the contact layers.
-    InfillPattern 			contact_fill_pattern;
+    InfillPattern 			contact_top_fill_pattern;
+    InfillPattern 			contact_bottom_fill_pattern;
     // Shall the sparse (base) layers be printed with a single perimeter line (sheath) for robustness?
     bool                    with_sheath;
     // Branches of organic supports with area larger than this threshold will be extruded with double lines.

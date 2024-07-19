@@ -297,7 +297,7 @@ std::pair<double, double> adaptive_fill_line_spacing(const PrintObject &print_ob
     std::vector<RegionFillData> region_fill_data;
     region_fill_data.reserve(print_object.num_printing_regions());
     bool                       build_octree                   = false;
-    const std::vector<double> &nozzle_diameters               = print_object.print()->config().nozzle_diameter.values;
+    const std::vector<double> &nozzle_diameters               = print_object.print()->config().nozzle_diameter.get_values();
     double                     max_nozzle_diameter            = *std::max_element(nozzle_diameters.begin(), nozzle_diameters.end());
     double                     default_infill_extrusion_width = Flow::auto_extrusion_width(FlowRole::frInfill, float(max_nozzle_diameter));
     for (size_t region_id = 0; region_id < print_object.num_printing_regions(); ++ region_id) {
@@ -1409,7 +1409,7 @@ void Filler::_fill_surface_single(
     if (params.connection == InfillConnection::icNotConnected || all_polylines_with_hooks.size() <= 1)
         append(polylines_out, chain_polylines(std::move(all_polylines_with_hooks)));
     else
-        connect_infill(std::move(all_polylines_with_hooks), expolygon, polylines_out, this->get_spacing(), params);
+        connect_infill(std::move(all_polylines_with_hooks), expolygon, polylines_out, scale_t(this->get_spacing()), params);
 
 #ifdef ADAPTIVE_CUBIC_INFILL_DEBUG_OUTPUT
     {

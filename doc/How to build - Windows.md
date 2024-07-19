@@ -64,6 +64,7 @@ Note that `CMAKE_PREFIX_PATH` must be absolute path. A relative path will not wo
 If you set yourself the DESTDIR for the deps, write your location instead of `c:\local\Slic3r\deps\build\destdir\usr\local`
 If you need to compile with a specific version of visual studio, add this option to the first CMake call `-G "Visual Studio 16 2022"`. Use the same version as the deps.
 
+If it complains about not finding PSAPI, you cans et yourself the value in your cmakcache. Search your computer for 'psapi.lib'. For exemple, mine is at "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.22621.0/um/x64/psapi.lib".
 
 ### Compile Slic3r. 
 

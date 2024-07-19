@@ -52,11 +52,19 @@ public:
 
     // Reduce feedrate a bit; travel speed is often too high to move on existing material.
     // Too fast = ripping of existing material; too slow = short wipe path, thus more blob.
-    static double   calc_wipe_speed(const GCodeWriter &writer);
+    static std::pair<double, bool>   calc_wipe_speed(const GCodeWriter &writer);
     // Reduce retraction length a bit to avoid effective retraction speed to be greater than the configured one
     // due to rounding (TODO: test and/or better math for this).
     static double calc_xy_to_e_ratio(const GCodeWriter &writer, unsigned int extruder_id) 
-        { return 0.95 * floor(writer.gcode_config().retract_speed.get_at(extruder_id) + 0.5) / calc_wipe_speed(writer); }
+        { return 0.95 * floor(writer.gcode_config().retract_speed.get_at(extruder_id) + 0.5) / calc_wipe_speed(writer).first; }
+    
+    //superslicer method to update the wipe 
+    //void            append(const Point &p);
+    //void            append(const Polyline &p);
+    //void            set(const Polyline &p);
+    //void            reverse() { path.reverse(); }
+    //void            clip_start(coord_t dist) { path.clip_start(dist); }
+    //void            translate(const Point &trsl) { path.translate(trsl); } // replaced by offset_path
 
 private:
     bool    m_enabled{ false };

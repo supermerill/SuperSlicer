@@ -28,7 +28,7 @@ struct Parameters
     const Layer *            layer;
     const Flow               perimeter_flow;
     const Flow               ext_perimeter_flow;
-    const Flow               overhang_flow;
+    const Flow               overhang_flow; // ie bridging flow
     const Flow               solid_infill_flow;
     const PrintRegionConfig &config;
     const PrintObjectConfig &object_config;
@@ -53,10 +53,10 @@ struct Parameters
     coord_t       get_ext_perimeter_spacing() const { return ext_perimeter_spacing; }
     coord_t       ext_perimeter_spacing2;
     coord_t       get_ext_perimeter_spacing2() const { return ext_perimeter_spacing2; }
-    const coord_t gap_fill_spacing;
-    coord_t       get_gap_fill_spacing() const { return gap_fill_spacing; }
-    const coord_t gap_fill_spacing_external;
-    coord_t       get_gap_fill_spacing_external() const { return gap_fill_spacing_external; }
+    //const coord_t gap_fill_spacing;
+    //coord_t       get_gap_fill_spacing() const { return gap_fill_spacing; }
+    //const coord_t gap_fill_spacing_external;
+    //coord_t       get_gap_fill_spacing_external() const { return gap_fill_spacing_external; }
     coord_t       infill_gap;
     coord_t       get_infill_gap() const { return infill_gap; }
     const coord_t solid_infill_spacing;
@@ -108,10 +108,10 @@ struct Parameters
         // overhang perimeters
         m_mm3_per_mm_overhang(this->overhang_flow.mm3_per_mm()),
         //gap fill
-        gap_fill_spacing_external(this->config.gap_fill_overlap.get_abs_value(this->ext_perimeter_flow.with_spacing_ratio_from_width(1).scaled_spacing())
-            + this->ext_perimeter_flow.scaled_width() * (1 - this->config.gap_fill_overlap.get_abs_value(1.))),
-        gap_fill_spacing(this->config.gap_fill_overlap.get_abs_value(this->perimeter_flow.with_spacing_ratio_from_width(1).scaled_spacing())
-            + this->perimeter_flow.scaled_width() * (1 - this->config.gap_fill_overlap.get_abs_value(1.))),
+        //gap_fill_spacing_external(this->config.gap_fill_overlap.get_abs_value(this->ext_perimeter_flow.with_spacing_ratio_from_width(1).scaled_spacing())
+        //    + this->ext_perimeter_flow.scaled_width() * (1 - this->config.gap_fill_overlap.get_abs_value(1.))),
+        //gap_fill_spacing(this->config.gap_fill_overlap.get_abs_value(this->perimeter_flow.with_spacing_ratio_from_width(1).scaled_spacing())
+        //    + this->perimeter_flow.scaled_width() * (1 - this->config.gap_fill_overlap.get_abs_value(1.))),
         // solid infill
         solid_infill_spacing(this->solid_infill_flow.scaled_spacing()),
         // infill gap to add vs perimeter (useful if using perimeter bonding)
@@ -190,13 +190,15 @@ public:
     const SurfaceCollection     *slices;
     const ExPolygons            *upper_slices;
     Parameters             params;
+    std::function<void()>        throw_if_canceled = []() {};
     // Outputs:
     
     PerimeterGenerator(const Parameters &params) : params(params) {}
 
     void process( // Input:
+            const Surface           &srf_to_use,
             const ExPolygons *       lower_slices,
-            const SurfaceCollection *slices,
+            const SurfaceCollection &slices,
             const ExPolygons *       upper_slices,
             // Output:
             // Loops with the external thin walls
@@ -222,7 +224,7 @@ private:
     ExPolygons unmillable;
     coord_t mill_extra_size;
 
-    ProcessSurfaceResult process_classic(const Parameters &params, int& loop_number, const Surface& surface, ExtrusionEntityCollection &loops, ExtrusionEntityCollection &gapfill);
+    ProcessSurfaceResult process_classic(const Parameters &params, int& contour_count, int& holes_count, const Surface& surface, ExtrusionEntityCollection &loops, ExtrusionEntityCollection &gapfill);
     ProcessSurfaceResult process_arachne(const Parameters &params, int& loop_number, const Surface& surface, ExtrusionEntityCollection &loops);
     
     void        processs_no_bridge(const Parameters params, Surfaces& all_surfaces, ExPolygons &fill_surfaces);
@@ -237,9 +239,9 @@ private:
         const PerimeterGeneratorLoops &loops, ThickPolylines &thin_walls, int count_since_overhang = -1) const;
     ExtrusionEntityCollection _traverse_extrusions(const Parameters &params,
         std::vector<PerimeterGeneratorArachneExtrusion>& pg_extrusions);
-    // try to merge thin walls to a current periemter exrusion or just add it to the end of the list.
+    // try to merge thin walls to a current perimeter exrusion or just add it to the end of the list.
     void _merge_thin_walls(const Parameters &params, ExtrusionEntityCollection &extrusions, ThickPolylines &thin_walls) const;
-    // like _traverse_loops but with merging all periemter into one continuous loop
+    // like _traverse_loops but with merging all perimeter into one continuous loop
     ExtrusionLoop _traverse_and_join_loops(const Parameters &params,
         const PerimeterGeneratorLoop &loop, const PerimeterGeneratorLoops &childs, const Point entryPoint) const;
     // sub-function of _traverse_and_join_loops, transform a single loop as a cut extrusion to be merged with an other one.

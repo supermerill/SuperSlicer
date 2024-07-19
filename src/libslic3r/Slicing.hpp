@@ -75,7 +75,7 @@ struct SlicingParameters
     coordf_t    max_layer_height { 0 };
     coordf_t    max_suport_layer_height { 0 };
     coordf_t    min_suport_layer_height { 0 };
-    bool        exact_last_layer_height;
+    // bool        exact_last_layer_height;
     // min common divisor for all layer height
     coordf_t    z_step;
 

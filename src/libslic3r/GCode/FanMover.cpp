@@ -4,6 +4,9 @@
 #include "LocalesUtils.hpp"
 
 #include <iomanip>
+
+#include <boost/log/trivial.hpp>
+
 /*
 #include <memory.h>
 #include <string.h>
@@ -13,8 +16,6 @@
 #include "../PrintConfig.hpp"
 #include "../Utils.hpp"
 #include "Print.hpp"
-
-#include <boost/log/trivial.hpp>
 */
 
 
@@ -153,19 +154,19 @@ void FanMover::_put_in_middle_G1(std::list<BufferData>::iterator item_to_split, 
     }
 }
 
-void FanMover::_print_in_middle_G1(BufferData& line_to_split, float nb_sec, const std::string &line_to_write) {
-    if (nb_sec < line_to_split.time * 0.1) {
+void FanMover::_print_in_middle_G1(BufferData& line_to_split, float nb_sec_from_item_start, const std::string &line_to_write) {
+    if (nb_sec_from_item_start > line_to_split.time * 0.9 && line_to_split.time < this->nb_seconds_delay / 4) {
         // doesn't really need to be split, print it after
         m_process_output += line_to_split.raw + "\n";
         m_process_output += line_to_write + (line_to_write.back() == '\n'?"":"\n");
-    } else if (nb_sec > line_to_split.time * 0.9) {
+    } else if (nb_sec_from_item_start < line_to_split.time * 0.1 && line_to_split.time < this->nb_seconds_delay / 4) {
         // doesn't really need to be split, print it before
         //will also print before if line_to_split.time == 0
         m_process_output += line_to_write + (line_to_write.back() == '\n' ? "" : "\n");
         m_process_output += line_to_split.raw + "\n";
     }else if(line_to_split.raw.size() > 2
         && line_to_split.raw[0] == 'G' && line_to_split.raw[1] == '1' && line_to_split.raw[2] == ' ') {
-        float percent = nb_sec / line_to_split.time;
+        float percent = nb_sec_from_item_start / line_to_split.time;
         std::string before = line_to_split.raw;
         std::string& after = line_to_split.raw;
         if (line_to_split.dx != 0) {
@@ -278,7 +279,7 @@ void FanMover::_process_ACTIVATE_EXTRUDER(const std::string_view cmd)
             std::string_view extruder_name = cmd.substr(extruder_pos_start, extruder_pos_end-extruder_pos_start);
             // we have a "name". It may be whatever or "extruder" + X
             for (const Extruder &extruder : m_writer.extruders()) {
-                if (m_writer.config.tool_name.values[extruder.id()] == extruder_name) {
+                if (m_writer.config.tool_name.get_at(extruder.id()) == extruder_name) {
                     m_current_extruder = static_cast<uint16_t>(extruder.id());
                     return;
                 }
@@ -379,7 +380,7 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                                     _print_in_middle_G1(m_buffer.front(), m_buffer_time_size - nb_seconds_delay, _set_fan(100));//m_writer.set_fan(100, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
                                     remove_from_buffer(m_buffer.begin());
                                 } else {
-                                    m_process_output += _set_fan(100);//m_writer.set_fan(100, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
+                                    m_process_output += _set_fan(100) + "\n";//m_writer.set_fan(100, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
                                 }
                                 //write it in the queue if possible
                                 const float kickstart_duration = kickstart * float(fan_speed - m_front_buffer_fan_speed) / 100.f;
@@ -443,7 +444,7 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                                 put_in_buffer(BufferData(_set_fan(100)//m_writer.set_fan(100, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
                                     , 0, fan_speed, true));
                                 //kickstart!
-                                //m_process_output += m_writer.set_fan(100, true);
+                                //m_process_output += m_writer.set_fan(100, true) + "\n";
                                 //add the normal speed line for the future
                                 m_current_kickstart.fan_speed = fan_speed;
                                 m_current_kickstart.time = kickstart_duration;

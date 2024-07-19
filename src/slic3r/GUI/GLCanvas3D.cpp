@@ -251,9 +251,9 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas)
         const ConfigOptionFloats* nozzle_diameter = dynamic_cast<const ConfigOptionFloats*>(m_config->option("nozzle_diameter"));
         min_height = std::numeric_limits<float>::max();
         max_height = 0.f;
-        assert(extruders_min_height->values.size() == extruders_max_height->values.size());
-        assert(extruders_min_height->values.size() == nozzle_diameter->values.size());
-        for (size_t idx_extruder = 0; idx_extruder < extruders_min_height->values.size(); ++idx_extruder) {
+        assert(extruders_min_height->size() == extruders_max_height->size());
+        assert(extruders_min_height->size() == nozzle_diameter->size());
+        for (size_t idx_extruder = 0; idx_extruder < extruders_min_height->size(); ++idx_extruder) {
             min_height = std::min(min_height, float(extruders_min_height->get_abs_value(idx_extruder, nozzle_diameter->get_float(idx_extruder))));
             max_height = std::max(max_height, float(extruders_max_height->get_abs_value(idx_extruder, nozzle_diameter->get_float(idx_extruder))));
         }
@@ -1432,7 +1432,7 @@ GLCanvas3D::GLCanvas3D(wxGLCanvas *canvas, Bed3D &bed)
       m_slope(m_volumes),
       m_sla_view(*this),
       m_arrange_settings_db{get_app_config()},
-      m_arrange_settings_dialog{wxGetApp().imgui(), &m_arrange_settings_db}
+      m_arrange_settings_dialog{wxGetApp().imgui(), m_arrange_settings_db}
 {
     if (m_canvas != nullptr) {
         m_timer.SetOwner(m_canvas);
@@ -2642,7 +2642,7 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
 
     if (printer_technology == ptFFF && m_config->has("nozzle_diameter")) {
         // Should the wipe tower be visualized ?
-        unsigned int extruders_count = (unsigned int)m_config->option<ConfigOptionFloats>("nozzle_diameter")->values.size();
+        unsigned int extruders_count = (unsigned int)m_config->option<ConfigOptionFloats>("nozzle_diameter")->size();
 
         const bool wt = dynamic_cast<const ConfigOptionBool*>(m_config->option("wipe_tower"))->value;
         const bool co = dynamic_cast<const ConfigOptionBool*>(m_config->option("complete_objects"))->value;
@@ -2658,7 +2658,7 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
 
             const Print *print = m_process->fff_print();
             //FIXME use real nozzle diameter
-            const double first_nozzle_diameter = m_config->option<ConfigOptionFloats>("nozzle_diameter")->values.front();
+            const double first_nozzle_diameter = m_config->option<ConfigOptionFloats>("nozzle_diameter")->get_at(0);
             const float depth = print->wipe_tower_data(extruders_count, first_nozzle_diameter).depth;
             const std::vector<std::pair<float, float>> z_and_depth_pairs = print->wipe_tower_data(extruders_count, first_nozzle_diameter).z_and_depth_pairs;
             const float height_real = print->wipe_tower_data(extruders_count, first_nozzle_diameter).height; // -1.f = unknown
@@ -2806,7 +2806,8 @@ bool GLCanvas3D::is_gcode_preview_dirty(const GCodeProcessorResult& gcode_result
     return last_showned_gcode != gcode_result.computed_timestamp;
 }
 
-void GLCanvas3D::load_gcode_preview(const GCodeProcessorResult& gcode_result, const std::vector<std::string>& str_tool_colors)
+void GLCanvas3D::load_gcode_preview(const GCodeProcessorResult     &gcode_result,
+                                    const std::vector<std::string> &str_tool_colors)
 {
     if (last_showned_gcode != gcode_result.computed_timestamp || !m_gcode_viewer.is_loaded(gcode_result)) {
         last_showned_gcode = gcode_result.computed_timestamp;
@@ -7738,6 +7739,7 @@ void GLCanvas3D::_set_warning_notification(EWarning warning, bool state)
             "Resolve the current problem to continue slicing.");
         error = ErrorType::PLATER_ERROR;
         break;
+    case EWarning::PrintWarning: text = ""; error = ErrorType::PLATER_WARNING; break;
     case EWarning::GCodeConflict: {
         const ConflictResultOpt& conflict_result = m_gcode_viewer.get_conflict_result();
         if (!conflict_result.has_value()) { break; }

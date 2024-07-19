@@ -56,7 +56,7 @@ SupportParameters::SupportParameters(const PrintObject &object)
     this->support_layer_height_min                       = 1000000.;
     const ConfigOptionFloatsOrPercents &min_layer_height = print_config.min_layer_height;
     const ConfigOptionFloats           &nozzle_diameter  = print_config.nozzle_diameter;
-    for (int extr_id = 0; extr_id < min_layer_height.values.size(); ++extr_id) {
+    for (int extr_id = 0; extr_id < min_layer_height.size(); ++extr_id) {
         double min_from_extr = min_layer_height.get_abs_value(extr_id, nozzle_diameter.get_at(extr_id));
         if (min_from_extr > 0)
             this->support_layer_height_min = std::min(this->support_layer_height_min, min_from_extr);
@@ -66,7 +66,7 @@ SupportParameters::SupportParameters(const PrintObject &object)
             this->support_layer_height_min = std::min(this->support_layer_height_min, layer->height);
     }
     if (support_layer_height_min >= 1000000.) {
-        for (int extr_id = 0; extr_id < min_layer_height.values.size(); ++extr_id) {
+        for (int extr_id = 0; extr_id < min_layer_height.size(); ++extr_id) {
             support_layer_height_min = std::max(0.01, std::min(support_layer_height_min, nozzle_diameter.get_at(extr_id) / 10));
         }
     }
@@ -120,14 +120,27 @@ SupportParameters::SupportParameters(const PrintObject &object)
         this->support_density > 0.95 || this->with_sheath ? ipRectilinear : ipSupportBase;
     this->interface_fill_pattern = (this->interface_density > 0.95 ? ipRectilinear : ipSupportBase);
     this->raft_interface_fill_pattern = this->raft_interface_density > 0.95 ? ipRectilinear : ipSupportBase;
-    this->contact_fill_pattern        = object_config.support_material_interface_pattern;
-    if (this->contact_fill_pattern == ipAuto) {
+    this->contact_top_fill_pattern    = object_config.support_material_top_interface_pattern;
+    this->contact_bottom_fill_pattern = object_config.support_material_bottom_interface_pattern;
+    if (this->contact_top_fill_pattern == ipAuto) {
         if (slicing_params.soluble_interface)
-            this->contact_fill_pattern = ipConcentric;
+            this->contact_top_fill_pattern = ipConcentric;
         else if (this->interface_density > 0.95)
-            this->contact_fill_pattern = ipRectilinear;
+            this->contact_top_fill_pattern = ipRectilinear;
         else
-            this->contact_fill_pattern = ipSupportBase;
+            this->contact_top_fill_pattern = ipSupportBase;
+    }
+    if (this->contact_bottom_fill_pattern == ipAuto) {
+        if(this->contact_top_fill_pattern != ipHilbertCurve
+            && this->contact_top_fill_pattern != ipSmooth
+            && this->contact_top_fill_pattern != ipSawtooth)
+            this->contact_bottom_fill_pattern = this->contact_top_fill_pattern;
+        else if (slicing_params.soluble_interface)
+            this->contact_bottom_fill_pattern = ipConcentric;
+        else if (this->interface_density > 0.95)
+            this->contact_bottom_fill_pattern = ipRectilinear;
+        else
+            this->contact_bottom_fill_pattern = ipSupportBase;
     }
 
     this->base_angle            = Geometry::deg2rad(float(object_config.support_material_angle.value));

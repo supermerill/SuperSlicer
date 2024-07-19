@@ -87,6 +87,7 @@
 #include "CalibrationOverBridgeDialog.hpp"
 #include "CalibrationTempDialog.hpp"
 #include "CalibrationRetractionDialog.hpp"
+#include "CalibrationPressureAdvDialog.hpp"
 #include "ConfigSnapshotDialog.hpp"
 #include "CreateMMUTiledCanvas.hpp"
 #include "FreeCADDialog.hpp"
@@ -776,7 +777,7 @@ static void generic_exception_handle()
         BOOST_LOG_TRIVIAL(error) << boost::format("Uncaught exception: %1%") % ex.what();
         std::terminate();
         throw;
-    } catch (const std::exception& ex) {
+    } catch (const std::exception &ex) {
         wxLogError(format_wxstr(_L("Internal error: %1%"), ex.what()));
         BOOST_LOG_TRIVIAL(error) << boost::format("Uncaught exception: %1%") % ex.what();
         throw;
@@ -931,7 +932,7 @@ bool GUI_App::init_opengl()
                 hard_gpu = AppConfig::HardwareType::hGpuIntel;
             if (boost::contains(gpu_vendor, "ATI") || boost::contains(gpu_vendor, "AMD"))
                 hard_gpu = AppConfig::HardwareType::hGpuAmd;
-        } catch (std::exception ex) {}
+        } catch (std::exception &ex) {}
 #else
         try {
             std::string gpu_vendor = OpenGLManager::get_gl_info().get_vendor();
@@ -944,7 +945,7 @@ bool GUI_App::init_opengl()
             if (boost::contains(gpu_vendor, "Apple") || boost::contains(gpu_vendor, "APPLE")) {
                 assert(false); // apple gpu are only in _M_ARM64
             }
-        } catch (std::exception ex) {}
+        } catch (std::exception &) {}
 #endif
         app_config->set_hardware_type(AppConfig::HardwareType(hard_cpu + hard_gpu));
     }
@@ -1016,9 +1017,9 @@ void GUI_App::init_app_config()
 
 	if (!app_config) {
         app_config.reset(new AppConfig(is_editor() ? AppConfig::EAppMode::Editor : AppConfig::EAppMode::GCodeViewer));
+#ifdef _M_ARM64
         AppConfig::HardwareType hard_cpu = AppConfig::HardwareType::hCpuOther; // TODO for x86 if needed
         AppConfig::HardwareType hard_gpu = AppConfig::HardwareType::hGpuOther;
-#ifdef _M_ARM64
 #ifdef __APPLE__
         // Arm apple
         hard_cpu = AppConfig::HardwareType::hCpuApple;
@@ -2228,6 +2229,10 @@ void GUI_App::calibration_retraction_dialog()
 {
     change_calibration_dialog(nullptr, new CalibrationRetractionDialog(this, mainframe));
 }
+void GUI_App::calibration_pressureadv_dialog()
+{
+    change_calibration_dialog(nullptr, new CalibrationPressureAdvDialog(this, mainframe));
+}
 void GUI_App::freecad_script_dialog()
 {
     change_calibration_dialog(nullptr, new FreeCADDialog(this, mainframe));
@@ -2672,19 +2677,22 @@ bool GUI_App::load_language(wxString language, bool initial)
 #endif
 
     if (! wxLocale::IsAvailable(language_info->Language)) {
-    	// Loading the language dictionary failed.
+        // Loading the language dictionary failed.
         wxString message = "Switching " SLIC3R_APP_NAME " to language " + language_info->CanonicalName + " failed.";
 #if !defined(_WIN32) && !defined(__APPLE__)
         // likely some linux system
-        message += "\nYou may need to reconfigure the missing locales, likely by running the \"locale-gen\" and \"dpkg-reconfigure locales\" commands.\n";
+        message += "\nYou may need to reconfigure the missing locales, likely by running the \"locale-gen\" and "
+                   "\"dpkg-reconfigure locales\" commands.\n";
 #endif
-        if (initial)
-        	message + "\n\nApplication will close.";
+        if (initial) {
+            message + "\n\nApplication will close.";
+        }
         wxMessageBox(message, SLIC3R_APP_NAME " - Switching language failed", wxOK | wxICON_ERROR);
-        if (initial)
-			std::exit(EXIT_FAILURE);
-		else
-			return false;
+        if (initial) {
+            std::exit(EXIT_FAILURE);
+        } else {
+            return false;
+        }
     }
 
     // Release the old locales, create new locales.
@@ -2703,11 +2711,11 @@ bool GUI_App::load_language(wxString language, bool initial)
 	return true;
 }
 
-Tab* GUI_App::get_tab(Preset::Type type)
+Tab* GUI_App::get_tab(Preset::Type type, bool only_completed)
 {
     for (Tab* tab: tabs_list)
         if (tab->type() == type)
-            return tab->completed() ? tab : nullptr; // To avoid actions with no-completed Tab
+            return tab->completed() || !only_completed ? tab : nullptr; // To avoid actions with no-completed Tab
     return nullptr;
 }
 
@@ -3022,7 +3030,7 @@ bool GUI_App::has_unsaved_preset_changes() const
 {
     PrinterTechnology printer_technology = preset_bundle->printers.get_edited_preset().printer_technology();
     for (const Tab* const tab : tabs_list) {
-        if (tab->supports_printer_technology(printer_technology) && tab->saved_preset_is_dirty())
+        if (tab->supports_printer_technology(printer_technology) && tab->completed() && tab->saved_preset_is_dirty())
             return true;
     }
     return false;
@@ -3032,7 +3040,7 @@ bool GUI_App::has_current_preset_changes() const
 {
     PrinterTechnology printer_technology = preset_bundle->printers.get_edited_preset().printer_technology();
     for (const Tab* const tab : tabs_list) {
-        if (tab->supports_printer_technology(printer_technology) && tab->current_preset_is_dirty())
+        if (tab->supports_printer_technology(printer_technology) && tab->completed() && tab->current_preset_is_dirty())
             return true;
     }
     return false;
@@ -3042,7 +3050,7 @@ void GUI_App::update_saved_preset_from_current_preset()
 {
     PrinterTechnology printer_technology = preset_bundle->printers.get_edited_preset().printer_technology();
     for (Tab* tab : tabs_list) {
-        if (tab->supports_printer_technology(printer_technology))
+        if (tab->supports_printer_technology(printer_technology) && tab->completed())
             tab->update_saved_preset_from_current_preset();
     }
 }
@@ -3052,8 +3060,10 @@ std::vector<const PresetCollection*> GUI_App::get_active_preset_collections() co
     std::vector<const PresetCollection*> ret;
     PrinterTechnology printer_technology = preset_bundle->printers.get_edited_preset().printer_technology();
     for (const Tab* tab : tabs_list)
-        if (tab->supports_printer_technology(printer_technology))
+        if (tab->supports_printer_technology(printer_technology) && tab->completed()) {
+            assert(tab->get_presets());
             ret.push_back(tab->get_presets());
+        }
     return ret;
 }
 
@@ -3138,7 +3148,7 @@ bool GUI_App::check_and_keep_current_preset_changes(const wxString& caption, con
 
             PrinterTechnology printer_technology = preset_bundle->printers.get_edited_preset().printer_technology();
             for (const Tab* const tab : tabs_list) {
-                if (tab->supports_printer_technology(printer_technology) && tab->current_preset_is_dirty())
+                if (tab->supports_printer_technology(printer_technology) && tab->completed() && tab->current_preset_is_dirty())
                     tab->m_presets->discard_current_changes();
             }
             load_current_presets(false);
@@ -3252,7 +3262,7 @@ void GUI_App::load_current_presets(bool check_printer_presets_ /*= true*/)
     PrinterTechnology printer_technology = preset_bundle->printers.get_edited_preset().printer_technology();
 	this->plater()->set_printer_technology(printer_technology);
     for (Tab *tab : tabs_list)
-		if (tab->supports_printer_technology(printer_technology)) {
+		if (tab->supports_printer_technology(printer_technology) && tab->get_presets()) {
 			if (tab->type() == Preset::TYPE_PRINTER) {
 				static_cast<TabPrinter*>(tab)->update_pages();
 				// Mark the plater to update print bed by tab->load_current_preset() from Plater::on_config_change().
@@ -3414,7 +3424,7 @@ int GUI_App::extruders_cnt() const
 {
     const Preset& preset = preset_bundle->printers.get_selected_preset();
     return preset.printer_technology() == ptSLA ? 1 :
-           preset.config.option<ConfigOptionFloats>("nozzle_diameter")->values.size();
+           preset.config.option<ConfigOptionFloats>("nozzle_diameter")->size();
 }
 
 // extruders count from edited printer preset
@@ -3422,7 +3432,7 @@ int GUI_App::extruders_edited_cnt() const
 {
     const Preset& preset = preset_bundle->printers.get_edited_preset();
     return preset.printer_technology() == ptSLA ? 1 :
-           preset.config.option<ConfigOptionFloats>("nozzle_diameter")->values.size();
+           preset.config.option<ConfigOptionFloats>("nozzle_diameter")->size();
 }
 
 wxString GUI_App::current_language_code_safe() const
@@ -3723,8 +3733,7 @@ bool GUI_App::check_updates(const bool verbose)
 			MsgNoUpdates dlg;
 			dlg.ShowModal();
 		}
-	}
-	catch (const std::exception & ex) {
+	} catch (const std::exception &ex) {
 		show_error(nullptr, ex.what());
 	}
     // Applicaiton will continue.

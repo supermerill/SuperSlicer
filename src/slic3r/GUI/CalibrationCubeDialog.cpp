@@ -73,8 +73,8 @@ void CalibrationCubeDialog::create_geometry(std::string calibration_path) {
     /// --- scale ---
     //model is created for a 0.4 nozzle, scale xy with nozzle size.
     const ConfigOptionFloats* nozzle_diameter_config = printerConfig->option<ConfigOptionFloats>("nozzle_diameter");
-    assert(nozzle_diameter_config->values.size() > 0);
-    float nozzle_diameter = nozzle_diameter_config->values[0];
+    assert(nozzle_diameter_config->size() > 0);
+    float nozzle_diameter = nozzle_diameter_config->get_at(0);
     float cube_size = 30;
     if (calibration_path == "xyzCalibration_cube.amf")
         cube_size = 20;
@@ -90,8 +90,8 @@ void CalibrationCubeDialog::create_geometry(std::string calibration_path) {
 
     /// --- translate ---
     const ConfigOptionPoints* bed_shape = printerConfig->option<ConfigOptionPoints>("bed_shape");
-    Vec2d bed_size = BoundingBoxf(bed_shape->values).size();
-    Vec2d bed_min = BoundingBoxf(bed_shape->values).min;
+    Vec2d bed_size = BoundingBoxf(bed_shape->get_values()).size();
+    Vec2d bed_min = BoundingBoxf(bed_shape->get_values()).min;
     model.objects[objs_idx[0]]->translate({ bed_min.x() + bed_size.x() / 2, bed_min.y() + bed_size.y() / 2, 0 });
 
     /// --- custom config ---

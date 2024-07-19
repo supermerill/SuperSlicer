@@ -7488,6 +7488,18 @@ void ImGui::SetCursorScreenPos(const ImVec2& pos)
     window->DC.CursorMaxPos = ImMax(window->DC.CursorMaxPos, window->DC.CursorPos);
 }
 
+void ImGui::ResetMaxCursorScreenPos()
+{
+    ImGuiWindow* window = GetCurrentWindow();
+    window->DC.CursorMaxPos = ImVec2(0.0f, 0.0f);
+}
+
+ImVec2 ImGui::GetCursorMaxPos()
+{
+    ImGuiWindow* window = GetCurrentWindowRead();
+    return window->DC.CursorMaxPos;
+}
+
 // User generally sees positions in window coordinates. Internally we store CursorPos in absolute screen coordinates because it is more convenient.
 // Conversion happens as we pass the value to user, but it makes our naming convention confusing because GetCursorPos() == (DC.CursorPos - window.Pos). May want to rename 'DC.CursorPos'.
 ImVec2 ImGui::GetCursorPos()

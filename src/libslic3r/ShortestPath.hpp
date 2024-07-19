@@ -33,16 +33,29 @@ std::vector<std::pair<size_t, bool>> chain_extrusion_entities(const std::vector<
 std::vector<std::pair<size_t, bool>> chain_extrusion_entities(const std::vector<const ExtrusionEntity*> &entities, const Point *start_near = nullptr, const bool reversed = false);
 // Reorder & reverse extrusion entities in place based on the "chain" ordering.
 template<typename ExtrusionEntityConstOrNot>
+// void reorder_extrusion_entities(std::vector<ExtrusionEntityConstOrNot*> &entities, const std::vector<std::pair<size_t, bool>> &chain)
+// {
+// 	assert(entities.size() == chain.size());
+// 	std::vector<const ExtrusionEntity*> out;
+// 	out.reserve(entities.size());
+//     for (const std::pair<size_t, bool> &idx : chain) {
+// 		assert(entities[idx.first] != nullptr);
+//         out.emplace_back(entities[idx.first]);
+//         if (idx.second)
+// 			out.back()->reverse();
+//     }
+//     entities.swap(out);
+// }
 void reorder_extrusion_entities(std::vector<ExtrusionEntityConstOrNot*> &entities, const std::vector<std::pair<size_t, bool>> &chain)
 {
-	assert(entities.size() == chain.size());
-	std::vector<const ExtrusionEntity*> out;
-	out.reserve(entities.size());
+    assert(entities.size() == chain.size());
+    std::vector<ExtrusionEntity*> out;  // Change to non-const pointer
+    out.reserve(entities.size());
     for (const std::pair<size_t, bool> &idx : chain) {
-		assert(entities[idx.first] != nullptr);
+        assert(entities[idx.first] != nullptr);
         out.emplace_back(entities[idx.first]);
         if (idx.second)
-			out.back()->reverse();
+            out.back()->reverse();
     }
     entities.swap(out);
 }

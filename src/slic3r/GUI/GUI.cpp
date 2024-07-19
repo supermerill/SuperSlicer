@@ -185,14 +185,25 @@ static void add_config_substitutions(const ConfigSubstitutions& conf_substitutio
 			break;
 		case coBools:
 			if (conf_substitution.new_value->nullable())
-				for (const char v : static_cast<const ConfigOptionBoolsNullable*>(conf_substitution.new_value.get())->values)
+				for (const char v : static_cast<const ConfigOptionBoolsNullable*>(conf_substitution.new_value.get())->get_values())
 					new_val += std::string(v == ConfigOptionBoolsNullable::NIL_VALUE() ? "nil" : v ? "true" : "false") + ", ";
 			else
-				for (const char v : static_cast<const ConfigOptionBools*>(conf_substitution.new_value.get())->values)
+				for (const char v : static_cast<const ConfigOptionBools*>(conf_substitution.new_value.get())->get_values())
 					new_val += std::string(v ? "true" : "false") + ", ";
 			if (! new_val.empty())
 				new_val.erase(new_val.begin() + new_val.size() - 2, new_val.end());
 			break;
+        case coGraph:
+            if (auto opt = dynamic_cast<const ConfigOptionGraph *>(conf_substitution.new_value.get())) {
+                new_val = opt->value.serialize();
+            } else assert(false);
+            break;
+        case coGraphs:
+            if (auto opts = dynamic_cast<const ConfigOptionGraphs *>(conf_substitution.new_value.get())) {
+                for (const GraphData &graph : opts->get_values())
+                    new_val += graph.serialize() + ", ";
+            } else assert(false);
+            break;
 		default:
 			assert(false);
 		}
@@ -265,8 +276,9 @@ void show_substitutions_info(const PresetsConfigSubstitutions &presets_config_su
     wxString changes;
 
     // check count
-    if (check_count(presets_config_substitutions) == 0)
+    if (check_count(presets_config_substitutions) == 0) {
         return;
+    }
 
 	auto preset_type_name = [](Preset::Type type) {
 		switch (type) {
@@ -295,8 +307,9 @@ void show_substitutions_info(const PresetsConfigSubstitutions &presets_config_su
 void show_substitutions_info(const ConfigSubstitutions& config_substitutions, const std::string& filename)
 {
     // check count
-    if (check_count(config_substitutions) == 0)
+    if (check_count(config_substitutions) == 0) {
         return;
+    }
 
 	wxString changes = "\n";
 	add_config_substitutions(config_substitutions, changes);

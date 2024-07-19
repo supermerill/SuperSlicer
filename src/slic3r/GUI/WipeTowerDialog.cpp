@@ -105,7 +105,12 @@ RammingPanel::RammingPanel(wxWindow* parent, const std::string& parameters)
 	while (stream >> x >> y)
 		buttons.push_back(std::make_pair(x, y));
 
-	m_chart = new Chart(this, wxRect(scale(1),scale(1),scale(48),scale(36)), buttons, ramming_speed_size, 0.25f, scale(1));
+	m_chart = new Chart(this, wxRect(scale(1),scale(1),scale(48),scale(36)), buttons, scale(1));
+    m_chart->set_type(Slic3r::GraphData::GraphType::SPLINE);
+    m_chart->set_xy_range(0, 0, 0.25f * ramming_speed_size, 20.);
+    m_chart->set_x_label(_L("Time") + " ("+_L("s")+")", 0.1f);
+    m_chart->set_y_label(_L("Volumetric speed") + " (" + _L("mm³/s") + ")", 1);
+    m_chart->set_no_point_label(_L("NO RAMMING AT ALL"));
 #ifdef _WIN32
     update_ui(m_chart);
 #else
@@ -140,7 +145,7 @@ RammingPanel::RammingPanel(wxWindow* parent, const std::string& parameters)
 
 	sizer_param->Add(gsizer_param, 0, wxTOP, scale(10));
 
-    m_widget_time->SetValue(m_chart->get_time());
+    m_widget_time->SetValue(m_chart->get_max_x());
     m_widget_volume->SetValue(m_chart->get_volume());
     m_widget_volume->Disable();
     m_widget_ramming_line_width_multiplicator->SetValue(m_ramming_line_width_multiplicator);
@@ -156,11 +161,11 @@ RammingPanel::RammingPanel(wxWindow* parent, const std::string& parameters)
 	sizer->SetSizeHints(this);
 	SetSizer(sizer);
 
-    m_widget_time->Bind(wxEVT_SPINCTRL,[this](wxCommandEvent&) { m_chart->set_xy_range(m_widget_time->GetValue(),-1); });
+    m_widget_time->Bind(wxEVT_SPINCTRL,[this](wxCommandEvent&) { m_chart->set_xy_range(0, 0, m_widget_time->GetValue(), -1); });
     m_widget_time->Bind(wxEVT_CHAR,[](wxKeyEvent&){});      // do nothing - prevents the user to change the value
     m_widget_time->GetText()->Bind(wxEVT_CHAR,[](wxKeyEvent&){}); // do nothing - prevents the user to change the value
     m_widget_volume->Bind(wxEVT_CHAR,[](wxKeyEvent&){});    // do nothing - prevents the user to change the value   
-    Bind(EVT_WIPE_TOWER_CHART_CHANGED,[this](wxCommandEvent&) {m_widget_volume->SetValue(m_chart->get_volume()); m_widget_time->SetValue(m_chart->get_time());} );
+    Bind(EVT_SLIC3R_CHART_CHANGED,[this](wxCommandEvent&) {m_widget_volume->SetValue(m_chart->get_volume()); m_widget_time->SetValue(m_chart->get_max_x());} );
     Refresh(true); // erase background
 }
 
@@ -171,7 +176,7 @@ void RammingPanel::line_parameters_changed() {
 
 std::string RammingPanel::get_parameters()
 {
-    std::vector<float> speeds = m_chart->get_ramming_speed(0.25f);
+    std::vector<float> speeds = m_chart->get_value_samples(0.25f);
     std::vector<std::pair<float,float>> buttons = m_chart->get_buttons();
     std::stringstream stream;
     stream << m_ramming_line_width_multiplicator << " " << m_ramming_step_multiplicator;

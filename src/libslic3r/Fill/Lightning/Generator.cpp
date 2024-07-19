@@ -29,7 +29,7 @@ Generator::Generator(const PrintObject &print_object, const coordf_t fill_densit
     const PrintConfig         &print_config         = print_object.print()->config();
     const PrintObjectConfig   &object_config        = print_object.config();
     const PrintRegionConfig   &region_config        = print_object.shared_regions()->all_regions.front()->config();
-    const std::vector<double> &nozzle_diameters     = print_config.nozzle_diameter.values;
+    const std::vector<double> &nozzle_diameters     = print_config.nozzle_diameter.get_values();
     double                     max_nozzle_diameter  = *std::max_element(nozzle_diameters.begin(), nozzle_diameters.end());
 //    const int                  infill_extruder      = region_config.infill_extruder.value;
     const double               default_infill_extrusion_width = Flow::auto_extrusion_width(FlowRole::frInfill, float(max_nozzle_diameter));

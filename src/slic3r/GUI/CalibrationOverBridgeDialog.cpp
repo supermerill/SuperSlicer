@@ -27,8 +27,8 @@ namespace Slic3r {
 namespace GUI {
 
 void CalibrationOverBridgeDialog::create_buttons(wxStdDialogButtonSizer* buttons){
-    wxButton* bt1 = new wxButton(this, wxID_FILE1, _L("Over-Bridge calibration"));
-    wxButton* bt2 = new wxButton(this, wxID_FILE1, _L("Top flow calibration"));
+    wxButton* bt1 = new wxButton(this, wxID_FILE1, _L("'Above the Bridges' flow calibration"));
+    wxButton* bt2 = new wxButton(this, wxID_FILE1, _L("'Top Fill' flow calibration"));
     bt1->Bind(wxEVT_BUTTON, &CalibrationOverBridgeDialog::create_geometry1, this);
     bt2->Bind(wxEVT_BUTTON, &CalibrationOverBridgeDialog::create_geometry2, this);
     buttons->Add(bt1);
@@ -36,16 +36,20 @@ void CalibrationOverBridgeDialog::create_buttons(wxStdDialogButtonSizer* buttons
 }
 
 void CalibrationOverBridgeDialog::create_geometry1(wxCommandEvent& event_args) {
+    Plater* plat = this->main_frame->plater();
+    if (!plat->new_project(L("'Above the Bridges flow calibration")))
+        return;
     create_geometry(true);
 }
 void CalibrationOverBridgeDialog::create_geometry2(wxCommandEvent& event_args) {
+    Plater* plat = this->main_frame->plater();
+    if (!plat->new_project(L("Top Fill flow calibration")))
+        return;
     create_geometry(false);
 }
 void CalibrationOverBridgeDialog::create_geometry(bool over_bridge) {
     Plater* plat = this->main_frame->plater();
     Model& model = plat->model();
-    if (!plat->new_project(L("Over-bridge calibration")))
-        return;
 
     //GLCanvas3D::set_warning_freeze(true);
     bool autocenter = gui_app->app_config->get("autocenter") == "1";
@@ -69,8 +73,8 @@ void CalibrationOverBridgeDialog::create_geometry(bool over_bridge) {
     /// --- scale ---
     // model is created for a 0.4 nozzle, scale xy with nozzle size.
     const ConfigOptionFloats* nozzle_diameter_config = printer_config->option<ConfigOptionFloats>("nozzle_diameter");
-    assert(nozzle_diameter_config->values.size() > 0);
-    float nozzle_diameter = nozzle_diameter_config->values[0];
+    assert(nozzle_diameter_config->size() > 0);
+    float nozzle_diameter = nozzle_diameter_config->get_at(0);
     float xyz_scale = (0.2 + nozzle_diameter) / 0.6;
     //do scaling
     if (xyz_scale < 0.9 || 1.2 < xyz_scale) {
@@ -106,8 +110,8 @@ void CalibrationOverBridgeDialog::create_geometry(bool over_bridge) {
     const ConfigOptionPoints* bed_shape = printer_config->option<ConfigOptionPoints>("bed_shape");
     const float brim_width = print_config->option<ConfigOptionFloat>("brim_width")->get_float();
     const float skirt_width = print_config->option("skirts")->get_int() == 0 ? 0 : print_config->option("skirt_distance")->get_float() + print_config->option("skirts")->get_int() * nozzle_diameter * 2;
-    Vec2d bed_size = BoundingBoxf(bed_shape->values).size();
-    Vec2d bed_min = BoundingBoxf(bed_shape->values).min;
+    Vec2d bed_size = BoundingBoxf(bed_shape->get_values()).size();
+    Vec2d bed_min = BoundingBoxf(bed_shape->get_values()).min;
     float offsetx = 3 + 30 * xyz_scale + extruder_clearance_radius->value + brim_width + (brim_width > extruder_clearance_radius->value ? brim_width - extruder_clearance_radius->value : 0);
     float offsety = 3 + 25 * xyz_scale + extruder_clearance_radius->value + brim_width + (brim_width > extruder_clearance_radius->value ? brim_width - extruder_clearance_radius->value : 0);
     model.objects[objs_idx[0]]->translate({ bed_min.x() + bed_size.x() / 2 - offsetx / 2, bed_min.y() + bed_size.y() / 2 - offsety, (nozzle_diameter / 0.4) });

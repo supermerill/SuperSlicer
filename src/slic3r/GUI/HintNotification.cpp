@@ -178,7 +178,7 @@ TagCheckResult tag_check_material(const std::string& tag)
 		if (wxGetApp().app_config->get("filament_type").find(tag)) {
 			const Preset& preset = tab->m_presets->get_edited_preset();
 			const auto* opt = preset.config.opt<ConfigOptionStrings>("filament_type");
-			if (opt->values[0] == tag)
+			if (opt->get_at(0) == tag)
 				return TagCheckAffirmative;
 			return TagCheckNegative;
 		}
@@ -189,7 +189,7 @@ TagCheckResult tag_check_material(const std::string& tag)
 		//if (wxGetApp().app_config->get("material_type").find(tag)) {
 			const Preset& preset = tab->m_presets->get_edited_preset();
 			const auto* opt = preset.config.opt<ConfigOptionStrings>("material_type");
-			if (opt->values[0] == tag)
+			if (opt->get_at(0) == tag)
 				return TagCheckAffirmative;
 			return TagCheckNegative;
 		//}

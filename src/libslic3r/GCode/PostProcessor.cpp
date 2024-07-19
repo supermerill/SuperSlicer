@@ -263,7 +263,7 @@ bool run_post_process_scripts(std::string &src_path, bool make_copy, const std::
     if (// likely running in SLA mode
         post_process == nullptr || 
         // no post-processing script
-        post_process->values.empty())
+        post_process->empty())
         return false;
 
     std::string path;
@@ -323,7 +323,7 @@ bool run_post_process_scripts(std::string &src_path, bool make_copy, const std::
     remove_output_name_file();
 
     try {
-        for (const std::string &scripts : post_process->values) {
+        for (const std::string &scripts : post_process->get_values()) {
     		std::vector<std::string> lines;
     		boost::split(lines, scripts, boost::is_any_of("\r\n"));
             for (std::string script : lines) {

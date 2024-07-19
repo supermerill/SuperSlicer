@@ -532,6 +532,27 @@ public:
 	wxWindow*		getWindow() override { return window; }
 };
 
+class GraphButton : public Field {
+    using Field::Field;
+    GraphData current_value;
+public:
+    GraphButton(const ConfigOptionDef& opt, const t_config_option_key& id) : Field(opt, id) {}
+    GraphButton(wxWindow* parent, const ConfigOptionDef& opt, const t_config_option_key& id) : Field(parent, opt, id) {}
+    ~GraphButton() {}
+
+    wxWindow*       window{ nullptr };
+    void            BUILD()  override;
+
+    void            set_any_value(const boost::any &value, bool change_event = false) override;
+    boost::any&     get_value() override;
+    void            msw_rescale() override;
+    void            sys_color_changed() override;
+
+    void            enable() override { dynamic_cast<wxButton*>(window)->Enable(); }
+    void            disable() override{ dynamic_cast<wxButton*>(window)->Disable(); }
+    wxWindow*       getWindow() override { return window; }
+};
+
 class PointCtrl : public Field {
 	using Field::Field;
 public:

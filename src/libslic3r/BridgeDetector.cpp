@@ -11,29 +11,37 @@
 
 namespace Slic3r {
 
-BridgeDetector::BridgeDetector(
-    ExPolygon         _expolygon,
-    const ExPolygons &_lower_slices, 
-    coord_t           _spacing) :
+BridgeDetector::BridgeDetector(ExPolygon         _expolygon,
+                               const ExPolygons &_lower_slices,
+                               coord_t           _extrusion_spacing,
+                               coord_t           _precision,
+                               int               layer_idx)
+    :
     // The original infill polygon, not inflated.
     expolygons(expolygons_owned),
     // All surfaces of the object supporting this region.
     lower_slices(_lower_slices),
-    spacing(_spacing)
+    spacing(_extrusion_spacing),
+    precision(_precision),
+    layer_id(layer_idx)
 {
     this->expolygons_owned.push_back(std::move(_expolygon));
     initialize();
 }
 
-BridgeDetector::BridgeDetector(
-    const ExPolygons  &_expolygons,
-    const ExPolygons  &_lower_slices,
-    coord_t            _spacing) : 
+BridgeDetector::BridgeDetector(const ExPolygons &_expolygons,
+                               const ExPolygons &_lower_slices,
+                               coord_t           _extrusion_spacing,
+                               coord_t           _precision,
+                               int               layer_idx)
+    : 
     // The original infill polygon, not inflated.
     expolygons(_expolygons),
     // All surfaces of the object supporting this region.
     lower_slices(_lower_slices),
-    spacing(_spacing)
+    spacing(_extrusion_spacing),
+    precision(_precision),
+    layer_id(layer_idx)
 {
     initialize();
 }
@@ -46,8 +54,22 @@ void BridgeDetector::initialize()
     this->angle = -1.;
 
     // Outset our bridge by an arbitrary amout; we'll use this outer margin for detecting anchors.
-    Polygons grown = offset(this->expolygons, float(this->spacing));
+    Polygons grown = offset(this->expolygons, float(this->spacing * 0.5), ClipperLib::JoinType::jtMiter);
     
+    //remove bits that shoudln't be here, but are due to the grow + clip
+    //get the unsupported out-of-part section (if any)
+    ExPolygons union_lower_slices = union_safety_offset_ex(this->lower_slices);
+    ExPolygons part_areas = union_lower_slices;
+    append(part_areas, this->expolygons);
+    part_areas = union_safety_offset_ex(part_areas);
+    ExPolygons out_of_part = diff_ex(grown, part_areas);
+    // then grow it
+    out_of_part = offset_ex(out_of_part, float(this->spacing * 0.55), ClipperLib::JoinType::jtMiter);
+    // remove it from grow
+    grown = diff(grown, out_of_part);
+    //finish growing
+    grown = offset(grown, float(this->spacing * 0.55f), ClipperLib::JoinType::jtMiter, 6);
+
     // Detect possible anchoring edges of this bridging region.
     // Detect what edges lie on lower slices by turning bridge contour and holes
     // into polylines and then clipping them with each lower slice's contour.
@@ -64,7 +86,7 @@ void BridgeDetector::initialize()
     
     // detect anchors as intersection between our bridge expolygon and the lower slices
     // safety offset required to avoid Clipper from detecting empty intersection while Boost actually found some edges
-    this->_anchor_regions = intersection_ex(grown, union_safety_offset(this->lower_slices));
+    this->_anchor_regions = intersection_ex(grown, union_lower_slices);
     
     /*
     if (0) {
@@ -94,6 +116,16 @@ bool BridgeDetector::detect_angle(double bridge_direction_override)
         we'll use this one to clip our test lines and be sure that their endpoints
         are inside the anchors and not on their contours leading to false negatives. */
     Polygons clip_area = offset(this->expolygons, 0.5f * float(this->spacing));
+    // union with offseted anchor before un-offset to get the good clip area with anchor added.
+    ExPolygons unoffset_clip = offset_ex(this->_anchor_regions, 0.5f * float(this->spacing));
+    for (Polygon &poly : clip_area) {
+        unoffset_clip.emplace_back(poly);
+    }
+    unoffset_clip = union_ex(unoffset_clip);
+    unoffset_clip = offset_ex(unoffset_clip, -0.5f * float(this->spacing));
+    // now clip the clip with not-offset merged anchor + expolygons, so it's enlarged only inside the anchor.
+    clip_area = intersection(unoffset_clip, clip_area);
+
     
     /*  we'll now try several directions using a rudimentary visibility check:
         bridge in several directions and then sum the length of lines having both
@@ -127,7 +159,7 @@ bool BridgeDetector::detect_angle(double bridge_direction_override)
         }
 
         //compute stat on line with anchors, and their lengths.
-        BridgeDirection& c = candidates[i_angle];
+        BridgeDirection& bridge_dir_candidate = candidates[i_angle];
         std::vector<coordf_t> dist_anchored;
         {
             Lines clipped_lines = intersection_ln(lines, clip_area);
@@ -135,90 +167,131 @@ bool BridgeDetector::detect_angle(double bridge_direction_override)
                 // this can be called 100 000 time per detect_angle, please optimise
                 const Line &line = clipped_lines[i];
                 bool good_line = false;
+                bool fake_bridge = false;
                 coordf_t len = line.length();
-                //is anchored?
-                size_t line_a_anchor_idx = -1;
-                size_t line_b_anchor_idx = -1;
-                for (int i = 0; i < _anchor_regions.size(); ++i) {
-                    ExPolygon& poly = this->_anchor_regions[i];
-                    BoundingBox& polybb = anchor_bb[i];
-                    if (polybb.contains(line.a) && poly.contains(line.a)) { // using short-circuit evaluation to test boundingbox and only then the other
-                        line_a_anchor_idx = i;
-                    }
-                    if (polybb.contains(line.b) && poly.contains(line.b)) { // using short-circuit evaluation to test boundingbox and only then the other
-                        line_b_anchor_idx = i;
-                    }
-                    if (line_a_anchor_idx < clipped_lines.size() && line_b_anchor_idx < clipped_lines.size())
-                        break;
-                }
-                //check if the anchor search has been successful
-                if ( (line_a_anchor_idx < clipped_lines.size()) & (line_b_anchor_idx < clipped_lines.size())) { // this 'if' isn't very effective (culls ~ 10% on a benchy) but it's almost free to compute
-                    good_line = true;
-                    //test if it's not a fake bridge
-                    if (line_a_anchor_idx == line_b_anchor_idx) {
-                        good_line = false;
-                        //check that the line go out of the anchor into the briding area 
-                        // don't call intersection_ln here, as even if we succeed to limit the number of candidates to ~100, here we can have hundreds of lines, so that means dozen of thousands of calls (or more)!
-                        // add some points (at least the middle) to test, it's quick
-                        Point middle_point = line.midpoint();
-                        for (int i = 0; i < _anchor_regions.size(); ++i) {
-                            ExPolygon& poly = this->_anchor_regions[i];
-                            BoundingBox& polybb = anchor_bb[i];
-                            if (!polybb.contains(middle_point) || !poly.contains(middle_point)) { // using short-circuit evaluation to test boundingbox and only then the other
-                                good_line = true;
-                                break;
-                            }
+                // check if the line isn't too long
+                if (good_line && max_bridge_length > 0 && len > max_bridge_length) {
+                    good_line = false;
+                } else {
+                    // is anchored?
+                    size_t line_a_anchor_idx = -1;
+                    size_t line_b_anchor_idx = -1;
+                    for (int i = 0; i < _anchor_regions.size(); ++i) {
+                        ExPolygon &  poly   = this->_anchor_regions[i];
+                        BoundingBox &polybb = anchor_bb[i];
+                        if (polybb.contains(line.a) &&
+                            poly.contains(
+                                line.a)) { // using short-circuit evaluation to test boundingbox and only then the other
+                            line_a_anchor_idx = i;
                         }
-                        // if still bad, the line is long enough to warrant two more test point? (1/2000 on a benchy)
-                        if (!good_line && len > this->spacing * 10) {
-                            //now test with to more points
-                            Line middle_line;
-                            middle_line.a = (line.a + middle_point) / 2;
-                            middle_line.b = (line.b + middle_point) / 2;
+                        if (polybb.contains(line.b) &&
+                            poly.contains(
+                                line.b)) { // using short-circuit evaluation to test boundingbox and only then the other
+                            line_b_anchor_idx = i;
+                        }
+                        if (line_a_anchor_idx < clipped_lines.size() && line_b_anchor_idx < clipped_lines.size())
+                            break;
+                    }
+                    // check if the anchor search has been successful
+                    // note: this 'if' isn't very effective (culls ~ 10% on a benchy) but it's almost free to compute
+                    if ((line_a_anchor_idx < clipped_lines.size()) & (line_b_anchor_idx < clipped_lines.size())) {
+                        good_line = true;
+                        // test if it's not a fake bridge
+                        if (line_a_anchor_idx == line_b_anchor_idx) {
+                            fake_bridge = true;
+                            // check that the line go out of the anchor into the briding area
+                            // don't call intersection_ln here, as even if we succeed to limit the number of
+                            // candidates to ~100, here we can have hundreds of lines, so that means dozen of
+                            // thousands of calls (or more)! add some points (at least the middle) to test, it's quick
+                            Point middle_point = line.midpoint();
                             for (int i = 0; i < _anchor_regions.size(); ++i) {
-                                ExPolygon& poly = this->_anchor_regions[i];
-                                BoundingBox& polybb = anchor_bb[i];
-                                if (!polybb.contains(middle_line.a) || !poly.contains(middle_line.a)) { // using short-circuit evaluation to test boundingbox and only then the other
-                                    good_line = true;
-                                    break;
-                                }
-                                if (!polybb.contains(middle_line.b) || !poly.contains(middle_line.b)) { // using short-circuit evaluation to test boundingbox and only then the other
-                                    good_line = true;
-                                    break;
+                                ExPolygon &  poly   = this->_anchor_regions[i];
+                                BoundingBox &polybb = anchor_bb[i];
+                                if (!polybb.contains(middle_point) ||
+                                    !poly.contains(middle_point)) { // using short-circuit evaluation to test
+                                                                    // boundingbox and only then the other
+                                    fake_bridge = false;
+                                    goto stop_fake_bridge_test;
                                 }
                             }
-                        }
-                        // If the line is still bad and is a long one, use the more costly intersection_ln. This case is rare enough to swallow the cost. (1/10000 on a benchy)
-                        if (!good_line && len > this->spacing * 40) {
-                            //now test with intersection_ln
-                            Lines lines = intersection_ln(line, to_polygons(this->_anchor_regions));
-                            good_line = lines.size() > 1;
+                            // try with rigth & left
+                            if (fake_bridge && len > this->spacing * 4) {
+                                Vector normal = line.normal();
+                                normal.normalize();
+                                normal *= coordf_t(spacing / 2);
+                                Point middle_point_right = line.midpoint() + normal;
+                                Point middle_point_left  = line.midpoint() - normal;
+                                for (int i = 0; i < _anchor_regions.size(); ++i) {
+                                    ExPolygon &  poly   = this->_anchor_regions[i];
+                                    BoundingBox &polybb = anchor_bb[i];
+                                    if (!poly.contains(middle_point_right) || !poly.contains(middle_point_left)) {
+                                        fake_bridge = false;
+                                        goto stop_fake_bridge_test;
+                                    }
+                                }
+                            }
+                            // if still bad, the line is long enough to warrant two more test point? (1/2000 on a benchy)
+                            if (fake_bridge && len > this->spacing * 10) {
+                                // now test with to four more points
+                                Vector normal = line.normal();
+                                normal.normalize();
+                                normal *= coordf_t(spacing / 2);
+                                Points pts;
+                                pts.push_back((line.a + middle_point) / 2 + normal);
+                                pts.push_back((line.a + middle_point) / 2 - normal);
+                                pts.push_back((line.b + middle_point) / 2 + normal);
+                                pts.push_back((line.b + middle_point) / 2 - normal);
+                                for (int i = 0; i < _anchor_regions.size(); ++i) {
+                                    ExPolygon &  poly   = this->_anchor_regions[i];
+                                    BoundingBox &polybb = anchor_bb[i];
+                                    for (Point &pt : pts)
+                                        if (!polybb.contains(pt) ||
+                                            !poly.contains(pt)) { // using short-circuit evaluation to test
+                                                                  // boundingbox and only then the other
+                                            fake_bridge = false;
+                                            goto stop_fake_bridge_test;
+                                        }
+                                }
+                            }
+                            // If the line is still bad and is a long one, use the more costly intersection_ln. This
+                            // case is rare enough to swallow the cost. (1/10000 on a benchy)
+                            if (fake_bridge && len > this->spacing * 40) {
+                                // now test with intersection_ln
+                                Lines lines = intersection_ln(line, to_polygons(this->_anchor_regions));
+                                // if < 2, not anchored at both end
+                                fake_bridge = lines.size() < 2;
+                            }
                         }
                     }
+stop_fake_bridge_test: ;
                 }
-                if(good_line) {
+                if (good_line && fake_bridge)
+                    bridge_dir_candidate.nb_lines_fake_bridge++;
+                if (good_line) {
                     // This line could be anchored at both side and goes over the void to bridge it in its middle.
                     //store stats
-                    c.total_length_anchored += len;
-                    c.max_length_anchored = std::max(c.max_length_anchored, len);
-                    c.nb_lines_anchored++;
+                    if (!fake_bridge) {
+                        bridge_dir_candidate.total_length_anchored += len;
+                        bridge_dir_candidate.max_length_anchored = std::max(bridge_dir_candidate.max_length_anchored, len);
+                    }
+                    bridge_dir_candidate.nb_lines_anchored++;
                     dist_anchored.push_back(len);
                 } else {
                     // this line could NOT be anchored.
-                    c.total_length_free += len;
-                    c.max_length_free = std::max(c.max_length_free, len);
-                    c.nb_lines_free++;
+                    bridge_dir_candidate.total_length_free += len;
+                    bridge_dir_candidate.max_length_free = std::max(bridge_dir_candidate.max_length_free, len);
+                    bridge_dir_candidate.nb_lines_free++;
                 }
             }        
         }
-        if (c.total_length_anchored == 0. || c.nb_lines_anchored == 0) {
+        if (bridge_dir_candidate.total_length_anchored == 0. || bridge_dir_candidate.nb_lines_anchored == 0) {
             continue;
         } else {
             have_coverage = true;
             // compute median
             if (!dist_anchored.empty()) {
                 std::sort(dist_anchored.begin(), dist_anchored.end());
-                c.median_length_anchor = dist_anchored[dist_anchored.size() / 2];
+                bridge_dir_candidate.median_length_anchor = dist_anchored[dist_anchored.size() / 2];
             }
 
 
@@ -337,11 +410,13 @@ bool BridgeDetector::detect_angle(double bridge_direction_override)
     for (size_t i = 1; i < candidates.size(); ++ i)
         if (candidates[i].coverage > candidates[i_best].coverage)
             i_best = i;
+        else if (candidates[i].coverage > candidates[i_best].coverage)
+            i_best = i;
 
     this->angle = candidates[i_best].angle;
     if (this->angle >= PI)
         this->angle -= PI;
-    
+
     #ifdef SLIC3R_DEBUG
     printf("  Optimal infill angle is %d degrees\n", (int)Slic3r::Geometry::rad2deg(this->angle));
     #endif
@@ -456,51 +531,7 @@ void ExPolygon::get_trapezoids(ExPolygon clone, Polygons* polygons, double angle
 }
 */
 
-// This algorithm may return more trapezoids than necessary
-// (i.e. it may break a single trapezoid in several because
-// other parts of the object have x coordinates in the middle)
-static void get_trapezoids2(const ExPolygon& expoly, Polygons* polygons)
-{
-    Polygons     src_polygons = to_polygons(expoly);
-    // get all points of this ExPolygon
-    const Points pp = to_points(src_polygons);
-
-    // build our bounding box
-    BoundingBox bb(pp);
-
-    // get all x coordinates
-    std::vector<coord_t> xx;
-    xx.reserve(pp.size());
-    for (Points::const_iterator p = pp.begin(); p != pp.end(); ++p)
-        xx.push_back(p->x());
-    std::sort(xx.begin(), xx.end());
-
-    // find trapezoids by looping from first to next-to-last coordinate
-    Polygons rectangle;
-    rectangle.emplace_back(Polygon());
-    for (std::vector<coord_t>::const_iterator x = xx.begin(); x != xx.end()-1; ++x) {
-        coord_t next_x = *(x + 1);
-        if (*x != next_x) {
-            // intersect with rectangle
-            // append results to return value
-            rectangle.front() = { { *x, bb.min.y() }, { next_x, bb.min.y() }, { next_x, bb.max.y() }, { *x, bb.max.y() } };
-            polygons_append(*polygons, intersection(rectangle, src_polygons));
-        }
-    }
-}
-
-static void get_trapezoids2(const ExPolygon &expoly, Polygons* polygons, double angle)
-{
-    ExPolygon clone = expoly;
-    clone.rotate(PI/2 - angle, Point(0,0));
-    get_trapezoids2(clone, polygons);
-    for (Polygon &polygon : *polygons)
-        polygon.rotate(-(PI/2 - angle), Point(0,0));
-}
-
-
-
-void get_trapezoids3_half(const ExPolygon& expoly, Polygons* polygons, float spacing)
+void get_lines(const ExPolygon& expoly, std::vector<Line> &lines, coord_t spacing, int layer_id, ExPolygons anchorage)
 {
 
     // get all points of this ExPolygon
@@ -518,129 +549,111 @@ void get_trapezoids3_half(const ExPolygon& expoly, Polygons* polygons, float spa
         if (min_x > p->x()) min_x = p->x();
         if (max_x < p->x()) max_x = p->x();
     }
-    for (coord_t x = min_x; x < max_x - (coord_t)(spacing / 2); x += (coord_t)spacing) {
+    for (coord_t x = min_x; x < max_x - (spacing / 2); x += spacing) {
         xx.push_back(x);
     }
     xx.push_back(max_x);
     //std::sort(xx.begin(), xx.end());
 
     // find trapezoids by looping from first to next-to-last coordinate
-    for (std::vector<coord_t>::const_iterator x = xx.begin(); x != xx.end() - 1; ++x) {
-        coord_t next_x = *(x + 1);
-        if (*x == next_x) continue;
-
-        // build rectangle
-        Polygon poly;
-        poly.points.resize(4);
-        poly[0].x() = *x + (coord_t)spacing / 4;
-        poly[0].y() = bb.min(1);
-        poly[1].x() = next_x - (coord_t)spacing / 4;
-        poly[1].y() = bb.min(1);
-        poly[2].x() = next_x - (coord_t)spacing / 4;
-        poly[2].y() = bb.max(1);
-        poly[3].x() = *x + (coord_t)spacing / 4;
-        poly[3].y() = bb.max(1);
-
-        // intersect with this expolygon
-        // append results to return value
-        polygons_append(*polygons, intersection(Polygons{ poly }, to_polygons(expoly)));
+    coord_t prev_x = xx.front() - SCALED_EPSILON;
+    for (std::vector<coord_t>::const_iterator x = xx.begin(); x != xx.end(); ++x) {
+        if (*x == prev_x) continue;
+        prev_x = *x;
+        
+        lines.emplace_back(Point(*x, bb.min(1) - spacing / 2), Point(*x, bb.max(1) + spacing / 2));
+        assert(lines.back().a.x() == lines.back().b.x());
+        assert(lines.back().a.y() < lines.back().b.y());
     }
 }
 
-Polygons BridgeDetector::coverage(double angle, bool precise) const
+Polygons BridgeDetector::coverage(double angle) const
 {
     if (angle == -1)
         angle = this->angle;
 
-    Polygons covered;
+    Polygons      covered;
+    const coord_t covered_offset = this->precision / 2 + SCALED_EPSILON / 2;
 
     if (angle != -1) {
         // Get anchors, convert them to Polygons and rotate them.
-        Polygons anchors = to_polygons(this->_anchor_regions);
-        polygons_rotate(anchors, PI / 2.0 - angle);
-        //same for region which do not need bridging
-        //Polygons supported_area = diff(this->lower_slices.expolygons, this->_anchor_regions, true);
-        //polygons_rotate(anchors, PI / 2.0 - angle);
+        ExPolygons anchors = this->_anchor_regions;
+        expolygons_rotate(anchors, PI / 2.0 - angle);
 
-        for (ExPolygon expolygon : this->expolygons) {
+        for (ExPolygon unsupported : this->expolygons) {
             // Clone our expolygon and rotate it so that we work with vertical lines.
-            expolygon.rotate(PI / 2.0 - angle);
+            unsupported.rotate(PI / 2.0 - angle);
             // Outset the bridge expolygon by half the amount we used for detecting anchors;
             // we'll use this one to generate our trapezoids and be sure that their vertices
             // are inside the anchors and not on their contours leading to false negatives.
-            for (ExPolygon &expoly : offset_ex(expolygon, 0.5f * float(this->spacing))) {
-                // Compute trapezoids according to a vertical orientation
-                Polygons trapezoids;
-                if (!precise) get_trapezoids2(expoly, &trapezoids, PI / 2);
-                else get_trapezoids3_half(expoly, &trapezoids, float(this->spacing));
-                for (Polygon &trapezoid : trapezoids) {
-                    size_t n_supported = 0;
-                    if (!precise) {
-                        // not nice, we need a more robust non-numeric check
-                        // imporvment 1: take into account when we go in the supported area.
-                        for (const Line &supported_line : intersection_ln(trapezoid.lines(), anchors))
-                            if (supported_line.length() >= this->spacing)
-                                ++n_supported;
+            ExPolygons unsupported_bigger = offset_ex(unsupported, 0.5f * float(this->spacing));
+            assert(unsupported_bigger.size() == 1); // growing don't split
+            ExPolygons small_anchors = intersection_ex({unsupported_bigger.front()}, anchors);
+            unsupported_bigger       = small_anchors;
+            unsupported_bigger.push_back(unsupported);
+            unsupported_bigger = union_safety_offset_ex(unsupported_bigger);
+            // now unsupported_bigger is unsupported but with a little extra inside the anchors
+            // clean it up if needed (remove bits unlinked to 'unsupported'
+            if (unsupported_bigger.size() > 1) {
+                double biggest_area = 0;
+                for (auto it = unsupported_bigger.begin(); it != unsupported_bigger.end(); ++it) {
+                    biggest_area = std::max(biggest_area, it->area());
+                }
+                auto it = unsupported_bigger.begin();
+                while (it != unsupported_bigger.end()) {
+                    if (it->area() >= biggest_area - 1) {
+                        ++it;
                     } else {
-                        Polygons intersects = intersection(Polygons{trapezoid}, anchors);
-                        n_supported = intersects.size();
-
-                        if (n_supported >= 2) {
-                            // trim it to not allow to go outside of the intersections
-                            BoundingBox center_bound = intersects[0].bounding_box();
-                            coord_t min_y = center_bound.center()(1), max_y = center_bound.center()(1);
-                            for (Polygon &poly_bound : intersects) {
-                                center_bound = poly_bound.bounding_box();
-                                if (min_y > center_bound.center()(1)) min_y = center_bound.center()(1);
-                                if (max_y < center_bound.center()(1)) max_y = center_bound.center()(1);
-                            }
-                            coord_t min_x = trapezoid[0](0), max_x = trapezoid[0](0);
-                            for (Point &p : trapezoid.points) {
-                                if (min_x > p(0)) min_x = p(0);
-                                if (max_x < p(0)) max_x = p(0);
-                            }
-                            //add what get_trapezoids3 has removed (+EPSILON)
-                            min_x -= (this->spacing / 4 + 1);
-                            max_x += (this->spacing / 4 + 1);
-                            coord_t mid_x = (min_x + max_x) / 2;
-                            for (Point &p : trapezoid.points) {
-                                if (p(1) < min_y) p(1) = min_y;
-                                if (p(1) > max_y) p(1) = max_y;
-                                if (p(0) > min_x && p(0) < mid_x) p(0) = min_x;
-                                if (p(0) < max_x && p(0) > mid_x) p(0) = max_x;
-                            }
-                        }
+                        it = unsupported_bigger.erase(it);
                     }
+                }
+            }
+            assert(unsupported_bigger.size() == 1);
+            {
+                std::vector<Line> support_lines;
+                get_lines(unsupported_bigger.front(), support_lines, this->precision, layer_id, anchors);
+                std::vector<Lines> lines_checked;
+                for (Line &line : support_lines) {
+                    lines_checked.emplace_back();
+                    // intersection to have the printable lines
+                    Polylines pls = intersection_pl({Polyline{line.a, line.b}}, unsupported_bigger);
+                    for (Polyline &pl : pls) {
+                        // you can't add point with a cut
+                        assert(pl.size() == 2);
+                        // check if the line is anchored
+                        bool has_a = false, has_b = false;
+                        for (ExPolygon anchor : anchors) {
+                            has_a = has_a || anchor.contains(pl.front());
+                            has_b = has_b || anchor.contains(pl.back());
+                        }
+                        // not both in anchor: bad. discard.
+                        if (!has_a || !has_b)
+                            continue;
+                        lines_checked.back().emplace_back(pl.front(), pl.back());
+                    }
+                }
+                assert(lines_checked.size() == support_lines.size());
 
-                    if (n_supported >= 2) {
-                        //add it
-                        covered.push_back(std::move(trapezoid));
+                // create polygons inflated by covered_offset from good lines
+                for (Lines &lines : lines_checked) {
+                    Polygon p;
+                    for (Line &l : lines) {
+                        covered.emplace_back(Points{Point(l.a.x() - covered_offset, l.a.y() - covered_offset),
+                                                    Point(l.a.x() - covered_offset, l.b.y() + covered_offset),
+                                                    Point(l.a.x() + covered_offset, l.b.y() + covered_offset),
+                                                    Point(l.a.x() + covered_offset, l.a.y() - covered_offset)});
                     }
                 }
             }
         }
 
-        // Unite the trapezoids before rotation, as the rotation creates tiny gaps and intersections between the trapezoids
-        // instead of exact overlaps.
+        // Unite the polygons created from lines
         covered = union_(covered);
+        // unoffset the polygons, so it doesn't expand into un-printable areas
+        covered = offset(covered, -covered_offset);
+
         // Intersect trapezoids with actual bridge area to remove extra margins and append it to result.
-        polygons_rotate(covered, -(PI/2.0 - angle));
-        //covered = intersection(this->expolygons, covered);
-#if 0
-        {
-            my @lines = map @{$_->lines}, @$trapezoids;
-            $_->rotate(-(PI/2 - $angle), [0,0]) for @lines;
-            
-            require "Slic3r/SVG.pm";
-            Slic3r::SVG::output(
-                "coverage_" . rad2deg($angle) . ".svg",
-                expolygons          => [$self->expolygon],
-                green_expolygons    => $self->_anchor_regions,
-                red_expolygons      => $coverage,
-                lines               => \@lines,
-            );
-        }
-#endif
+        polygons_rotate(covered, -(PI / 2.0 - angle));
     }
     return covered;
 }

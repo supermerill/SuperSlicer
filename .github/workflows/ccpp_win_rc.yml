@@ -7,7 +7,7 @@ jobs:
 
   build:
     runs-on: windows-2019
-
+    
     steps:
     - uses: actions/checkout@v1
     - uses: ilammy/msvc-dev-cmd@v1

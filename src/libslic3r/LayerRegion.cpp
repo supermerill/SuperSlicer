@@ -153,29 +153,32 @@ void LayerRegion::make_perimeters(
     const ExPolygons *lower_slices = this->layer()->lower_layer ? &this->layer()->lower_layer->lslices : nullptr;
     const ExPolygons *upper_slices = this->layer()->upper_layer ? &this->layer()->upper_layer->lslices : nullptr;
     
-    size_t perimeters_begin = m_perimeters.size();
-    size_t gap_fills_begin = m_thin_fills.size();
-    size_t fill_expolygons_begin = fill_expolygons.size();
+    for (const Surface &surface : slices) {
+        size_t perimeters_begin = m_perimeters.size();
+        size_t gap_fills_begin = m_thin_fills.size();
+        size_t fill_expolygons_begin = fill_expolygons.size();
 
-    PerimeterGenerator::PerimeterGenerator g{params};
-    g.process(
-        // input:
-        lower_slices, &slices, upper_slices,
-        // output:
-            // Loops with the external thin walls
-        &m_perimeters,
-            // Gaps without the thin walls
-        &m_thin_fills,
-            // Infills without the gap fills
-        fill_expolygons,
-            // mask for "no overlap" area
-        m_fill_no_overlap_expolygons
-    );
+        PerimeterGenerator::PerimeterGenerator g{params};
+        g.throw_if_canceled = [this]() { this->layer()->object()->print()->throw_if_canceled(); };
+        g.process(
+            // input:
+            surface, lower_slices, slices, upper_slices,
+            // output:
+                // Loops with the external thin walls
+            &m_perimeters,
+                // Gaps without the thin walls
+            &m_thin_fills,
+                // Infills without the gap fills
+            fill_expolygons,
+                // mask for "no overlap" area
+            m_fill_no_overlap_expolygons
+        );
     
-    perimeter_and_gapfill_ranges.emplace_back(
-        ExtrusionRange{ uint32_t(perimeters_begin), uint32_t(m_perimeters.size()) }, 
-        ExtrusionRange{ uint32_t(gap_fills_begin),  uint32_t(m_thin_fills.size()) });
-    fill_expolygons_ranges.emplace_back(ExtrusionRange{ uint32_t(fill_expolygons_begin), uint32_t(fill_expolygons.size()) });
+        perimeter_and_gapfill_ranges.emplace_back(
+            ExtrusionRange{ uint32_t(perimeters_begin), uint32_t(m_perimeters.size()) }, 
+            ExtrusionRange{ uint32_t(gap_fills_begin),  uint32_t(m_thin_fills.size()) });
+        fill_expolygons_ranges.emplace_back(ExtrusionRange{ uint32_t(fill_expolygons_begin), uint32_t(fill_expolygons.size()) });
+    }
 }
 
 void LayerRegion::make_milling_post_process(const SurfaceCollection& slices) {
@@ -814,7 +817,9 @@ void LayerRegion::process_external_surfaces(const Layer *lower_layer, const Poly
                 BridgeDetector bd(
                     initial,
                     lower_layer->lslices,
-                    this->flow(frInfill).scaled_width()
+                    this->bridging_flow(frInfill).scaled_spacing(),
+                    scale_t(this->layer()->object()->print()->config().bridge_precision.get_abs_value(this->bridging_flow(frInfill).spacing())),
+                    this->layer()->id()
                 );
                 #ifdef SLIC3R_DEBUG
                 printf("Processing bridge at layer %zu:\n", this->layer()->id());
@@ -929,8 +934,8 @@ void LayerRegion::prepare_fill_surfaces()
         for (Surface &surface : m_fill_surfaces)
             if (surface.has_pos_top())
                 surface.surface_type = (
-                        this->layer()->object()->config().infill_only_where_needed 
-                        && !this->region().config().infill_dense.value
+                        //this->layer()->object()->config().infill_only_where_needed &&
+                        !this->region().config().infill_dense.value
                         && this->region().config().fill_pattern != ipLightning) ?
                     stPosInternal | stDensVoid : stPosInternal | stDensSparse;
     }
@@ -941,12 +946,52 @@ void LayerRegion::prepare_fill_surfaces()
     }
 
     // turn too small internal regions into solid regions according to the user setting
-    if (! spiral_vase && this->region().config().fill_density.value > 0) {
+    if (!spiral_vase && this->region().config().fill_density.value > 0) {
+        // apply solid_infill_below_area
         // scaling an area requires two calls!
         double min_area = scale_(scale_(this->region().config().solid_infill_below_area.value));
         for (Surface &surface : m_fill_surfaces)
             if (surface.has_fill_sparse() && surface.has_pos_internal() && surface.area() <= min_area)
                 surface.surface_type = stPosInternal | stDensSolid;
+        // also Apply solid_infill_below_width
+        double   spacing            = this->flow(frSolidInfill).spacing();
+        coordf_t scaled_spacing     = scale_d(spacing);
+        coordf_t min_half_width = scale_d(this->region().config().solid_infill_below_width.get_abs_value(spacing)) / 2;
+        if (min_half_width > 0) {
+            Surfaces srfs_to_add;
+            for (Surfaces::iterator surface = this->m_fill_surfaces.surfaces.begin();
+                 surface != this->m_fill_surfaces.surfaces.end(); ++surface) {
+                if (surface->has_fill_sparse() && surface->has_pos_internal()) {
+                    // try to collapse the surface
+                    // grow it a bit more to have an easy time to intersect
+                    ExPolygons results = offset2_ex({surface->expolygon}, -min_half_width - SCALED_EPSILON,
+                                                    min_half_width + SCALED_EPSILON +
+                                                        std::min(scaled_spacing / 5, min_half_width / 5));
+                    // TODO: find a way to have both intersect & cut
+                    ExPolygons cut = diff_ex(ExPolygons{surface->expolygon}, results);
+                    ExPolygons intersect = intersection_ex(ExPolygons{surface->expolygon}, results);
+                    if (intersect.size() == 1 && cut.empty())
+                        continue;
+                    if (!intersect.empty()) {
+                        //not possible ot have multiple intersect no cut from a single expoly.
+                        assert(!cut.empty());
+                        surface->expolygon = std::move(intersect[0]);
+                        for (int i = 1; i < intersect.size(); i++) {
+                            srfs_to_add.emplace_back(*surface, std::move(intersect[i]));
+                        }
+                        for (ExPolygon& expoly : cut) {
+                            srfs_to_add.emplace_back(*surface, std::move(expoly));
+                            srfs_to_add.back().surface_type = stPosInternal | stDensSolid;
+                        }
+                    } else {
+                        //no intersec => all in solid
+                        assert(cut.size() == 1);
+                        surface->surface_type = stPosInternal | stDensSolid;
+                    }
+                }
+            }
+            append(this->m_fill_surfaces.surfaces, std::move(srfs_to_add));
+        }
     }
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
     export_region_slices_to_svg_debug("2_prepare_fill_surfaces-final");

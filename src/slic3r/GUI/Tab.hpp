@@ -39,9 +39,10 @@
 #include <wx/treectrl.h>
 #include <wx/imaglist.h>
 
+#include <atomic>
 #include <map>
-#include <vector>
 #include <memory>
+#include <vector>
 
 #include "BedShapeDialog.hpp"
 #include "ButtonsDescription.hpp"
@@ -121,13 +122,14 @@ public:
 using ConfigOptionsGroupShp = std::shared_ptr<ConfigOptionsGroup>;
 class Page// : public wxScrolledWindow
 {
-	wxWindow*		m_parent;
+	Tab*			m_tab = nullptr;
+	wxWindow*		m_parent = nullptr;
 	wxString		m_title;
 	size_t			m_iconID;
-	wxBoxSizer*		m_vsizer;
+	wxBoxSizer*		m_vsizer = nullptr;
     bool            m_show = true;
 public:
-    Page(wxWindow* parent, const wxString& title, int iconID);
+    Page(Tab* tab, wxWindow* parent, const wxString& title, int iconID);
 	~Page() {}
 
 	bool				m_is_modified_values{ false };
@@ -136,13 +138,13 @@ public:
 	std::vector<std::string> descriptions;
 public:
 	std::vector <ConfigOptionsGroupShp> m_optgroups;
-	DynamicPrintConfig* m_config;
+	//DynamicPrintConfig* m_config;
 
 	wxBoxSizer*	vsizer() const { return m_vsizer; }
-	wxWindow*	parent() const { return m_parent; }
+	wxWindow*	parent() const { assert(m_parent); return m_parent; }
 	const wxString&	title()	 const { return m_title; }
 	size_t		iconID() const { return m_iconID; }
-	void		set_config(DynamicPrintConfig* config_in) { m_config = config_in; }
+	//void		set_config(DynamicPrintConfig* config_in) { m_config = config_in; }
 	void		reload_config();
 	void		update_script_presets();
     void        update_visibility(ConfigOptionMode mode, bool update_contolls_visibility);
@@ -224,7 +226,7 @@ public:
 
 class Tab: public wxPanel
 {
-	wxBookCtrlBase*			m_parent;
+	wxBookCtrlBase*			m_parent {nullptr};
 #ifdef __WXOSX__
 	wxPanel*			m_tmp_panel;
 	int					m_size_move = -1;
@@ -233,20 +235,20 @@ protected:
     Preset::Type        m_type;
 	std::string			m_name;
 	const wxString		m_title;
-	TabPresetComboBox*	m_presets_choice;
-	ScalableButton*		m_search_btn;
-	ScalableButton*		m_btn_compare_preset;
-	ScalableButton*		m_btn_save_preset;
-	ScalableButton*		m_btn_save_as_preset;
-	ScalableButton*		m_btn_rename_preset;
-	ScalableButton*		m_btn_delete_preset;
+	TabPresetComboBox*	m_presets_choice {nullptr};
+	ScalableButton*		m_search_btn {nullptr};
+	ScalableButton*		m_btn_compare_preset {nullptr};
+	ScalableButton*		m_btn_save_preset {nullptr};
+	ScalableButton*		m_btn_save_as_preset {nullptr};
+	ScalableButton*		m_btn_rename_preset {nullptr};
+	ScalableButton*		m_btn_delete_preset {nullptr};
 	ScalableButton*		m_btn_edit_ph_printer {nullptr};
-	ScalableButton*		m_btn_hide_incompatible_presets;
-	wxBoxSizer*			m_top_hsizer;
-	wxBoxSizer*			m_hsizer;
-	wxBoxSizer*			m_h_buttons_sizer;
-	wxBoxSizer*			m_left_sizer;
-	wxTreeCtrl*			m_treectrl;
+	ScalableButton*		m_btn_hide_incompatible_presets {nullptr};
+	wxBoxSizer*			m_top_hsizer {nullptr};
+	wxBoxSizer*			m_hsizer {nullptr};
+	wxBoxSizer*			m_h_buttons_sizer {nullptr};
+	wxBoxSizer*			m_left_sizer {nullptr};
+	wxTreeCtrl*			m_treectrl {nullptr};
 
 	wxScrolledWindow*	m_page_view {nullptr};
 	wxBoxSizer*			m_page_sizer {nullptr};
@@ -271,9 +273,9 @@ protected:
      */
     bool                    m_is_default_preset {false};
 
-	ScalableButton*			m_undo_btn;
-	ScalableButton*			m_undo_to_sys_btn;
-	ScalableButton*			m_question_btn;
+	ScalableButton*			m_undo_btn = nullptr;
+	ScalableButton*			m_undo_to_sys_btn = nullptr;
+	ScalableButton*			m_question_btn = nullptr;
 
 	// Bitmaps to be shown on the "Revert to system" aka "Lock to system" button next to each input field.
 	ScalableBitmap 			m_bmp_value_lock;
@@ -329,7 +331,7 @@ protected:
 	bool				m_disable_tree_sel_changed_event {false};
 	bool				m_show_incompatible_presets;
 
-    ScriptContainer     m_script_exec;
+    script::ScriptContainer     m_script_exec;
 	static inline std::unordered_map<std::string, std::vector<std::pair<Preset::Type, std::string>>> depsid_2_tabtype_scriptids;
 	//static void register_setting_dependency(Tab &tab_script, std::string opt_id, Preset::Type dep_type, std::string dependency_opt_id);
 	//static void emit_dependency(Tab &tab_opt_changed, std::string opt_changed);
@@ -368,10 +370,11 @@ protected:
 
 	bool				m_page_switch_running = false;
 	bool				m_page_switch_planned = false;
-
-	DynamicPrintConfig* m_config;
+	
+	DynamicPrintConfig* m_config = nullptr;
+	ConfigBase*			m_config_base = nullptr;
 public:
-	PresetBundle*		m_preset_bundle; //note: it's managed by the GUI_App, we don't own it.
+	PresetBundle*		m_preset_bundle = nullptr; //note: it's managed by the GUI_App, we don't own it.
 	bool				m_show_btn_incompatible_presets = false;
 	PresetCollection*	m_presets = nullptr;
 	ogStaticText*		m_parent_preset_description_line = nullptr;
@@ -381,8 +384,9 @@ public:
     // 1. increase value from the very beginning of an update() function
     // 2. decrease value at the end of an update() function
     // 3. propagate changed configuration to the Plater when (m_update_cnt == 0) only
-    int                 m_update_cnt = 0;
+    std::atomic_int16_t m_update_cnt = 0;
 
+	static inline bool fake_build = false;
 public:
     Tab(wxBookCtrlBase* parent, const wxString& title, Preset::Type type);
     ~Tab() {}
@@ -435,12 +439,15 @@ public:
 	void		update_undo_buttons();
 
 	void		on_roll_back_value(const bool to_sys = false);
-
-	PageShp         create_options_page(const wxString& title, const std::string& icon);
+	
+	int             get_icon_id(const wxString& title, const std::string &icon);
+	virtual PageShp create_options_page(const wxString &title, const std::string &icon);
 	static wxString translate_category(const wxString& title, Preset::Type preset_type);
+
 
 	virtual void	OnActivate();
 	virtual void	on_preset_loaded() {}
+	virtual void	init() = 0;
 	virtual void	build() = 0;
 	virtual void	update() = 0;
 	virtual void	toggle_options() = 0;
@@ -469,8 +476,9 @@ public:
 	bool			current_preset_is_dirty() const;
 	bool			saved_preset_is_dirty() const;
 	void            update_saved_preset_from_current_preset();
-
+	
 	DynamicPrintConfig*	get_config() { return m_config; }
+	ConfigBase*		get_config_base() { return m_config_base; }
 	PresetCollection*	get_presets() { return m_presets; }
 	const PresetCollection* get_presets() const { return m_presets; }
 
@@ -478,7 +486,7 @@ public:
 	void			on_value_change(const std::string& opt_key, const boost::any& value);
 
     void            update_wiping_button_visibility();
-	void			activate_option(const std::string& opt_key, const wxString& category);
+	virtual void	activate_option(const std::string& opt_key, const wxString& category);
 	void			cache_config_diff(const std::vector<std::string>& selected_options, const DynamicPrintConfig* config = nullptr);
 	void			apply_config_from_cache();
 
@@ -499,7 +507,7 @@ protected:
 	void			create_line_with_widget(ConfigOptionsGroup* optgroup, const std::string& opt_key, const std::string& path, widget_t widget);
 	wxSizer*		compatible_widget_create(wxWindow* parent, PresetDependencies &deps, int setting_idx);
 	void 			compatible_widget_reload(PresetDependencies &deps);
-	void			load_key_value(const std::string& opt_key, const boost::any& value, bool saved_value = false);
+	void			load_key_value(const std::string& opt_key, const boost::any& value, bool saved_value = false, int16_t extruder_id = -1);
 
 	// return true if cancelled
 	bool			tree_sel_change_delayed();
@@ -519,6 +527,29 @@ protected:
     ConfigManipulation get_config_manipulation();
 };
 
+class TabFrequent : public Tab
+{
+	MultiPtrPrintConfig m_multi_conf;
+	wxWindow * m_freq_parent = nullptr;
+public:
+	TabFrequent(wxBookCtrlBase* parent, const wxString &title, Preset::Type tab_type) :
+        Tab(parent, title, tab_type) {}
+
+	std::string icon_name(int icon_size, PrinterTechnology tech) const override { return "cog"; }
+	
+	void		init() override;
+	void		build() override;
+	void		toggle_options() override;
+    void        update() {};
+	void		update_changed_setting(const std::string& opt_key);
+	PrinterTechnology get_printer_technology() const override { return (m_type & Preset::Type::TYPE_TECHNOLOGY) == Preset::Type::TYPE_FFF ? PrinterTechnology::ptFFF : 
+																	   (m_type & Preset::Type::TYPE_TECHNOLOGY) == Preset::Type::TYPE_SLA ? PrinterTechnology::ptSLA :
+																	   PrinterTechnology::ptAny; }
+	virtual void	activate_option(const std::string& opt_key, const wxString& category) override;
+    void set_freq_parent(wxWindow * freq_parent) { m_freq_parent = freq_parent;}
+	virtual PageShp create_options_page(const wxString &title, const std::string &icon) override;
+};
+
 class TabPrint : public Tab
 {
 public:
@@ -528,6 +559,7 @@ public:
 
 	std::string icon_name(int icon_size, PrinterTechnology tech) const override { return "cog"; }
 	
+	void		init() override;
 	void		build() override;
 	void		update_description_lines() override;
 	void		toggle_options() override;
@@ -568,7 +600,8 @@ public:
 	~TabFilament() {}
 
 	std::string icon_name(int icon_size, PrinterTechnology tech) const override { return (icon_size < 16) ? "spool" : "spool_cog"; }
-
+	
+	void		init() override;
 	void		build() override;
 	void		update_description_lines() override;
 	void		toggle_options() override;
@@ -644,7 +677,8 @@ public:
     TabPrinter(wxBookCtrlBase* parent) :
         Tab(parent, _L("Printer Settings"), Slic3r::Preset::TYPE_PRINTER) {}
 	~TabPrinter() {}
-
+	
+	void		init() override;
 	void		build() override;
     void		build_fff();
     void		build_sla();
@@ -685,7 +719,8 @@ public:
     ~TabSLAMaterial() {}
 
 	std::string icon_name(int icon_size, PrinterTechnology tech) const override { return (icon_size < 16) ? "resin" : "resin_cog"; }
-
+	
+	void		init() override;
 	void		build() override;
 	void		toggle_options() override;
 	void		update() override;
@@ -710,7 +745,8 @@ public:
 	std::string icon_name(int icon_size, PrinterTechnology tech) const override { return "cog"; }
 
 	ogStaticText* m_support_object_elevation_description_line = nullptr;
-
+	
+	void		init() override;
     void		build() override;
 	void		update_description_lines() override;
 	void		toggle_options() override;

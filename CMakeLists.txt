@@ -227,6 +227,7 @@ if(WIN32)
 endif()
 
 if (APPLE)
+    add_compile_options(-D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION)
     message("OS X SDK Path: ${CMAKE_OSX_SYSROOT}")
     if (CMAKE_OSX_DEPLOYMENT_TARGET)
         message("OS X Deployment Target: ${CMAKE_OSX_DEPLOYMENT_TARGET}")

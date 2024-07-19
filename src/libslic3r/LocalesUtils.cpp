@@ -80,7 +80,7 @@ std::string to_string_nozero(double value, int32_t max_precision) {
     double intpart;
     if (modf(value, &intpart) == 0.0) {
         //shortcut for int
-        return boost::lexical_cast<std::string>(intpart);
+        return std::to_string(int64_t(intpart));
     } else {
         std::stringstream ss;
         //first, get the int part, to see how many digit it takes

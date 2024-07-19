@@ -274,9 +274,63 @@ Points Polygon::concave_points(double angle_threshold) const
     return filter_convex_concave_points_by_angle_threshold(this->points, angle_threshold, [](const Vec2d &v1, const Vec2d &v2){ return cross2(v1, v2) < 0.; });
 }
 
-// Projection of a point onto the polygon.
-Point Polygon::point_projection(const Point &point) const
+template<typename FilterFn>
+std::vector<size_t> filter_points_idx_by_vectors(const Points &poly, FilterFn filter)
 {
+    // Last point is the first point visited.
+    Point p1 = poly.back();
+    // Previous vector to p1.
+    Vec2d v1 = (p1 - *(poly.end() - 2)).cast<double>();
+
+    std::vector<size_t> out;
+    for (size_t idx = 0; idx < poly.size(); ++idx) {
+        const Point &p2 = poly[idx];
+        // p2 is next point to the currently visited point p1.
+        Vec2d v2 = (p2 - p1).cast<double>();
+        if (filter(v1, v2))
+            out.push_back(idx-1);
+        v1 = v2;
+        p1 = p2;
+    }
+    if (out.front() >= poly.size()) {
+        out.erase(out.begin());
+        assert(std::find(out.begin(), out.end(), poly.size() - 1) == out.end());
+        out.push_back(poly.size() - 1);
+    }
+    
+    return out;
+}
+
+template<typename ConvexConcaveFilterFn>
+std::vector<size_t> filter_convex_concave_points_idx_by_angle_threshold(const Points &poly, double angle_threshold, ConvexConcaveFilterFn convex_concave_filter)
+{
+    assert(angle_threshold >= 0.);
+    if (angle_threshold < EPSILON) {
+        double cos_angle  = cos(angle_threshold);
+        return filter_points_idx_by_vectors(poly, [convex_concave_filter, cos_angle](const Vec2d &v1, const Vec2d &v2){
+            return convex_concave_filter(v1, v2) && v1.normalized().dot(v2.normalized()) < cos_angle;
+        });
+    } else {
+        return filter_points_idx_by_vectors(poly, [convex_concave_filter](const Vec2d &v1, const Vec2d &v2){
+            return convex_concave_filter(v1, v2);
+        });
+    }
+}
+
+std::vector<size_t> Polygon::convex_points_idx(double angle_threshold) const
+{
+    return filter_convex_concave_points_idx_by_angle_threshold(this->points, angle_threshold, [](const Vec2d &v1, const Vec2d &v2){ return cross2(v1, v2) > 0.; });
+}
+
+std::vector<size_t> Polygon::concave_points_idx(double angle_threshold) const
+{
+    return filter_convex_concave_points_idx_by_angle_threshold(this->points, angle_threshold, [](const Vec2d &v1, const Vec2d &v2){ return cross2(v1, v2) < 0.; });
+}
+
+// Projection of a point onto the polygon. Return {Point, pt_idx}
+std::pair<Point, size_t> Polygon::point_projection(const Point &point) const
+{
+    size_t pt_idx = size_t(-1);
     Point proj = point;
     double dmin = std::numeric_limits<double>::max();
     if (! this->points.empty()) {
@@ -287,11 +341,13 @@ Point Polygon::point_projection(const Point &point) const
             if (d < dmin) {
                 dmin = d;
                 proj = pt0;
+                pt_idx = i;
             }
             d = (point - pt1).cast<double>().norm();
             if (d < dmin) {
                 dmin = d;
                 proj = pt1;
+                pt_idx = (i + 1 == this->points.size()) ? 0 : i + 1;
             }
             Vec2d v1(coordf_t(pt1(0) - pt0(0)), coordf_t(pt1(1) - pt0(1)));
             coordf_t div = v1.squaredNorm();
@@ -304,12 +360,13 @@ Point Polygon::point_projection(const Point &point) const
                     if (d < dmin) {
                         dmin = d;
                         proj = foot;
+                        pt_idx = i;
                     }
                 }
             }
         }
     }
-    return proj;
+    return {proj, pt_idx};
 }
 
 std::vector<float> Polygon::parameter_by_length() const

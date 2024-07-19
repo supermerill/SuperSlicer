@@ -83,7 +83,7 @@ with urlopen("https://api.github.com/repos/"+repo+"/actions/artifacts") as f:
 			print("appimage: " +str(resp));
 			z = zipfile.ZipFile(io.BytesIO(resp.content));
 			z.extractall(release_path);
-			os.rename(release_path+"/"+program_name+"_ubu64.AppImage", release_path+"/"+program_name+"-ubuntu_18.04-gtk2-" + version + ".AppImage");
+			os.rename(release_path+"/"+program_name+"_ubu64.AppImage", release_path+"/"+program_name+"-ubuntu_20.04-gtk2-" + version + ".AppImage");
 		if entry["name"] == "rc-"+program_name+"-gtk3.AppImage" and not found_linux_appimage_gtk3:
 			found_linux_appimage_gtk3 = True;
 			print("ask for: "+entry["archive_download_url"]);
@@ -91,7 +91,7 @@ with urlopen("https://api.github.com/repos/"+repo+"/actions/artifacts") as f:
 			print("appimage: " +str(resp));
 			z = zipfile.ZipFile(io.BytesIO(resp.content));
 			z.extractall(release_path);
-			os.rename(release_path+"/"+program_name+"_ubu64.AppImage", release_path+"/"+program_name+"-ubuntu_18.04-" + version + ".AppImage");
+			os.rename(release_path+"/"+program_name+"_ubu64.AppImage", release_path+"/"+program_name+"-ubuntu_20.04-" + version + ".AppImage");
 		if entry["name"] == "rc_linux_gtk3.tar" and not found_linux:
 			found_linux = True;
 			print("ask for: "+entry["archive_download_url"]);

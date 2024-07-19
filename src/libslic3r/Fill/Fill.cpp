@@ -29,6 +29,96 @@
 
 namespace Slic3r {
 
+struct NormalizeVisitor : public ExtrusionVisitor {
+    bool need_remove = false;
+    //TODO path3D normalize
+    virtual void default_use(ExtrusionEntity& entity) override { need_remove = false; };
+    virtual void use(ExtrusionPath &path) override {
+        need_remove = !path.polyline.normalize();
+#ifdef _DEBUG
+        ArcPolyline &poly = path.polyline;
+        for (size_t i = 1; i < poly.size(); i++)
+            assert(!poly.get_point(i - 1).coincides_with_epsilon(poly.get_point(i)));
+#endif
+    }
+    virtual void use(ExtrusionLoop &loop) override {
+#ifdef _DEBUG
+        for (size_t idx = 0; idx < loop.paths.size(); idx++) {
+            if (idx > 0)
+                assert(loop.paths[idx - 1].last_point() == loop.paths[idx].first_point());
+        }
+#endif
+        for (size_t idx_p = 0; idx_p < loop.paths.size(); idx_p++) {
+            ExtrusionPath &path = loop.paths[idx_p];
+            if (!path.polyline.normalize()) {
+                // ensure continuity
+                if (idx_p + 1 < loop.paths.size()) {
+                    loop.paths[idx_p + 1].polyline.append_before(path.first_point());
+                } else if (idx_p > 0) {
+                    if (loop.paths[idx_p - 1].last_point().coincides_with_epsilon(path.last_point())) {
+                        loop.paths[idx_p - 1].polyline.set_back(path.last_point());
+                    } else {
+                        loop.paths[idx_p - 1].polyline.append(path.last_point());
+                    }
+                }
+                // remove
+                loop.paths.erase(loop.paths.begin() + idx_p);
+                --idx_p;
+            }
+        }
+#ifdef _DEBUG
+        for (size_t idx = 0; idx < loop.paths.size(); idx++) {
+            if (idx > 0)
+                assert(loop.paths[idx - 1].last_point() == loop.paths[idx].first_point());
+        }
+#endif
+    }
+    virtual void use(ExtrusionMultiPath &multipath) override {
+#ifdef _DEBUG
+        for (size_t idx = 0; idx < multipath.paths.size(); idx++) {
+            if (idx > 0)
+                assert(multipath.paths[idx - 1].last_point() == multipath.paths[idx].first_point());
+        }
+#endif
+        for (size_t idx_p = 0; idx_p < multipath.paths.size(); idx_p++) {
+            ExtrusionPath &path = multipath.paths[idx_p];
+            if (!path.polyline.normalize()) {
+                // ensure continuity
+                if (idx_p + 1 < multipath.paths.size()) {
+                    multipath.paths[idx_p + 1].polyline.append_before(path.first_point());
+                } else if (idx_p > 0) {
+                    if (multipath.paths[idx_p - 1].last_point().coincides_with_epsilon(path.last_point())) {
+                        multipath.paths[idx_p - 1].polyline.set_back(path.last_point());
+                    } else {
+                        multipath.paths[idx_p - 1].polyline.append(path.last_point());
+                    }
+                }
+                // remove
+                multipath.paths.erase(multipath.paths.begin() + idx_p);
+                --idx_p;
+            }
+        }
+#ifdef _DEBUG
+        for (size_t idx = 0; idx < multipath.paths.size(); idx++) {
+            if (idx > 0)
+                assert(multipath.paths[idx - 1].last_point() == multipath.paths[idx].first_point());
+        }
+#endif
+    }
+    virtual void use(ExtrusionEntityCollection &coll) override {
+        for (size_t idx = 0; idx < coll.entities().size(); idx++) {
+            need_remove = false;
+            coll.entities()[idx]->visit(*this);
+            if (need_remove || coll.entities()[idx]->empty()) {
+                // remove
+                coll.remove(idx);
+                --idx;
+                need_remove = false;
+            }
+        }
+    }
+} normalize_visitor;
+
 struct SurfaceFillParams : FillParams
 {
     // Infill pattern, adjusted for the density etc.
@@ -70,12 +160,12 @@ struct SurfaceFillParams : FillParams
         RETURN_COMPARE_NON_EQUAL(can_angle_cross);
         RETURN_COMPARE_NON_EQUAL(density);
         RETURN_COMPARE_NON_EQUAL(monotonic);
+        RETURN_COMPARE_NON_EQUAL(max_sparse_infill_spacing);
         RETURN_COMPARE_NON_EQUAL_TYPED(unsigned, connection);
         RETURN_COMPARE_NON_EQUAL_TYPED(unsigned, dont_adjust);
 
         RETURN_COMPARE_NON_EQUAL(anchor_length);
         RETURN_COMPARE_NON_EQUAL(fill_exactly);
-        RETURN_COMPARE_NON_EQUAL(flow.width());
         RETURN_COMPARE_NON_EQUAL(flow.height());
         RETURN_COMPARE_NON_EQUAL(flow.nozzle_diameter());
         RETURN_COMPARE_NON_EQUAL_TYPED(unsigned, flow.bridge());
@@ -83,18 +173,29 @@ struct SurfaceFillParams : FillParams
         assert(this->config != nullptr);
         assert(rhs.config != nullptr);
         if (config != nullptr && rhs.config != nullptr) {
+            RETURN_COMPARE_NON_EQUAL(config->infill_acceleration);
             RETURN_COMPARE_NON_EQUAL(config->infill_speed);
+            RETURN_COMPARE_NON_EQUAL(config->solid_infill_acceleration);
             RETURN_COMPARE_NON_EQUAL(config->solid_infill_speed);
+            RETURN_COMPARE_NON_EQUAL(config->top_solid_infill_acceleration);
             RETURN_COMPARE_NON_EQUAL(config->top_solid_infill_speed);
-            RETURN_COMPARE_NON_EQUAL(config->ironing_speed);
+            RETURN_COMPARE_NON_EQUAL(config->default_acceleration);
             RETURN_COMPARE_NON_EQUAL(config->default_speed);
+            RETURN_COMPARE_NON_EQUAL(config->bridge_acceleration);
             RETURN_COMPARE_NON_EQUAL(config->bridge_speed);
-            RETURN_COMPARE_NON_EQUAL(config->bridge_speed_internal);
+            RETURN_COMPARE_NON_EQUAL(config->internal_bridge_acceleration);
+            RETURN_COMPARE_NON_EQUAL(config->internal_bridge_speed);
+            RETURN_COMPARE_NON_EQUAL(config->gap_fill_acceleration);
             RETURN_COMPARE_NON_EQUAL(config->gap_fill_speed);
             RETURN_COMPARE_NON_EQUAL(config->print_extrusion_multiplier);
+            RETURN_COMPARE_NON_EQUAL(config->region_gcode.value)
+            RETURN_COMPARE_NON_EQUAL(config->small_area_infill_flow_compensation.value)
+            RETURN_COMPARE_NON_EQUAL(config->small_area_infill_flow_compensation_model.value);
         }
+        if (config == nullptr || rhs.config == nullptr || max_sparse_infill_spacing == 0)
+            RETURN_COMPARE_NON_EQUAL(flow.width());
         assert(*this == rhs);
-        return this->role.lower(rhs.role);
+        return this->role < rhs.role;
         // return this->extrusion_role.lower(rhs.extrusion_role);
     }
 
@@ -103,14 +204,25 @@ struct SurfaceFillParams : FillParams
         if ((config != nullptr) != (rhs.config != nullptr))
             return false;
         if(config != nullptr && (
-            config->infill_speed != rhs.config->infill_speed
+            config->infill_acceleration != rhs.config->infill_acceleration
+            || config->infill_speed != rhs.config->infill_speed
+            || config->solid_infill_acceleration != rhs.config->solid_infill_acceleration
             || config->solid_infill_speed != rhs.config->solid_infill_speed
+            || config->top_solid_infill_acceleration != rhs.config->top_solid_infill_acceleration
             || config->top_solid_infill_speed != rhs.config->top_solid_infill_speed
-            || config->ironing_speed != rhs.config->ironing_speed
+            || config->default_acceleration != rhs.config->default_acceleration
             || config->default_speed != rhs.config->default_speed
+            || config->bridge_acceleration != rhs.config->bridge_acceleration
             || config->bridge_speed != rhs.config->bridge_speed
-            || config->bridge_speed_internal != rhs.config->bridge_speed_internal
-            || config->gap_fill_speed != rhs.config->gap_fill_speed))
+            || config->internal_bridge_acceleration != rhs.config->internal_bridge_acceleration
+            || config->internal_bridge_speed != rhs.config->internal_bridge_speed
+            || config->gap_fill_acceleration != rhs.config->gap_fill_acceleration
+            || config->gap_fill_speed != rhs.config->gap_fill_speed
+            || config->print_extrusion_multiplier != rhs.config->print_extrusion_multiplier
+            || config->region_gcode != rhs.config->region_gcode
+            || config->small_area_infill_flow_compensation != rhs.config->small_area_infill_flow_compensation
+            || config->small_area_infill_flow_compensation_model != rhs.config->small_area_infill_flow_compensation_model
+            ))
             return false;
         // then check params
         return  this->extruder              == rhs.extruder         &&
@@ -129,6 +241,7 @@ struct SurfaceFillParams : FillParams
                 this->fill_exactly          == rhs.fill_exactly     &&
                 this->flow                  == rhs.flow             &&
                 this->role                  == rhs.role             &&
+                this->max_sparse_infill_spacing == rhs.max_sparse_infill_spacing &&
                 this->priority              == rhs.priority;
     }
 };
@@ -147,8 +260,8 @@ float compute_fill_angle(const PrintRegionConfig &region_config, size_t layer_id
     float angle = 0;
     if (!region_config.fill_angle_template.empty()) {
         // fill pattern: replace fill angle
-        size_t idx   = layer_id % region_config.fill_angle_template.values.size();
-        angle = region_config.fill_angle_template.values[idx];
+        size_t idx   = layer_id % region_config.fill_angle_template.size();
+        angle = region_config.fill_angle_template.get_at(idx);
     } else {
         angle = region_config.fill_angle.value;
     }
@@ -296,17 +409,18 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
                     //FIXME FLOW decide what to use
                     // Internal infill. Calculating infill line spacing independent of the current layer height and 1st layer status,
                     // so that internall infill will be aligned over all layers of the current region.
-                    //params.spacing = layerm.region().flow(*layer.object(), frInfill, layer.object()->config().layer_height, false).spacing();
+                    //params.spacing = layerm.region().flow(*layer.object(), frInfill, layer.heigh, false).spacing();
                     // it's internal infill, so we can calculate a generic flow spacing 
                     // for all layers, for avoiding the ugly effect of
                     // misaligned infill on first layer because of different extrusion width and
                     // layer height
-                    params.spacing = layerm.region().flow(
+                    Flow infill_flow = layerm.region().flow(
                             *layer.object(),
                             frInfill,
-                            layer.object()->config().layer_height.value,  // TODO: handle infill_every_layers?
+                            layer.height,  // TODO: handle infill_every_layers?
                             layer.id()
-                        ).spacing();
+                        );
+                    params.spacing = infill_flow.spacing();
 
                     // Anchor a sparse infill to inner perimeters with the following anchor length:
                     params.anchor_length = float(region_config.infill_anchor);
@@ -316,6 +430,16 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
                     if (region_config.infill_anchor_max.percent)
                         params.anchor_length_max = float(params.anchor_length_max * 0.01 * params.spacing);
                     params.anchor_length = std::min(params.anchor_length, params.anchor_length_max);
+                    
+                    //sparse infill, compute the max width if needed
+                    if (region_config.fill_aligned_z) {
+                        //don't use fill_aligned_z if the pattern can't use it.
+                        if (params.pattern != ipHilbertCurve && params.pattern != ipArchimedeanChords &&
+                            params.pattern != ipOctagramSpiral && params.pattern != ipScatteredRectilinear &&
+                            params.pattern != ipLightning) {
+                            params.max_sparse_infill_spacing = unscaled(layer.object()->get_sparse_max_spacing());
+                        }
+                    }
                 }
 
                 auto it_params = set_surface_params.find(params);
@@ -742,6 +866,12 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         f->adapt_fill_octree = (surface_fill.params.pattern == ipSupportCubic) ? support_fill_octree : adaptive_fill_octree;
         f->set_config(&this->object()->print()->config(), &this->object()->config());
 
+        // add object angle if needed
+        double z_object_angle = this->m_object->trafo().rotation().eulerAngles(0,1,2).z();
+        if (this->object()->config().fill_angle_follow_model.value) {
+            f->angle += z_object_angle;
+        }
+
         if (surface_fill.params.pattern == ipLightning)
             dynamic_cast<FillLightning::Filler*>(f.get())->generator = lightning_generator;
 
@@ -832,6 +962,8 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
 
                 //adjust the bridge density
                 if (surface_fill.params.flow.bridge() && surface_fill.params.density > 0.99 /*&& layerm->region()->config().bridge_overlap.get_abs_value(1) != 1*/) {
+                    // bridge have their own spacing, don't try to align it with normal infill.
+                    surface_fill.params.max_sparse_infill_spacing = 0;
                     ////varies the overlap to have the best coverage for the bridge
                     //surface_fill.params.density *= float(layerm->region()->config().bridge_overlap.get_abs_value(1));
                     double min_spacing = 0.999 * surface_fill.params.spacing / surface_fill.params.config->bridge_overlap.get_abs_value(surface_fill.params.density);
@@ -898,9 +1030,11 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
                 const size_t idx_start = fills_by_priority[(size_t)surface_fill.params.priority]->entities().size();
 #endif
                 f->fill_surface_extrusion(&surface_fill.surface, surface_fill.params, fills_by_priority[(size_t)surface_fill.params.priority]->set_entities());
+                // normalize result, just in case the filling algorihtm is messing things up (some are).
+                fills_by_priority[(size_t)surface_fill.params.priority]->visit(normalize_visitor);
 #if _DEBUG
                 //check no over or underextrusion if fill_exactly
-                if(surface_fill.params.fill_exactly && surface_fill.params.density == 1) {
+                if(surface_fill.params.fill_exactly && surface_fill.params.density == 1 && !surface_fill.params.flow.bridge()) {
                     ExtrusionVolume compute_volume;
                     ExtrusionVolume compute_volume_no_gap_fill(false);
                     const size_t idx_end = fills_by_priority[(size_t)surface_fill.params.priority]->entities().size();
@@ -916,10 +1050,25 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
                     for(auto &t : temp) real_surface += t.area();
                     assert(compute_volume.volume < unscaled(unscaled(surface_fill.surface.area())) * surface_fill.params.layer_height + EPSILON);
                     double area = unscaled(unscaled(real_surface));
-                    assert(compute_volume.volume <= area * surface_fill.params.layer_height * 1.001 || f->debug_verify_flow_mult <= 0.8);
-                    if(compute_volume.volume > 0) //can fail for thin regions
-                        assert(compute_volume.volume >= area * surface_fill.params.layer_height * 0.999 || f->debug_verify_flow_mult >= 1.3 || area < std::max(1.,surface_fill.params.config->solid_infill_below_area.value));
-                }
+                    if(surface_fill.surface.has_pos_top())
+                        area *= surface_fill.params.config->fill_top_flow_ratio.value;
+                    if(surface_fill.surface.has_pos_bottom() && f->layer_id == 0)
+                        area *= surface_fill.params.config->first_layer_flow_ratio.value;
+                    if(surface_fill.surface.has_mod_bridge() && f->layer_id == 0)
+                        area *= surface_fill.params.config->first_layer_flow_ratio.value;
+                    //TODO: over-bridge mod
+                    if(surface_fill.params.config->over_bridge_flow_ratio.value == 1){
+                        assert(compute_volume.volume <= area * surface_fill.params.layer_height * 1.001 || f->debug_verify_flow_mult <= 0.8);
+                        if(compute_volume.volume > 0) //can fail for thin regions
+                            assert(
+                                compute_volume.volume >= area * surface_fill.params.layer_height * 0.999 ||
+                                f->debug_verify_flow_mult >= 1.3 ||
+                                f->debug_verify_flow_mult ==
+                                    0 // sawtooth output more filament,as it's 3D (debug_verify_flow_mult==0)
+                                || area < std::max(1., surface_fill.params.config->solid_infill_below_area.value) ||
+                                area < std::max(1., surface_fill.params.config->solid_infill_below_layer_area.value));
+                        }
+                    }
 #endif
             }
         }
@@ -939,8 +1088,11 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
 				ExtrusionEntityCollection &collection = *(new ExtrusionEntityCollection());
 				layerm.m_fills.set_entities().push_back(&collection);
                 collection.set_entities().reserve(island.thin_fills.size());
-				for (uint32_t fill_id : island.thin_fills)
+                for (uint32_t fill_id : island.thin_fills) {
                     collection.set_entities().push_back(layerm.thin_fills().entities()[fill_id]->clone());
+                    // normalize result, just in case the filling algorihtm is messing things up (some are).
+                    collection.set_entities().back()->visit(normalize_visitor);
+                }
 				island.add_fill_range({ island.perimeters.region(), { uint32_t(layerm.m_fills.entities().size() - 1), uint32_t(layerm.m_fills.entities().size()) } });
 			}
 			// Sort the fills by region ID.
@@ -1073,6 +1225,7 @@ void Layer::make_ironing()
         double         line_spacing;
         // Height of the extrusion, to calculate the extrusion flow from.
         double         height;
+        double         acceleration;
         double         speed;
         double         angle;
         IroningType    type;
@@ -1094,6 +1247,10 @@ void Layer::make_ironing()
                 return true;
             if (this->height > rhs.height)
                 return false;
+            if (this->acceleration < rhs.acceleration)
+                return true;
+            if (this->acceleration > rhs.acceleration)
+                return false;
             if (this->speed < rhs.speed)
                 return true;
             if (this->speed > rhs.speed)
@@ -1105,11 +1262,12 @@ void Layer::make_ironing()
             return false;
         }
 
-        bool operator==(const IroningParams &rhs) const {
+        bool operator==(const IroningParams &rhs) const
+        {
             return this->extruder == rhs.extruder && this->just_infill == rhs.just_infill &&
-                   this->line_spacing == rhs.line_spacing && this->height == rhs.height && this->speed == rhs.speed &&
-                this->angle == rhs.angle &&
-                this->type == rhs.type;
+                   this->line_spacing == rhs.line_spacing && this->height == rhs.height &&
+                   this->acceleration == rhs.acceleration && this->speed == rhs.speed &&
+                   this->angle == rhs.angle && this->type == rhs.type;
         }
 
 		LayerRegion *layerm;
@@ -1131,6 +1289,7 @@ void Layer::make_ironing()
     };
 
     std::vector<IroningParams> by_extruder;
+    // not using layer.height?
     double default_layer_height = this->object()->config().layer_height;
 #if _DEBUG
 	for (uint32_t region_id = 0; region_id < uint32_t(this->regions().size()); ++region_id)
@@ -1156,14 +1315,19 @@ void Layer::make_ironing()
             }
             if (ironing_params.extruder != -1) {
                 //TODO just_infill is currently not used.
-                ironing_params.type              = config.ironing_type;
-                ironing_params.just_infill     = false;
+                ironing_params.type         = config.ironing_type;
+                ironing_params.just_infill  = false;
                 ironing_params.line_spacing = config.ironing_spacing;
-                ironing_params.height         = default_layer_height * 0.01 * config.ironing_flowrate;
-                ironing_params.speed         = config.ironing_speed;
-                ironing_params.angle         = config.ironing_angle <0 ?
-                    compute_fill_angle(config, layerm->layer()->id()) :
-                    float(Geometry::deg2rad(config.ironing_angle.value));
+                ironing_params.height       = default_layer_height * 0.01 * config.ironing_flowrate;
+                ironing_params.acceleration = config.ironing_acceleration;
+                ironing_params.speed        = config.ironing_speed;
+                if (config.ironing_angle.value >= 0) {
+                    ironing_params.angle = float(Geometry::deg2rad(config.ironing_angle.value));
+                } else {
+                    ironing_params.angle = compute_fill_angle(config, layerm->layer()->id());
+                    if (config.ironing_angle.value < -1)
+                        ironing_params.angle += float(Geometry::deg2rad(-config.ironing_angle.value));
+                }
                 ironing_params.layerm         = layerm;
                 ironing_params.region_id         = layerm->m_region->print_region_id();
                 by_extruder.emplace_back(ironing_params);
@@ -1193,7 +1357,7 @@ void Layer::make_ironing()
 
         // Create the ironing extrusions for regions <i, j)
         ExPolygons ironing_areas;
-        double nozzle_dmr = this->object()->print()->config().nozzle_diameter.values[ironing_params.extruder - 1];
+        double nozzle_dmr = this->object()->print()->config().nozzle_diameter.get_at(ironing_params.extruder - 1);
         const PrintRegionConfig& region_config = ironing_params.layerm->region().config();
         if (ironing_params.just_infill) {
 			//TODO just_infill is currently not used.
@@ -1251,12 +1415,13 @@ void Layer::make_ironing()
 
         // Create the filler object.
         fill.init_spacing(ironing_params.line_spacing, fill_params);
-        fill.angle = float(ironing_params.angle + 0.25 * M_PI);
-        fill.link_max_length = (coord_t)scale_(3. * fill.get_spacing());
+        fill.can_angle_cross = region_config.fill_angle_cross.value;
+        fill.angle = float(ironing_params.angle);
+        fill.link_max_length = scale_t(3. * fill.get_spacing());
         double extrusion_height = ironing_params.height * fill.get_spacing() / nozzle_dmr;
         //FIXME FLOW decide if it's good
-        double max_overlap = region_config.get_computed_value("filament_max_overlap", ironing_params.extruder - 1);
-        double overlap = std::min(max_overlap, region_config.solid_infill_overlap.get_abs_value(1.));
+        // note: don't use filament_max_overlap, as it's a top surface
+        double overlap = region_config.top_solid_infill_overlap.get_abs_value(1.);
         float  extrusion_width = Flow::rounded_rectangle_extrusion_width_from_spacing(float(nozzle_dmr), float(extrusion_height), float(overlap));
         double flow_mm3_per_mm = nozzle_dmr * extrusion_height;
         //Flow flow = Flow::new_from_spacing(float(nozzle_dmr), 0., float(height), 1.f, false);

@@ -451,12 +451,8 @@ wxBitmapBundle* get_bmp_bundle(const std::string& bmp_name_in, int width/* = 16*
 
     // Try loading an SVG first, then PNG if SVG is not found:
     Slic3r::ColorReplaces changes;
-    bool grayscale = false; //TODO: remove? is it still used?
-    if (grayscale) {
-        changes.add("#ED6B21", "#606060");
-        changes.add("#2172eb", "#606060");
-        //color_int = 9079434;
-    } else if (new_color.empty() || new_color.size() > 7 || new_color.size() < 6) {
+    //grayscale: just ask for new_color="#606060"
+    if (new_color.empty() || new_color.size() > 7 || new_color.size() < 6) {
         try {
             uint32_t color_int = Slic3r::GUI::wxGetApp().app_config->create_color(0.86f, 0.93f);
             changes.add("#ED6B21", color_int);
@@ -464,6 +460,9 @@ wxBitmapBundle* get_bmp_bundle(const std::string& bmp_name_in, int width/* = 16*
         }
         catch (std::exception /*e*/) {
         }
+    } else {
+        changes.add("#ED6B21", new_color.size() == 7 ? new_color : (std::string("#") + new_color));
+        changes.add("#2172eb", new_color.size() == 7 ? new_color : (std::string("#") + new_color));
     }
     
     if (Slic3r::GUI::wxGetApp().dark_mode()) {

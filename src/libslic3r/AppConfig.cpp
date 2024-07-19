@@ -1,14 +1,19 @@
 ///|/ Copyright (c) Prusa Research 2017 - 2023 Oleksandra Iushchenko @YuSanka, Vojtěch Bubník @bubnikv, Pavel Mikuš @Godrak, David Kocík @kocikdav, Lukáš Matěna @lukasmatena, Enrico Turri @enricoturri1966, Lukáš Hejl @hejllukas, Filip Sykala @Jony01, Vojtěch Král @vojtechkral
-///|/
-///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
+///|/ Copyright (c) SuperSlicer 2023 Remi Durand @supermerill
+///|/ 
+///|/ SuperSlicer and PrusaSlicer are released under the terms of the AGPLv3 or higher
 ///|/
 #include "libslic3r/libslic3r.h"
 #include "libslic3r/Utils.hpp"
 #include "AppConfig.hpp"
+
+#include "libslic3r.h"
+#include "format.hpp"
 #include "Exception.hpp"
+#include "I18N.hpp"
 #include "LocalesUtils.hpp"
 #include "Thread.hpp"
-#include "format.hpp"
+#include "Utils.hpp"
 #include "Color.hpp"
 
 #include <utility>
@@ -18,7 +23,6 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/filesystem/directory.hpp>
 #include <boost/filesystem/operations.hpp>
-#include <boost/filesystem/path.hpp>
 #include <boost/format/format_fwd.hpp>
 #include <boost/locale.hpp>
 #include <boost/log/trivial.hpp>
@@ -172,6 +176,9 @@ void AppConfig::set_defaults()
 
         if (get("font_size").empty())
             set("font_size", "0");
+
+        if (get("gcodeviewer_decimals").empty())
+            set("gcodeviewer_decimals", "2");
 
         //get default color from the ini file
 
@@ -352,6 +359,9 @@ void AppConfig::set_defaults()
 
         if (get("show_layer_time_doubleslider").empty())
             set("show_layer_time_doubleslider", "0");
+
+        if (get("show_layer_area_doubleslider").empty())
+            set("show_layer_area_doubleslider", "0");
 
 	} else {
 #ifdef _WIN32

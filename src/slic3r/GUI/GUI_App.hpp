@@ -285,6 +285,7 @@ public:
     void            over_bridge_dialog();
     void            calibration_cube_dialog();
 	void            calibration_retraction_dialog();
+    void            calibration_pressureadv_dialog();
     void            freecad_script_dialog();
     void            tiled_canvas_dialog();
     //void            support_tuning(); //have to do multiple, in a submenu
@@ -301,7 +302,7 @@ public:
     bool            switch_language();
     bool            load_language(wxString language, bool initial);
 
-    Tab*            get_tab(Preset::Type type);
+    Tab*            get_tab(Preset::Type type, bool only_completed = true);
     ConfigOptionMode get_mode();
     bool            save_mode(const ConfigOptionMode mode) ;
     void            update_mode();

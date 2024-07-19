@@ -144,9 +144,6 @@ static Polylines make_gyroid_waves(coordf_t gridZ, coordf_t scaleFactor, double 
     return result;
 }
 
-// FIXME: needed to fix build on Mac on buildserver
-constexpr double FillGyroid::PatternTolerance;
-
 void FillGyroid::_fill_surface_single(
     const FillParams                &params, 
     unsigned int                     thickness_layers,
@@ -159,27 +156,24 @@ void FillGyroid::_fill_surface_single(
         expolygon.rotate(-infill_angle);
 
     BoundingBox bb = expolygon.contour.bounding_box();
-    // Density adjusted to have a good %of weight.
-    double      density_adjusted = std::max(0., params.density * DensityAdjust);
     // Distance between the gyroid waves in scaled coordinates.
-    coord_t     distance = coord_t(scale_(this->get_spacing()) / density_adjusted);
+    coord_t     line_spacing = _line_spacing_for_density(params);
+    // Density adjusted to have a good %of weight.
+    line_spacing /= FillGyroid::DENSITY_ADJUST;
 
     // align bounding box to a multiple of our grid module
-    bb.merge(align_to_grid(bb.min, Point(2*M_PI*distance, 2*M_PI*distance)));
+    bb.merge(align_to_grid(bb.min, Point(2*M_PI*line_spacing, 2*M_PI*line_spacing)));
 
     // tolerance in scaled units. clamp the maximum tolerance as there's
     // no processing-speed benefit to do so beyond a certain point
-    const coordf_t scaleFactor = scale_d(this->get_spacing()) / density_adjusted;
-    const double tolerance_old = std::min(this->get_spacing() / 2, FillGyroid::PatternTolerance) / unscaled(scaleFactor);
-    const double tolerance_old2 = std::min(this->get_spacing() / 2, FillGyroid::PatternTolerance) * density_adjusted  / this->get_spacing();
-    const double tolerance = params.config->get_computed_value("resolution_internal") * density_adjusted / this->get_spacing();
+    const double tolerance = params.config->get_computed_value("resolution_internal") / unscaled(line_spacing);
 
     // generate pattern
     Polylines polylines = make_gyroid_waves(
         scale_d(this->z),
-        scaleFactor,
-        ceil(bb.size()(0) / distance) + 1.,
-        ceil(bb.size()(1) / distance) + 1.,
+        coordf_t(line_spacing),
+        ceil(bb.size()(0) / line_spacing) + 1.,
+        ceil(bb.size()(1) / line_spacing) + 1.,
         tolerance);
 
     // shift the polyline to the grid origin
@@ -203,7 +197,7 @@ void FillGyroid::_fill_surface_single(
         if (params.connection == icNotConnected){
             append(polylines_out, chain_polylines(polylines));
         } else {
-            this->connect_infill(chain_polylines(polylines), expolygon, polylines_out, this->get_spacing(), params);
+            this->connect_infill(chain_polylines(polylines), expolygon, polylines_out, scale_t(this->get_spacing()), params);
         }
         // new paths must be rotated back
         if (std::abs(infill_angle) >= EPSILON) {

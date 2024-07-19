@@ -127,7 +127,9 @@ protected:
 								const std::string& tooltip,
 								int option_width,
 								int def_val,
-								ConfigOptionMode mode = comSimpleAE);
+								ConfigOptionMode mode = comSimpleAE,
+								int32_t min = std::numeric_limits<int32_t>::min(),
+								int32_t max = std::numeric_limits<int32_t>::max());
 	
 	void append_color_option( std::shared_ptr<ConfigOptionsGroup> optgroup,
 								const std::string& opt_key,

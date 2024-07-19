@@ -592,7 +592,7 @@ bool find_point_on_boundary(Point& pt_to_move, const AvoidCrossingPerimeters::Bo
                     }
                     if(std::sqrt(dist2) > max_dist)
                         for (const Polygon& poly : to_polygons(bound.second)) {
-                            Point         test_point = poly.point_projection(pt_to_move);
+                            Point         test_point = poly.point_projection(pt_to_move).first;
                             coordf_t dist2_test = test_point.distance_to_square(pt_to_move);
                             if (dist2_test < dist2) {
                                 dist2 = dist2_test;
@@ -1232,7 +1232,7 @@ static ExPolygons get_boundary(const Layer &layer, std::vector<std::pair<ExPolyg
     ExPolygons  boundary;
     auto old_2_new_expolygons     = inner_offset(layer.lslices, 1.5 * perimeter_spacing);
     for (const std::pair<ExPolygon, ExPolygon> &old_2_new_expoly : old_2_new_expolygons) {
-        assert(old_2_new_expoly.first.contains(old_2_new_expoly.second.contour.split_at_index(0)));
+        assert(old_2_new_expoly.first.contains(old_2_new_expoly.second.contour.split_at_index(0)) || old_2_new_expoly.first == old_2_new_expoly.second);
         boundary.push_back(old_2_new_expoly.second);
         slice_2_boundary.push_back(std::move(old_2_new_expoly));
     }

@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 3.13)
 project(Slic3r-native)
 
 add_subdirectory(build-utils)
-add_subdirectory(test-utils)
+if (NOT APPLE)
+    add_subdirectory(test-utils)
+endif ()
 add_subdirectory(admesh)
 add_subdirectory(avrdude)
 # boost/nowide
@@ -305,5 +307,5 @@ else ()
     install(TARGETS Slic3r RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
     # Install the symlink for gcodeviewer
-    install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink slic3r ${GCODEVIEWER_APP_CMD} WORKING_DIRECTORY \$ENV{DESTDIR}/${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR})")
+    install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${SLIC3R_APP_CMD} ${GCODEVIEWER_APP_CMD} WORKING_DIRECTORY \$ENV{DESTDIR}/${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR})")
 endif ()

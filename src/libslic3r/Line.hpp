@@ -198,15 +198,15 @@ public:
     void   translate(double x, double y) { this->translate(Point(x, y)); }
     void   rotate(double angle, const Point &center) { this->a.rotate(angle, center); this->b.rotate(angle, center); }
     void   reverse() { std::swap(this->a, this->b); }
-    double length() const { return (b.cast<double>() - a.cast<double>()).norm(); }
+    coordf_t length() const { return (b.cast<coordf_t>() - a.cast<coordf_t>()).norm(); }
     Point  midpoint() const { return (this->a + this->b) / 2; }
     bool   intersection_infinite(const Line &other, Point* point) const;
     bool   operator==(const Line &rhs) const { return this->a == rhs.a && this->b == rhs.b; }
     double distance_to_squared(const Point &point) const { return distance_to_squared(point, this->a, this->b); }
     double distance_to_squared(const Point &point, Point *closest_point) const { return line_alg::distance_to_squared(*this, point, closest_point); }
-    double distance_to(const Point &point) const { return distance_to(point, this->a, this->b); }
+    coordf_t distance_to(const Point &point) const { return distance_to(point, this->a, this->b); }
     double distance_to_infinite_squared(const Point &point, Point *closest_point) const { return line_alg::distance_to_infinite_squared(*this, point, closest_point); }
-    double perp_distance_to(const Point &point) const;
+    coordf_t perp_distance_to(const Point &point) const;
     bool   parallel_to(double angle) const;
     bool   parallel_to(const Line& line) const;
     bool   perpendicular_to(double angle) const;
@@ -220,19 +220,19 @@ public:
     // Clip a line with a bounding box. Returns false if the line is completely outside of the bounding box.
 	bool   clip_with_bbox(const BoundingBox &bbox);
     // Extend the line from both sides by an offset.
-    void   extend(double offset);
+    void   extend(coordf_t offset);
 
     static inline double distance_to_squared(const Point &point, const Point &a, const Point &b) { return line_alg::distance_to_squared(Line{a, b}, Vec<2, coord_t>{point}); }
-    static double distance_to(const Point &point, const Point &a, const Point &b) { return sqrt(distance_to_squared(point, a, b)); }
-    Point point_at(double distance) const;
+    static coordf_t distance_to(const Point &point, const Point &a, const Point &b) { return sqrt(distance_to_squared(point, a, b)); }
+    Point point_at(coordf_t distance) const;
     coord_t dot(const Line &l2) const { return vector().dot(l2.vector()); }
-    void extend_end(double distance) { Line line = *this; line.reverse(); this->b = line.point_at(-distance); }
-    void extend_start(double distance) { this->a = this->point_at(-distance); }
+    void extend_end(coordf_t distance) { Line line = *this; line.reverse(); this->b = line.point_at(-distance); }
+    void extend_start(coordf_t distance) { this->a = this->point_at(-distance); }
 
     // Returns a distance to the closest point on the infinite.
     // Closest point (and returned squared distance to this point) could be beyond the 'a' and 'b' ends of the segment.
     static inline double distance_to_infinite_squared(const Point &point, const Point &a, const Point &b) { return line_alg::distance_to_infinite_squared(Line{a, b}, Vec<2, coord_t>{point}); }
-    static double distance_to_infinite(const Point &point, const Point &a, const Point &b) { return sqrt(distance_to_infinite_squared(point, a, b)); }
+    static coordf_t distance_to_infinite(const Point &point, const Point &a, const Point &b) { return sqrt(distance_to_infinite_squared(point, a, b)); }
 
     Point a;
     Point b;

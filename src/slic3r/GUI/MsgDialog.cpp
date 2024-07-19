@@ -228,7 +228,7 @@ void ErrorDialog::create(const HtmlContent& content, int icon_width)
     add_msg_content(this, content_sizer, content);
 
     // Use a small bitmap with monospaced font, as the error text will not be wrapped.
-    logo->SetBitmap(*get_bmp_bundle(SLIC3R_APP_KEY "_192px_grayscale.png", icon_width));
+    logo->SetBitmap(*get_bmp_bundle(SLIC3R_APP_KEY "_192px.png", icon_width, -1 , "#606060"/*grayscale*/));
 
     SetMaxSize(wxSize(-1, CONTENT_MAX_HEIGHT*wxGetApp().em_unit()));
 

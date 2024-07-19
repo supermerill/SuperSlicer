@@ -111,6 +111,59 @@ template void BoundingBoxBase<Point, Points>::merge(const BoundingBoxBase<Point,
 template void BoundingBoxBase<Vec2f>::merge(const BoundingBoxBase<Vec2f> &bb);
 template void BoundingBoxBase<Vec2d>::merge(const BoundingBoxBase<Vec2d> &bb);
 
+template <class PointClass, typename APointsType>
+bool BoundingBoxBase<PointClass, APointsType>::cross(const Line &line) const
+{
+    assert(this->defined || this->min.x() >= this->max.x() || this->min.y() >= this->max.y());
+    // first just check if one point is inside and the other outside
+    bool cross = this->contains(line.a) != this->contains(line.b);
+    // now compre cross for the 4 lines
+    Point intersect;
+    if (!cross)
+        cross = Line(Point(this->min.x(), this->min.y()), Point(this->min.x(), this->max.y())).intersection(line, &intersect);
+    if (!cross)
+        cross = Line(Point(this->min.x(), this->min.y()), Point(this->max.x(), this->min.y())).intersection(line, &intersect);
+    if (!cross)
+        cross = Line(Point(this->max.x(), this->max.y()), Point(this->min.x(), this->max.y())).intersection(line, &intersect);
+    if (!cross)
+        cross = Line(Point(this->max.x(), this->max.y()), Point(this->max.x(), this->min.y())).intersection(line, &intersect);
+    return cross;
+}
+template bool BoundingBoxBase<Point, Points>::cross(const Line &line) const;
+
+template <class PointClass, typename APointsType>
+bool BoundingBoxBase<PointClass, APointsType>::cross(const Polyline &lines) const
+{
+    assert(this->defined || this->min.x() >= this->max.x() || this->min.y() >= this->max.y());
+    // first just check if one point is inside and the other outside
+    size_t nb_in  = 0;
+    size_t nb_out = 0;
+    for (const Point &pt : lines.points)
+        if (this->contains(pt))
+            nb_in++;
+        else
+            nb_out++;
+    if (nb_in > 0 && nb_out > 0)
+        return true;
+    bool cross = false;
+    Point intersect;
+    // now compare cross for the 4 lines
+    Line l1 = Line(Point(this->min.x(), this->min.y()), Point(this->min.x(), this->max.y()));
+    Line l2 = Line(Point(this->min.x(), this->min.y()), Point(this->max.x(), this->min.y()));
+    Line l3 = Line(Point(this->max.x(), this->max.y()), Point(this->min.x(), this->max.y()));
+    Line l4 = Line(Point(this->max.x(), this->max.y()), Point(this->max.x(), this->min.y()));
+    for (size_t next_idx = 1; next_idx < lines.size(); ++next_idx) {
+        Line line(lines.points[next_idx - 1], lines.points[next_idx]);
+        Vec2f v;
+        cross = l1.intersection(line, &intersect) || l2.intersection(line, &intersect) ||
+                l3.intersection(line, &intersect) || l4.intersection(line, &intersect);
+        if (cross)
+            return true;
+    }
+    return false;
+}
+template bool BoundingBoxBase<Point, Points>::cross(const Polyline &lines) const;
+
 template <class PointType> void
 BoundingBox3Base<PointType>::merge(const PointType &point)
 {

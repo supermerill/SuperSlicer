@@ -24,8 +24,9 @@ class wxStaticBitmap;
 namespace Slic3r {
 
 namespace GUI {
-
+    
 class BitmapCache;
+class Tab;
 
 // ---------------------------------
 // ***  PresetComboBox  ***
@@ -38,7 +39,9 @@ class PresetComboBox : public BitmapComboBox
     bool m_show_modif_preset_separately{ false };
 public:
     PresetComboBox(wxWindow* parent, Preset::Type preset_type, const wxSize& size = wxDefaultSize, PresetBundle* preset_bundle = nullptr);
+    PresetComboBox(Tab* parent, const wxSize& size = wxDefaultSize);
     ~PresetComboBox();
+    void init();
 
 	enum LabelItemType {
 		LABEL_ITEM_PHYSICAL_PRINTER = 0xffffff01,
@@ -188,7 +191,8 @@ class TabPresetComboBox : public PresetComboBox
 
 public:
     TabPresetComboBox(wxWindow *parent, Preset::Type preset_type);
-    ~TabPresetComboBox() {}
+    TabPresetComboBox(Tab *tab);
+
     void set_show_incompatible_presets(bool show_incompatible_presets) {
         show_incompatible = show_incompatible_presets;
     }

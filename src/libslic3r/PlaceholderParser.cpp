@@ -911,8 +911,8 @@ namespace client
                         return vector_opt->get_float(int(current_extruder_id));
                     if (raw_opt->type() == coFloatsOrPercents) {
                         const ConfigOptionFloatsOrPercents* opt_fl_per = static_cast<const ConfigOptionFloatsOrPercents*>(raw_opt);
-                        if (!opt_fl_per->values[current_extruder_id].percent)
-                            return opt_fl_per->values[current_extruder_id].value;
+                        if (!opt_fl_per->get_at(current_extruder_id).percent)
+                            return opt_fl_per->get_at(current_extruder_id).value;
 
                         const ConfigOptionDef* opt_def = print_config_def.get(opt_key);
                         if (!opt_def->ratio_over.empty() && opt_def->ratio_over != "depends")
@@ -1139,6 +1139,7 @@ namespace client
             case coString:  output.set_s(static_cast<const ConfigOptionString*>(opt.opt)->value); break;
             case coPercent: output.set_d(opt.opt->get_float());   break;
             case coEnum:
+            case coGraph:
             case coPoint:   output.set_s(opt.opt->serialize());  break;
             case coBool:    output.set_b(opt.opt->get_bool());    break;
             case coFloatOrPercent:
@@ -1151,10 +1152,10 @@ namespace client
                     output.set_d(opt.opt->get_float());
                 } else {
                 	// Resolve dependencies using the "ratio_over" link to a parent value.
-    			    const ConfigOptionDef  *opt_def = print_config_def.get(opt_key);
+                    const ConfigOptionDef  *opt_def = print_config_def.get(opt_key);
 			        assert(opt_def != nullptr);
 			        double v = opt.opt->get_float() * 0.01; // percent to ratio
-			        for (;;) {
+                    if (opt_def) for (;;) {
 			        	const ConfigOption *opt_parent = opt_def->ratio_over.empty() ? nullptr : ctx->resolve_symbol(opt_def->ratio_over);
 			        	if (opt_parent == nullptr)
 			                ctx->throw_exception("FloatOrPercent variable failed to resolve the \"ratio_over\" dependencies", opt.it_range);
@@ -1178,13 +1179,13 @@ namespace client
 				        //assert(opt_def != nullptr);
 			        }
                     output.set_d(v);
-    	        }
-    		    break;
-    		}
+                }
+                break;
+            }
             case coInts:
                 vector_opt = static_cast<const ConfigOptionVectorBase*>(opt.opt);
                 if (vector_opt->is_extruder_size()) {
-                    output.set_i(int(((ConfigOptionVectorBase*)opt.opt)->get_float(int(ctx->current_extruder_id))));
+                    output.set_i(((ConfigOptionVectorBase*)opt.opt)->get_int(int(ctx->current_extruder_id)));
                     break;
                 } else
                     ctx->throw_exception("Unknown scalar variable type", opt.it_range);
@@ -1206,18 +1207,24 @@ namespace client
             case coStrings:
                 vector_opt = static_cast<const ConfigOptionVectorBase*>(opt.opt);
                 if (vector_opt->is_extruder_size()) {
-                    output.set_s(((ConfigOptionStrings*)opt.opt)->values[ctx->current_extruder_id]);
+                    output.set_s(((ConfigOptionStrings*)opt.opt)->get_at(ctx->current_extruder_id));
                     break;
                 } else
                     ctx->throw_exception("Unknown scalar variable type", opt.it_range);
             case coPoints:
                 vector_opt = static_cast<const ConfigOptionVectorBase*>(opt.opt);
                 if (vector_opt->is_extruder_size()) {
-                    output.set_s(to_string(((ConfigOptionPoints*)opt.opt)->values[ctx->current_extruder_id]));
+                    output.set_s(to_string(((ConfigOptionPoints*)opt.opt)->get_at(ctx->current_extruder_id)));
                     break;
                 }else
                     ctx->throw_exception("Unknown scalar variable type", opt.it_range);
-                //TODO: coFloatOrPercents
+            case coGraphs:
+                vector_opt = static_cast<const ConfigOptionVectorBase*>(opt.opt);
+                if (vector_opt->is_extruder_size()) {
+                    output.set_s(((ConfigOptionGraphs*)opt.opt)->get_at(ctx->current_extruder_id).serialize());
+                    break;
+                }else
+                    ctx->throw_exception("Unknown scalar variable type", opt.it_range);
             default:
                 ctx->throw_exception("Unsupported scalar variable type", opt.it_range);
             }
@@ -1250,13 +1257,14 @@ namespace client
             if (vec->is_nil(idx))
                 ctx->throw_exception("Trying to reference an undefined (nil) element of vector of optional values", opt.it_range);
             switch (opt.opt->type()) {
-            case coFloats:   output.set_d(static_cast<const ConfigOptionFloats*>(opt.opt)->values[idx]); break;
-            case coInts:     output.set_i(static_cast<const ConfigOptionInts*>(opt.opt)->values[idx]); break;
-            case coStrings:  output.set_s(static_cast<const ConfigOptionStrings*>(opt.opt)->values[idx]); break;
-            case coPercents: output.set_d(static_cast<const ConfigOptionPercents*>(opt.opt)->values[idx]); break;
-            case coFloatsOrPercents: output.set_d(static_cast<const ConfigOptionFloatsOrPercents*>(opt.opt)->values[idx].value); break;
-            case coPoints:   output.set_s(to_string(static_cast<const ConfigOptionPoints  *>(opt.opt)->values[idx])); break;
-            case coBools:    output.set_b(static_cast<const ConfigOptionBools   *>(opt.opt)->values[idx] != 0); break;
+            case coFloats:   output.set_d(static_cast<const ConfigOptionFloats  *>(opt.opt)->get_at(idx)); break;
+            case coInts:     output.set_i(static_cast<const ConfigOptionInts    *>(opt.opt)->get_at(idx)); break;
+            case coStrings:  output.set_s(static_cast<const ConfigOptionStrings *>(opt.opt)->get_at(idx)); break;
+            case coPercents: output.set_d(static_cast<const ConfigOptionPercents*>(opt.opt)->get_at(idx)); break;
+            case coFloatsOrPercents: output.set_d(static_cast<const ConfigOptionFloatsOrPercents*>(opt.opt)->get_at(idx).value); break;
+            case coPoints:   output.set_s(to_string(static_cast<const ConfigOptionPoints  *>(opt.opt)->get_at(idx))); break;
+            case coGraphs:   output.set_s(static_cast<const ConfigOptionGraphs  *>(opt.opt)->get_at(idx).serialize()); break;
+            case coBools:    output.set_b(static_cast<const ConfigOptionBools   *>(opt.opt)->get_at(idx) != 0); break;
                 //case coEnums:    output.set_s(opt.opt->vserialize()[idx]); break;
             default:
                 ctx->throw_exception("Unsupported vector variable type", opt.it_range);
@@ -1329,24 +1337,39 @@ namespace client
             switch (lhs.opt->type()) {
             case coFloats:
                 check_numeric(rhs);
-                static_cast<ConfigOptionFloats*>(vec)->values[lhs.index] = rhs.as_d();
+                static_cast<ConfigOptionFloats*>(vec)->set_at(rhs.as_d(), lhs.index);
                 break;
             case coInts:
                 check_numeric(rhs);
-                static_cast<ConfigOptionInts*>(vec)->values[lhs.index] = rhs.as_i();
+                static_cast<ConfigOptionInts*>(vec)->set_at(rhs.as_i(), lhs.index);
                 break;
             case coStrings:
-                static_cast<ConfigOptionStrings*>(vec)->values[lhs.index] = rhs.to_string();
+                static_cast<ConfigOptionStrings*>(vec)->set_at(rhs.to_string(), lhs.index);
                 break;
             case coPercents:
                 check_numeric(rhs);
-                static_cast<ConfigOptionPercents*>(vec)->values[lhs.index] = rhs.as_d();
+                static_cast<ConfigOptionPercents*>(vec)->set_at(rhs.as_d(), lhs.index);
                 break;
             case coBools:
                 if (rhs.type() != expr::TYPE_BOOL)
                     ctx->throw_exception("Right side is not a boolean expression", rhs.it_range);
-                static_cast<ConfigOptionBools*>(vec)->values[lhs.index] = rhs.b();
+                static_cast<ConfigOptionBools*>(vec)->set_at(rhs.b(), lhs.index);
                 break;
+            case coPoints: {
+                ConfigOptionPoint co_pt;
+                co_pt.deserialize(rhs.to_string());
+                static_cast<ConfigOptionPoints *>(vec)->set_at(co_pt.value, lhs.index);
+                break;
+            }
+            case coGraphs: {
+                ConfigOptionGraph co_gr;
+                co_gr.deserialize(rhs.to_string());
+                if (!co_gr.value.validate())
+                    ctx->throw_exception("Malformed graph string", lhs.it_range);
+                else
+                    static_cast<ConfigOptionGraphs *>(vec)->set_at(co_gr.value, lhs.index);
+                break;
+            }
             default:
                 ctx->throw_exception("Unsupported output vector variable type", lhs.it_range);
             }
@@ -1360,20 +1383,35 @@ namespace client
             switch (lhs.opt->type()) {
             case coFloats:
                 check_numeric(rhs_value);
-                static_cast<ConfigOptionFloats*>(opt)->values.assign(count, rhs_value.as_d());
+                static_cast<ConfigOptionFloats*>(opt)->set(std::vector<double>(count, rhs_value.as_d()));
                 break;
             case coInts:
                 check_numeric(rhs_value);
-                static_cast<ConfigOptionInts*>(opt)->values.assign(count, rhs_value.as_i());
+                static_cast<ConfigOptionInts*>(opt)->set(std::vector<int32_t>(count, rhs_value.as_i()));
                 break;
             case coStrings:
-                static_cast<ConfigOptionStrings*>(opt)->values.assign(count, rhs_value.to_string());
+                static_cast<ConfigOptionStrings*>(opt)->set(std::vector<std::string>(count, rhs_value.to_string()));
                 break;
             case coBools:
                 if (rhs_value.type() != expr::TYPE_BOOL)
                     rhs_value.throw_exception("Right side is not a boolean expression");
-                static_cast<ConfigOptionBools*>(opt)->values.assign(count, rhs_value.b());
+                static_cast<ConfigOptionBools*>(opt)->set(std::vector<uint8_t>(count, rhs_value.b()));
                 break;
+            case coPoints: {
+                ConfigOptionPoint co_pt;
+                co_pt.deserialize(rhs_value.to_string());
+                static_cast<ConfigOptionPoints *>(opt)->set(std::vector<Vec2d>(count, co_pt.value));
+                break;
+            }
+            case coGraphs: {
+                ConfigOptionGraph co_gr;
+                co_gr.deserialize(rhs_value.to_string());
+                if (!co_gr.value.validate())
+                    ctx->throw_exception("Malformed graph string", lhs.it_range);
+                else
+                    static_cast<ConfigOptionGraphs *>(opt)->set(std::vector<GraphData>(count, co_gr.value));
+                break;
+            }
             default: assert(false);
             }
         }
@@ -1521,13 +1559,14 @@ namespace client
             }
         }
 
-        template<typename ConfigOptionType, typename RightValueEvaluate>
+        template<typename ConfigOptionType, typename ScalarType, typename RightValueEvaluate>
         static void fill_vector_from_initializer_list(ConfigOption *opt, const std::vector<expr> &il, RightValueEvaluate rv_eval) {
-            auto& out = static_cast<ConfigOptionType*>(opt)->values;
-            out.clear();
-            out.reserve(il.size());
+            //const& out = static_cast<ConfigOptionType*>(opt)->get_values();
+            std::vector<ScalarType> vec;
+            vec.reserve(il.size());
             for (const expr& i : il)
-                out.emplace_back(rv_eval(i));
+                vec.push_back(rv_eval(i));
+            static_cast<ConfigOptionType*>(opt)->set(vec);
         }
 
         static void vector_variable_assign_initializer_list(const MyContext *ctx, OptWithPos &lhs, const std::vector<expr> &il)
@@ -1558,21 +1597,43 @@ namespace client
             switch (lhs.opt->type()) {
             case coFloats:
                 check_numeric_vector(il);
-                fill_vector_from_initializer_list<ConfigOptionFloats>(opt, il, [](auto &v){ return v.as_d(); });
+                fill_vector_from_initializer_list<ConfigOptionFloats, double>(opt, il, [](auto &v){ return v.as_d(); });
                 break;
             case coInts:
                 check_numeric_vector(il);
-                fill_vector_from_initializer_list<ConfigOptionInts>(opt, il, [](auto &v){ return v.as_i(); });
+                fill_vector_from_initializer_list<ConfigOptionInts, int32_t>(opt, il, [](auto &v){ return v.as_i(); });
                 break;
             case coStrings:
-                fill_vector_from_initializer_list<ConfigOptionStrings>(opt, il, [](auto &v){ return v.to_string(); });
+                fill_vector_from_initializer_list<ConfigOptionStrings, std::string>(opt, il, [](auto &v){ return v.to_string(); });
                 break;
             case coBools:
                 for (auto &i : il)
                     if (i.type() != expr::TYPE_BOOL)
                         i.throw_exception("Right side is not a boolean expression");
-                fill_vector_from_initializer_list<ConfigOptionBools>(opt, il, [](auto &v){ return v.b(); });
+                fill_vector_from_initializer_list<ConfigOptionBools, uint8_t>(opt, il, [](auto &v){ return v.b(); });
                 break;
+            case coPoints: {
+                std::vector<Vec2d> vec;
+                vec.reserve(il.size());
+                ConfigOptionPoint co_pt;
+                for (const expr &val : il) {
+                    co_pt.deserialize(val.to_string());
+                    vec.push_back(co_pt.value);
+                }
+                static_cast<ConfigOptionPoints *>(opt)->set(vec);
+                break;
+            }
+            case coGraphs: {
+                std::vector<GraphData> vec;
+                vec.reserve(il.size());
+                ConfigOptionGraph co_gr;
+                for (const expr &val : il) {
+                    co_gr.deserialize(val.to_string());
+                    vec.push_back(co_gr.value);
+                }
+                static_cast<ConfigOptionGraphs *>(opt)->set(vec);
+                break;
+            }
             default: assert(false);
             }
         }
@@ -1691,7 +1752,7 @@ namespace client
                 if (one_of(rhs.opt->type(), { coFloats, coInts, coStrings, coBools }))
                     opt_new = std::unique_ptr<ConfigOption>(rhs.opt->clone());
                 else if (rhs.opt->type() == coPercents)
-                    opt_new = std::make_unique<ConfigOptionFloats>(static_cast<const ConfigOptionPercents*>(rhs.opt)->values);
+                    opt_new = std::make_unique<ConfigOptionFloats>(static_cast<const ConfigOptionPercents*>(rhs.opt)->get_values());
                 else
                     ctx->throw_exception("Duplicating this type of vector variable is not supported", rhs.it_range);
                 const_cast<MyContext*>(ctx)->store_new_variable(lhs.name, std::move(opt_new), global_variable);
@@ -2750,11 +2811,11 @@ void PlaceholderParser::parse_custom_variables(const ConfigOptionString& custom_
 void PlaceholderParser::parse_custom_variables(const ConfigOptionStrings& filament_custom_variables)
 {
     std::map<std::string, std::vector<std::string>> name2var_array;
-    const std::vector<std::string> empty_array(filament_custom_variables.values.size());
+    const std::vector<std::string> empty_array(filament_custom_variables.size());
 
-    for (int extruder_id = 0; extruder_id < filament_custom_variables.values.size(); ++extruder_id)
+    for (size_t extruder_id = 0; extruder_id < filament_custom_variables.size(); ++extruder_id)
     {
-        std::string raw_text = filament_custom_variables.values[extruder_id];
+        std::string raw_text = filament_custom_variables.get_at(extruder_id);
         boost::erase_all(raw_text, "\r");
         std::vector<std::string> lines;
         boost::algorithm::split(lines, raw_text, boost::is_any_of("\n"));
@@ -2773,7 +2834,7 @@ void PlaceholderParser::parse_custom_variables(const ConfigOptionStrings& filame
             }
         }
     }
-    append_custom_variables(name2var_array, uint16_t(filament_custom_variables.values.size()));
+    append_custom_variables(name2var_array, uint16_t(filament_custom_variables.size()));
 }
 
 }

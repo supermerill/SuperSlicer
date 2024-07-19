@@ -15,8 +15,9 @@
 
 #include <wx/image.h>
 
-#include <boost/filesystem.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/filesystem.hpp>
+#include <boost/log/trivial.hpp>
 
 #include <vector>
 #include <algorithm>
@@ -417,6 +418,7 @@ bool GLTexture::load_from_png(const std::string& filename, bool use_mipmaps, ECo
 
     // Load a PNG with an alpha channel.
     wxImage image;
+    BOOST_LOG_TRIVIAL(debug) << "Trying to load texture (load_from_png) image: '"<<filename.c_str()<<"'";
     if (!image.LoadFile(wxString::FromUTF8(filename.c_str()), wxBITMAP_TYPE_PNG)) {
         reset();
         return false;

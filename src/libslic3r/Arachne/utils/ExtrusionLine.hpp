@@ -223,6 +223,13 @@ static inline Slic3r::ThickPolyline to_thick_polyline(const ClipperLib_Z::Path &
             out.points_width.emplace_back(it->z());
         }
     }
+    // Don't create 1-element polyline.
+    if(out.points.size() <2)
+        return {};
+
+    assert(out.points.back().coincides_with_epsilon(Point{ path.back().x(), path.back().y() }));
+    out.points.back() = Point{ path.back().x(), path.back().y() };
+
     assert(out.points.front().x() == path.front().x());
     assert(out.points.front().y() == path.front().y());
     assert(out.points.back().x() == path.back().x());

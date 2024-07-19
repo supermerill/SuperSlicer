@@ -155,7 +155,7 @@ void FillPlanePath::_fill_surface_single(
     if (params.dont_connect() || params.density > 0.5 || all_poly.size() <= 1)
         chained = chain_polylines(std::move(all_poly));
     else
-        connect_infill(std::move(all_poly), expolygon, chained, this->get_spacing(), params);
+        connect_infill(std::move(all_poly), expolygon, chained, scale_t(this->get_spacing()), params);
     // paths must be repositioned and rotated back
     for (Polyline &pl : chained) {
         pl.translate(double(shift.x()), double(shift.y()));

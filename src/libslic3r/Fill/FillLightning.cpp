@@ -23,7 +23,7 @@ void Filler::_fill_surface_single(
     if (params.dont_connect() || fill_lines.size() <= 1) {
         append(polylines_out, chain_polylines(std::move(fill_lines)));
     } else
-        connect_infill(std::move(fill_lines), expolygon, polylines_out, this->get_spacing(), params);
+        connect_infill(std::move(fill_lines), expolygon, polylines_out, scale_t(this->get_spacing()), params);
 }
 
 void GeneratorDeleter::operator()(Generator *p) {

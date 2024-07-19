@@ -1,5 +1,5 @@
 #logs
-page:print:
+page:Frequent settings:
 group:freq_settings_event:no_title:no_search:
 	line:
 		setting:simple:script:enum$none$None$bp$Support on build plate only$se$For support enforcers only$ev$Everywhere:depends$support_material$support_material_auto$support_material_buildplate_only:label$Supports:tooltip$Select what kind of support do you need:full_width:s_support_fff

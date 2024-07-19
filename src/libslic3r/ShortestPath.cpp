@@ -83,6 +83,7 @@ std::vector<std::pair<size_t, bool>> chain_segments_closest_point(std::vector<En
 // The algorithm builds a tour for the traveling salesman one edge at a time and thus maintains multiple tour fragments, each of which 
 // is a simple path in the complete graph of cities. At each stage, the algorithm selects the edge of minimal cost that either creates 
 // a new fragment, extends one of the existing paths or creates a cycle of length equal to the number of cities.
+// supermerill note: this don't work if the shape is a '8' with a common point in the middle
 template<typename PointType, typename SegmentEndPointFunc, bool REVERSE_COULD_FAIL, typename CouldReverseFunc>
 std::vector<std::pair<size_t, bool>> chain_segments_greedy_constrained_reversals_(SegmentEndPointFunc end_point_func, CouldReverseFunc could_reverse_func, size_t num_segments, const PointType *start_near)
 {
@@ -1091,6 +1092,40 @@ std::vector<std::pair<size_t, bool>> chain_extrusion_paths(std::vector<Extrusion
 	return chain_segments_greedy<Point, decltype(segment_end_point)>(segment_end_point, extrusion_paths.size(), start_near);
 }
 
+//TODO derecusify
+bool brute_force_reorder(const std::vector<ExtrusionPath> &in, std::vector<bool> &used, std::vector<ExtrusionPath> &out, Point previous)
+{
+    size_t nb_used = 0;
+    for (size_t i = 0; i < in.size(); ++i) {
+        if (!used[i]) {
+            if (in[i].first_point().coincides_with_epsilon(previous)) {
+                out.push_back(in[i]);
+                used[i] = true;
+                if (brute_force_reorder(in, used, out, out.back().last_point())) {
+                    return true;
+                } else {
+                    used[i] = false;
+                    out.pop_back();
+                }
+            }
+            if (in[i].last_point().coincides_with_epsilon(previous)) {
+                out.push_back(in[i]);
+                out.back().reverse();
+                used[i] = true;
+                if (brute_force_reorder(in, used, out, out.back().last_point())) {
+                    return true;
+                } else {
+                    used[i] = false;
+                    out.pop_back();
+                }
+            }
+        } else {
+            nb_used++;
+        }
+    }
+    return nb_used == used.size();
+}
+
 void reorder_extrusion_paths(std::vector<ExtrusionPath> &extrusion_paths, const std::vector<std::pair<size_t, bool>> &chain)
 {
 	assert(extrusion_paths.size() == chain.size());
@@ -1113,7 +1148,30 @@ void reorder_extrusion_paths(std::vector<ExtrusionPath> &extrusion_paths, const 
 
 void chain_and_reorder_extrusion_paths(std::vector<ExtrusionPath> &extrusion_paths, const Point *start_near)
 {
-	reorder_extrusion_paths(extrusion_paths, chain_extrusion_paths(extrusion_paths, start_near));
+    reorder_extrusion_paths(extrusion_paths, chain_extrusion_paths(extrusion_paths, start_near));
+    // The chain_extrusion_paths algorithm can't handle a point shared by four segments instead of two.
+    // check that it isn't confused
+    bool chain_ok = true;
+    for (size_t idx = 1; chain_ok && idx < extrusion_paths.size(); ++idx) {
+        chain_ok = extrusion_paths[idx - 1].last_point().coincides_with_epsilon(extrusion_paths[idx].first_point());
+    }
+    if (!chain_ok) {
+        // sometimes, just re-do the thing can solve it
+        reorder_extrusion_paths(extrusion_paths, chain_extrusion_paths(extrusion_paths, start_near));
+        chain_ok = true;
+        for (size_t idx = 1; chain_ok && idx < extrusion_paths.size(); ++idx) {
+            chain_ok = extrusion_paths[idx - 1].last_point().coincides_with_epsilon(
+                extrusion_paths[idx].first_point());
+        }
+        if (!chain_ok) {
+            // problem, brute-force it.
+            std::vector<ExtrusionPath> out;
+            std::vector<bool>          used;
+            used.resize(extrusion_paths.size(), false);
+            bool result = brute_force_reorder(extrusion_paths, used, out, extrusion_paths.front().first_point());
+            extrusion_paths = out;
+        }
+    }
 }
 
 std::vector<size_t> chain_points(const Points &points, Point *start_near)

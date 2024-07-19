@@ -618,10 +618,10 @@ void OG_CustomCtrl::CtrlLine::update_visibility(ConfigOptionMode mode)
     if (og_line.is_separator())
         return;
     const std::vector<Option> &option_set = og_line.get_options();
-    if (option_set.empty())
+    if (option_set.empty() && og_line.tags_override != comNone)
         return;
 
-    ConfigOptionMode line_mode = option_set.front().opt.mode;
+    ConfigOptionMode line_mode = option_set.empty() ? og_line.tags_override : option_set.front().opt.mode;
     for (const Option& opt : option_set)
         line_mode |= opt.opt.mode;
     is_line_visible = line_mode == comNone || (line_mode & mode) == mode;

@@ -462,6 +462,8 @@ private:
     std::string                         m_delayed_layer_change;
     // Keeps track of the last extrusion role passed to the processor
     GCodeExtrusionRole                  m_last_processor_extrusion_role;
+    // For Progress bar indicator, in sequential mode (complete objects)
+    std::set<const PrintObject*>              m_object_sequentially_printed;
     // How many times will change_layer() be called?
     // change_layer() will update the progress bar.
     uint32_t                            m_layer_count;
@@ -540,6 +542,7 @@ private:
     // as the retraction/unretraction can be written after the start/end of the algoruihtm block, it has to be delayed.
     std::string m_gcode_label_objects_start;
     std::string m_gcode_label_objects_end;
+    bool m_gcode_label_objects_in_session = false;
     void _add_object_change_labels(std::string &gcode);
     void ensure_end_object_change_labels(std::string &gcode);
 
@@ -551,15 +554,19 @@ private:
     //some post-processing on the file, with their data class
     std::unique_ptr<FanMover> m_fan_mover;
 
+    std::function<void()> m_throw_if_canceled = [](){};
+
+    double                    _compute_e_per_mm(double path_mm3_per_mm);
     std::string               _extrude(const ExtrusionPath &path, const std::string_view description, double speed = -1);
-    void                      _extrude_line(std::string& gcode_str, const Line& line, const double e_per_mm, const std::string_view comment);
+    void                      _extrude_line(std::string& gcode_str, const Line& line, const double e_per_mm, const std::string_view comment, ExtrusionRole role);
     void                      _extrude_line_cut_corner(std::string& gcode_str, const Line& line, const double e_per_mm, const std::string_view comment, Point& last_pos, const double path_width);
     std::string               _before_extrude(const ExtrusionPath &path, const std::string_view description, double speed = -1);
-    double_t                  _compute_speed_mm_per_sec(const ExtrusionPath &path_attrs, double speed, double &fan_speed);
+    double_t                  _compute_speed_mm_per_sec(const ExtrusionPath &path_attrs, double speed, double &fan_speed, std::string *comment);
     std::pair<double, double> _compute_acceleration(const ExtrusionPath &path);
     std::string               _after_extrude(const ExtrusionPath &path);
     void print_machine_envelope(GCodeOutputStream &file, const Print &print);
     void _print_first_layer_bed_temperature(std::string &out, const Print &print, const std::string &gcode, uint16_t first_printing_extruder_id, bool wait);
+    void _print_first_layer_chamber_temperature(std::string &out, const Print &print, const std::string &gcode, uint16_t first_printing_extruder_id, bool wait);
     void _print_first_layer_extruder_temperatures(std::string &out, const Print &print, const std::string &gcode, uint16_t first_printing_extruder_id, bool wait);
     // On the first printing layer. This flag triggers first layer speeds.
     bool                                on_first_layer() const { return m_layer != nullptr && m_layer->id() == 0; }

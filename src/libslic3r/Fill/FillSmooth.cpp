@@ -69,7 +69,7 @@ namespace Slic3r {
         f2->init_spacing(this->get_spacing(), params);
         f2->layer_id = this->layer_id;
         f2->z = this->z;
-        f2->angle = anglePass[idx] + this->angle;
+        f2->angle = (this->can_angle_cross ? anglePass[idx] : 0) + this->angle;
         // Maximum length of the perimeter segment linking two infill lines.
         f2->link_max_length = this->link_max_length;
         // Used by the concentric infill pattern to clip the loops to create extrusion paths.

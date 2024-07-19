@@ -20,7 +20,8 @@ GCodeExtrusionRole extrusion_role_to_gcode_extrusion_role(ExtrusionRole role)
     if (role == ExtrusionRole::None)                return GCodeExtrusionRole::None;
     if (role.is_perimeter()) {
         return role.is_bridge() ? GCodeExtrusionRole::OverhangPerimeter :
-               role.is_external() ? GCodeExtrusionRole::ExternalPerimeter : GCodeExtrusionRole::Perimeter;
+               role.is_external() ? GCodeExtrusionRole::ExternalPerimeter : 
+                                    GCodeExtrusionRole::Perimeter;
     }
     if (role == ExtrusionRole::InternalInfill)      return GCodeExtrusionRole::InternalInfill;
     if (role == ExtrusionRole::SolidInfill)         return GCodeExtrusionRole::SolidInfill;
@@ -111,45 +112,45 @@ GCodeExtrusionRole string_to_gcode_extrusion_role(const std::string_view role)
 
 std::string role_to_code(ExtrusionRole role)
 {
-    if (ExtrusionRole::None == role)
+    if (role == ExtrusionRole::None)
         return L("None");
-    else if (ExtrusionRole::Perimeter == role)
+    else if (role == ExtrusionRole::Perimeter)
         return L("IPeri");
-    else if (ExtrusionRole::ExternalPerimeter == role)
+    else if (role == ExtrusionRole::ExternalPerimeter)
         return L("EPeri");
-    else if (ExtrusionRole::OverhangPerimeter == role)
+    else if (role.is_overhang())
         return L("OPeri");
-    else if (ExtrusionRole::InternalInfill == role)
+    else if (role == ExtrusionRole::InternalInfill)
         return L("IFill");
-    else if (ExtrusionRole::SolidInfill == role)
+    else if (role == ExtrusionRole::SolidInfill)
         return L("SFill");
-    else if (ExtrusionRole::TopSolidInfill == role)
+    else if (role == ExtrusionRole::TopSolidInfill)
         return L("TFill");
-    else if (ExtrusionRole::Ironing == role)
+    else if (role == ExtrusionRole::Ironing)
         return L("Iron");
-    else if (ExtrusionRole::BridgeInfill == role)
+    else if (role == ExtrusionRole::BridgeInfill)
         return L("EBridge");
-    else if (ExtrusionRole::InternalBridgeInfill == role)
+    else if (role == ExtrusionRole::InternalBridgeInfill)
         return L("IBridge");
-    else if (ExtrusionRole::ThinWall == role)
+    else if (role == ExtrusionRole::ThinWall)
         return L("ThinW");
-    else if (ExtrusionRole::GapFill == role)
+    else if (role == ExtrusionRole::GapFill)
         return L("GFill");
-    else if (ExtrusionRole::Skirt == role)
+    else if (role == ExtrusionRole::Skirt)
         return L("Skirt");
-    else if (ExtrusionRole::SupportMaterial == role)
+    else if (role == ExtrusionRole::SupportMaterial)
         return L("Supp");
-    else if (ExtrusionRole::SupportMaterialInterface == role)
+    else if (role == ExtrusionRole::SupportMaterialInterface)
         return L("SuppI");
-    else if (ExtrusionRole::WipeTower == role)
+    else if (role == ExtrusionRole::WipeTower)
         return L("WTower");
-    else if (ExtrusionRole::Milling == role)
+    else if (role == ExtrusionRole::Milling)
         return L("Mill");
-    //else if (ExtrusionRole::Custom == role)
+    //else if (role == ExtrusionRole::Custom)
     //    return L("Custom");
-    else if (ExtrusionRole::Mixed == role)
+    else if (role == ExtrusionRole::Mixed)
         return L("Mixed");
-    else if (ExtrusionRole::Travel == role)
+    else if (role == ExtrusionRole::Travel)
         return L("Travel");
     else
         assert(false);
@@ -174,5 +175,12 @@ std::string looprole_to_code(ExtrusionLoopRole looprole)
 
     return code;
 }
+
+
+//bool operator==(ExtrusionRoleModifier const &lhs, ExtrusionRole const &rhs) { return lhs == ExtrusionRoleModifier(rhs); }
+//bool operator!=(ExtrusionRoleModifier const &lhs, ExtrusionRole const &rhs) { return lhs != ExtrusionRoleModifier(rhs); }
+//ExtrusionRole operator|(ExtrusionRoleModifier const &lhs, ExtrusionRole const &rhs) { return ExtrusionRole(lhs | ExtrusionRoleModifier(rhs)); }
+//ExtrusionRole operator&(ExtrusionRoleModifier const &lhs, ExtrusionRole const &rhs) { return ExtrusionRole(lhs & ExtrusionRoleModifier(rhs)); }
+//ExtrusionRole operator^(ExtrusionRoleModifier const &lhs, ExtrusionRole const &rhs) { return ExtrusionRole(lhs ^ ExtrusionRoleModifier(rhs)); }
 
 }

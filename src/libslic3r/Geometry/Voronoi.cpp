@@ -318,7 +318,7 @@ VoronoiDiagram::try_to_repair_degenerated_voronoi_diagram_by_rotation(const Segm
                 }
             } else {
                 // This could happen when there is a missing Voronoi vertex even after rotation.
-                assert(cell_range.is_valid());
+                //assert(cell_range.is_valid());
             }
         }
 

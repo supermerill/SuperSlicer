@@ -2837,11 +2837,12 @@ bool NotificationManager::push_notification_data(std::unique_ptr<NotificationMan
 	if (!m_initialized)
 		return retval;
     //schedule_extra_frame has to run from main thread
-    if(wxThread::IsMain())
+    if (wxThread::IsMain()) {
         wxGetApp().plater()->get_current_canvas3D()->schedule_extra_frame(0);
-    else
-        wxGetApp().CallAfter([](){ wxGetApp().plater()->get_current_canvas3D()->schedule_extra_frame(0); });
-	return retval;
+    } else {
+        wxGetApp().CallAfter([]() { wxGetApp().plater()->get_current_canvas3D()->schedule_extra_frame(0); });
+    }
+    return retval;
 }
 
 void NotificationManager::push_delayed_notification_data(std::unique_ptr<NotificationManager::PopNotification> notification, std::function<bool(void)> condition_callback, int64_t initial_delay, int64_t delay_interval)

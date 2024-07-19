@@ -21,7 +21,7 @@ public:
         m_right(float(/*print_config.wipe_tower_x.value +*/ print_config.wipe_tower_width.value)),
         m_wipe_tower_pos(float(print_config.wipe_tower_x.value), float(print_config.wipe_tower_y.value)),
         m_wipe_tower_rotation(float(print_config.wipe_tower_rotation_angle)),
-        m_extruder_offsets(print_config.extruder_offset.values),
+        m_extruder_offsets(print_config.extruder_offset.get_values()),
         m_priming(priming),
         m_tool_changes(tool_changes),
         m_final_purge(final_purge),

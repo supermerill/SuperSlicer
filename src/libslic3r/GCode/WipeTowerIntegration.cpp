@@ -136,9 +136,7 @@ std::string WipeTowerIntegration::append_tcr(GCodeGenerator &gcodegen, const Wip
         gcode += gcodegen.writer().retract();
         gcode += gcodegen.writer().travel_to_z(current_z, "Travel back up to the topmost object layer.");
         // gcode += gcodegen.writer().unretract(); //why? it's done automatically later, where needed!
-    }
-
-    else {
+    } else {
         // Prepare a future wipe.
         // Convert to a smooth path.
         Geometry::ArcWelder::Path path;
@@ -148,6 +146,7 @@ std::string WipeTowerIntegration::append_tcr(GCodeGenerator &gcodegen, const Wip
                 return Geometry::ArcWelder::Segment(wipe_tower_point_to_object_point(gcodegen, transform_wt_pt(wipe_pt)), 0, Geometry::ArcWelder::Orientation::CCW);
             });
         // Pass to the wipe cache.
+        assert(gcodegen.m_wipe.path().empty());
         gcodegen.m_wipe.set_path(std::move(path));
     }
 

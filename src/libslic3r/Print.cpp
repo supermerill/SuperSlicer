@@ -46,10 +46,13 @@
 #include <limits>
 #include <string>
 #include <unordered_set>
+
 #include <boost/filesystem/path.hpp>
 #include <boost/format.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/regex.hpp>
+
+#include <tbb/parallel_for.h>
 
 namespace Slic3r {
 
@@ -78,29 +81,27 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
     if (opt_keys.empty())
         return false;
 
+
     // Cache the plenty of parameters, which influence the G-code generator only,
     // or they are only notes not influencing the generated G-code.
     static std::unordered_set<std::string> steps_gcode = {
+        "allow_empty_layers",
         "autoemit_temperature_commands",
         "avoid_crossing_perimeters",
         "avoid_crossing_perimeters_max_detour",
         "avoid_crossing_not_first_layer",
-        "avoid_crossing_top",
         "bed_shape",
         "bed_temperature",
         "before_layer_gcode",
         "between_objects_gcode",
         "binary_gcode",
-        "bridge_acceleration",
-        "bridge_internal_acceleration",
         "bridge_fan_speed",
-        "bridge_internal_fan_speed",
-        "brim_acceleration",
         "chamber_temperature",
+        "color_change_gcode",
         "colorprint_heights",
         "complete_objects_sort",
-        "cooling",
-        "default_acceleration",
+        "complete_objects_one_brim",
+        //"cooling",
         "default_fan_speed",
         "deretract_speed",
         "disable_fan_first_layers",
@@ -113,13 +114,12 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "enforce_retract_first_layer",
         "end_gcode",
         "end_filament_gcode",
-        "external_perimeter_acceleration",
-        "external_perimeter_cut_corners",
         "external_perimeter_fan_speed",
         "extrusion_axis",
         "extruder_clearance_height",
         "extruder_clearance_radius",
         "extruder_colour",
+        "extruder_extrusion_multiplier_speed",
         "extruder_offset",
         "extruder_fan_offset"
         "extruder_temperature_offset",
@@ -128,28 +128,22 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "fan_kickstart",
         "fan_speedup_overhangs",
         "fan_speedup_time",
+        "feature_gcode",
         "fan_percentage",
         "fan_printer_min_speed",
         "filament_colour",
         "filament_custom_variables",
         "filament_diameter",
         "filament_density",
+        "filament_load_time",
         "filament_notes",
         "filament_cost",
         "filament_spool_weight",
-        "first_layer_acceleration",
-        "first_layer_acceleration_over_raft",
+        "filament_unload_time",
+        "filament_wipe_advanced_pigment",
         "first_layer_bed_temperature",
-        "first_layer_flow_ratio",
-        "first_layer_speed", // ? delete y prusa here in 2.4
-        "first_layer_speed_over_raft",
-        "first_layer_infill_speed",
-        "first_layer_min_speed",
         "full_fan_speed_layer",
-        "gap_fill_acceleration",
         "gap_fill_fan_speed",
-        "gap_fill_flow_match_perimeter",
-        "gap_fill_speed",
         "gcode_ascii",
         "gcode_comments",
         "gcode_filename_illegal_char",
@@ -157,33 +151,36 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "gcode_precision_xyz",
         "gcode_precision_e",
         "gcode_substitutions",
-        "infill_acceleration",
         "infill_fan_speed",
-        "ironing_acceleration",
+        "internal_bridge_fan_speed",
         "layer_gcode",
+        "lift_min",
         "max_fan_speed",
         "max_gcode_per_second",
         "max_print_height",
         "max_print_speed",
+        "max_speed_reduction",
         "max_volumetric_speed",
         "min_length",
         "min_print_speed",
+        "milling_diameter",
         "milling_toolchange_end_gcode",
         "milling_toolchange_start_gcode",
-        "milling_offset",
-        "milling_z_offset",
-        "milling_z_lift",
         "max_volumetric_extrusion_rate_slope_positive",
         "max_volumetric_extrusion_rate_slope_negative",
         "notes",
         "only_retract_when_crossing_perimeters",
         "output_filename_format",
-        "overhangs_acceleration",
         "overhangs_fan_speed",
-        "perimeter_acceleration",
+        "parallel_objects_step",
+        "pause_print_gcode",
         "post_process",
+        "print_custom_variables",
+        "printer_custom_variables",
         "perimeter_fan_speed",
         "printer_notes",
+        "remaining_times",
+        "remaining_times_type",
         "travel_ramping_lift",
         "travel_initial_part_length",
         "travel_slope",
@@ -203,9 +200,9 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "retract_restart_extra",
         "retract_restart_extra_toolchange",
         "retract_speed",
+        "silent_mode",
         "single_extruder_multi_material_priming",
         "slowdown_below_layer_time",
-        "solid_infill_acceleration",
         "solid_infill_fan_speed",
         "support_material_acceleration",
         "support_material_fan_speed",
@@ -215,8 +212,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "start_gcode",
         "start_gcode_manual",
         "start_filament_gcode",
-        "thin_walls_acceleration",
-        "thin_walls_speed",
+        "template_custom_gcode",
         "thumbnails",
         "thumbnails_color",
         "thumbnails_custom_color",
@@ -231,17 +227,16 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "tool_name",
         "toolchange_gcode",
         "top_fan_speed",
-        "top_solid_infill_acceleration",
         "threads",
-        "travel_acceleration",
-        "travel_deceleration_use_target",
-        "travel_speed",
-        "travel_speed_z",
         "use_firmware_retraction",
         "use_relative_e_distances",
         "use_volumetric_e",
         "variable_layer_height",
         "wipe",
+        "wipe_advanced",
+        "wipe_advanced_algo",
+        "wipe_advanced_multiplier",
+        "wipe_advanced_nozzle_melted_volume",
         "wipe_extra_perimeter",
         "wipe_inside_depth",
         "wipe_inside_end",
@@ -257,6 +252,9 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
     bool invalidated = false;
 
     for (const t_config_option_key &opt_key : opt_keys) {
+        //this one isn't even use in slicing, only for import.
+        if (opt_key == "init_z_rotate")
+            continue;
         if (steps_gcode.find(opt_key) != steps_gcode.end()) {
             // These options only affect G-code export or they are just notes without influence on the generated G-code,
             // so there is nothing to invalidate.
@@ -269,23 +267,22 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
             || opt_key == "min_skirt_length"
             || opt_key == "ooze_prevention"
             || opt_key == "skirts"
-            || opt_key == "skirt_height"
             || opt_key == "skirt_brim"
             || opt_key == "skirt_distance"
             || opt_key == "skirt_distance_from_brim"
+            || opt_key == "skirt_extrusion_width"
+            || opt_key == "skirt_height"
             || opt_key == "wipe_tower_x"
             || opt_key == "wipe_tower_y"
             || opt_key == "wipe_tower_rotation_angle"
             ) {
             steps.emplace_back(psSkirtBrim);
         } else if (
-               opt_key == "filament_shrink"
-            || opt_key == "first_layer_height"
+               opt_key == "bridge_precision"
+            || opt_key == "filament_shrink"
             || opt_key == "nozzle_diameter"
-            || opt_key == "model_precision"
             || opt_key == "resolution"
             || opt_key == "resolution_internal"
-            || opt_key == "slice_closing_radius"
             // Spiral Vase forces different kind of slicing than the normal model:
             // In Spiral Vase mode, holes are closed and only the largest area contour is kept at each layer.
             // Therefore toggling the Spiral Vase on / off requires complete reslicing.
@@ -295,14 +292,13 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         } else if (
                opt_key == "complete_objects"
             || opt_key == "filament_type"
-            || opt_key == "filament_soluble"
-            || opt_key == "first_layer_temperature"
             || opt_key == "filament_loading_speed"
             || opt_key == "filament_loading_speed_start"
             || opt_key == "filament_unloading_speed"
             || opt_key == "filament_unloading_speed_start"
             || opt_key == "filament_toolchange_delay"
             || opt_key == "filament_cooling_moves"
+            || opt_key == "filament_max_wipe_tower_speed"
             || opt_key == "filament_minimal_purge_on_wipe_tower"
             || opt_key == "filament_cooling_initial_speed"
             || opt_key == "filament_cooling_final_speed"
@@ -323,9 +319,10 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
             || opt_key == "filament_toolchange_part_fan_speed"
             || opt_key == "filament_dip_insertion_speed"
             || opt_key == "filament_dip_extraction_speed"    //skinnydip params end	
+            || opt_key == "first_layer_temperature"
             || opt_key == "gcode_flavor"
             || opt_key == "high_current_on_filament_swap"
-            || opt_key == "infill_first"
+            || opt_key == "priming_position"
             || opt_key == "single_extruder_multi_material"
             || opt_key == "temperature"
             || opt_key == "idle_temperature"
@@ -337,8 +334,10 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
             || opt_key == "wipe_tower_extra_spacing"
             || opt_key == "wipe_tower_no_sparse_layers"
             || opt_key == "wipe_tower_extruder"
+            || opt_key == "wipe_tower_per_color_wipe"
             || opt_key == "wipe_tower_speed"
             || opt_key == "wipe_tower_wipe_starting_speed"
+            || opt_key == "wiping_volumes_extruders"
             || opt_key == "wiping_volumes_matrix"
             || opt_key == "parking_pos_retraction"
             || opt_key == "cooling_tube_retraction"
@@ -346,7 +345,6 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
             || opt_key == "extra_loading_move"
             || opt_key == "travel_speed"
             || opt_key == "travel_speed_z"
-            || opt_key == "first_layer_speed"
             || opt_key == "z_offset") {
             steps.emplace_back(psWipeTower);
             steps.emplace_back(psSkirtBrim);
@@ -357,8 +355,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
             //FIXME Killing supports on any change of "filament_soluble" is rough. We should check for each object whether that is necessary.
             osteps.emplace_back(posSupportMaterial);
         } else if (
-            opt_key == "first_layer_extrusion_width"
-            || opt_key == "arc_fitting"
+            opt_key == "arc_fitting"
             || opt_key == "arc_fitting_tolerance"
             || opt_key == "min_layer_height"
             || opt_key == "max_layer_height"
@@ -369,6 +366,8 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
             osteps.emplace_back(posSimplifyPath);
             osteps.emplace_back(posSupportMaterial);
             steps.emplace_back(psSkirtBrim);
+        } else if (opt_key == "seam_gap" || opt_key == "seam_gap_external") {
+            osteps.emplace_back(posInfill);
         }
         else if (opt_key == "avoid_crossing_curled_overhangs")
             osteps.emplace_back(posEstimateCurledExtrusions);
@@ -640,10 +639,11 @@ double Print::get_object_first_layer_height(const PrintObject& object) const {
         }
         object_first_layer_height = 1000000000;
         for (uint16_t extruder_id : object_extruders) {
-            double nozzle_diameter = config().nozzle_diameter.values[extruder_id];
+            double nozzle_diameter = config().nozzle_diameter.get_at(extruder_id);
             object_first_layer_height = std::min(object_first_layer_height, object.config().first_layer_height.get_abs_value(nozzle_diameter));
         }
     }
+    assert(object_first_layer_height < 1000000000);
     return object_first_layer_height;
 }
 
@@ -1071,7 +1071,7 @@ Flow Print::brim_flow(size_t extruder_id, const PrintObjectConfig& brim_config) 
         *Flow::extrusion_spacing_option("brim", tempConf),
         (float)m_config.nozzle_diameter.get_at(extruder_id),
         (float)get_first_layer_height(),
-        (extruder_id < m_config.nozzle_diameter.values.size()) ? brim_config.get_computed_value("filament_max_overlap", extruder_id) : 1
+        (extruder_id < m_config.nozzle_diameter.size()) ? brim_config.get_computed_value("filament_max_overlap", extruder_id) : 1
     );
 }
 
@@ -1090,7 +1090,7 @@ Flow Print::skirt_flow(size_t extruder_id, bool first_layer/*=false*/) const
         }
         //get object first layer extruder diam
         for (uint16_t extruder_id : object_extruders) {
-            double nozzle_diameter = config().nozzle_diameter.values[extruder_id];
+            double nozzle_diameter = config().nozzle_diameter.get_at(extruder_id);
             max_nozzle_diam = std::max(max_nozzle_diam, nozzle_diameter);
         }
     }
@@ -1124,7 +1124,7 @@ void Print::auto_assign_extruders(ModelObject* model_object) const
     if (model_object->volumes.size() < 2)
         return;
     
-//    size_t extruders = m_config.nozzle_diameter.values.size();
+//    size_t extruders = m_config.nozzle_diameter.size();
     for (size_t volume_id = 0; volume_id < model_object->volumes.size(); ++ volume_id) {
         ModelVolume *volume = model_object->volumes[volume_id];
         //FIXME Vojtech: This assigns an extruder ID even to a modifier volume, if it has a material assigned.
@@ -1132,6 +1132,18 @@ void Print::auto_assign_extruders(ModelObject* model_object) const
             volume->config.set("extruder", int(volume_id + 1));
     }
 }
+
+#ifdef _DEBUG
+class CheckOrientation : public ExtrusionVisitorRecursiveConst
+{
+public:
+    bool ccw;
+    CheckOrientation(bool is_ccw) : ExtrusionVisitorRecursiveConst() {ccw = (is_ccw);}
+    void use(const ExtrusionLoop &loop) override {
+        assert(loop.is_counter_clockwise() == ccw);
+    }
+};
+#endif
 
 // Slicing process, running at a background thread.
 void Print::process()
@@ -1204,9 +1216,15 @@ void Print::process()
                     obj->m_instances.emplace_back();
                     this->_make_skirt({ obj }, obj->m_skirt, obj->m_skirt_first_layer);
                     obj->m_instances = copies;
+#ifdef _DEBUG
+                    obj->m_skirt.start_visit(CheckOrientation(true));
+#endif
                 }
             } else {
                 this->_make_skirt(m_objects, m_skirt, m_skirt_first_layer);
+#ifdef _DEBUG
+                m_skirt.start_visit(CheckOrientation(true));
+#endif
             }
         }
 
@@ -1343,7 +1361,30 @@ void Print::process()
     if (conflictRes.has_value())
         BOOST_LOG_TRIVIAL(error) << boost::format("gcode path conflicts found between %1% and %2%") % conflictRes->_objName1 % conflictRes->_objName2;
 
-    
+#ifdef _DEBUG
+    struct PointAssertVisitor : public ExtrusionVisitorRecursiveConst {
+        virtual void default_use(const ExtrusionEntity& entity) override {};
+        virtual void use(const ExtrusionPath &path) override {
+            for (size_t idx = 1; idx < path.size(); ++idx)
+                assert(!path.polyline.get_point(idx - 1).coincides_with_epsilon(path.polyline.get_point(idx)));
+        }
+        virtual void use(const ExtrusionLoop& loop) override {
+            Point last_pt = loop.last_point();
+            for (const ExtrusionPath &path : loop.paths) {
+                assert(path.polyline.size() >= 2);
+                assert(path.first_point() == last_pt);
+                for (size_t idx = 1; idx < path.size(); ++idx)
+                    assert(!path.polyline.get_point(idx - 1).coincides_with_epsilon(path.polyline.get_point(idx)));
+                last_pt = path.last_point();
+            }
+            assert(loop.paths.front().first_point() == loop.paths.back().last_point());
+        }
+    } ptvisitor;
+    for (PrintObject* obj : m_objects)
+        for (Layer* lay : obj->layers())
+            for (LayerRegion* lr : lay->regions())
+                lr->perimeters().visit(ptvisitor);
+#endif
     //simplify / make arc fitting
     {
         const bool spiral_mode = config().spiral_vase;
@@ -1432,6 +1473,7 @@ std::string Print::export_gcode(const std::string& path_template, GCodeProcessor
 
 void Print::_make_skirt(const PrintObjectPtrs &objects, ExtrusionEntityCollection &out, std::optional<ExtrusionEntityCollection>& out_first_layer)
 {
+    assert(out.empty());
     // First off we need to decide how tall the skirt must be.
     // The skirt_height option from config is expressed in layers, but our
     // object might have different layer heights, so we need to find the print_z
@@ -1581,9 +1623,9 @@ void Print::_make_skirt(const PrintObjectPtrs &objects, ExtrusionEntityCollectio
             false
         );
         eloop.paths.back().polyline = loop.split_at_first_point();
-        //we make it clowkwise, but as it will be reversed, it will be ccw
+        //we make it counter-clowkwise, as loop aren't reversed
         //eloop.make_clockwise();
-        if(!eloop.is_clockwise())
+        if(eloop.is_clockwise())
             eloop.reverse();
         if(!first_layer_only)
             out.append(eloop);
@@ -1614,10 +1656,16 @@ void Print::_make_skirt(const PrintObjectPtrs &objects, ExtrusionEntityCollectio
             // The skirt lenght is not limited, extrude the skirt with the 1st extruder only.
         }
     }
+#ifdef _DEBUG
+    out.start_visit(CheckOrientation{true});
+#endif
     // Brims were generated inside out, reverse to print the outmost contour first.
     out.reverse();
     if (out_first_layer)
         out_first_layer->reverse();
+#ifdef _DEBUG
+    out.start_visit(CheckOrientation(true));
+#endif
 
     // Remember the outer edge of the last skirt line extruded as m_skirt_convex_hull.
     for (Polygon &poly : offset(convex_hull, distance + 0.5f * float(this->skirt_flow(extruders[extruders.size() - 1]).scaled_spacing()), ClipperLib::jtRound, float(scale_(0.1))))
@@ -1848,7 +1896,7 @@ bool Print::has_wipe_tower() const
     return 
         ! m_config.spiral_vase.value &&
         m_config.wipe_tower.value && 
-        m_config.nozzle_diameter.values.size() > 1;
+        m_config.nozzle_diameter.size() > 1;
 }
 
 const WipeTowerData& Print::wipe_tower_data(size_t extruders_cnt, double nozzle_diameter) const
@@ -2091,11 +2139,24 @@ const std::string PrintStatistics::TotalFilamentUsedWipeTowerValueMask = "; tota
 DynamicConfig PrintStatistics::config() const
 {
     DynamicConfig config;
-    std::string normal_print_time = short_time(this->estimated_normal_print_time);
-    std::string silent_print_time = short_time(this->estimated_silent_print_time);
-    config.set_key_value("print_time",                new ConfigOptionString(normal_print_time));
-    config.set_key_value("normal_print_time",         new ConfigOptionString(normal_print_time));
-    config.set_key_value("silent_print_time",         new ConfigOptionString(silent_print_time));
+    if (this->estimated_print_time_str.find(static_cast<uint8_t>(PrintEstimatedStatistics::ETimeMode::Normal)) !=
+        this->estimated_print_time_str.end()) {
+        std::string normal_print_time = short_time(
+            this->estimated_print_time_str.at(static_cast<uint8_t>(PrintEstimatedStatistics::ETimeMode::Normal)));
+        config.set_key_value("print_time", new ConfigOptionString(normal_print_time));
+        config.set_key_value("normal_print_time", new ConfigOptionString(normal_print_time));
+    } else if (this->estimated_print_time_str.find(static_cast<uint8_t>(
+                   PrintEstimatedStatistics::ETimeMode::Stealth)) != this->estimated_print_time_str.end()) {
+        std::string silent_print_time = short_time(
+            this->estimated_print_time_str.at(static_cast<uint8_t>(PrintEstimatedStatistics::ETimeMode::Stealth)));
+        config.set_key_value("print_time", new ConfigOptionString(silent_print_time));
+    }
+    if (this->estimated_print_time_str.find(static_cast<uint8_t>(PrintEstimatedStatistics::ETimeMode::Stealth)) !=
+        this->estimated_print_time_str.end()) {
+        std::string silent_print_time = short_time(
+            this->estimated_print_time_str.at(static_cast<uint8_t>(PrintEstimatedStatistics::ETimeMode::Stealth)));
+        config.set_key_value("silent_print_time", new ConfigOptionString(silent_print_time));
+    }
     config.set_key_value("used_filament",             new ConfigOptionFloat(this->total_used_filament / 1000.));
     config.set_key_value("extruded_volume",           new ConfigOptionFloat(this->total_extruded_volume));
     config.set_key_value("total_cost",                new ConfigOptionFloat(this->total_cost));
@@ -2116,7 +2177,7 @@ DynamicConfig PrintStatistics::config() const
 DynamicConfig PrintStatistics::placeholders()
 {
     DynamicConfig config;
-    for (const std::string &key : { 
+    for (const char *key : { 
         "print_time", "normal_print_time", "silent_print_time", 
         "used_filament", "extruded_volume", "total_cost", "total_weight", 
         "total_toolchanges", "total_wipe_tower_cost", "total_wipe_tower_filament",

@@ -81,6 +81,7 @@ std::string GCodeWriter::get_default_color_change_gcode(const GCodeConfig &confi
 
 void GCodeWriter::apply_print_config(const PrintConfig &print_config)
 {
+    this->multiple_extruders = false;
     this->config.apply(print_config, true);
     m_extrusion_axis = get_extrusion_axis(this->config);
     m_single_extruder_multi_material = print_config.single_extruder_multi_material.value;
@@ -295,7 +296,34 @@ std::string GCodeWriter::set_bed_temperature(uint32_t temperature, bool wait)
     return gcode.str();
 }
 
+std::string GCodeWriter::set_chamber_temperature(uint32_t temperature, bool wait)
+{
+    if (temperature == m_last_chamber_temperature && !wait)
+        return std::string();
 
+    if (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfRepRap) || FLAVOR_IS(gcfMachinekit)) {
+        // ok
+    } else {
+        return std::string();
+    }
+
+    m_last_chamber_temperature = temperature;
+
+    std::string code, comment;
+    if (wait) {
+        code = "M191";
+        comment = "set chamber temperature and wait for it to be reached";
+    } else {
+        code = "M141";
+        comment = "set chamber temperature";
+    }
+    
+    std::ostringstream gcode;
+    gcode << code << " " << "S";
+    gcode << temperature << " ; " << comment << "\n";
+    
+    return gcode.str();
+}
 
 void GCodeWriter::set_acceleration(uint32_t acceleration)
 {
@@ -370,6 +398,8 @@ std::string GCodeWriter::write_acceleration(){
 
 std::string GCodeWriter::reset_e(bool force)
 {
+    this->m_de_left = 0;
+
     if (FLAVOR_IS(gcfMach3)
         || FLAVOR_IS(gcfMakerWare)
         || FLAVOR_IS(gcfSailfish))
@@ -445,11 +475,11 @@ std::string GCodeWriter::toolchange(uint16_t tool_id)
     if (this->multiple_extruders) {
         if (FLAVOR_IS(gcfKlipper)) {
             //check if we can use the tool_name field or not
-            if (tool_id > 0 && tool_id < this->config.tool_name.values.size() && !this->config.tool_name.values[tool_id].empty()
+            if (tool_id > 0 && tool_id < this->config.tool_name.size() && !this->config.tool_name.get_at(tool_id).empty()
                 // NOTE: this will probably break if there's more than 10 tools, as it's relying on the
                 // ASCII character table.
-                && this->config.tool_name.values[tool_id][0] != static_cast<char>(('0' + tool_id))) {
-                gcode << this->toolchange_prefix() << this->config.tool_name.values[tool_id];
+                && this->config.tool_name.get_at(tool_id)[0] != static_cast<char>(('0' + tool_id))) {
+                gcode << this->toolchange_prefix() << this->config.tool_name.get_at(tool_id);
             } else {
                 gcode << this->toolchange_prefix() << "extruder";
                 if (tool_id > 0)
@@ -496,9 +526,11 @@ std::string GCodeWriter::travel_to_xy(const Vec2d &point, const double speed, co
 
     m_pos.x() = point.x();
     m_pos.y() = point.y();
-    
     GCodeG1Formatter w(this->get_default_gcode_formatter());
-    w.emit_xy(point);
+    if (!w.emit_xy(point, m_pos_str_x, m_pos_str_y)) {
+        //if point too close to the other, then do not write it, it's useless.
+        return "";
+    }
     w.emit_f(travel_speed * 60);
     w.emit_comment(this->config.gcode_comments, comment);
     return write_acceleration() + w.string();
@@ -568,8 +600,19 @@ std::string GCodeWriter::travel_to_xyz(const Vec3d &point, const double speed, c
     /*  In all the other cases, we perform an actual XYZ move and cancel
         the lift. */
     m_lifted = 0;
+
+    m_pos = point;
     
     GCodeG1Formatter w(this->get_default_gcode_formatter());
+    if (!w.emit_xy(point.head<2>(), m_pos_str_x, m_pos_str_y)) {
+        //if point too close to the other, then whatever, as long as the z is different.
+        // //if point too close to the other, then do not write it, it's useless.
+        // w = GCodeG1Formatter(this->get_default_gcode_formatter());
+    }
+    if (config.z_step > SCALING_FACTOR)
+        w.emit_axis('Z', point.z(), 6);
+    else
+        w.emit_z(point.z());
     w.emit_f(travel_speed * 60);
     w.emit_comment(this->config.gcode_comments, comment);
     return write_acceleration() + w.string();
@@ -603,7 +646,10 @@ std::string GCodeWriter::get_travel_to_z_gcode(double z, const std::string_view 
         speed = this->config.travel_speed.value;
 
     GCodeG1Formatter w(this->get_default_gcode_formatter());
-    w.emit_z(z);
+    if (config.z_step > SCALING_FACTOR)
+        w.emit_axis('Z', z, 6);
+    else
+        w.emit_z(z);
     w.emit_f(speed * 60.0);
     w.emit_comment(this->config.gcode_comments, comment);
     return write_acceleration() + w.string();
@@ -624,16 +670,23 @@ bool GCodeWriter::will_move_z(double z) const
 std::string GCodeWriter::extrude_to_xy(const Vec2d &point, double dE, const std::string_view comment)
 {
     assert(dE == dE);
-    // m_pos.head<2>() = point.head<2>(); == sopy x & y but not z
-    m_pos.x()             = point.x();
-    m_pos.y()             = point.y();
-    auto [delta, emit_E]  = m_tool->extrude(dE);
-    bool is_extrude       = delta != 0;
+    assert(m_pos.x() != point.x() || m_pos.y() != point.y());
+
+    m_pos.head<2>() = point.head<2>();
+     auto [/*double*/ delta_e, /*double*/ e_to_write]  = this->m_tool->extrude(dE + this->m_de_left);
+    bool is_extrude  = std::abs(delta_e) > 0.00000001;
 
     GCodeG1Formatter w(this->get_default_gcode_formatter());
-    w.emit_xy(point);
-    if(is_extrude)
-        w.emit_e(m_extrusion_axis, emit_E);
+    if (!w.emit_xy(point, m_pos_str_x, m_pos_str_y)) {
+        //if point too close to the other, then do not write it, it's useless.
+        this->m_de_left += dE;
+        return "";
+    }
+    this->m_de_left += dE - delta_e;
+    if (is_extrude) {
+        double delta = w.emit_e(m_extrusion_axis, e_to_write);
+        this->m_de_left += delta;
+    }
     w.emit_comment(this->config.gcode_comments, comment);
     return write_acceleration() + w.string();
 }
@@ -651,14 +704,18 @@ std::string GCodeWriter::extrude_arc_to_xy(const Vec2d& point, const Vec2d& cent
 
     m_pos.x()             = point.x();
     m_pos.y()             = point.y();
-    auto [delta, emit_E]  = m_tool->extrude(dE);
-    bool is_extrude       = delta != 0;
+     auto [/*double*/ delta_e, /*double*/ e_to_write]  = this->m_tool->extrude(dE + this->m_de_left);
+    bool is_extrude  = std::abs(delta_e) > 0.00000001;
 
     GCodeG2G3Formatter w(this->config.gcode_precision_xyz.value, this->config.gcode_precision_e.value, is_ccw);
-    w.emit_xy(point);
+    bool has_x_y = w.emit_xy(point, m_pos_str_x, m_pos_str_y);
+    assert(has_x_y);
     w.emit_ij(center_offset);
-    if (is_extrude)
-        w.emit_e(m_extrusion_axis, emit_E);
+    this->m_de_left += dE - delta_e;
+    if (is_extrude) {
+        double delta = w.emit_e(m_extrusion_axis, e_to_write);
+        this->m_de_left += delta;
+    }
     w.emit_comment(this->config.gcode_comments, comment);
     return write_acceleration() + w.string();
 }
@@ -669,16 +726,21 @@ std::string GCodeWriter::extrude_to_xyz(const Vec3d &point, double dE, const std
     assert(std::abs(point.y()) < 120000.);
     assert(std::abs(point.z()) < 120000.);
     assert(dE == dE);
-    m_pos.x()             = point.x();
-    m_pos.y()             = point.y();
-    m_lifted              = 0;
-    auto [delta, emit_E]  = m_tool->extrude(dE);
-    bool is_extrude       = delta != 0;
+    m_pos.x()                = point.x();
+    m_pos.y()                = point.y();
+    m_lifted                 = 0;
+     auto [/*double*/ delta_e, /*double*/ e_to_write]  = this->m_tool->extrude(dE + this->m_de_left);
+    bool is_extrude  = std::abs(delta_e) > 0.00000001;
 
     GCodeG1Formatter w(this->get_default_gcode_formatter());
-    w.emit_xyz(point);
-    if (is_extrude)
-        w.emit_e(m_extrusion_axis, emit_E);
+    w.emit_xy(Vec2d(point.x(), point.y()), m_pos_str_x, m_pos_str_y);
+    w.emit_z(point.z() + m_pos.z());
+    this->m_de_left += dE - delta_e;
+    if (is_extrude) {
+        double delta = w.emit_e(m_extrusion_axis, e_to_write);
+        assert(delta == 0 ); // shoulde be already taken into account by m_tool->extrude
+        this->m_de_left += delta;
+    }
     w.emit_comment(this->config.gcode_comments, comment);
     return write_acceleration() + w.string();
 }
@@ -767,6 +829,9 @@ std::string GCodeWriter::_retract(double length, std::optional<double> restart_e
             gcode += w.string();
         }
     }
+
+    // extrusion pressure is reset
+    m_de_left = 0;
     
     if (FLAVOR_IS(gcfMakerWare))
         gcode += "M103 ; extruder off\n";
@@ -776,6 +841,7 @@ std::string GCodeWriter::_retract(double length, std::optional<double> restart_e
 
 std::string GCodeWriter::unretract()
 {
+    //assert(m_de_left == 0); //TOSO 2.7 test it
     std::string gcode;
     
     if (FLAVOR_IS(gcfMakerWare))
@@ -899,14 +965,14 @@ std::string GCodeWriter::set_fan(const GCodeFlavor gcode_flavor, bool gcode_comm
     std::ostringstream gcode;
 
     //add fan_offset
-    int8_t fan_speed = int8_t(std::min(uint8_t(100), speed));
+    int16_t fan_speed = int8_t(std::min(uint8_t(100), speed));
     fan_speed += tool_fan_offset;
-    fan_speed = std::max(int8_t(0), std::min(int8_t(100), fan_speed));
+    fan_speed = std::max(int16_t(0), std::min(int16_t(100), fan_speed));
     const double fan_baseline = (is_fan_percentage ? 100.0 : 255.0);
 
     // write it
     if (fan_speed == 0) {
-        if ((gcfTeacup == gcode_flavor)) {
+        if ((gcfTeacup == gcode_flavor || gcfRepRap == gcode_flavor)) {
             gcode << "M106 S0";
         } else if ((gcfMakerWare == gcode_flavor) || (gcfSailfish == gcode_flavor)) {
             gcode << "M127";
@@ -940,73 +1006,6 @@ std::string GCodeWriter::set_fan(const uint8_t speed, uint16_t default_tool)
     const Tool *tool = m_tool == nullptr ? get_tool(default_tool) : m_tool;
     m_last_fan_speed = speed;
     return GCodeWriter::set_fan(this->config.gcode_flavor.value, this->config.gcode_comments.value, speed, tool ? tool->fan_offset() : 0, this->config.fan_percentage.value);
-}
-
-void GCodeFormatter::emit_axis(const char axis, const double value, size_t digits) {
-    assert(digits <= 9);
-    static constexpr const std::array<int, 10> pow_10{1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000};
-    *ptr_err.ptr++ = ' '; *ptr_err.ptr++ = axis;
-
-    char *base_ptr = this->ptr_err.ptr;
-    auto  v_int    = int64_t(std::round(value * pow_10[digits]));
-    // Older stdlib on macOS doesn't support std::from_chars at all, so it is used boost::spirit::karma::generate instead of it.
-    // That is a little bit slower than std::to_chars but not much.
-#ifdef __APPLE__
-    boost::spirit::karma::generate(this->ptr_err.ptr, boost::spirit::karma::int_generator<int64_t>(), v_int);
-#else
-    // this->buf_end minus 1 because we need space for adding the extra decimal point.
-    this->ptr_err = std::to_chars(this->ptr_err.ptr, this->buf_end - 1, v_int);
-#endif
-    size_t writen_digits = (this->ptr_err.ptr - base_ptr) - (v_int < 0 ? 1 : 0);
-    if (writen_digits < digits) {
-        // Number is smaller than 10^digits, so that we will pad it with zeros.
-        size_t remaining_digits = digits - writen_digits;
-        // Move all newly inserted chars by remaining_digits to allocate space for padding with zeros.
-        for (char *from_ptr = this->ptr_err.ptr - 1, *to_ptr = from_ptr + remaining_digits; from_ptr >= this->ptr_err.ptr - writen_digits; --to_ptr, --from_ptr)
-            *to_ptr = *from_ptr;
-
-        memset(this->ptr_err.ptr - writen_digits, '0', remaining_digits);
-        this->ptr_err.ptr += remaining_digits;
-    }
-
-    // Move all newly inserted chars by one to allocate space for a decimal point.
-    for (char *to_ptr = this->ptr_err.ptr, *from_ptr = to_ptr - 1; from_ptr >= this->ptr_err.ptr - digits; --to_ptr, --from_ptr)
-        *to_ptr = *from_ptr;
-
-    *(this->ptr_err.ptr - digits) = '.';
-    for (size_t i = 0; i < digits; ++i) {
-        if (*this->ptr_err.ptr != '0')
-            break;
-        this->ptr_err.ptr--;
-    }
-    if (*this->ptr_err.ptr == '.')
-        this->ptr_err.ptr--;
-    if ((this->ptr_err.ptr + 1) == base_ptr || *this->ptr_err.ptr == '-')
-        *(++this->ptr_err.ptr) = '0';
-    this->ptr_err.ptr++;
-
-#ifndef NDEBUG
-    {
-        assert(this->ptr_err.ptr - base_ptr >= 1); // not empty
-        assert(v_int != 0 || (this->ptr_err.ptr - base_ptr == 1 && base_ptr[0] == '0')); //check zero
-        assert(value >= 0 || base_ptr[0] == '-' || v_int == 0 ); // minus if negative (and not zero)
-        assert(value < 0 || base_ptr[0] != '-'); // no minus if positive
-        assert(*(this->ptr_err.ptr-1) != '.'); // do not add an extra '.' at the end
-        char* position_dot = std::find(base_ptr, this->ptr_err.ptr, '.');
-        assert(position_dot == this->ptr_err.ptr || *(this->ptr_err.ptr-1) != '0'); // if has '.', do not end with a zero
-        assert(base_ptr[0] != '-' || this->ptr_err.ptr - base_ptr > 2 || (this->ptr_err.ptr - base_ptr == 2 && base_ptr[1] != '0')); // no "Z-0"
-        // Verify that the optimized formatter produces the same result as the standard sprintf().
-        double v1 = atof(std::string(base_ptr, this->ptr_err.ptr).c_str());
-        char buf[2048];
-        sprintf(buf, "%.*lf", int(digits), value);
-        double v2 = atof(buf);
-        // Numbers may differ when rounding at exactly or very close to 0.5 due to numerical issues when scaling the double to an integer.
-        // Thus the complex assert.
-//        assert(v1 == v2);
-        assert(std::abs(v1 - value) * pow_10[digits] < 0.50001);
-        assert(std::abs(v2 - value) * pow_10[digits] < 0.50001);
-    }
-#endif // NDEBUG
 }
 
 } // namespace Slic3r

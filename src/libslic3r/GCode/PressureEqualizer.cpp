@@ -49,13 +49,13 @@ PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config) : m_use_
 
     // Calculate filamet crossections for the multiple extruders.
     m_filament_crossections.clear();
-    for (double r : config.filament_diameter.values) {
+    for (double r : config.filament_diameter.get_values()) {
         double a = 0.25f*M_PI*r*r;
         m_filament_crossections.push_back(float(a));
     }
 
     m_extruder_names.clear();
-    for (const std::string & str: config.tool_name.values) {
+    for (const std::string & str: config.tool_name.get_values()) {
         m_extruder_names.push_back(str);
     }
 

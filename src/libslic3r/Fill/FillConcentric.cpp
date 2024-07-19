@@ -24,7 +24,7 @@ FillConcentric::init_spacing(coordf_t spacing, const FillParams &params)
 {
     Fill::init_spacing(spacing, params);
     if (params.density > 0.9999f && !params.dont_adjust) {
-        this->spacing_priv = unscaled(this->_adjust_solid_spacing(bounding_box.size()(0), _line_spacing_for_density(params.density)));
+        this->spacing_priv = unscaled(this->_adjust_solid_spacing(bounding_box.size()(0), _line_spacing_for_density(params)));
     }
 }
 
@@ -39,7 +39,7 @@ FillConcentric::_fill_surface_single(
     // no rotation is supported for this infill pattern
     BoundingBox bounding_box = expolygon.contour.bounding_box();
     
-    coord_t distance = _line_spacing_for_density(params.density);
+    coord_t distance = _line_spacing_for_density(params);
     if (params.density > 0.9999f && !params.dont_adjust) {
         //it's == Slic3r::FillConcentric::_adjust_solid_spacing(bounding_box.size()(0), _line_spacing_for_density(params.density)) because of the init_spacing()
         distance = scale_t(this->get_spacing());
@@ -124,7 +124,7 @@ FillConcentricWGapFill::fill_surface_extrusion(
         // no rotation is supported for this infill pattern
         BoundingBox bounding_box = expolygon.contour.bounding_box();
 
-        coord_t distance = _line_spacing_for_density(params.density);
+        coord_t distance = _line_spacing_for_density(params);
         if (params.density > 0.9999f && !params.dont_adjust) {
             distance = scale_t(this->get_spacing());
         }
@@ -372,11 +372,14 @@ FillConcentricWGapFill::fill_surface_extrusion(
                 //    }
                 //    //goto_next_polyline:
                 //}
-                if (!polylines.empty() && !good_role.is_bridge()) {
+                bool fill_bridge = good_role.is_bridge() || params.flow.bridge();
+                // allow bridged gapfill, mostly for support bottom interface.
+                assert(!good_role.is_bridge());
+                if (!polylines.empty()) {
                     ExtrusionEntitiesPtr gap_fill_entities = Geometry::thin_variable_width(polylines, ExtrusionRole::GapFill, params.flow, scale_t(params.config->get_computed_value("resolution_internal")), true);
                     if (!gap_fill_entities.empty()) {
-                        //set role if needed
-                        if (good_role != ExtrusionRole::SolidInfill) {
+                        // set role if needed
+                        if (fill_bridge || (good_role != ExtrusionRole::SolidInfill && good_role != ExtrusionRole::TopSolidInfill)) {
                             ExtrusionSetRole set_good_role(good_role);
                             for (ExtrusionEntity* ptr : gap_fill_entities)
                                 ptr->visit(set_good_role);
@@ -404,7 +407,7 @@ FillConcentricWGapFill::fill_surface_extrusion(
     // external gapfill
     ExPolygons gapfill_areas = diff_ex(ExPolygons{ surface->expolygon }, offset_ex(expp, double(scale_(0.5 * this->get_spacing()))));
     gapfill_areas = union_safety_offset_ex(gapfill_areas);
-    if (gapfill_areas.size() > 0) {
+    if (gapfill_areas.size() > 0 && no_overlap_expolygons.size() > 0) {
         double minarea = double(params.flow.scaled_width()) * double(params.flow.scaled_width());
         if (params.config != nullptr) minarea = scale_d(params.config->gap_fill_min_area.get_abs_value(params.flow.width())) * double(params.flow.scaled_width());
         for (int i = 0; i < gapfill_areas.size(); i++) {

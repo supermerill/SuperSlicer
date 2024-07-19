@@ -78,7 +78,7 @@ public:
     bool contains(const Point &point) const { return Slic3r::contains(*this, point, true); }
     // Approximate on boundary test.
     bool on_boundary(const Point &point, double eps) const
-        { return (this->point_projection(point) - point).cast<double>().squaredNorm() < eps * eps; }
+        { return (this->point_projection(point).first - point).cast<double>().squaredNorm() < eps * eps; }
 
     // Works on CCW polygons only, CW contour will be reoriented to CCW by Clipper's simplify_polygons()!
     Polygons simplify(double tolerance) const;
@@ -95,8 +95,10 @@ public:
     // Zero angle_threshold means to accept all convex resp. concave points.
     Points convex_points(double angle_threshold = 0.) const;
     Points concave_points(double angle_threshold = 0.) const;
+    std::vector<size_t> concave_points_idx(double angle = PI) const;
+    std::vector<size_t> convex_points_idx(double angle = PI) const;
     // Projection of a point onto the polygon.
-    Point point_projection(const Point &point) const;
+    std::pair<Point, size_t> point_projection(const Point &point) const override;
     std::vector<float> parameter_by_length() const;
     /// remove points that are (almost) on an existing line from previous & next point.
     /// return number of point removed

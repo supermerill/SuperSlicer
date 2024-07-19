@@ -13,3 +13,9 @@ group:freq_settings_event:no_title:no_search:
 		setting:simple:script:bool:depends$brim_width:label$Brim:tooltip$Set the brim. Will be set to 5mm if nothing was previously set.:s_brim
 		freq_purging_volumes
 	end_line
+	line:
+		setting:simple:script:enum$hot$Hot$mild$Mild$cold$Cold:depends$bed_temperature$first_layer_bed_temperature:label$Bed temp:tooltip$Choose the bed you want.:full_width:s_bed_temp_fff
+	end_line
+	line:
+		setting:simple:script:enum$normal$Default$45$45°$custom$Custom:depends$init_z_rotate:label$Import angle:tooltip$The angle at which the parts are imported:full_width:s_orientation_fff
+	end_line

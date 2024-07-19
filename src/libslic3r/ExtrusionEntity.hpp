@@ -93,6 +93,7 @@ public:
     virtual void   collect_points(Points &dst) const = 0;
     virtual ArcPolylines as_polylines() const { ArcPolylines dst; this->collect_polylines(dst); return dst; }
     virtual double length() const = 0;
+    virtual bool empty() const = 0;
     virtual double total_volume() const = 0;
     virtual void visit(ExtrusionVisitor &visitor) = 0;
     virtual void visit(ExtrusionVisitorConst &visitor) const = 0;
@@ -313,8 +314,8 @@ public:
     std::vector<THING> paths;
 
     ExtrusionMultiEntity(): ExtrusionEntity(false) {};
-    ExtrusionMultiEntity(const ExtrusionMultiEntity &rhs) : paths(rhs.paths), ExtrusionEntity(false) {}
-    ExtrusionMultiEntity(ExtrusionMultiEntity &&rhs) : paths(std::move(rhs.paths)), ExtrusionEntity(false) {}
+    ExtrusionMultiEntity(const ExtrusionMultiEntity &rhs) : paths(rhs.paths), ExtrusionEntity(rhs.m_can_reverse) {}
+    ExtrusionMultiEntity(ExtrusionMultiEntity &&rhs) : paths(std::move(rhs.paths)), ExtrusionEntity(rhs.m_can_reverse) {}
     ExtrusionMultiEntity(const std::vector<THING> &paths) : paths(paths), ExtrusionEntity(false) {};
     ExtrusionMultiEntity(const THING &path): ExtrusionEntity(false) { this->paths.push_back(path); }
 
@@ -346,12 +347,17 @@ public:
     // Is it really what you can call a middle point?:
     const Point& middle_point() const override { auto &path = this->paths[this->paths.size() / 2]; return path.polyline.middle(); }
     size_t size() const { return this->paths.size(); }
-    bool empty() const { return this->paths.empty(); }
     double length() const override {
         double len = 0;
         for (const THING &entity : this->paths)
             len += entity.length();
         return len;
+    }
+    bool empty() const override {
+        for (const THING &entity : this->paths)
+            if (!entity.empty())
+                return false;
+        return true;
     }
 
     // Produce a list of 2D polygons covered by the extruded paths, offsetted by the extrusion width.
@@ -442,14 +448,24 @@ public:
     ExtrusionPaths paths;
     
     ExtrusionLoop(ExtrusionLoopRole role = elrDefault) : m_loop_role(role) , ExtrusionEntity(false) {}
-    ExtrusionLoop(const ExtrusionPaths &paths, ExtrusionLoopRole role = elrDefault) : paths(paths), m_loop_role(role), ExtrusionEntity(false)
-        { assert(this->first_point().coincides_with_epsilon(this->paths.back().polyline.back()));  }
-    ExtrusionLoop(ExtrusionPaths &&paths, ExtrusionLoopRole role = elrDefault) : paths(std::move(paths)), m_loop_role(role), ExtrusionEntity(false)
-        { assert(this->first_point().coincides_with_epsilon(this->paths.back().polyline.back())); }
-    ExtrusionLoop(const ExtrusionPath &path, ExtrusionLoopRole role = elrDefault) : m_loop_role(role), ExtrusionEntity(false)
-        { this->paths.push_back(path); }
-    ExtrusionLoop(ExtrusionPath &&path, ExtrusionLoopRole role = elrDefault) : m_loop_role(role), ExtrusionEntity(false)
-        { this->paths.emplace_back(std::move(path)); }
+    ExtrusionLoop(const ExtrusionPaths &paths, ExtrusionLoopRole role = elrDefault) : paths(paths), m_loop_role(role), ExtrusionEntity(false) { 
+        assert(!this->paths.empty());
+        assert(this->first_point().coincides_with_epsilon(this->paths.back().polyline.back()));
+    }
+    ExtrusionLoop(ExtrusionPaths &&paths, ExtrusionLoopRole role = elrDefault) : paths(std::move(paths)), m_loop_role(role), ExtrusionEntity(false) {
+        assert(!this->paths.empty());
+        assert(this->first_point().coincides_with_epsilon(this->paths.back().polyline.back()));
+    }
+    ExtrusionLoop(const ExtrusionPath &path, ExtrusionLoopRole role = elrDefault) : m_loop_role(role), ExtrusionEntity(false) {
+        this->paths.push_back(path);
+        assert(!this->paths.empty());
+        assert(this->first_point().coincides_with_epsilon(this->paths.back().polyline.back()));
+    }
+    ExtrusionLoop(ExtrusionPath &&path, ExtrusionLoopRole role = elrDefault) : m_loop_role(role), ExtrusionEntity(false) {
+        this->paths.emplace_back(std::move(path));
+        assert(!this->paths.empty());
+        assert(this->first_point().coincides_with_epsilon(this->paths.back().polyline.back()));
+    }
     virtual bool is_loop() const override{ return true; }
     virtual ExtrusionEntity* clone() const override{ return new ExtrusionLoop (*this); }
     // Create a new object, initialize it with this object using the move semantics.
@@ -465,6 +481,12 @@ public:
     const Point&    middle_point() const override { auto& path = this->paths[this->paths.size() / 2]; return path.polyline.middle(); }
     Polygon polygon() const;
     double length() const override;
+    bool empty() const override {
+        for (const ExtrusionPath &path : paths)
+            if (!path.empty())
+                return false;
+        return true;
+    }
     bool split_at_vertex(const Point &point, const coordf_t scaled_epsilon = scale_d(0.001));
     void split_at(const Point &point, bool prefer_non_overhang, const coordf_t scaled_epsilon = scale_d(0.001));
     struct ClosestPathPoint {
@@ -597,9 +619,15 @@ struct HasInfillVisitor : public HasRoleVisitor{
 struct HasSolidInfillVisitor : public HasRoleVisitor{
     void default_use(const ExtrusionEntity &entity) override { found = entity.role().is_solid_infill(); };
 };
+struct HasThisRoleVisitor : public HasRoleVisitor{
+    ExtrusionRole role_to_find;
+    HasThisRoleVisitor(ExtrusionRole role) : role_to_find(role) {}
+    void default_use(const ExtrusionEntity &entity) override { found = entity.role() == role_to_find; };
+};
 
 
 //call simplify for all paths.
+class ConfigOptionFloatOrPercent;
 class SimplifyVisitor : public ExtrusionVisitorRecursive {
     ArcFittingType                    m_use_arc_fitting;
     coordf_t                          m_scaled_resolution;
@@ -608,12 +636,8 @@ public:
     SimplifyVisitor(coordf_t scaled_resolution, ArcFittingType use_arc_fitting, const ConfigOptionFloatOrPercent *arc_fitting_tolearance)
         : m_scaled_resolution(scaled_resolution), m_use_arc_fitting(use_arc_fitting), m_arc_fitting_tolearance(arc_fitting_tolearance)
     {}
-    virtual void use(ExtrusionPath& path) override {
-        path.simplify(m_scaled_resolution, m_use_arc_fitting, scale_d(m_arc_fitting_tolearance->get_abs_value(path.width())));
-    }
-    virtual void use(ExtrusionPath3D& path3D) override {
-        path3D.simplify(m_scaled_resolution, m_use_arc_fitting, scale_d(m_arc_fitting_tolearance->get_abs_value(path3D.width())));
-    }
+    virtual void use(ExtrusionPath& path) override;
+    virtual void use(ExtrusionPath3D& path3D) override;
 };
 class GetPathsVisitor : public ExtrusionVisitorRecursive {
 public:

@@ -42,6 +42,7 @@
 
 #include <Eigen/Geometry>
 
+#include <atomic>
 #include <ctime>
 #include <functional>
 #include <optional>
@@ -70,6 +71,7 @@ namespace FillLightning {
     using GeneratorPtr = std::unique_ptr<Generator, GeneratorDeleter>;
 }; // namespace FillLightning
 
+
 // Print step IDs for keeping track of the print state.
 // The Print steps are applied in this order.
 enum PrintStep : uint8_t {
@@ -84,6 +86,7 @@ enum PrintStep : uint8_t {
     // should be refreshed.
     psSlicingFinished = psSkirtBrim,
     psGCodeExport,
+   //TODO: psGCodeLoader (for params that are only used for time display and such)
     psCount,
 };
 
@@ -317,6 +320,8 @@ public:
     Layer*			get_layer_at_printz(coordf_t print_z, coordf_t epsilon);
     // Get the first layer approximately bellow print_z.
     const Layer*	get_first_layer_bellow_printz(coordf_t print_z, coordf_t epsilon) const;
+    // For sparse infill, get the max spasing avaialable in this object (avaialable after prepare_infill)
+    coord_t         get_sparse_max_spacing() const { return m_max_sparse_spacing; }
 
     // print_z: top of the layer; slice_z: center of the layer.
     Layer*          add_layer(int id, coordf_t height, coordf_t print_z, coordf_t slice_z);
@@ -419,8 +424,10 @@ private:
     // Has any support (not counting the raft).
     ExPolygons _shrink_contour_holes(double contour_delta, double default_delta, double convex_delta, const ExPolygons& input) const;
     void _transform_hole_to_polyholes();
+    void _min_overhang_threshold();
     ExPolygons _smooth_curves(const ExPolygons &input, const PrintRegionConfig &conf) const;
     void detect_surfaces_type();
+    void apply_solid_infill_below_layer_area();
     void process_external_surfaces();
     void discover_vertical_shells();
     void bridge_over_infill();
@@ -431,6 +438,7 @@ private:
     void clean_surfaces();
     void combine_infill();
     void _generate_support_material();
+    void _compute_max_sparse_spacing();
     std::pair<FillAdaptive::OctreePtr, FillAdaptive::OctreePtr> prepare_adaptive_infill_data(
         const std::vector<std::pair<const Surface*, float>>& surfaces_w_bottom_z) const;
     FillLightning::GeneratorPtr prepare_lightning_infill_data();
@@ -463,6 +471,9 @@ private:
     // this is set to true when LayerRegion->slices is split in top/internal/bottom
     // so that next call to make_perimeters() performs a union() before computing loops
     bool                    				m_typed_slices = false;
+
+    //this setting allow fill_aligned_z to get the max sparse spacing spacing.
+    coord_t                                 m_max_sparse_spacing = 0;
 
     // pair < adaptive , support>, filled by prepare_adaptive_infill_data() (in bridge_over_infill() in prepare_infill()) and used in infill()
     std::pair<FillAdaptive::OctreePtr, FillAdaptive::OctreePtr> m_adaptive_fill_octrees;
@@ -527,10 +538,11 @@ private:
 struct PrintStatistics
 {
     PrintStatistics() { clear(); }
-    std::string                     estimated_normal_print_time;
-    std::string                     estimated_silent_print_time;
+    // PrintEstimatedStatistics::ETimeMode::Normal -> time
+    std::map<uint8_t, double>       estimated_print_time;
+    std::map<uint8_t, std::string>  estimated_print_time_str;
     double                          total_used_filament;
-    std::vector<std::pair<size_t, double>> color_extruderid_to_used_filament;
+    std::vector<std::pair<size_t, double>> color_extruderid_to_used_filament; // id -> mm (length)
     double                          total_extruded_volume;
     double                          total_cost;
     int                             total_toolchanges;
@@ -543,7 +555,10 @@ struct PrintStatistics
     unsigned int                    initial_extruder_id;
     std::string                     initial_filament_type;
     std::string                     printing_filament_types;
-    std::map<size_t, double>        filament_stats;
+    std::map<size_t, double>        filament_stats; // extruder id -> volume in mm3
+    std::vector<std::pair<double, float>> layer_area_stats; // print_z to area
+
+    std::atomic_bool is_computing_gcode;
 
     // Config with the filled in print statistics.
     DynamicConfig           config() const;
@@ -566,6 +581,7 @@ struct PrintStatistics
         printing_filament_types.clear();
         filament_stats.clear();
         printing_extruders.clear();
+        is_computing_gcode = false;
     }
 
     static const std::string FilamentUsedG;

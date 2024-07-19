@@ -35,7 +35,7 @@ class ExtrusionEntityCollection : public ExtrusionEntity
 private:
     // set to tru to forbit to reorder and reverse all entities indie us.
     bool m_no_sort;
-    ExtrusionEntitiesPtr m_entities;     // we own these entities
+    ExtrusionEntitiesPtr m_entities;     // we own these entities : TODO: use unique_ptr
 public:
     virtual ExtrusionEntityCollection* clone() const override { return new ExtrusionEntityCollection(*this); }
     // Create a new object, initialize it with this object using the move semantics.
@@ -93,7 +93,6 @@ public:
     void set_can_sort_reverse(bool can_sort, bool can_reverse) { this->m_no_sort = !can_sort; this->m_can_reverse = can_reverse; }
     bool can_sort() const { return !this->m_no_sort; }
     bool can_reverse() const override { return can_sort() || this->m_can_reverse; }
-    bool empty() const { return this->m_entities.empty(); }
     void clear();
     void swap (ExtrusionEntityCollection &c);
     void append(const ExtrusionEntity &entity) { this->m_entities.emplace_back(entity.clone()); }
@@ -127,6 +126,7 @@ public:
     }
     void replace(size_t i, const ExtrusionEntity &entity);
     void remove(size_t i);
+    ExtrusionEntityReferences chained_path_from(const Point &start_near);
     void reverse() override;
     const Point& first_point() const override { return this->entities().front()->first_point(); }
     const Point& last_point() const override { return this->entities().back()->last_point(); }
@@ -175,8 +175,16 @@ public:
         throw Slic3r::RuntimeError("Calling length() on a ExtrusionEntityCollection");
         return 0.;        
     }
+    bool empty() const override {
+        for (const ExtrusionEntity *extrusion_entity : this->entities())
+            if (!extrusion_entity->empty())
+                return false;
+        return true;
+    }
     virtual void visit(ExtrusionVisitor &visitor) override { visitor.use(*this); };
     virtual void visit(ExtrusionVisitorConst &visitor) const override{ visitor.use(*this); };
+    void start_visit(ExtrusionVisitor &&visitor) { visitor.use(*this); };
+    void start_visit(ExtrusionVisitorConst &&visitor) const{ visitor.use(*this); };
 };
 
 //// visitors /////

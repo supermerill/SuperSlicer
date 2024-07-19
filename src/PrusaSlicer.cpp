@@ -131,7 +131,7 @@ int CLI::run(int argc, char **argv)
             boost::algorithm::iends_with(boost::filesystem::path(argv[0]).filename().string(), GCODEVIEWER_APP_CMD);
 #endif // _WIN32
 
-    const std::vector<std::string>              &load_configs		      = m_config.option<ConfigOptionStrings>("load", true)->values;
+    const std::vector<std::string>              &load_configs		      = m_config.option<ConfigOptionStrings>("load", true)->get_values();
     const ForwardCompatibilitySubstitutionRule   config_substitution_rule = m_config.option<ConfigOptionEnum<ForwardCompatibilitySubstitutionRule>>("config_compatibility", true)->value;
 
     // load config files supplied via --load
@@ -301,9 +301,9 @@ int CLI::run(int argc, char **argv)
 
     if (!start_gui) {
         const auto* post_process = m_print_config.opt<ConfigOptionStrings>("post_process");
-        if (post_process != nullptr && !post_process->values.empty()) {
+        if (post_process != nullptr && !post_process->empty()) {
             boost::nowide::cout << "\nA post-processing script has been detected in the config data:\n\n";
-            for (const auto& s : post_process->values) {
+            for (const auto& s : post_process->get_values()) {
                 boost::nowide::cout << "> " << s << "\n";
             }
             boost::nowide::cout << "\nContinue(Y/N) ? ";
@@ -340,7 +340,7 @@ int CLI::run(int argc, char **argv)
         // and not the fff defaults.
         double w = sla_print_config.display_width.get_float();
         double h = sla_print_config.display_height.get_float();
-        sla_print_config.bed_shape.values = { Vec2d(0, 0), Vec2d(w, 0), Vec2d(w, h), Vec2d(0, h) };
+        sla_print_config.bed_shape.set({ Vec2d(0, 0), Vec2d(w, 0), Vec2d(w, h), Vec2d(0, h) });
         
         sla_print_config.apply(m_print_config, true);
         m_print_config.apply(sla_print_config, true);
@@ -388,7 +388,7 @@ int CLI::run(int argc, char **argv)
                 
             }
         } else if (opt_key == "duplicate_grid") {
-            std::vector<int> &ints = m_config.option<ConfigOptionInts>("duplicate_grid")->values;
+            const std::vector<int> &ints = m_config.option<ConfigOptionInts>("duplicate_grid")->get_values();
             const int x = ints.size() > 0 ? ints.at(0) : 1;
             const int y = ints.size() > 1 ? ints.at(1) : 1;
             const double distance = fff_print_config.duplicate_distance.value;

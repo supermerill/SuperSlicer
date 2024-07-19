@@ -1266,7 +1266,7 @@ void MainFrame::init_tabpanel()
         // Show a correct number of filament fields.
         // nozzle_diameter is undefined when SLA printer is selected
         if (full_config.has("nozzle_diameter")) {
-            m_plater->on_extruders_change(full_config.option<ConfigOptionFloats>("nozzle_diameter")->values.size());
+            m_plater->on_extruders_change(full_config.option<ConfigOptionFloats>("nozzle_diameter")->size());
         }
     }
 }
@@ -1334,6 +1334,10 @@ void MainFrame::create_preset_tabs()
     add_created_tab(new TabSLAPrint(m_tabpanel));
     add_created_tab(new TabSLAMaterial(m_tabpanel));
     add_created_tab(new TabPrinter(m_tabpanel));
+    TabFrequent* freq = (new TabFrequent(m_tabpanel, "Freq_fff", Preset::Type::TYPE_FREQUENT_FFF));
+    freq->create_preset_tab();
+    freq = (new TabFrequent(m_tabpanel, "Freq_sla", Preset::Type::TYPE_FREQUENT_SLA));
+    freq->create_preset_tab();
 }
 
 void MainFrame::add_created_tab(Tab* panel)
@@ -2059,6 +2063,8 @@ void MainFrame::init_menubar_as_editor()
             [this](wxCommandEvent&) { wxGetApp().filament_temperature_dialog(); });
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Extruder retraction calibration")), _(L("Create a test print to help you to set your retraction length.")),
             [this](wxCommandEvent&) { wxGetApp().calibration_retraction_dialog(); });
+            append_menu_item(m_calibration_menu, wxID_ANY, _(L("Pressure calibration")), _(L("Create a model for tuning Pressure Linear advance.")),
+            [this](wxCommandEvent&) { wxGetApp().calibration_pressureadv_dialog(); });
         m_calibration_menu->AppendSeparator();
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Bridge flow calibration")), _(L("Create a test print to help you to set your bridge flow ratio.")),
             [this](wxCommandEvent&) { wxGetApp().bridge_tuning_dialog(); });
@@ -2303,10 +2309,10 @@ void MainFrame::load_config_file(bool from_prusa)
     if (! file.IsEmpty() && this->load_config_file(file.ToUTF8().data(), from_prusa)) {
         DynamicPrintConfig config = wxGetApp().preset_bundle->full_config();
         const auto* post_process = config.opt<ConfigOptionStrings>("post_process");
-        if (post_process != nullptr && !post_process->values.empty()) {
+        if (post_process != nullptr && !post_process->empty()) {
             const wxString msg = _L("The selected config file contains a post-processing script.\nPlease review the script carefully before exporting G-code.");
             std::string text;
-            for (const std::string& s : post_process->values) {
+            for (const std::string& s : post_process->get_values()) {
                 text += s;
             }
 
@@ -2435,7 +2441,7 @@ void MainFrame::load_config(const DynamicPrintConfig& config)
     // (see PresetBundle::update_multi_material_filament_presets())
     // Better to call PresetBundle::load_config() instead?
     for (auto tab : wxGetApp().tabs_list)
-        if (tab->supports_printer_technology(printer_technology)) {
+        if (tab->supports_printer_technology(printer_technology) && tab->completed()) {
             // Only apply keys, which are present in the tab's config. Ignore the other keys.
 			for (const std::string &opt_key : tab->get_config()->diff(config))
 				// Ignore print_settings_id, printer_settings_id, filament_settings_id etc.
@@ -2812,10 +2818,10 @@ void MainFrame::on_value_changed(wxCommandEvent& event)
     }
 }
 
-void MainFrame::on_config_changed(DynamicPrintConfig* config) const
+void MainFrame::on_config_changed(const DynamicConfig &config) const
 {
     if (m_plater)
-        m_plater->on_config_change(*config); // propagate config change events to the plater
+        m_plater->on_config_change(config); // propagate config change events to the plater
 }
 
 void MainFrame::add_to_recent_projects(const wxString& filename)
@@ -2859,7 +2865,8 @@ void MainFrame::update_ui_from_settings()
     if (m_plater)
         m_plater->update_ui_from_settings();
     for (auto tab: wxGetApp().tabs_list)
-        tab->update_ui_from_settings();
+        if(tab->completed())
+            tab->update_ui_from_settings();
 }
 
 std::string MainFrame::get_base_name(const wxString &full_name, const char *extension) const 

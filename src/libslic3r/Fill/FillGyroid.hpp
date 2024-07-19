@@ -20,10 +20,7 @@ public:
     Fill* clone() const override { return new FillGyroid(*this); }
 
     // Density adjustment to have a good %of weight.
-    static constexpr double DensityAdjust = 2.44;
-
-    // Gyroid upper resolution tolerance (mm^-2)
-    static constexpr double PatternTolerance = 0.2;
+    static constexpr double DENSITY_ADJUST = 2.44;
 
 
 protected:

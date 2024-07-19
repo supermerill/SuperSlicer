@@ -15,21 +15,24 @@
 #include "format.hpp"
 #include "libslic3r/AppConfig.hpp"
 
-#include <wx/notebook.h>
-#include <wx/scrolwin.h>
 #include "Notebook.hpp"
 #include "ButtonsDescription.hpp"
 #include "OG_CustomCtrl.hpp"
 #include "GLCanvas3D.hpp"
 #include "ConfigWizard.hpp"
+#include "Widgets/SpinInput.hpp"
 #include "wxExtensions.hpp"
 
+#include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/path.hpp>
-
-#include "Widgets/SpinInput.hpp"
-
 #include <boost/dll/runtime_symbol_info.hpp>
+
+#include <wx/display.h>
+#include <wx/notebook.h>
+#include <wx/scrolwin.h>
+
+
 
 #ifdef WIN32
 #include <wx/msw/registry.h>
@@ -150,7 +153,7 @@ void PreferencesDialog::show(const std::string& highlight_opt_key /*= std::strin
 		for (const std::string& opt_key : {"suppress_hyperlinks", "downloader_url_registered"})
 			m_optkey_to_optgroup[opt_key]->set_value(opt_key, app_config->get_bool(opt_key));
 
-		for (const std::string& opt_key : { "default_action_on_close_application"
+		for (const std::string  opt_key : { "default_action_on_close_application"
 										   ,"default_action_on_new_project"
 										   ,"default_action_on_select_preset" })
 			m_optkey_to_optgroup[opt_key]->set_value(opt_key, app_config->get(opt_key) == "none");
@@ -320,12 +323,16 @@ void PreferencesDialog::append_int_option( std::shared_ptr<ConfigOptionsGroup> o
 								const std::string& tooltip,
 								int option_width,
 								int def_val,
-								ConfigOptionMode mode)
+								ConfigOptionMode mode,
+								int32_t min /*= -FLT_MAX*/,
+								int32_t max /*= FLT_MAX*/)
 {
 	ConfigOptionDef def = {opt_key, coInt};
 	def.label = label;
 	def.tooltip = tooltip;
 	def.mode = mode;
+	def.min = double(min);
+	def.max = double(max);
 	def.set_default_value(new ConfigOptionInt{ def_val });
 	Option option(def, opt_key);
 	option.opt.width = option_width;
@@ -867,16 +874,31 @@ void PreferencesDialog::build()
 		
 		append_bool_option(m_optgroups_gui.back(), "show_layer_height_doubleslider",
 			L("Show layer height on the scroll bar"),
-			L("Add the layer height (first number in parentheses) next to a widget of the layer double-scrollbar."),
+			L("Add the layer height (first number after the layer z position) next to a widget of the layer double-scrollbar."),
 			app_config->get_bool("show_layer_height_doubleslider"));
 		
 		append_bool_option(m_optgroups_gui.back(), "show_layer_time_doubleslider",
 			L("Show layer time on the scroll bar"),
-			L("Add the layer height (before the layer count in parentheses) next to a widget of the layer double-scrollbar."),
+			L("Add the layer height (after the layer height, or if it's hidden after the layer z position) next to a widget of the layer double-scrollbar."),
 			app_config->get_bool("show_layer_time_doubleslider"));
+		
+		append_bool_option(m_optgroups_gui.back(), "show_layer_area_doubleslider",
+			L("Show layer area on the scroll bar"),
+			L("Add the layer area (the number just below the layer id) next to a widget of the layer double-scrollbar."),
+			app_config->get_bool("show_layer_area_doubleslider"));
 	}
-
-
+	
+	
+	append_int_option(m_optgroups_gui.back(), "gcodeviewer_decimals",
+		L("Decimals for gcode viewer colors"),
+		L("On the gcode viewer window, how many decimals are used to separate colors?"
+					" It's used for height, width, volumetric rate, section. Default is 2."),
+		/*width*/6,
+		app_config->get_int("gcodeviewer_decimals"),
+		ConfigOptionMode::comSimpleAE,
+		/*min,max*/0, 5);
+	// as it's quite hard to detect a change and then clean & reload the gcode data... then asking for relaod is easier.
+	m_values_need_restart.push_back("gcodeviewer_decimals");
 
 	activate_options_tab(m_optgroups_gui.back(), 3);
 
@@ -1133,14 +1155,21 @@ std::vector<ConfigOptionsGroup*> PreferencesDialog::optgroups()
 
 void PreferencesDialog::update_ctrls_alignment()
 {
-	int max_ctrl_width{ 0 };
-	for (ConfigOptionsGroup* og : this->optgroups())
-		if (int max = og->custom_ctrl->get_max_win_width();
-			max_ctrl_width < max)
-			max_ctrl_width = max;
-	if (max_ctrl_width)
-		for (ConfigOptionsGroup* og : this->optgroups())
-			og->custom_ctrl->set_max_win_width(max_ctrl_width);
+    int max_ctrl_width{0};
+    for (ConfigOptionsGroup *og : this->optgroups()) {
+        if (og->custom_ctrl) {
+            if (int max = og->custom_ctrl->get_max_win_width(); max_ctrl_width < max) {
+                max_ctrl_width = max;
+            }
+        }
+    }
+    if (max_ctrl_width) {
+        for (ConfigOptionsGroup *og : this->optgroups()) {
+            if (og->custom_ctrl) {
+                og->custom_ctrl->set_max_win_width(max_ctrl_width);
+            }
+        }
+    }
 }
 
 void PreferencesDialog::accept(wxEvent&)
@@ -1186,7 +1215,7 @@ void PreferencesDialog::accept(wxEvent&)
 		m_seq_top_layer_only_changed = app_config->get("seq_top_layer_only") != it->second;
 
 	m_settings_layout_changed = false;
-	for (const std::string& key : { "old_settings_layout_mode",
+	for (const std::string key : { "old_settings_layout_mode",
 								    "new_settings_layout_mode",
 								    "dlg_settings_layout_mode" })
 	{
@@ -1649,7 +1678,8 @@ void PreferencesDialog::create_settings_font_widget(wxWindow* tab, std::shared_p
 		m_values[opt_key] = format("%1%", val);
 		stb_sizer->Layout();
 #ifdef __linux__
-		CallAfter([this]() { refresh_og(opt_grp); });
+		// CallAfter([this]() { refresh_og(opt_grp); });
+		CallAfter([this, opt_grp]() { refresh_og(opt_grp); });		
 #else
 		refresh_og(opt_grp);
 #endif

@@ -9,6 +9,11 @@
 #include <map>
 #include <string>
 
+#include <boost/algorithm/string/replace.hpp>
+#include <boost/log/trivial.hpp>
+#include <boost/property_tree/ini_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
+
 namespace Slic3r {
     
 namespace BBConfiguration {
@@ -83,7 +88,6 @@ void init()
     // print
     key_translation_map["alternate_extra_wall"]             = "extra_perimeters_odd_layers";
     key_translation_map["is_infill_first"]                          = "infill_first";
-    key_translation_map["enable_arc_fitting"]                       = "arc_fitting";
     key_translation_map["bottom_shell_layers"]                      = "bottom_solid_layers";
     key_translation_map["bottom_shell_thickness"]                   = "bottom_solid_min_thickness";
     key_translation_map["bottom_solid_infill_flow_ratio"]   = "first_layer_flow_ratio ";
@@ -91,7 +95,7 @@ void init()
     //key_translation_map["bridge_angle"]                             = "bridge_angle";
     key_translation_map["bridge_density"]                           = "bridge_overlap_min";
     key_translation_map["bridge_no_support"]                        = "dont_support_bridges";
-    key_translation_map["internal_bridge_speed"]                    = "bridge_speed_internal";
+    //key_translation_map["internal_bridge_speed"]                    = "internal_bridge_speed";
     //key_translation_map["brim_ears"]                                = "brim_ears";
     //key_translation_map["brim_ears_detection_length"]               = "brim_ears_detection_length";
     //key_translation_map["brim_ears_max_angle"]                      = "brim_ears_max_angle";
@@ -214,7 +218,7 @@ void init()
     key_translation_map["sparse_infill_pattern"]                    = "fill_pattern";
     key_translation_map["filename_format"]                          = "output_filename_format";
     key_translation_map["support_base_pattern"]                     = "support_material_pattern";
-    key_translation_map["support_interface_pattern"]                = "support_material_interface_pattern";
+    key_translation_map["support_interface_pattern"]                = "support_material_top_interface_pattern";
     key_translation_map["top_surface_pattern"]                      = "top_fill_pattern";
     key_translation_map["support_object_xy_distance"]               = "support_material_xy_spacing";
     key_translation_map["fuzzy_skin_point_distance"]                = "fuzzy_skin_point_dist";
@@ -420,7 +424,7 @@ void init()
 //key_translation_map["single"]="retract_lift_above";
 //key_translation_map["single"]="retract_lift_below";
 //key_translation_map["single"]="wipe";
-    //patern
+    //pattern
     value_translation_map["fill_pattern"]["monotonicline"] = "monotoniclines"; //2.7
     value_translation_map["fill_pattern"]["zig-zag"] = "rectilinear";
     value_translation_map["fill_pattern"]["tri-hexagon"] = "stars";
@@ -430,7 +434,8 @@ void init()
     value_translation_map["solid_fill_pattern"] = value_translation_map["fill_pattern"];
     value_translation_map["brim_ears_pattern"] = value_translation_map["fill_pattern"];
     value_translation_map["bridge_fill_pattern"] = value_translation_map["fill_pattern"];
-    value_translation_map["support_material_interface_pattern"] = value_translation_map["fill_pattern"];
+    value_translation_map["support_material_top_interface_pattern"] = value_translation_map["fill_pattern"];
+    value_translation_map["support_material_bottom_interface_pattern"] = value_translation_map["fill_pattern"];
     //specific
     value_translation_map["fill_pattern"]["default"] = "gyroid";
     value_translation_map["top_fill_pattern"]["default"] = "monotonic";
@@ -438,7 +443,8 @@ void init()
     value_translation_map["solid_fill_pattern"]["default"] = "rectilinear";
     value_translation_map["brim_ears_pattern"]["default"] = "concentric";
     value_translation_map["bridge_fill_pattern"]["default"] = "rectilinear";
-    value_translation_map["support_material_interface_pattern"]["default"] = "auto";
+    value_translation_map["support_material_top_interface_pattern"]["default"] = "auto";
+    value_translation_map["support_material_bottom_interface_pattern"]["default"] = "auto";
     //value_translation_map["support_material_interface_pattern"]["rectilinear_interlaced"] = "???"; //can't convert let the config_substitutions emit the warning
  
     //others
@@ -503,8 +509,21 @@ void complicated_convert(t_config_option_key &opt_key, std::string &value, const
             value = "1";
         }
     }
-    if ("enable_overhang_speed") {
-    
+    if ("enable_arc_fitting" == opt_key) {
+        opt_key = "arc_fitting";
+        if ("1" == value) {
+            value = "bambu";
+        } else {
+            assert(value == "0");
+            value = "disabled";
+        }
+    }
+    //if ("enable_overhang_speed") {
+    //
+    //}
+    if ("support_material_top_interface_pattern" == opt_key || "support_interface_pattern" == opt_key) {
+        output["support_material_top_interface_pattern"] = value;
+        output["support_material_bottom_interface_pattern"] = value;
     }
 }
 
@@ -580,8 +599,9 @@ void custom_gcode_transform(DynamicPrintConfig &print_config)
     }
     for (std::string opt_key : {"end_filament_gcode", "start_filament_gcode"}) {
         auto opt = print_config.opt<ConfigOptionStrings>(opt_key);
-        if (opt != nullptr)
-            for (std::string &custom_gcode : opt->values) {
+        if (opt != nullptr) {
+            std::vector<std::string> custom_gcode_values = opt->get_values();
+            for (std::string &custom_gcode : custom_gcode_values) {
                 // check & replace setting name
                 for (auto &entry : key_translation_map) {
                     boost::replace_all(custom_gcode, entry.first, entry.second);
@@ -591,6 +611,8 @@ void custom_gcode_transform(DynamicPrintConfig &print_config)
                     boost::replace_all(custom_gcode, entry.first, entry.second);
                 }
             }
+            opt->set(custom_gcode_values);
+        }
     }
 }
 

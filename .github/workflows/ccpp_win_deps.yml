@@ -3,6 +3,7 @@ name: C/C++ dep build windows x64
 on:
   workflow_dispatch:
 
+
 jobs:
   build_dep:
     runs-on: windows-2019
@@ -26,7 +27,7 @@ jobs:
   build:
     runs-on: windows-2019
     needs: build_dep
-
+    
     steps:
     - uses: actions/checkout@v1
     - uses: ilammy/msvc-dev-cmd@v1

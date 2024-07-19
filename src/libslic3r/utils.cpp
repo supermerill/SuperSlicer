@@ -406,28 +406,38 @@ namespace WindowsSupport
 		ScopedFileHandle from_handle;
 		// Retry this a few times to defeat badly behaved file system scanners.
 		for (unsigned retry = 0; retry != 200; ++ retry) {
-			if (retry != 0)
-		  		::Sleep(10);
+            if (retry != 0) {
+                BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: retry to open file";
+                ::Sleep(10);
+            }
 			from_handle = ::CreateFileW((LPWSTR)wide_from.data(), GENERIC_READ | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 			if (from_handle)
 		  		break;
-		}
+            BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: failed to open file '" << wide_from << "'";
+        }
 		if (! from_handle)
 			return map_windows_error(GetLastError());
+        BOOST_LOG_TRIVIAL(debug) << "Rename: Succeed to open source file '" << wide_from << "'";
 
 		// We normally expect this loop to succeed after a few iterations. If it
 		// requires more than 200 tries, it's more likely that the failures are due to
 		// a true error, so stop trying.
 		for (unsigned retry = 0; retry != 200; ++ retry) {
+            if (retry != 0) {
+                BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: retry to rename file";
+                ::Sleep(10);
+            }
 			auto errcode = rename_internal(from_handle, wide_to, true);
 
 			if (errcode == std::error_code(ERROR_CALL_NOT_IMPLEMENTED, std::system_category())) {
+                BOOST_LOG_TRIVIAL(debug) << "Rename: No support for SetFileInformationByHandle";
 		  		// Wine doesn't support SetFileInformationByHandle in rename_internal.
 		  		// Fall back to MoveFileEx.
 		  		if (std::error_code errcode2 = real_path_from_handle(from_handle, wide_from))
 		    		return errcode2;
 		  		if (::MoveFileExW((LPCWSTR)wide_from.data(), (LPCWSTR)wide_to.data(), MOVEFILE_REPLACE_EXISTING))
 		    		return std::error_code();
+                BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: failed to move file from '" << wide_from << "' to '" << wide_to << "'";
 		  		return map_windows_error(GetLastError());
 			}
 
@@ -446,20 +456,30 @@ namespace WindowsSupport
 				// Another process might have raced with us and moved the existing file
 				// out of the way before we had a chance to open it. If that happens, try
 				// to rename the source file again.
-				if (errcode == std::errc::no_such_file_or_directory)
-					continue;
+                if (errcode == std::errc::no_such_file_or_directory) {
+                    BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: failed to create/open file '" << wide_to << "'";
+                    continue;
+                }
 				return errcode;
 			}
+            BOOST_LOG_TRIVIAL(debug) << "Rename: Succeed to create/open destination file '" << wide_to << "'";
 
 			BY_HANDLE_FILE_INFORMATION FI;
-			if (! ::GetFileInformationByHandle(to_handle, &FI))
-		  		return map_windows_error(GetLastError());
+            if (! ::GetFileInformationByHandle(to_handle, &FI)) {
+                BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: failed to access file '" << wide_to << "' informations";
+                return map_windows_error(GetLastError());
+            }
 
 			// Try to find a unique new name for the destination file.
 			for (unsigned unique_id = 0; unique_id != 200; ++ unique_id) {
+				if (retry != 0) {
+					BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: retry to create destination file";
+					::Sleep(10);
+				}
 				std::wstring tmp_filename = wide_to + L".tmp" + std::to_wstring(unique_id);
 				std::error_code errcode = rename_internal(to_handle, tmp_filename, false);
 				if (errcode) {
+					BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: error (" << errcode.value() << ") while renaming '" << wide_from << "' to '" << wide_to << "'";
 					if (errcode == std::make_error_code(std::errc::file_exists) || errcode == std::make_error_code(std::errc::permission_denied)) {
 						// Again, another process might have raced with us and moved the file
 						// before we could move it. Check whether this is the case, as it
@@ -470,13 +490,17 @@ namespace WindowsSupport
 							auto errcode = map_windows_error(GetLastError());
 							if (errcode == std::errc::no_such_file_or_directory)
 						  		break;
+							BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: access to '" << wide_to << "' is impossible (" << errcode.value() << ")";
 							return errcode;
 						}
 						BY_HANDLE_FILE_INFORMATION FI2;
-						if (! ::GetFileInformationByHandle(to_handle2, &FI2))
-							return map_windows_error(GetLastError());
+                        if (! ::GetFileInformationByHandle(to_handle2, &FI2)) {
+                            BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: failed to access file '" << wide_to << "' informations";
+                            return map_windows_error(GetLastError());
+                        }
 						if (FI.nFileIndexHigh != FI2.nFileIndexHigh || FI.nFileIndexLow != FI2.nFileIndexLow || FI.dwVolumeSerialNumber != FI2.dwVolumeSerialNumber)
 							break;
+						// retry
 						continue;
 					}
 					return errcode;
@@ -490,6 +514,7 @@ namespace WindowsSupport
 			// file, so we need to keep doing this until we succeed.
 		}
 
+        BOOST_LOG_TRIVIAL(warning) << "Warn: Rename: failed to rename the file, abord operation.";
 		// The most likely root cause.
 		return std::make_error_code(std::errc::permission_denied);
 	}

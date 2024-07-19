@@ -262,10 +262,10 @@ public:
     Point  projection_onto(const Point &line_pa, const Point &line_pb) const;
     Point  interpolate(const double percent, const Point &p) const;
 
-    double distance_to(const Point &point) const { return (point - *this).cast<double>().norm(); }
-    double distance_to_square(const Point &point) const {
-        double dx = double(point.x() - this->x());
-        double dy = double(point.y() - this->y());
+    coordf_t distance_to(const Point &point) const { return (point - *this).cast<coordf_t>().norm(); }
+    coordf_t distance_to_square(const Point &point) const {
+        coordf_t dx = double(point.x() - this->x());
+        coordf_t dy = double(point.y() - this->y());
         return dx*dx + dy*dy;
     }
     bool coincides_with(const Point &point) const { return this->x() == point.x() && this->y() == point.y(); }

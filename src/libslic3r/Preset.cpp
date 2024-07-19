@@ -310,11 +310,11 @@ void Preset::normalize(DynamicPrintConfig &config)
     auto *nozzle_diameter = dynamic_cast<const ConfigOptionFloats*>(config.option("nozzle_diameter"));
     if (nozzle_diameter != nullptr)
         // Loaded the FFF Printer settings. Verify, that all extruder dependent values have enough values.
-        config.set_num_extruders((unsigned int)nozzle_diameter->values.size());
+        config.set_num_extruders((unsigned int)nozzle_diameter->size());
     if (config.option("filament_diameter") != nullptr) {
         // This config contains single or multiple filament presets.
         // Ensure that the filament preset vector options contain the correct number of values.
-        size_t n = (nozzle_diameter == nullptr) ? 1 : nozzle_diameter->values.size();
+        size_t n = (nozzle_diameter == nullptr) ? 1 : nozzle_diameter->size();
         const auto &defaults = FullPrintConfig::defaults();
         for (const std::string &key : Preset::filament_options()) {
             if (key == "compatible_prints" || key == "compatible_printers")
@@ -326,17 +326,17 @@ void Preset::normalize(DynamicPrintConfig &config)
                 static_cast<ConfigOptionVectorBase*>(opt)->resize(n, defaults.option(key));
         }
         // The following keys are mandatory for the UI, but they are not part of FullPrintConfig, therefore they are handled separately.
-        for (const std::string &key : { "filament_settings_id" }) {
+        for (const char *key : {"filament_settings_id"}) {
             auto *opt = config.option(key, false);
             assert(opt == nullptr || opt->type() == coStrings);
             if (opt != nullptr && opt->type() == coStrings)
-                static_cast<ConfigOptionStrings*>(opt)->values.resize(n, std::string());
+                static_cast<ConfigOptionStrings*>(opt)->resize(n, std::string());
         }
     }
     auto *milling_diameter = dynamic_cast<const ConfigOptionFloats*>(config.option("milling_diameter"));
     if (milling_diameter != nullptr)
         // Loaded the FFF Printer settings. Verify, that all extruder dependent values have enough values.
-        config.set_num_milling((unsigned int)milling_diameter->values.size());
+        config.set_num_milling((unsigned int)milling_diameter->size());
     if (const auto *gap_fill_speed = config.option<ConfigOptionFloat>("gap_fill_speed", false); gap_fill_speed && gap_fill_speed->value <= 0.) {
         // Legacy conversion. If the gap fill speed is zero, it means the gap fill is not enabled.
         // Set the new gap_fill_enabled value, so that it will show up in the UI as disabled.
@@ -381,7 +381,7 @@ bool is_compatible_with_print(const PresetWithVendorProfile &preset, const Prese
 		return false;
     auto &condition             = preset.preset.compatible_prints_condition();
     auto *compatible_prints     = dynamic_cast<const ConfigOptionStrings*>(preset.preset.config.option("compatible_prints"));
-    bool  has_compatible_prints = compatible_prints != nullptr && ! compatible_prints->values.empty();
+    bool  has_compatible_prints = compatible_prints != nullptr && ! compatible_prints->empty();
     if (! has_compatible_prints && ! condition.empty()) {
         try {
             return PlaceholderParser::evaluate_boolean_expression(condition, active_print.preset.config);
@@ -392,8 +392,8 @@ bool is_compatible_with_print(const PresetWithVendorProfile &preset, const Prese
         }
     }
     return preset.preset.is_default || active_print.preset.name.empty() || ! has_compatible_prints ||
-        std::find(compatible_prints->values.begin(), compatible_prints->values.end(), active_print.preset.name) !=
-            compatible_prints->values.end();
+        std::find(compatible_prints->get_values().begin(), compatible_prints->get_values().end(), active_print.preset.name) !=
+            compatible_prints->get_values().end();
 }
 
 bool is_compatible_with_printer(const PresetWithVendorProfile &preset, const PresetWithVendorProfile &active_printer, const DynamicPrintConfig *extra_config)
@@ -404,7 +404,7 @@ bool is_compatible_with_printer(const PresetWithVendorProfile &preset, const Pre
 		return false;
     auto &condition               = preset.preset.compatible_printers_condition();
     auto *compatible_printers     = dynamic_cast<const ConfigOptionStrings*>(preset.preset.config.option("compatible_printers"));
-    bool  has_compatible_printers = compatible_printers != nullptr && ! compatible_printers->values.empty();
+    bool  has_compatible_printers = compatible_printers != nullptr && ! compatible_printers->empty();
     if (! has_compatible_printers && ! condition.empty()) {
         try {
             return PlaceholderParser::evaluate_boolean_expression(condition, active_printer.preset.config, extra_config);
@@ -415,8 +415,8 @@ bool is_compatible_with_printer(const PresetWithVendorProfile &preset, const Pre
         }
     }
     return preset.preset.is_default || active_printer.preset.name.empty() || ! has_compatible_printers ||
-        std::find(compatible_printers->values.begin(), compatible_printers->values.end(), active_printer.preset.name) !=
-            compatible_printers->values.end();
+        std::find(compatible_printers->get_values().begin(), compatible_printers->get_values().end(), active_printer.preset.name) !=
+            compatible_printers->get_values().end();
 }
 
 bool is_compatible_with_printer(const PresetWithVendorProfile &preset, const PresetWithVendorProfile &active_printer)
@@ -425,10 +425,10 @@ bool is_compatible_with_printer(const PresetWithVendorProfile &preset, const Pre
     config.set_key_value("printer_preset", new ConfigOptionString(active_printer.preset.name));
     const ConfigOption *opt = active_printer.preset.config.option("nozzle_diameter");
     if (opt)
-        config.set_key_value("num_extruders", new ConfigOptionInt((int)static_cast<const ConfigOptionFloats*>(opt)->values.size()));
+        config.set_key_value("num_extruders", new ConfigOptionInt((int)static_cast<const ConfigOptionFloats*>(opt)->size()));
     opt = active_printer.preset.config.option("milling_diameter");
     if (opt)
-        config.set_key_value("num_milling", new ConfigOptionInt((int)static_cast<const ConfigOptionFloats*>(opt)->values.size()));
+        config.set_key_value("num_milling", new ConfigOptionInt((int)static_cast<const ConfigOptionFloats*>(opt)->size()));
     return is_compatible_with_printer(preset, active_printer, &config);
 }
 
@@ -465,7 +465,10 @@ void Preset::set_visible_from_appconfig(const AppConfig &app_config)
 
 static std::vector<std::string> s_Preset_print_options {
         "layer_height", 
-        "first_layer_height", "perimeters", "spiral_vase",
+        "first_layer_height",
+        "perimeters",
+        "perimeters_hole",
+        "spiral_vase",
         "slice_closing_radius",
         "slicing_mode",
         "top_solid_layers",
@@ -489,10 +492,15 @@ static std::vector<std::string> s_Preset_print_options {
         "thin_perimeters", "thin_perimeters_all",
         "overhangs_speed",
         "overhangs_speed_enforce",
+        "overhangs_max_slope",
+        "overhangs_bridge_threshold",
+        "overhangs_bridge_upper_layers",
         "overhangs_width",
         "overhangs_width_speed", 
         "overhangs_reverse",
         "overhangs_reverse_threshold",
+        "perimeter_reverse",
+        "perimeter_direction",
         "seam_position",
         "seam_angle_cost",
         "seam_notch_all",
@@ -527,12 +535,16 @@ static std::vector<std::string> s_Preset_print_options {
         "ironing_speed",
         "ironing_spacing",
         "ironing_angle",
+        "fill_aligned_z",
         "fill_angle",
         "fill_angle_cross",
+        "fill_angle_follow_model",
         "fill_angle_increment",
         "fill_angle_template",
         "bridge_angle",
         "solid_infill_below_area",
+        "solid_infill_below_layer_area",
+        "solid_infill_below_width",
         "only_retract_when_crossing_perimeters", "enforce_retract_first_layer",
         "infill_first",
         "avoid_crossing_perimeters_max_detour",
@@ -541,7 +553,7 @@ static std::vector<std::string> s_Preset_print_options {
         // speeds
         "default_speed",
         "bridge_speed",
-        "bridge_speed_internal",
+        "internal_bridge_speed",
         "brim_speed",
         "external_perimeter_speed",
         "first_layer_speed",
@@ -578,7 +590,6 @@ static std::vector<std::string> s_Preset_print_options {
         "fuzzy_skin_thickness",
         // acceleration
         "bridge_acceleration",
-        "bridge_internal_acceleration",
         "brim_acceleration",
         "default_acceleration",
         "external_perimeter_acceleration",
@@ -586,6 +597,7 @@ static std::vector<std::string> s_Preset_print_options {
         "first_layer_acceleration_over_raft",
         "gap_fill_acceleration",
         "infill_acceleration",
+        "internal_bridge_acceleration",
         "ironing_acceleration",
         "overhangs_acceleration",
         "perimeter_acceleration",
@@ -631,7 +643,8 @@ static std::vector<std::string> s_Preset_print_options {
         "support_material_angle",
         "support_material_angle_height",
         "support_material_interface_layers", "support_material_bottom_interface_layers",
-        "support_material_interface_pattern",
+        "support_material_top_interface_pattern",
+        "support_material_bottom_interface_pattern",
         "support_material_interface_angle",
         "support_material_interface_angle_increment",
         "support_material_interface_spacing",
@@ -659,7 +672,9 @@ static std::vector<std::string> s_Preset_print_options {
         "extruder_clearance_height", "gcode_comments", "gcode_label_objects", "output_filename_format", "post_process", "perimeter_extruder",
         "gcode_substitutions",
         "infill_extruder", "solid_infill_extruder", "support_material_extruder", "support_material_interface_extruder", 
-        "ooze_prevention", "standby_temperature_delta", "interface_shells", 
+        "ooze_prevention", "standby_temperature_delta", "interface_shells",
+        "object_gcode",
+        "region_gcode",
         // width & spacing
         "extrusion_spacing", 
         "extrusion_width", 
@@ -686,6 +701,7 @@ static std::vector<std::string> s_Preset_print_options {
         "bridge_flow_ratio",
         "bridge_type",
         "solid_infill_overlap",
+        "top_solid_infill_overlap",
         "infill_anchor",
         "infill_anchor_max",
         "over_bridge_flow_ratio",
@@ -694,6 +710,7 @@ static std::vector<std::string> s_Preset_print_options {
         "first_layer_flow_ratio",
         "enforce_full_fill_volume",
         "external_infill_margin", "bridged_infill_margin",
+        "small_area_infill_flow_compensation", "small_area_infill_flow_compensation_model",
         // compensation
         "first_layer_size_compensation",
         "first_layer_size_compensation_layers",
@@ -709,6 +726,7 @@ static std::vector<std::string> s_Preset_print_options {
         "wipe_tower", "wipe_tower_x", "wipe_tower_y", "wipe_tower_width", "wipe_tower_rotation_angle",
         "wipe_tower_bridging",
         "wipe_tower_brim_width",
+        "priming_position",
         "wipe_tower_cone_angle",
         "wipe_tower_extra_spacing",
         "wipe_tower_extruder",
@@ -721,7 +739,7 @@ static std::vector<std::string> s_Preset_print_options {
         "compatible_printers", "compatible_printers_condition", "inherits", 
         "infill_dense", "infill_dense_algo",
         "no_perimeter_unsupported_algo",
-        "exact_last_layer_height",
+        // "exact_last_layer_height",
         "perimeter_loop",
         "perimeter_loop_seam",
         "infill_connection", "infill_connection_solid", "infill_connection_top", "infill_connection_bottom", "infill_connection_bridge",
@@ -737,12 +755,14 @@ static std::vector<std::string> s_Preset_print_options {
         "model_precision",
         "resolution",
         "resolution_internal",
+        "bridge_precision",
         "gcode_resolution", //TODO what to do with it?
         "curve_smoothing_precision",
         "curve_smoothing_cutoff_dist",
         "curve_smoothing_angle_convex",
         "curve_smoothing_angle_concave",
         "print_extrusion_multiplier",
+        "print_first_layer_temperature",
         "print_retract_length",
         "print_temperature",
         "print_retract_lift",
@@ -757,7 +777,7 @@ static std::vector<std::string> s_Preset_print_options {
         "milling_speed",
         //Arachne
         "perimeter_generator", "wall_transition_length", "wall_transition_filter_deviation", "wall_transition_angle",
-        "wall_distribution_count", "min_feature_size", "min_bead_width"
+        "wall_distribution_count", "min_feature_size", "min_bead_width",
 };
 
 static std::vector<std::string> s_Preset_filament_options {
@@ -798,10 +818,10 @@ static std::vector<std::string> s_Preset_filament_options {
         "default_fan_speed",
         "max_fan_speed",
         "bridge_fan_speed",
-        "bridge_internal_fan_speed",
         "external_perimeter_fan_speed",
         "gap_fill_fan_speed",
         "infill_fan_speed",
+        "internal_bridge_fan_speed",
         "overhangs_fan_speed",
         "perimeter_fan_speed",
         "solid_infill_fan_speed",
@@ -1057,6 +1077,7 @@ static std::vector<std::string> s_Preset_sla_printer_options {
     "thumbnails_color",
     "thumbnails_custom_color",
     "thumbnails_with_bed",
+    "thumbnails_format",
     "thumbnails_tag_format",
     "thumbnails_with_support",
 };
@@ -1654,10 +1675,10 @@ size_t PresetCollection::update_compatible_internal(const PresetWithVendorProfil
     config.set_key_value("printer_preset", new ConfigOptionString(active_printer.preset.name));
     const ConfigOption *opt = active_printer.preset.config.option("nozzle_diameter");
     if (opt)
-        config.set_key_value("num_extruders", new ConfigOptionInt((int)static_cast<const ConfigOptionFloats*>(opt)->values.size()));
+        config.set_key_value("num_extruders", new ConfigOptionInt((int)static_cast<const ConfigOptionFloats*>(opt)->size()));
     opt = active_printer.preset.config.option("milling_diameter");
     if (opt)
-        config.set_key_value("num_milling", new ConfigOptionInt((int)static_cast<const ConfigOptionFloats*>(opt)->values.size()));
+        config.set_key_value("num_milling", new ConfigOptionInt((int)static_cast<const ConfigOptionFloats*>(opt)->size()));
     bool some_compatible = false;
     std::vector<size_t> indices_of_template_presets;
     if(m_idx_selected < m_num_default_presets && unselect_if_incompatible != PresetSelectCompatibleType::Never)
@@ -1731,11 +1752,11 @@ void add_correct_opts_to_diff(const std::string &opt_key, t_config_option_keys& 
 {
     const T* opt_init = static_cast<const T*>(other.option(opt_key));
     const T* opt_cur = static_cast<const T*>(this_c.option(opt_key));
-    int opt_init_max_id = opt_init->values.size() - 1;
-    for (int i = 0; i < int(opt_cur->values.size()); i++)
+    int opt_init_max_id = opt_init->size() - 1;
+    for (int i = 0; i < int(opt_cur->size()); i++)
     {
         int init_id = i <= opt_init_max_id ? i : 0;
-        if (opt_init_max_id < 0 || opt_cur->values[i] != opt_init->values[init_id])
+        if (opt_init_max_id < 0 || opt_cur->get_at(i) != opt_init->get_at(init_id))
             vec.emplace_back(opt_key + "#" + std::to_string(i));
     }
 }
@@ -1998,6 +2019,8 @@ std::string Preset::type_name(Type t) {
     case Preset::TYPE_SLA_PRINT:    return "sla_print";
     case Preset::TYPE_SLA_MATERIAL: return "sla_material";
     case Preset::TYPE_PRINTER:      return "printer";
+    case Preset::TYPE_FREQUENT_FFF: return "freq_fff";
+    case Preset::TYPE_FREQUENT_SLA: return "freq_sla";
     default:                        return "invalid";
     }
 }
@@ -2013,6 +2036,10 @@ Preset::Type Preset::type_from_name(std::string name) {
         return Preset::TYPE_SLA_MATERIAL;
     if ("printer" == name)
         return Preset::TYPE_PRINTER;
+    if ("freq_fff" == name)
+        return Preset::TYPE_FREQUENT_FFF;
+    if ("freq_sla" == name)
+        return Preset::TYPE_FREQUENT_SLA;
     return Preset::TYPE_INVALID;
 }
 
@@ -2165,10 +2192,7 @@ static void update_preset_name_option(const std::set<std::string>& preset_names,
 void PhysicalPrinter::update_preset_names_in_config()
 {
     if (!preset_names.empty()) {
-        std::vector<std::string>& values = config.option<ConfigOptionStrings>("preset_names")->values;
-        values.clear();
-        for (const std::string& preset : preset_names)
-            values.push_back(preset);
+        config.option<ConfigOptionStrings>("preset_names")->set(std::vector<std::string>(preset_names.begin(), preset_names.end()));
 
         // temporary workaround for compatibility with older Slicer
         update_preset_name_option(preset_names, config);
@@ -2196,7 +2220,7 @@ void PhysicalPrinter::update_from_config(const DynamicPrintConfig& new_config)
 {
     config.apply_only(new_config, printer_options(), false);
 
-    const std::vector<std::string>& values = config.option<ConfigOptionStrings>("preset_names")->values;
+    const std::vector<std::string>& values = config.option<ConfigOptionStrings>("preset_names")->get_values();
 
     if (values.empty())
         preset_names.clear();
@@ -2727,7 +2751,7 @@ size_t ExtruderFilaments::update_compatible_internal(const PresetWithVendorProfi
     config.set_key_value("printer_preset", new ConfigOptionString(active_printer.preset.name));
     const ConfigOption* opt = active_printer.preset.config.option("nozzle_diameter");
     if (opt)
-        config.set_key_value("num_extruders", new ConfigOptionInt((int)static_cast<const ConfigOptionFloats*>(opt)->values.size()));
+        config.set_key_value("num_extruders", new ConfigOptionInt((int)static_cast<const ConfigOptionFloats*>(opt)->size()));
 
     // Adjust printer preset config to the first extruder from m_extruder_id 
     Preset printer_preset_adjusted = active_printer.preset;

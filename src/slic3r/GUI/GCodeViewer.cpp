@@ -325,10 +325,31 @@ void GCodeViewer::Extrusions::Range::update_from(const float f_value){
 
     // note: not needed to clear caches, as update isn't called after chache creation and there is always a reset before
 }
+
 bool GCodeViewer::Extrusions::Range::has_outliers() const
 {
     bool   has_outliers = false;
     size_t min_count    = this->m_ratio_outlier * total_count / 20;
+    for (size_t idx = 0; idx < 19; ++idx) {
+        if (counts[idx] > 0) {
+            has_outliers = counts[idx] <= min_count;
+            break;
+        }
+    }
+    if (!has_outliers)
+        for (size_t idx = 19; idx > 0; --idx) {
+            if (counts[idx] > 0) {
+                has_outliers = counts[idx] <= min_count;
+                break;
+            }
+        }
+    return has_outliers;
+}
+
+bool GCodeViewer::Extrusions::Range::can_have_outliers(float ratio) const
+{
+    bool   has_outliers = false;
+    size_t min_count    = ratio * total_count / 20;
     for (size_t idx = 0; idx < 19; ++idx) {
         if (counts[idx] > 0) {
             has_outliers = counts[idx] <= min_count;
@@ -695,7 +716,25 @@ GCodeViewer::Extrusions::Range *GCodeViewer::Extrusions::Ranges::get(EViewType t
 }
 
 
-GCodeViewer::Extrusions::Ranges::Ranges()
+GCodeViewer::Extrusions::Ranges::Ranges(uint8_t max_decimals) : 
+            // Color mapping by layer height.
+            height(max_decimals, false),
+            // Color mapping by extrusion width.
+            width(max_decimals),
+            // Color mapping by feedrate.
+            feedrate(std::min(max_decimals, uint8_t(1))),
+            // Color mapping by fan speed.
+            fan_speed(0),
+            // Color mapping by volumetric extrusion rate.
+            volumetric_rate(max_decimals),
+            // Color mapping by volumetric extrusion mm3/mm.
+            volumetric_flow(max_decimals),
+            // Color mapping by extrusion temperature.
+            temperature(0),
+            // Color mapping by layer time.
+            layer_time(),
+            // Color mapping by time.
+            elapsed_time()
 {
     for (size_t i = 0; i < static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Count); i++) {
         this->layer_time.emplace_back(0, true);
@@ -705,6 +744,10 @@ GCodeViewer::Extrusions::Ranges::Ranges()
         this->min_max_cstr_id[i] = std::pair<std::string, std::string>{std::string("##min") + std::to_string(i), std::string("##max") + std::to_string(i)};
     }
 }
+
+
+
+GCodeViewer::Extrusions::Extrusions() : ranges(std::max(0, std::min(6, atoi(Slic3r::GUI::get_app_config()->get("gcodeviewer_decimals").c_str())))) {}
 
 GCodeViewer::SequentialRangeCap::~SequentialRangeCap() {
     if (ibo > 0)
@@ -1213,7 +1256,7 @@ GCodeViewer::GCodeViewer()
             ifs.open(path_colors.string());
             boost::property_tree::read_ini(ifs, tree_colors);
 
-            for (int i = 0; i < Extrusion_Role_Colors.size(); i++) {
+            for (size_t i = 0; i < Extrusion_Role_Colors.size(); i++) {
                 std::string color_code = tree_colors.get<std::string>(gcode_extrusion_role_to_string((GCodeExtrusionRole)i));
                 if (color_code.length() > 5) {
                     wxColour color;
@@ -1315,9 +1358,19 @@ bool GCodeViewer::is_loaded(const GCodeProcessorResult& gcode_result) {
 
 void GCodeViewer::load(const GCodeProcessorResult& gcode_result, const Print& print)
 {
+    if (!m_gcode_result.has_value())
+        m_gcode_result = gcode_result;
+    assert(&m_gcode_result->get() == &gcode_result);
+    if (!m_print.has_value())
+        m_print = print;
+    assert(&m_print->get() == &print);
+
     // avoid processing if called with the same gcode_result
+    // unless you switch to/from VolumetricRate/VolumetricFlow
     if (m_last_result_id == gcode_result.id &&
-        (m_last_view_type == m_view_type || (m_last_view_type != EViewType::VolumetricRate && m_view_type != EViewType::VolumetricRate)))
+        (m_last_view_type == m_view_type || 
+            (m_last_view_type != EViewType::VolumetricRate && m_view_type != EViewType::VolumetricRate &&
+             m_last_view_type != EViewType::VolumetricFlow && m_view_type != EViewType::VolumetricFlow)))
         return;
 
     m_last_result_id = gcode_result.id;
@@ -1408,6 +1461,9 @@ void GCodeViewer::refresh(const GCodeProcessorResult& gcode_result, const std::v
     if (m_moves_count == 0)
         return;
 
+    // save for refresh without calling the glpreview/glcanvas
+    m_last_str_tool_colors = str_tool_colors;
+
     wxBusyCursor busy;
 
     if (m_view_type == EViewType::Tool && !gcode_result.extruder_colors.empty())
@@ -1459,7 +1515,8 @@ void GCodeViewer::refresh(const GCodeProcessorResult& gcode_result, const std::v
             // if (curr.extrusion_role != GCodeExtrusionRole::Custom || is_visible(GCodeExtrusionRole::Custom)) {  // disabled: you can do that by disabling custom yourself, or remove outliers if any.
             m_extrusions.ranges.volumetric_rate.update_from(curr.volumetric_rate());
             m_extrusions.ranges.volumetric_flow.update_from(curr.mm3_per_mm);
-            // }            if (curr.layer_duration > 0.f && (gcode_result.print_statistics.modes.empty() || gcode_result.print_statistics.modes.front().layers_times.empty()))
+            // }
+            if (curr.layer_duration > 0.f && (gcode_result.print_statistics.modes.empty() || gcode_result.print_statistics.modes.front().layers_times.empty()))
                 m_extrusions.ranges.layer_time[0].update_from(curr.layer_duration);
             if (curr.layer_duration > 0.f && (gcode_result.print_statistics.modes.empty() || gcode_result.print_statistics.modes.front().time == 0))
                 m_extrusions.ranges.elapsed_time[0].update_from(curr.time);
@@ -2949,7 +3006,7 @@ void GCodeViewer::load_wipetower_shell(const Print& print)
         const size_t extruders_count = config.nozzle_diameter.size();
         if (extruders_count > 1 && config.wipe_tower && !config.complete_objects) {
             //FIXME using first nozzle diameter instead of the "right" one.
-            const WipeTowerData& wipe_tower_data = print.wipe_tower_data(extruders_count, config.nozzle_diameter.values.front());
+            const WipeTowerData& wipe_tower_data = print.wipe_tower_data(extruders_count, config.nozzle_diameter.get_at(0));
             const float depth = wipe_tower_data.depth;
             const std::vector<std::pair<float, float>> z_and_depth_pairs = wipe_tower_data.z_and_depth_pairs;
             const float brim_width = wipe_tower_data.brim_width;
@@ -3935,8 +3992,8 @@ void GCodeViewer::render_legend(float& legend_height)
     const PrintEstimatedStatistics::Mode& time_mode = m_print_statistics.modes[static_cast<size_t>(m_time_estimate_mode)];
     bool show_estimated_time = time_mode.time > 0.0f && (m_view_type == EViewType::FeatureType || m_view_type == EViewType::LayerTime ||
         (m_view_type == EViewType::ColorPrint && !time_mode.custom_gcode_times.empty()));
-    bool show_switch_show_outliers = (m_view_type == EViewType::VolumetricFlow || m_view_type == EViewType::VolumetricRate) && range && range->has_outliers();
-    bool show_switch_log_scale = (m_view_type == EViewType::LayerTime);
+    bool show_switch_show_outliers = range && range->can_have_outliers(0.01f);
+    bool show_switch_log_scale = (m_view_type == EViewType::LayerTime) && (!range || !range->is_discrete_mode());
     bool show_min_max_field = range && (range->get_user_min() || range->get_user_max() || range->count_discrete() > 5);
     bool show_min_max_field_same_line = (m_view_type == EViewType::VolumetricFlow || m_view_type == EViewType::VolumetricRate || m_view_type == EViewType::LayerTime || m_view_type == EViewType::Chronology);
     bool show_switch_discrete = range && range->count_discrete() > 2 && range->count_discrete() <= Range_Colors_Details.size();
@@ -4257,7 +4314,7 @@ void GCodeViewer::render_legend(float& legend_height)
                          _u8L("Tool"),
                          _u8L("Filament"),
                          _u8L("Color Print") };
-        view_options_id = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
+        view_options_id = { 0, 1, 2, 3, 4, 5, 8, 9, 6, 7, 10, 11, 12 };
         assert(view_options_id.size() == size_t(EViewType::Count));
         assert(view_options_id.back() < size_t(EViewType::Count));
     }
@@ -4273,7 +4330,7 @@ void GCodeViewer::render_legend(float& legend_height)
                          _u8L("Tool"),
                          _u8L("Filament"),
                          _u8L("Color Print") };
-        view_options_id = { 0, 1, 2, 3, 4, 5, 6, 7, 10, 11, 12 };
+        view_options_id = { 0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12 };
         assert(view_options_id.size() == size_t(EViewType::Count) - 2);
         assert(view_options_id.back() < size_t(EViewType::Count));
         if (view_type == int(EViewType::LayerTime) || view_type == int(EViewType::Chronology) )
@@ -4288,8 +4345,15 @@ void GCodeViewer::render_legend(float& legend_height)
     if (old_view_type != view_type) {
         set_view_type(static_cast<EViewType>(view_type));
         wxGetApp().plater()->set_keep_current_preview_type(true);
-        wxGetApp().plater()->refresh_print();
+        //wxGetApp().plater()->refresh_print(); //doesn't work anymore, as there is a check to avoid redrawing uselessy, now call this->load(m_gcode_result->get(), m_print->get()) directly
+        if (m_gcode_result.has_value() && m_print.has_value()) {
+            this->load(m_gcode_result->get(), m_print->get());
+            this->refresh(m_gcode_result->get(), m_last_str_tool_colors);
+            wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
+            wxGetApp().plater()->get_current_canvas3D()->request_extra_frame();
+        }
         view_type_changed = true;
+        ImGui::ResetMaxCursorScreenPos();
     }
 
     // extrusion paths section -> title
@@ -4461,7 +4525,7 @@ void GCodeViewer::render_legend(float& legend_height)
                 last_color[i] = m_tool_colors[i];
             }
             int last_extruder_id = 1;
-            int color_change_idx = 0;
+            size_t color_change_idx = 0;
             for (const auto& time_rec : times) {
                 switch (time_rec.first)
                 {
@@ -4670,7 +4734,11 @@ void GCodeViewer::render_legend(float& legend_height)
           if (imgui.button(btn_text, ImVec2(-1.0f, 0.0f), true)) {
               m_extrusions.role_visibility_flags = custom_visible ? m_extrusions.role_visibility_flags & ~(1 << int(GCodeExtrusionRole::Custom)) :
                   m_extrusions.role_visibility_flags | (1 << int(GCodeExtrusionRole::Custom));
-              wxGetApp().plater()->refresh_print();
+              // note: the visibility doesn't deactivate if we change the m_view_type ...
+              // update buffers' render paths
+              refresh_render_paths(false, false);
+              wxGetApp().plater()->update_preview_moves_slider();
+              wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
           }
         }
     }
@@ -4683,8 +4751,8 @@ void GCodeViewer::render_legend(float& legend_height)
         if (!outliers_allowed)
             ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.3333f);
 
-        ImDrawList *draw_list = ImGui::GetWindowDrawList();
-        ImVec2      pos       = ImGui::GetCursorScreenPos();
+        //ImDrawList *draw_list = ImGui::GetWindowDrawList();
+        //ImVec2      pos       = ImGui::GetCursorScreenPos();
 
         // draw text
         ImGui::SameLine();
@@ -4770,29 +4838,40 @@ void GCodeViewer::render_legend(float& legend_height)
         }
         std::string min_label = _u8L("min");
         std::string max_label = _u8L("max");
-        float max_label_size = std::max(imgui.calc_text_size(min_label).x, imgui.calc_text_size(min_label).y);
-        max_label_size += imgui.scaled(1.f);
-        // draw text
-        ImGui::AlignTextToFramePadding();
-        imgui.text(min_label);
-        if (show_min_max_field_same_line)
+        
+        if (show_min_max_field_same_line) {
+            // draw min
+            imgui.text(min_label);
             ImGui::SameLine();
-        else
-            ImGui::SameLine(max_label_size);
-        ImGui::PushItemWidth(imgui.get_style_scaling() * size);
-        ImGui::InputFloat(m_extrusions.ranges.min_max_cstr_id[size_t(m_view_type)].first.c_str(), &mod_min, 0.0f, 0.0f, format.c_str(), ImGuiInputTextFlags_CharsDecimal, 0.f);
-        if (show_min_max_field_same_line)
+            ImGui::PushItemWidth(imgui.get_style_scaling() * size);
+            ImGui::InputFloat(m_extrusions.ranges.min_max_cstr_id[size_t(m_view_type)].second.c_str(), &mod_min, 0.0f,
+                              0.0f, format.c_str(), ImGuiInputTextFlags_CharsDecimal, 0.f);
+            // draw max
             ImGui::SameLine();
-        else
-            ImGui::AlignTextToFramePadding();
-        imgui.text(max_label);
-        if (show_min_max_field_same_line)
+            imgui.text(max_label);
             ImGui::SameLine();
-        else
-            ImGui::SameLine(max_label_size);
-        ImGui::PushItemWidth(imgui.get_style_scaling() * size);
-        ImGui::InputFloat(m_extrusions.ranges.min_max_cstr_id[size_t(m_view_type)].second.c_str(), &mod_max, 0.0f, 0.0f, format.c_str(), ImGuiInputTextFlags_CharsDecimal, 0.f);
+            ImGui::PushItemWidth(imgui.get_style_scaling() * size);
+            ImGui::InputFloat(m_extrusions.ranges.min_max_cstr_id[size_t(m_view_type)].first.c_str(), &mod_max, 0.0f,
+                              0.0f, format.c_str(), ImGuiInputTextFlags_CharsDecimal, 0.f);
 
+        } else {
+            float label_size = std::max(imgui.calc_text_size(min_label).x, imgui.calc_text_size(min_label).y);
+            label_size += imgui.scaled(1.f);
+            // draw max
+            imgui.text(max_label);
+            ImGui::SameLine(label_size);
+            ImGui::PushItemWidth(imgui.get_style_scaling() * size);
+            ImGui::InputFloat(m_extrusions.ranges.min_max_cstr_id[size_t(m_view_type)].second.c_str(), &mod_max, 0.0f,
+                              0.0f, format.c_str(), ImGuiInputTextFlags_CharsDecimal, 0.f);
+            // draw min
+            ImGui::AlignTextToFramePadding();
+            imgui.text(min_label);
+            ImGui::SameLine(label_size);
+            ImGui::PushItemWidth(imgui.get_style_scaling() * size);
+            ImGui::InputFloat(m_extrusions.ranges.min_max_cstr_id[size_t(m_view_type)].first.c_str(), &mod_min, 0.0f,
+                              0.0f, format.c_str(), ImGuiInputTextFlags_CharsDecimal, 0.f);
+        }
+        // refresh?
         if (mod_min != old_min)
             if(range->set_user_min(mod_min))
                 need_refresh_render_paths = true;
@@ -4922,13 +5001,22 @@ void GCodeViewer::render_legend(float& legend_height)
             set_options_visibility_from_flags(new_flags);
 
             const unsigned int diff_flags = flags ^ new_flags;
-            if (m_view_type == GCodeViewer::EViewType::Feedrate && is_flag_set(diff_flags, static_cast<unsigned int>(Preview::OptionType::Travel)))
-                wxGetApp().plater()->refresh_print();
-            else {
+            bool refreshed = false;
+            if (m_view_type == GCodeViewer::EViewType::Feedrate && is_flag_set(diff_flags, static_cast<unsigned int>(Preview::OptionType::Travel))) {
+                // don't need a full refresh_print, just a refresh to recompute the speed scale.
+                if (m_gcode_result.has_value()) {
+                    this->refresh(m_gcode_result->get(), m_last_str_tool_colors);
+                    refreshed = true;
+                }
+            }
+            if (!refreshed) {
                 bool keep_first = m_sequential_view.current.first != m_sequential_view.global.first;
                 bool keep_last = m_sequential_view.current.last != m_sequential_view.global.last;
-                wxGetApp().plater()->get_current_canvas3D()->refresh_gcode_preview_render_paths(keep_first, keep_last);
+                refresh_render_paths(keep_first, keep_last);
             }
+
+            wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
+            wxGetApp().plater()->get_current_canvas3D()->request_extra_frame();
             wxGetApp().plater()->update_preview_moves_slider();
         }
 
@@ -4945,6 +5033,13 @@ void GCodeViewer::render_legend(float& legend_height)
     ImGui::Separator();
     ImGui::Spacing();
     ImGui::Spacing();
+
+    // reset max width here, because buttons will take all the width -> they block the resize.
+    // icons are the true max width anyway, so it's reset just before them.
+    if (old_view_type != view_type) {
+        ImGui::ResetMaxCursorScreenPos();
+    }
+
     toggle_button(Preview::OptionType::Travel, _u8L("Travel"), [&imgui](ImGuiWindow& window, const ImVec2& pos, float size) {
         imgui.draw_icon(window, pos, size, ImGui::LegendTravel);
         });
@@ -4964,7 +5059,15 @@ void GCodeViewer::render_legend(float& legend_height)
     toggle_button(Preview::OptionType::Seams, _u8L("Seams"), [&imgui](ImGuiWindow& window, const ImVec2& pos, float size) {
         imgui.draw_icon(window, pos, size, ImGui::LegendSeams);
         });
-    ImGui::SameLine();
+    if (!wxGetApp().is_gcode_viewer()) {
+        ImGui::SameLine();
+        toggle_button(Preview::OptionType::Shells, _u8L("Shells"), [&imgui](ImGuiWindow& window, const ImVec2& pos, float size) {
+            imgui.draw_icon(window, pos, size, ImGui::LegendShells);
+            });
+    }
+    // put icons on two line if not FeatureType, as only FeatureType is very wide.
+    if(m_view_type == EViewType::FeatureType)
+        ImGui::SameLine();
     toggle_button(Preview::OptionType::ToolChanges, _u8L("Tool changes"), [&imgui](ImGuiWindow& window, const ImVec2& pos, float size) {
         imgui.draw_icon(window, pos, size, ImGui::LegendToolChanges);
         });
@@ -4985,12 +5088,6 @@ void GCodeViewer::render_legend(float& legend_height)
         imgui.draw_icon(window, pos, size, ImGui::LegendCOG);
         });
     ImGui::SameLine();
-    if (!wxGetApp().is_gcode_viewer()) {
-        toggle_button(Preview::OptionType::Shells, _u8L("Shells"), [&imgui](ImGuiWindow& window, const ImVec2& pos, float size) {
-            imgui.draw_icon(window, pos, size, ImGui::LegendShells);
-            });
-        ImGui::SameLine();
-    }
     toggle_button(Preview::OptionType::ToolMarker, _u8L("Tool marker"), [&imgui](ImGuiWindow& window, const ImVec2& pos, float size) {
         imgui.draw_icon(window, pos, size, ImGui::LegendToolMarker);
         });

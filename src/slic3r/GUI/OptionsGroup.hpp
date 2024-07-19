@@ -47,7 +47,9 @@ class OG_CustomCtrl;
 /// Widget type describes a function object that returns a wxWindow (our widget) and accepts a wxWidget (parent window).
 using widget_t = std::function<wxSizer*(wxWindow*)>;//!std::function<wxWindow*(wxWindow*)>;
 
-class ScriptContainer;
+namespace script {
+	class ScriptContainer;
+}
 /// Wraps a ConfigOptionDef and adds function object for creating a side_widget.
 struct Option {
 	ConfigOptionDef			opt { ConfigOptionDef() };
@@ -55,7 +57,7 @@ struct Option {
     widget_t				side_widget {nullptr};
     bool					readonly {false};
     //for fake config
-	ScriptContainer* script = nullptr;
+	script::ScriptContainer* script = nullptr;
 	//std::vector<std::string> depends_on; // moved to configoptiondef
 
 	bool operator==(const Option& rhs) const {
@@ -81,6 +83,9 @@ public:
 	wxWindow*	near_label_widget_win {nullptr};
     wxSizer*	widget_sizer {nullptr};
     wxSizer*	extra_widget_sizer {nullptr};
+     // mode for the whole line visibility. Useful when it's a widget. If none, then it's not overriding anything
+     // note: not used yet (in custom og), as the comments are out of the visibility loop
+    ConfigOptionMode tags_override{comNone};
 
     void append_option(const Option& option) {
         m_options.push_back(option);
@@ -153,7 +158,7 @@ public:
     /// Returns a copy of the pointer of the parent wxWindow.
     /// Accessor function is because users are not allowed to change the parent
     /// but defining it as const means a lot of const_casts to deal with wx functions.
-	inline wxWindow* parent() const { return m_parent; }
+	inline wxWindow* parent() const { assert(m_parent); return m_parent; }
 
     wxWindow*   ctrl_parent() const;
 
@@ -280,12 +285,12 @@ public:
 
 class ConfigOptionsGroup: public OptionsGroup {
 public:
-	ConfigOptionsGroup(	wxWindow* parent, const wxString& title, DynamicConfig* config = nullptr,
+	ConfigOptionsGroup(	wxWindow* parent, const wxString& title, ConfigBase* config = nullptr,
 						bool is_tab_opt = false, column_t extra_clmn = nullptr) :
-		OptionsGroup(parent, title, is_tab_opt, extra_clmn), m_config(config) {}
+		OptionsGroup(parent, title, is_tab_opt, extra_clmn), m_config(config), m_modelconfig(nullptr), m_config_mutable(config) {}
 	ConfigOptionsGroup(	wxWindow* parent, const wxString& title, ModelConfig* config, 
 						bool is_tab_opt = false, column_t extra_clmn = nullptr) :
-		OptionsGroup(parent, title, is_tab_opt, extra_clmn), m_config(&config->get()), m_modelconfig(config) {}
+		OptionsGroup(parent, title, is_tab_opt, extra_clmn), m_config(&config->get()), m_modelconfig(config), m_config_mutable(nullptr) {}
 	ConfigOptionsGroup(	wxWindow* parent) :
 		OptionsGroup(parent, wxEmptyString, true, nullptr) {}
     ~ConfigOptionsGroup() override = default;
@@ -296,8 +301,8 @@ public:
 	void		copy_for_freq_settings(const ConfigOptionsGroup& origin) { this->m_opt_map = origin.m_opt_map; }
 
 	void 		set_config_category_and_type(const wxString &category, int type) { m_config_category = category; m_config_type = type; }
-	void        set_config(DynamicPrintConfig* config) { 
-		m_config = config; m_modelconfig = nullptr; 
+	void        set_config(ConfigBase* config) { 
+		m_config = config; m_modelconfig = nullptr; m_config_mutable = config;
 	}
 
     bool has_option_def(const std::string &opt_key);
@@ -350,7 +355,10 @@ private:
     // Reference to libslic3r config or ModelConfig::get(), non-owning pointer.
     // The reference is const, so that the spots which modify m_config are clearly
     // demarcated by const_cast and m_config_changed_callback is called afterwards.
-    const DynamicConfig*		m_config {nullptr};
+    //const DynamicConfig*		m_config {nullptr};
+    const ConfigBase*		m_config {nullptr};
+	// if nom_modelconfig, we can set.
+    ConfigBase*				m_config_mutable {nullptr};
     // If the config is modelconfig, then ModelConfig::touch() has to be called after value change.
     ModelConfig*				m_modelconfig { nullptr };
 	t_opt_map					m_opt_map;

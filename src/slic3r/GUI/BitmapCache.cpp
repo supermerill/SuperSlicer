@@ -11,6 +11,7 @@
 #include "GUI_Utils.hpp"
 
 #include <boost/filesystem.hpp>
+#include <boost/log/trivial.hpp>
 #include <boost/nowide/cstdio.hpp>
 #include <boost/algorithm/string/replace.hpp>
 
@@ -423,6 +424,7 @@ wxBitmapBundle* BitmapCache::from_png(const std::string& bitmap_name, unsigned w
         return it->second;
 
     wxImage image;
+    BOOST_LOG_TRIVIAL(debug) << "Loading (load_png) image: '"<<bitmap_name<<"'.png";
     if (!image.LoadFile(Slic3r::GUI::from_u8(Slic3r::var(bitmap_name + ".png")), wxBITMAP_TYPE_PNG) ||
         image.GetWidth() == 0 || image.GetHeight() == 0)
         return nullptr;

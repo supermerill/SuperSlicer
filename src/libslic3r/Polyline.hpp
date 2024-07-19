@@ -101,8 +101,8 @@ public:
     using const_iterator = Points::const_iterator;
 };
 
-inline bool operator==(const Polyline &lhs, const Polyline &rhs) { return lhs.points == rhs.points; }
-inline bool operator!=(const Polyline &lhs, const Polyline &rhs) { return lhs.points != rhs.points; }
+//inline bool operator==(const Polyline &lhs, const Polyline &rhs) { return lhs.points == rhs.points; }
+//inline bool operator!=(const Polyline &lhs, const Polyline &rhs) { return lhs.points != rhs.points; }
 
 extern BoundingBox get_extents(const Polyline& polyline);
 extern BoundingBox get_extents(const Polylines& polylines);
@@ -317,8 +317,10 @@ public:
     bool         is_closed() const { return this->m_path.front().point == this->m_path.back().point; }
 
     bool                                has_arc() const { return !m_only_strait; }
+    // point count in the path
     size_t                              size() const { return m_path.size(); }
     const Geometry::ArcWelder::Path &   get_arc() const { return m_path; }
+    // get the point at index i in the path (i<size())
     const Point &                       get_point(size_t i) const { return m_path[i].point; }
     const Geometry::ArcWelder::Segment &get_arc(size_t i) const { return m_path[i]; }
 
@@ -348,6 +350,9 @@ public:
 
     // douglas_peuker and create arc if with_fitting_arc (don't touch the current arcs, only try in-between)
     void simplify(coordf_t tolerance, ArcFittingType with_fitting_arc, double fit_tolerance);
+
+    // remove points that are too near each other, and return false if the whole path is too small
+    bool normalize();
 
 
 protected:
@@ -478,7 +483,7 @@ public:
     int  find_point(const Point& point) const { return Polyline::find_point(point); }
     int  find_point(const Point& point, const double scaled_epsilon) const { return Polyline::find_point(point, scaled_epsilon); }
     int  closest_point_index(const Point& point) const { return Polyline::closest_point_index(point); }
-    Point point_projection(const Point& point) const { return Polyline::point_projection(point); }
+    std::pair<Point, size_t> point_projection(const Point& point) const { return Polyline::point_projection(point); }
 
     virtual void reverse() override;
 

@@ -14,7 +14,7 @@ namespace GUI {
 
 class ArrangeSettingsDialogImgui: public arr2::ArrangeSettingsView {
     ImGuiWrapper *m_imgui;
-    AnyPtr<arr2::ArrangeSettingsDb> m_db;
+    arr2::ArrangeSettingsDb& m_db;
 
     std::function<void()> m_on_arrange_btn;
     std::function<void()> m_on_reset_btn;
@@ -22,7 +22,7 @@ class ArrangeSettingsDialogImgui: public arr2::ArrangeSettingsView {
     std::function<bool()> m_show_xl_combo_predicate = [] { return true; };
 
 public:
-    ArrangeSettingsDialogImgui(ImGuiWrapper *imgui, AnyPtr<arr2::ArrangeSettingsDb> db);
+    ArrangeSettingsDialogImgui(ImGuiWrapper *imgui, arr2::ArrangeSettingsDb& db);
 
     void render(float pos_x, float pos_y);
 
@@ -43,16 +43,16 @@ public:
 
     // ArrangeSettingsView iface:
 
-    float get_distance_from_objects() const override { return m_db->get_distance_from_objects(); }
-    float get_previous_distance_from_objects() const override { return m_db->get_previous_distance_from_objects(); }
-    float get_distance_from_bed() const  override { return m_db->get_distance_from_bed(); }
-    bool  is_rotation_enabled() const override { return m_db->is_rotation_enabled(); }
+    float get_distance_from_objects() const override { return m_db.get_distance_from_objects(); }
+    float get_previous_distance_from_objects() const override { return m_db.get_previous_distance_from_objects(); }
+    float get_distance_from_bed() const  override { return m_db.get_distance_from_bed(); }
+    bool  is_rotation_enabled() const override { return m_db.is_rotation_enabled(); }
     
     // update arrange dist from current print conf.
     void set_arrange_settings(const DynamicPrintConfig &conf, PrinterTechnology tech);
 
-    XLPivots get_xl_alignment() const override { return m_db->get_xl_alignment(); }
-    GeometryHandling get_geometry_handling() const override { return m_db->get_geometry_handling(); }
+    XLPivots get_xl_alignment() const override { return m_db.get_xl_alignment(); }
+    GeometryHandling get_geometry_handling() const override { return m_db.get_geometry_handling(); }
     ArrangeStrategy get_arrange_strategy() const override { return arr2::ArrangeSettingsView::asAuto; }
 };
 

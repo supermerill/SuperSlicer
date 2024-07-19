@@ -484,7 +484,8 @@ public:
             SLICING_ENDED                       = 1 << 6,
             GCODE_ENDED                         = 1 << 7,
             MAIN_STATE                          = 1 << 8,
-            SECONDARY_STATE                     = 1 << 9
+            SECONDARY_STATE                     = 1 << 9,
+            FORCE_SHOW                          = 1 << 10
         };
         // Bitmap of FlagBits
         unsigned int    flags;
@@ -507,19 +508,25 @@ public:
     }
     void                    set_status(int percent, const std::string& message, const std::vector<std::string>& args, unsigned int flags = SlicingStatus::DEFAULT) const {
         //check if it need an update. Avoid doing a gui update each ms.
-        if ((flags & SlicingStatus::SECONDARY_STATE) != 0 && message != m_last_status_message) {
-            std::chrono::time_point<std::chrono::system_clock> current_time = std::chrono::system_clock::now();
-            if ((static_cast<std::chrono::duration<double>>(current_time - PrintBase::m_last_status_update)).count() > 0.002 && PrintBase::m_last_status_percent != percent) {
-                PrintBase::m_last_status_update = current_time;
-                PrintBase::m_last_status_percent = percent;
+        {
+            std::lock_guard<std::mutex> lock(m_last_status_mutex);
+            if ((flags & SlicingStatus::FORCE_SHOW) == 0 && (flags & SlicingStatus::SECONDARY_STATE) != 0 &&
+                message != m_last_status_message) {
+                std::chrono::time_point<std::chrono::system_clock> current_time = std::chrono::system_clock::now();
+                if ((static_cast<std::chrono::duration<double>>(current_time - PrintBase::m_last_status_update))
+                            .count() > 0.002 &&
+                    PrintBase::m_last_status_percent != percent) {
+                    PrintBase::m_last_status_update  = current_time;
+                    PrintBase::m_last_status_percent = percent;
+                } else {
+                    // don't update if it's for the secondary and already done in less than 200ms
+                    return;
+                }
             } else {
-                //don't update if it's for the secondary and already done in less than 200ms
-                return;
+                PrintBase::m_last_status_percent = -1;
             }
-        } else {
-            PrintBase::m_last_status_percent = -1;
+            m_last_status_message = message;
         }
-        m_last_status_message = message;
         if ((flags & SlicingStatus::FlagBits::MAIN_STATE) == 0 && (flags & SlicingStatus::FlagBits::SECONDARY_STATE) == 0)
             flags = flags | SlicingStatus::FlagBits::MAIN_STATE;
         if (m_status_callback) {
@@ -530,7 +537,7 @@ public:
         } else {
             printf("%d => ", percent);
             if(args.empty())
-                printf(message.c_str());
+                printf("%s", message.c_str());
             else if (args.size()==1)
                 printf(message.c_str(), args.front().c_str());
             else if (args.size()==2)
@@ -613,6 +620,7 @@ protected:
                                             m_last_status_update = {};
     inline static int                       m_last_status_percent = -1;
     inline static std::string               m_last_status_message = "";
+    inline static std::mutex                m_last_status_mutex;
 
 private:
     std::atomic<CancelStatus>               m_cancel_status;

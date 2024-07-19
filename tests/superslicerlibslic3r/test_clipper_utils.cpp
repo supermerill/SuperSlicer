@@ -323,6 +323,35 @@ TEST_CASE("Traversing Clipper PolyTree", "[ClipperUtils]") {
     }
 }
 
+TEST_CASE("Testing offset and offset_ex ", "[ClipperUtils]") {
+    
+    SECTION("contour growth create hole")
+    {
+        std::vector<std::pair<double, double>> unscaled_array = {{0, 0}, {10, 0}, {10, 4.5}, {7, 4.5}, {7,3}, {3,3}, {3,7}, {7,7}, {7,5.5}, {10,5.5}, {10,10}, {0,10}};
+        Slic3r::Polygon src_polygon;
+        for(auto pt: unscaled_array)
+            src_polygon.points.emplace_back(scale_t(pt.first), scale_t(pt.second));
+        REQUIRE(src_polygon.is_valid());
+
+        Polygons result = Slic3r::offset(src_polygon, scale_d(1), ClipperLib::JoinType::jtMiter, 3);
+        REQUIRE(result.size() == 2);
+        REQUIRE(result[0].is_counter_clockwise() || result[1].is_counter_clockwise());
+        REQUIRE(result[0].is_clockwise() || result[1].is_clockwise());
+        
+        ExPolygons result_ex = Slic3r::offset_ex(ExPolygon(src_polygon), scale_d(1), ClipperLib::JoinType::jtMiter, 3);
+        REQUIRE(result_ex.size() == 1);
+        REQUIRE(result_ex[0].holes.size() == 1);
+        REQUIRE(result_ex[0].contour.is_counter_clockwise());
+        REQUIRE(result_ex[0].holes[0].is_clockwise());
+
+        result_ex = union_ex(result);
+        REQUIRE(result_ex.size() == 1);
+        REQUIRE(result_ex[0].holes.size() == 1);
+        REQUIRE(result_ex[0].contour.is_counter_clockwise());
+        REQUIRE(result_ex[0].holes[0].is_clockwise());
+    }
+}
+
 TEST_CASE("Testing ", "[ClipperUtils]") {
     Slic3r::Polygon src_polygon(
         {{-29766902, -30710288}, {-30290102, -30802646}, {-30799114, -30715083}, {-31876243, -30562718},

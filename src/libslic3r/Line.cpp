@@ -50,7 +50,7 @@ bool Line::intersection_infinite(const Line &other, Point* point) const
     return true;
 }
 
-double Line::perp_distance_to(const Point &point) const
+coordf_t Line::perp_distance_to(const Point &point) const
 {
     const Line  &line = *this;
     const Vec2d  v  = (line.b - line.a).cast<double>();
@@ -115,14 +115,14 @@ bool Line::clip_with_bbox(const BoundingBox &bbox)
 	return result;
 }
 
-void Line::extend(double offset)
+void Line::extend(coordf_t offset)
 {
-    Vector offset_vector = (offset * this->vector().cast<double>().normalized()).cast<coord_t>();
+    Vector offset_vector = (offset * this->vector().cast<coordf_t>().normalized()).cast<coord_t>();
     this->a -= offset_vector;
     this->b += offset_vector;
 }
 
-Vec3d Linef3::intersect_plane(double z) const
+Vec3d Linef3::intersect_plane(coordf_t z) const
 {
     auto   v = (this->b - this->a).cast<double>();
     double t = (z - this->a(2)) / v(2);
@@ -140,9 +140,9 @@ BoundingBox get_extents(const Lines &lines)
 
 }
 
-Point Line::point_at(double distance) const {
+Point Line::point_at(coordf_t distance) const {
     Point point;
-    double len = this->length();
+    coordf_t len = this->length();
     point = this->a;
     if (this->a.x() != this->b.x())
         point.x() = (coord_t)( this->a.x() + (this->b.x() - this->a.x()) * distance / len );

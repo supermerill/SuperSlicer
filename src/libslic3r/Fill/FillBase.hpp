@@ -55,7 +55,7 @@ struct FillParams
     // Fill density, fraction in <0, 1>
     float       density     { 0.f };
 
-    // bridge offset from the centerline.
+    // bridge offset from the centerline. (scaled)
     coord_t       bridge_offset = -1;
 
     // Fill extruding flow multiplier, fraction in <0, 1>. Used by "over bridge compensation"
@@ -103,8 +103,12 @@ struct FillParams
 
     // For Concentric infill, to switch between Classic and Arachne.
     bool        use_arachne     { false };
-    // Layer height for Concentric infill with Arachne.
-    coordf_t    layer_height    { 0.f };
+
+    // Layer height for Concentric infill with Arachne. (unscaled)
+    float    layer_height    { 0.f };
+
+    // sparse infill width to use to create the pattern (0 if not used) (unscaled)
+    float    max_sparse_infill_spacing  { 0.f };
 };
 static_assert(IsTriviallyCopyable<FillParams>::value, "FillParams class is not POD (and it should be - see constructor).");
 
@@ -138,7 +142,7 @@ public:
 #endif
 protected:
     // in unscaled coordinates, please use init (after settings all others settings) as some algos want to modify the value
-    coordf_t    spacing_priv = -1.;
+    double spacing_priv = -1.;
 
     // PrintConfig and PrintObjectConfig are used by infills that use Arachne (Concentric and FillEnsuring).
     const PrintConfig       *print_config        = nullptr;
@@ -158,7 +162,7 @@ public:
     }
     void         set_bounding_box(const Slic3r::BoundingBox &bbox) { bounding_box = bbox; }
     virtual void init_spacing(coordf_t spacing, const FillParams &params) { this->spacing_priv = spacing;  }
-    coordf_t get_spacing() const { return spacing_priv; }
+    double get_spacing() const { return spacing_priv; }
 
     // Do not sort the fill lines to optimize the print head path?
     virtual bool no_sort() const { return false; }
@@ -209,7 +213,7 @@ protected:
 
     virtual float _layer_angle(size_t idx) const { return can_angle_cross && (idx & 1) ? float(M_PI/2.) : 0; }
 
-    virtual coord_t _line_spacing_for_density(float density) const;
+    virtual coord_t _line_spacing_for_density(const FillParams& params) const;
 
     virtual std::pair<float, Point> _infill_direction(const Surface *surface) const;
 
@@ -229,32 +233,34 @@ protected:
     }
 
 public:
-    static void connect_infill(Polylines&& infill_ordered, const ExPolygon& boundary, Polylines& polylines_out, const double spacing, const FillParams& params);
+    static void connect_infill(Polylines&& infill_ordered, const ExPolygon& boundary, Polylines& polylines_out, const coord_t spacing, const FillParams& params);
     //for rectilinear
-    static void connect_infill(Polylines&& infill_ordered, const ExPolygon& boundary, const Polygons& polygons_src, Polylines& polylines_out, const double spacing, const FillParams& params);
+    static void connect_infill(Polylines&& infill_ordered, const ExPolygon& boundary, const Polygons& polygons_src, Polylines& polylines_out, const coord_t spacing, const FillParams& params);
 
-    static void connect_base_support(Polylines &&infill_ordered, const std::vector<const Polygon*> &boundary_src, const BoundingBox &bbox, Polylines &polylines_out, const double spacing, const FillParams &params);
-    static void connect_base_support(Polylines &&infill_ordered, const Polygons &boundary_src, const BoundingBox &bbox, Polylines &polylines_out, const double spacing, const FillParams &params);
+    static void connect_base_support(Polylines &&infill_ordered, const std::vector<const Polygon*> &boundary_src, const BoundingBox &bbox, Polylines &polylines_out, const coord_t line_spacing, const FillParams &params);
+    static void connect_base_support(Polylines &&infill_ordered, const Polygons &boundary_src, const BoundingBox &bbox, Polylines &polylines_out, const coord_t line_spacing, const FillParams &params);
 
     static coord_t  _adjust_solid_spacing(const coord_t width, const coord_t distance, const double factor_max = 1.2);
 };
 
 namespace FakePerimeterConnect {
-    void connect_infill(Polylines&& infill_ordered, const ExPolygon& boundary, Polylines& polylines_out, const double spacing, const FillParams& params);
-    void connect_infill(Polylines&& infill_ordered, const Polygons& boundary, const BoundingBox& bbox, Polylines& polylines_out, const double spacing, const FillParams& params);
-    void connect_infill(Polylines&& infill_ordered, const std::vector<const Polygon*>& boundary, const BoundingBox& bbox, Polylines& polylines_out, double spacing, const FillParams& params);
+    void connect_infill(Polylines&& infill_ordered, const ExPolygon& boundary, Polylines& polylines_out, const coord_t spacing, const FillParams& params);
+    void connect_infill(Polylines&& infill_ordered, const Polygons& boundary, const BoundingBox& bbox, Polylines& polylines_out, const coord_t spacing, const FillParams& params);
+    void connect_infill(Polylines&& infill_ordered, const std::vector<const Polygon*>& boundary, const BoundingBox& bbox, Polylines& polylines_out, coord_t spacing, const FillParams& params);
 }
 namespace PrusaSimpleConnect {
-    void connect_infill(Polylines& infill_ordered, const ExPolygon& boundary, Polylines& polylines_out, const double spacing, const FillParams& params);
+    void connect_infill(Polylines& infill_ordered, const ExPolygon& boundary, Polylines& polylines_out, const coord_t spacing, const FillParams& params);
 }
 namespace NaiveConnect {
-    void connect_infill(Polylines&& infill_ordered, const ExPolygon& boundary, Polylines& polylines_out, const double spacing, const FillParams& params);
+    void connect_infill(Polylines&& infill_ordered, const ExPolygon& boundary, Polylines& polylines_out, const coord_t spacing, const FillParams& params);
 }
 
 // composite filler
 class FillWithPerimeter : public Fill
 {
 public:
+    // bewteen 0 (0%) and 1 (100%) overlap
+    float overlap_ratio = 0;
     std::unique_ptr<Fill> infill{ nullptr };
     float ratio_fill_inside = 0.f;
     FillWithPerimeter() : Fill() {}
@@ -279,9 +285,9 @@ public:
     ExtrusionSetRole(ExtrusionRole role) : new_role(role) {}
     void use(ExtrusionPath &path) override { path.set_role(new_role); }
     void use(ExtrusionPath3D &path3D) override { path3D.set_role(new_role); }
-    void use(ExtrusionMultiPath &multipath) override { for (ExtrusionPath path : multipath.paths) path.set_role(new_role); }
-    void use(ExtrusionMultiPath3D &multipath) override { for (ExtrusionPath path : multipath.paths) path.set_role(new_role); }
-    void use(ExtrusionLoop &loop) override { for (ExtrusionPath path : loop.paths) path.set_role(new_role); }
+    void use(ExtrusionMultiPath &multipath) override { for (ExtrusionPath &path : multipath.paths) path.set_role(new_role); }
+    void use(ExtrusionMultiPath3D &multipath) override { for (ExtrusionPath &path : multipath.paths) path.set_role(new_role); }
+    void use(ExtrusionLoop &loop) override { for (ExtrusionPath &path : loop.paths) path.set_role(new_role); }
     void use(ExtrusionEntityCollection &collection) override { for (ExtrusionEntity *entity : collection.entities()) entity->visit(*this); }
 };
 

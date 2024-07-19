@@ -394,6 +394,7 @@ void GalleryDialog::load_label_icon_list()
         }
 
         wxImage image;
+        BOOST_LOG_TRIVIAL(debug) << "Trying to load (load_label_icon_list, png) image: '"<<img_name<<"'";
         if (!image.CanRead(from_u8(img_name)) ||
             !image.LoadFile(from_u8(img_name), wxBITMAP_TYPE_PNG) ||
             image.GetWidth() == 0 || image.GetHeight() == 0) {

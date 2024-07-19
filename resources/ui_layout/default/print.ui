@@ -1,11 +1,12 @@
 #logs
 page:Perimeters & Shell:shell
 group:Vertical shells
-	line:Periemters
-		setting:label$Count:width$6:perimeters
-		setting:perimeter_generator
+	line:Perimeters
+		setting:label$Contour:width$6:perimeters
+        setting:label$Holes:width$6:perimeters_hole
 	end_line
 	setting:tags$Simple$Expert$SuSi:script:float:depends$perimeter_spacing$external_perimeter_spacing:label$Wall Thickness:tooltip$Change the perimeter extrusion widths to ensure that there is an exact number of perimeters for this wall thickness value. It won't put the perimeter width below the nozzle diameter, and up to double.\nNote that the value displayed is just a view of the current perimeter thickness, like the info text below. The number of perimeters used to compute this value is one loop, or the custom variable 'wall_thickness_lines' (advanced mode) if defined.\nIf the value is too low, it will revert the widths to the saved value.\nIf the value is set to 0, it will show 0.:s_wall_thickness
+    setting:perimeter_generator
 	setting:spiral_vase
 	recommended_thin_wall_thickness_description
 group:Horizontal shells
@@ -47,6 +48,10 @@ group:Quality
 		setting:width$5:thin_walls_min_width
 		setting:width$5:thin_walls_overlap
 		setting:thin_walls_merge
+	end_line
+	line:Perimeter Direction
+		setting:label$Default:width$18:perimeter_direction
+		setting:label$Reverse on Even layers:sidetext_width$2:perimeter_reverse
 	end_line
 group:Avoid crossing perimeters
 	line:Activate
@@ -136,6 +141,7 @@ group:Filtering
 	setting:resolution_internal
 	setting:model_precision
 	setting:slice_closing_radius
+    setting:bridge_precision
 # gcode_resolution
 group:Modifying slices
 	line:Curve smoothing
@@ -161,6 +167,11 @@ group:Modifying slices
 		setting:sidetext_width$5:hole_to_polyhole_threshold
 		setting:hole_to_polyhole_twisted
 	end_line
+    line:Overhangs cut
+        setting:overhangs_max_slope
+        setting:overhangs_bridge_threshold
+        setting:overhangs_bridge_upper_layers
+    end_line
 group:Other
 	setting:slicing_mode
 	setting:allow_empty_layers
@@ -171,6 +182,7 @@ group:title_width$0:Infill
 		setting:tags$Advanced$Expert$Prusa:label_left:label_width$6:label$Sparse:width$8:sidetext_width$1:fill_density
 		setting:tags$Advanced$Expert$Prusa:label_width$0:label$_:fill_pattern
 		setting:label$_:width$18:infill_connection
+        setting:label$Aligned:fill_aligned_z
 	end_line
 	line:_
 		setting:label$Connection length:label_width$25:sidetext_width$7:width$12:infill_anchor_max
@@ -207,11 +219,16 @@ group:sidetext_width$5:Infill angle
 	line:Modifiers
 		setting:label_width$6:width$5:label$increment:fill_angle_increment
 		setting:width$5:fill_angle_cross
+		setting:width$5:fill_angle_follow_model
 	vector_line:fill_angle_template
 #	setting:fill_angle_template
 group:sidetext_width$5:Advanced
 	setting:solid_infill_every_layers
-	setting:solid_infill_below_area
+	line:Solid infill if area below
+        setting:label$From region:solid_infill_below_area
+        setting:label$From the whole layer:solid_infill_below_layer_area
+	end_line
+    setting:solid_infill_below_width
 	line:Anchor solid infill by X mm
 		setting:label_width$8:width$5:external_infill_margin
 		setting:label_width$6:width$5:bridged_infill_margin
@@ -225,6 +242,10 @@ group:Advanced Infill options
 	line:Ironing infill pattern tuning
 		setting:label_width$8:width$5:fill_smooth_distribution
 		setting:label_width$26:label$Spacing between ironing lines:width$5:sidetext_width$7:fill_smooth_width
+	end_line
+	line:Small Area Infill Flow Compensation (beta)
+		setting:label$_:sidetext_width$0:small_area_infill_flow_compensation
+		setting:label$_:small_area_infill_flow_compensation_model
 	end_line
 group:title_width$19:Ironing post-process (This will go on top of infills and perimeters)
 	line:Enable ironing post-process
@@ -304,16 +325,17 @@ group:Options for support material and raft
 group:Options for support material interface
 	setting:support_material_interface_layer_height
 	line:Pattern
-		setting:support_material_interface_pattern
-		setting:label$Interface spacing:support_material_interface_spacing
+		setting:label$Top:support_material_top_interface_pattern
+		setting:label$Bottom:support_material_bottom_interface_pattern
+		setting:label$Spacing:support_material_interface_spacing
 	end_line
 	line:Pattern Angle
 		setting:label$_:support_material_interface_angle
 		setting:label$Increment:support_material_interface_angle_increment
 	end_line
 	line:Layer count
-		setting:support_material_interface_layers
-		setting:support_material_bottom_interface_layers
+		setting:label$Top:support_material_interface_layers
+		setting:label$Bottom:support_material_bottom_interface_layers
 	end_line
 	setting:support_material_interface_contact_loops
 	
@@ -351,13 +373,14 @@ group:label_width$8:sidetext_width$7:Speed for print moves
 		setting:width$4:bridge_speed_internal
 		setting:width$4:overhangs_speed
 	line:Gap fill speed
-		setting:width$4:label$maximum speed:gap_fill_speed
+		setting:width$4:label$Maximum speed:gap_fill_speed
 		setting:width$4:label$Cap with:sidetext$% of perimeter flow:sidetext_width$20:gap_fill_flow_match_perimeter
 	line:Other speed
 		setting:width$4:thin_walls_speed
 		setting:width$4:ironing_speed
-		setting:wipe_tower_speed
-		setting:wipe_tower_wipe_starting_speed
+	line:Wipe tower
+		setting:width$4:label$Main speed:wipe_tower_speed
+		setting:width$4:label$Wipe starting speed:wipe_tower_wipe_starting_speed
 group:Speed for non-print moves
 	line:Travel speed
 		setting:label$xy:travel_speed
@@ -405,7 +428,7 @@ group:label_width$9:sidetext_width$8:Acceleration control (advanced)
 		setting:width$4:brim_acceleration
 	line:Bridge acceleration
 		setting:width$4:bridge_acceleration
-		setting:width$4:bridge_internal_acceleration
+		setting:width$4:internal_bridge_acceleration
 		setting:width$4:overhangs_acceleration
 	line:Other extrusions acceleration
 		setting:width$4:gap_fill_acceleration
@@ -466,7 +489,10 @@ group:Overlap
 		setting:label_width$7:label$External:external_perimeter_overlap
 		setting:label_width$7:label$Gap Fill:gap_fill_overlap
 	end_line
-	setting:width$4:solid_infill_overlap
+    line:Solid infill ovelrap
+        setting:label$Inside:width$4:solid_infill_overlap
+        setting:label$Top:width$4:top_solid_infill_overlap
+	end_line
 	line:Bridge lines density
 		setting:label_width$7:bridge_overlap_min
 		setting:label_width$7:bridge_overlap
@@ -512,7 +538,10 @@ group:Wipe tower
 	setting:wipe_tower_bridging
 	setting:wipe_tower_extra_spacing
 	setting:wipe_tower_no_sparse_layers
-	setting:single_extruder_multi_material_priming
+	line:Priming
+        setting:single_extruder_multi_material_priming
+        setting:priming_position
+	end_line
 group:Advanced
 	setting:interface_shells
 	line:Segmented regions

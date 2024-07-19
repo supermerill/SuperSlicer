@@ -342,7 +342,7 @@ void smooth_trees_inside_influence_areas(Branch &root, bool is_root)
             int64_t min_dist = std::numeric_limits<int64_t>::max();
             Point   min_proj_scaled;
             for (const Polygon& polygon : el.influence_area) {
-                Point proj_scaled = polygon.point_projection(new_pos_scaled);
+                Point proj_scaled = polygon.point_projection(new_pos_scaled).first;
                 if (int64_t dist = (proj_scaled - new_pos_scaled).cast<int64_t>().squaredNorm(); dist < min_dist) {
                     min_dist = dist;
                     min_proj_scaled = proj_scaled;

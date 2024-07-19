@@ -38,12 +38,12 @@
 #include <wx/wrapsizer.h>
 #include "wxExtensions.hpp"
 
+#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/path.hpp>
+#include <boost/log/trivial.hpp>
+#include <boost/nowide/fstream.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/filesystem.hpp>
-#include <boost/filesystem/path.hpp>
-#include <boost/nowide/fstream.hpp>
 
 #if ENABLE_SCROLLABLE
 static wxSize get_screen_size(wxWindow* window)
@@ -1475,8 +1475,8 @@ void CreateMMUTiledCanvas::create_color_tab(wxPanel* tab)
     //row of available colors
     //group_colors->append_single_option_line(group_colors->get_option("available_colors"));
     ConfigOptionStrings* available_colors = m_config.option<ConfigOptionStrings>("available_colors");
-    for (int i = 0; i < available_colors->values.size(); i++) {
-        MywxColourPickerCtrl::add_color_bt(available_colors->values[i], color_row_sizer);
+    for (int i = 0; i < available_colors->size(); i++) {
+        MywxColourPickerCtrl::add_color_bt(available_colors->get_at(i), color_row_sizer);
     }
     tab->Refresh();
     color_sizer->Add(color_row_sizer, wxGBPosition(2, 1), wxGBSpan(1, 2), wxEXPAND | wxALL, 2);
@@ -1752,8 +1752,8 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
     ///// --- translate ---
     //const DynamicPrintConfig* printerConfig = this->m_gui_app->get_tab(Preset::TYPE_PRINTER)->get_config();
     //const ConfigOptionPoints* bed_shape = printerConfig->option<ConfigOptionPoints>("bed_shape");
-    //Vec2d bed_size = BoundingBoxf(bed_shape->values).size();
-    //Vec2d bed_min = BoundingBoxf(bed_shape->values).min;
+    //Vec2d bed_size = BoundingBoxf(bed_shape->get_values()).size();
+    //Vec2d bed_min = BoundingBoxf(bed_shape->get_values()).min;
     //model.objects[objs_idx[0]]->translate({ bed_min.x() + bed_size.x() / 2, bed_min.y() + bed_size.y() / 2, 0 });
 
     //update colors
@@ -1762,9 +1762,9 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
         //{m_impl=L"#800040" m_convertedToChar={m_str=0x0000000000000000 <NULL> m_len=0 } }
         const ConfigOptionStrings* color_conf = printer_config->option<ConfigOptionStrings>("extruder_colour");
         ConfigOptionStrings* new_color_conf = static_cast<ConfigOptionStrings*>(color_conf->clone());
-        for(int idx_col = 0; idx_col < this->m_used_colors.size() && idx_col < new_color_conf->values.size(); idx_col++){
+        for(int idx_col = 0; idx_col < this->m_used_colors.size() && idx_col < new_color_conf->size(); idx_col++){
             wxColour col = this->m_used_colors[idx_col]->get_printed_color(use_spool_colors);
-            new_color_conf->values[idx_col] = "#" + int2hex(col.GetRGB());
+            new_color_conf->get_at(idx_col) = "#" + int2hex(col.GetRGB());
         }
         new_Printer_config.set_key_value("extruder_colour", new_color_conf);
 

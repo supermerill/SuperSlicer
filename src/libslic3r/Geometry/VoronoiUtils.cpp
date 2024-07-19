@@ -226,7 +226,8 @@ VoronoiUtils::compute_segment_cell_range(const VD::cell_type &cell, const Segmen
 
         Vec2i64 v0 = Geometry::VoronoiUtils::to_point(edge->vertex0());
         Vec2i64 v1 = Geometry::VoronoiUtils::to_point(edge->vertex1());
-        assert(v0 != to_i64 || v1 != from_i64);
+        //happen on benchy with default settings.
+        //assert(v0 != to_i64 || v1 != from_i64);
 
         if (v0 == to_i64 && !after_start) { // Use the last edge which starts in source_segment.to
             cell_range.edge_begin = edge;

@@ -657,20 +657,20 @@ void Layer::make_perimeters()
         if (size_t region_id = layerm - m_regions.begin(); ! done[region_id]) {
             layer_region_reset_perimeters(**layerm);
             if (! (*layerm)->slices().empty()) {
-    	        BOOST_LOG_TRIVIAL(trace) << "Generating perimeters for layer " << this->id() << ", region " << region_id;
-    	        done[region_id] = true;
-    	        const PrintRegionConfig &config = (*layerm)->region().config();
-    	        
+                BOOST_LOG_TRIVIAL(trace) << "Generating perimeters for layer " << this->id() << ", region " << region_id;
+                done[region_id] = true;
+                const PrintRegionConfig &config = (*layerm)->region().config();
+                
                 perimeter_and_gapfill_ranges.clear();
                 fill_expolygons.clear();
                 fill_expolygons_ranges.clear();
                 surfaces_to_merge.clear();
 
-    	        // find compatible regions
+                // find compatible regions
                 layer_region_ids.clear();
-    	        layer_region_ids.push_back(region_id);
-    	        for (LayerRegionPtrs::const_iterator it = layerm + 1; it != m_regions.end(); ++it)
-    	            if (! (*it)->slices().empty()) {
+                layer_region_ids.push_back(region_id);
+                for (LayerRegionPtrs::const_iterator it = layerm + 1; it != m_regions.end(); ++it)
+                    if (! (*it)->slices().empty()) {
                         LayerRegion             *other_layerm                         = *it;
                         const PrintRegionConfig &other_config                         = other_layerm->region().config();
                         bool                     dynamic_overhang_speed_compatibility = config.enable_dynamic_overhang_speeds ==
@@ -684,7 +684,8 @@ void Layer::make_perimeters()
                         /// !!! add here the settings you want to be added in the per-object menu.
                         /// if you don't do that, objects will share the same region, and the same settings.
                         if (config.perimeter_extruder             == other_config.perimeter_extruder
-    		                && config.perimeters                  == other_config.perimeters
+                            && config.perimeters                  == other_config.perimeters
+                            && config.external_perimeter_acceleration == other_config.external_perimeter_acceleration
                             && dynamic_overhang_speed_compatibility
                             && config.external_perimeter_extrusion_width == other_config.external_perimeter_extrusion_width
                             && config.external_perimeter_overlap == other_config.external_perimeter_overlap
@@ -697,6 +698,7 @@ void Layer::make_perimeters()
                             && config.extra_perimeters_on_overhangs == other_config.extra_perimeters_on_overhangs
                             && config.gap_fill_enabled          == other_config.gap_fill_enabled
                             && ((config.gap_fill_speed          == other_config.gap_fill_speed) || !config.gap_fill_enabled)
+                            && config.gap_fill_acceleration     == other_config.gap_fill_acceleration
                             && config.gap_fill_last             == other_config.gap_fill_last
                             && config.gap_fill_flow_match_perimeter == other_config.gap_fill_flow_match_perimeter
                             && config.gap_fill_extension         == other_config.gap_fill_extension
@@ -712,20 +714,26 @@ void Layer::make_perimeters()
                             && (this->id() == 0 || config.only_one_perimeter_first_layer == other_config.only_one_perimeter_first_layer)
                             && config.only_one_perimeter_top    == other_config.only_one_perimeter_top
                             && config.only_one_perimeter_top_other_algo == other_config.only_one_perimeter_top_other_algo
+                            && config.overhangs_acceleration    == other_config.overhangs_acceleration
                             && config.overhangs_width_speed     == other_config.overhangs_width_speed
                             && config.overhangs_width           == other_config.overhangs_width
                             && config.overhangs_reverse         == other_config.overhangs_reverse
                             && config.overhangs_reverse_threshold == other_config.overhangs_reverse_threshold
+                            && config.perimeter_acceleration    == other_config.perimeter_acceleration
+                            && config.perimeter_direction       == other_config.perimeter_direction
                             && config.perimeter_extrusion_width == other_config.perimeter_extrusion_width
                             && config.perimeter_loop            == other_config.perimeter_loop
                             && config.perimeter_loop_seam       == other_config.perimeter_loop_seam
                             && config.perimeter_overlap         == other_config.perimeter_overlap
+                            && config.perimeter_reverse         == other_config.perimeter_reverse
                             && config.perimeter_speed           == other_config.perimeter_speed // it is mandatory? can't this be set at gcode.cpp?
                             && config.print_extrusion_multiplier == other_config.print_extrusion_multiplier
+                            && config.region_gcode              == other_config.region_gcode
                             && config.small_perimeter_speed     == other_config.small_perimeter_speed
                             && config.small_perimeter_min_length == other_config.small_perimeter_min_length
                             && config.small_perimeter_max_length == other_config.small_perimeter_max_length
                             && config.thin_walls                == other_config.thin_walls
+                            && config.thin_walls_acceleration   == other_config.thin_walls_acceleration
                             && config.thin_walls_min_width      == other_config.thin_walls_min_width
                             && config.thin_walls_overlap        == other_config.thin_walls_overlap
                             && config.thin_perimeters           == other_config.thin_perimeters
@@ -734,32 +742,32 @@ void Layer::make_perimeters()
                             && config.fuzzy_skin                == other_config.fuzzy_skin
                             && config.fuzzy_skin_thickness      == other_config.fuzzy_skin_thickness
                             && config.fuzzy_skin_point_dist     == other_config.fuzzy_skin_point_dist)
-    		            {
+                        {
                             layer_region_reset_perimeters(*other_layerm);
-    		                layer_region_ids.push_back(it - m_regions.begin());
-    		                done[it - m_regions.begin()] = true;
-    		            }
-    		        }
+                            layer_region_ids.push_back(it - m_regions.begin());
+                            done[it - m_regions.begin()] = true;
+                        }
+                    }
 
-    	        if (layer_region_ids.size() == 1) {  // optimization
-    	            (*layerm)->make_perimeters((*layerm)->slices(), perimeter_and_gapfill_ranges, fill_expolygons, fill_expolygons_ranges);
+                if (layer_region_ids.size() == 1) {  // optimization
+                    (*layerm)->make_perimeters((*layerm)->slices(), perimeter_and_gapfill_ranges, fill_expolygons, fill_expolygons_ranges);
                     this->sort_perimeters_into_islands((*layerm)->slices(), region_id, perimeter_and_gapfill_ranges, std::move(fill_expolygons), fill_expolygons_ranges, layer_region_ids);
-    	        } else {
-    	            SurfaceCollection new_slices;
-    	            // Use the region with highest infill rate, as the make_perimeters() function below decides on the gap fill based on the infill existence.
+                } else {
+                    SurfaceCollection new_slices;
+                    // Use the region with highest infill rate, as the make_perimeters() function below decides on the gap fill based on the infill existence.
                     uint32_t     region_id_config = layer_region_ids.front();
                     LayerRegion* layerm_config = m_regions[region_id_config];
                     {
-    	                // Merge slices (surfaces) according to number of extra perimeters.
-    	                for (uint32_t region_id : layer_region_ids) {
+                        // Merge slices (surfaces) according to number of extra perimeters.
+                        for (uint32_t region_id : layer_region_ids) {
                             LayerRegion &layerm = *m_regions[region_id];
-    	                    for (const Surface &surface : layerm.slices())
+                            for (const Surface &surface : layerm.slices())
                                 surfaces_to_merge.emplace_back(&surface);
                             if (layerm.region().config().fill_density > layerm_config->region().config().fill_density) {
                                 region_id_config = region_id;
                                 layerm_config    = &layerm;
                             }
-    	                }
+                        }
                         std::sort(surfaces_to_merge.begin(), surfaces_to_merge.end(), [](const Surface *l, const Surface *r){ return l->extra_perimeters < r->extra_perimeters; });
                         for (size_t i = 0; i < surfaces_to_merge.size();) {
                             size_t j = i;
@@ -775,10 +783,11 @@ void Layer::make_perimeters()
                             }
                             i = j;
                         }
-    	            }
-    	            // make perimeters
+                    }
+                    // make perimeters
                     assert(fill_expolygons_ranges.empty()); // merill test
-    	            layerm_config->make_perimeters(new_slices, perimeter_and_gapfill_ranges, fill_expolygons, fill_expolygons_ranges);
+                    this->m_object->print()->throw_if_canceled();
+                    layerm_config->make_perimeters(new_slices, perimeter_and_gapfill_ranges, fill_expolygons, fill_expolygons_ranges);
 
                     // TODO: review if it's not useless or creates bugs.
                     // assign fill_expolygons to each LayerRegion
@@ -801,8 +810,8 @@ void Layer::make_perimeters()
                     }
 
                     this->sort_perimeters_into_islands(new_slices, region_id_config, perimeter_and_gapfill_ranges, std::move(fill_expolygons), fill_expolygons_ranges, layer_region_ids);
-    	        }
-    	    }
+                }
+            }
         }
     BOOST_LOG_TRIVIAL(trace) << "Generating perimeters for layer " << this->id() << " - Done";
 }
@@ -838,8 +847,8 @@ void Layer::make_milling_post_process() {
                 if (config.milling_post_process == other_config.milling_post_process
                     && config.milling_extra_size == other_config.milling_extra_size
                     && (config.milling_after_z == other_config.milling_after_z ||
-                        this->bottom_z() > std::min(config.milling_after_z.get_abs_value(this->object()->print()->config().milling_diameter.values[0]),
-                            other_config.milling_after_z.get_abs_value(this->object()->print()->config().milling_diameter.values[0])))) {
+                        this->bottom_z() > std::min(config.milling_after_z.get_abs_value(this->object()->print()->config().milling_diameter.get_at(0)),
+                            other_config.milling_after_z.get_abs_value(this->object()->print()->config().milling_diameter.get_at(0))))) {
                     layerms.push_back(other_layerm);
                     done[it - m_regions.begin()] = true;
                 }
@@ -890,6 +899,7 @@ void Layer::sort_perimeters_into_islands(
     const std::vector<uint32_t>                                     &layer_region_ids)
 {
     assert(perimeter_and_gapfill_ranges.size() == fill_expolygons_ranges.size());
+    assert(perimeter_and_gapfill_ranges.size() == slices.size()); // not sureab
     assert(! layer_region_ids.empty());
 
     LayerRegion &this_layer_region = *m_regions[region_id];

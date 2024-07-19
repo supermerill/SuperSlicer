@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <xcb/xcb.h>
+#include <xcb/xproto.h>
 
 namespace clipboardxx {
 namespace xcb {

@@ -1,7 +1,7 @@
 #include "LabelObjects.hpp"
 
 #include "ClipperUtils.hpp"
-#include "Geometry\ConvexHull.hpp"
+#include "Geometry/ConvexHull.hpp"
 #include "Model.hpp"
 #include "Print.hpp"
 #include "TriangleMeshSlicer.hpp"

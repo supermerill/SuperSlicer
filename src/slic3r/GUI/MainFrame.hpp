@@ -225,7 +225,7 @@ public:
     ETabType    next_preview_tab();
     void        select_view(const std::string& direction);
     // Propagate changed configuration from the Tab to the Plater and save changes to the AppConfig
-    void        on_config_changed(DynamicPrintConfig* cfg) const ;
+    void        on_config_changed(const DynamicConfig &cfg) const ;
 
     bool can_save() const;
     bool can_save_as() const;

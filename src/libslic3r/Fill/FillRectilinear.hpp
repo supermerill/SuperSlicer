@@ -149,7 +149,7 @@ public:
 protected:
     float _layer_angle(size_t idx) const override;
     std::vector<SegmentedIntersectionLine> _vert_lines_for_polygon(const ExPolygonWithOffset& poly_with_offset, const BoundingBox& bounding_box, const FillParams& params, coord_t line_spacing) const override;
-    coord_t _line_spacing_for_density(float density) const override;
+    coord_t _line_spacing_for_density(const FillParams& params) const override;
 };
 
 class FillRectilinearSawtooth : public FillRectilinear {

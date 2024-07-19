@@ -243,7 +243,7 @@ std::pair<GCodeThumbnailDefinitionsList, ThumbnailErrors> make_and_check_thumbna
     assert(config.option<ConfigOptionPoints>("thumbnails"));
     assert(config.option<ConfigOptionEnum<GCodeThumbnailsFormat>>("thumbnails_format"));
     if (const auto thumbnails_value = config.option<ConfigOptionPoints>("thumbnails"))
-        return make_and_check_thumbnail_list(thumbnails_value->values, config.option<ConfigOptionEnum<GCodeThumbnailsFormat>>("thumbnails_format")->value);
+        return make_and_check_thumbnail_list(thumbnails_value->get_values(), config.option<ConfigOptionEnum<GCodeThumbnailsFormat>>("thumbnails_format")->value);
 
     return {};
 }
