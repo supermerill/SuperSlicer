@@ -507,7 +507,7 @@ void DesktopIntegrationDialog::perform_downloader_desktop_integration()
     resolve_path_from_var("XDG_DATA_HOME", target_candidates);
     resolve_path_from_var("XDG_DATA_DIRS", target_candidates);
 
-    AppConfig* app_config = wxGetApp().app_config;
+    AppConfig* app_config = wxGetApp().app_config.get();
     // suffix string to create different desktop file for alpha, beta.
 
     std::string version_suffix;
@@ -620,7 +620,8 @@ void DesktopIntegrationDialog::perform_downloader_desktop_integration()
 }
 void DesktopIntegrationDialog::undo_downloader_registration()
 {
-    const AppConfig *app_config = wxGetApp().app_config;
+    //const AppConfig *app_config = wxGetApp().app_config;
+    AppConfig* app_config = wxGetApp().app_config.get();
     std::string path = std::string(app_config->get("desktop_integration_URL_path"));
     if (!path.empty()) {
         BOOST_LOG_TRIVIAL(debug) << "removing " << path;

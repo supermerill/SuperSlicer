@@ -7,7 +7,7 @@
 #include "../PrintConfig.hpp"
 #include "../ExtrusionEntity.hpp"
 
-#include "GCodeReader.hpp"
+#include "../GCodeReader.hpp"
 #include "GCodeWriter.hpp"
 #include <regex>
 

@@ -1,6 +1,6 @@
 #include "FanMover.hpp"
 
-#include "GCodeReader.hpp"
+#include "../GCodeReader.hpp"
 #include "LocalesUtils.hpp"
 
 #include <iomanip>
