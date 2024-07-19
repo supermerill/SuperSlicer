@@ -1,14 +1,12 @@
 name: C/C++ Release candidate arm macos
 
 on:
-  push:
-    branches:
-      - rc
+  workflow_dispatch:
 
 jobs:
   build:
 
-    runs-on: macos-11
+    runs-on: macos-14
 
     steps:
     - uses: actions/checkout@v2
@@ -16,6 +14,11 @@ jobs:
         ref: 'rc'
     - name: build deps & slicer
       run: ./BuildMacOS.sh -ia
+    - name: Upload artifact
+      uses: actions/upload-artifact@v1.0.0
+      with:
+        name: rc_arm_macos.dmg
+        path: build/${{ github.event.repository.name }}.dmg
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0
       with:

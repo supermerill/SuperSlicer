@@ -1,17 +1,12 @@
 name: C/C++ Nightly arm macos
 
 on:
-  push:
-    branches:
-      - Nigthly
-      - nightly_dev
-      - nightly_master
-      - debug_macos
+  workflow_dispatch:
 
 jobs:
   build:
 
-    runs-on: macos-11
+    runs-on: macos-14
 
     steps:
     - uses: actions/checkout@v3

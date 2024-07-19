@@ -1,9 +1,7 @@
 name: C/C++ debug ubuntu-GTK3
 
 on:
-  push:
-    branches:
-      - debug_ubuntu
+  workflow_dispatch:
 
 jobs:
   build:
@@ -47,4 +45,4 @@ jobs:
       with:
         name: ${{ github.event.repository.name }}-gtk3.AppImage
         path: build/${{ github.event.repository.name }}_ubu64.AppImage
-        
+

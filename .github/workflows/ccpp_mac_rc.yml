@@ -1,28 +1,32 @@
 name: C/C++ Release candidate macos
 
 on:
-  push:
-    branches:
-      - rc
+  workflow_dispatch:
 
 jobs:
   build:
 
-    runs-on: macos-11
+    runs-on: macos-12
 
     steps:
-    - uses: actions/checkout@v2
-      with:
-        ref: 'rc'
+    - uses: actions/checkout@v3
     - name: build deps & slicer
-      run: ./BuildMacOS.sh -i
+      run: ./BuildMacOS.sh
+    - name: copy zstd
+      run: cp /usr/local/opt/zstd/lib/libzstd.1.dylib ./build/pack/${{ github.event.repository.name }}/${{ github.event.repository.name }}.app/Contents/MacOS/libzstd.1.dylib
+    - name: relink zstd
+      run: install_name_tool -change /usr/local/opt/zstd/lib/libzstd.1.dylib  @executable_path/libzstd.1.dylib ./build/pack/${{ github.event.repository.name }}/${{ github.event.repository.name }}.app/Contents/MacOS/${{ github.event.repository.name }}
+    - name: create the dmg
+      run: |
+        hdiutil create -ov -fs HFS+ -volname ${{ github.event.repository.name }} -srcfolder "build/pack/${{ github.event.repository.name }}" temp.dmg
+        hdiutil convert temp.dmg -format UDZO -o ${{ github.event.repository.name }}.dmg
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0
       with:
-        name: rc_macos.tar
-        path: build/${{ github.event.repository.name }}.tar
+        name: rc_macos.app
+        path: build/pack/${{ github.event.repository.name }}/${{ github.event.repository.name }}.app
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0
       with:
         name: rc_macos.dmg
-        path: build/${{ github.event.repository.name }}.dmg
+        path: ${{ github.event.repository.name }}.dmg

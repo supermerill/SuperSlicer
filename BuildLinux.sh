@@ -1,7 +1,7 @@
 #!/bin/bash
 
 export ROOT=`pwd`
-export NCORES=`nproc --all`
+export NCORES=`nproc`
 FOUND_GTK2=$(dpkg -l libgtk* | grep gtk2)
 FOUND_GTK3=$(dpkg -l libgtk* | grep gtk-3)
 
@@ -54,12 +54,15 @@ then
     exit 0
 fi
 
-# mkdir build
-if [ ! -d "build" ]
+if [[ -n "$FOUND_GTK3" ]]
 then
-    mkdir build
+    echo "Found GTK3"
+else
+    if [[ -n "$FOUND_GTK2" ]]
+    then
+        echo "Found GTK2"
+    fi
 fi
-
 
 if [[ -n "$UPDATE_LIB" ]]
 then
@@ -69,11 +72,11 @@ then
 	apt install g++ m4
     if [[ -z "$FOUND_GTK3" ]]
     then
-        echo -e "\nInstalling: libgtk2.0-dev libglew-dev libudev-dev libdbus-1-dev cmake git\n"
-        apt install libgtk2.0-dev libglew-dev libudev-dev libdbus-1-dev cmake git gettext
+        echo -e "\nInstalling: libgtk2.0-dev libglew-dev libudev-dev libdbus-1-dev cmake git gettext fuse\n"
+        apt install libgtk2.0-dev libglew-dev libudev-dev libdbus-1-dev cmake git gettext fuse
     else
-        echo -e "\nFind libgtk-3, installing: libgtk-3-dev libglew-dev libudev-dev libdbus-1-dev cmake git\n"
-        apt install libgtk-3-dev libglew-dev libudev-dev libdbus-1-dev cmake git gettext
+        echo -e "\nFind libgtk-3, installing: libgtk-3-dev libglew-dev libudev-dev libdbus-1-dev cmake git gettext fuse\n"
+        apt install libgtk-3-dev libglew-dev libudev-dev libdbus-1-dev cmake git gettext fuse
     fi
     # for ubuntu 22.04:
     ubu_version="$(cat /etc/issue)" 
@@ -117,6 +120,12 @@ echo "[2/9] Changing date in version..."
     sed -i "s/+UNKNOWN/_$(date '+%F')/" version.inc
 }
 echo "done"
+
+# mkdir build
+if [ ! -d "build" ]
+then
+    mkdir build
+fi
 
 # mkdir in deps
 if [ ! -d "deps/build" ]
@@ -190,12 +199,18 @@ then
         cmake .. -DCMAKE_PREFIX_PATH="$PWD/../deps/build/destdir/usr/local" -DSLIC3R_STATIC=1 ${BUILD_ARGS}
         echo "done"
         
+        #make avrdude-slic3r
+        make avrdude-slic3r
+        
         # make Slic3r
         echo "[8/9] Building Slic3r..."
         make -j$NCORES Slic3r
 
         # make .mo
         make gettext_po_to_mo
+        
+        # make OCCTWrapper.so
+        make OCCTWrapper
     
     popd
     echo "done"
