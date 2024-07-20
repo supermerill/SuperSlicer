@@ -45,6 +45,14 @@ endif ()
 # Slightly controversial
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/../cmake/modules)
 
+if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
+    cmake_policy(SET CMP0127 NEW)
+endif ()
+
+if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
+    cmake_policy(SET CMP0135 NEW)
+endif ()
+
 if (MSVC)
   option(DEP_DEBUG "Build in debug version of packages automatically" ON)
 endif ()
