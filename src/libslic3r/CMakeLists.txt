@@ -178,7 +178,7 @@ set(SLIC3R_SOURCES
     GCode/FindReplace.hpp
     GCode/LabelObjects.cpp
     GCode/LabelObjects.hpp
-    #GCode/GCodeFormatter.cpp
+    GCode/GCodeFormatter.cpp
     GCode/GCodeFormatter.hpp
     GCode/GCodeWriter.cpp
     GCode/GCodeWriter.hpp

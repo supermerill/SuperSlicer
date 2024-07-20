@@ -1,0 +1,28 @@
+min_slic3r_version = 2.3.57
+0.1.26 Removed mk3, Set max_layer_height to a min value of 0.2, to be compatible with most print profiles. Add 0.25 layer heigth for 0.4 nozzles. set default infill to gyroid
+0.1.25 Adapt max_layer_height to the 80% of the nozzle
+0.1.24 Fix renamed profiles
+0.1.23 Fixed M104 and M109 of start_gcode
+0.1.22 Changed the support_material_contact_distance with support_material_contact_distance_top and support_material_contact_distance_bottom
+0.1.21 Added the new VERTEX L and fixed some compatibilities issues
+0.1.20 Set the max height of the XL to 430mm
+0.1.19 The relation between nozzle 0.8 and profiles has been fixed, added the new firmware version to the M115
+0.1.18 Corrected bridge_flow_ratio
+0.1.17 Corrected a bug related with the Z lift
+0.1.16 Remember update the FW to the v3.10.0
+0.1.15 Fix a bug with a duplicate key on the 0.1.14 version
+0.1.14 Fixed a bug with the compatibility of some filament brands
+0.1.13 Added VERTEX PETG for 0.6 nozzle and fixed a bug with Fillamentum PLA
+0.1.12 The changelog URL has been updated
+0.1.11 Fixed the VERTEX MINI printer model
+0.1.10 Added the movement to Z 0.20 before start to print
+0.1.9 Added the movement to Z 3mm while the nozzle is heating from 170º to print temperature
+0.1.8 Corrected the behaviour relative to the select of current for E axis, change the default color of VERTEX PETG
+0.1.7 Changed the print profiles to @VERTEX instead of @XL, the printers models has been updated, the VERTEX PETG is now compatible with all vendors
+0.1.6 VERTEX PETG filament has been added
+0.1.5 Wipe tower relocated
+0.1.4 VERTEX MINI profile updated
+0.1.3 Some issues with the relations between profiles and printers has been solved
+0.1.2 Profiles for VERTEX MINI has been added
+0.1.1 Profiles for MMU2S models has been added
+0.1.0 Initial release

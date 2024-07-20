@@ -1,0 +1,18 @@
+min_slic3r_version = 2.3.57
+0.1.6 corrected retract_lift_below
+0.1.5 corrected max layer height, added inherits for bigger nozzles
+0.1.0 added esun ABS, changed fan settings for PETG and XPETG matt
+0.0.14 updated profile for Caribou parts
+0.0.13 updated Caribou PETG, Caribou printed parts profile, Caribou Duet now with QUI thumbnails
+0.0.12 updated pictures
+0.0.11 adjusted default fan speed of some filaments
+0.0.10 reduced extrusion muliplier
+0.0.9 updated options for thumbnails for MK3S and Duet
+0.0.8 renamed MK3SKLIPPER to MK3KLIPPER to avoid conflicts with MK3S
+0.0.7 added Extrudr XPETG
+0.0.6 compatibilty check
+0.0.5 added default filaments
+0.0.4 added some Extrudr filaments
+0.0.3 updated Klipper start script
+0.0.2 updated urls
+0.0.1 Initial Version

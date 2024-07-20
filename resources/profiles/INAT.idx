@@ -1,0 +1,7 @@
+0.0.3 Set default filament profile.
+min_slic3r_version = 2.3.57
+0.0.3-susi3 Various modifications to adapt to susi 2.3.57
+0.0.3-susi2 susi fixes
+0.0.3-susi adaptation
+0.0.2 Improved start gcode, changed filename format
+0.0.1 Initial version

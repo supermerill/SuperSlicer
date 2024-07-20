@@ -1,0 +1,11 @@
+min_slic3r_version = 2.4.58
+0.0.11 reduced bridge speed
+0.0.10 added MBL 308
+0.0.9 further improved briding
+min_slic3r_version = 2.3.57
+0.0.8 improved briding and fixed printer_variant error 
+0.0.7 improved top layer
+0.0.6 fixed height of MBL 136 
+0.0.5 fixed unknown max_volumetric_speed in filament and missing model in printer 
+0.0.4 corrected MBL480 height to 1396
+0.0.3 Fix extrusion_spacing
