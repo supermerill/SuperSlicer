@@ -420,7 +420,7 @@ set(SLIC3R_SOURCES
     TriangleMeshSlicer.hpp
     MeshSplitImpl.hpp
     TriangulateWall.hpp
-    utils.cpp
+    Utils.cpp
     Utils.hpp
     Time.cpp
     Time.hpp
