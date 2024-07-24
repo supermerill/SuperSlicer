@@ -3,6 +3,7 @@
 #include "libslic3r/Model.hpp"
 #include "libslic3r/ClipperUtils.hpp"
 
+#include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/Plater.hpp"
 #include "slic3r/GUI/GLCanvas3D.hpp"
 #include "slic3r/GUI/GUI_ObjectList.hpp"
@@ -102,8 +103,12 @@ void FillBedJob::prepare()
             p.translation(X) -= p.bed_idx * stride;
 }
 
-void FillBedJob::process()
+void FillBedJob::process(Ctl &ctl)
 {
+    auto statustxt = _u8L("Filling bed");
+    ctl.call_on_main_thread([this] { prepare(); }).wait();
+    ctl.update_status(0, statustxt);
+
     if (m_object_idx == -1 || m_selected.empty()) return;
 
     const GLCanvas3D::ArrangeSettings &settings =
@@ -114,13 +119,13 @@ void FillBedJob::process()
     params.min_obj_distance = scaled(settings.distance);
 
     bool do_stop = false;
-    params.stopcondition = [this, &do_stop]() {
-        return was_canceled() || do_stop;
+    params.stopcondition = [&ctl, &do_stop]() {
+        return ctl.was_canceled() || do_stop;
     };
 
-    params.progressind = [this](unsigned st) {
+    params.progressind = [this, &ctl, &statustxt](unsigned st) {
         if (st > 0)
-            update_status(int(m_status_range - st), _(L("Filling bed")));
+            ctl.update_status(int(m_status_range - st) * 100 / status_range(), statustxt);
     };
 
     params.on_packed = [&do_stop] (const ArrangePolygon &ap) {
@@ -130,15 +135,18 @@ void FillBedJob::process()
     arrangement::arrange(m_selected, m_unselected, m_bedpts, params);
 
     // finalize just here.
-    update_status(m_status_range, was_canceled() ?
-                                      _(L("Bed filling canceled.")) :
-                                      _(L("Bed filling done.")));
+    ctl.update_status(100, ctl.was_canceled() ?
+                                      _u8L("Bed filling canceled.") :
+                                      _u8L("Bed filling done."));
 }
 
-void FillBedJob::finalize()
+FillBedJob::FillBedJob() : m_plater{wxGetApp().plater()} {}
+
+void FillBedJob::finalize(bool canceled, std::exception_ptr &eptr)
 {
     // Ignore the arrange result if aborted.
-    if (was_canceled()) return;
+    if (canceled || eptr)
+        return;
 
     if (m_object_idx == -1) return;
 
@@ -167,8 +175,6 @@ void FillBedJob::finalize()
         m_plater->sidebar()
             .obj_list()->increase_object_instances(m_object_idx, size_t(added_cnt));
     }
-
-    Job::finalize();
 }
 
 }} // namespace Slic3r::GUI

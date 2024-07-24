@@ -115,8 +115,8 @@ BackgroundSlicingProcess::BackgroundSlicingProcess()
 	m_temp_output_path = temp_path.string();
 }
 
-BackgroundSlicingProcess::~BackgroundSlicingProcess() 
-{ 
+BackgroundSlicingProcess::~BackgroundSlicingProcess()
+{
 	this->stop();
 	this->join_background_thread();
 	boost::nowide::remove(m_temp_output_path.c_str());
@@ -161,7 +161,7 @@ void BackgroundSlicingProcess::process_fff()
     m_print->process();
 	wxCommandEvent evt(m_event_slicing_completed_id);
 	// Post the Slicing Finished message for the G-code viewer to update.
-	// Passing the timestamp 
+	// Passing the timestamp
 	evt.SetInt((int)(m_fff_print->step_state_with_timestamp(PrintStep::psSlicingFinished).timestamp));
 	wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, evt.Clone());
 	m_fff_print->export_gcode(m_temp_output_path, m_gcode_result, [this](const ThumbnailsParams& params) { return this->render_thumbnails(params); });
@@ -261,7 +261,7 @@ void BackgroundSlicingProcess::thread_proc()
 		if (m_print->cancel_status() != Print::CANCELED_INTERNAL) {
 			// Only post the canceled event, if canceled by user.
 			// Don't post the canceled event, if canceled from Print::apply().
-			SlicingProcessCompletedEvent evt(m_event_finished_id, 0, 
+			SlicingProcessCompletedEvent evt(m_event_finished_id, 0,
 				(m_state == STATE_CANCELED) ? SlicingProcessCompletedEvent::Cancelled :
 				exception ? SlicingProcessCompletedEvent::Error : SlicingProcessCompletedEvent::Finished, exception);
         	wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, evt.Clone());
@@ -540,7 +540,7 @@ void BackgroundSlicingProcess::stop_internal()
 	m_print->set_cancel_callback([](){});
 }
 
-// Execute task from background thread on the UI thread. Returns true if processed, false if cancelled. 
+// Execute task from background thread on the UI thread. Returns true if processed, false if cancelled.
 bool BackgroundSlicingProcess::execute_ui_task(std::function<void()> task)
 {
 	bool running = false;
@@ -613,7 +613,7 @@ Print::ApplyStatus BackgroundSlicingProcess::apply(const Model &model, const Dyn
 	assert(m_print != nullptr);
 	assert(config.opt_enum<PrinterTechnology>("printer_technology") == m_print->technology());
 	Print::ApplyStatus invalidated = m_print->apply(model, config);
-    if (physical_printer_config && 
+    if (physical_printer_config &&
         (m_print->physical_printer_config().diff(*physical_printer_config).size() != 0 || m_print->physical_printer_config().keys() != physical_printer_config->keys()) ) {
         m_print->physical_printer_config().clear();
         m_print->physical_printer_config().apply(*physical_printer_config);
@@ -646,7 +646,7 @@ void BackgroundSlicingProcess::set_task(const PrintBase::TaskParams &params)
 
 // Set the output path of the G-code.
 void BackgroundSlicingProcess::schedule_export(const std::string &path, bool export_path_on_removable_media)
-{ 
+{
 	assert(m_export_path.empty());
 	if (! m_export_path.empty())
 		return;
@@ -691,17 +691,17 @@ void BackgroundSlicingProcess::reset_export()
 }
 
 bool BackgroundSlicingProcess::set_step_started(BackgroundSlicingProcessStep step)
-{ 
+{
 	return m_step_state.set_started(step, m_print->state_mutex(), [this](){ this->throw_if_canceled(); });
 }
 
 void BackgroundSlicingProcess::set_step_done(BackgroundSlicingProcessStep step)
-{ 
+{
 	m_step_state.set_done(step, m_print->state_mutex(), [this](){ this->throw_if_canceled(); });
 }
 
 bool BackgroundSlicingProcess::is_step_done(BackgroundSlicingProcessStep step) const
-{ 
+{
 	return m_step_state.is_done(step, m_print->state_mutex());
 }
 
@@ -712,7 +712,7 @@ bool BackgroundSlicingProcess::invalidate_step(BackgroundSlicingProcessStep step
 }
 
 bool BackgroundSlicingProcess::invalidate_all_steps()
-{ 
+{
 	return m_step_state.invalidate_all([this](){ this->stop_internal(); });
 }
 
@@ -796,7 +796,7 @@ void BackgroundSlicingProcess::prepare_upload()
 			throw Slic3r::RuntimeError(_utf8(L("Copying of the temporary G-code to the output G-code failed")));
 		m_upload_job.upload_data.upload_path = m_fff_print->print_statistics().finalize_output_path(m_upload_job.upload_data.upload_path.string());
         // Make a copy of the source path, as run_post_process_scripts() is allowed to change it when making a copy of the source file
-        // (not here, but when the final target is a file). 
+        // (not here, but when the final target is a file).
         std::string source_path_str = source_path.string();
         std::string output_name_str = m_upload_job.upload_data.upload_path.string();
 		if (run_post_process_scripts(source_path_str, false, m_upload_job.printhost->get_name(), output_name_str, m_fff_print->full_print_config()))

@@ -98,7 +98,7 @@ PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUplo
         }
     });
     txt_filename->SetFocus();
-    
+
     if (post_actions.has(PrintHostPostUploadAction::StartPrint)) {
         auto* btn_print = add_button(wxID_YES, false, _L("Upload and Print"));
         btn_print->Bind(wxEVT_BUTTON, [this, validate_path](wxCommandEvent&) {
@@ -116,7 +116,7 @@ PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUplo
             if (validate_path(txt_filename->GetValue())) {
                 post_upload_action = PrintHostPostUploadAction::StartSimulation;
                 EndDialog(wxID_OK);
-            }        
+            }
         });
     }
 

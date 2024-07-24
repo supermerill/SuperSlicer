@@ -191,6 +191,13 @@ void OptionsGroup::show_field(const t_config_option_key& opt_key, bool show/* = 
     }
 }
 
+void OptionsGroup::enable_field(const t_config_option_key& opt_key, bool enable)
+{
+    if (Field* f = get_field(opt_key); f) {
+        f->toggle(enable);
+    }
+}
+
 void OptionsGroup::append_line(const Line& line)
 {
 	m_lines.push_back(line);
@@ -864,9 +871,9 @@ bool ConfigOptionsGroup::update_visibility(ConfigOptionMode mode)
     const int cols = m_grid_sizer->GetCols();
     assert(opt_mode_size == m_line_sizer.size());
     for (int i = 0; i < opt_mode_size; i++) {
-        if ((m_options_mode[i].size() == 1 
-            && m_options_mode[i].begin()->second.size() == 1 
-            && m_options_mode[i].begin()->second[0] == (size_t)-1 
+        if ((m_options_mode[i].size() == 1
+            && m_options_mode[i].begin()->second.size() == 1
+            && m_options_mode[i].begin()->second[0] == (size_t)-1
             && (m_options_mode[i].begin()->first != comNone && (m_options_mode[i].begin()->first & mode) != mode))
                 || get_visible_idx(m_options_mode[i], mode).empty()) {
             hidden_row_cnt++;

@@ -203,11 +203,8 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
         //update print config (done at reslice but we need it here)
         if (plat->printer_technology() == ptFFF)
             plat->fff_print().apply(plat->model(), *plat->config());
-        std::shared_ptr<ProgressIndicatorStub> fake_statusbar = std::make_shared<ProgressIndicatorStub>();
-        ArrangeJob arranger(std::dynamic_pointer_cast<ProgressIndicator>(fake_statusbar), plat);
-        arranger.prepare_all();
-        arranger.process();
-        arranger.finalize();
+        // Start ArrangeJob on worker
+        replace_job(*m_worker, std::make_unique<ArrangeJob>(true));
     }
 
     plat->reslice();

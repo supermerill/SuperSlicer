@@ -15,9 +15,9 @@
 #include <nlohmann/detail/meta/type_traits.hpp>
 #include <nlohmann/detail/value_t.hpp>
 
-// #ifdef JSON_HAS_CPP_17
-    // #include <filesystem>
-// #endif
+ #ifdef JSON_HAS_CPP_17
+     #include <filesystem>
+ #endif
 
 namespace nlohmann
 {
@@ -393,7 +393,7 @@ void to_json(BasicJsonType& j, const T& t)
 
 #ifdef JSON_HAS_CPP_17
 template<typename BasicJsonType>
-void to_json(BasicJsonType& j, const std_path& p)
+void to_json(BasicJsonType& j, const std::filesystem::path& p)
 {
     j = p.string();
 }

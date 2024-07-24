@@ -73,7 +73,7 @@ public:
     wxMenu *CreatePopupMenu() override {
         wxMenu *menu = new wxMenu;
         if(wxGetApp().app_config->get("single_instance") == "0") {
-            // Only allow opening a new Slic3r instance on OSX if "single_instance" is disabled, 
+            // Only allow opening a new Slic3r instance on OSX if "single_instance" is disabled,
             // as starting new instances would interfere with the locking mechanism of "single_instance" support.
             append_menu_item(menu, wxID_ANY, _L("Open new instance"), wxString::Format(_L("Open a new %s instance"), SLIC3R_APP_NAME),
             [](wxCommandEvent&) { start_new_slicer(); }, "", nullptr);
@@ -133,7 +133,7 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_S
     // Fonts were created by the DPIFrame constructor for the monitor, on which the window opened.
     wxGetApp().update_fonts(this);
 /*
-#ifndef __WXOSX__ // Don't call SetFont under OSX to avoid name cutting in ObjectList 
+#ifndef __WXOSX__ // Don't call SetFont under OSX to avoid name cutting in ObjectList
     this->SetFont(this->normal_font());
 #endif
     // Font is already set in DPIFrame constructor
@@ -351,7 +351,7 @@ static wxString pref() { return " [ "; }
 static wxString suff() { return " ] "; }
 static void append_tab_menu_items_to_menubar(wxMenuBar* bar, PrinterTechnology pt, MainFrame::ESettingsLayout layout)
 {
-    // Add separator 
+    // Add separator
     bar->Append(new wxMenu(), "          ");
     bar->EnableTop(MAINFRAME_MENU_ITEM_COUNT, false);
 
@@ -361,13 +361,13 @@ static void append_tab_menu_items_to_menubar(wxMenuBar* bar, PrinterTechnology p
         bar->Append(new wxMenu(), _L("Sliced preview"));
         bar->Append(new wxMenu(),  _L("Gcode preview"));
         has_marker = true;
-        // Add separator 
+        // Add separator
         bar->Append(new wxMenu(), "          ");
         bar->EnableTop(MAINFRAME_MENU_ITEM_COUNT + 4, false);
     } else if (layout == MainFrame::ESettingsLayout::Old) {
         bar->Append(new wxMenu(), pref() + _L("Platter") + suff());
         has_marker = true;
-        // Add separator 
+        // Add separator
         bar->Append(new wxMenu(), "          ");
         bar->EnableTop(MAINFRAME_MENU_ITEM_COUNT + 2, false);
     }
@@ -449,7 +449,7 @@ static void add_tabs_as_menu(wxMenuBar* bar, MainFrame* main_frame, wxWindow* ba
         if (!menu || menu->GetMenuItemCount() > 0) {
             // If we are here it means that we open regular menu and not a tab used as a menu
             event.Skip(); // event.Skip() is verry important to next processing of the wxEVT_UPDATE_UI by this menu items.
-                          // If wxEVT_MENU_OPEN will not be pocessed in next event queue then MenuItems of this menu will never caught wxEVT_UPDATE_UI 
+                          // If wxEVT_MENU_OPEN will not be pocessed in next event queue then MenuItems of this menu will never caught wxEVT_UPDATE_UI
                           // and, as a result, "check/radio value" will not be updated
             return;
         }
@@ -815,7 +815,7 @@ void MainFrame::update_layout()
 //#ifdef __APPLE__
 //    // Using SetMinSize() on Mac messes up the window position in some cases
 //    // cf. https://groups.google.com/forum/#!topic/wx-users/yUKPBBfXWO0
-//    // So, if we haven't possibility to set MinSize() for the MainFrame, 
+//    // So, if we haven't possibility to set MinSize() for the MainFrame,
 //    // set the MinSize() as a half of regular  for the m_plater and m_tabpanel, when settings layout is in slNew mode
 //    // Otherwise, MainFrame will be maximized by height
 //    if (m_layout == ESettingsLayout::Hidden) {
@@ -825,11 +825,11 @@ void MainFrame::update_layout()
 //        m_tabpanel->SetMinSize(size);
 //    }
 //#endif
-    
+
 #ifdef __APPLE__
     m_plater->sidebar().change_top_border_for_mode_sizer(m_layout != ESettingsLayout::Tabs && m_layout != ESettingsLayout::Old);
 #endif
-    
+
     Layout();
     Thaw();
 }
@@ -849,7 +849,7 @@ void MainFrame::shutdown()
 #endif // _WIN32
 
     if (m_plater != nullptr) {
-        m_plater->stop_jobs();
+        m_plater->get_ui_job_worker().cancel_all();
 
         //close calibration dialog if opened
         wxGetApp().change_calibration_dialog(nullptr, nullptr);
@@ -896,7 +896,7 @@ void MainFrame::shutdown()
 //         Slic3r::GUI::deregister_on_request_update_callback();
 
     // set to null tabs and a plater
-    // to avoid any manipulations with them from App->wxEVT_IDLE after of the mainframe closing 
+    // to avoid any manipulations with them from App->wxEVT_IDLE after of the mainframe closing
     wxGetApp().tabs_list.clear();
     wxGetApp().plater_ = nullptr;
 }
@@ -970,10 +970,10 @@ void MainFrame::update_title()
     if (idx_plus != build_id.npos) {
     	// Parse what is behind the '+'. If there is a number, then it is a build number after the label, and full build ID is shown.
     	int commit_after_label;
-    	if (! boost::starts_with(build_id.data() + idx_plus + 1, "UNKNOWN") && 
+    	if (! boost::starts_with(build_id.data() + idx_plus + 1, "UNKNOWN") &&
             (build_id.at(idx_plus + 1) == '-' || sscanf(build_id.data() + idx_plus + 1, "%d-", &commit_after_label) == 0)) {
     		// It is a release build.
-    		build_id.erase(build_id.begin() + idx_plus, build_id.end());    		
+    		build_id.erase(build_id.begin() + idx_plus, build_id.end());
 #if defined(_WIN32) && ! defined(_WIN64)
     		// People are using 32bit slicer on a 64bit machine by mistake. Make it explicit.
             build_id += " 32 bit";
@@ -1234,14 +1234,14 @@ void MainFrame::register_win32_callbacks()
             //SHCNE_UPDATEITEM,                                                     // Events of interest - use SHCNE_ALLEVENTS for all events
             WM_USER_MEDIACHANGED,                                                   // Notification message to be sent upon the event
             1,                                                                      // Number of entries in the pfsne array
-            &shCNE);                                                                // Array of SHChangeNotifyEntry structures that 
-                                                                                    // contain the notifications. This array should 
+            &shCNE);                                                                // Array of SHChangeNotifyEntry structures that
+                                                                                    // contain the notifications. This array should
                                                                                     // always be set to one when calling SHChnageNotifyRegister
                                                                                     // or SHChangeNotifyDeregister will not work properly.
         assert(m_ulSHChangeNotifyRegister != 0);    // Shell notification failed
     } else {
         // Failed to get desktop location
-        assert(false); 
+        assert(false);
     }
 
     {
@@ -1303,15 +1303,15 @@ bool MainFrame::is_active_and_shown_tab(Tab* tab)
 
     if (m_layout == ESettingsLayout::Hidden)
         return m_main_sizer->IsShown(m_tabpanel);
-    
+
     return true;
 }
 
 bool MainFrame::can_start_new_project() const
 {
-    return m_plater && (!m_plater->get_project_filename(".3mf").IsEmpty() || 
+    return m_plater && (!m_plater->get_project_filename(".3mf").IsEmpty() ||
                         GetTitle().StartsWith('*')||
-                        wxGetApp().has_current_preset_changes() || 
+                        wxGetApp().has_current_preset_changes() ||
                         !m_plater->model().objects.empty() );
 }
 
@@ -1433,8 +1433,8 @@ bool MainFrame::can_change_view() const
     default:                   { return false; }
     case ESettingsLayout::Hidden: { return m_plater->IsShown(); }
     case ESettingsLayout::Dlg: { return true; }
-    case ESettingsLayout::Old: 
-    case ESettingsLayout::Tabs: { 
+    case ESettingsLayout::Old:
+    case ESettingsLayout::Tabs: {
         int page_id = m_tabpanel->GetSelection();
         return page_id != wxNOT_FOUND && selected_tab() <= ETabType::LastPlater;
     }
@@ -1584,7 +1584,7 @@ static wxMenu* generate_help_menu()
     else
         append_menu_item(helpMenu, wxID_ANY, wxString::Format(_L("&About %s"), GCODEVIEWER_APP_NAME), _L("Show about dialog"),
             [](wxCommandEvent&) { Slic3r::GUI::about(); });
-    append_menu_item(helpMenu, wxID_ANY, _L("Show Tip of the Day") 
+    append_menu_item(helpMenu, wxID_ANY, _L("Show Tip of the Day")
 #if 0//debug
         + "\tCtrl+Shift+T"
 #endif
@@ -1608,10 +1608,10 @@ static void add_common_view_menu_items(wxMenu* view_menu, MainFrame* mainFrame, 
     append_menu_item(view_menu, wxID_ANY, _L("Iso") + sep + "&0", _L("Iso View"), [mainFrame](wxCommandEvent&) { mainFrame->select_view("iso"); },
         "", nullptr, [can_change_view]() { return can_change_view(); }, mainFrame);
     view_menu->AppendSeparator();
-    //TRN To be shown in the main menu View->Top 
+    //TRN To be shown in the main menu View->Top
     append_menu_item(view_menu, wxID_ANY, _L("Top") + sep + "&1", _L("Top View"), [mainFrame](wxCommandEvent&) { mainFrame->select_view("top"); },
         "", nullptr, [can_change_view]() { return can_change_view(); }, mainFrame);
-    //TRN To be shown in the main menu View->Bottom 
+    //TRN To be shown in the main menu View->Bottom
     append_menu_item(view_menu, wxID_ANY, _L("Bottom") + sep + "&2", _L("Bottom View"), [mainFrame](wxCommandEvent&) { mainFrame->select_view("bottom"); },
         "", nullptr, [can_change_view]() { return can_change_view(); }, mainFrame);
     append_menu_item(view_menu, wxID_ANY, _L("Front") + sep + "&3", _L("Front View"), [mainFrame](wxCommandEvent&) { mainFrame->select_view("front"); },
@@ -1695,15 +1695,14 @@ void MainFrame::init_menubar_as_editor()
         append_menu_item(import_menu, wxID_ANY, _L("Import STL/3MF/STEP/OBJ/AM&F") + dots + "\tCtrl+I", _L("Load a model"),
             [this](wxCommandEvent&) { if (m_plater) m_plater->add_model(); }, "import_plater", nullptr,
             [this](){return m_plater != nullptr; }, this);
-        
+
         append_menu_item(import_menu, wxID_ANY, _L("Import STL (Imperial Units)"), _L("Load an model saved with imperial units"),
             [this](wxCommandEvent&) { if (m_plater) m_plater->add_model(true); }, "import_plater", nullptr,
             [this](){return m_plater != nullptr; }, this);
-        
+
         append_menu_item(import_menu, wxID_ANY, _L("Import SL1 / SL1S Archive") + dots, _L("Load an SL1 / Sl1S archive"),
             [this](wxCommandEvent&) { if (m_plater) m_plater->import_sl1_archive(); }, "import_plater", nullptr,
-            [this](){return m_plater != nullptr && !m_plater->is_any_job_running(); }, this);
-    
+            [this](){return m_plater != nullptr && m_plater->get_ui_job_worker().is_idle(); }, this);
         import_menu->AppendSeparator();
         append_menu_item(import_menu, wxID_ANY, _L("Import &Config") + dots + "\tCtrl+L", _L("Load exported configuration file"),
             [this](wxCommandEvent&) { load_config_file(); }, "import_config", nullptr,
@@ -1851,7 +1850,7 @@ void MainFrame::init_menubar_as_editor()
         append_menu_item(editMenu, wxID_ANY, _L("&Paste") + "\tCtrl+V",
             _L("Paste clipboard"), [this](wxCommandEvent&) { m_plater->paste_from_clipboard(); },
             "paste_menu", nullptr, [this](){return m_plater->can_paste_from_clipboard() && can_change_view(); }, this);
-        
+
         editMenu->AppendSeparator();
 #ifdef __APPLE__
         append_menu_item(editMenu, wxID_ANY, _L("Re&load from Disk") + dots + "\tCtrl+Shift+R",
@@ -1898,7 +1897,7 @@ void MainFrame::init_menubar_as_editor()
 
         windowMenu->AppendSeparator();
         append_menu_item(windowMenu, wxID_ANY, _L("Shape Gallery"), _L("Open the dialog to modify shape gallery"),
-            [this](wxCommandEvent&) { 
+            [this](wxCommandEvent&) {
                 GalleryDialog dlg(this, true);
                 if (dlg.ShowModal() == wxID_OK) {
                     wxArrayString input_files;
@@ -1907,17 +1906,17 @@ void MainFrame::init_menubar_as_editor()
                         m_plater->sidebar().obj_list()->load_shape_object_from_gallery(input_files);
                 }
             }, "shape_gallery", nullptr, []() {return true; }, this);
-        
+
         windowMenu->AppendSeparator();
         append_menu_item(windowMenu, wxID_ANY, _L("Print &Host Upload Queue") + "\tCtrl+J", _L("Display the Print Host Upload Queue window"),
             [this](wxCommandEvent&) { m_printhost_queue_dlg->Show(); }, "upload_queue", nullptr, []() {return true; }, this);
-        
+
         windowMenu->AppendSeparator();
         append_menu_item(windowMenu, wxID_ANY, _L("Open New Instance") + "\tCtrl+Shift+" + "I", wxString::Format(_L("Open a new %s instance"), SLIC3R_APP_NAME),
             [this](wxCommandEvent&) { start_new_slicer(); }, "", nullptr, [this]() {return m_plater != nullptr && wxGetApp().app_config->get("single_instance") != "1"; }, this);
 
         windowMenu->AppendSeparator();
-        append_menu_item(windowMenu, wxID_ANY, _L("Compare Presets")/* + "\tCtrl+F"*/, _L("Compare presets"), 
+        append_menu_item(windowMenu, wxID_ANY, _L("Compare Presets")/* + "\tCtrl+F"*/, _L("Compare presets"),
             [this](wxCommandEvent&) { diff_dialog.show();}, "compare", nullptr, []() {return true; }, this);
     }
 
@@ -1936,9 +1935,9 @@ void MainFrame::init_menubar_as_editor()
 #ifndef __APPLE__
         // OSX adds its own menu item to toggle fullscreen.
         append_menu_check_item(viewMenu, wxID_ANY, _L("&Fullscreen") + "\t" + "F11", _L("Fullscreen"),
-            [this](wxCommandEvent&) { this->ShowFullScreen(!this->IsFullScreen(), 
+            [this](wxCommandEvent&) { this->ShowFullScreen(!this->IsFullScreen(),
                 // wxFULLSCREEN_ALL: wxFULLSCREEN_NOMENUBAR | wxFULLSCREEN_NOTOOLBAR | wxFULLSCREEN_NOSTATUSBAR | wxFULLSCREEN_NOBORDER | wxFULLSCREEN_NOCAPTION
-                wxFULLSCREEN_NOSTATUSBAR | wxFULLSCREEN_NOBORDER | wxFULLSCREEN_NOCAPTION); }, 
+                wxFULLSCREEN_NOSTATUSBAR | wxFULLSCREEN_NOBORDER | wxFULLSCREEN_NOCAPTION); },
             this, []() { return true; }, [this]() { return this->IsFullScreen(); }, this);
 #endif // __APPLE__
     }
@@ -2181,7 +2180,7 @@ void MainFrame::quick_slice(const int qs)
 
     auto bed_shape = Slic3r::Polygon::new_scale(config.option<ConfigOptionPoints>("bed_shape")->values);
 //     auto print_center = Slic3r::Pointf->new_unscale(bed_shape.bounding_box().center());
-// 
+//
 //     auto sprint = new Slic3r::Print::Simple(
 //         print_center = > print_center,
 //         status_cb = > [](int percent, const wxString& msg) {
@@ -2202,11 +2201,11 @@ void MainFrame::quick_slice(const int qs)
     if (qs & qsReslice) {
         if (!m_qs_last_output_file.IsEmpty())
             output_file = m_qs_last_output_file;
-    } 
+    }
     else if (qs & qsSaveAs) {
         // The following line may die if the output_filename_format template substitution fails.
         wxFileDialog dlg(this, from_u8((boost::format(_utf8(L("Save %s file as:"))) % ((qs & qsExportSVG) ? _L("SVG") : _L("G-code"))).str()),
-            wxGetApp().app_config->get_last_output_dir(get_dir_name(output_file)), get_base_name(input_file), 
+            wxGetApp().app_config->get_last_output_dir(get_dir_name(output_file)), get_base_name(input_file),
             qs & qsExportSVG ? file_wildcards(FT_SVG) : file_wildcards(FT_GCODE),
             wxFD_SAVE | (wxGetApp().app_config->get_show_overwrite_dialog() ? wxFD_OVERWRITE_PROMPT : 0));
         if (dlg.ShowModal() != wxID_OK)
@@ -2215,7 +2214,7 @@ void MainFrame::quick_slice(const int qs)
         if (!(qs & qsExportSVG))
             m_qs_last_output_file = output_file;
         wxGetApp().app_config->update_last_output_dir(get_dir_name(output_file));
-    } 
+    }
     else if (qs & qsExportPNG) {
         wxFileDialog dlg(this, _L("Save zip file as:"),
             wxGetApp().app_config->get_last_output_dir(get_dir_name(output_file)),
@@ -2405,7 +2404,7 @@ void MainFrame::load_configbundle(wxString file/* = wxEmptyString*/, bool from_p
         PresetBundle::LoadConfigBundleAttributes lcba{ PresetBundle::LoadConfigBundleAttribute::SaveImported };
         // Report all substitutions.
         std::tie(config_substitutions, presets_imported) = wxGetApp().preset_bundle->load_configbundle(
-            file.ToUTF8().data(), 
+            file.ToUTF8().data(),
             (from_prusa ? lcba | PresetBundle::LoadConfigBundleAttribute::ConvertFromPrusa : lcba),
             ForwardCompatibilitySubstitutionRule::Enable);
     } catch (const std::exception &ex) {
@@ -2456,7 +2455,7 @@ void MainFrame::load_config(const DynamicPrintConfig& config)
 				if (! boost::algorithm::ends_with(opt_key, "_settings_id"))
 					tab->get_config()->option(opt_key)->set(config.option(opt_key));
         }
-    
+
     wxGetApp().load_current_presets();
 #endif
 }
@@ -2587,7 +2586,7 @@ void MainFrame::select_tab(ETabType tab /* = Any*/, bool keep_tab_type)
         } else if (tab <= ETabType::LastSettings) {
             //select setting
             new_selection = (uint8_t)tab - (uint8_t)ETabType::PrintSettings;
-            if (tab == ETabType::LastSettings) 
+            if (tab == ETabType::LastSettings)
                 new_selection = m_last_selected_setting_tab > 2 ? 0 : m_last_selected_setting_tab;
             //push to the correct position
             if (m_layout == ESettingsLayout::Tabs)
@@ -2687,7 +2686,7 @@ void MainFrame::select_tab(ETabType tab /* = Any*/, bool keep_tab_type)
             m_settings_dialog.Hide();
         else
             tabpanel_was_hidden = true;
-            
+
         select(tabpanel_was_hidden);
         m_tabpanel->Show();
         m_settings_dialog.Show();
@@ -2876,7 +2875,7 @@ void MainFrame::update_ui_from_settings()
             tab->update_ui_from_settings();
 }
 
-std::string MainFrame::get_base_name(const wxString &full_name, const char *extension) const 
+std::string MainFrame::get_base_name(const wxString &full_name, const char *extension) const
 {
     boost::filesystem::path filename = boost::filesystem::path(full_name.wx_str()).filename();
     if (extension != nullptr)
@@ -2884,7 +2883,7 @@ std::string MainFrame::get_base_name(const wxString &full_name, const char *exte
     return filename.string();
 }
 
-std::string MainFrame::get_dir_name(const wxString &full_name) const 
+std::string MainFrame::get_dir_name(const wxString &full_name) const
 {
     return boost::filesystem::path(full_name.wx_str()).parent_path().string();
 }

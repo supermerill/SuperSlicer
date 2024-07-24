@@ -442,13 +442,13 @@ void Preset::set_visible_from_appconfig(const AppConfig &app_config)
 	    	for (auto it = this->renamed_from.begin(); ! is_visible && it != this->renamed_from.end(); ++ it)
 	    		is_visible = has(*it);
 	    }
-        else 
+        else
 			is_visible = false;
     }
 }
 
 static std::vector<std::string> s_Preset_print_options {
-        "layer_height", 
+        "layer_height",
         "first_layer_height", "perimeters", "spiral_vase",
         "slice_closing_radius",
         "slicing_mode",
@@ -464,16 +464,16 @@ static std::vector<std::string> s_Preset_print_options {
         "only_one_perimeter_first_layer",
         "only_one_perimeter_top",
         "only_one_perimeter_top_other_algo",
-        "ensure_vertical_shell_thickness", 
+        "ensure_vertical_shell_thickness",
         "allow_empty_layers",
-        "avoid_crossing_perimeters", 
+        "avoid_crossing_perimeters",
         "avoid_crossing_not_first_layer",
         "avoid_crossing_top",
         "thin_perimeters", "thin_perimeters_all",
         "overhangs_speed",
         "overhangs_speed_enforce",
         "overhangs_width",
-        "overhangs_width_speed", 
+        "overhangs_width_speed",
         "overhangs_reverse",
         "overhangs_reverse_threshold",
         "perimeter_reverse",
@@ -518,7 +518,7 @@ static std::vector<std::string> s_Preset_print_options {
         "only_retract_when_crossing_perimeters", "enforce_retract_first_layer",
         "infill_first",
         "avoid_crossing_perimeters_max_detour",
-        "max_volumetric_extrusion_rate_slope_positive", "max_volumetric_extrusion_rate_slope_negative", 
+        "max_volumetric_extrusion_rate_slope_positive", "max_volumetric_extrusion_rate_slope_negative",
         "min_width_top_surface",
         // speeds
         "default_speed",
@@ -536,7 +536,7 @@ static std::vector<std::string> s_Preset_print_options {
         "small_perimeter_min_length",
         "solid_infill_speed",
         "support_material_interface_speed",
-        "support_material_speed", 
+        "support_material_speed",
         "support_material_xy_spacing",
         "top_solid_infill_speed",
         "travel_speed", "travel_speed_z",
@@ -601,7 +601,7 @@ static std::vector<std::string> s_Preset_print_options {
         "support_material", "support_material_auto", "support_material_threshold", "support_material_enforce_layers",
         "raft_contact_distance",
         "raft_expansion",
-        "raft_first_layer_density", 
+        "raft_first_layer_density",
         "raft_first_layer_expansion",
         "raft_layers",
         "raft_layer_height", "raft_interface_layer_height",
@@ -620,24 +620,24 @@ static std::vector<std::string> s_Preset_print_options {
         "support_material_contact_distance_type",
         "support_material_contact_distance_top",
         "support_material_contact_distance_bottom",
-        "support_material_buildplate_only", "dont_support_bridges", 
+        "support_material_buildplate_only", "dont_support_bridges",
         // miscellaneous
-        "notes", 
+        "notes",
         "print_custom_variables",
         "complete_objects",
         "parallel_objects_step",
         "complete_objects_one_skirt",
         "complete_objects_sort",
-        "extruder_clearance_radius", 
+        "extruder_clearance_radius",
         "extruder_clearance_height", "gcode_comments", "gcode_label_objects", "output_filename_format", "post_process", "perimeter_extruder",
         "gcode_substitutions",
-        "infill_extruder", "solid_infill_extruder", "support_material_extruder", "support_material_interface_extruder", 
-        "ooze_prevention", "standby_temperature_delta", "interface_shells", 
+        "infill_extruder", "solid_infill_extruder", "support_material_extruder", "support_material_interface_extruder",
+        "ooze_prevention", "standby_temperature_delta", "interface_shells",
         // width & spacing
-        "extrusion_spacing", 
-        "extrusion_width", 
-        "first_layer_extrusion_spacing", 
-        "first_layer_extrusion_width", 
+        "extrusion_spacing",
+        "extrusion_width",
+        "first_layer_extrusion_spacing",
+        "first_layer_extrusion_width",
         "perimeter_round_corners",
         "perimeter_extrusion_spacing",
         "perimeter_extrusion_width",
@@ -683,9 +683,9 @@ static std::vector<std::string> s_Preset_print_options {
         "wipe_tower_speed", "wipe_tower_wipe_starting_speed",
         "wipe_tower_brim_width",
         "mmu_segmented_region_max_width",
-        "single_extruder_multi_material_priming", 
+        "single_extruder_multi_material_priming",
         "wipe_tower_no_sparse_layers",
-        "compatible_printers", "compatible_printers_condition", "inherits", 
+        "compatible_printers", "compatible_printers_condition", "inherits",
         "infill_dense", "infill_dense_algo",
         "no_perimeter_unsupported_algo",
         // "exact_last_layer_height",
@@ -727,7 +727,7 @@ static std::vector<std::string> s_Preset_print_options {
 };
 
 static std::vector<std::string> s_Preset_filament_options {
-        "filament_colour", 
+        "filament_colour",
         "filament_custom_variables",
         "filament_diameter", "filament_type", "filament_soluble", "filament_notes",
         "filament_max_speed",
@@ -749,7 +749,7 @@ static std::vector<std::string> s_Preset_filament_options {
         "filament_toolchange_part_fan_speed",
         "filament_dip_insertion_speed",
         "filament_dip_extraction_speed",  //skinnydip params end
-        "temperature", "first_layer_temperature", "bed_temperature", "first_layer_bed_temperature", 
+        "temperature", "first_layer_temperature", "bed_temperature", "first_layer_bed_temperature",
         // "cooling",
         // "fan_always_on", (now default_fan_speed)
         // "min_fan_speed", (now fan_printer_min_speed)
@@ -775,10 +775,10 @@ static std::vector<std::string> s_Preset_filament_options {
         // custom gcode
         "start_filament_gcode", "end_filament_gcode",
         // Retract overrides
-        "filament_retract_length", "filament_retract_lift", "filament_retract_lift_above", "filament_retract_lift_below", 
-        "filament_retract_speed", "filament_deretract_speed", "filament_retract_restart_extra", 
+        "filament_retract_length", "filament_retract_lift", "filament_retract_lift_above", "filament_retract_lift_below",
+        "filament_retract_speed", "filament_deretract_speed", "filament_retract_restart_extra",
         "filament_retract_before_travel", "filament_retract_lift_before_travel",
-        "filament_retract_layer_change", "filament_retract_before_wipe", 
+        "filament_retract_layer_change", "filament_retract_before_wipe",
         "filament_seam_gap",
         "filament_wipe", "filament_wipe_only_crossing", "filament_wipe_extra_perimeter", "filament_wipe_speed",
         "filament_wipe_inside_depth",
@@ -824,7 +824,7 @@ static std::vector<std::string> s_Preset_printer_options {
             "max_gcode_per_second",
     //FIXME the print host keys are left here just for conversion from the Printer preset to Physical Printer preset.
     "host_type", "print_host", "printhost_apikey", "printhost_cafile", "printhost_port",
-    "single_extruder_multi_material", 
+    "single_extruder_multi_material",
     // custom gcode
     "start_gcode",
     "start_gcode_manual",
@@ -837,16 +837,16 @@ static std::vector<std::string> s_Preset_printer_options {
     //printer fields
     "printer_custom_variables",
     "printer_vendor",
-    "printer_model", 
-    "printer_variant", 
-    "printer_notes", 
+    "printer_model",
+    "printer_variant",
+    "printer_notes",
      // mmu
      "cooling_tube_retraction",
-     "cooling_tube_length", "high_current_on_filament_swap", "parking_pos_retraction", "extra_loading_move", "max_print_height", 
+     "cooling_tube_length", "high_current_on_filament_swap", "parking_pos_retraction", "extra_loading_move", "max_print_height",
     "default_print_profile", "inherits",
     "remaining_times",
     "remaining_times_type",
-    "silent_mode", 
+    "silent_mode",
     "machine_limits_usage",
     "thumbnails",
     "thumbnails_color",
@@ -1033,7 +1033,7 @@ void PresetCollection::add_default_preset(const std::vector<std::string> &keys, 
 // Load all presets found in dir_path.
 // Throws an exception on error.
 void PresetCollection::load_presets(
-    const std::string &dir_path, const std::string &subdir, 
+    const std::string &dir_path, const std::string &subdir,
     PresetsConfigSubstitutions& substitutions, ForwardCompatibilitySubstitutionRule substitution_rule)
 {
     // Don't use boost::filesystem::canonical() on Windows, it is broken in regard to reparse points,
@@ -1539,7 +1539,7 @@ inline t_config_option_keys deep_diff(const ConfigBase &config_this, const Confi
         const ConfigOption *this_opt  = config_this.option(opt_key);
         const ConfigOption *other_opt = config_other.option(opt_key);
         //dirty if both exist, they aren't both phony and value is different
-        if (this_opt != nullptr && other_opt != nullptr 
+        if (this_opt != nullptr && other_opt != nullptr
             && (ignore_phony || !(this_opt->is_phony() && other_opt->is_phony()))
             && ((*this_opt != *other_opt) || (this_opt->is_phony() != other_opt->is_phony())))
         {
@@ -1748,7 +1748,7 @@ std::string Preset::type_name(Type t) {
     }
 }
 
-Preset::Type Preset::type_from_name(std::string name) { 
+Preset::Type Preset::type_from_name(std::string name) {
     if ("print" == name)
         return Preset::TYPE_FFF_PRINT;
     if ("filament" == name)
@@ -1894,11 +1894,11 @@ bool PhysicalPrinter::has_empty_config() const
     return  config.opt_string("print_host"                      ).empty() &&
             config.opt_string("printhost_apikey"                ).empty() &&
             config.opt_string("printhost_cafile"                ).empty() &&
-            config.opt_string("printhost_client_cert"           ).empty() && 
-            config.opt_string("printhost_client_cert_password"  ).empty() && 
+            config.opt_string("printhost_client_cert"           ).empty() &&
+            config.opt_string("printhost_client_cert_password"  ).empty() &&
             config.opt_string("printhost_port"                  ).empty() &&
             config.opt_string("printhost_user"                  ).empty() &&
-            config.opt_string("printhost_password"              ).empty() && 
+            config.opt_string("printhost_password"              ).empty() &&
             config.opt_string("printhost_port"                  ).empty();
 }
 
@@ -2029,7 +2029,7 @@ PhysicalPrinterCollection::PhysicalPrinterCollection( const std::vector<std::str
 // Load all printers found in dir_path.
 // Throws an exception on error.
 void PhysicalPrinterCollection::load_printers(
-    const std::string& dir_path, const std::string& subdir, 
+    const std::string& dir_path, const std::string& subdir,
     PresetsConfigSubstitutions& substitutions, ForwardCompatibilitySubstitutionRule substitution_rule)
 {
     // Don't use boost::filesystem::canonical() on Windows, it is broken in regard to reparse points,

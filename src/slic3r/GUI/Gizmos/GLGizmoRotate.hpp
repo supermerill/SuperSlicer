@@ -2,7 +2,6 @@
 #define slic3r_GLGizmoRotate_hpp_
 
 #include "GLGizmoBase.hpp"
-#include "../Jobs/RotoptimizeJob.hpp"
 
 
 namespace Slic3r {

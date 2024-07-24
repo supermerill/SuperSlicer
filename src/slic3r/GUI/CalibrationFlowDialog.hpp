@@ -2,6 +2,8 @@
 #define slic3r_GUI_CalibrationFlowDialog_hpp_
 
 #include "CalibrationAbstractDialog.hpp"
+#include "Jobs/BoostThreadWorker.hpp"
+#include "Jobs/WindowWorker.hpp"
 
 namespace Slic3r { 
 namespace GUI {
@@ -10,7 +12,12 @@ class CalibrationFlowDialog : public CalibrationAbstractDialog
 {
 
 public:
-    CalibrationFlowDialog(GUI_App* app, MainFrame* mainframe) : CalibrationAbstractDialog(app, mainframe, "Flow calibration") { create(boost::filesystem::path("calibration") / "filament_flow","filament_flow.html", wxSize(900, 500));  }
+    CalibrationFlowDialog(GUI_App *app, MainFrame *mainframe)
+        : CalibrationAbstractDialog(app, mainframe, "Flow calibration")
+    {
+        create(boost::filesystem::path("calibration") / "filament_flow", "filament_flow.html", wxSize(900, 500));
+        m_worker = std::make_unique<WindowWorker<BoostThreadWorker>>(this, nullptr, "arrange_worker");
+    }
     virtual ~CalibrationFlowDialog() {}
     
 protected:
@@ -19,6 +26,7 @@ protected:
     void create_geometry_10(wxCommandEvent& event_args);
     void create_geometry_2_5(wxCommandEvent& event_args);
 
+    std::unique_ptr<Worker> m_worker;
 };
 
 } // namespace GUI

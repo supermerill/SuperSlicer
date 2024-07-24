@@ -19,9 +19,9 @@
 #include <nlohmann/detail/meta/type_traits.hpp>
 #include <nlohmann/detail/value_t.hpp>
 
-// #ifdef JSON_HAS_CPP_17
-    // #include <filesystem>
-// #endif
+ #ifdef JSON_HAS_CPP_17
+     #include <filesystem>
+ #endif
 
 namespace nlohmann
 {
@@ -450,7 +450,7 @@ void from_json(const BasicJsonType& j, std::unordered_map<Key, Value, Hash, KeyE
 
 #ifdef JSON_HAS_CPP_17
 template<typename BasicJsonType>
-void from_json(const BasicJsonType& j, std_path& p)
+void from_json(const BasicJsonType& j, std::filesystem::path& p)
 {
     if (JSON_HEDLEY_UNLIKELY(!j.is_string()))
     {
