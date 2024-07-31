@@ -96,7 +96,7 @@ void init()
     //key_translation_map["bridge_angle"]                             = "bridge_angle";
     key_translation_map["bridge_density"]                           = "bridge_overlap_min";
     key_translation_map["bridge_no_support"]                        = "dont_support_bridges";
-    key_translation_map["internal_bridge_speed"]                    = "bridge_speed_internal";
+    //key_translation_map["internal_bridge_speed"]                    = "internal_bridge_speed";
     //key_translation_map["brim_ears"]                                = "brim_ears";
     //key_translation_map["brim_ears_detection_length"]               = "brim_ears_detection_length";
     //key_translation_map["brim_ears_max_angle"]                      = "brim_ears_max_angle";

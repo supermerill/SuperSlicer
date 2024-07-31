@@ -171,6 +171,7 @@ void Layer::make_perimeters()
             /// if you don't do that, objects will share the same region, and the same settings.
             if (config.perimeter_extruder           == other_config.perimeter_extruder
                 && config.perimeters                == other_config.perimeters
+                && config.external_perimeter_acceleration == other_config.external_perimeter_acceleration
                 && config.external_perimeter_extrusion_width == other_config.external_perimeter_extrusion_width
                 && config.external_perimeter_overlap == other_config.external_perimeter_overlap
                 && config.external_perimeter_speed == other_config.external_perimeter_speed // it os mandatory? can't this be set at gcode.cpp?
@@ -182,6 +183,7 @@ void Layer::make_perimeters()
                 && config.extra_perimeters_overhangs == other_config.extra_perimeters_overhangs
                 && config.gap_fill_enabled          == other_config.gap_fill_enabled
                 && ((config.gap_fill_speed          == other_config.gap_fill_speed) || !config.gap_fill_enabled)
+                && config.gap_fill_acceleration     == other_config.gap_fill_acceleration
                 && config.gap_fill_last             == other_config.gap_fill_last
                 && config.gap_fill_flow_match_perimeter == other_config.gap_fill_flow_match_perimeter
                 && config.gap_fill_extension         == other_config.gap_fill_extension
@@ -196,10 +198,12 @@ void Layer::make_perimeters()
                 && (this->id() == 0 || config.only_one_perimeter_first_layer == other_config.only_one_perimeter_first_layer)
                 && config.only_one_perimeter_top    == other_config.only_one_perimeter_top
                 && config.only_one_perimeter_top_other_algo == other_config.only_one_perimeter_top_other_algo
+                && config.overhangs_acceleration    == other_config.overhangs_acceleration
                 && config.overhangs_width_speed     == other_config.overhangs_width_speed
                 && config.overhangs_width           == other_config.overhangs_width
                 && config.overhangs_reverse         == other_config.overhangs_reverse
                 && config.overhangs_reverse_threshold == other_config.overhangs_reverse_threshold
+                && config.perimeter_acceleration    == other_config.perimeter_acceleration
                 && config.perimeter_extrusion_width == other_config.perimeter_extrusion_width
                 && config.perimeter_loop            == other_config.perimeter_loop
                 && config.perimeter_loop_seam       == other_config.perimeter_loop_seam
@@ -211,17 +215,43 @@ void Layer::make_perimeters()
                 && config.small_perimeter_min_length == other_config.small_perimeter_min_length
                 && config.small_perimeter_max_length == other_config.small_perimeter_max_length
                 && config.thin_walls                == other_config.thin_walls
+                && config.thin_walls_acceleration   == other_config.thin_walls_acceleration
                 && config.thin_walls_min_width      == other_config.thin_walls_min_width
                 && config.thin_walls_overlap        == other_config.thin_walls_overlap
+                && config.thin_walls_speed          == other_config.thin_walls_speed
                 && config.thin_perimeters           == other_config.thin_perimeters
                 && config.thin_perimeters_all       == other_config.thin_perimeters_all
-                && config.thin_walls_speed          == other_config.thin_walls_speed
                 && config.infill_overlap            == other_config.infill_overlap
                 && config.perimeter_loop            == other_config.perimeter_loop
+                && config.region_gcode              == other_config.region_gcode
 
                 && config.fuzzy_skin                == other_config.fuzzy_skin
                 && config.fuzzy_skin_thickness      == other_config.fuzzy_skin_thickness
                 && config.fuzzy_skin_point_dist     == other_config.fuzzy_skin_point_dist
+
+                /*&& config.bridge_acceleration                      == other_config.bridge_acceleration
+                && config.internal_bridge_acceleration             == other_config.internal_bridge_acceleration
+                && config.brim_acceleration                        == other_config.brim_acceleration
+                && config.default_acceleration                     == other_config.default_acceleration
+                && config.external_perimeter_acceleration          == other_config.external_perimeter_acceleration
+                && config.first_layer_acceleration                 == other_config.first_layer_acceleration
+                && config.gap_fill_acceleration                    == other_config.gap_fill_acceleration
+                && config.infill_acceleration                      == other_config.infill_acceleration
+                && config.ironing_acceleration                     == other_config.ironing_acceleration
+                && config.overhangs_acceleration                   == other_config.overhangs_acceleration
+                && config.perimeter_acceleration                   == other_config.perimeter_acceleration
+                && config.solid_infill_acceleration                == other_config.solid_infill_acceleration
+                && config.support_material_acceleration            == other_config.support_material_acceleration
+                && config.support_material_interface_acceleration  == other_config.support_material_interface_acceleration
+                && config.thin_walls_acceleration                  == other_config.thin_walls_acceleration
+                && config.top_solid_infill_acceleration            == other_config.top_solid_infill_acceleration//compiles fine with moving them here, how to properly test this ?
+                && config.per_objects_gcode                        == other_config.per_objects_gcode */
+                //&& config.external_perimeter_extrusion_spacing   == other_config.external_perimeter_extrusion_spacing
+                //&& config.perimeter_extrusion_spacing            == other_config.perimeter_extrusion_spacing
+                //&& config.first_layer_size_compensation          == other_config.first_layer_size_compensation
+                && config.first_layer_extrusion_width              == other_config.first_layer_extrusion_width
+                && config.first_layer_extrusion_spacing            == other_config.first_layer_extrusion_spacing
+                
                 ) {
                 layerms.push_back(other_layerm);
                 done[it - m_regions.begin()] = true;

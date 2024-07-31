@@ -654,7 +654,7 @@ WipeTower::WipeTower(const PrintConfig& config, const PrintObjectConfig& default
     }
     // Read absolute value of first layer speed, if given as percentage,
     // it is taken over wipe_tower_speed.
-    m_first_layer_speed = config.first_layer_speed.get_abs_value(m_speed);
+    m_first_layer_speed = default_object_config.first_layer_speed.get_abs_value(m_speed);
     if (m_first_layer_speed == 0.f) { // just to make sure autospeed doesn't break it.
         m_first_layer_speed = m_speed;
     }

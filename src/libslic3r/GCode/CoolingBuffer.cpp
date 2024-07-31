@@ -902,7 +902,7 @@ std::string CoolingBuffer::apply_layer_cooldown(
     }
     //set the fan controls
     default_fan_speed[ExtrusionRole::erBridgeInfill] = EXTRUDER_CONFIG(bridge_fan_speed);
-    default_fan_speed[ExtrusionRole::erInternalBridgeInfill] = EXTRUDER_CONFIG(bridge_internal_fan_speed);
+    default_fan_speed[ExtrusionRole::erInternalBridgeInfill] = EXTRUDER_CONFIG(internal_bridge_fan_speed);
     default_fan_speed[ExtrusionRole::erTopSolidInfill] = EXTRUDER_CONFIG(top_fan_speed);
     default_fan_speed[ExtrusionRole::erIroning] = default_fan_speed[ExtrusionRole::erTopSolidInfill];
     default_fan_speed[ExtrusionRole::erSupportMaterialInterface] = EXTRUDER_CONFIG(support_material_interface_fan_speed);
@@ -982,7 +982,7 @@ std::string CoolingBuffer::apply_layer_cooldown(
                 fan_speeds[ExtrusionRole::erBridgeInfill] = fan_speeds[0];
             }
 
-            // if bridge_internal_fan is disabled, it takes the value of bridge_fan
+            // if internal_bridge_fan is disabled, it takes the value of bridge_fan
             if (!fan_control[ExtrusionRole::erInternalBridgeInfill] && fan_control[ExtrusionRole::erBridgeInfill]) {
                 fan_control[ExtrusionRole::erInternalBridgeInfill] = true;
                 fan_speeds[ExtrusionRole::erInternalBridgeInfill] = fan_speeds[ExtrusionRole::erBridgeInfill];

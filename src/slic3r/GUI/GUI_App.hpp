@@ -253,6 +253,7 @@ public:
     void            over_bridge_dialog();
     void            calibration_cube_dialog();
 	void            calibration_retraction_dialog();
+    void            calibration_pressureadv_dialog();
     void            freecad_script_dialog();
     void            tiled_canvas_dialog();
     //void            support_tuning(); //have to do multiple, in a submenu

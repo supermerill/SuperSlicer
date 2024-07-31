@@ -46,6 +46,7 @@ namespace FillLightning {
     using GeneratorPtr = std::unique_ptr<Generator, GeneratorDeleter>;
 }; // namespace FillLightning
 
+
 // Print step IDs for keeping track of the print state.
 // The Print steps are applied in this order.
 enum PrintStep {
@@ -59,6 +60,7 @@ enum PrintStep {
     // should be refreshed.
     psSlicingFinished = psSkirtBrim,
     psGCodeExport,
+   //TODO: psGCodeLoader (for params that are only used for time display and such)
     psCount,
 };
 

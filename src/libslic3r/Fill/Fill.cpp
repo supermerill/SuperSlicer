@@ -57,6 +57,7 @@ struct SurfaceFillParams : FillParams
         RETURN_COMPARE_NON_EQUAL(can_angle_cross);
         RETURN_COMPARE_NON_EQUAL(density);
         RETURN_COMPARE_NON_EQUAL(monotonic);
+        RETURN_COMPARE_NON_EQUAL(max_sparse_infill_spacing);
         RETURN_COMPARE_NON_EQUAL_TYPED(unsigned, connection);
         RETURN_COMPARE_NON_EQUAL_TYPED(unsigned, dont_adjust);
 
@@ -70,16 +71,22 @@ struct SurfaceFillParams : FillParams
         assert(this->config != nullptr);
         assert(rhs.config != nullptr);
         if (config != nullptr && rhs.config != nullptr) {
+            RETURN_COMPARE_NON_EQUAL(config->infill_acceleration);
             RETURN_COMPARE_NON_EQUAL(config->infill_speed);
+            RETURN_COMPARE_NON_EQUAL(config->solid_infill_acceleration);
             RETURN_COMPARE_NON_EQUAL(config->solid_infill_speed);
+            RETURN_COMPARE_NON_EQUAL(config->top_solid_infill_acceleration);
             RETURN_COMPARE_NON_EQUAL(config->top_solid_infill_speed);
-            RETURN_COMPARE_NON_EQUAL(config->ironing_speed);
+            RETURN_COMPARE_NON_EQUAL(config->default_acceleration);
             RETURN_COMPARE_NON_EQUAL(config->default_speed);
+            RETURN_COMPARE_NON_EQUAL(config->bridge_acceleration);
             RETURN_COMPARE_NON_EQUAL(config->bridge_speed);
-            RETURN_COMPARE_NON_EQUAL(config->bridge_speed_internal);
+            RETURN_COMPARE_NON_EQUAL(config->internal_bridge_acceleration);
+            RETURN_COMPARE_NON_EQUAL(config->internal_bridge_speed);
+            RETURN_COMPARE_NON_EQUAL(config->gap_fill_acceleration);
             RETURN_COMPARE_NON_EQUAL(config->gap_fill_speed);
             RETURN_COMPARE_NON_EQUAL(config->print_extrusion_multiplier);
-            RETURN_COMPARE_NON_EQUAL(max_sparse_infill_spacing);
+            RETURN_COMPARE_NON_EQUAL(config->region_gcode.value);
         }
         if (config == nullptr || rhs.config == nullptr || max_sparse_infill_spacing == 0)
             RETURN_COMPARE_NON_EQUAL(flow.width());
@@ -92,14 +99,23 @@ struct SurfaceFillParams : FillParams
         if ((config != nullptr) != (rhs.config != nullptr))
             return false;
         if(config != nullptr && (
-            config->infill_speed != rhs.config->infill_speed
+            config->infill_acceleration != rhs.config->infill_acceleration
+            || config->infill_speed != rhs.config->infill_speed
+            || config->solid_infill_acceleration != rhs.config->solid_infill_acceleration
             || config->solid_infill_speed != rhs.config->solid_infill_speed
+            || config->top_solid_infill_acceleration != rhs.config->top_solid_infill_acceleration
             || config->top_solid_infill_speed != rhs.config->top_solid_infill_speed
-            || config->ironing_speed != rhs.config->ironing_speed
+            || config->default_acceleration != rhs.config->default_acceleration
             || config->default_speed != rhs.config->default_speed
+            || config->bridge_acceleration != rhs.config->bridge_acceleration
             || config->bridge_speed != rhs.config->bridge_speed
-            || config->bridge_speed_internal != rhs.config->bridge_speed_internal
-            || config->gap_fill_speed != rhs.config->gap_fill_speed))
+            || config->internal_bridge_acceleration != rhs.config->internal_bridge_acceleration
+            || config->internal_bridge_speed != rhs.config->internal_bridge_speed
+            || config->gap_fill_acceleration != rhs.config->gap_fill_acceleration
+            || config->gap_fill_speed != rhs.config->gap_fill_speed
+            || config->print_extrusion_multiplier != rhs.config->print_extrusion_multiplier
+            || config->region_gcode != rhs.config->region_gcode
+            ))
             return false;
         // then check params
         return  this->extruder              == rhs.extruder         &&
@@ -765,6 +781,7 @@ void Layer::make_ironing()
         double         line_spacing;
         // Height of the extrusion, to calculate the extrusion flow from.
         double         height;
+        double         acceleration;
         double         speed;
         double         angle;
         IroningType    type;
@@ -786,6 +803,10 @@ void Layer::make_ironing()
                 return true;
             if (this->height > rhs.height)
                 return false;
+            if (this->acceleration < rhs.acceleration)
+                return true;
+            if (this->acceleration > rhs.acceleration)
+                return false;
             if (this->speed < rhs.speed)
                 return true;
             if (this->speed > rhs.speed)
@@ -797,11 +818,12 @@ void Layer::make_ironing()
             return false;
         }
 
-        bool operator==(const IroningParams &rhs) const {
+        bool operator==(const IroningParams &rhs) const
+        {
             return this->extruder == rhs.extruder && this->just_infill == rhs.just_infill &&
-                   this->line_spacing == rhs.line_spacing && this->height == rhs.height && this->speed == rhs.speed &&
-                this->angle == rhs.angle &&
-                this->type == rhs.type;
+                   this->line_spacing == rhs.line_spacing && this->height == rhs.height &&
+                   this->acceleration == rhs.acceleration && this->speed == rhs.speed &&
+                   this->angle == rhs.angle && this->type == rhs.type;
         }
 
         LayerRegion *layerm        = nullptr;
@@ -847,11 +869,16 @@ void Layer::make_ironing()
                 ironing_params.type              = config.ironing_type;
                 ironing_params.just_infill     = false;
                 ironing_params.line_spacing = config.ironing_spacing;
-                ironing_params.height         = default_layer_height * 0.01 * config.ironing_flowrate;
-                ironing_params.speed         = config.ironing_speed;
-                ironing_params.angle         = config.ironing_angle <0 ?
-                    compute_fill_angle(config, layerm->layer()->id()) :
-                    float(Geometry::deg2rad(config.ironing_angle.value));
+                ironing_params.height       = default_layer_height * 0.01 * config.ironing_flowrate;
+                ironing_params.acceleration = config.ironing_acceleration;
+                ironing_params.speed        = config.ironing_speed;
+                if (config.ironing_angle.value >= 0) {
+                    ironing_params.angle = float(Geometry::deg2rad(config.ironing_angle.value));
+                } else {
+                    ironing_params.angle = compute_fill_angle(config, layerm->layer()->id());
+                    if (config.ironing_angle.value < -1)
+                        ironing_params.angle += float(Geometry::deg2rad(-config.ironing_angle.value));
+                }
                 ironing_params.layerm         = layerm;
                 by_extruder.emplace_back(ironing_params);
             }
