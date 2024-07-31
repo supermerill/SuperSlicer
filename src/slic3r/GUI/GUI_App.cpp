@@ -281,8 +281,10 @@ public:
         wxString credit_and_author = m_constant_text.credits;
         if (!m_author.empty())
             credit_and_author += "\n\n" + m_author;
-        memDc.DrawLabel(credit_and_author, banner_rect, wxALIGN_BOTTOM | wxALIGN_LEFT);
         int credits_height = memDc.GetMultiLineTextExtent(credit_and_author).GetY();
+        //print from bottom
+        memDc.DrawLabel(credit_and_author, banner_rect, wxALIGN_BOTTOM | wxALIGN_LEFT);
+
         int text_height    = memDc.GetTextExtent("text").GetY();
 
         // calculate position for the dynamic text
@@ -320,7 +322,7 @@ private:
                 _L("is based on PrusaSlicer by Prusa Research.") + "\n\n" +
                 _L("PrusaSlicer is based on Slic3r by Alessandro Ranellucci and the RepRap community.") + "\n\n" +
                 _L("Superslicer is developed by Durand Rémi (@supermerill).") + "\n\n" +
-                _L("Licensed under GNU AGPLv3.") + "\n\n\n\n\n\n\n";
+                _L("Licensed under GNU AGPLv3.");
 
             title_font = version_font = credits_font = init_font;
         }
@@ -1345,7 +1347,7 @@ bool GUI_App::on_init_inner()
 
         // make a bitmap with dark grey banner on the left side
         scrn = new SplashScreen(bmp.IsOk() ? bmp : SplashScreen::MakeBitmap(get_bmp_bundle(SLIC3R_APP_KEY, 600)->GetPreferredBitmapSizeAtScale(1.0)),
-                                wxSPLASH_CENTRE_ON_SCREEN | wxSPLASH_TIMEOUT, 4000, splashscreen_pos);
+                                wxSPLASH_CENTRE_ON_SCREEN | wxSPLASH_TIMEOUT, 4000, splashscreen_pos, artist);
 
         if (!default_splashscreen_pos)
             // revert "restore_win_position" value if application wasn't crashed

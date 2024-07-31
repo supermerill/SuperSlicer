@@ -103,7 +103,7 @@ GCodeExtrusionRole string_to_gcode_extrusion_role(const std::string_view role)
         return GCodeExtrusionRole::Milling;
     else if (role == L("Custom"))
         return GCodeExtrusionRole::Custom;
-    else if (role == L("Trabel"))
+    else if (role == L("Travel"))
         return GCodeExtrusionRole::Travel;
     else
         assert(false);

@@ -129,12 +129,12 @@ void GCodeViewer::IBuffer::reset()
     count = 0;
 }
 
-bool GCodeViewer::Path::matches(const GCodeProcessorResult::MoveVertex& move, const GCodeViewer::Extrusions::Ranges& compare, bool account_for_volumetric_rate) const
+bool GCodeViewer::Path::matches(const GCodeProcessorResult::MoveVertex& move, const GCodeViewer::Extrusions::Ranges& compare, MatchMode mode) const
 {
     auto matches_percent = [](float value1, float value2, float max_percent) {
         return std::abs(value2 - value1) / value1 <= max_percent;
     };
-
+    bool is_equal = false;
     switch (move.type)
     {
     case EMoveType::Tool_change:
@@ -146,18 +146,7 @@ bool GCodeViewer::Path::matches(const GCodeProcessorResult::MoveVertex& move, co
     case EMoveType::Seam:
     case EMoveType::Extrude: {
         // use rounding to reduce the number of generated paths
-        if (account_for_volumetric_rate)
-            return type == move.type && extruder_id == move.extruder_id && cp_color_id == move.cp_color_id && role == move.extrusion_role &&
-                move.position.z() <= sub_paths.front().first.position.z() &&
-                compare.feedrate.is_same_value(feedrate, move.feedrate) &&
-                fan_speed == move.fan_speed &&
-                compare.height.is_same_value(height, move.height) &&
-                compare.width.is_same_value(width, move.width) &&
-                temperature == move.temperature &&
-                (compare.volumetric_rate.is_same_value(volumetric_rate, move.volumetric_rate()) || matches_percent(volumetric_rate, move.volumetric_rate(), 0.001f)) &&
-                (compare.volumetric_flow.is_same_value(volumetric_flow, move.mm3_per_mm) || matches_percent(volumetric_flow, move.mm3_per_mm, 0.05f));
-        else
-            return type == move.type &&
+        is_equal = type == move.type &&
                 extruder_id == move.extruder_id &&
                 cp_color_id == move.cp_color_id &&
                 role == move.extrusion_role &&
@@ -167,6 +156,15 @@ bool GCodeViewer::Path::matches(const GCodeProcessorResult::MoveVertex& move, co
                 compare.height.is_same_value(height, move.height) &&
                 compare.width.is_same_value(width, move.width) &&
                 temperature == move.temperature;
+        // use rounding to reduce the number of generated paths
+        if ((uint8_t(mode) & uint8_t(mmWithVolumetric)) != 0)
+            is_equal = is_equal &&
+                (compare.volumetric_rate.is_same_value(volumetric_rate, move.volumetric_rate()) || matches_percent(volumetric_rate, move.volumetric_rate(), 0.001f)) &&
+                (compare.volumetric_flow.is_same_value(volumetric_flow, move.mm3_per_mm) || matches_percent(volumetric_flow, move.mm3_per_mm, 0.05f));
+        if ((uint8_t(mode) & uint8_t(mmWithTime)) != 0)
+            is_equal = is_equal && 
+                int(elapsed_time) == int(move.move_time);
+        return is_equal;
     }
     case EMoveType::Travel: {
         return type == move.type && feedrate == move.feedrate && extruder_id == move.extruder_id && cp_color_id == move.cp_color_id;
@@ -200,7 +198,7 @@ void GCodeViewer::TBuffer::add_path(const GCodeProcessorResult::MoveVertex& move
     paths.push_back({ move.type, move.extrusion_role, move.delta_extruder,
         move.height, move.width,
         move.feedrate, move.fan_speed, move.temperature,
-        move.volumetric_rate(), move.mm3_per_mm, move.extruder_id, move.cp_color_id, { { endpoint, endpoint } }, move.layer_duration, move.time });
+        move.volumetric_rate(), move.mm3_per_mm, move.extruder_id, move.cp_color_id, { { endpoint, endpoint } }, move.move_time });
 }
 
 void GCodeViewer::COG::render()
@@ -326,6 +324,18 @@ void GCodeViewer::Extrusions::Range::update_from(const float f_value){
     // note: not needed to clear caches, as update isn't called after chache creation and there is always a reset before
 }
 
+void GCodeViewer::Extrusions::Range::update_print_min_max(const float f_value) {
+    int32_t value = scale_value(f_value);
+    m_print_min = std::min(m_print_min, value);
+    m_print_max = std::max(m_print_max, value);
+}
+
+void GCodeViewer::Extrusions::Range::set_whole_print_mode(bool is_whole_print)
+{
+    m_is_whole_print = is_whole_print;
+    if(m_is_whole_print) reset_print_min_max();
+}
+
 bool GCodeViewer::Extrusions::Range::has_outliers() const
 {
     bool   has_outliers = false;
@@ -401,6 +411,8 @@ int32_t GCodeViewer::Extrusions::Range::get_current_max() const
     }
     if (this->m_user_max > 0)
         current_max = std::min(current_max, this->m_user_max);
+    if (this->m_print_max > INT_MIN)
+        current_max = std::min(current_max, this->m_print_max);
     return current_max;
 }
 
@@ -418,16 +430,28 @@ int32_t GCodeViewer::Extrusions::Range::get_current_min() const
     }
     if (this->m_user_min > 0)
         current_min = std::max(current_min, this->m_user_min);
+    if (this->m_print_min < INT_MAX)
+        current_min = std::max(current_min, this->m_print_min);
     return current_min;
 }
 
-//float GCodeViewer::Extrusions::Range::step_size() const
-//{
-//    return step_size(get_current_min(), get_current_max(), this->log_scale);
-//}
 
-float GCodeViewer::Extrusions::Range::step_size(int32_t min, int32_t max, EType type)
+int32_t GCodeViewer::Extrusions::Range::scale_value(float value) const {
+    return int32_t( (value + 0.00001f) * quick_pow10::pow10[decimal_precision] + 0.49f);
+}
+
+float GCodeViewer::Extrusions::Range::unscale_value(int32_t value) const {
+    return value  / float(quick_pow10::pow10[decimal_precision]);
+}
+
+float GCodeViewer::Extrusions::Range::step_size(int32_t min, int32_t max, EType type) const
 {
+    
+    // special case: stored min & max, but there are an infinite amount of values (time).
+    //if (total_count == std::numeric_limits<uint64_t>::max()) {
+    //    return unscale_value(1);
+    //}
+    // normal case
     switch (type)
     {
     default:
@@ -442,14 +466,6 @@ float GCodeViewer::Extrusions::Range::step_size(int32_t min, int32_t max, EType 
     }
     }
 
-}
-
-int32_t GCodeViewer::Extrusions::Range::scale_value(float value) const {
-    return int32_t( (value + 0.00001f) * quick_pow10::pow10[decimal_precision] + 0.49f);
-}
-
-float GCodeViewer::Extrusions::Range::unscale_value(int32_t value) const {
-    return value  / float(quick_pow10::pow10[decimal_precision]);
 }
 
 ColorRGBA GCodeViewer::Extrusions::Range::get_color_at(float f_value) const
@@ -587,23 +603,35 @@ const std::vector<std::pair<std::string, ColorRGBA>>& GCodeViewer::Extrusions::R
             float   current_step_size = step_size(current_min, current_max, m_curve_type);
             if (m_max != current_max)
                 m_cache_legend.emplace_back(string_value(m_max), Too_High_Value_Color);
-            m_cache_legend.emplace_back(string_value(current_max), Range_Colors.back());
-            float previous_value = current_max;
+            m_cache_legend.emplace_back(string_value(current_max), get_color_at(unscale_value(current_max)));
             float current_value = current_max;
+            int32_t previous_value = current_max;
             for (size_t i = Range_Colors.size() - 2; i > 0; --i) {
                 current_value -= current_step_size;
                 //if step < 1, then skip some colors
-                if (scale_value(current_value) == scale_value(previous_value))
+                if (int32_t(current_value) == previous_value)
                     continue;
-                if (m_curve_type == EType::Linear)
-                    m_cache_legend.emplace_back(string_value(current_value), Range_Colors[i]);
-                else
-                    m_cache_legend.emplace_back(string_value(std::exp(std::log(current_min) + i * current_step_size)), Range_Colors[i]);
+                if (m_curve_type == EType::Linear) {
+                    assert(m_cache_legend.back().first != string_value(int32_t(current_value)));
+                    m_cache_legend.emplace_back(string_value(int32_t(current_value)), get_color_at(unscale_value(int32_t(current_value))));
+                } else {
+                    m_cache_legend.emplace_back(string_value(std::exp(std::log(current_min) + i * current_step_size)),
+                                                get_color_at(unscale_value(int32_t(current_value))));
+                }
+                previous_value = int32_t(current_value);
             }
-            m_cache_legend.emplace_back(string_value(current_min), Range_Colors.front());
+            if (previous_value != current_min) {
+                m_cache_legend.emplace_back(string_value(current_min), get_color_at(unscale_value(current_min)));
+            }
             if (m_min != current_min)
                 m_cache_legend.emplace_back(string_value(m_min), Too_Low_Value_Color);
         }
+        // remove legends with same value, even if not discrete to avoid some confusion
+        bool has_color_same_label = false;
+        for (size_t idx = 1; !has_color_same_label && idx < m_cache_legend.size(); ++idx) {
+            has_color_same_label = m_cache_legend[idx - 1].first == m_cache_legend[idx].first;
+        }
+        assert(!has_color_same_label);
     }
     return m_cache_legend;
 }
@@ -616,12 +644,14 @@ void GCodeViewer::Extrusions::Range::compute_discrete_colors() const
     size_t idx         = 0;
     m_cache_discrete_colors.clear();
     for (const auto &[value, count] : m_values_2_counts) {
-        if ( (m_user_min && value < m_user_min) || (m_user_max && m_user_max < value))
+        if ( (m_user_min && value < m_user_min) || (m_user_max && m_user_max < value)
+          || (m_print_min < INT_MAX && value < m_print_min) || (m_print_max > INT_MIN && m_print_max < value))
             continue;
         if (idx + 1 == m_values_2_counts.size()) {
             // last is at the last color
             m_cache_discrete_colors[value] = Range_Colors_Details.back();
         } else {
+            assert(size_t(current_pos) < Range_Colors_Details.size());
             m_cache_discrete_colors[value] = Range_Colors_Details[size_t(current_pos)];
         }
         current_pos += step;
@@ -642,6 +672,10 @@ size_t GCodeViewer::Extrusions::Range::count_discrete() const {
             nb++;
     }
     m_cache_discrete_count = nb;
+    // special case: stored min & max, but there are an infinite amount of values (time).
+    if (total_count == std::numeric_limits<uint64_t>::max()) {
+        m_cache_discrete_count = std::numeric_limits<int>::max();
+    }
     return m_cache_discrete_count;
 }
 
@@ -739,13 +773,30 @@ GCodeViewer::Extrusions::Ranges::Ranges(uint8_t max_decimals) :
     for (size_t i = 0; i < static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Count); i++) {
         this->layer_time.emplace_back(0, true);
         this->elapsed_time.emplace_back(0, true);
+        //this->elapsed_time[i].set_whole_print_mode(false); // by default, false for chronology
     }
     for (size_t i = 0; i < size_t(EViewType::Count); i++) {
         this->min_max_cstr_id[i] = std::pair<std::string, std::string>{std::string("##min") + std::to_string(i), std::string("##max") + std::to_string(i)};
     }
 }
 
-
+float GCodeViewer::Path::get_value(EViewType type) const
+{
+    switch (type) {
+    case EViewType::FeatureType:    { return float(static_cast<unsigned int>(this->role));}
+    case EViewType::Height:         { return this->height;}
+    case EViewType::Width:          { return this->width;}
+    case EViewType::Feedrate:       { return this->feedrate;  }
+    case EViewType::FanSpeed:       { return this->fan_speed;  }
+    case EViewType::Temperature:    { return this->temperature; }
+    case EViewType::Chronology:     { return this->elapsed_time/*[static_cast<size_t>(m_time_estimate_mode)]*/; }
+    case EViewType::VolumetricRate: { return this->volumetric_rate; }
+    case EViewType::VolumetricFlow: { return this->volumetric_flow; }
+    case EViewType::Tool:           { return float(this->extruder_id); }
+    case EViewType::Filament:       { return float(this->extruder_id); }
+    default: return 0.f;
+    }
+}
 
 GCodeViewer::Extrusions::Extrusions() : ranges(std::max(0, std::min(6, atoi(Slic3r::GUI::get_app_config()->get("gcodeviewer_decimals").c_str())))) {}
 
@@ -1366,15 +1417,15 @@ void GCodeViewer::load(const GCodeProcessorResult& gcode_result, const Print& pr
     assert(&m_print->get() == &print);
 
     // avoid processing if called with the same gcode_result
-    // unless you switch to/from VolumetricRate/VolumetricFlow
-    if (m_last_result_id == gcode_result.id &&
-        (m_last_view_type == m_view_type || 
-            (m_last_view_type != EViewType::VolumetricRate && m_view_type != EViewType::VolumetricRate &&
-             m_last_view_type != EViewType::VolumetricFlow && m_view_type != EViewType::VolumetricFlow)))
+    // unless you changed the path merge mode
+    if (m_last_result_id == gcode_result.id && (m_current_mode == m_last_mode))
+            //(m_last_view_type != EViewType::VolumetricRate && m_view_type != EViewType::VolumetricRate &&
+             //m_last_view_type != EViewType::VolumetricFlow && m_view_type != EViewType::VolumetricFlow)))
         return;
 
     m_last_result_id = gcode_result.id;
     m_last_view_type = m_view_type;
+    m_last_mode = m_current_mode;
 
     // release gpu memory, if used
     reset();
@@ -1389,6 +1440,7 @@ void GCodeViewer::load(const GCodeProcessorResult& gcode_result, const Print& pr
 
     load_toolpaths(gcode_result);
     load_wipetower_shell(print);
+    
 
     if (m_layers.empty())
         return;
@@ -1507,19 +1559,22 @@ void GCodeViewer::refresh(const GCodeProcessorResult& gcode_result, const std::v
         {
         case EMoveType::Extrude:
         {
-            m_extrusions.ranges.height.update_from(curr.height);
-            // if (curr.extrusion_role != GCodeExtrusionRole::Custom || is_visible(GCodeExtrusionRole::Custom)) // disabled: you can do that by disabling custom yourself, or remove outliers if any.
-            m_extrusions.ranges.width.update_from(curr.width);
-            m_extrusions.ranges.fan_speed.update_from(curr.fan_speed);
-            m_extrusions.ranges.temperature.update_from(curr.temperature);
-            // if (curr.extrusion_role != GCodeExtrusionRole::Custom || is_visible(GCodeExtrusionRole::Custom)) {  // disabled: you can do that by disabling custom yourself, or remove outliers if any.
-            m_extrusions.ranges.volumetric_rate.update_from(curr.volumetric_rate());
-            m_extrusions.ranges.volumetric_flow.update_from(curr.mm3_per_mm);
-            // }
-            if (curr.layer_duration > 0.f && (gcode_result.print_statistics.modes.empty() || gcode_result.print_statistics.modes.front().layers_times.empty()))
-                m_extrusions.ranges.layer_time[0].update_from(curr.layer_duration);
-            if (curr.layer_duration > 0.f && (gcode_result.print_statistics.modes.empty() || gcode_result.print_statistics.modes.front().time == 0))
-                m_extrusions.ranges.elapsed_time[0].update_from(curr.time);
+            if (is_visible(curr.extrusion_role)) {
+                m_extrusions.ranges.height.update_from(curr.height);
+                // if (curr.extrusion_role != GCodeExtrusionRole::Custom || is_visible(GCodeExtrusionRole::Custom)) //
+                // disabled: you can do that by disabling custom yourself, or remove outliers if any.
+                m_extrusions.ranges.width.update_from(curr.width);
+                m_extrusions.ranges.fan_speed.update_from(curr.fan_speed);
+                m_extrusions.ranges.temperature.update_from(curr.temperature);
+                // if (curr.extrusion_role != GCodeExtrusionRole::Custom || is_visible(GCodeExtrusionRole::Custom)) {
+                // // disabled: you can do that by disabling custom yourself, or remove outliers if any.
+                m_extrusions.ranges.volumetric_rate.update_from(curr.volumetric_rate());
+                m_extrusions.ranges.volumetric_flow.update_from(curr.mm3_per_mm);
+                for (size_t i = 0; i < gcode_result.print_statistics.modes.size(); ++i) {
+                    // only the first & the last are usefull
+                    m_extrusions.ranges.elapsed_time[i].update_from(curr.move_time);
+                }
+            }
             [[fallthrough]];
         }
         case EMoveType::Travel: 
@@ -1536,7 +1591,8 @@ void GCodeViewer::refresh(const GCodeProcessorResult& gcode_result, const std::v
     // TODO: TEST: needed ?
     for (size_t i = 0; i < gcode_result.print_statistics.modes.size(); ++i) {
         m_layers_times[i] = gcode_result.print_statistics.modes[i].layers_times;
-        m_extrusions.ranges.elapsed_time[i].update_from(gcode_result.print_statistics.modes[i].time);
+        // if we manage to just update_from() the first & last, this is needed to simulate many values. 
+        m_extrusions.ranges.elapsed_time[i].set_infinite_values();
     }
 
     for (size_t i = 0; i < m_layers_times.size(); ++i) {
@@ -1550,7 +1606,7 @@ void GCodeViewer::refresh(const GCodeProcessorResult& gcode_result, const std::v
 #endif // ENABLE_GCODE_VIEWER_STATISTICS
 
     // update buffers' render paths
-    refresh_render_paths(false, false);
+    refresh_render_paths();
     log_memory_used("Refreshed G-code extrusion paths, ");
 }
 
@@ -1939,8 +1995,8 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
         add_vertex(curr);
     };
     auto add_indices_as_line = [this](const GCodeProcessorResult::MoveVertex& prev, const GCodeProcessorResult::MoveVertex& curr, TBuffer& buffer,
-        unsigned int ibuffer_id, IndexBuffer& indices, size_t move_id, bool account_for_volumetric_rate) {
-            if (buffer.paths.empty() || prev.type != curr.type || !buffer.paths.back().matches(curr, m_extrusions.ranges, account_for_volumetric_rate)) {
+        unsigned int ibuffer_id, IndexBuffer& indices, size_t move_id) {
+            if (buffer.paths.empty() || prev.type != curr.type || !buffer.paths.back().matches(curr, m_extrusions.ranges, m_current_mode)) {
                 // add starting index
                 indices.push_back(static_cast<IBufferType>(indices.size()));
                 buffer.add_path(curr, ibuffer_id, indices.size() - 1, move_id - 1);
@@ -1960,7 +2016,7 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
 
     // format data into the buffers to be rendered as solid
     auto add_vertices_as_solid = [this](const GCodeProcessorResult::MoveVertex& prev, const GCodeProcessorResult::MoveVertex& curr, TBuffer& buffer,
-        unsigned int vbuffer_id, VertexBuffer& vertices, size_t move_id, bool account_for_volumetric_rate) {
+        unsigned int vbuffer_id, VertexBuffer& vertices, size_t move_id) {
         auto store_vertex = [this](VertexBuffer& vertices, const Vec3f& position, const Vec3f& normal) {
             // append position
             vertices.push_back(position.x());
@@ -1972,7 +2028,7 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
             vertices.push_back(normal.z());
         };
 
-        if (buffer.paths.empty() || prev.type != curr.type || !buffer.paths.back().matches(curr, m_extrusions.ranges, account_for_volumetric_rate)) {
+        if (buffer.paths.empty() || prev.type != curr.type || !buffer.paths.back().matches(curr, m_extrusions.ranges, m_current_mode)) {
             buffer.add_path(curr, vbuffer_id, vertices.size(), move_id - 1);
             buffer.paths.back().sub_paths.back().first.position = prev.position;
         }
@@ -2019,7 +2075,7 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
     };
     auto add_indices_as_solid = [&](const GCodeProcessorResult::MoveVertex& prev, const GCodeProcessorResult::MoveVertex& curr,
         const GCodeProcessorResult::MoveVertex* next, TBuffer& buffer, size_t& vbuffer_size, unsigned int ibuffer_id,
-        IndexBuffer& indices, size_t move_id, bool account_for_volumetric_rate) {
+        IndexBuffer& indices, size_t move_id) {
             static Vec3f prev_dir;
             static Vec3f prev_up;
             static float sq_prev_length;
@@ -2064,7 +2120,7 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
                 store_triangle(indices, v_offsets[4], v_offsets[5], v_offsets[6]);
             };
 
-            if (buffer.paths.empty() || prev.type != curr.type || !buffer.paths.back().matches(curr, m_extrusions.ranges, account_for_volumetric_rate)) {
+            if (buffer.paths.empty() || prev.type != curr.type || !buffer.paths.back().matches(curr, m_extrusions.ranges, m_current_mode)) {
                 buffer.add_path(curr, ibuffer_id, indices.size(), move_id - 1);
                 buffer.paths.back().sub_paths.back().first.position = prev.position;
             }
@@ -2148,7 +2204,7 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
                 vbuffer_size += 6;
             }
 
-            if (next != nullptr && (curr.type != next->type || !last_path.matches(*next, m_extrusions.ranges, account_for_volumetric_rate)))
+            if (next != nullptr && (curr.type != next->type || !last_path.matches(*next, m_extrusions.ranges, m_current_mode)))
                 // ending cap triangles
                 append_ending_cap_triangles(indices, is_first_segment ? first_seg_v_offsets : non_first_seg_v_offsets);
 
@@ -2258,8 +2314,6 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
             m_sequential_view.gcode_ids.push_back(move.gcode_id);
     }
 
-    bool account_for_volumetric_rate = m_view_type == EViewType::VolumetricRate;
-
     std::vector<MultiVertexBuffer> vertices(m_buffers.size());
     std::vector<MultiIndexBuffer> indices(m_buffers.size());
     std::vector<InstanceBuffer> instances(m_buffers.size());
@@ -2324,7 +2378,7 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
             v_multibuffer.push_back(VertexBuffer());
             if (t_buffer.render_primitive_type == TBuffer::ERenderPrimitiveType::Triangle) {
                 Path& last_path = t_buffer.paths.back();
-                if (prev.type == curr.type && last_path.matches(curr, m_extrusions.ranges, account_for_volumetric_rate))
+                if (prev.type == curr.type && last_path.matches(curr, m_extrusions.ranges, m_current_mode))
                     last_path.add_sub_path(prev, static_cast<unsigned int>(v_multibuffer.size()) - 1, 0, move_id - 1);
             }
         }
@@ -2334,7 +2388,7 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
         switch (t_buffer.render_primitive_type)
         {
         case TBuffer::ERenderPrimitiveType::Line:     { add_vertices_as_line(prev, curr, v_buffer); break; }
-        case TBuffer::ERenderPrimitiveType::Triangle: { add_vertices_as_solid(prev, curr, t_buffer, static_cast<unsigned int>(v_multibuffer.size()) - 1, v_buffer, move_id, account_for_volumetric_rate); break; }
+        case TBuffer::ERenderPrimitiveType::Triangle: { add_vertices_as_solid(prev, curr, t_buffer, static_cast<unsigned int>(v_multibuffer.size()) - 1, v_buffer, move_id); break; }
         case TBuffer::ERenderPrimitiveType::InstancedModel:
         {
             add_model_instance(curr, inst_buffer, inst_id_buffer, move_id);
@@ -2736,12 +2790,12 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
         switch (t_buffer.render_primitive_type)
         {
         case TBuffer::ERenderPrimitiveType::Line: {
-            add_indices_as_line(prev, curr, t_buffer, static_cast<unsigned int>(i_multibuffer.size()) - 1, i_buffer, move_id, account_for_volumetric_rate);
+            add_indices_as_line(prev, curr, t_buffer, static_cast<unsigned int>(i_multibuffer.size()) - 1, i_buffer, move_id);
             curr_vertex_buffer.second += t_buffer.max_vertices_per_segment();
             break;
         }
         case TBuffer::ERenderPrimitiveType::Triangle: {
-            add_indices_as_solid(prev, curr, next, t_buffer, curr_vertex_buffer.second, static_cast<unsigned int>(i_multibuffer.size()) - 1, i_buffer, move_id, account_for_volumetric_rate);
+            add_indices_as_solid(prev, curr, next, t_buffer, curr_vertex_buffer.second, static_cast<unsigned int>(i_multibuffer.size()) - 1, i_buffer, move_id);
             break;
         }
         case TBuffer::ERenderPrimitiveType::BatchedModel: {
@@ -3041,7 +3095,10 @@ void GCodeViewer::refresh_render_paths(bool keep_sequential_current_first, bool 
         case EViewType::FanSpeed:       { color = m_extrusions.ranges.fan_speed.get_color_at(path.fan_speed); break; }
         case EViewType::Temperature:    { color = m_extrusions.ranges.temperature.get_color_at(path.temperature); break; }
         case EViewType::LayerTime:      {
-        if (!m_layers_times.empty() && m_layers.size() == m_layers_times.front().size()) {
+            if (!m_layers_times.empty() &&
+                (m_layers.size() == m_layers_times.front().size() || m_layers.size() == 1 + m_layers_times.front().size()))
+            {
+                int extra_layer = m_layers.size() == 1 + m_layers_times.front().size() ? 1 : 0; 
                 const Path::Sub_Path& sub_path = path.sub_paths.front();
                 double z = static_cast<double>(sub_path.first.position.z());
                 const std::vector<double>& zs = m_layers.get_zs();
@@ -3050,7 +3107,8 @@ void GCodeViewer::refresh_render_paths(bool keep_sequential_current_first, bool 
                 for (size_t i = 0; i < zs.size(); ++i) {
                     if (std::abs(zs[i] - z) < EPSILON) {
                         if (ranges[i].contains(sub_path.first.s_id)) {
-                            color = m_extrusions.ranges.layer_time[time_mode_id].get_color_at(m_layers_times[time_mode_id][i]);
+                            color = m_extrusions.ranges.layer_time[time_mode_id].get_color_at(
+                                m_layers_times[time_mode_id][i > 0 ? i - extra_layer : i]);
                             break;
                         }
                     }
@@ -3145,6 +3203,7 @@ void GCodeViewer::refresh_render_paths(bool keep_sequential_current_first, bool 
     if (!keep_sequential_current_last) sequential_view->current.last = m_moves_count;
 
     // first pass: collect visible paths and update sequential view data
+    //                    <tbuffer_id,    ibuffer_id,   path_id,      sub_path_id>
     std::vector<std::tuple<unsigned char, unsigned int, unsigned int, unsigned int>> paths;
     for (size_t b = 0; b < m_buffers.size(); ++b) {
         TBuffer& buffer = const_cast<TBuffer&>(m_buffers[b]);
@@ -3296,11 +3355,23 @@ void GCodeViewer::refresh_render_paths(bool keep_sequential_current_first, bool 
         if (found)
             break;
     }
+    
+    // update_print_min_max if activated
+    Extrusions::Range *range = const_cast<GCodeViewer::Extrusions::Ranges&>(m_extrusions.ranges).get(m_view_type); // this break const-correctness
+    if (range && !range->is_whole_print_mode()) {
+        range->reset_print_min_max();
+        for (const auto &[tbuffer_id, ibuffer_id, path_id, sub_path_id] : paths) {
+            const Path &path = m_buffers[tbuffer_id].paths[path_id];
+            if (path.type == EMoveType::Extrude) {
+                range->update_print_min_max(path.get_value(m_view_type));
+            }
+        }
+    }
 
     // second pass: filter paths by sequential data and collect them by color
     RenderPath* render_path = nullptr;
     for (const auto& [tbuffer_id, ibuffer_id, path_id, sub_path_id] : paths) {
-        TBuffer& buffer = const_cast<TBuffer&>(m_buffers[tbuffer_id]);
+        TBuffer& buffer = const_cast<TBuffer&>(m_buffers[tbuffer_id]); // this break const-correctness
         if (buffer.paths.size() <= path_id) return; // invalid data check
         const Path& path = buffer.paths[path_id];
         if (m_tool_colors.size() <= path.extruder_id) return; // invalid data check
@@ -3969,7 +4040,7 @@ void GCodeViewer::render_legend(float& legend_height)
 
     const Size cnv_size = wxGetApp().plater()->get_current_canvas3D()->get_canvas_size();
     
-    Extrusions::Range *range = m_extrusions.ranges.get(m_view_type);
+    Extrusions::Range *range = m_extrusions.ranges.get(m_view_type, m_time_estimate_mode);
 
     ImGuiWrapper& imgui = *wxGetApp().imgui();
 
@@ -3997,8 +4068,18 @@ void GCodeViewer::render_legend(float& legend_height)
     bool show_min_max_field = range && (range->get_user_min() || range->get_user_max() || range->count_discrete() > 5);
     bool show_min_max_field_same_line = (m_view_type == EViewType::VolumetricFlow || m_view_type == EViewType::VolumetricRate || m_view_type == EViewType::LayerTime || m_view_type == EViewType::Chronology);
     bool show_switch_discrete = range && range->count_discrete() > 2 && range->count_discrete() <= Range_Colors_Details.size();
+    bool show_switch_whole_print = range && (m_view_type == EViewType::Chronology || m_view_type == EViewType::Width || m_view_type == EViewType::Feedrate || m_view_type == EViewType::VolumetricRate || m_view_type == EViewType::VolumetricFlow || m_view_type == EViewType::LayerTime);
+    // don't show_switch_whole_print if the there is no layers selected (seeing whole print) and the option isn't activated.
+    if (show_switch_whole_print && range->is_whole_print_mode() && m_layers_z_range.front() == 0 && m_layers_z_range.back() >= m_layers.size() - 1) {
+        show_switch_whole_print = false;
+    }
     
+    // refresh colors
     bool need_refresh_render_paths = false;
+    // refresh colors + ranges
+    bool need_refresh_ranges = false;
+    // refresh paths from gcode (aggregation)
+    bool need_refresh_paths = false;
     if(range){
         if (!show_min_max_field) {
             need_refresh_render_paths |= range->set_user_min(0);
@@ -4293,14 +4374,16 @@ void GCodeViewer::render_legend(float& legend_height)
 
     // selection section
     bool view_type_changed = false;
-    int old_view_type = static_cast<int>(get_view_type());
-    int view_type = old_view_type;
+    EViewType old_view_type = get_view_type();
+    EViewType view_type = old_view_type;
 
     ImGui::PushStyleColor(ImGuiCol_FrameBg, { 0.1f, 0.1f, 0.1f, 0.8f });
     ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, { 0.2f, 0.2f, 0.2f, 0.8f });
     std::vector<std::string> view_options;
     std::vector<int> view_options_id;
-    if (!m_layers_times.empty() && m_layers.size() == m_layers_times.front().size()) {
+    if (!m_layers_times.empty() && 
+        (m_layers.size() == m_layers_times.front().size() || m_layers.size() == 1 + m_layers_times.front().size()))
+    {
         view_options = { _u8L("Feature type"),
                          _u8L("Height (mm)"),
                          _u8L("Width (mm)"),
@@ -4309,7 +4392,7 @@ void GCodeViewer::render_legend(float& legend_height)
                          _u8L("Temperature (°C)"),
                          _u8L("Volumetric flow rate (mm³/s)"),
                          _u8L("Extrusion section (mm³/mm)"),
-                         _u8L("Layer time"),
+                         _u8L("Layer duration"),
                          _u8L("Chronology"),
                          _u8L("Tool"),
                          _u8L("Filament"),
@@ -4333,27 +4416,56 @@ void GCodeViewer::render_legend(float& legend_height)
         view_options_id = { 0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12 };
         assert(view_options_id.size() == size_t(EViewType::Count) - 2);
         assert(view_options_id.back() < size_t(EViewType::Count));
-        if (view_type == int(EViewType::LayerTime) || view_type == int(EViewType::Chronology) )
-            view_type = int(EViewType::FeatureType);
+        if (view_type == EViewType::LayerTime || view_type == EViewType::Chronology )
+            view_type = EViewType::FeatureType;
     }
-    auto view_type_it = std::find(view_options_id.begin(), view_options_id.end(), view_type);
+    auto view_type_it = std::find(view_options_id.begin(), view_options_id.end(), static_cast<int>(view_type));
     int view_type_id = (view_type_it == view_options_id.end()) ? 0 : std::distance(view_options_id.begin(), view_type_it);
     if (imgui.combo(std::string(), view_options, view_type_id, ImGuiComboFlags_HeightLargest, 0.0f, -1.0f))
-        view_type = view_options_id[view_type_id];
+        view_type = static_cast<EViewType>(view_options_id[view_type_id]);
     ImGui::PopStyleColor(2);
    
+    // note: if the view type change, call refresh that will call us again. that's why we can return after it.
     if (old_view_type != view_type) {
-        set_view_type(static_cast<EViewType>(view_type));
+        // new function added into imgui to allow the window to recompute its width from the start ( width can change between view type)
+        ImGui::ResetMaxCursorScreenPos();
+        // end imgui drawing, as it will be replaced by the refresh
+        imgui.end();
+        ImGui::PopStyleVar();
+        //update view type
+        set_view_type(view_type);
+        view_type_changed = true;
+        //prepare refresh
         wxGetApp().plater()->set_keep_current_preview_type(true);
         //wxGetApp().plater()->refresh_print(); //doesn't work anymore, as there is a check to avoid redrawing uselessy, now call this->load(m_gcode_result->get(), m_print->get()) directly
+        
+        // update path merging mode.
+        // mmWithVolumetric
+        if (view_type == EViewType::VolumetricFlow || view_type == EViewType::VolumetricRate) {
+            m_current_mode = Path::MatchMode(uint8_t(m_current_mode) | uint8_t(Path::MatchMode::mmWithVolumetric));
+        } else if (view_type != EViewType::VolumetricFlow && view_type != EViewType::VolumetricRate) {
+            m_current_mode = Path::MatchMode(uint8_t(m_current_mode) & (~uint8_t(Path::MatchMode::mmWithVolumetric)));
+        }
+        // mmWithTime (also in a switch in the width button)
+        if (old_view_type == EViewType::Chronology) {
+            m_current_mode = Path::MatchMode(uint8_t(m_current_mode) & (~uint8_t(Path::MatchMode::mmWithTime)));
+        }
+        if (view_type == EViewType::Chronology)
+            if (!m_extrusions.ranges.elapsed_time[static_cast<size_t>(m_time_estimate_mode)].is_whole_print_mode())
+                m_current_mode = Path::MatchMode(uint8_t(m_current_mode) | uint8_t(Path::MatchMode::mmWithTime));
+        
+        std::array<unsigned int, 2> saved_layers_z_range = m_layers_z_range;
         if (m_gcode_result.has_value() && m_print.has_value()) {
             this->load(m_gcode_result->get(), m_print->get());
             this->refresh(m_gcode_result->get(), m_last_str_tool_colors);
-            wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
-            wxGetApp().plater()->get_current_canvas3D()->request_extra_frame();
+        } else {
+            wxGetApp().plater()->refresh_print();
         }
-        view_type_changed = true;
-        ImGui::ResetMaxCursorScreenPos();
+        wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
+        wxGetApp().plater()->get_current_canvas3D()->request_extra_frame();
+        wxGetApp().plater()->update_preview_moves_slider();
+        set_layers_z_range(saved_layers_z_range);
+        return;
     }
 
     // extrusion paths section -> title
@@ -4381,12 +4493,10 @@ void GCodeViewer::render_legend(float& legend_height)
                     continue;
                 const bool visible = is_visible(role);
                 append_item(EItemType::Rect, Extrusion_Role_Colors[static_cast<unsigned int>(role)], labels[i],
-                    visible, times[i], percents[i], max_time_percent, offsets, used_filaments_m[i], used_filaments_g[i], [this, role, visible]() {
+                    visible, times[i], percents[i], max_time_percent, offsets, used_filaments_m[i], used_filaments_g[i], [this, role, visible, &need_refresh_paths]() {
                         m_extrusions.role_visibility_flags = visible ? m_extrusions.role_visibility_flags & ~(1 << int(role)) : m_extrusions.role_visibility_flags | (1 << int(role));
-                        // update buffers' render paths
-                        refresh_render_paths(false, false);
-                        wxGetApp().plater()->update_preview_moves_slider();
-                        wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
+                        // update buffers' render paths (and color scale)
+                        need_refresh_paths = true;
                     }
                 );
             }
@@ -4729,16 +4839,26 @@ void GCodeViewer::render_legend(float& legend_height)
       const auto custom_it = std::find(m_roles.begin(), m_roles.end(), GCodeExtrusionRole::Custom);
       if (custom_it != m_roles.end()) {
           const bool custom_visible = is_visible(GCodeExtrusionRole::Custom);
-          const wxString btn_text = custom_visible ? _L("Hide Custom G-code") : _L("Show Custom G-code");
+          const wxString btn_text = custom_visible ? _L("Hide Custom extrusions") : _L("Show Custom extrusions");
           ImGui::Separator();
           if (imgui.button(btn_text, ImVec2(-1.0f, 0.0f), true)) {
               m_extrusions.role_visibility_flags = custom_visible ? m_extrusions.role_visibility_flags & ~(1 << int(GCodeExtrusionRole::Custom)) :
                   m_extrusions.role_visibility_flags | (1 << int(GCodeExtrusionRole::Custom));
               // note: the visibility doesn't deactivate if we change the m_view_type ...
               // update buffers' render paths
-              refresh_render_paths(false, false);
-              wxGetApp().plater()->update_preview_moves_slider();
-              wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
+              need_refresh_ranges = true;
+          } else {
+              if (ImGui::IsItemHovered()) {
+                  ImGui::PushStyleColor(ImGuiCol_PopupBg, ImGuiWrapper::COL_WINDOW_BACKGROUND);
+                  ImGui::BeginTooltip();
+                  imgui.text((custom_visible) ?
+                                 _u8L("Custom extrusion for configuration's Custom G-code settings are currently visible.\nThey can be very wide, click here to hide them, or unselect them in the 'Feature type' filter.") :
+                                 _u8L("Custom extrusion for configuration's Custom G-code settings are currently hidden.\nThey can be very wide, click here to show them, or select them in the 'Feature type' filter."));
+                  ImGui::EndTooltip();
+                  ImGui::PopStyleColor();
+                  // to avoid the tooltip to change size when moving the mouse
+                  imgui.set_requires_extra_frame();
+              }
           }
         }
     }
@@ -4915,6 +5035,52 @@ void GCodeViewer::render_legend(float& legend_height)
             ImGui::PopStyleVar();
     }
 
+    if (show_switch_whole_print) {
+        ImGui::Spacing();
+        assert(range);
+
+        const bool show_whole_print = range->is_whole_print_mode();
+        if (show_whole_print)
+            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.3333f);
+
+        // draw text
+        ImGui::SameLine();
+        if (ImGui::MenuItem((_u8L("Selected layers")).c_str())) {
+            range->set_whole_print_mode(!range->is_whole_print_mode());
+            if (m_view_type == EViewType::Chronology) {
+                if (!range->is_whole_print_mode()) {
+                    m_current_mode = Path::MatchMode(uint8_t(m_current_mode) | uint8_t(Path::MatchMode::mmWithTime));
+                } else if (range->is_whole_print_mode()) {
+                    m_current_mode = Path::MatchMode(uint8_t(m_current_mode) & (~uint8_t(Path::MatchMode::mmWithTime)));
+                }
+            }
+            if (m_current_mode != m_last_mode) {
+                need_refresh_paths = true;
+            } else {
+                need_refresh_render_paths = true;
+            }
+        } else {
+            // show tooltip
+            if (ImGui::IsItemHovered()) {
+                if (show_whole_print)
+                    ImGui::PopStyleVar();
+                ImGui::PushStyleColor(ImGuiCol_PopupBg, ImGuiWrapper::COL_WINDOW_BACKGROUND);
+                ImGui::BeginTooltip();
+                imgui.text((!show_whole_print) ? _u8L("Click to use the whole print for min & max range") : 
+                    _u8L("Click to use the current selected layers for min & max range."));
+                ImGui::EndTooltip();
+                ImGui::PopStyleColor();
+                if (show_whole_print)
+                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.3333f);
+
+                // to avoid the tooltip to change size when moving the mouse
+                imgui.set_requires_extra_frame();
+            }
+        }
+        if (show_whole_print)
+            ImGui::PopStyleVar();
+    }
+
     // total estimated printing time section
     if (show_estimated_time) {
         ImGui::Spacing();
@@ -4962,7 +5128,7 @@ void GCodeViewer::render_legend(float& legend_height)
                 if (imgui.button(label)) {
                     m_time_estimate_mode = mode;
                     if (m_view_type == EViewType::LayerTime)
-                        refresh_render_paths(false, false);
+                        refresh_render_paths();
                     imgui.set_requires_extra_frame();
                 }
             }
@@ -5104,9 +5270,30 @@ void GCodeViewer::render_legend(float& legend_height)
     imgui.end();
     ImGui::PopStyleVar();
 
-    if (need_refresh_render_paths) {
+    if (need_refresh_paths) {
+        std::array<unsigned int, 2> saved_layers_z_range = m_layers_z_range;
+        if (m_gcode_result.has_value() && m_print.has_value()) {
+            this->load(m_gcode_result->get(), m_print->get());
+            this->refresh(m_gcode_result->get(), m_last_str_tool_colors);
+        } else {
+            wxGetApp().plater()->refresh_print();
+        }
+        wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
+        wxGetApp().plater()->get_current_canvas3D()->request_extra_frame();
+        wxGetApp().plater()->update_preview_moves_slider();
+        set_layers_z_range(saved_layers_z_range);
+    } else if (need_refresh_ranges) {
         // update buffers' render paths
-        refresh_render_paths(false, false);
+        if (m_gcode_result.has_value() && m_print.has_value()) {
+            this->refresh(m_gcode_result->get(), m_last_str_tool_colors);
+        } else {
+            wxGetApp().plater()->refresh_print();
+        }
+        wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
+        wxGetApp().plater()->get_current_canvas3D()->request_extra_frame();
+    } else if (need_refresh_render_paths) {
+        // update buffers' render paths
+        refresh_render_paths();
         wxGetApp().plater()->update_preview_moves_slider();
         wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
         //wxGetApp().plater()->get_current_canvas3D()->request_extra_frame(); // needed?

@@ -337,8 +337,6 @@ void ConfigManipulation::update_print_fff_config(DynamicPrintConfig* config, con
     }
 }
 
-//note: printer options are toogled in TabPrinter::toggle_options()
-
 void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
 {
     bool have_perimeters = config->opt_int("perimeters") > 0;
@@ -696,7 +694,11 @@ void ConfigManipulation::toggle_printer_fff_options(DynamicPrintConfig *config, 
     //firmware
     bool have_remaining_times = config->opt_bool("remaining_times");
     toggle_field("remaining_times_type", have_remaining_times);
-	
+
+    bool has_gcode_culling = config->get_float("gcode_min_length") > 0 || config->get_float("max_gcode_per_second") > 0;
+    toggle_field("gcode_min_resolution", has_gcode_culling);
+    toggle_field("gcode_command_buffer", has_gcode_culling);
+
     bool have_arc_fitting = config->opt_enum<ArcFittingType>("arc_fitting") != ArcFittingType::Disabled;
     toggle_field("arc_fitting_tolerance", have_arc_fitting);
 

@@ -250,6 +250,7 @@ class GCodeViewer
         }
     };
 
+    struct Path;
     // helper to render extrusion paths
     struct Extrusions
     {
@@ -283,11 +284,14 @@ class GCodeViewer
             // set 0 or lower to disable
             int32_t m_user_min = 0;
             int32_t m_user_max = 0;
+            int32_t m_print_min = INT_MAX;
+            int32_t m_print_max = INT_MIN;
 
             //modes
             EType m_curve_type = EType::Linear;
             float m_ratio_outlier = 0.f;
             bool m_discrete = false;
+            bool m_is_whole_print = true; // use whole print for min & max, don't use m_print_min
 
             // Cache
             mutable int m_cache_discrete_count = -1;
@@ -297,7 +301,7 @@ class GCodeViewer
             // Methods
             int32_t scale_value(float value) const;
             float unscale_value(int32_t value) const;
-            static float step_size(int32_t min, int32_t max, EType type = EType::Linear);
+            float step_size(int32_t min, int32_t max, EType type = EType::Linear) const;
             int32_t get_current_max() const;
             int32_t get_current_min() const;
             void compute_discrete_colors() const;
@@ -316,6 +320,8 @@ class GCodeViewer
             Range(uint8_t deci_precision, bool is_time_range = false) : decimal_precision(deci_precision), is_time(is_time_range) { reset(); }
             void update_from(const float value);
             void reset();
+            void update_print_min_max(const float value);
+            void reset_print_min_max() { m_print_max = INT_MIN; m_print_min = INT_MAX; clear_cache(); }
             //float step_size() const;
             ColorRGBA get_color_at(float value) const;
             size_t count_discrete() const;
@@ -333,6 +339,11 @@ class GCodeViewer
             bool   set_ratio_outliers(float ratio);
             bool   is_discrete_mode() const { return m_discrete; }
             bool   set_discrete_mode(bool is_discrete);
+            // note: whole_print_mode doesn't do anything by itself, it just store a bool. You need to reset_print_min_max() and update_print_min_max() yourself.
+            bool   is_whole_print_mode() const { return m_is_whole_print; }
+            void   set_whole_print_mode(bool is_whole_print);
+            // if you don't want to have discreete values, even if there is only a max and min stored. has to be called after each reset.
+            void set_infinite_values() { total_count = std::numeric_limits<uint64_t>::max(); }
             const std::vector<std::pair<std::string, ColorRGBA>>& get_legend_colors();
             
             bool is_same_value(float f1, float f2) const;
@@ -423,6 +434,12 @@ class GCodeViewer
                 return first.s_id <= s_id && s_id <= last.s_id;
             }
         };
+        
+        enum MatchMode : uint8_t {
+            mmDefault =         0,
+            mmWithVolumetric =  1 << 0,
+            mmWithTime =        1 << 1,
+        };
 
         EMoveType type{ EMoveType::Noop };
         GCodeExtrusionRole role{ GCodeExtrusionRole::None };
@@ -437,10 +454,9 @@ class GCodeViewer
         unsigned char extruder_id{ 0 };
         unsigned char cp_color_id{ 0 };
         std::vector<Sub_Path> sub_paths;
-        float layer_time{ 0.0f };
         float elapsed_time{ 0.0f };
 
-        bool matches(const GCodeProcessorResult::MoveVertex& move, const GCodeViewer::Extrusions::Ranges& comparators, bool account_for_volumetric_rate) const;
+        bool matches(const GCodeProcessorResult::MoveVertex& move, const GCodeViewer::Extrusions::Ranges& comparators, MatchMode mode) const;
         size_t vertices_count() const {
             return sub_paths.empty() ? 0 : sub_paths.back().last.s_id - sub_paths.front().first.s_id + 1;
         }
@@ -462,6 +478,8 @@ class GCodeViewer
             Endpoint endpoint = { b_id, i_id, s_id, move.position };
             sub_paths.push_back({ endpoint , endpoint });
         }
+
+        float get_value(EViewType type) const;
     };
 
     // Used to batch the indices needed to render the paths
@@ -860,10 +878,9 @@ private:
     std::optional<std::reference_wrapper<const GCodeProcessorResult>> m_gcode_result; // note: this is a reference to the GCodeProcessorResult stored&owned (eternally) in plater.priv
     std::optional<std::reference_wrapper<const Print>> m_print;
     std::vector<std::string> m_last_str_tool_colors;
-    EViewType m_last_view_type{ EViewType::Count };
 
     size_t m_moves_count{ 0 };
-    std::vector<TBuffer> m_buffers{ static_cast<size_t>(EMoveType::Extrude) };
+    std::vector<TBuffer> m_buffers{ static_cast<size_t>(EMoveType::Count) - 1 };
     // bounding box of toolpaths
     BoundingBoxf3 m_paths_bounding_box;
     // bounding box of shells
@@ -886,6 +903,9 @@ private:
     Shells m_shells;
     COG m_cog;
     EViewType m_view_type{ EViewType::FeatureType };
+    EViewType m_last_view_type{ EViewType::Count };
+    Path::MatchMode m_current_mode{Path::MatchMode::mmDefault};
+    Path::MatchMode m_last_mode{Path::MatchMode::mmDefault};
     bool m_legend_enabled{ true };
     struct LegendResizer
     {
@@ -920,6 +940,11 @@ public:
     // recalculate ranges in dependence of what is visible and sets tool/print colors
     void refresh(const GCodeProcessorResult& gcode_result, const std::vector<std::string>& str_tool_colors);
     void refresh_render_paths(bool keep_sequential_current_first, bool keep_sequential_current_last) const;
+    void refresh_render_paths() {
+        bool keep_first = m_sequential_view.current.first != m_sequential_view.global.first;
+        bool keep_last = m_sequential_view.current.last != m_sequential_view.global.last;
+        refresh_render_paths(keep_first, keep_last);
+    }
     void update_shells_color_by_extruder(const DynamicPrintConfig* config);
 
     void reset();

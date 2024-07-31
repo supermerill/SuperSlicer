@@ -1177,7 +1177,7 @@ void Layer::sort_perimeters_into_islands(
         const PrintConfig       &print_config  = this->object()->print()->config();
         const PrintRegionConfig &region_config = this_layer_region.region().config();
         const auto               bbox_eps      = scaled<coord_t>(
-            EPSILON + print_config.gcode_resolution.value +
+            EPSILON + print_config.gcode_min_resolution.value +
             (region_config.fuzzy_skin.value == FuzzySkinType::None ? 0. : region_config.fuzzy_skin_thickness.value 
                 //FIXME it looks as if Arachne could extend open lines by fuzzy_skin_point_dist, which does not seem right.
                 + region_config.fuzzy_skin_point_dist.value));

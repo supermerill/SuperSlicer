@@ -33,7 +33,7 @@ TreeSupportMeshGroupSettings::TreeSupportMeshGroupSettings(const PrintObject &pr
     }
 
     this->layer_height              = scaled<coord_t>(config.layer_height.value);
-    this->resolution                = scaled<coord_t>(print_config.gcode_resolution.value);
+    this->resolution                = scaled<coord_t>(print_config.resolution_internal.value);
     // Arache feature
     this->min_feature_size          = scaled<coord_t>(config.min_feature_size.value);
     // +1 makes the threshold inclusive

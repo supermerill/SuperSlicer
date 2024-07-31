@@ -206,7 +206,6 @@ public:
     }
 
     static Points douglas_peucker(const Points &src, const double tolerance) { return Slic3r::douglas_peucker(src, tolerance); }
-    static Points douglas_peucker_plus(const Points& points, const double tolerance, const double min_length);
     static Points visivalingam(const Points &src, const double tolerance);
 
     // Projection of a point onto the lines defined by the points.

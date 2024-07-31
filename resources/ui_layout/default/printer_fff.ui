@@ -31,7 +31,11 @@ group:silent_mode_event:filename_format_event:Firmware
 	end_line
 	line:Processing limit
 		setting:max_gcode_per_second
-		setting:min_length
+		setting:gcode_command_buffer
+	end_line
+	line:Precision limits
+		setting:gcode_min_resolution
+		setting:gcode_min_length
 	end_line
 	line:G2/G3 generation
 		setting:arc_fitting

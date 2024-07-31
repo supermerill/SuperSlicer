@@ -803,7 +803,6 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
 
     std::vector<SurfaceFill>  surface_fills  = group_fills(*this);
     const Slic3r::BoundingBox bbox           = this->object()->bounding_box();
-    //const auto                resolution     = this->object()->print()->config().gcode_resolution.value;
     const auto                perimeter_generator = this->object()->config().perimeter_generator;
 
     //sort by priority. Needed for dense support, as the order is very important.
@@ -1121,7 +1120,7 @@ Polylines Layer::generate_sparse_infill_polylines_for_anchoring(FillAdaptive::Oc
 {
     std::vector<SurfaceFill>  surface_fills = group_fills(*this);
     const Slic3r::BoundingBox bbox          = this->object()->bounding_box();
-    const auto                resolution    = this->object()->print()->config().gcode_resolution.value;
+    const auto                resolution    = this->object()->print()->config().resolution_internal.value;
 
     Polylines sparse_infill_polylines{};
 

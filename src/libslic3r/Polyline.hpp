@@ -280,7 +280,7 @@ class ArcPolyline
 {
 protected:
     Geometry::ArcWelder::Path m_path;
-    bool cache_valid = true; // cache
+    //bool cache_valid = true; // cache
     bool m_only_strait = true; // cache
     //note: i don't keep the polyline, as it's easy to reconstruct from arc (to_polyline).
     // if it creates a big preformance problem, then add a cache here.
@@ -313,7 +313,7 @@ public:
     const Point &middle() const { return m_path[m_path.size() / 2].point; }
     const Point &back() const { return m_path.back().point; }
     bool         empty() const { return m_path.empty(); }
-    bool         is_valid() const { return m_path.size() >= 2; }
+    bool         is_valid() const;
     bool         is_closed() const { return this->m_path.front().point == this->m_path.back().point; }
 
     bool                                has_arc() const { return !m_only_strait; }
@@ -349,7 +349,9 @@ public:
     Point                 get_point_from_end(coord_t distance) const;
 
     // douglas_peuker and create arc if with_fitting_arc (don't touch the current arcs, only try in-between)
-    void simplify(coordf_t tolerance, ArcFittingType with_fitting_arc, double fit_tolerance);
+    void make_arc(ArcFittingType with_fitting_arc, coordf_t tolerance, double fit_percent_tolerance);
+    // remove strait segemnts that are too near each other, and will overlaod the firmware. Return the buffer lines it still uses a t the end.
+    int simplify_straits(coordf_t min_tolerance, coordf_t min_point_distance, coordf_t mean_dist_per_line, const int buffer_size, const int buffer_init);
 
     // remove points that are too near each other, and return false if the whole path is too small
     bool normalize();
@@ -361,177 +363,6 @@ protected:
 };
 
 Polylines to_polylines(const ArcPolylines &polys_or_arcs, coord_t deviation = 0);
-
-//private inheritance to avoid letting 'points' visible, as it has to be sync with arc fitting.
-//@Deprecated
-class PolylineOrArc : /*public*/ Polyline {
-public:
-    PolylineOrArc() {};
-    PolylineOrArc(const PolylineOrArc& other) : Polyline(other.points), m_fitting_result(other.m_fitting_result) {
-        assert(this->m_fitting_result.empty() || this->m_fitting_result.back().end_point_index < this->points.size());
-    }
-    PolylineOrArc(PolylineOrArc&& other) : Polyline(std::move(other.points)), m_fitting_result(std::move(other.m_fitting_result)) {
-        assert(this->m_fitting_result.empty() || this->m_fitting_result.back().end_point_index < this->points.size());
-    }
-    PolylineOrArc(const Polyline& other) : Polyline(other), m_fitting_result() { }
-    PolylineOrArc(Polyline&& other) : Polyline(std::move(other)), m_fitting_result() { }
-    PolylineOrArc(std::initializer_list<Point> list) : Polyline(list) {
-        m_fitting_result.clear();
-    }
-    explicit PolylineOrArc(const Point& p1, const Point& p2) : Polyline(p1, p2) { m_fitting_result.clear(); }
-    explicit PolylineOrArc(const Points& points) : Polyline(points) { m_fitting_result.clear(); }
-    explicit PolylineOrArc(Points&& points) : Polyline(std::move(points)) { m_fitting_result.clear(); }
-    PolylineOrArc& operator=(const PolylineOrArc& other) {
-        points = other.points; m_fitting_result = other.m_fitting_result;
-        assert(this->m_fitting_result.empty() || this->m_fitting_result.back().end_point_index < this->points.size()); return *this;
-    }
-    PolylineOrArc& operator=(PolylineOrArc&& other) {
-        points = std::move(other.points); m_fitting_result = std::move(other.m_fitting_result);
-        assert(this->m_fitting_result.empty() || this->m_fitting_result.back().end_point_index < this->points.size()); return *this;
-    }
-    PolylineOrArc& operator=(const Polyline& other) { points = other.points; this->m_fitting_result.clear(); return *this; }
-    PolylineOrArc& operator=(Polyline&& other) { points = std::move(other.points); this->m_fitting_result.clear(); return *this; }
-    PolylineOrArc& operator=(const Points& other) { points = other; this->m_fitting_result.clear(); return *this; }
-    PolylineOrArc& operator=(Points&& other) { points = std::move(other); this->m_fitting_result.clear(); return *this; }
-    Polyline& as_polyline() { return static_cast<Polyline&>(*this); }
-    const Polyline& as_polyline() const { return static_cast<const Polyline&>(*this); }
-    bool operator==(const PolylineOrArc& other) const { return points == other.points; }
-    bool operator!=(const PolylineOrArc& other) const { return points != other.points; }
-    //static PolylineOrArc new_scale(const std::vector<Vec2d>& points) {
-    //    Polyline pl;
-    //    pl.points.reserve(points.size());
-    //    for (const Vec2d& pt : points)
-    //        pl.points.emplace_back(Point::new_scale(pt(0), pt(1)));
-    //    //BBS: new_scale doesn't support arc, so clean
-    //    pl.fitting_result.clear();
-    //    return pl;
-    //}
-
-    void append(const Point& point) {
-        //BBS: don't need to append same point
-        if (!this->empty() && this->back() == point) {
-            assert(false);
-            return;
-        }
-        this->points.push_back(point);
-        append_fitting_result_after_append_points();
-    }
-    void append_before(const Point& point) {
-        //BBS: don't need to append same point
-        if (!this->empty() && this->front() == point) {
-            assert(false);
-            return;
-        }
-        if (this->size() == 1) {
-            this->m_fitting_result.clear();
-            MultiPoint::append(point);
-            MultiPoint::reverse();
-        } else {
-            this->reverse();
-            this->append(point);
-            this->reverse();
-        }
-        assert(this->m_fitting_result.empty() || this->m_fitting_result.back().end_point_index < this->points.size());
-    }
-    void append(const Points& src) {
-        //BBS: don't need to append same point
-        if (!this->empty() && !src.empty() && this->back() == src[0]) {
-            assert(false);
-            this->append(src.begin() + 1, src.end());
-        } else {
-            this->append(src.begin(), src.end());
-        }
-        append_fitting_result_after_append_points();
-    }
-    void append(const Points::const_iterator& begin, const Points::const_iterator& end) {
-        //BBS: don't need to append same point
-        if (!this->empty() && begin != end && this->back() == *begin) {
-            assert(false);
-            MultiPoint::append(begin + 1, end);
-        } else {
-            this->points.insert(this->points.end(), begin, end);
-        }
-        append_fitting_result_after_append_points();
-    }
-    void append(Points&& src)
-    {
-        if (this->points.empty()) {
-            this->points = std::move(src);
-        } else {
-            this->points.insert(this->points.end(), src.begin(), src.end());
-            src.clear();
-        }
-        append_fitting_result_after_append_points();
-    }
-    void append(const PolylineOrArc& src);
-    void append(PolylineOrArc&& src);
-    void clear() override { MultiPoint::clear(); this->m_fitting_result.clear(); }
-    void swap(PolylineOrArc& other) {
-        std::swap(this->points, other.points);
-        std::swap(this->m_fitting_result, other.m_fitting_result);
-    }
-
-    //multipoint methods
-    const Point &front() const { return Polyline::front(); }
-    const Point &middle() const { return this->points[this->size() / 2]; }
-    const Point& back() const { return Polyline::back(); }
-    Lines lines() const { return Polyline::lines(); }
-    size_t size() const { return Polyline::size(); }
-    bool   empty() const { return Polyline::empty(); }
-    double length() const { return Polyline::length(); }
-    bool   is_valid() const { return Polyline::is_valid(); }
-    int  find_point(const Point& point) const { return Polyline::find_point(point); }
-    int  find_point(const Point& point, const double scaled_epsilon) const { return Polyline::find_point(point, scaled_epsilon); }
-    int  closest_point_index(const Point& point) const { return Polyline::closest_point_index(point); }
-    std::pair<Point, size_t> point_projection(const Point& point) const { return Polyline::point_projection(point); }
-
-    virtual void reverse() override;
-
-    bool has_arc() const { return !m_fitting_result.empty(); }
-    const std::vector<Slic3r::Geometry::PathFittingData>& get_arc() const { return m_fitting_result; }
-    void reset_arc() { m_fitting_result.clear(); }
-
-
-    const Points& get_points() const { return points; }
-    Points& set_points() {
-        assert(m_fitting_result.empty());
-        return points;
-    }
-
-    Points equally_spaced_points(coordf_t distance) const;
-    void   simplify(coordf_t tolerance, ArcFittingType with_fitting_arc, double fit_tolerance);
-
-    //split& & clip
-    //    template <class T> void simplify_by_visibility(const T &area);
-    void split_at(Point& point, PolylineOrArc* p1, PolylineOrArc* p2) const;
-    bool split_at_index(const size_t index, PolylineOrArc* p1, PolylineOrArc* p2) const;
-    void clip_end(coordf_t distance);
-    void clip_start(coordf_t distance);
-    void clip_first_point(); // pop_front();
-    void clip_last_point(); // pop_back();
-
-    //bool is_straight() const;
-    bool is_closed() const { return this->points.front() == this->points.back(); }
-
-    //BBS: 
-    PolylineOrArc equally_spaced_lines(double distance) const;
-
-    void ensure_fitting_result_valid() const {
-        assert(m_fitting_result.empty() || m_fitting_result.back().end_point_index < size());
-    }
-
-protected:
-    //BBS: store arc fitting result
-    std::vector<Slic3r::Geometry::PathFittingData> m_fitting_result;
-
-    void append_fitting_result_after_append_points();
-    void append_fitting_result_after_append_polyline(const PolylineOrArc& src);
-    void reset_to_linear_move();
-    bool split_fitting_result_before_index(const size_t index, Point& new_endpoint, std::vector<Slic3r::Geometry::PathFittingData>& data) const;
-    bool split_fitting_result_after_index(const size_t index, Point& new_startpoint, std::vector<Slic3r::Geometry::PathFittingData>& data) const;
-};
-
-//Polylines to_polylines(const PolylinesOrArcs& polys_or_arcs);
 
 } //namespace slic3r
 

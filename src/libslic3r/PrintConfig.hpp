@@ -352,7 +352,7 @@ public:
     static bool is_defined(t_config_option_key& opt_key);
     static std::map<std::string, std::string> to_prusa(t_config_option_key& opt_key, std::string& value, const DynamicConfig& all_conf);
     static std::map<std::string, std::string> from_prusa(t_config_option_key& opt_key, std::string& value, const DynamicConfig& all_conf);
-    static void handle_legacy_composite(DynamicPrintConfig &config);
+    static void handle_legacy_composite(DynamicPrintConfig &config, std::vector<std::pair<t_config_option_key, std::string>> &opt_deleted);
 
     // Array options growing with the number of extruders
     const std::vector<std::string>& extruder_option_keys() const { return m_extruder_option_keys; }
@@ -450,8 +450,8 @@ public:
     // Called after a config is loaded as a whole.
     // Perform composite conversions, for example merging multiple keys into one key.
     // For conversion of single options, the handle_legacy() method above is called.
-    void                handle_legacy_composite() override
-        { PrintConfigDef::handle_legacy_composite(*this); }
+    void                handle_legacy_composite(std::vector<std::pair<t_config_option_key, std::string>> &opt_deleted) override
+        { PrintConfigDef::handle_legacy_composite(*this, opt_deleted); }
     void                to_prusa(t_config_option_key& opt_key, std::string& value) const override
         { PrintConfigDef::to_prusa(opt_key, value, *this); }
     // utilities to help convert from prusa config.
@@ -1106,10 +1106,13 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloats,              filament_multitool_ramming_volume))
     ((ConfigOptionFloats,              filament_multitool_ramming_flow))
     ((ConfigOptionBool,                gcode_ascii))
+    ((ConfigOptionInt,                 gcode_command_buffer))
     ((ConfigOptionBool,                gcode_comments))
     ((ConfigOptionString,              gcode_filename_illegal_char))
     ((ConfigOptionEnum<GCodeFlavor>,   gcode_flavor))
     ((ConfigOptionEnum<LabelObjectsStyle>,  gcode_label_objects))
+    ((ConfigOptionFloatOrPercent,      gcode_min_length))
+    ((ConfigOptionFloatOrPercent,      gcode_min_resolution))
     ((ConfigOptionInt,                 gcode_precision_xyz))
     ((ConfigOptionInt,                 gcode_precision_e))
     // Triples of strings: "search pattern", "replace with pattern", "attribs"
@@ -1126,7 +1129,6 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat,               max_volumetric_extrusion_rate_slope_positive))
     ((ConfigOptionFloat,               max_volumetric_extrusion_rate_slope_negative))
     ((ConfigOptionFloats,              milling_z_lift))
-    ((ConfigOptionFloat,               min_length))
     ((ConfigOptionBools,               travel_ramping_lift))
     ((ConfigOptionFloats,              travel_max_lift))
     ((ConfigOptionFloats,              travel_slope))
@@ -1269,7 +1271,6 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     ((ConfigOptionString,               printer_model))
     ((ConfigOptionString,               printer_notes))
     ((ConfigOptionFloat,                resolution))
-    ((ConfigOptionFloat,                gcode_resolution))
     ((ConfigOptionFloat,                resolution_internal))
     ((ConfigOptionFloats,               retract_before_travel))
     ((ConfigOptionBools,                retract_layer_change))

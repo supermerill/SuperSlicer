@@ -2235,10 +2235,10 @@ namespace client
 
             text_block = *(
                         text [_val+=_1]
-                 //       // escape character: can escape '[' and '{' or is printed as-is.
-                 //   |  (no_skip[raw["\\["]]     [_val = _val + "["])
-                 //   |  (no_skip[raw["\\{"]]     [_val = _val + "{"])
-                 //   |  (no_skip[raw["\\"]]      [_val = _val + "\\"])
+                        // escape character: can escape '[' and '{' or is printed as-is.
+                    |  (no_skip[raw["\\["]]     [_val = _val + "["])
+                    |  (no_skip[raw["\\{"]]     [_val = _val + "{"])
+                    |  (no_skip[raw["\\"]]      [_val = _val + "\\"])
                         // Allow back tracking after '{' in case of a text_block embedded inside a condition.
                         // In that case the inner-most {else} wins and the {if}/{elsif}/{else} shall be paired.
                         // {elsif}/{else} without an {if} will be allowed to back track from the embedded text_block.

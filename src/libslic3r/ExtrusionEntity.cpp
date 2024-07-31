@@ -60,12 +60,12 @@ void ExtrusionPath::simplify(coordf_t tolerance, ArcFittingType with_fitting_arc
             // Use 4x lower resolution than the object fine detail for skirt & brim.
             tolerance *= 4.;
     }
-    this->polyline.simplify(tolerance, with_fitting_arc, fitting_arc_tolerance);
+    this->polyline.make_arc(with_fitting_arc, tolerance, fitting_arc_tolerance);
 }
 
 void ExtrusionPath3D::simplify(coordf_t tolerance, ArcFittingType with_fitting_arc, double fitting_arc_tolerance)
 {
-    this->polyline.simplify(tolerance, ArcFittingType::Disabled, fitting_arc_tolerance);
+    this->polyline.make_arc(ArcFittingType::Disabled, tolerance, fitting_arc_tolerance);
     // TODO: simplify but only for sub-path with same zheight.
     // if (with_fitting_arc) {
     //    this->polyline.simplify(tolerance, with_fitting_arc, fitting_arc_tolerance);

@@ -81,7 +81,7 @@ typename boost::polygon::enable_if<
 VoronoiUtils::get_source_point_index(const VD::cell_type &cell, const SegmentIterator segment_begin, const SegmentIterator segment_end)
 {
     if (!cell.contains_point())
-        throw Slic3r::InvalidArgument("Voronoi cell doesn't contain a source point!");
+        throw Slic3r::InvalidArgument("Voronoi cell doesn't contain a source point index!");
 
     if (cell.source_category() == boost::polygon::SOURCE_CATEGORY_SEGMENT_START_POINT) {
         assert(int(cell.source_index()) < std::distance(segment_begin, segment_end));

@@ -145,9 +145,11 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "full_fan_speed_layer",
         "gap_fill_fan_speed",
         "gcode_ascii",
+        "gcode_command_buffer",
         "gcode_comments",
         "gcode_filename_illegal_char",
         "gcode_label_objects",
+        "gcode_min_length",
         "gcode_precision_xyz",
         "gcode_precision_e",
         "gcode_substitutions",
@@ -161,7 +163,6 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "max_print_speed",
         "max_speed_reduction",
         "max_volumetric_speed",
-        "min_length",
         "min_print_speed",
         "milling_diameter",
         "milling_toolchange_end_gcode",
@@ -360,7 +361,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
             || opt_key == "min_layer_height"
             || opt_key == "max_layer_height"
             || opt_key == "filament_max_overlap"
-            || opt_key == "gcode_resolution") {
+            || opt_key == "gcode_min_resolution") {
             osteps.emplace_back(posPerimeters);
             osteps.emplace_back(posInfill);
             osteps.emplace_back(posSimplifyPath);

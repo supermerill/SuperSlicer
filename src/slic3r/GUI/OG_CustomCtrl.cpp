@@ -850,7 +850,7 @@ wxCoord OG_CustomCtrl::CtrlLine::draw_mode_bmp(wxDC& dc, wxCoord v_pos)
     if (og_line.get_options().front().opt.gui_type != ConfigOptionDef::GUIType::legend)
         dc.DrawBitmap(bmp->GetBitmapFor(ctrl), 0, y_draw);
 
-    assert(get_bitmap_size(bmp, ctrl).GetWidth() == pix_cnt);
+    assert(get_bitmap_size(bmp, ctrl).GetWidth() == pix_cnt); // sometimes bigger.
     return get_bitmap_size(bmp, ctrl).GetWidth() + ctrl->m_h_gap;
 }
 

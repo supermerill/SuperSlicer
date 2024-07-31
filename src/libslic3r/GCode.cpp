@@ -1724,11 +1724,15 @@ void GCodeGenerator::_do_export(Print& print_mod, GCodeOutputStream &file, Thumb
 
     // adds tag for processor
     preamble_to_put_start_layer.append(";").append(GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Role)).append(gcode_extrusion_role_to_string(GCodeExtrusionRole::Custom)).append("\n");
+    
+    unset_last_pos();
 
     // Write the custom start G-code
     preamble_to_put_start_layer.append(start_gcode).append("\n");
 
-    unset_last_pos();
+    if (!last_pos_defined()) {
+        set_last_pos({0, 0});
+    }
 
     // Disable fan.
     if ((initial_extruder_id != (uint16_t) -1) && !this->config().start_gcode_manual && print.config().disable_fan_first_layers.get_at(initial_extruder_id)) {
@@ -3708,8 +3712,9 @@ void GCodeGenerator::process_layer_single_object(
         assert(!m_gcode_label_objects_in_session);
         m_gcode_label_objects_start = "";
     } else if (!first) {
-        assert(m_gcode_label_objects_in_session);
         m_gcode_label_objects_end = m_label_objects.stop_object(print_args.print_instance.print_object.instances()[print_args.print_instance.instance_id]);
+        // assert: stop the object session or it's disabled.
+        assert(m_gcode_label_objects_in_session || m_gcode_label_objects_end.empty());
     } else {
         assert(!m_gcode_label_objects_in_session);
     }
@@ -3835,7 +3840,7 @@ void GCodeGenerator::apply_print_configs(const Print &print)
     m_config.apply(print.config());
     m_config.apply(print.default_object_config());
     m_config.apply(print.default_region_config());
-    m_scaled_gcode_resolution = scale_d(print.config().gcode_resolution.value);
+    m_current_perimeter_extrusion_width = Flow::extrusion_width("perimeter_extrusion_width", m_config, m_writer.tool()?m_writer.tool()->id():0);
 }
 
 void GCodeGenerator::append_full_config(const Print& print, std::string &str)
@@ -5393,15 +5398,17 @@ std::string GCodeGenerator::extrude_path(const ExtrusionPath &path, const std::s
 
     // simplify with gcode_resolution (not used yet). Simplify by jusntion deviation before the g1/sec count, to be able to use that decimation to reduce max_gcode_per_second triggers.
     // But as it can be visible on cylinders, should only be called if a max_gcode_per_second trigger may come.
-    //simplifed_path.simplify(m_scaled_gcode_resolution);
-    const coordf_t scaled_min_length = scale_d(this->config().min_length.value);
-    const double max_gcode_per_second = this->config().max_gcode_per_second.value;
-    coordf_t current_scaled_min_length = scaled_min_length;
+    const coordf_t scaled_min_length = scale_d(this->config().gcode_min_length.get_abs_value(m_current_perimeter_extrusion_width));
+    const coordf_t scaled_min_resolution = scale_d(this->config().gcode_min_resolution.get_abs_value(m_current_perimeter_extrusion_width));
+    const int32_t gcode_buffer_window = this->config().gcode_command_buffer.value;
+    const int32_t  max_gcode_per_second = this->config().max_gcode_per_second.value;
+    coordf_t scaled_mean_length = scaled_min_length * 2;
     double fan_speed;
     if (max_gcode_per_second > 0) {
-        current_scaled_min_length = std::max(current_scaled_min_length, scale_d(_compute_speed_mm_per_sec(path, speed_mm_per_sec, fan_speed, nullptr)) / max_gcode_per_second);
+        double speed = _compute_speed_mm_per_sec(path, speed_mm_per_sec, fan_speed, nullptr);
+        scaled_mean_length = scale_d(speed / max_gcode_per_second);
     }
-    if (current_scaled_min_length > 0 && !m_last_too_small.empty()) {
+    if (scaled_mean_length > 0 && !m_last_too_small.empty()) {
         //ensure that it's a continous thing of the same type
         if (m_last_too_small.last_point().distance_to_square(path.first_point()) < EPSILON * EPSILON * 4 && 
             (path.role() == m_last_too_small.role() || m_last_too_small.length() < scale_d(m_last_too_small.width()/10))) {
@@ -5416,16 +5423,21 @@ std::string GCodeGenerator::extrude_path(const ExtrusionPath &path, const std::s
             //finish extrude the little thing that was left before us and incompatible with our next extrusion.
             ExtrusionPath to_finish = m_last_too_small;
             gcode += this->_extrude(m_last_too_small, m_last_description, m_last_speed_mm_per_sec);
+            // put this very small segment in the buffer, as it's very small
+            m_last_command_buffer_used++;
             m_last_too_small.polyline.clear();
         }
     }
-    if (current_scaled_min_length > 0 && (config().arc_fitting.value == ArcFittingType::Disabled || !simplifed_path.polyline.has_arc() || config().spiral_vase)) {
-        // it's an alternative to simplifed_path.simplify(scale_(this->config().min_length)); with more enphasis on the segment length that on the feature detail.
-        // because tolerance = min_length /10, douglas_peucker will erase more points if angles are shallower than 6° and then the '_plus' will kick in to keep a bit more.
-        // if angles are all bigger than 6°, then the douglas_peucker will do all the work.
-        assert(!simplifed_path.polyline.has_arc());
-        simplifed_path.polyline = ArcPolyline(Polyline(MultiPoint::douglas_peucker_plus(simplifed_path.polyline.to_polyline().points, current_scaled_min_length / 10, current_scaled_min_length)));
+    
+    //set at least 2 buffer space, to not over-erase first lines.
+    if (gcode_buffer_window > 2 && gcode_buffer_window - m_last_command_buffer_used < 2) {
+        m_last_command_buffer_used = gcode_buffer_window - 2;
     }
+
+    //simplify
+    m_last_command_buffer_used = simplifed_path.polyline.simplify_straits(scaled_min_resolution, scaled_min_length, scaled_mean_length, gcode_buffer_window, m_last_command_buffer_used);
+    
+    // if the path is too small to be printed, put in the queue to be merge with the next one.
     if (scaled_min_length > 0 && simplifed_path.length() < scaled_min_length) {
         m_last_too_small = simplifed_path;
         m_last_description = description;
@@ -6581,7 +6593,7 @@ std::string GCodeGenerator::_before_extrude(const ExtrusionPath &path, const std
                 // don't use it if the distance is too small
                 coordf_t min_dist_for_deceleration = coordf_t(SCALED_EPSILON);
                 min_dist_for_deceleration = std::max(min_dist_for_deceleration, dist_to_go_extrude_speed / 10);
-                min_dist_for_deceleration = std::max(min_dist_for_deceleration, scale_d(m_config.min_length));
+                min_dist_for_deceleration = std::max(min_dist_for_deceleration, scale_d(m_config.gcode_min_length.get_abs_value(m_current_perimeter_extrusion_width)));
                 cant_use_deceleration = cant_use_deceleration || length < min_dist_for_deceleration;
                 // don't use it their isn't enough acceleration to go to the next speed without going by the travel speed
                 cant_use_deceleration = cant_use_deceleration || accel_extrude2extrude * 1.1 > acceleration;
@@ -6916,24 +6928,38 @@ Polyline GCodeGenerator::travel_to(std::string &gcode, const Point &point, Extru
     }
     //if needed, write the gcode_label_objects_end then gcode_label_objects_start
     _add_object_change_labels(gcode);
+
+    //TODO: here can be some point added 2 times inside the travel, please correct that instead of fixing it like that.
+    for (size_t i = 1; i < travel.size(); i++) {
+        if (travel.points[i - 1].distance_to_square(travel.points[i]) < SCALED_EPSILON * SCALED_EPSILON * 2) {
+            travel.points.erase(travel.points.begin() + i);
+            --i;
+        }
+    }
     
     this->m_throw_if_canceled();
     //if needed, remove points to avoid surcharging the printer.
     {
-        const coordf_t scaled_min_length         = scale_d(this->config().min_length.value);
-        const double   max_gcode_per_second      = this->config().max_gcode_per_second.value;
-        double         current_scaled_min_length = scaled_min_length;
-        if (max_gcode_per_second > 0) {
-            current_scaled_min_length = std::max(current_scaled_min_length, 
-                scale_t(m_config.get_computed_value("travel_speed")) / max_gcode_per_second);
+        const coordf_t scaled_min_length = scale_d(this->config().gcode_min_length.get_abs_value(m_current_perimeter_extrusion_width));
+        coordf_t scaled_min_resolution = scale_d(this->config().gcode_min_resolution.get_abs_value(m_current_perimeter_extrusion_width));
+        if (config().avoid_crossing_perimeters.value) {
+            // min with peri/2 because it's less a problem for travels. but if travel don't cross, then they must not deviate much.
+            scaled_min_resolution = std::min(scale_d(m_current_perimeter_extrusion_width / 4), scaled_min_resolution);
         }
-        if (current_scaled_min_length > 0) {
-            // it's an alternative to simplifed_path.simplify(scale_(this->config().min_length)); with more enphasis on
-            // the segment length that on the feature detail. because tolerance = min_length /10, douglas_peucker will
-            // erase more points if angles are shallower than 6° and then the '_plus' will kick in to keep a bit more. if
-            // angles are all bigger than 6°, then the douglas_peucker will do all the work.
-            // NOTE: okay to use set_points() as i have checked against the absence of arc.
-            travel.points = MultiPoint::douglas_peucker_plus(travel.points, current_scaled_min_length / 10, current_scaled_min_length);
+        const int32_t gcode_buffer_window = this->config().gcode_command_buffer.value;
+        const int32_t  max_gcode_per_second = this->config().max_gcode_per_second.value;
+        coordf_t         scaled_mean_length = scaled_min_length * 2;
+        if (max_gcode_per_second > 0) {
+            scaled_mean_length = scale_d(m_config.get_computed_value("travel_speed")) / max_gcode_per_second;
+        }
+        if (scaled_mean_length > 0) {
+            ArcPolyline poly_simplify(travel);
+
+            //TODO: this is done after the simplification of the next extrusion. can't use the 'm_last_command_buffer_used' so it must began & end with 0
+            poly_simplify.simplify_straits(scaled_min_resolution, scaled_min_length, scaled_mean_length, gcode_buffer_window, -1);
+            assert(!poly_simplify.has_arc());
+            //TODO: create arc here?
+            travel = poly_simplify.to_polyline();
         }
     }
 
@@ -6943,12 +6969,12 @@ Polyline GCodeGenerator::travel_to(std::string &gcode, const Point &point, Extru
 
 void GCodeGenerator::write_travel_to(std::string &gcode, const Polyline& travel, std::string comment)
 {
-    if (travel.size() > 4)
+    const int32_t max_gcode_per_second = this->config().max_gcode_per_second.value;
+    if (travel.size() > 4 && max_gcode_per_second > 0)
     {
         //ensure that you won't overload the firmware.
         // travel are  strait lines, but with avoid_crossing_perimeters, there can be many points. Reduce speed instead of deleting points, as it's already optimised as much as possible, even if it can be a bit more => TODO?)
         // we are using a window of 10 moves.
-        const double max_gcode_per_second = this->config().max_gcode_per_second.value;
         coordf_t dist_next_10_moves = 0;
         size_t idx_10 = 1;
         size_t idx_print = 1;

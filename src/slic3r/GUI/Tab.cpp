@@ -150,6 +150,8 @@ void Tab::create_preset_tab()
 #endif //__WINDOWS__
 
     m_preset_bundle = wxGetApp().preset_bundle.get();
+    // Index of the last icon inserted into m_treectrl (need for init, as init will create isons)
+    m_icon_count = -1;
     init();
 
     // Vertical sizer to hold the choice menu and the rest of the page.
@@ -323,8 +325,6 @@ void Tab::create_preset_tab()
     m_treectrl->SetBackgroundColour(m_parent->GetBackgroundColour());
 #endif
     m_left_sizer->Add(m_treectrl, 1, wxEXPAND);
-    // Index of the last icon inserted into m_treectrl
-    m_icon_count = -1;
     m_treectrl->AddRoot("root");
     m_treectrl->SetIndent(0);
     wxGetApp().UpdateDarkUI(m_treectrl);
@@ -486,6 +486,7 @@ int Tab::get_icon_id(const wxString& title, const std::string& icon)
             m_category_icon[title] = icon;
         }
     }
+    assert(icon_idx >= 0 && (icon_idx == 0 || icon_idx < m_scaled_icons_list.size()));
     return icon_idx;
 }
 
@@ -4315,6 +4316,7 @@ void Tab::rebuild_page_tree()
     {
         if (!p->get_show())
             continue;
+        assert(p->iconID() < this->m_scaled_icons_list.size());
         auto itemId = m_treectrl->AppendItem(rootItem, translate_category(p->title(), type()), p->iconID());
         m_treectrl->SetItemTextColour(itemId, p->get_item_colour());
         m_treectrl->SetItemFont(itemId, wxGetApp().normal_font());
@@ -6004,6 +6006,7 @@ Page::Page(Tab* tab, wxWindow* parent, const wxString& title, int iconID) :
         m_iconID(iconID)
 {
     assert(m_tab);
+    assert(m_iconID >= 0 && m_iconID < 1000);
     if (parent)
         m_vsizer = (wxBoxSizer*)parent->GetSizer();
     m_item_color = &wxGetApp().get_label_clr_default();

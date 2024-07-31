@@ -708,6 +708,7 @@ for (size_t i = 0; i < static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::
     // add start gcode time
     for (size_t i = 0; i < static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Count); ++i) {
         m_time_processor.machines[i].time = m_time_processor.time_start_gcode;
+        m_current_time[i] = m_time_processor.machines[i].time;
     }
 
 }
@@ -1021,6 +1022,7 @@ void GCodeProcessor::apply_config(const DynamicPrintConfig& config)
     // add start gcode time
     for (size_t i = 0; i < static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Count); ++i) {
         m_time_processor.machines[i].time = m_time_processor.time_start_gcode;
+        m_current_time[i] = m_time_processor.machines[i].time;
     }
 
 }
@@ -1436,16 +1438,6 @@ void GCodeProcessor::finalize(bool perform_post_process)
 
     update_estimated_statistics();
 
-    //update times for results
-    for (size_t i = 0; i < m_result.moves.size(); i++) {
-        //field layer_duration contains the layer id for the move in which the layer_duration has to be set.
-        size_t layer_id = size_t(m_result.moves[i].layer_duration);
-        std::vector<float>& layer_times = m_result.print_statistics.modes[static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Normal)].layers_times;
-        if (layer_times.size() > layer_id - 1 && layer_id > 0)
-            m_result.moves[i].layer_duration = layer_times[layer_id - 1];
-        else
-            m_result.moves[i].layer_duration = 0;
-    }
 #if ENABLE_GCODE_VIEWER_DATA_CHECKING
     m_mm3_per_mm_compare.output();
     m_height_compare.output();
@@ -3083,8 +3075,11 @@ void GCodeProcessor::process_G1(const std::array<std::optional<double>, 4>& axes
 
         blocks.push_back(block);
 
-        if (blocks.size() > TimeProcessor::Planner::refresh_threshold)
+        m_current_time[i] += block.time() * machine.time_acceleration;
+        if (blocks.size() > TimeProcessor::Planner::refresh_threshold) {
+            //note: machine is queue_size behind the real time.
             machine.calculate_time(TimeProcessor::Planner::queue_size);
+        }
     }
 
     if (m_seams_detector.is_active()) {
@@ -4742,6 +4737,7 @@ void GCodeProcessor::store_move_vertex(EMoveType type, bool internal_only)
         ((type == EMoveType::Seam) ? m_last_line_id : m_line_id);
     assert(type != EMoveType::Noop);
 
+    // push_back(GCodeProcessorResult::MoveVertex{})
     m_result.moves.emplace_back(
         m_last_line_id,
         type,
@@ -4756,8 +4752,7 @@ void GCodeProcessor::store_move_vertex(EMoveType type, bool internal_only)
         m_mm3_per_mm,
         m_fan_speed,
         m_extruder_temps[m_extruder_id],
-        m_time_processor.machines[0].time, //time: set later
-        static_cast<float>(m_layer_id), //layer_duration: set later
+        m_current_time[0], // note: m_time_processor.machines[0].time, is too slow to recompute.
         m_layer_id,
         internal_only
     );

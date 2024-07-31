@@ -3939,18 +3939,6 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionFloatsOrPercents{ FloatOrPercent{ 5, true} });
 
-    def = this->add("min_length", coFloat);
-    def->label = L("Minimum extrusion length");
-    def->category = OptionCategory::speed;
-    def->tooltip = L("[Deprecated] Prefer using max_gcode_per_second instead, as it's much better when you have very different speeds for features."
-        "\nToo many too small commands may overload the firmware / connection. Put a higher value here if you see strange slowdown."
-        "\nSet zero to disable.");
-    def->sidetext = L("mm");
-    def->min = 0;
-    def->precision = 8;
-    def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionFloat(0.035));
-
     def = this->add("min_width_top_surface", coFloatOrPercent);
     def->label = L("Minimum top width for infill");
     def->category = OptionCategory::speed;
@@ -4715,18 +4703,52 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionFloat(0.0125));
 
-    //TODO: remove from supersliser, as it's kind of like min_length, but with a better name and badly put into the print profile.
-    def = this->add("gcode_resolution", coFloat);
-    def->label = L("G-code resolution");
-    def->tooltip = L("Maximum deviation of exported G-code paths from their full resolution counterparts. "
-        "Very high resolution G-code requires huge amount of RAM to slice and preview, "
-        "also a 3D printer may stutter not being able to process a high resolution G-code in a timely manner. "
-        "On the other hand, a low resolution G-code will produce a low poly effect and because "
-        "the G-code reduction is performed at each layer independently, visible artifacts may be produced.");
-    def->sidetext = L("mm");
+    //note: replaced by gcode_min_resolution in printer's profile
+    //def = this->add("gcode_resolution", coFloat);
+    //def->label = L("G-code resolution");
+    //def->tooltip = L("Maximum deviation of exported G-code paths from their full resolution counterparts. "
+    //    "Very high resolution G-code requires huge amount of RAM to slice and preview, "
+    //    "also a 3D printer may stutter not being able to process a high resolution G-code in a timely manner. "
+    //    "On the other hand, a low resolution G-code will produce a low poly effect and because "
+    //    "the G-code reduction is performed at each layer independently, visible artifacts may be produced.");
+    //def->sidetext = L("mm");
+    //def->min = 0;
+    //def->mode = comExpert | comPrusa;
+    //def->set_default_value(new ConfigOptionFloat(0.0));
+
+    def = this->add("gcode_command_buffer", coInt);
+    def->label = L("Command buffer");
+    def->category = OptionCategory::speed;
+    def->tooltip = L("Buffer the firmware has for gcode comamnds. Allow to have some burst of command with a rate over 'max_gcode_per_second' for a few instant.");
     def->min = 0;
-    def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(0.0));
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionInt(10));
+
+    def = this->add("gcode_min_length", coFloatOrPercent);
+    def->label = L("Minimum extrusion length");
+    def->category = OptionCategory::speed;
+    def->tooltip = L("When outputting gcode, this setting ensure that there is almost no commands more than this value apart."
+        " Be sure to also use max_gcode_per_second instead, as it's much better when you have very different speeds for features"
+        " (Too many too small commands may overload the firmware / connection)."
+        "\nSet zero to disable.");
+    def->sidetext = L("mm or %");
+    def->min = 0;
+    def->precision = 6;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloatOrPercent(0.02, false));
+    def->aliases = {"min_length"};
+
+    def = this->add("gcode_min_resolution", coFloatOrPercent);
+    def->label = L("minimum resolution");
+    def->category = OptionCategory::speed;
+    def->tooltip = L("Maximum deviation of exported G-code paths from their full resolution counterparts"
+        " when some commands are culled by 'gcode_min_length' or 'max_gcode_per_second' to not overload the firmware."
+        "\nCan be a % of perimeter width.");
+    def->sidetext = L("mm or %");
+    def->min = 0;
+    def->precision = 6;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloatOrPercent(50, true));
 
     def = this->add("resolution_internal", coFloat);
     def->label = L("Internal resolution");
@@ -8100,7 +8122,8 @@ static std::set<std::string> PrintConfigDef_ignore = {
     "ensure_vertical_shell_thickness",
     // Disabled in 2.6.0-alpha6, this option is problematic
 //    "infill_only_where_needed", <- ignore only if deactivated
-    "gcode_binary" // Introduced in 2.7.0-alpha1, removed in 2.7.1 (replaced by binary_gcode).
+    "gcode_binary", // Introduced in 2.7.0-alpha1, removed in 2.7.1 (replaced by binary_gcode).
+    "gcode_resolution", // now in printer config.
 };
 
 void PrintConfigDef::handle_legacy(t_config_option_key &opt_key, std::string &value, bool remove_unkown_keys)
@@ -8372,7 +8395,7 @@ void PrintConfigDef::handle_legacy(t_config_option_key &opt_key, std::string &va
 // Called after a config is loaded as a whole.
 // Perform composite conversions, for example merging multiple keys into one key.
 // Don't convert single options here, implement such conversion in PrintConfigDef::handle_legacy() instead.
-void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config)
+void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::vector<std::pair<t_config_option_key, std::string>> &opt_deleted)
 {
     //if (config.has("thumbnails")) {
     //    std::string extention;
@@ -8478,7 +8501,7 @@ std::map<std::string,std::string> PrintConfigDef::from_prusa(t_config_option_key
         value = "0.0125";
     }
     if ("gcode_resolution" == opt_key) {
-        output["min_length"] = value;
+        output["gcode_min_resolution"] = value;
     }
     if (("brim_width" == opt_key || "brim_width_interior" == opt_key) && all_conf.option("brim_separation") ) {
         // add brim_separation to brim_width & brim_width_interior
@@ -8857,6 +8880,9 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "first_layer_min_speed",
 "first_layer_size_compensation_layers",
 "gcode_ascii",
+"gcode_command_buffer",
+"gcode_min_length",
+"gcode_min_resolution",
 "gap_fill_acceleration",
 "gap_fill_extension",
 "gap_fill_fan_speed",
@@ -8906,7 +8932,6 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "milling_toolchange_start_gcode",
 "milling_z_lift",
 "milling_z_offset",
-"min_length",
 "min_width_top_surface",
 "model_precision",
 "no_perimeter_unsupported_algo",
@@ -8928,6 +8953,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "perimeter_bonding",
 "perimeter_extrusion_change_odd_layers",
 "perimeter_extrusion_spacing",
+"perimeter_direction",
 "perimeter_fan_speed",
 "perimeter_loop_seam",
 "perimeter_loop",
@@ -9227,26 +9253,6 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
         } else {
             opt_key = "min_fan_speed";
             new_entries["fan_always_on"] = "1";
-        }
-    }
-    
-    if ("thumbnails" == opt_key) {
-    // add format to thumbnails
-        const ConfigOptionEnum<GCodeThumbnailsFormat> *format_opt = all_conf.option<ConfigOptionEnum<GCodeThumbnailsFormat>>("thumbnails_format");
-        std::string format = format_opt->serialize();
-        std::vector<std::string> sizes;
-        boost::split(sizes, value, boost::is_any_of(","), boost::token_compress_off);
-        value = "";
-        std::string coma = "";
-        for (std::string &size : sizes) {
-            //if first or second dimension is 0: ignore.
-            size_t test1 = size.find("0x");
-            size_t test2 = size.find("x0");
-            if (size.find("0x") == 0 || size.find("x0") + 2 == size.size())
-                continue;
-            assert(size.find('/') == std::string::npos);
-            value = value + coma + size + std::string("/") + format;
-            coma = ",";
         }
     }
 

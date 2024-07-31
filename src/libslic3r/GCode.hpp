@@ -403,8 +403,6 @@ private:
        methods. */
     Vec2d                               m_origin;
     FullPrintConfig                     m_config;
-    // scaled G-code resolution
-    coordf_t                            m_scaled_gcode_resolution;
     GCodeWriter                         m_writer;
 
     struct PlaceholderParserIntegration {
@@ -508,10 +506,12 @@ private:
     std::optional<Vec3d>                m_previous_layer_last_position_before_wipe;
     // This needs to be populated during the layer processing!
     std::optional<Vec3d>                m_current_layer_first_position;
+    double                              m_current_perimeter_extrusion_width = 0.4;
     std::optional<unsigned>             m_layer_change_extruder_id;
     // bool                                m_already_unretracted{false};
     // a previous extrusion path that is too small to be extruded, have to fusion it into the next call.
     ExtrusionPath                       m_last_too_small;
+    int32_t                             m_last_command_buffer_used = 0;
     std::string                         m_last_description;
     double                              m_last_speed_mm_per_sec;
 

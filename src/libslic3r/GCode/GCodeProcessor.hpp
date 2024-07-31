@@ -117,12 +117,12 @@ namespace Slic3r {
             MoveVertex() {}
             MoveVertex(uint32_t gcode_id, EMoveType type, GCodeExtrusionRole extrusion_role, uint8_t extruder_id,
                 uint8_t cp_color_id, Vec3f position, float delta_extruder, float feedrate, float width, float height,
-                float mm3_per_mm, float fan_speed, float temperature, float time, float layer_duration, uint16_t layer_id,
+                float mm3_per_mm, float fan_speed, float temperature, float time, uint16_t layer_id,
                 bool internal_only) :
                 gcode_id(gcode_id), type(type), extrusion_role(extrusion_role), extruder_id(extruder_id), 
                 cp_color_id(cp_color_id), position(position), delta_extruder(delta_extruder), feedrate(feedrate), 
                 width(width), height(height), mm3_per_mm(mm3_per_mm), fan_speed(fan_speed), 
-                temperature(temperature), time(time), layer_duration(layer_duration), layer_id(layer_id),
+                temperature(temperature), move_time(time), layer_id(layer_id),
                 internal_only(internal_only) {
             }
 
@@ -139,8 +139,7 @@ namespace Slic3r {
             float mm3_per_mm{ 0.0f };
             float fan_speed{ 0.0f }; // percentage
             float temperature{ 0.0f }; // Celsius degrees
-            float time{ 0.0f }; // s (TODO: for each mode (silent or not) )
-            float layer_duration{ 0.0f }; // s (layer id before finalize)
+            float move_time{ 0.0f }; // s (TODO: for each mode (silent or not) )
             uint16_t layer_id{ 0 };
             bool internal_only{ false };
 
@@ -653,6 +652,7 @@ namespace Slic3r {
 
         TimeProcessor m_time_processor;
         UsedFilaments m_used_filaments;
+        std::array<double, static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Count)> m_current_time;
 
         Print::StatusMonitor* m_status_monitor{ nullptr }; //dangerous
 

@@ -1270,7 +1270,7 @@ void Sidebar::jump_to_option(size_t selected)
             }
         }
 
-        wxGetApp().get_tab(opt.type)->activate_option(opt.opt_key_with_idx(), boost::nowide::narrow(opt.category));
+        wxGetApp().get_tab(opt.type, false)->activate_option(opt.opt_key_with_idx(), boost::nowide::narrow(opt.category));
     }
 
 }
@@ -2749,7 +2749,14 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                 if (load_config) {
                     if (!config.empty()) {
                         const auto* post_process = config.opt<ConfigOptionStrings>("post_process");
+                        size_t max_size = 0;
                         if (post_process != nullptr && !post_process->empty()) {
+                            for (std::string str : post_process->get_values()) {
+                                boost::trim(str);
+                                max_size = std::max(max_size, str.size());
+                            }
+                        }
+                        if (max_size > 0) {
                             // TRN The placeholder is either "3MF" or "AMF"
                             wxString msg = GUI::format_wxstr(_L("The selected %1% file contains a post-processing script.\n"
                                 "Please review the script carefully before exporting G-code."), type_3mf ? "3MF" : "AMF" );
