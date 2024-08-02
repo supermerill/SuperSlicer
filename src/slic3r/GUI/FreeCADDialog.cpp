@@ -12,6 +12,7 @@
 #include "Plater.hpp"
 #include "slic3r/Utils/Http.hpp"
 #include "Tab.hpp"
+#include "../Utils/MacDarkMode.hpp"
 
 #include "MainFrame.hpp"
 #include "wxExtensions.hpp"

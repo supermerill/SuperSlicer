@@ -1,9 +1,7 @@
 name: C/C++ debug ubuntu
 
 on:
-  push:
-    branches:
-      - debug_ubuntu
+  workflow_dispatch:
 
 jobs:
   build:

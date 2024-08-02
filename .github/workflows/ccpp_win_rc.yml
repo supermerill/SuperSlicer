@@ -1,9 +1,7 @@
 name: C/C++ Release candidate windows x64
 
 on:
-  push:
-    branches:
-      - rc
+  workflow_dispatch:
 
 jobs:
 

@@ -19,6 +19,7 @@
 #include "slic3r/GUI/I18N.hpp"
 #include "slic3r/GUI/GUI.hpp"
 #include "Http.hpp"
+#include "../GUI/format.hpp"
 
 
 namespace fs = boost::filesystem;

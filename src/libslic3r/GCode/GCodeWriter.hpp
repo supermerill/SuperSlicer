@@ -14,7 +14,7 @@
 #include "../Point.hpp"
 #include "../PrintConfig.hpp"
 #include "CoolingBuffer.hpp"
-#include "GcodeFormatter.hpp"
+#include "GCodeFormatter.hpp"
 
 #include <string>
 #include <string_view>

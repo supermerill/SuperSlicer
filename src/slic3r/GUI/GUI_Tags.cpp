@@ -21,6 +21,7 @@
 #include "Plater.hpp"
 #include "../Utils/MacDarkMode.hpp"
 #include "BitmapComboBox.hpp"
+#include "format.hpp"
 
 namespace Slic3r{
 namespace GUI{

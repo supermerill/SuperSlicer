@@ -12,33 +12,71 @@ then
     exit -1
 fi
 
-while getopts ":iaxbhc" opt; do
+while getopts ":idaxbhcstwr" opt; do
   case ${opt} in
     i )
-        export BUILD_IMAGE="1"
+        BUILD_IMAGE="1"
+        ;;
+    d )
+        BUILD_DEPS="1"
         ;;
     a )
-        export BUILD_ARCH="arm64"
+        BUILD_ARCH="arm64"
+        BUILD_IMG="-a"
         ;;
     x )
-        export BUILD_ARCH="x86_64"
+        BUILD_ARCH="x86_64"
+        BUILD_IMG="-x"
         ;;
     b )
-        export BUILD_DEBUG="1"
+        BUILD_DEBUG="1"
+        ;;
+    s )
+        BUILD_PRUSASLICER="1"
         ;;
     c)
-        export BUILD_XCODE="1"
+        BUILD_XCODE="1"
         ;;
-    h ) echo "Usage: ./BuildMacOS.sh [-i]"
-        echo "   -i: Generate DMG image (optional)"
-        echo "   -a: Build for arm64 (Apple Silicon)"
-        echo "   -x: Build for x86_64 (Intel)"
-        echo "   -b: Build with debug symbols"
-        echo "   -c: Build for XCode"
+    w )
+	    BUILD_WIPE="1"
+	;;
+    r )
+	    BUILD_CLEANDEPEND="1"
+	;;
+    h ) echo "Usage: ./BuildMacOS.sh  [-h][-w][-d][-a][-r][-x][-b][-c][-s][-t][-i]"
+        echo "   -h: this message"
+	    echo "   -w: wipe build directories bfore building"
+        echo "   -d: build dependencies"
+        echo "   -a: build for arm64 (Apple Silicon)"
+        echo "   -r: clean dependencies"
+        echo "   -x: build for x86_64 (Intel)"
+        echo "   -b: build with debug symbols"
+        echo "   -c: build for XCode"
+        echo "   -s: build PrusaSlicer"
+        echo "   -t: build tests (in combination with -s)"
+        echo "   -i: generate DMG image (optional)\n"
         exit 0
         ;;
   esac
 done
+
+if [ $OPTIND -eq 1 ]
+then
+    echo "Usage: ./BuildLinux.sh [-h][-w][-d][-a][-r][-x][-b][-c][-s][-t][-i]"
+    echo "   -h: this message"
+	echo "   -w: wipe build directories bfore building"
+    echo "   -d: build dependencies"
+    echo "   -a: Build for arm64 (Apple Silicon)"
+    echo "   -r: clean dependencies"
+    echo "   -x: build for x86_64 (Intel)"
+    echo "   -b: build with debug symbols"
+    echo "   -c: build for XCode"
+    echo "   -s: build PrusaSlicer"
+    echo "   -t: build tests (in combination with -s)"
+    echo -e "   -i: Generate DMG image (optional)\n"
+    exit 0
+fi
+
 
 echo "Build architecture: ${BUILD_ARCH}"
 
@@ -63,12 +101,6 @@ export LIBRARY_PATH=$LIBRARY_PATH:$(brew --prefix zstd)/lib/
 #    export LIBRARY_PATH=$LIBRARY_PATH:$(brew --prefix libiconv)/lib/
 #fi
 
-# mkdir build
-if [ ! -d "build" ]
-then
-    mkdir build
-fi
-
 echo -n "[1/9] Updating submodules..."
 {
     # update submodule profiles
@@ -86,14 +118,20 @@ echo -n "[2/9] Changing date in version..."
 } #&> $ROOT/build/Build.log # Capture all command output
 echo "done"
 
-# mkdir in deps
-if [ ! -d "deps/build" ]
+if [[ -n "$BUILD_DEPS" ]]
 then
+    if [[ -n $BUILD_WIPE ]]
+    then
+       echo -e "\n wiping deps/build directory ...\n"
+       rm -fr deps/build
+       echo -e " ... done\n"
+    fi
+    # mkdir in deps
+    if [ ! -d "deps/build" ]
+    then
     mkdir deps/build
-fi
-
-echo -n "[3/9] Configuring dependencies..."
-{
+    fi
+    echo -e " \n[3/9] Configuring dependencies ... \n"
     BUILD_ARGS=""
     if [[ -n "$BUILD_ARCH" ]]
     then
@@ -105,53 +143,56 @@ echo -n "[3/9] Configuring dependencies..."
     fi
     # cmake deps
     echo "Cmake command: cmake .. -DCMAKE_OSX_DEPLOYMENT_TARGET=\"10.14\" ${BUILD_ARCH} "
-    pushd deps/build
-    cmake .. -DCMAKE_OSX_DEPLOYMENT_TARGET="10.14" $BUILD_ARGS 
-    echo "ls deps/build:"
-    ls -al
-    echo "ls deps/build/dep_GLEW-prefix"
-    ls -al dep_GLEW-prefix
-} #&> $ROOT/build/Build.log # Capture all command output
-echo "done"
+    pushd deps/build > /dev/null
+    cmake .. -DCMAKE_OSX_DEPLOYMENT_TARGET="10.14" $BUILD_ARGS
 
-echo -n "[4/9] Building dependencies..."
-{
+    echo -e "\n ... done\n"
+
+    echo -e "[4/9] Building dependencies ...\n"
+
     # make deps
     make -j$NCORES
 
-    echo "ls $PWD/destdir/usr/local/lib"
-    ls $PWD/destdir/usr/local/lib
-    
-    echo "ls $PWD/destdir/usr/local/lib/cmake"
-    ls $PWD/destdir/usr/local/lib/cmake
-    
-    echo "ls $PWD/destdir/usr/local/lib/cmake/boost_locale-1.75.0"
-    ls $PWD/destdir/usr/local/lib/cmake/boost_locale-1.75.0
+    echo -e "\n ... done\n"
 
-} #&> $ROOT/build/Build.log # Capture all command output
-echo "done"
+    echo -e "[5/9] Renaming wxscintilla library ...\n"
 
-echo -n "[5/9] Renaming wxscintilla library..."
-{
     # rename wxscintilla
-    pushd destdir/usr/local/lib
-    cp libwxscintilla-3.1.a libwx_osx_cocoau_scintilla-3.1.a
-    echo "ls deps/build/destdir/usr/local/lib"
-    ls -al
-    popd
-} #&> $ROOT/build/Build.log # Capture all command output
-echo "done"
+    pushd destdir/usr/local/lib > /dev/null
+    cp libwxscintilla-3.2.a libwx_osx_cocoau_scintilla-3.2.a
 
-echo -n "[6/9] Cleaning dependencies..."
-{
-    # clean deps
-    rm -rf dep_*
-    popd
-} #&> $ROOT/build/Build.log # Capture all command output
-echo "done"
+    popd > /dev/null
+    popd > /dev/null
+    echo -e "\n ... done\n"
+fi
 
-echo -n "[7/9] Configuring Slic3r..."
-{
+if [[ -n "$BUILD_CLEANDEPEND" ]]
+then
+    echo -e "[6/9] Cleaning dependencies...\n"
+    pushd deps/build
+    pwd
+    rm -fr dep_*
+    popd > /dev/null
+    echo -e "\n ... done\n"
+fi
+
+if [[ -n "$BUILD_PRUSASLICER" ]]
+then
+    echo -e "[5/9] Configuring PrusaSlicer ...\n"
+
+    if [[ -n $BUILD_WIPE ]]
+    then
+       echo -e "\n wiping build directory...\n"
+       rm -fr build
+       echo -e " ... done\n"
+    fi
+
+    # mkdir build
+    if [ ! -d "build" ]
+    then
+	mkdir build
+    fi
+
     BUILD_ARGS=""
     if [[ -n "$BUILD_ARCH" ]]
     then
@@ -165,38 +206,55 @@ echo -n "[7/9] Configuring Slic3r..."
     then
         BUILD_ARGS="-GXcode ${BUILD_ARGS}"
     fi
-    # cmake
-    pushd build
-    echo "Slic3r Cmake command: cmake .. -DCMAKE_PREFIX_PATH=\"$PWD/../deps/build/destdir/usr/local\" -DCMAKE_OSX_DEPLOYMENT_TARGET=\"10.14\" -DSLIC3R_STATIC=1 ${BUILD_ARGS}"
-    cmake .. -DCMAKE_PREFIX_PATH="$PWD/../deps/build/destdir/usr/local" -DCMAKE_OSX_DEPLOYMENT_TARGET="10.14" -DSLIC3R_STATIC=1 ${BUILD_ARGS}
-} #&> $ROOT/build/Build.log # Capture all command output
-echo "done"
 
-echo -n "[8/9] Building Slic3r..."
-{
+    if [[ -n "$BUILD_TESTS" ]]
+    then
+        BUILD_ARGS="${BUILD_ARGS} -DCMAKE_BUILD_TESTS=1"
+    else
+        BUILD_ARGS="${BUILD_ARGS} -DCMAKE_BUILD_TESTS=0"
+    fi
+
+    # cmake
+    pushd build > /dev/null
+    cmake .. -DCMAKE_PREFIX_PATH="$PWD/../deps/build/destdir/usr/local" -DCMAKE_OSX_DEPLOYMENT_TARGET="10.14" -DSLIC3R_STATIC=1 ${BUILD_ARGS}
+    echo -e "\n ... done"
+
     # make Slic3r
     if [[ -z "$BUILD_XCODE" ]]
     then
-        make -j$NCORES Slic3r
+        echo -e "\n[6/9] Building PrusaSlicer ...\n"
+        make -j1
+        echo -e "\n ... done"
     fi
-    # make .mo
+   echo -e "\n[7/9] Generating language files ...\n"
+    #make .mo
     make gettext_po_to_mo
-} #&> $ROOT/build/Build.log # Capture all command output
-echo "done"
-echo "ls ROOT"
-ls $ROOT
-echo "ls ROOT/build"
-ls $ROOT/build
-echo "ls -al ROOT/build/src"
-ls -al $ROOT/build/src
-# Give proper permissions to script
-chmod 755 $ROOT/build/src/BuildMacOSImage.sh
+
+    popd  > /dev/null
+    echo -e "\n ... done"
+
+    # Give proper permissions to script
+    chmod 755 $ROOT/build/src/BuildMacOSImage.sh
+
+    pushd build  > /dev/null
+    $ROOT/build/src/BuildMacOSImage.sh -p $BUILD_IMG
+    popd  > /dev/null
+
+    echo "ls ROOT"
+    ls $ROOT
+    echo "ls ROOT/build"
+    ls $ROOT/build
+    echo "ls -al ROOT/build/src"
+    ls -al $ROOT/build/src    
+fi
 
 if [[ -n "$BUILD_IMAGE" ]]
 then
-	$ROOT/build/src/BuildMacOSImage.sh -i
-else
-	$ROOT/build/src/BuildMacOSImage.sh
+    # Give proper permissions to script
+    chmod 755 $ROOT/build/src/BuildMacOSImage.sh
+    pushd build  > /dev/null
+    $ROOT/build/src/BuildMacOSImage.sh -i $BUILD_IMG
+    popd  > /dev/null
 fi
-echo "ls -al ROOT/build"
-ls -al $ROOT/build
+
+

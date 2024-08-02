@@ -420,7 +420,7 @@ set(SLIC3R_SOURCES
     TriangleMeshSlicer.hpp
     MeshSplitImpl.hpp
     TriangulateWall.hpp
-    utils.cpp
+    Utils.cpp
     Utils.hpp
     Time.cpp
     Time.hpp
@@ -457,6 +457,7 @@ set(SLIC3R_SOURCES
     SLA/SupportTreeUtils.hpp
     SLA/SupportTreeUtilsLegacy.hpp
     SLA/SupportTreeBuilder.cpp
+    SLA/Concurrency.hpp
     SLA/SupportTree.hpp
     SLA/SupportTree.cpp
     SLA/SupportTreeStrategies.hpp
@@ -478,6 +479,8 @@ set(SLIC3R_SOURCES
     SLA/SupportPoint.hpp
     SLA/SupportPointGenerator.hpp
     SLA/SupportPointGenerator.cpp
+    SLA/IndexedMesh.cpp
+    SLA/IndexedMesh.hpp
     SLA/Clustering.hpp
     SLA/Clustering.cpp
     SLA/ReprojectPointsOnMesh.hpp

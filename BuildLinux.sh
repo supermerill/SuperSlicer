@@ -1,7 +1,7 @@
 #!/bin/bash
 
 export ROOT=`pwd`
-export NCORES=`nproc --all`
+export NCORES=`nproc`
 FOUND_GTK2=$(dpkg -l libgtk* | grep gtk2)
 FOUND_GTK3=$(dpkg -l libgtk* | grep gtk-3)
 
@@ -167,16 +167,16 @@ then
         pushd destdir/usr/local/lib
             if [[ -z "$FOUND_GTK3_DEV" ]]
             then
-                cp libwxscintilla-3.1.a libwx_gtk2u_scintilla-3.1.a
+                cp libwxscintilla-3.2.a libwx_gtk2u_scintilla-3.2.a
             else
-                cp libwxscintilla-3.1.a libwx_gtk3u_scintilla-3.1.a
+                cp libwxscintilla-3.2.a libwx_gtk3u_scintilla-3.2.a
             fi
         popd
         echo "done"
         
         # clean deps
-        echo "[6/9] Cleaning dependencies..."
-        rm -rf dep_*
+        #echo "[6/9] Cleaning dependencies..."
+        #rm -rf dep_*
     popd
     echo "done"
 fi

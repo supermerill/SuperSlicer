@@ -33,7 +33,7 @@ add_cmake_project(wxWidgets
         -DwxUSE_REGEX=OFF
         -DwxUSE_LIBXPM=builtin
         -DwxUSE_LIBJPEG=sys
-        -DwxUSE_LIBTIFF=sys
+        -DwxUSE_LIBTIFF=OFF
         -DwxUSE_EXPAT=sys
         -DwxUSE_LIBSDL=OFF
         -DwxUSE_XTEST=OFF
@@ -41,4 +41,4 @@ add_cmake_project(wxWidgets
         -DwxUSE_WEBREQUEST=OFF
 )
 
-set(DEP_wxWidgets_DEPENDS ZLIB PNG EXPAT TIFF JPEG NanoSVG)
+set(DEP_wxWidgets_DEPENDS ZLIB PNG EXPAT JPEG NanoSVG)

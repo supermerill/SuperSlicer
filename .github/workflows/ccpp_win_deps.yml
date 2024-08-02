@@ -1,9 +1,8 @@
 name: C/C++ dep build windows x64
 
 on:
-  push:
-    branches:
-      - debug_win
+  workflow_dispatch:
+
 
 jobs:
   build_dep:

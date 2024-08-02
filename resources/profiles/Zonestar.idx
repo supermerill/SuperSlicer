@@ -1,0 +1,5 @@
+min_slic3r_version = 2.4.1
+1.0.2 Modify Z8+E4 hotend and Z9+E4 hotend settings
+1.0.1 Add one color setting for Z9 and Z8 Multi-Color Hotend, Enable Z lift and wipe for Z8 & Z9 with Multi-Color hotend
+1.0.1-slic3r slic3r adaptation + Zonestar changes?
+1.0.0 Initial version

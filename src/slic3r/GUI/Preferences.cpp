@@ -1657,7 +1657,8 @@ void PreferencesDialog::create_settings_font_widget(wxWindow* tab, std::shared_p
 		m_values[opt_key] = format("%1%", val);
 		stb_sizer->Layout();
 #ifdef __linux__
-		CallAfter([this]() { refresh_og(opt_grp); });
+		// CallAfter([this]() { refresh_og(opt_grp); });
+		CallAfter([this, opt_grp]() { refresh_og(opt_grp); });		
 #else
 		refresh_og(opt_grp);
 #endif

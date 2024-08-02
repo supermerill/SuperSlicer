@@ -13,7 +13,7 @@
 #include <optional>
 
 #include "libslic3r.h"
-#include "GCode/GcodeFormatter.hpp"
+#include "GCode/GCodeFormatter.hpp"
 #include "Point.hpp"
 
 namespace Slic3r {

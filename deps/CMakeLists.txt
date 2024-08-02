@@ -45,6 +45,14 @@ endif ()
 # Slightly controversial
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/../cmake/modules)
 
+if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
+    cmake_policy(SET CMP0127 NEW)
+endif ()
+
+if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
+    cmake_policy(SET CMP0135 NEW)
+endif ()
+
 if (MSVC)
   option(DEP_DEBUG "Build in debug version of packages automatically" ON)
 endif ()
@@ -236,7 +244,7 @@ if (DEP_DEBUG AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
 
   # Exclude the libraries which have no problem to link to Debug builds in
   # Release mode (mostly C libraries)
-  set(DEP_DEBUG_EXCLUDES GMP MPFR OpenSSL NanoSVG TIFF JPEG ZLIB heatshrink)
+  set(DEP_DEBUG_EXCLUDES GMP MPFR OpenSSL NanoSVG JPEG ZLIB heatshrink)
   if (UNIX)
     # Making a separate debug build on Unix of wx is a nightmare
     list(APPEND DEP_DEBUG_EXCLUDES wxWidgets)

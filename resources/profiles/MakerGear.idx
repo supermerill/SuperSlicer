@@ -1,0 +1,5 @@
+min_slic3r_version = 2.5.59
+0.0.3 Switch to official MakerGear profiles
+0.0.2-susi no infinite resolution, add temp offset into start gcode
+0.0.1 Various modifications to adapt to susi 2.3.57
+0.0.1 Initial MakerGear bundle

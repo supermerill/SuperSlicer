@@ -1,0 +1,5 @@
+min_slic3r_version = 2.4.1-alpha0
+1.0.3 Removed G_Code_Offset in filament profiles as they are all 0 anyway
+1.0.2 Avoid Z hop at the top of the buildspace
+1.0.1 Initial RatRig bundle
+1.0.0 Initial RatRig bundle
