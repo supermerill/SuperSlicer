@@ -358,26 +358,24 @@ size_t GraphData::data_size() const
 }
 
 double GraphData::interpolate(double x_value) const{
-    double y_value = 0.;
+    double y_value = 1.0f;
     if (this->data_size() < 1) {
         // nothing
-    } else if (this->graph_points.size() == 1 || this->graph_points.front().x() >= x_value) {
+    } else if (this->graph_points.size() == 1 || this->graph_points[begin_idx].x() >= x_value) {
         y_value = this->graph_points.front().y();
-    } else if (this->graph_points.back().x() <= x_value) {
+    } else if (this->graph_points[end_idx - 1].x() <= x_value) {
         y_value = this->graph_points.back().y();
     } else {
         // find first and second datapoint
         for (size_t idx = this->begin_idx; idx < this->end_idx; ++idx) {
             const auto &data_point = this->graph_points[idx];
-            if (data_point.x() == x_value) {
+            if (is_approx(data_point.x(), x_value)) {
                 // lucky point
-                y_value = data_point.y();
-                break;
+                return data_point.y();
             } else if (data_point.x() < x_value) {
                 // not yet, iterate
             } else if (idx == 0) {
-                y_value = data_point.y();
-                break;
+                return data_point.y();
             } else {
                 // interpolate
                 const auto &data_point_before = this->graph_points[idx - 1];
@@ -453,7 +451,7 @@ double GraphData::interpolate(double x_value) const{
                 } else {
                     assert(false);
                 }
-                break;
+                return y_value;
             }
         }
     }
