@@ -21,7 +21,9 @@
 #include "Klipper.hpp"
 #include "MPMDv2.hpp"
 #include "MKS.hpp"
+#include "SimplyPrint.hpp"
 #include "../GUI/PrintHostDialogs.hpp"
+#include "../GUI/MainFrame.hpp"
 #include "../GUI/GUI.hpp"
 #include "slic3r/GUI/I18N.hpp"
 
@@ -73,6 +75,7 @@ PrintHost* PrintHost::get_print_host(DynamicPrintConfig *config)
             case htPrusaLink: return new PrusaLink(config);
             case htMKS:       return new MKS(config);
             case htMiniDeltaLCD: return new MiniDeltaLCD(config);
+            case htSimplyPrint: return new SimplyPrint(config);
             default:          return nullptr;
         }
     } else {

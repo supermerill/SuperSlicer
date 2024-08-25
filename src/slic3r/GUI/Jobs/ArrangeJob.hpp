@@ -1,7 +1,9 @@
 #ifndef ARRANGEJOB_HPP
 #define ARRANGEJOB_HPP
 
-#include "PlaterJob.hpp"
+#include <optional>
+
+#include "Job.hpp"
 #include "libslic3r/Arrange.hpp"
 #include "libslic3r/Print.hpp"
 
@@ -11,49 +13,48 @@ class ModelInstance;
 
 namespace GUI {
 
-class ArrangeJob : public PlaterJob
+class Plater;
+
+class ArrangeJob : public Job
 {
     using ArrangePolygon = arrangement::ArrangePolygon;
     using ArrangePolygons = arrangement::ArrangePolygons;
-    
+
     ArrangePolygons m_selected, m_unselected, m_unprintable;
     std::vector<ModelInstance*> m_unarranged;
+    Plater *m_plater;
+    bool m_force_prepare_all{false};
 
     // clear m_selected and m_unselected, reserve space for next usage
     void clear_input();
 
-    
+
     // Prepare the selected and unselected items separately. If nothing is
     // selected, behaves as if everything would be selected.
     void prepare_selected();
 
     ArrangePolygon get_arrange_poly_(ModelInstance *mi);
 
-protected:
-
-    void prepare() override;
-
-    void on_exception(const std::exception_ptr &) override;
-
-
 public:
     // Prepare all objects on the bed regardless of the selection
     //put on public to be accessed by calibrations
     void prepare_all();
 
-    // for calibrations
-    void process() override;
+    void prepare();
 
-    ArrangeJob(std::shared_ptr<ProgressIndicator> pri, Plater *plater)
-        : PlaterJob{std::move(pri), plater}
-    {}
+    void process(Ctl &ctl) override;
 
-    int status_range() const override
+    ArrangeJob(bool force_prepare_all = false);
+
+    int status_range() const
     {
         return int(m_selected.size() + m_unprintable.size());
     }
 
-    void finalize() override;
+    void finalize(bool canceled, std::exception_ptr &e) override;
+
+    // Enabling this option will have all objects be prepared, even if shift key is not pressed
+    void set_force_prepare_all(bool value = true) { m_force_prepare_all = value; }
 };
 
 std::optional<arrangement::ArrangePolygon> get_wipe_tower_arrangepoly(const Plater &);

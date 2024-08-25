@@ -14,6 +14,7 @@
 #include "libslic3r/BoundingBox.hpp"
 #include "libslic3r/GCode/GCodeProcessor.hpp"
 #include "Jobs/Job.hpp"
+#include "Jobs/Worker.hpp"
 #include "Search.hpp"
 #include "GUI_Preview.hpp"
 #include "ProjectDirtyStateManager.hpp"
@@ -97,7 +98,7 @@ public:
     ObjectLayers*           obj_layers();
     wxScrolledWindow*       scrolled_panel();
     wxPanel*                presets_panel();
-    
+
     ConfigOptionsGroup*     og_freq_chng_params(PrinterTechnology tech);
     wxButton*               get_wiping_dialog_button();
     void                    update_objects_list_extruder_column(size_t extruders_count);
@@ -187,8 +188,41 @@ public:
     const wxString& get_last_loaded_gcode() const { return m_last_loaded_gcode; }
 
     void update();
-    void stop_jobs();
-    bool is_any_job_running() const;
+
+    // Get the worker handling the UI jobs (arrange, fill bed, etc...)
+    // Here is an example of starting up an ad-hoc job:
+    //    queue_job(
+    //        get_ui_job_worker(),
+    //        [](Job::Ctl &ctl) {
+    //            // Executed in the worker thread
+    //
+    //            CursorSetterRAII cursor_setter{ctl};
+    //            std::string msg = "Running";
+    //
+    //            ctl.update_status(0, msg);
+    //            for (int i = 0; i < 100; i++) {
+    //                usleep(100000);
+    //                if (ctl.was_canceled()) break;
+    //                ctl.update_status(i + 1, msg);
+    //            }
+    //            ctl.update_status(100, msg);
+    //        },
+    //        [](bool, std::exception_ptr &e) {
+    //            // Executed in UI thread after the work is done
+    //
+    //            try {
+    //                if (e) std::rethrow_exception(e);
+    //            } catch (std::exception &e) {
+    //                BOOST_LOG_TRIVIAL(error) << e.what();
+    //            }
+    //            e = nullptr;
+    //        });
+    // This would result in quick run of the progress indicator notification
+    // from 0 to 100. Use replace_job() instead of queue_job() to cancel all
+    // pending jobs.
+    Worker& get_ui_job_worker();
+    const Worker & get_ui_job_worker() const;
+
     void select_view(const std::string& direction);
     void select_view_3D(const std::string& name);
     void set_force_preview(Preview::ForceState force);
@@ -267,7 +301,7 @@ public:
     bool undo_redo_string_getter(const bool is_undo, int idx, const char** out_text);
     void undo_redo_topmost_string_getter(const bool is_undo, std::string& out_text);
     bool search_string_getter(int idx, const char** label, const char** tooltip);
-    // For the memory statistics. 
+    // For the memory statistics.
     const Slic3r::UndoRedo::Stack& undo_redo_stack_main() const;
     void clear_undo_redo_stack_main();
     // Enter / leave the Gizmos specific Undo / Redo stack. To be used by the SLA support point editing gizmo.
@@ -291,14 +325,14 @@ public:
     void set_project_filename(const wxString& filename);
 
     bool is_export_gcode_scheduled() const;
-    
+
     const Selection& get_selection() const;
     int get_selected_object_idx();
     bool is_single_full_object_selection() const;
     GLCanvas3D* canvas3D();
     const GLCanvas3D * canvas3D() const;
     GLCanvas3D* get_current_canvas3D();
-    
+
     void arrange();
     void find_new_position(const ModelInstancePtrs  &instances);
 
@@ -316,7 +350,6 @@ public:
     void mirror(Axis axis);
     void split_object();
     void split_volume();
-    void optimize_rotation();
 
     bool can_delete() const;
     bool can_delete_all() const;
@@ -382,7 +415,7 @@ public:
     void init_notification_manager();
 
     void bring_instance_forward();
-    
+
 	// ROII wrapper for suppressing the Undo / Redo snapshot to be taken.
 	class SuppressSnapshots
 	{

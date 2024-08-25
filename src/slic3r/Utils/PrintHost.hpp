@@ -32,7 +32,7 @@ struct PrintHostUpload
     boost::filesystem::path upload_path;
     
     std::string group;
-    
+
     PrintHostPostUploadAction post_action { PrintHostPostUploadAction::None };
 };
 
@@ -64,6 +64,12 @@ public:
 
     static PrintHost* get_print_host(DynamicPrintConfig *config);
 
+    //Support for cloud webui login
+    virtual bool is_cloud() const { return false; }
+    virtual bool is_logged_in() const { return false; }
+    virtual void log_out() const {}
+    virtual bool get_login_url(wxString& auth_url) const { return false; }
+
 protected:
     virtual wxString format_error(const std::string &body, const std::string &error, unsigned status) const;
 };
@@ -73,6 +79,7 @@ struct PrintHostJob
 {
     PrintHostUpload upload_data;
     std::unique_ptr<PrintHost> printhost;
+    bool switch_to_device_tab{false};
     bool cancelled = false;
 
     PrintHostJob() {}
@@ -80,6 +87,7 @@ struct PrintHostJob
     PrintHostJob(PrintHostJob &&other)
         : upload_data(std::move(other.upload_data))
         , printhost(std::move(other.printhost))
+        , switch_to_device_tab(other.switch_to_device_tab)
         , cancelled(other.cancelled)
     {}
 
@@ -91,7 +99,8 @@ struct PrintHostJob
     PrintHostJob& operator=(PrintHostJob &&other)
     {
         upload_data = std::move(other.upload_data);
-        printhost = std::move(other.printhost);
+        printhost   = std::move(other.printhost);
+        switch_to_device_tab = other.switch_to_device_tab;
         cancelled = other.cancelled;
         return *this;
     }

@@ -108,6 +108,7 @@ static const t_config_enum_values s_keys_map_PrintHostType {
     {"mpmdv2",  htMPMDv2},
     {"mks",     htMKS },
     {"monoprice", htMiniDeltaLCD },
+    {"simplyprint", htSimplyPrint},
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(PrintHostType)
 
@@ -399,7 +400,7 @@ void PrintConfigDef::init_common_params()
     def->tooltip = L("Print the thumbnail code at the end of the gcode file instead of the front."
         "\nBe careful! Most firmwares expect it at the front, so be sure that your firmware support it.");
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionBool(false)); 
+    def->set_default_value(new ConfigOptionBool(false));
 
     def = this->add("thumbnails_with_bed", coBool);
     def->label = L("Bed on thumbnail");
@@ -484,7 +485,7 @@ void PrintConfigDef::init_common_params()
     def->mode = comAdvancedE | comPrusa;
     def->cli = ConfigOptionDef::nocli;
     def->set_default_value(new ConfigOptionString(""));
-    
+
     // for repetier
     def = this->add("printhost_port", coString);
     def->label = L("Printer");
@@ -493,7 +494,7 @@ void PrintConfigDef::init_common_params()
     def->mode = comAdvancedE | comPrusa;
     def->cli = ConfigOptionDef::nocli;
     def->set_default_value(new ConfigOptionString(""));
-    
+
     // only if there isn't a native SSL support
     def = this->add("printhost_cafile", coString);
     def->label = L("HTTPS CA File");
@@ -544,7 +545,7 @@ void PrintConfigDef::init_common_params()
     def->mode = comAdvancedE | comPrusa;
     def->cli = ConfigOptionDef::nocli;
     def->set_default_value(new ConfigOptionBool(false));
-    
+
     def = this->add("preset_names", coStrings);
     def->label = L("Printer preset names");
     def->tooltip = L("Names of presets related to the physical printer");
@@ -919,8 +920,8 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->max = 180;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(new ConfigOptionFloat(125)); 
-    
+    def->set_default_value(new ConfigOptionFloat(125));
+
     def = this->add("brim_acceleration", coFloatOrPercent);
     def->label = L("Brim & Skirt");
     def->full_label = L("Brim & Skirt acceleration");
@@ -2330,7 +2331,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->set_default_value(new ConfigOptionFloat(0));
 
-    def             = this->add("fill_angle_template", coFloats);   
+    def             = this->add("fill_angle_template", coFloats);
     def->label      = L("Fill angle template");
     def->full_label = L("Fill angle template");
     def->category   = OptionCategory::infill;
@@ -2406,7 +2407,7 @@ void PrintConfigDef::init_fff_params()
     def->enum_values.push_back("hilbertcurve");
     def->enum_values.push_back("archimedeanchords");
     def->enum_values.push_back("octagramspiral");
-    def->enum_values.push_back("scatteredrectilinear"); 
+    def->enum_values.push_back("scatteredrectilinear");
     def->enum_values.push_back("adaptivecubic");
     def->enum_values.push_back("supportcubic");
     def->enum_values.push_back("lightning");
@@ -2617,7 +2618,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionFloatOrPercent(30, false));
-    
+
     def = this->add("first_layer_infill_speed", coFloatOrPercent);
     def->label = L("Max infill");
     def->full_label = L("Infill max first layer speed");
@@ -2642,7 +2643,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(new ConfigOptionFloat(0));
-    
+
     def = this->add("first_layer_temperature", coInts);
     def->label = L("First layer");
     def->full_label = L("First layer nozzle temperature");
@@ -3127,7 +3128,7 @@ void PrintConfigDef::init_fff_params()
         " The dense infill is laid out with a 50% infill density.");
     def->mode = comSimpleAE | comSuSi;
     def->set_default_value(new ConfigOptionBool(false));
-    
+
     def = this->add("infill_dense_algo", coEnum);
     def->label = L("Algorithm");
     def->full_label = L("Dense infill algorithm");
@@ -3868,6 +3869,7 @@ void PrintConfigDef::init_fff_params()
     def->enum_values.push_back("mpmdv2");
     def->enum_values.push_back("mks");
     def->enum_values.push_back("monoprice");
+    def->enum_values.push_back("simplyprint");
     def->enum_labels.push_back("PrusaLink");
     def->enum_labels.push_back("OctoPrint");
     def->enum_labels.push_back("Duet");
@@ -3878,6 +3880,7 @@ void PrintConfigDef::init_fff_params()
     def->enum_labels.push_back("MPMDv2");
     def->enum_labels.push_back("MKS");
     def->enum_labels.push_back("Monoprice lcd");
+    def->enum_labels.push_back("SimplyPrint");
     def->mode = comAdvancedE | comPrusa;
     def->cli = ConfigOptionDef::nocli;
     def->set_default_value(new ConfigOptionEnum<PrintHostType>(htOctoPrint));
@@ -5207,7 +5210,7 @@ void PrintConfigDef::init_fff_params()
                      "User is responsible for ensuring there is no collision with the print.");
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionBool(false));
-    
+
     def = this->add("solid_infill_acceleration", coFloatOrPercent);
     def->label = L("Solid ");
     def->full_label = L("Solid acceleration");
@@ -5617,7 +5620,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(new ConfigOptionFloatOrPercent(0, false));
-    
+
     def = this->add("support_material_spacing", coFloat);
     def->label = L("Pattern spacing");
     def->category = OptionCategory::support;
@@ -6497,7 +6500,7 @@ void PrintConfigDef::init_fff_params()
     // Declare retract values for filament profile, overriding the printer's extruder profile.
     for (const char *opt_key : {
         // floats
-        "retract_length", "retract_lift", "retract_lift_above", "retract_lift_below", "retract_speed", 
+        "retract_length", "retract_lift", "retract_lift_above", "retract_lift_below", "retract_speed",
         "deretract_speed", "retract_restart_extra", "retract_before_travel", "retract_lift_before_travel",
         "wipe_extra_perimeter", "wipe_speed",
         "wipe_inside_depth", "wipe_inside_end", "wipe_inside_start",
@@ -6890,7 +6893,7 @@ void PrintConfigDef::init_sla_params()
                       "to the sign of the correction.");
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionFloat(0.0));
-    
+
     def = this->add("elephant_foot_min_width", coFloat);
     def->label = L("minimum width");
     def->category = OptionCategory::slicing;
@@ -7154,7 +7157,7 @@ void PrintConfigDef::init_sla_params()
     def->max = 100;
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionPercent(50));
-    
+
     def = this->add("support_max_bridges_on_pillar", coInt);
     def->label = L("Max bridges on a pillar");
     def->tooltip = L(
@@ -7321,7 +7324,7 @@ void PrintConfigDef::init_sla_params()
     def->max = 30;
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionFloat(0.));
-    
+
     def = this->add("pad_brim_size", coFloat);
     def->label = L("Pad brim size");
     def->tooltip = L("How far should the pad extend around the contained geometry");
@@ -7372,7 +7375,7 @@ void PrintConfigDef::init_sla_params()
     def->tooltip = L("Create pad around object and ignore the support elevation");
     def->mode = comSimpleAE | comPrusa;
     def->set_default_value(new ConfigOptionBool(false));
-    
+
     def = this->add("pad_around_object_everywhere", coBool);
     def->label = L("Pad around object everywhere");
     def->category = OptionCategory::pad;
@@ -7418,14 +7421,14 @@ void PrintConfigDef::init_sla_params()
     def->min = 0;
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionFloat(0.3));
-    
+
     def = this->add("hollowing_enable", coBool);
     def->label = L("Enable hollowing");
     def->category = OptionCategory::hollowing;
     def->tooltip = L("Hollow out a model to have an empty interior");
     def->mode = comSimpleAE | comPrusa;
     def->set_default_value(new ConfigOptionBool(false));
-    
+
     def = this->add("hollowing_min_thickness", coFloat);
     def->label = L("Wall thickness");
     def->category = OptionCategory::hollowing;
@@ -7435,7 +7438,7 @@ void PrintConfigDef::init_sla_params()
     def->max = 10;
     def->mode = comSimpleAE | comPrusa;
     def->set_default_value(new ConfigOptionFloat(3.));
-    
+
     def = this->add("hollowing_quality", coFloat);
     def->label = L("Accuracy");
     def->category = OptionCategory::hollowing;
@@ -7444,7 +7447,7 @@ void PrintConfigDef::init_sla_params()
     def->max = 1;
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionFloat(0.5));
-    
+
     def = this->add("hollowing_closing_distance", coFloat);
     def->label = L("Closing distance");
     def->category = OptionCategory::hollowing;
@@ -7835,7 +7838,7 @@ std::map<std::string,std::string> PrintConfigDef::from_prusa(t_config_option_key
             output["thumbnails_tag_format"] = "0";
     }
 
-    
+
     // ---- custom gcode: ----
     static const std::vector<std::pair<std::string, std::string>> custom_gcode_replace =
         {{"[temperature]", "{temperature+extruder_temperature_offset}"},
@@ -8374,7 +8377,7 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
             value = std::to_string(all_conf.get_abs_value(opt_key, all_conf.get_computed_value("default_acceleration")));
         }
     } else if ("infill_acceleration" == opt_key || "bridge_acceleration" == opt_key || "default_acceleration" == opt_key || "perimeter_acceleration" == opt_key
-        || "overhangs_speed" == opt_key || "ironing_speed" == opt_key || "perimeter_speed" == opt_key 
+        || "overhangs_speed" == opt_key || "ironing_speed" == opt_key || "perimeter_speed" == opt_key
         || "infill_speed" == opt_key || "bridge_speed" == opt_key || "support_material_speed" == opt_key
         || "max_print_speed" == opt_key
         ) {
@@ -8441,7 +8444,7 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
         if ("klipper" == value)
             value = "octoprint";
     } else if (opt_key.find("extrusion_width") != std::string::npos) {
-        if (std::set<std::string>{"extrusion_width", "first_layer_extrusion_width", "perimeter_extrusion_width", "external_perimeter_extrusion_width", 
+        if (std::set<std::string>{"extrusion_width", "first_layer_extrusion_width", "perimeter_extrusion_width", "external_perimeter_extrusion_width",
             "infill_extrusion_width", "solid_infill_extrusion_width", "top_infill_extrusion_width", "support_material_extrusion_width"}.count(opt_key) > 0) {
             const ConfigOptionFloatOrPercent* opt = all_conf.option<ConfigOptionFloatOrPercent>(opt_key);
             if (opt->is_phony() || opt->percent) {
@@ -8509,7 +8512,7 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
         assert(computed_opt.size() == nozzle_diameters->size());
         value = computed_opt.serialize();
     }
-    
+
 
     // ---- custom gcode: ----
     static const std::vector<std::pair<std::string, std::string>> custom_gcode_replace =
@@ -8641,7 +8644,7 @@ double min_object_distance(const PrintConfig& config)
 double min_object_distance(const ConfigBase *config, double ref_height /* = 0*/)
 {
     if (printer_technology(*config) == ptSLA) return 6.;
-    
+
     const ConfigOptionFloat* dd_opt = config->option<ConfigOptionFloat>("duplicate_distance");
     //test if called from usaslicer::l240 where it's called on an empty config...
     if (dd_opt == nullptr) return 0;
@@ -8763,8 +8766,8 @@ void DynamicPrintConfig::normalize_fdm()
             this->opt<ConfigOptionBool>("extra_perimeters", true)->value = false;
             this->opt<ConfigOptionBool>("extra_perimeters_overhangs", true)->value = false;
             this->opt<ConfigOptionBool>("extra_perimeters_odd_layers", true)->value = false;
-            this->opt<ConfigOptionBool>("overhangs_reverse", true)->value = false; 
-            this->opt<ConfigOptionBool>("perimeter_reverse", true)->value = false; 
+            this->opt<ConfigOptionBool>("overhangs_reverse", true)->value = false;
+            this->opt<ConfigOptionBool>("perimeter_reverse", true)->value = false;
         }
     }
 
@@ -9093,8 +9096,8 @@ std::set<const DynamicPrintConfig*> DynamicPrintConfig::value_changed(const t_co
                             if (width_option->value == 0)
                                 spacing_option->value = 0;
                             else {
-                                Flow flow = Flow::new_from_config_width(FlowRole::frPerimeter, 
-                                    width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, 
+                                Flow flow = Flow::new_from_config_width(FlowRole::frPerimeter,
+                                    width_option->value == 0 ? *default_width_option : *width_option, *spacing_option,
                                     max_nozzle_diameter, layer_height_option->value, overlap_ratio, 0);
                                 if (flow.width() < flow.height()) flow.with_height(flow.width());
                                 spacing_option->value = (width_option->percent) ? std::round(100 * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * 10000) / 10000);
@@ -9112,9 +9115,9 @@ std::set<const DynamicPrintConfig*> DynamicPrintConfig::value_changed(const t_co
                         if (width_option->value == 0)
                             spacing_option->value = 0;
                         else {
-                            Flow flow = Flow::new_from_config_width(FlowRole::frExternalPerimeter, 
-                                width_option->value == 0 ? *default_width_option : *width_option,  *spacing_option, 
-                                max_nozzle_diameter, layer_height_option->value, 
+                            Flow flow = Flow::new_from_config_width(FlowRole::frExternalPerimeter,
+                                width_option->value == 0 ? *default_width_option : *width_option,  *spacing_option,
+                                max_nozzle_diameter, layer_height_option->value,
                                 std::min(overlap_ratio, (float)perimeter_overlap_option->get_abs_value(1)), 0);
                             if (flow.width() < flow.height()) flow = flow.with_height(flow.width());
                             spacing_option->value = (width_option->percent) ? std::round(100 * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * 10000) / 10000);
@@ -9132,9 +9135,9 @@ std::set<const DynamicPrintConfig*> DynamicPrintConfig::value_changed(const t_co
                         if (width_option->value == 0)
                             spacing_option->value = 0;
                         else {
-                            Flow ext_perimeter_flow = Flow::new_from_config_width(FlowRole::frPerimeter, 
-                                width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, 
-                                max_nozzle_diameter, layer_height_option->value, 
+                            Flow ext_perimeter_flow = Flow::new_from_config_width(FlowRole::frPerimeter,
+                                width_option->value == 0 ? *default_width_option : *width_option, *spacing_option,
+                                max_nozzle_diameter, layer_height_option->value,
                                 std::min(overlap_ratio * 0.5f, float(external_perimeter_overlap_option->get_abs_value(0.5))), 0);
                             if (ext_perimeter_flow.width() < ext_perimeter_flow.height()) ext_perimeter_flow = ext_perimeter_flow.with_height(ext_perimeter_flow.width());
                             spacing_option->value = (width_option->percent) ? std::round(100 * ext_perimeter_flow.spacing() / max_nozzle_diameter) : (std::round(ext_perimeter_flow.spacing() * 10000) / 10000);
@@ -9168,9 +9171,9 @@ std::set<const DynamicPrintConfig*> DynamicPrintConfig::value_changed(const t_co
                         if (width_option->value == 0)
                             spacing_option->value = 0;
                         else {
-                            Flow flow = Flow::new_from_config_width(FlowRole::frSolidInfill, 
-                                width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, 
-                                max_nozzle_diameter, layer_height_option->value, 
+                            Flow flow = Flow::new_from_config_width(FlowRole::frSolidInfill,
+                                width_option->value == 0 ? *default_width_option : *width_option, *spacing_option,
+                                max_nozzle_diameter, layer_height_option->value,
                                 std::min(overlap_ratio, float(solid_infill_overlap_option->get_abs_value(1.))), 0);
                             if (flow.width() < flow.height()) flow = flow.with_height(flow.width());
                             spacing_option->value = (width_option->percent) ? std::round(100 * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * 10000) / 10000);
@@ -9188,8 +9191,8 @@ std::set<const DynamicPrintConfig*> DynamicPrintConfig::value_changed(const t_co
                         if (width_option->value == 0)
                             spacing_option->value = 0;
                         else {
-                            Flow flow = Flow::new_from_config_width(FlowRole::frTopSolidInfill, 
-                                width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, 
+                            Flow flow = Flow::new_from_config_width(FlowRole::frTopSolidInfill,
+                                width_option->value == 0 ? *default_width_option : *width_option, *spacing_option,
                                 max_nozzle_diameter, layer_height_option->value,
                                 std::min(overlap_ratio, float(solid_infill_overlap_option->get_abs_value(1.))), 0);
                             if (flow.width() < flow.height()) flow = flow.with_height(flow.width());
@@ -9343,7 +9346,7 @@ std::string validate(const FullPrintConfig& cfg)
     // --skirt-height
     if (cfg.skirt_height < 0)
         return "Invalid value for --skirt-height";
-    
+
     // extruder clearance
     if (cfg.extruder_clearance_radius <= 0)
         return "Invalid value for --extruder-clearance-radius";
@@ -9732,22 +9735,22 @@ static Points to_points(const std::vector<Vec2d> &dpts)
     Points pts; pts.reserve(dpts.size());
     for (auto &v : dpts)
         pts.emplace_back( coord_t(scale_(v.x())), coord_t(scale_(v.y())) );
-    return pts;    
+    return pts;
 }
 
 Points get_bed_shape(const DynamicPrintConfig &config)
 {
     const auto *bed_shape_opt = config.opt<ConfigOptionPoints>("bed_shape");
     if (!bed_shape_opt) {
-        
+
         // Here, it is certain that the bed shape is missing, so an infinite one
         // has to be used, but still, the center of bed can be queried
         if (auto center_opt = config.opt<ConfigOptionPoint>("center"))
             return { scaled(center_opt->value) };
-        
+
         return {};
     }
-    
+
     return to_points(bed_shape_opt->values);
 }
 

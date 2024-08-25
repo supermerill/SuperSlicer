@@ -2,6 +2,8 @@
 #define slic3r_GUI_CalibrationBridgeDialog_hpp_
 
 #include "CalibrationAbstractDialog.hpp"
+#include "Jobs/BoostThreadWorker.hpp"
+#include "Jobs/WindowWorker.hpp"
 
 namespace Slic3r { 
 namespace GUI {
@@ -10,7 +12,12 @@ class CalibrationBridgeDialog : public CalibrationAbstractDialog
 {
 
 public:
-    CalibrationBridgeDialog(GUI_App* app, MainFrame* mainframe) : CalibrationAbstractDialog(app, mainframe, "Bridge calibration") { create(boost::filesystem::path("calibration") / "bridge_flow", "bridge_flow.html", wxSize(850, 400)); }
+    CalibrationBridgeDialog(GUI_App *app, MainFrame *mainframe)
+        : CalibrationAbstractDialog(app, mainframe, "Bridge calibration")
+    {
+        create(boost::filesystem::path("calibration") / "bridge_flow", "bridge_flow.html", wxSize(850, 400));
+        m_worker = std::make_unique<WindowWorker<BoostThreadWorker>>(this, nullptr, "arrange_worker");
+    }
     virtual ~CalibrationBridgeDialog() { }
     
 protected:
@@ -21,6 +28,7 @@ protected:
 
     wxComboBox* steps;
     wxComboBox* nb_tests;
+    std::unique_ptr<Worker> m_worker;
 };
 
 } // namespace GUI

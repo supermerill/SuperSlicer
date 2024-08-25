@@ -57,11 +57,11 @@ public:
     std::vector<std::string>    filament_presets;
 
     // The project configuration values are kept separated from the print/filament/printer preset,
-    // they are being serialized / deserialized from / to the .amf, .3mf, .config, .gcode, 
+    // they are being serialized / deserialized from / to the .amf, .3mf, .config, .gcode,
     // and they are being used by slicing core.
     DynamicPrintConfig          project_config;
 
-    // There will be an entry for each system profile loaded, 
+    // There will be an entry for each system profile loaded,
     // and the system profiles will point to the VendorProfile instances owned by PresetBundle::vendors.
     VendorMap                   vendors;
 
@@ -74,7 +74,7 @@ public:
     };
     ObsoletePresets             obsolete_presets;
 
-    bool                        has_defauls_only() const 
+    bool                        has_defauls_only() const
         { return fff_prints.has_defaults_only() && filaments.has_defaults_only() && printers.has_defaults_only(); }
 
     DynamicPrintConfig          full_config() const;
@@ -102,7 +102,7 @@ public:
     // Load settings into the provided settings instance.
     // Activate the presets stored in the config bundle.
     // Returns the number of presets loaded successfully.
-    enum LoadConfigBundleAttribute { 
+    enum LoadConfigBundleAttribute {
         // Save the profiles, which have been loaded.
         SaveImported,
         // Delete all old config profiles before loading.
@@ -125,7 +125,7 @@ public:
     // Enable / disable the "- default -" preset.
     void                        set_default_suppressed(bool default_suppressed);
 
-    // Set the filament preset name. As the name could come from the UI selection box, 
+    // Set the filament preset name. As the name could come from the UI selection box,
     // an optional "(modified)" suffix will be removed from the filament name.
     void                        set_filament_preset(size_t idx, const std::string &name);
 

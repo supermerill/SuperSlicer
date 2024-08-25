@@ -50,13 +50,13 @@ set(SLIC3R_GUI_SOURCES
     GUI/GLShadersManager.hpp
     GUI/GLShadersManager.cpp
     GUI/GLShader.cpp
-    GUI/GLShader.hpp    
+    GUI/GLShader.hpp
     GUI/GLCanvas3D.hpp
     GUI/GLCanvas3D.cpp
     GUI/OpenGLManager.hpp
     GUI/OpenGLManager.cpp
     GUI/Selection.hpp
-    GUI/Selection.cpp    
+    GUI/Selection.cpp
     GUI/Gizmos/GLGizmosManager.cpp
     GUI/Gizmos/GLGizmosManager.hpp
     GUI/Gizmos/GLGizmosCommon.cpp
@@ -96,7 +96,7 @@ set(SLIC3R_GUI_SOURCES
     GUI/GLToolbar.hpp
     GUI/GLToolbar.cpp
     GUI/GCodeViewer.hpp
-    GUI/GCodeViewer.cpp    
+    GUI/GCodeViewer.cpp
     GUI/Preferences.cpp
     GUI/Preferences.hpp
     GUI/PresetHints.cpp
@@ -180,7 +180,7 @@ set(SLIC3R_GUI_SOURCES
     Config/Snapshot.cpp
     Config/Snapshot.hpp
     Config/Version.cpp
-    Config/Version.hpp    
+    Config/Version.hpp
     Utils/ASCIIFolding.cpp
     Utils/ASCIIFolding.hpp
     Utils/Serial.cpp
@@ -197,10 +197,13 @@ set(SLIC3R_GUI_SOURCES
     GUI/PrintHostDialogs.cpp
     GUI/PrintHostDialogs.hpp
     GUI/Jobs/Job.hpp
-    GUI/Jobs/Job.cpp
-    GUI/Jobs/PlaterJob.hpp
-    GUI/Jobs/PlaterJob.cpp
-    GUI/Jobs/ArrangeJob.hpp
+    GUI/Jobs/Worker.hpp
+    GUI/Jobs/BoostThreadWorker.hpp
+    GUI/Jobs/BoostThreadWorker.cpp
+    GUI/Jobs/UIThreadWorker.hpp
+    GUI/Jobs/BusyCursorJob.hpp
+    GUI/Jobs/PlaterWorker.hpp
+    GUI/Jobs/WindowWorker.hpp
     GUI/Jobs/ArrangeJob.cpp
     GUI/Jobs/RotoptimizeJob.hpp
     GUI/Jobs/RotoptimizeJob.cpp
@@ -211,6 +214,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/Jobs/ProgressIndicator.hpp
     GUI/Jobs/NotificationProgressIndicator.hpp
     GUI/Jobs/NotificationProgressIndicator.cpp
+    GUI/Jobs/ThreadSafeQueue.hpp
+    GUI/Jobs/SLAImportDialog.hpp
     # GUI/ProgressStatusBar.hpp
     # GUI/ProgressStatusBar.cpp
     GUI/Mouse3DController.cpp
@@ -275,6 +280,14 @@ set(SLIC3R_GUI_SOURCES
     Utils/MKS.hpp
     Utils/MPMDv2.cpp
     Utils/MPMDv2.hpp
+    GUI/OAuthDialog.cpp
+    GUI/OAuthDialog.hpp
+    GUI/Jobs/OAuthJob.cpp
+    GUI/Jobs/OAuthJob.hpp
+    Utils/SimplyPrint.cpp
+    Utils/SimplyPrint.hpp
+    GUI/HttpServer.cpp
+    GUI/HttpServer.hpp
 )
 
 if (APPLE)
@@ -307,7 +320,7 @@ target_link_libraries(libslic3r_gui libslic3r avrdude cereal imgui GLEW::GLEW Op
 if (MSVC)
     target_link_libraries(libslic3r_gui Setupapi.lib)
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_link_libraries(libslic3r_gui ${DBUS_LIBRARIES}) 
+    target_link_libraries(libslic3r_gui ${DBUS_LIBRARIES})
 elseif (APPLE)
     target_link_libraries(libslic3r_gui ${DISKARBITRATION_LIBRARY})
 endif()

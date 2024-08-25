@@ -176,6 +176,9 @@ public:
 	void			show_field(const t_config_option_key& opt_key, bool show = true);
 	void			hide_field(const t_config_option_key& opt_key) {  show_field(opt_key, false);  }
 
+	void            enable_field(const t_config_option_key& opt_key, bool enable = true);
+    void            disable_field(const t_config_option_key& opt_key) { enable_field(opt_key, false); }
+
 	void			set_name(const wxString& new_name) {
 							stb->SetLabel(new_name);
     }
@@ -188,7 +191,7 @@ public:
 
     void            hide_labels() { label_width = 0; title_width = 0;}
 
-	OptionsGroup(	wxWindow* _parent, const wxString& title, bool is_tab_opt = false, 
+	OptionsGroup(	wxWindow* _parent, const wxString& title, bool is_tab_opt = false,
                     column_t extra_clmn = nullptr);
 	~OptionsGroup() { clear(true); }
 
@@ -267,7 +270,7 @@ public:
 	void		copy_for_freq_settings(const ConfigOptionsGroup& origin) { this->m_opt_map = origin.m_opt_map; }
 
 	void 		set_config_category_and_type(const wxString &category, int type) { m_config_category = category; m_config_type = type; }
-	void        set_config(ConfigBase* config) { 
+	void        set_config(ConfigBase* config) {
 		m_config = config; m_modelconfig = nullptr; m_config_mutable = config;
 	}
 
