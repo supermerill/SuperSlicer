@@ -268,6 +268,7 @@ public:
     void                split();
     void                merge(bool to_multipart_object);
     void                layers_editing();
+    void                layers_editing(int obj_idx);
 
     wxDataViewItem      add_layer_root_item(const wxDataViewItem obj_item);
     wxDataViewItem      add_settings_item(wxDataViewItem parent_item, const DynamicPrintConfig* config);

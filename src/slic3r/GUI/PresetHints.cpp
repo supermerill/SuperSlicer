@@ -108,7 +108,7 @@ std::string PresetHints::cooling_description(const Preset &preset_fil, const Pre
     const int    support_fan_speed         = preset_fil.config.opt_int("support_material_fan_speed", 0) == 1 ? 0 : preset_fil.config.get_int("support_material_fan_speed");
     const int    supp_inter_fan_speed      = preset_fil.config.opt_int("support_material_interface_fan_speed", 0) == 1 ? 0 : preset_fil.config.get_int("support_material_interface_fan_speed");
     const int    bridge_fan_speed          = preset_fil.config.opt_int("bridge_fan_speed", 0) == 1 ? 0 : preset_fil.config.get_int("bridge_fan_speed");
-    const int    bridge_internal_fan_speed = preset_fil.config.opt_int("bridge_internal_fan_speed", 0) == 1 ? 0 : preset_fil.config.get_int("bridge_internal_fan_speed");
+    const int    internal_bridge_fan_speed = preset_fil.config.opt_int("internal_bridge_fan_speed", 0) == 1 ? 0 : preset_fil.config.get_int("internal_bridge_fan_speed");
     const int    overhangs_fan_speed       = preset_fil.config.opt_int("overhangs_fan_speed", 0) == 1 ? 0 : preset_fil.config.get_int("overhangs_fan_speed");
     const int    gap_fill_fan_speed        = preset_fil.config.opt_int("gap_fill_fan_speed", 0) == 1 ? 0 : preset_fil.config.get_int("gap_fill_fan_speed");
     const int    disable_fan_first_layers  = preset_fil.config.opt_int("disable_fan_first_layers", 0);
@@ -133,7 +133,7 @@ std::string PresetHints::cooling_description(const Preset &preset_fil, const Pre
     format_simple_fan_min_speed(out, min_fan_speed, default_fan_speed, _L("Solid surfaces"), solid_fan_speed);
     format_simple_fan_speed(out, min_fan_speed, default_fan_speed, _L("Top surfaces"), top_fan_speed);
     format_double_fan_min_speed(out, min_fan_speed, default_fan_speed, _L("Supports"), support_fan_speed, _L("Support interfaces"), supp_inter_fan_speed);
-    format_double_fan_speed(out, min_fan_speed, default_fan_speed, _L("Bridges"), bridge_fan_speed, _L("Internal bridges"), bridge_internal_fan_speed);
+    format_double_fan_speed(out, min_fan_speed, default_fan_speed, _L("Bridges"), bridge_fan_speed, _L("Internal bridges"), internal_bridge_fan_speed);
     format_simple_fan_min_speed(out, min_fan_speed, default_fan_speed, _L("Perimeter overhangs"), overhangs_fan_speed);
     format_simple_fan_min_speed(out, min_fan_speed, default_fan_speed, _L("Gap fills"), gap_fill_fan_speed);
     
@@ -160,7 +160,7 @@ std::string PresetHints::cooling_description(const Preset &preset_fil, const Pre
             surface_list += ",";
             surface_list += _L("Bridges");
         }
-        if (bridge_internal_fan_speed > 0) {
+        if (internal_bridge_fan_speed > 0) {
             surface_list += ",";
             surface_list += _L("Internal bridges");
         }
@@ -243,7 +243,7 @@ std::string PresetHints::cooling_description(const Preset &preset_fil, const Pre
         out += "\n\n" + _L("! 1 for the External perimeters fan speed is Deprecated, please set it to 0 to stop the fan!");
     if (preset_fil.config.opt_int("bridge_fan_speed", 0) == 1)
         out += "\n\n" + _L("! 1 for the Bridge fan speed is Deprecated, please set it to 0 to stop the fan!");
-    if (preset_fil.config.opt_int("bridge_internal_fan_speed", 0) == 1)
+    if (preset_fil.config.opt_int("internal_bridge_fan_speed", 0) == 1)
         out += "\n\n" + _L("! 1 for the Infill bridge fan speed is Deprecated, please set it to 0 to stop the fan!");
 
     return out.ToStdString();

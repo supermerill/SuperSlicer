@@ -12,6 +12,7 @@ src/slic3r/GUI/CalibrationCubeDialog.cpp
 src/slic3r/GUI/CalibrationFlowDialog.cpp
 src/slic3r/GUI/CalibrationOverBridgeDialog.cpp
 src/slic3r/GUI/CalibrationRetractionDialog.cpp
+src/slic3r/GUI/CalibrationPressureAdvDialog.cpp
 src/slic3r/GUI/CalibrationTempDialog.cpp
 src/slic3r/GUI/ConfigManipulation.cpp
 src/slic3r/GUI/ConfigSnapshotDialog.cpp

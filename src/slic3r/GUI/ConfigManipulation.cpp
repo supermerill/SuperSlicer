@@ -513,10 +513,11 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
         "raft_layer_height", "raft_interface_layer_height"})
         toggle_field(el, have_raft);
 
-    //for default_extrusion_width/spacing, you need to ahve at least an extrusion_width with 0
+    //for default_extrusion_width/spacing, you need to have at least an extrusion_width with 0
     bool have_default_width = config->option("first_layer_extrusion_width")->get_float() == 0 ||
         (config->option("perimeter_extrusion_width")->get_float() == 0 && (have_perimeters || have_brim)) ||
         (config->option("external_perimeter_extrusion_width")->get_float() == 0 && have_perimeters) ||
+        (config->option("first_layer_extrusion_width")->get_float() == 0 && have_perimeters) ||
         (config->option("infill_extrusion_width")->get_float() == 0 && (have_infill || has_solid_infill)) ||
         (config->option("solid_infill_extrusion_width")->get_float() == 0 && has_solid_infill) ||
         (config->option("top_infill_extrusion_width")->get_float() == 0 && has_top_solid_infill) ||
@@ -524,6 +525,8 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
         (config->option("skirt_extrusion_width")->get_float() == 0 && have_skirt);
     toggle_field("extrusion_width", have_default_width);
     toggle_field("extrusion_spacing", have_default_width);
+    toggle_field("first_layer_extrusion_width", have_perimeters);
+    toggle_field("first_layer_extrusion_spacing", have_perimeters);
 
     bool has_PP_ironing = has_top_solid_infill && config->opt_bool("ironing");
     for (auto el : { "ironing_type", "ironing_flowrate", "ironing_spacing", "ironing_angle" })
@@ -577,7 +580,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
     toggle_field("support_material_acceleration", have_default_acceleration && (have_support_material || have_brim || have_skirt));
     toggle_field("support_material_interface_acceleration", have_default_acceleration && have_support_material && have_support_interface);
     toggle_field("brim_acceleration", have_default_acceleration && (have_brim || have_skirt));
-    for (auto el : { "bridge_acceleration", "bridge_internal_acceleration", "overhangs_acceleration", "gap_fill_acceleration", "travel_acceleration", "travel_deceleration_use_target", "first_layer_acceleration" })
+    for (auto el : { "bridge_acceleration", "internal_bridge_acceleration", "overhangs_acceleration", "gap_fill_acceleration", "travel_acceleration", "travel_deceleration_use_target", "first_layer_acceleration" })
         toggle_field(el, have_default_acceleration);
 
     // for default speed, it needs at least a dependent field with a %

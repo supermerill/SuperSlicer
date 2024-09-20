@@ -590,7 +590,8 @@ void PrintConfigDef::init_fff_params()
     def->label = L("Arc fitting");
     def->category = OptionCategory::firmware;
     def->tooltip = L("Enable this to get a G-code file which has G2 and G3 moves. "
-        "And the fitting tolerance is same with resolution");
+        "And the fitting tolerance is same with resolution\n"
+        "Please make sure your firmware is configured for GCode Arcs support");
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(new ConfigOptionBool(false));
 
@@ -676,6 +677,18 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionString(""));
 
+    def = this->add("per_objects_gcode", coString);
+    def->label = L("Per object G-code");
+    def->category = OptionCategory::customgcode;
+    def->tooltip = L("This code is inserted at the start of every object. it's main advantage is when you use it as a object modifer(right click on a model to add it there)"
+                     "\nadd here the model names you want to insert the gocde for eg:'90_bend.3mf' if you have several seperate them with ',' no spaces in any target file name!"
+                     "\nthe code will search for that object name and insert the custom gcode per that object only.");
+    def->multiline = true;
+    def->full_width = true;
+    def->height = 10;
+    def->mode = comExpert | comPrusa;
+    def->set_default_value(new ConfigOptionString(""));
+
     def = this->add("bottom_solid_layers", coInt);
     //TRN To be shown in Print Settings "Bottom solid layers"
     def->label = L("Bottom");
@@ -712,20 +725,6 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionFloatOrPercent(0,false));
 
-    def = this->add("bridge_internal_acceleration", coFloatOrPercent);
-    def->label = L("Internal bridges ");
-    def->full_label = L("Internal bridges acceleration");
-    def->category = OptionCategory::speed;
-    def->tooltip = L("This is the acceleration your printer will use for internal bridges. "
-                "\nCan be a % of the default acceleration"
-                "\nSet zero to use bridge acceleration for internal bridges.");
-    def->sidetext = L("mm/s² or %");
-    def->ratio_over = "bridge_acceleration";
-    def->min = 0;
-    def->max_literal = { -200, false };
-    def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionFloatOrPercent(0,false));
-
     def = this->add("bridge_angle", coFloat);
     def->label = L("Bridging");
     def->full_label = L("Bridging angle");
@@ -750,19 +749,6 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comPrusa;
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionInts{ 100 });
-
-    def = this->add("bridge_internal_fan_speed", coInts);
-    def->label = L("Infill bridges fan speed");
-    def->category = OptionCategory::cooling;
-    def->tooltip = L("This fan speed is enforced during all infill bridges. It won't slow down the fan if it's currently running at a higher speed."
-        "\nSet to -1 to disable this override (Internal bridges will use Bridges fan speed)."
-        "\nCan be disabled by disable_fan_first_layers and increased by low layer time.");
-    def->sidetext = L("%");
-    def->min = -1;
-    def->max = 100;
-    def->mode = comAdvancedE | comSuSi;
-    def->is_vector_extruder = true;
-    def->set_default_value(new ConfigOptionInts{ -1 });
 
     def = this->add("bridge_type", coEnum);
     def->label = L("Bridge flow baseline");
@@ -854,17 +840,6 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionFloatOrPercent(60, true));
-
-    def = this->add("bridge_speed_internal", coFloatOrPercent);
-    def->label = L("Internal bridges");
-    def->full_label = L("Internal bridge speed");
-    def->category = OptionCategory::speed;
-    def->tooltip = L("Speed for printing the bridges that support the top layer.\nCan be a % of the bridge speed.");
-    def->sidetext = L("mm/s or %");
-    def->ratio_over = "bridge_speed";
-    def->min = 0;
-    def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionFloatOrPercent(150,true));
 
     def = this->add("brim_inside_holes", coBool);
     def->label = L("Brim inside holes");
@@ -1443,7 +1418,7 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("Fill pattern for bridges and internal bridge infill.");
     def->enum_keys_map = &ConfigOptionEnum<InfillPattern>::get_enum_values();
     def->enum_values.push_back("rectilinear");
-    def->enum_values.push_back("monotonic");
+    def->enum_values.push_back("monotonic");    
     def->enum_labels.push_back(L("Rectilinear"));
     def->enum_labels.push_back(L("Monotonic"));
     def->mode = comExpert | comSuSi;
@@ -2765,7 +2740,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("gap_fill_flow_match_perimeter", coPercent);
     def->label = L("Cap with perimeter flow");
     def->full_label = L("Gapfill: cap speed with perimeter flow");
-    def->category = OptionCategory::output;
+    def->category = OptionCategory::speed;
     def->tooltip = L("A percentage of the perimeter flow (mm3/s) is used as a limit for the gap fill flow, and so the gapfill may reduce its speed when the gap fill extrusions became too thick."
                 " This allow you to use a high gapfill speed, to print the thin gapfill quickly and reduce the difference in flow rate for the gapfill."
                 "\nSet zero to deactivate.");
@@ -2922,7 +2897,8 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::output;
     def->tooltip = L("Enable this to add comments into the G-Code labeling print moves with what object they belong to,"
                    " which is useful for the Octoprint CancelObject plugin. This settings is NOT compatible with "
-                   "Single Extruder Multi Material setup and Wipe into Object / Wipe into Infill.");
+                   "Single Extruder Multi Material setup and Wipe into Object / Wipe into Infill."
+                   "Please make sure your firmware is configured for label objects support");
     def->aliases = { "label_printed_objects" };
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionBool(1));
@@ -2974,10 +2950,15 @@ void PrintConfigDef::init_fff_params()
     def->label = L("Combine infill every");
     def->category = OptionCategory::infill;
     def->tooltip = L("This feature allows you to combine infill and speed up your print by extruding thicker "
-                   "infill layers while preserving thin perimeters, thus accuracy.");
+                   "infill layers while preserving thin perimeters, thus accuracy."
+                   "\nthis will not make your combined layerheights larger than nozzle_diameter");
     def->sidetext = L("layers");
     def->full_label = L("Combine infill every n layers");
     def->min = 1;
+    //def->ratio_over = "nozzle_diameter";
+    //FIXME need to validate this max value based on nozzle_diameter and base_layer_height, ratio_over ?
+    //if base_layer_height 0.2 with 0.4mm nozzle it allows higher numbers to be set that might confuse some users.
+    //def->max = nozzle_diameter;
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionInt(1));
 
@@ -3287,6 +3268,47 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionBool(false));
 
+    def = this->add("internal_bridge_acceleration", coFloatOrPercent);
+    def->label = L("Internal bridges ");
+    def->full_label = L("Internal bridges acceleration");
+    def->category = OptionCategory::speed;
+    def->tooltip = L("This is the acceleration your printer will use for internal bridges. "
+                "\nCan be a % of the default acceleration"
+                "\nSet zero to use bridge acceleration for internal bridges.");
+    def->sidetext = L("mm/s² or %");
+    def->ratio_over = "bridge_acceleration";
+    def->min = 0;
+    def->max_literal = { -200, false };
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloatOrPercent(0,false));
+    def->aliases = { "bridge_internal_acceleration" };
+
+    def = this->add("internal_bridge_fan_speed", coInts);
+    def->label = L("Infill bridges fan speed");
+    def->category = OptionCategory::cooling;
+    def->tooltip = L("This fan speed is enforced during all infill bridges. It won't slow down the fan if it's currently running at a higher speed."
+        "\nSet to -1 to disable this override (Internal bridges will use Bridges fan speed)."
+        "\nCan be disabled by disable_fan_first_layers and increased by low layer time.");
+    def->sidetext = L("%");
+    def->min = -1;
+    def->max = 100;
+    def->mode = comAdvancedE | comSuSi;
+    def->is_vector_extruder = true;
+    def->set_default_value(new ConfigOptionInts{ -1 });
+    def->aliases = { "bridge_internal_fan_speed" };
+
+    def = this->add("internal_bridge_speed", coFloatOrPercent);
+    def->label = L("Internal bridges");
+    def->full_label = L("Internal bridge speed");
+    def->category = OptionCategory::speed;
+    def->tooltip = L("Speed for printing the bridges that support the top layer.\nCan be a % of the bridge speed.");
+    def->sidetext = L("mm/s or %");
+    def->ratio_over = "bridge_speed";
+    def->min = 0;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloatOrPercent(150,true));
+    def->aliases = { "bridge_speed_internal" };
+
     def = this->add("mmu_segmented_region_max_width", coFloat);
     def->label = L("Maximum width of a segmented region");
     def->tooltip = L("Maximum width of a segmented region. Zero disables this feature.");
@@ -3306,7 +3328,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("ironing_acceleration", coFloatOrPercent);
     def->label = L("Ironing");
     def->full_label = L("Ironing acceleration");
-    def->category = OptionCategory::speed;
+    def->category = OptionCategory::ironing;
     def->tooltip = L("This is the acceleration your printer will use for ironing. "
                 "\nCan be a % of the top solid infill acceleration"
                 "\nSet zero to use top solid infill acceleration for ironing.");
@@ -3901,6 +3923,18 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(new ConfigOptionString{ "" });
 
+    def = this->add("object_gcode", coString);
+    def->label = L("Per object G-code");
+    def->category = OptionCategory::advanced;
+    def->tooltip = L("This code is inserted each layer, when the object began to print (just after the label if any)."
+                     " It's main advantage is when you use it as a object modifer (right click on a model)."
+                     "\nSpecial variables: 'layer_num','layer_z'");
+    def->multiline = true;
+    def->full_width = true;
+    def->height = 10;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionString(""));
+
     def = this->add("only_one_perimeter_first_layer", coBool);
     def->label = L("Only one perimeter on First layer");
     def->category = OptionCategory::perimeter;
@@ -4444,6 +4478,18 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(new ConfigOptionFloatOrPercent(0, false));
+
+    def = this->add("region_gcode", coString);
+    def->label = L("Per region G-code");
+    def->category = OptionCategory::output;
+    def->tooltip = L("This code is inserted when a region is starting to print something (infill, perimeter, ironing)."
+                     " It's main advantage is when you use it as a object modifer(right click on a model to add it there)"
+                     "\nSpecial variables: 'layer_num','layer_z'");
+    def->multiline = true;
+    def->full_width = true;
+    def->height = 10;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionString(""));
 
     def = this->add("resolution", coFloat);
     def->label = L("Slice resolution");
@@ -5704,6 +5750,14 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::filament;
     def->tooltip = L("Override the temperature of the extruder. Avoid making too many changes, it won't stop for cooling/heating. 0 to disable. May only work on Height range modifiers.");
     def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionInt(0));
+
+    def = this->add("print_first_layer_temperature", coInt);
+    def->label = L("Temperature");
+    def->category = OptionCategory::filament;
+    def->tooltip = L("Override the temperature of the extruder (for the first layer). Avoid making too many changes, it won't stop for cooling/heating. 0 to disable (using print_temperature if defined). May only work on Height range modifiers.");
+    def->mode = comExpert | comSuSi;
+    def->min = 0;
     def->set_default_value(new ConfigOptionInt(0));
 
     def = this->add("print_retract_lift", coFloat);
@@ -8070,11 +8124,9 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "avoid_crossing_not_first_layer",
 "avoid_crossing_top",
 "bridge_fill_pattern",
-"bridge_internal_acceleration",
-"bridge_internal_fan_speed",
+"bridge_precision",
 "bridge_overlap",
 "bridge_overlap_min",
-"bridge_speed_internal",
 "bridge_type",
 "bridged_infill_margin",
 "brim_acceleration",
@@ -8178,6 +8230,9 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "infill_extrusion_spacing",
 "infill_fan_speed",
 "init_z_rotate",
+"internal_bridge_acceleration",
+"internal_bridge_fan_speed",
+"internal_bridge_speed",
 "ironing_acceleration",
 "ironing_angle",
 "lift_min",
@@ -8199,6 +8254,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "min_width_top_surface",
 "model_precision",
 "no_perimeter_unsupported_algo",
+"object_gcode",
 "only_one_perimeter_top_other_algo",
 "only_one_perimeter_top",
 "only_one_perimeter_first_layer",
@@ -8220,6 +8276,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "perimeter_reverse",
 "perimeter_round_corners",
 "print_extrusion_multiplier",
+"print_first_layer_temperature"
 "print_custom_variables",
 "print_retract_length",
 "print_retract_lift",
@@ -8229,6 +8286,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "printhost_client_cert_password",
 "raft_layer_height",
 "raft_interface_layer_height",
+"region_gcode",
 "remaining_times_type",
 "resolution_internal",
 "retract_lift_first_layer",
@@ -9085,7 +9143,7 @@ std::set<const DynamicPrintConfig*> DynamicPrintConfig::value_changed(const t_co
                             something_changed = true;
                     }
                 }
-                if (opt_key == "first_layer_extrusion_width") {
+                if (opt_key == "first_layer_extrusion_width") { //here
                     spacing_option = this->option<ConfigOptionFloatOrPercent>("first_layer_extrusion_spacing");
                     if (width_option) {
                             width_option->set_phony(false);

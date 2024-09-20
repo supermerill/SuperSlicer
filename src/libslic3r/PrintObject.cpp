@@ -821,7 +821,7 @@ FillLightning::GeneratorPtr PrintObject::prepare_lightning_infill_data()
 
     // Called by Print::apply().
     // This method only accepts PrintObjectConfig and PrintRegionConfig option keys.
-bool PrintObject::invalidate_state_by_config_options(
+    bool PrintObject::invalidate_state_by_config_options(
     const ConfigOptionResolver &old_config, const ConfigOptionResolver &new_config, const std::vector<t_config_option_key> &opt_keys)
     {
         if (opt_keys.empty())
@@ -831,13 +831,13 @@ bool PrintObject::invalidate_state_by_config_options(
         bool invalidated = false;
         for (const t_config_option_key& opt_key : opt_keys) {
             if (
-                opt_key == "gap_fill_enabled"
-                || opt_key == "gap_fill_extension"
+                opt_key == "gap_fill_extension"
                 || opt_key == "gap_fill_last"
                 || opt_key == "gap_fill_max_width"
                 || opt_key == "gap_fill_min_area"
                 || opt_key == "gap_fill_min_length"
                 || opt_key == "gap_fill_min_width"
+                || opt_key == "min_width_top_surface"
                 || opt_key == "only_one_perimeter_first_layer"
                 || opt_key == "only_one_perimeter_top"
                 || opt_key == "only_one_perimeter_top_other_algo"
@@ -846,23 +846,23 @@ bool PrintObject::invalidate_state_by_config_options(
                 || opt_key == "overhangs_reverse"
                 || opt_key == "overhangs_reverse_threshold"
                 || opt_key == "overhangs_speed_enforce"
+                || opt_key == "perimeter_bonding"
                 || opt_key == "perimeter_extrusion_change_odd_layers"
                 || opt_key == "perimeter_extrusion_spacing"
                 || opt_key == "perimeter_extrusion_width"
                 || opt_key == "perimeter_reverse"
-                || opt_key == "infill_overlap"
+                || opt_key == "perimeter_round_corners"
                 || opt_key == "thin_perimeters"
                 || opt_key == "thin_perimeters_all"
-                || opt_key == "thin_walls"
+                || opt_key == "thin_walls_merge"
                 || opt_key == "thin_walls_min_width"
                 || opt_key == "thin_walls_overlap"
                 || opt_key == "external_perimeters_first"
                 || opt_key == "external_perimeters_hole"
                 || opt_key == "external_perimeters_nothole"
                 || opt_key == "external_perimeter_extrusion_change_odd_layers"
-                || opt_key == "external_perimeter_extrusion_spacing"
-                || opt_key == "external_perimeter_extrusion_width"
                 || opt_key == "external_perimeters_vase"
+                || opt_key == "first_layer_extrusion_width"
                 || opt_key == "perimeter_loop"
                 || opt_key == "perimeter_loop_seam") {
                 steps.emplace_back(posPerimeters);
@@ -888,32 +888,49 @@ bool PrintObject::invalidate_state_by_config_options(
                     steps.emplace_back(posSlice);
                 steps.emplace_back(posPerimeters);
             } else if (
-                opt_key == "layer_height"
-                || opt_key == "first_layer_height"
-                || opt_key == "mmu_segmented_region_max_width"
                 // || opt_key == "exact_last_layer_height"
+                opt_key == "bridge_type"
+                || opt_key == "clip_multipart_objects"
+                || opt_key == "curve_smoothing_angle_concave"
+                || opt_key == "curve_smoothing_angle_convex"
+                || opt_key == "curve_smoothing_cutoff_dist"
+                || opt_key == "curve_smoothing_precision"
+                || opt_key == "dont_support_bridges"
+                || opt_key == "elephant_foot_min_width" //sla ?
+                || opt_key == "first_layer_size_compensation"
+                || opt_key == "first_layer_size_compensation_layers"
+                || opt_key == "first_layer_height"
+                || opt_key == "hole_size_compensation"
+                || opt_key == "hole_size_threshold"
+                || opt_key == "hole_to_polyhole"
+                || opt_key == "hole_to_polyhole_threshold"
+                || opt_key == "hole_to_polyhole_twisted"
+                || opt_key == "layer_height"
+                || opt_key == "min_bead_width"
+                || opt_key == "min_feature_size"
+                || opt_key == "mmu_segmented_region_max_width"
+                || opt_key == "model_precision"
+                || opt_key == "overhangs_max_slope"
+                || opt_key == "overhangs_bridge_threshold"
+                || opt_key == "overhangs_bridge_upper_layers"
                 || opt_key == "raft_contact_distance"
                 || opt_key == "raft_interface_layer_height"
                 || opt_key == "raft_layers"
                 || opt_key == "raft_layer_height"
-                || opt_key == "slice_closing_radius"
-                || opt_key == "clip_multipart_objects"
-                || opt_key == "first_layer_size_compensation"
-                || opt_key == "first_layer_size_compensation_layers"
-                || opt_key == "elephant_foot_min_width"
-                || opt_key == "dont_support_bridges"
+                || opt_key == "perimeter_generator"
                 || opt_key == "slice_closing_radius"
                 || opt_key == "slicing_mode"
                 || opt_key == "support_material_contact_distance_type"
-                || opt_key == "support_material_contact_distance_top"
-                || opt_key == "support_material_contact_distance_bottom"
+                || opt_key == "support_material_contact_distance"
+                || opt_key == "support_material_bottom_contact_distance"
                 || opt_key == "support_material_interface_layer_height"
                 || opt_key == "support_material_layer_height"
-                || opt_key == "xy_size_compensation"
-                || opt_key == "hole_size_compensation"
-                || opt_key == "hole_size_threshold"
-                || opt_key == "hole_to_polyhole"
-                || opt_key == "hole_to_polyhole_threshold") {
+                || opt_key == "wall_transition_length"
+                || opt_key == "wall_transition_filter_deviation"
+                || opt_key == "wall_transition_angle"
+                || opt_key == "wall_distribution_count"
+                || opt_key == "xy_inner_size_compensation"
+                || opt_key == "xy_size_compensation") {
                 steps.emplace_back(posSlice);
             } else if (opt_key == "support_material") {
                 steps.emplace_back(posSupportMaterial);
@@ -935,17 +952,15 @@ bool PrintObject::invalidate_state_by_config_options(
                 || opt_key == "support_material_enforce_layers"
                 || opt_key == "support_material_extruder"
                 || opt_key == "support_material_extrusion_width"
-                || opt_key == "support_material_bottom_contact_distance"
                 || opt_key == "support_material_interface_layers"
                 || opt_key == "support_material_bottom_interface_layers"
                 || opt_key == "support_material_interface_angle"
                 || opt_key == "support_material_interface_angle_increment"
-                || opt_key == "support_material_interface_pattern"
                 || opt_key == "support_material_interface_contact_loops"
                 || opt_key == "support_material_interface_extruder"
+                || opt_key == "support_material_interface_pattern"
                 || opt_key == "support_material_interface_spacing"
                 || opt_key == "support_material_pattern"
-                || opt_key == "support_material_interface_pattern"
                 || opt_key == "support_material_style"
                 || opt_key == "support_material_xy_spacing"
                 || opt_key == "support_material_spacing"
@@ -956,8 +971,7 @@ bool PrintObject::invalidate_state_by_config_options(
                 steps.emplace_back(posSupportMaterial);
             } else if (opt_key == "bottom_solid_layers") {
                 steps.emplace_back(posPrepareInfill);
-                if (m_print->config().spiral_vase
-                || opt_key == "z_step") {
+                if (m_print->config().spiral_vase) {
                     // Changing the number of bottom layers when a spiral vase is enabled requires re-slicing the object again.
                     // Otherwise, holes in the bottom layers could be filled, as is reported in GH #5528.
                     steps.emplace_back(posSlice);
@@ -973,9 +987,10 @@ bool PrintObject::invalidate_state_by_config_options(
                 || opt_key == "infill_every_layers"
                 || opt_key == "infill_dense"
                 || opt_key == "infill_dense_algo"
-                || opt_key == "infill_not_connected"
                 || opt_key == "infill_only_where_needed"
+                || opt_key == "ironing"
                 || opt_key == "ironing_type"
+                || opt_key == "over_bridge_flow_ratio"
                 || opt_key == "solid_infill_below_area"
                 || opt_key == "solid_infill_extruder"
                 || opt_key == "solid_infill_every_layers"
@@ -984,10 +999,10 @@ bool PrintObject::invalidate_state_by_config_options(
                 || opt_key == "top_solid_min_thickness") {
                 steps.emplace_back(posPrepareInfill);
             } else if (
-                opt_key == "top_fill_pattern"
-                || opt_key == "bottom_fill_pattern"
+                opt_key == "bottom_fill_pattern"
                 || opt_key == "bridge_fill_pattern"
-                || opt_key == "solid_fill_pattern"
+                || opt_key == "bridge_overlap"
+                || opt_key == "bridge_overlap_min"
                 || opt_key == "enforce_full_fill_volume"
                 || opt_key == "fill_aligned_z"
                 || opt_key == "fill_angle"
@@ -1004,17 +1019,20 @@ bool PrintObject::invalidate_state_by_config_options(
                 || opt_key == "infill_connection_bridge"
                 || opt_key == "infill_connection_solid"
                 || opt_key == "infill_connection_top"
-                || opt_key == "seam_gap"
-                || opt_key == "seam_gap_external"
+                || opt_key == "ironing_angle"
+                || opt_key == "ironing_flowrate"
+                || opt_key == "ironing_spacing"
+                || opt_key == "solid_fill_pattern"
+                || opt_key == "top_fill_pattern"
                 || opt_key == "top_infill_extrusion_spacing"
                 || opt_key == "top_infill_extrusion_width" ) {
                 steps.emplace_back(posInfill);
-        } else if (opt_key == "fill_pattern") {
-            steps.emplace_back(posInfill);
+            } else if (opt_key == "fill_pattern") {
+                steps.emplace_back(posInfill);
 
-            const auto *old_fill_pattern = old_config.option<ConfigOptionEnum<InfillPattern>>(opt_key);
-            const auto *new_fill_pattern = new_config.option<ConfigOptionEnum<InfillPattern>>(opt_key);
-            assert(old_fill_pattern && new_fill_pattern);
+                const auto *old_fill_pattern = old_config.option<ConfigOptionEnum<InfillPattern>>(opt_key);
+                const auto *new_fill_pattern = new_config.option<ConfigOptionEnum<InfillPattern>>(opt_key);
+                assert(old_fill_pattern && new_fill_pattern);
             // We need to recalculate infill surfaces when infill_only_where_needed is enabled, and we are switching from
             // the Lightning infill to another infill or vice versa.
             if (m_config.infill_only_where_needed && (new_fill_pattern->value == ipLightning || old_fill_pattern->value == ipLightning))
@@ -1036,36 +1054,34 @@ bool PrintObject::invalidate_state_by_config_options(
                 || opt_key == "bridged_infill_margin"
                 || opt_key == "extra_perimeters"
                 || opt_key == "extra_perimeters_odd_layers"
+                || opt_key == "extra_perimeters_overhangs"
                 || opt_key == "external_infill_margin"
                 || opt_key == "external_perimeter_overlap"
                 || opt_key == "gap_fill_overlap"
+                || opt_key == "infill_overlap"
                 || opt_key == "no_perimeter_unsupported_algo"
-                || opt_key == "filament_max_overlap"
                 || opt_key == "perimeters"
                 || opt_key == "perimeter_overlap"
                 || opt_key == "solid_infill_extrusion_change_odd_layers"
                 || opt_key == "solid_infill_extrusion_spacing"
-                || opt_key == "solid_infill_extrusion_width") {
+                || opt_key == "solid_infill_extrusion_width"
+                || opt_key == "solid_infill_overlap"
+                || opt_key == "top_solid_infill_overlap") {
                 steps.emplace_back(posPerimeters);
                 steps.emplace_back(posPrepareInfill);
-        } else if (opt_key == "solid_infill_extrusion_change_odd_layers"
-            || opt_key == "solid_infill_extrusion_spacing"
-            || opt_key == "solid_infill_extrusion_width") {
-            // This value is used for calculating perimeter - infill overlap, thus perimeters need to be recalculated.
-            steps.emplace_back(posPerimeters);
-            steps.emplace_back(posPrepareInfill);
             } else if (
-                opt_key == "external_perimeter_extrusion_width"
-            || opt_key == "perimeter_extruder"
-            || opt_key == "fuzzy_skin"
-            || opt_key == "fuzzy_skin_thickness"
-            || opt_key == "fuzzy_skin_point_dist"
-            || opt_key == "overhangs"
-            || opt_key == "thin_walls"
-            || opt_key == "thick_bridges") {
+                   opt_key == "external_perimeter_extrusion_width"
+                || opt_key == "external_perimeter_extrusion_spacing"
+                || opt_key == "perimeter_extruder"
+                || opt_key == "fuzzy_skin"
+                || opt_key == "fuzzy_skin_thickness"
+                || opt_key == "fuzzy_skin_point_dist"
+                || opt_key == "thin_walls") {
                 steps.emplace_back(posPerimeters);
                 steps.emplace_back(posSupportMaterial);
             } else if (opt_key == "bridge_flow_ratio"
+                || opt_key == "extrusion_spacing"
+                || opt_key == "extrusion_width"
                 || opt_key == "first_layer_extrusion_spacing"
                 || opt_key == "first_layer_extrusion_width") {
                 //if (m_config.support_material_contact_distance > 0.) {
@@ -1076,27 +1092,52 @@ bool PrintObject::invalidate_state_by_config_options(
                 steps.emplace_back(posSupportMaterial);
                 //}
             } else if (
-                opt_key == "perimeter_generator"
-                || opt_key == "wall_transition_length"
-                || opt_key == "wall_transition_filter_deviation"
-                || opt_key == "wall_transition_angle"
-                || opt_key == "wall_distribution_count"
-                || opt_key == "min_feature_size"
-                || opt_key == "min_bead_width") {
-                steps.emplace_back(posSlice);
-            } else if (
                 opt_key == "avoid_crossing_top"
+                || opt_key == "bridge_acceleration"
                 || opt_key == "bridge_speed"
-                || opt_key == "bridge_speed_internal"
+                || opt_key == "brim_acceleration"
+                || opt_key == "brim_speed"
                 || opt_key == "external_perimeter_speed"
-                || opt_key == "external_perimeters_vase"
+                || opt_key == "default_acceleration"
+                || opt_key == "default_speed"
+                || opt_key == "external_perimeter_acceleration"
+                || opt_key == "external_perimeter_cut_corners"
+                || opt_key == "first_layer_acceleration"
+                || opt_key == "first_layer_acceleration_over_raft"
+                || opt_key == "first_layer_extrusion_width"
+                || opt_key == "first_layer_extrusion_spacing"//missing from here ?
+                || opt_key == "first_layer_flow_ratio"
+                || opt_key == "first_layer_infill_speed"
+                || opt_key == "first_layer_min_speed"
+                || opt_key == "first_layer_speed"
+                || opt_key == "first_layer_speed_over_raft"
+                || opt_key == "gap_fill_acceleration"
+                || opt_key == "gap_fill_flow_match_perimeter"
                 || opt_key == "gap_fill_speed"
+                || opt_key == "infill_acceleration"
                 || opt_key == "infill_speed"
+                || opt_key == "internal_bridge_acceleration"
+                || opt_key == "internal_bridge_speed"
+                || opt_key == "ironing_acceleration"
+                || opt_key == "ironing_speed"
+                || opt_key == "milling_after_z"
+                || opt_key == "milling_extra_size"
+                || opt_key == "milling_post_process"
+                || opt_key == "milling_speed"
+                || opt_key == "object_gcode"
+                || opt_key == "overhangs_acceleration"
                 || opt_key == "overhangs_speed"
+                || opt_key == "perimeter_acceleration"
                 || opt_key == "perimeter_speed"
+                || opt_key == "print_extrusion_multiplier"
+                || opt_key == "print_first_layer_temperature"
+                || opt_key == "print_retract_length"
+                || opt_key == "print_retract_lift"
+                || opt_key == "print_temperature"
+                || opt_key == "region_gcode"
                 || opt_key == "seam_position"
-                || opt_key == "seam_preferred_direction"
-                || opt_key == "seam_preferred_direction_jitter"
+                //|| opt_key == "seam_preferred_direction"
+                //|| opt_key == "seam_preferred_direction_jitter"
                 || opt_key == "seam_angle_cost"
                 || opt_key == "seam_notch_all"
                 || opt_key == "seam_notch_angle"
@@ -1107,14 +1148,20 @@ bool PrintObject::invalidate_state_by_config_options(
                 || opt_key == "small_perimeter_speed"
                 || opt_key == "small_perimeter_min_length"
                 || opt_key == "small_perimeter_max_length"
+                || opt_key == "solid_infill_acceleration"
                 || opt_key == "solid_infill_speed"
                 || opt_key == "support_material_interface_speed"
                 || opt_key == "support_material_speed"
+                || opt_key == "thin_walls_acceleration"
                 || opt_key == "thin_walls_speed"
-                || opt_key == "top_solid_infill_speed") {
+                || opt_key == "top_solid_infill_acceleration"
+                || opt_key == "top_solid_infill_speed"
+                || opt_key == "travel_acceleration"
+                || opt_key == "travel_deceleration_use_target") {
                 invalidated |= m_print->invalidate_step(psGCodeExport);
             } else if (
-                opt_key == "wipe_into_infill"
+                opt_key == "infill_first"
+                || opt_key == "wipe_into_infill"
                 || opt_key == "wipe_into_objects") {
                 invalidated |= m_print->invalidate_step(psWipeTower);
                 invalidated |= m_print->invalidate_step(psGCodeExport);
@@ -1125,7 +1172,8 @@ bool PrintObject::invalidate_state_by_config_options(
                 || opt_key == "brim_ears_max_angle"
                 || opt_key == "brim_ears_pattern"
                 || opt_key == "brim_per_object"
-                || opt_key == "brim_separation") {
+                || opt_key == "brim_separation"
+                || opt_key == "brim_type") {
                 invalidated |= m_print->invalidate_step(psSkirtBrim);
                 // Brim is printed below supports, support invalidates brim and skirt.
                 steps.emplace_back(posSupportMaterial);
