@@ -1,0 +1,26 @@
+name: C/C++ debug arm macos
+
+on:
+  push:
+    branches:
+      - pr1
+
+jobs:
+  build:
+
+    runs-on: macos-14
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: build deps & slicer
+      run: ./BuildMacOS.sh -bia
+    - name: Upload artifact
+      uses: actions/upload-artifact@v1.0.0
+      with:
+        name: nightly_macos_arm_debug.dmg
+        path: build/${{ github.event.repository.name }}.dmg
+    - name: Upload artifact
+      uses: actions/upload-artifact@v1.0.0
+      with:
+        name: nightly_arm_macos.tar
+        path: build/${{ github.event.repository.name }}.tar
