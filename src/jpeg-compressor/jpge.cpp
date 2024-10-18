@@ -30,9 +30,9 @@
 
 #include "jpge.h"
 
-#include <stdlib.h>
-#include <string.h>
-//#include <malloc.h> // not needed, even create bugs in macos
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 #define JPGE_MAX(a,b) (((a)>(b))?(a):(b))
 #define JPGE_MIN(a,b) (((a)<(b))?(a):(b))
@@ -934,7 +934,6 @@ namespace jpge {
 	}
 
 	// Higher level wrappers/examples (optional).
-#include <stdio.h>
 
 	class cfile_stream : public output_stream
 	{
