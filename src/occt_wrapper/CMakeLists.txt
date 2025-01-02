@@ -19,14 +19,9 @@ include(GenerateExportHeader)
 
 generate_export_header(OCCTWrapper)
 
-find_package(OpenCASCADE 7.6.2 REQUIRED)
+find_package(OpenCASCADE REQUIRED)
 
 set(OCCT_LIBS
-    TKXDESTEP
-    TKSTEP
-    TKSTEP209
-    TKSTEPAttr
-    TKSTEPBase
     TKXCAF
     TKXSBase
     TKVCAF
@@ -49,6 +44,21 @@ set(OCCT_LIBS
     TKMath
     TKernel
 )
+
+if (OpenCASCADE_VERSION VERSION_LESS 7.8.0)
+    list(APPEND OCCT_LIBS
+            TKXDESTEP
+            TKSTEP
+            TKSTEP209
+            TKSTEPAttr
+            TKSTEPBase
+    )
+else()
+    list(APPEND OCCT_LIBS
+            TKDESTEP
+            TKXSDRAWSTEP
+    )
+endif()
 
 slic3r_remap_configs("${OCCT_LIBS}" RelWithDebInfo Release)
 
