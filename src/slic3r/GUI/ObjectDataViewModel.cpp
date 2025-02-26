@@ -778,10 +778,17 @@ wxDataViewItem ObjectDataViewModel::Delete(const wxDataViewItem &item)
             // Delete all sub-items
             int i = m_objects[id]->GetChildCount() - 1;
             while (i >= 0) {
-                Delete(wxDataViewItem(m_objects[id]->GetNthChild(i)));
+                Delete(wxDataViewItem(m_objects[id]->GetNthChild(i)));//gets stuck if 'layer_config_ranges' was called directly without it having the parent node.
                 i = m_objects[id]->GetChildCount() - 1;
             }
 			m_objects.erase(it);
+
+            /*int i = m_objects[id]->GetChildCount() - 1;
+            while (i >= 0) {
+                Delete(wxDataViewItem(m_objects[id]->GetNthChild(i)));
+                --i; // Decrement manually after each delete
+            }
+            m_objects.erase(it);*/
         }
 		if (id > 0) { 
 			if(id == m_objects.size()) id--;

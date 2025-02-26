@@ -146,6 +146,7 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
     double retraction_start = 0;
     std::string str = temp_start->GetValue().ToStdString();
     int temp = int((2 + filament_config->option<ConfigOptionInts>("temperature")->get_at(0)) / 5) * 5;
+    int first_layer_temp = filament_config->option<ConfigOptionInts>("first_layer_temperature")->get_at(0);
     if (str.find_first_not_of("0123456789") == std::string::npos)
         temp = std::atoi(str.c_str());
 
@@ -239,6 +240,7 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
         current_obj->config.set_key_value("layer_height", new ConfigOptionFloat(nozzle_diameter / 2.));
         //temp
         current_obj->config.set_key_value("print_temperature", new ConfigOptionInt(int(temp - temp_decr * i)));
+        current_obj->config.set_key_value("print_first_layer_temperature", new ConfigOptionInt(first_layer_temp));
         //set retraction override
         
         const int mytemp = temp - temp_decr * i;

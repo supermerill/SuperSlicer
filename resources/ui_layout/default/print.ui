@@ -334,7 +334,7 @@ group:label_width$8:sidetext_width$7:Speed for print moves
 		setting:width$4:brim_speed
 	line:Bridge speed
 		setting:width$4:bridge_speed
-		setting:width$4:bridge_speed_internal
+		setting:width$4:internal_bridge_speed
 		setting:width$4:overhangs_speed
 	line:Gap fill speed
 		setting:width$4:label$Maximum speed:gap_fill_speed
@@ -384,7 +384,7 @@ group:label_width$9:sidetext_width$8:Acceleration control (advanced)
 		setting:width$4:brim_acceleration
 	line:Bridge acceleration
 		setting:width$4:bridge_acceleration
-		setting:width$4:bridge_internal_acceleration
+		setting:width$4:internal_bridge_acceleration
 		setting:width$4:overhangs_acceleration
 	line:Other extrusions acceleration
 		setting:width$4:gap_fill_acceleration
@@ -507,6 +507,7 @@ group:Output file
 	setting:full_width:output_filename_format
 group:Other
     gcode_substitutions
+	setting:per_objects_gcode
 group:Post-processing script
 	setting:full_width:height$5:post_process
 	post_process_explanation

@@ -279,6 +279,32 @@ void GCodeWriter::set_acceleration(uint32_t acceleration)
     m_current_acceleration = acceleration;
 }
 
+
+void GCodeWriter::set_per_object_gcode(std::string per_object)
+{
+    if (per_object == m_current_per_object_gcode)
+        return;
+
+    m_current_per_object_gcode = per_object;
+}
+
+std::string GCodeWriter::write_per_object_gcode(){
+    if (m_current_per_object_gcode == m_last_per_object_gcode || m_current_per_object_gcode == "")
+        return "";
+
+    m_last_per_object_gcode = m_current_per_object_gcode;
+
+    std::ostringstream gcode;
+
+
+    gcode << m_current_per_object_gcode;
+    if (this->config.gcode_comments) gcode << " ; added per_object_gcode";
+    gcode << "\n";
+    
+    return gcode.str();
+}
+
+
 void GCodeWriter::set_travel_acceleration(uint32_t acceleration)
 {
     //only gcfMarlinFirmware and gcfRepRap can use the travel accel

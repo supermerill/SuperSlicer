@@ -25,7 +25,7 @@ public:
 private:
     wxPanel* create_header(wxWindow* parent, const wxFont& bold_font);
 protected:
-    void create(boost::filesystem::path html_path, std::string html_name, wxSize dialogsize = wxSize(850, 550));
+    void create(boost::filesystem::path html_path, std::string html_name, wxSize dialogsize = wxSize(850, 550), bool include_close_button = false);
     virtual void create_buttons(wxStdDialogButtonSizer*) = 0;
     void on_dpi_changed(const wxRect& suggested_rect) override;
     void close_me(wxCommandEvent& event_args);

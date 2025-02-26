@@ -71,6 +71,7 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
 
     // -- get temps
     const ConfigOptionInts* temperature_config = filament_config->option<ConfigOptionInts>("temperature");
+    const int first_layer_temperature = filament_config->option<ConfigOptionInts>("temperature")->get_at(0);
     assert(temperature_config->values.size() >= 1);
     long nb_items_up = 1;
     if (!nb_up->GetValue().ToLong(&nb_items_up)) {
@@ -160,6 +161,7 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
     double firstChangeHeight = print_config->get_abs_value("first_layer_height", nozzle_diameter);
     //model.custom_gcode_per_print_z.gcodes.emplace_back(CustomGCode::Item{ firstChangeHeight + nozzle_diameter/2, CustomGCode::Type::Custom, -1, "", "M104 S" + std::to_string(temperature) + " ; ground floor temp tower set" });
     model.objects[objs_idx[0]]->config.set_key_value("print_temperature", new ConfigOptionInt(temperature));
+    model.objects[objs_idx[0]]->config.set_key_value("print_first_layer_temperature", new ConfigOptionInt(first_layer_temperature));
     for (int16_t i = 1; i < nb_items; i++) {
         model.custom_gcode_per_print_z.gcodes.emplace_back(CustomGCode::Item{ (i * 10 * xyzScale), CustomGCode::Type::Custom , -1, "", "M104 S" + std::to_string(temperature - i * step_temp) + " ; floor " + std::to_string(i) + " of the temp tower set" });
         //str_layer_gcode += "\n{ elsif layer_z >= " + std::to_string(i * 10 * xyzScale) + " and layer_z <= " + std::to_string((1 + i * 10) * xyzScale) + " }\nM104 S" + std::to_string(temperature - (int8_t)nb_delta * 5 + i * 5);

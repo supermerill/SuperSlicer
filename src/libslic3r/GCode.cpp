@@ -870,6 +870,7 @@ namespace DoExport {
         if (ret.size() < MAX_TAGS_COUNT) check(_(L("Color Change G-code")), GCodeWriter::get_default_color_change_gcode(config));
         if (ret.size() < MAX_TAGS_COUNT) check(_(L("Pause Print G-code")), GCodeWriter::get_default_pause_gcode(config));
         if (ret.size() < MAX_TAGS_COUNT) check(_(L("Template Custom G-code")), config.template_custom_gcode.value);
+        //if (ret.size() < MAX_TAGS_COUNT) check(_(L("Per object G-code")), config.per_objects_gcode.value); //not needed yet ?
         if (ret.size() < MAX_TAGS_COUNT) {
             for (const std::string& value : config.start_filament_gcode.values) {
                 check(_(L("Filament Start G-code")), value);
@@ -902,6 +903,16 @@ namespace DoExport {
             const CustomGCode::Info& custom_gcode_per_print_z = print.model().custom_gcode_per_print_z;
             for (const auto& gcode : custom_gcode_per_print_z.gcodes) {
                 check(_(L("Custom G-code")), gcode.extra);
+                if (ret.size() == MAX_TAGS_COUNT)
+                    break;
+            }
+        }
+        if (ret.size() < MAX_TAGS_COUNT) {
+            std::set<std::string> per_object_gcodes;
+            for (const PrintObject *obj : print.objects())
+                per_object_gcodes.insert(obj->config().object_gcode.value);
+            for (const std::string &gcode : per_object_gcodes) {
+                check(_(L("Per object G-code")), gcode);
                 if (ret.size() == MAX_TAGS_COUNT)
                     break;
             }
@@ -1083,7 +1094,7 @@ namespace DoExport {
                 excluded.insert(erTopSolidInfill);
             if (config->option("bridge_speed") != nullptr && config->get_computed_value("bridge_speed") != 0)
                 excluded.insert(erBridgeInfill);
-            if (config->option("bridge_speed_internal") != nullptr && config->get_computed_value("bridge_speed_internal") != 0)
+            if (config->option("internal_bridge_speed") != nullptr && config->get_computed_value("internal_bridge_speed") != 0)
                 excluded.insert(erInternalBridgeInfill);
             if (config->option("support_material_speed") != nullptr && config->get_computed_value("support_material_speed") != 0)
                 excluded.insert(erSupportMaterial);
@@ -1542,6 +1553,55 @@ void GCode::_do_export(Print& print_mod, GCodeOutputStream &file, ThumbnailsGene
             file.write_format("; first layer extrusion width = %.2fmm\n",   region.flow(*first_object, frPerimeter, first_layer_height, 0).width());
         file.write_format("\n");
     }
+
+    /*size_t nb_parts_per_object = 0;
+    size_t nb_parts_per_target_volume = 0;
+    std::string volume_config_per_object_gcode = "";
+
+    if (print.default_region_config().per_objects_gcode.value != "") {// mabye add check for project name/ base object name ? user doesn't normally add models inside another model.
+
+        std::string per_object_target_name = print.default_region_config().per_objects_gcode.value;// pull main config object names to apply modifer gcode to
+        std::istringstream iss(per_object_target_name);
+        std::vector<std::string> target_objects;
+        
+        file.write("; target object name: " + per_object_target_name + "\n");
+        if (!per_object_target_name.empty() && per_object_target_name.back() != ',') {
+            throw Slic3r::SlicingError(_(L("no ending comma found, fix per object in main print settings config! each object you want to apply settings to much be seperated by a comma!")));
+        }
+        std::string search_for_comma;
+        while (std::getline(iss, search_for_comma, ',')) {
+            target_objects.push_back(search_for_comma);
+        }
+
+        for (PrintObject* print_object : print.objects()) { //loop though main objects
+            std::string volume_name = "";
+            auto part_details = print_object->model_object()->volumes;
+        
+            for (const auto& volume : part_details) {//loop though object volumes - object parts
+                volume_name = volume->name;
+                file.writeln(volume_name);//write file name at start/end of next loop
+
+                for (const auto& target_object : target_objects) {//loop though each volume
+                    if (volume_name == target_object) {
+                        nb_parts_per_target_volume++;
+                        auto volume_config = volume->config.option("per_objects_gcode");//pull per volume config
+                        if (volume_config) {//failsafe check, maybe user forgot to add the manipulator in
+                            volume_config_per_object_gcode = volume->config.opt_serialize("per_objects_gcode");
+                            file.writeln(volume_config_per_object_gcode);
+                            m_writer.set_per_object_gcode(volume_config_per_object_gcode);//need to check if "per_objects_gcode" contains '\n' split string and write it the write new line and write remaining of string till next "\n"
+                        }
+                        break;
+                    }
+                }
+                file.writeln(volume_name);
+                nb_parts_per_object++;
+            }
+        }
+    }
+
+    file.write("; Total parts per object: " + std::to_string(nb_parts_per_object) + "\n");
+    file.write("; Total parts per target volume: " + std::to_string(nb_parts_per_target_volume) + "\n");*/
+
     BoundingBoxf3 global_bounding_box;
     size_t nb_items = 0;
     std::wregex pattern(L"[^\\w]+", std::regex_constants::ECMAScript);
@@ -1614,6 +1674,7 @@ void GCode::_do_export(Print& print_mod, GCodeOutputStream &file, ThumbnailsGene
         file.write("M486 T" + std::to_string(nb_items) + "\n");
     }
     if (this->config().gcode_label_objects) {
+        file.write("; Total objects to print: " + std::to_string(nb_items) + "\n");
         file.write_format( "; plater:{\"center\":[%f,%f,%f],\"boundingbox_center\":[%f,%f,%f],\"boundingbox_size\":[%f,%f,%f]}\n",
             global_bounding_box.center().x(), global_bounding_box.center().y(), 0.,
             global_bounding_box.center().x(), global_bounding_box.center().y(), global_bounding_box.center().z(),
@@ -3477,8 +3538,9 @@ LayerResult GCode::process_layer(
                 if (m_config.avoid_crossing_perimeters)
                     m_avoid_crossing_perimeters.init_layer(*m_layer);
                 //print object label to help the printer firmware know where it is (for removing the objects)
+                m_gcode_label_objects_start = "";
                 if (this->config().gcode_label_objects) {
-                    m_gcode_label_objects_start =
+                    m_gcode_label_objects_start +=
                         std::string("; printing object ") +
                         instance_to_print.print_object.model_object()->name +
                         " id:" + instance_id + " copy " + instance_copy +
@@ -3510,6 +3572,14 @@ LayerResult GCode::process_layer(
                             instance_full_id +
                             "\n";
                     }
+                }
+                if (!instance_to_print.print_object.config().object_gcode.value.empty()) {
+                    DynamicConfig config;
+                    config.set_key_value("layer_num", new ConfigOptionInt(m_layer_index));
+                    config.set_key_value("layer_z",     new ConfigOptionFloat(print_z));
+                    m_gcode_label_objects_start += this->placeholder_parser_process("object_gcode",
+                        instance_to_print.print_object.config().object_gcode.value, m_writer.tool()->id(), &config)
+                        + "\n";
                 }
                 // ask for a bigger lift for travel to object when moving to another object
                 if (single_object_instance_idx == size_t(-1) && !first_object)
@@ -3588,7 +3658,7 @@ LayerResult GCode::process_layer(
                     }
                 }
                 // Don't set m_gcode_label_objects_end if you don't had to write the m_gcode_label_objects_start.
-                if (m_gcode_label_objects_start != "") {
+                if (!m_gcode_label_objects_start.empty()) {
                     m_gcode_label_objects_start = "";
                 } else if (this->config().gcode_label_objects) {
                     m_gcode_label_objects_end = std::string("; stop printing object ") + instance_to_print.print_object.model_object()->name
@@ -5203,7 +5273,7 @@ std::string GCode::extrude_path(const ExtrusionPath &path, const std::string &de
     const double max_gcode_per_second = this->config().max_gcode_per_second.value;
     double current_scaled_min_length = scaled_min_length;
     if (max_gcode_per_second > 0) {
-        current_scaled_min_length = std::max(current_scaled_min_length, scale_(_compute_speed_mm_per_sec(path, speed_mm_per_sec)) / max_gcode_per_second);
+        current_scaled_min_length = std::max(current_scaled_min_length, scale_(_compute_speed_mm_per_sec(path, speed_mm_per_sec,nullptr)) / max_gcode_per_second);
     }
     simplifed_path.polyline.ensure_fitting_result_valid();
     if (current_scaled_min_length > 0 && !m_last_too_small.empty()) {
@@ -5286,6 +5356,41 @@ std::string GCode::extrude_path_3D(const ExtrusionPath3D &path, const std::strin
     return gcode;
 }
 
+// Apply region-specific settings
+void GCode::apply_region_config(std::string &gcode) {
+    // modify our fullprintconfig with it. (works as all items avaialable in the regionconfig are present in this config, ie: it write everything region-defined)
+    m_config.apply(m_region->config());
+    // pass our region config to the gcode writer
+    m_writer.apply_print_region_config(m_region->config());
+    // perimeter-only (but won't break anything if done also in infill & ironing): pass needed settings to seam placer.
+    m_seam_placer.external_perimeters_first = m_region->config().external_perimeters_first.value;
+    // temperature override from region
+    if (m_config.print_temperature > 0) {
+        if (m_layer != nullptr && m_layer->bottom_z() < EPSILON && m_config.print_first_layer_temperature.value > 0) {
+            gcode += m_writer.set_temperature(m_config.print_first_layer_temperature.value, false, m_writer.tool()->id());
+        } else {
+            gcode += m_writer.set_temperature(m_config.print_temperature.value, false, m_writer.tool()->id());
+        }
+    } else if (m_layer != nullptr && m_layer->bottom_z() < EPSILON && m_config.first_layer_temperature.get_at(m_writer.tool()->id()) > 0) {
+        gcode += m_writer.set_temperature(m_config.first_layer_temperature.get_at(m_writer.tool()->id()), false,
+                                          m_writer.tool()->id());
+    } else if (m_config.temperature.get_at(m_writer.tool()->id()) > 0) { // don't set it if disabled
+        gcode += m_writer.set_temperature(m_config.temperature.get_at(m_writer.tool()->id()), false,
+                                          m_writer.tool()->id());
+    }
+    // apply region_gcode
+    if (!m_region->config().region_gcode.value.empty()) {//here
+        DynamicConfig config;
+        config.set_key_value("layer_num", new ConfigOptionInt(m_layer_index));
+        config.set_key_value("layer_z", new ConfigOptionFloat(m_layer == nullptr ? m_last_height : m_layer->print_z));
+        m_gcode_label_objects_start += this->placeholder_parser_process("region_gcode",
+                                                                        m_region->config().region_gcode.value,
+                                                                        m_writer.tool()->id(), &config) +
+                                       "\n";
+    }
+    
+}
+
 // Extrude perimeters: Decide where to put seams (hide or align seams).
 std::string GCode::extrude_perimeters(const Print &print, const std::vector<ObjectByExtruder::Island::Region> &by_region)
 {
@@ -5295,17 +5400,7 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
         if (! region.perimeters.empty()) {
             m_region = &print.get_print_region(&region - &by_region.front());
             // Apply region-specific settings
-            m_config.apply(m_region->config());
-            m_writer.apply_print_region_config(m_region->config());
-            m_seam_placer.external_perimeters_first = m_region->config().external_perimeters_first.value;
-            if (m_config.print_temperature > 0)
-                gcode += m_writer.set_temperature(m_config.print_temperature.value, false, m_writer.tool()->id());
-            else if (m_layer != nullptr && m_layer->bottom_z() < EPSILON && m_config.first_layer_temperature.get_at(m_writer.tool()->id()) > 0)
-                gcode += m_writer.set_temperature(m_config.first_layer_temperature.get_at(m_writer.tool()->id()), false, m_writer.tool()->id());
-            else if (m_config.temperature.get_at(m_writer.tool()->id()) > 0) { // don't set it if disabled
-                gcode += m_writer.set_temperature(m_config.temperature.get_at(m_writer.tool()->id()), false,
-                                                  m_writer.tool()->id());
-            }
+            apply_region_config(gcode);
             ExtrusionEntitiesPtr extrusions{region.perimeters};
             chain_and_reorder_extrusion_entities(extrusions, &m_last_pos);
             for (const ExtrusionEntity *ee : extrusions) {
@@ -5324,14 +5419,7 @@ std::string GCode::extrude_infill(const Print& print, const std::vector<ObjectBy
         m_region = &print.get_print_region(&region - &by_region.front());
         if (!region.infills.empty() &&
             (m_region->config().infill_first == is_infill_first)) {
-            m_config.apply(m_region->config());
-            m_writer.apply_print_region_config(m_region->config());
-            if (m_config.print_temperature > 0)
-                gcode += m_writer.set_temperature(m_config.print_temperature.value, false, m_writer.tool()->id());
-            else if (m_layer != nullptr && m_layer->bottom_z() < EPSILON && m_config.first_layer_temperature.get_at(m_writer.tool()->id()) > 0)
-                    gcode += m_writer.set_temperature(m_config.first_layer_temperature.get_at(m_writer.tool()->id()), false, m_writer.tool()->id());
-            else if (m_config.temperature.get_at(m_writer.tool()->id()) > 0) // don't set it if disabled
-                gcode += m_writer.set_temperature(m_config.temperature.get_at(m_writer.tool()->id()), false, m_writer.tool()->id());
+            apply_region_config(gcode);
             ExtrusionEntitiesPtr extrusions{ region.infills };
             chain_and_reorder_extrusion_entities(extrusions, &m_last_pos);
             for (const ExtrusionEntity* fill : extrusions) {
@@ -5350,14 +5438,7 @@ std::string GCode::extrude_ironing(const Print& print, const std::vector<ObjectB
     for (const ObjectByExtruder::Island::Region& region : by_region) {
         if (!region.ironings.empty()) {
             m_region = &print.get_print_region(&region - &by_region.front());
-            m_config.apply(m_region->config());
-            m_writer.apply_print_region_config(m_region->config());
-            if (m_config.print_temperature > 0)
-                gcode += m_writer.set_temperature(m_config.print_temperature.value, false, m_writer.tool()->id());
-            else if (m_layer != nullptr && m_layer->bottom_z() < EPSILON && m_config.first_layer_temperature.get_at(m_writer.tool()->id()) > 0)
-                    gcode += m_writer.set_temperature(m_config.first_layer_temperature.get_at(m_writer.tool()->id()), false, m_writer.tool()->id());
-            else if (m_config.temperature.get_at(m_writer.tool()->id()) > 0)
-                gcode += m_writer.set_temperature(m_config.temperature.get_at(m_writer.tool()->id()), false, m_writer.tool()->id());
+            apply_region_config(gcode);
             ExtrusionEntitiesPtr extrusions{ region.ironings };
             chain_and_reorder_extrusion_entities(extrusions, &m_last_pos);
             for (const ExtrusionEntity* fill : extrusions) {
@@ -5674,7 +5755,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, const std::string &descri
     return gcode;
 }
 
-double_t GCode::_compute_speed_mm_per_sec(const ExtrusionPath& path, double speed) {
+double_t GCode::_compute_speed_mm_per_sec(const ExtrusionPath& path, double speed, std::string *comment) {
 
     float factor = 1;
     // set speed
@@ -5686,24 +5767,34 @@ double_t GCode::_compute_speed_mm_per_sec(const ExtrusionPath& path, double spee
         //it's a bit hacky, so if you want to rework it, help yourself.
         if (path.role() == erPerimeter) {
             speed = m_config.get_computed_value("perimeter_speed");
+            if(comment) *comment = "perimeter_speed";
         } else if (path.role() == erExternalPerimeter) {
             speed = m_config.get_computed_value("external_perimeter_speed");
+            if(comment) *comment = "external_perimeter_speed";
         } else if (path.role() == erBridgeInfill) {
             speed = m_config.get_computed_value("bridge_speed");
+            if(comment) *comment = "bridge_speed";
         } else if (path.role() == erInternalBridgeInfill) {
-            speed = m_config.get_computed_value("bridge_speed_internal");
+            speed = m_config.get_computed_value("internal_bridge_speed");
+            if(comment) *comment = "internal_bridge_speed";
         } else if (path.role() == erOverhangPerimeter) {
             speed = m_config.get_computed_value("overhangs_speed");
+            if(comment) *comment = "overhangs_speed";
         } else if (path.role() == erInternalInfill) {
             speed = m_config.get_computed_value("infill_speed");
+            if(comment) *comment = "infill_speed";
         } else if (path.role() == erSolidInfill) {
             speed = m_config.get_computed_value("solid_infill_speed");
+            if(comment) *comment = "solid_infill_speed";
         } else if (path.role() == erTopSolidInfill) {
             speed = m_config.get_computed_value("top_solid_infill_speed");
+            if(comment) *comment = "top_solid_infill_speed";
         } else if (path.role() == erThinWall) {
             speed = m_config.get_computed_value("thin_walls_speed");
+            if(comment) *comment = "thin_walls_speed";
         } else if (path.role() == erGapFill) {
             speed = m_config.get_computed_value("gap_fill_speed");
+            if(comment) *comment = "gap_fill_speed";
             double max_ratio = m_config.gap_fill_flow_match_perimeter.get_abs_value(1.);
             if (max_ratio > 0 && m_region) {
                 //compute intended perimeter flow
@@ -5745,7 +5836,8 @@ double_t GCode::_compute_speed_mm_per_sec(const ExtrusionPath& path, double spee
         } else if (path.role() == erBridgeInfill) {
             speed = m_config.bridge_speed.get_abs_value(vol_speed);
         } else if (path.role() == erInternalBridgeInfill) {
-            speed = m_config.bridge_speed_internal.get_abs_value(vol_speed);
+            speed = m_config.internal_bridge_speed.get_abs_value(vol_speed);
+            if(comment) *comment = std::string("internal_bridge_speed ") + *comment;
         } else if (path.role() == erOverhangPerimeter) {
             speed = m_config.overhangs_speed.get_abs_value(vol_speed);
         } else if (path.role() == erInternalInfill) {
@@ -5956,10 +6048,10 @@ std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string 
                 }
                 break;
             case erInternalBridgeInfill:
-                if (m_config.bridge_internal_acceleration.value > 0) {
-                    double bridge_internal_acceleration = m_config.get_computed_value("bridge_internal_acceleration");
-                    if (bridge_internal_acceleration > 0) {
-                        acceleration = bridge_internal_acceleration;
+                if (m_config.internal_bridge_acceleration.value > 0) {
+                    double internal_bridge_acceleration = m_config.get_computed_value("internal_bridge_acceleration");
+                    if (internal_bridge_acceleration > 0) {
+                        acceleration = internal_bridge_acceleration;
                         break;
                     }
                 }
@@ -6014,7 +6106,8 @@ std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string 
     }
 
     // compute speed here to be able to know it for travel_deceleration_use_target
-    speed = _compute_speed_mm_per_sec(path, speed);
+    std::string speed_comment = "";
+    speed = _compute_speed_mm_per_sec(path, speed, m_config.gcode_comments ? &speed_comment : nullptr);
         
     if (m_config.travel_deceleration_use_target){
         if (travel_acceleration <= acceleration || travel_acceleration == 0 || acceleration == 0) {
@@ -6140,17 +6233,57 @@ std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string 
     }
     gcode += m_writer.unretract();
 
-    // extrude arc or line
+    // process custom extrusion role change gcode.
     if (path.role() != m_last_extrusion_role && !m_config.feature_gcode.value.empty()) {
         DynamicConfig config;
         config.set_key_value("extrusion_role", new ConfigOptionString(extrusion_role_to_string_for_parser(path.role())));
         config.set_key_value("last_extrusion_role", new ConfigOptionString(extrusion_role_to_string_for_parser(m_last_extrusion_role)));
         config.set_key_value("layer_num", new ConfigOptionInt(m_layer_index + 1));
         config.set_key_value("layer_z", new ConfigOptionFloat(m_layer == nullptr ? m_last_height : m_layer->print_z));
-        gcode += this->placeholder_parser_process("feature_gcode",
-            m_config.feature_gcode.value, m_writer.tool()->id(), &config)
-            + "\n";
-    }
+
+        if (m_config.print_custom_variables.value == "calibration_print" && !m_region->config().region_gcode.value.empty()) {
+
+            GCodeFlavor flavor = m_config.gcode_flavor.value;
+            std::string keyword = (gcfKlipper == flavor) ? "SET_PRESSURE_ADVANCE" :
+                                 (gcfMarlinFirmware == flavor) ? "M900" :
+                                 (gcfRepRap == flavor) ? "M572 S" : "";
+
+            //std::string keyword = "SET_PRESSURE_ADVANCE";
+            std::string feature_gcode_full = m_config.feature_gcode.value;
+            std::string feature_gcode_modified;//if "feature_gcode_full" is a single line and doesn't have a new line at the end fix it.
+            if (feature_gcode_full.back() != '\n') {
+                feature_gcode_full += '\n';
+            }
+
+            size_t pos = 0;
+
+            // Loop until all occurrences of SET_PRESSURE_ADVANCE are found
+            while ((pos = feature_gcode_full.find(keyword, pos)) != std::string::npos) {
+                // Step 1: Get everything before the keyword
+                feature_gcode_modified = feature_gcode_full.substr(0, pos);
+                size_t newline_pos = feature_gcode_full.find('\n', pos + keyword.length());
+                std::string substring_to_replace = feature_gcode_full.substr(pos, newline_pos - pos);
+                size_t first_non_space = substring_to_replace.find_first_not_of(" ", keyword.length());
+                substring_to_replace = substring_to_replace.substr(0, first_non_space) + substring_to_replace.substr(first_non_space);
+                std::replace(substring_to_replace.begin(), substring_to_replace.end(), ';', ' '); // Replace ';' with a space
+                substring_to_replace = "\n;" + substring_to_replace;
+                feature_gcode_modified += substring_to_replace;
+                feature_gcode_modified += feature_gcode_full.substr(newline_pos);
+                feature_gcode_full = feature_gcode_modified;
+                pos = newline_pos + 1;
+            }
+
+            // Pass the modified G-code to be processed
+            gcode += this->placeholder_parser_process("feature_gcode", feature_gcode_full, m_writer.tool()->id(), &config) + "\n";
+        } else {
+            gcode += this->placeholder_parser_process("feature_gcode", m_config.feature_gcode.value, m_writer.tool()->id(), &config) + "\n";
+        }
+
+
+
+
+
+    }//gcode += this->placeholder_parser_process("feature_gcode", m_config.feature_gcode.value, m_writer.tool()->id(), &config) + "\n";
     if (m_enable_extrusion_role_markers) {
         if (path.role() != m_last_extrusion_role) {
             char buf[32];

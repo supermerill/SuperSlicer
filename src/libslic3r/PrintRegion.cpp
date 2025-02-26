@@ -79,9 +79,14 @@ Flow PrintRegion::flow(const PrintObject &object, FlowRole role, double layer_he
     } else {
         throw Slic3r::InvalidArgument("Unknown role");
     }
-    if (first_layer && object.config().first_layer_extrusion_width.value > 0) {
+    /*if (first_layer && object.config().first_layer_extrusion_width.value > 0) {
         config_width = object.config().first_layer_extrusion_width;
         config_spacing = object.config().first_layer_extrusion_spacing;
+    }*/
+
+    if (first_layer && m_config.first_layer_extrusion_width.value > 0) {
+        config_width = m_config.first_layer_extrusion_width;
+        config_spacing = m_config.first_layer_extrusion_spacing;
     }
 
     if (config_width.value == 0) {

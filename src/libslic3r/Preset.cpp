@@ -308,10 +308,15 @@ void Preset::normalize(DynamicPrintConfig &config)
             if (key == "compatible_prints" || key == "compatible_printers")
                 continue;
             auto *opt = config.option(key, false);
+            auto *opt_default = defaults.option(key);
             /*assert(opt != nullptr);
             assert(opt->is_vector());*/
-            if (opt != nullptr && opt->is_vector())
-                static_cast<ConfigOptionVectorBase*>(opt)->resize(n, defaults.option(key));
+            if (opt != nullptr && opt->is_vector()){
+                if (opt_default != nullptr)
+                    static_cast<ConfigOptionVectorBase*>(opt)->resize(n, defaults.option(key));
+                //else
+                //    throw ConfigurationError("Invalid config option in filament_options: " + key);
+            }
         }
         // The following keys are mandatory for the UI, but they are not part of FullPrintConfig, therefore they are handled separately.
         for (const std::string &key : { "filament_settings_id" }) {
@@ -523,7 +528,7 @@ static std::vector<std::string> s_Preset_print_options {
         // speeds
         "default_speed",
         "bridge_speed",
-        "bridge_speed_internal",
+        "internal_bridge_speed",
         "brim_speed",
         "external_perimeter_speed",
         "first_layer_speed",
@@ -559,7 +564,6 @@ static std::vector<std::string> s_Preset_print_options {
         "fuzzy_skin_thickness",
         // acceleration
         "bridge_acceleration",
-        "bridge_internal_acceleration",
         "brim_acceleration",
         "default_acceleration",
         "external_perimeter_acceleration",
@@ -567,6 +571,7 @@ static std::vector<std::string> s_Preset_print_options {
         "first_layer_acceleration_over_raft",
         "gap_fill_acceleration",
         "infill_acceleration",
+        "internal_bridge_acceleration",
         "ironing_acceleration",
         "overhangs_acceleration",
         "perimeter_acceleration",
@@ -632,7 +637,9 @@ static std::vector<std::string> s_Preset_print_options {
         "extruder_clearance_height", "gcode_comments", "gcode_label_objects", "output_filename_format", "post_process", "perimeter_extruder",
         "gcode_substitutions",
         "infill_extruder", "solid_infill_extruder", "support_material_extruder", "support_material_interface_extruder", 
-        "ooze_prevention", "standby_temperature_delta", "interface_shells", 
+        "ooze_prevention", "standby_temperature_delta", "interface_shells",
+        "object_gcode",
+        "region_gcode",
         // width & spacing
         "extrusion_spacing", 
         "extrusion_width", 
@@ -709,6 +716,7 @@ static std::vector<std::string> s_Preset_print_options {
         "curve_smoothing_angle_convex",
         "curve_smoothing_angle_concave",
         "print_extrusion_multiplier",
+        "print_first_layer_temperature",
         "print_retract_length",
         "print_temperature",
         "print_retract_lift",
@@ -756,10 +764,10 @@ static std::vector<std::string> s_Preset_filament_options {
         "default_fan_speed",
         "max_fan_speed",
         "bridge_fan_speed",
-        "bridge_internal_fan_speed",
         "external_perimeter_fan_speed",
         "gap_fill_fan_speed",
         "infill_fan_speed",
+        "internal_bridge_fan_speed",
         "overhangs_fan_speed",
         "perimeter_fan_speed",
         "solid_infill_fan_speed",

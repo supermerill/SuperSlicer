@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Pressure Advance Calibration</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+    }
+    h1, h2 {
+      color: #333;
+      text-align: center;
+    }
+    ul {
+      list-style-type: disc;
+      margin-left: 20px;
+    }
+    p, li {
+      margin: 10px 0;
+    }
+    .warning {
+      color: red;
+      font-weight: bold;
+    }
+    .info {
+      font-style: italic;
+    }
+    .right-align {
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+
+<table width="100%">
+<tbody>
+<tr>
+<td style="text-align: center;">
+<h1>Pressure Advance Calibration</h1>
+</td>
+</tr>
+<tr>
+<td style="text-align: right;">
+<strong>
+    <table><tr><td>Requirements:</td>
+        <td style="text-align: left;">Perfect Bed Leveling and Layer Squish</td></tr>
+    </table>
+</strong>
+</tr>
+</tbody>
+</table>
+
+<p><span style="color: red; font-weight: bold;">This test is still in development. The beta version should work well, but your current print settings need to be saved before clicking "Generate" since they are used to create the model.</span></p>
+
+<p>Note: This test will automatically pull all your currently saved configuration parameters and generate a model for you to print. For optimal results, depending if you're chasing speed/quality or a mix of both, it is recommended to keep similar speeds for most extrusion roles, (although this is not mandatory).</p>
+
+<h2>How to Tune Your Printer for Pressure/Linear Advance</h2>
+<p>To get started:</p>
+<ul>
+<li>Select the number of tests to create, the <b>max</b> is <b>10</b>.</li>
+<li>Each row represents the config parameters for the selected extrusion role (e.g., first row = ExternalPerimeter, second row = FirstLayer).</li>
+<li>Select the start/end and increment values, <b>you can manually edit these values if you want larger or smaller values.</b></li>
+<li>Since each model will have its own config, one test model might print faster or slower than others. This is expected and normal.</li>
+<li>This is the first calibration tool that supports <b>Arachne!</b> so leave it enabled if you use Arachne. </li>
+<li>Helpful tip: If you are running multiple tests on a single plate, take a screenshot of the main configuration page (or leave it open and drag the window out of the way) to match the row number to the ID label on the bottom right of the loaded model. (counting starts at '0' ☺)<br>
+You can also inspect each 'base model' and view the object modifiers for each 90° bend model, the 'region_gcode' will have a comment for the extrusion role.<br></li>
+</ul>
+
+<li>if you use PA/LA commands in your <b>feature_gcode</b> it will be auto commented</li>
+
+<p>Currently unsupported roles:</p>
+<ul>
+<li>BridgeInfill, InternalBridgeInfill, ThinWall, GapFill, Ironing</li>
+</ul>
+<p>What is the "Verify" option?<br>
+The "Verify" option is an experimental feature. It aims to create a 90° model for each extrusion role, applying specific settings related to that extrusion role. <br>
+You need to <b>manually</b> add the pressure advance values into the "per region g-code" box.<br>
+However, it currently doesn't work perfectly. Occasionally the models get 'gap fill' and that will produce inaccurate results. Select the "verify" option to identify which extrusion roles need Pressure Advance tuning.</p>
+
+<h2>Known Bugs</h2>
+<ul>
+<li>Setting the first layer's PA value for multiple tests only applies the last row's value to (before_layer_gcode).</li>
+<li>The first layer may receive gap fill on the 90° bend models; it is recommended to disable gap fill in the object modifiers if this occurs.</li>
+<li>Occasionally some numbers might get scaled wrong so they won't show up on the G-code preview, this has primarily been for number '1'. If this happens, adjust main config 'thin_perimeters' to '-1'.</li>
+<li>Other minor bugs may be present.</li>
+</ul>
+
+<h2>Advice</h2>
+<p>Before calibrating Pressure/Linear Advance, it is recommended to tune everything else first!<br>
+<p>You may need to disable or adjust your part cooling config for this test, including the features that slow down layer times. Note: Large variances in ER speeds can reduce print quality and dimensional accuracy.</p>
+<p>It's recommended to set 'first_layer_min_speed' and 'first_layer_speed' to the same values, since the variance in speeds will mess with the first layer's pressure advance adjustments.</p>
+
+<h2>Notes</h2>
+<p><strong>TODO: add pictures</p>
+
+<table width="100%">
+<tbody>
+<tr>
+<td style="text-align: right;">
+<p>This testing method originated from <a href="https://ellis3dp.com/Print-Tuning-Guide/">ellis3dp.com/Print-Tuning-Guide</a>. You can find the original generator <a href="https://ellis3dp.com/Pressure_Linear_Advance_Tool/">here</a>.</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+</body>
+</html>
