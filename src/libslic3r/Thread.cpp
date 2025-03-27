@@ -19,6 +19,7 @@
 #include <random>
 #include <thread>
 #include <time.h>
+#include <chrono>
 #include <tbb/parallel_for.h>
 #include <tbb/task_arena.h>
 
