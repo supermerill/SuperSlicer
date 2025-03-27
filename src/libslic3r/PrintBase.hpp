@@ -12,6 +12,7 @@
 #include <functional>
 #include <atomic>
 #include <mutex>
+#include <chrono>
 
 #include "ObjectID.hpp"
 #include "Model.hpp"
