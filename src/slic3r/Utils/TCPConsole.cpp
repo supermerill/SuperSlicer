@@ -9,6 +9,7 @@
 #include <boost/asio/read_until.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/write.hpp>
+#include <boost/asio/connect.hpp>
 #include <boost/bind/bind.hpp>
 #include <boost/format.hpp>
 #include <boost/log/trivial.hpp>
@@ -161,7 +162,7 @@ bool TCPConsole::run_queue()
 
         auto endpoints = m_resolver.resolve(m_host_name, m_port_name);
 
-        m_socket.async_connect(endpoints->endpoint(),
+        boost::asio::async_connect(m_socket, endpoints,
             boost::bind(&TCPConsole::handle_connect, this, boost::placeholders::_1)
         );
 
