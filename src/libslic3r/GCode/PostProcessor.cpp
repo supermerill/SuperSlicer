@@ -28,7 +28,7 @@
 #else
 // POSIX
 #include <sstream>
-#include <boost/process.hpp>
+#include "BoostProcessCompat.hpp"
 #include <unistd.h>     //readlink
 #endif
 
@@ -144,7 +144,7 @@ static int run_script(const std::string &script, const std::string &gcode, std::
         command_line = L"cmd.exe /C ";
         need_absolute_path = true;
     }
-    
+
     std::wstring absolute_command_path;
     //check if it's an exe
     if (!need_absolute_path && boost::iends_with(command, ".exe")) {
@@ -175,72 +175,9 @@ static int run_script(const std::string &script, const std::string &gcode, std::
 
 #else
 
-namespace process = boost::process;
-
-static int run_script(const std::string &script, const std::string &gcode, std::string &std_err)
+int run_script(const std::string& shell, const std::string& command_line, std::string& std_err)
 {
-    // Try to obtain user's default shell
-    const char* shell = ::getenv("SHELL");
-    if (shell == nullptr) { shell = "/bin/sh"; }
-
-    // Quote and escape the gcode path argument
-    std::string command_line;
-    size_t first_space = script.find(' ');
-    bool need_absolute_path = false;
-    const std::string command = (std::string::npos != first_space) ? script.substr(0, first_space) : script;
-    const std::string args = (std::string::npos != first_space) ? script.substr(first_space) : "";
-    if (boost::iends_with(command, L".pl")) {
-        BOOST_LOG_TRIVIAL(trace) << boost::format("Executing script : detecting perl script");
-        // This is a perl script. Run it through the perl interpreter.
-        command_line = "perl ";
-        need_absolute_path = true;
-    } else if (boost::iends_with(command, L".py")) {
-        BOOST_LOG_TRIVIAL(trace) << boost::format("Executing script : detecting python script");
-        // This is a python script. Run it through the python interpreter.
-        command_line = "python3 ";
-        need_absolute_path = true;
-    }
-
-    std::string absolute_command_path;
-
-    //check if it's an exe/command (ie it doesn't have an extension)
-    if (!need_absolute_path && command.find('.') != std::string::npos) {
-        // command: it may come from the path, don't check.
-        absolute_command_path = command;
-    } else {
-        //try to find the file, in different directories
-        absolute_command_path = Slic3r::find_full_path(boost::filesystem::path(command)).generic_string();
-        if (absolute_command_path.empty()) {
-            if (need_absolute_path) {
-                BOOST_LOG_TRIVIAL(warning) << "The configured post-processing script may not exist: " << command;
-            }
-            absolute_command_path = command;
-        }
-    }
-    command_line += absolute_command_path;
-    command_line += args;
-
-    command_line.append(" '");
-    for (char c : gcode) {
-        if (c == '\'') { command_line.append("'\\''"); }
-        else { command_line.push_back(c); }
-    }
-    command_line.push_back('\'');
-
-    BOOST_LOG_TRIVIAL(trace) << boost::format("Executing script, shell: %1%, command: %2%") % shell % command_line;
-    process::ipstream istd_err;
-    process::child child(shell, "-c", command_line, process::std_err > istd_err);
-
-    std_err.clear();
-    std::string line;
-
-    while (child.running() && std::getline(istd_err, line)) {
-        std_err.append(line);
-        std_err.push_back('\n');
-    }
-
-    child.wait();
-    return child.exit_code();
+	return process_compat::run_script(shell, command_line, std_err);
 }
 
 #endif
@@ -261,7 +198,7 @@ bool run_post_process_scripts(std::string &src_path, bool make_copy, const std::
 {
     const auto *post_process = config.opt<ConfigOptionStrings>("post_process");
     if (// likely running in SLA mode
-        post_process == nullptr || 
+        post_process == nullptr ||
         // no post-processing script
         post_process->empty())
         return false;

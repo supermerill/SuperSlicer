@@ -35,11 +35,14 @@
 #include <pwd.h>
 #include <boost/filesystem.hpp>
 #include <boost/system/error_code.hpp>
-#include <boost/process.hpp>
+
+#include "BoostProcessCompat.hpp"
+
+#include <boost/asio.hpp>
 #endif
 
 namespace Slic3r {
-namespace GUI { 
+namespace GUI {
 
 wxDEFINE_EVENT(EVT_REMOVABLE_DRIVE_EJECTED, RemovableDriveEjectEvent);
 wxDEFINE_EVENT(EVT_REMOVABLE_DRIVES_CHANGED, RemovableDrivesChangedEvent);
@@ -246,14 +249,14 @@ bool get_handle_from_devinst(DEVINST devinst, HANDLE& handle)
 	dev_id_wstr = std::regex_replace(dev_id_wstr, std::wregex(LR"(\\)"), L"#"); // '\' is special for regex
 	dev_id_wstr = std::regex_replace(dev_id_wstr, std::wregex(L"^"), LR"(\\?\)", std::regex_constants::format_first_only);
 	dev_id_wstr = std::regex_replace(dev_id_wstr, std::wregex(L"$"), L"#", std::regex_constants::format_first_only);
-	
+
 	// guid
 	wchar_t			guid_wchar[64];//guid is 32 chars+4 hyphens+2 paranthesis+null => 64 should be more than enough
 	StringFromGUID2(GUID_DEVINTERFACE_USB_HUB, guid_wchar, 64);
 	dev_id_wstr.append(guid_wchar);
 
 	// get handle
-	std::wstring&	usb_hub_path = dev_id_wstr; 
+	std::wstring&	usb_hub_path = dev_id_wstr;
 	handle = CreateFileW(usb_hub_path.c_str(), GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 	if (handle == INVALID_HANDLE_VALUE) {
 		// Sometimes device is not GUID_DEVINTERFACE_USB_HUB, than we need to check parent recursively
@@ -333,7 +336,7 @@ bool is_card_reader(HDEVINFO h_dev_info, SP_DEVINFO_DATA& spdd)
 		BOOST_LOG_TRIVIAL(warning) << "is_card_reader failed: Couldn't get configuration string descriptor.";
 		return false;
 	}
-	
+
 	// Final compare.
 	BOOST_LOG_TRIVIAL(error) << "Ejecting information: Retrieved configuration string: " << configuration_string;
 	if (configuration_string.find(L"CARD READER") != std::wstring::npos) {
@@ -348,7 +351,7 @@ bool is_card_reader(HDEVINFO h_dev_info, SP_DEVINFO_DATA& spdd)
 DEVINST get_dev_inst_by_device_number(long device_number, UINT drive_type, WCHAR* dos_device_name)
 {
 	bool is_floppy = (wcsstr(dos_device_name, L"\\Floppy") != NULL); // TODO: could be tested better?
-	
+
 	if (drive_type != DRIVE_REMOVABLE || is_floppy) {
 		BOOST_LOG_TRIVIAL(warning) << "get_dev_inst_by_device_number failed: Drive is not removable.";
 		return 0;
@@ -375,7 +378,7 @@ DEVINST get_dev_inst_by_device_number(long device_number, UINT drive_type, WCHAR
 	// Loop through devices and compare device numbers
 	for (DWORD index = 0; SetupDiEnumDeviceInterfaces(h_dev_info, NULL, guid, index, &spdid); ++index) {
 		SetupDiGetDeviceInterfaceDetail(h_dev_info, &spdid, NULL, 0, &size, NULL);
-		// check the buffer size 
+		// check the buffer size
 		if (size == 0 || size > sizeof(buf)) {
 			continue;
 		}
@@ -486,7 +489,7 @@ int eject_inner(const std::string& path)
 
 #if 0
 	// loop with several tries and sleep (this is running on main UI thread)
-	for (int i = 0; i < 3; ++i) { 
+	for (int i = 0; i < 3; ++i) {
 		veto_name[0] = 0;
 		// CM_Query_And_Remove_SubTree doesn't work for restricted users
 		//res = CM_Query_And_Remove_SubTreeW(DevInstParent, &VetoType, VetoNameW, MAX_PATH, CM_REMOVE_NO_RESTART); // CM_Query_And_Remove_SubTreeA is not implemented under W2K!
@@ -496,7 +499,7 @@ int eject_inner(const std::string& path)
 		if (res == CR_SUCCESS && veto_type == PNP_VetoTypeUnknown) {
 			return 0;
 		}
-		// Wait for next try. 
+		// Wait for next try.
 		// This is main thread!
 		Sleep(500);
 	}
@@ -510,7 +513,7 @@ int eject_inner(const std::string& path)
 	}
 	BOOST_LOG_TRIVIAL(error) << GUI::format("Ejecting of %1% has failed: Request to eject device has failed. Another request will follow. Veto type: %2%", path, veto_type);
 
-	// But on some PC, SD cards ejects only with its own dev_inst. 
+	// But on some PC, SD cards ejects only with its own dev_inst.
 	res = CM_Request_Device_EjectW(dev_inst, &veto_type, veto_name, MAX_PATH, 0);
 	//res = CM_Query_And_Remove_SubTreeW(dev_inst_parent, &veto_type, veto_name, MAX_PATH, CM_REMOVE_UI_OK);
 	if (res == CR_SUCCESS && veto_type == PNP_VetoTypeUnknown) {
@@ -530,7 +533,7 @@ void eject_alt(std::string path, wxEvtHandler* callback_evt_handler, DriveData d
 	std::wstring wpath = std::wstring();
 	wpath += boost::nowide::widen(path)[0]; // drive letter wide
 	wpath[0] &= ~0x20; // make sure drive letter is uppercase
-	std::wstring volume_access_path = L"\\\\.\\" + wpath + L":"; // for CreateFile			
+	std::wstring volume_access_path = L"\\\\.\\" + wpath + L":"; // for CreateFile
 
 	HANDLE handle = CreateFileW(volume_access_path.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
 	if (handle == INVALID_HANDLE_VALUE) {
@@ -572,7 +575,7 @@ void eject_alt(std::string path, wxEvtHandler* callback_evt_handler, DriveData d
 	}
 	BOOST_LOG_TRIVIAL(info) << "Alt Ejecting: FSCTL_DISMOUNT_VOLUME success.";
 
-	// some implemenatations also calls IOCTL_STORAGE_MEDIA_REMOVAL here with FALSE as third parameter, which should set PreventMediaRemoval 
+	// some implemenatations also calls IOCTL_STORAGE_MEDIA_REMOVAL here with FALSE as third parameter, which should set PreventMediaRemoval
 	BOOL error = DeviceIoControl(handle, IOCTL_STORAGE_EJECT_MEDIA, nullptr, 0, nullptr, 0, &deviceControlRetVal, nullptr);
 	if (error == 0) {
 		CloseHandle(handle);
@@ -654,7 +657,7 @@ void RemovableDriveManager::eject_drive()
 #ifndef REMOVABLE_DRIVE_MANAGER_OS_CALLBACKS
 	this->update();
 #endif // REMOVABLE_DRIVE_MANAGER_OS_CALLBACKS
-	BOOST_LOG_TRIVIAL(info) << "Ejecting started"; 
+	BOOST_LOG_TRIVIAL(info) << "Ejecting started";
 	std::scoped_lock<std::mutex> lock(m_drives_mutex);
 	auto it_drive_data = this->find_last_save_path_drive_data();
 	if (it_drive_data != m_current_drives.end()) {
@@ -695,7 +698,7 @@ std::string RemovableDriveManager::get_removable_drive_path(const std::string &p
 	for (const DriveData &drive_data : m_current_drives) {
 		char drive = drive_data.path[0];
 		if (drive == 'A' + letter)
-			return path;	
+			return path;
 	}
 	return m_current_drives.front().path;
 }
@@ -705,7 +708,7 @@ std::string RemovableDriveManager::get_removable_drive_from_path(const std::stri
 	std::scoped_lock<std::mutex> lock(m_drives_mutex);
 	std::size_t found = path.find_last_of("\\");
 	std::string new_path = path.substr(0, found);
-	int letter = PathGetDriveNumberW(boost::nowide::widen(new_path).c_str());	
+	int letter = PathGetDriveNumberW(boost::nowide::widen(new_path).c_str());
 	for (const DriveData &drive_data : m_current_drives) {
 		assert(! drive_data.path.empty());
 		if (drive_data.path.front() == 'A' + letter)
@@ -726,7 +729,7 @@ void RemovableDriveManager::volumes_changed()
 
 #else
 
-namespace search_for_drives_internal 
+namespace search_for_drives_internal
 {
 	static bool compare_filesystem_id(const std::string &path_a, const std::string &path_b)
 	{
@@ -831,7 +834,7 @@ void RemovableDriveManager::eject_drive()
 #endif // REMOVABLE_DRIVE_MANAGER_OS_CALLBACKS
 #if __APPLE__
 	// If eject is still pending on the eject thread, wait until it finishes.
-	//FIXME while waiting for the eject thread to finish, the main thread is not pumping Cocoa messages, which may lead 
+	//FIXME while waiting for the eject thread to finish, the main thread is not pumping Cocoa messages, which may lead
 	// to blocking by the diskutil tool for a couple (up to 10) seconds. This is likely not critical, as the eject normally
 	// finishes quickly.
 	this->eject_thread_finish();
@@ -839,73 +842,71 @@ void RemovableDriveManager::eject_drive()
 
 	BOOST_LOG_TRIVIAL(info) << "Ejecting started";
 
-	DriveData drive_data;
-	{
-		std::scoped_lock<std::mutex> lock(m_drives_mutex);
-		auto it_drive_data = this->find_last_save_path_drive_data();
-		if (it_drive_data == m_current_drives.end())
-			return;
-		drive_data = *it_drive_data;
-	}
+#if !__APPLE__ && !defined(_WIN32)
+    // Linux eject implementation using compatibility library
 
-	std::string correct_path(m_last_save_path);
+    std::scoped_lock<std::mutex> lock(m_drives_mutex);
+    auto it_drive_data = this->find_last_save_path_drive_data();
+    if (it_drive_data != m_current_drives.end()) {
+        DriveData drive_data = *it_drive_data;
+        lock.~scoped_lock();
+
+        std::string correct_path = it_drive_data->path;
+
+        BOOST_LOG_TRIVIAL(info) << "Ejecting started";
+
+        // Use compatibility library for process execution
+        std::string std_err;
+
 #if __APPLE__
-	// On Apple, run the eject asynchronously on a worker thread, see the discussion at GH issue #4844.
-	m_eject_thread = new boost::thread([this, correct_path, drive_data]()
-#endif
-	{
-		//std::cout<<"Ejecting "<<(*it).name<<" from "<< correct_path<<"\n";
-		// there is no usable command in c++ so terminal command is used instead
-		// but neither triggers "succesful safe removal messege"
-		
-		BOOST_LOG_TRIVIAL(info) << "Ejecting started";
-		boost::process::ipstream istd_err;
-    	boost::process::child child(
-#if __APPLE__		
-			boost::process::search_path("diskutil"), "eject", correct_path.c_str(), (boost::process::std_out & boost::process::std_err) > istd_err);
-		//Another option how to eject at mac. Currently not working.
-		//used insted of system() command;
-		//this->eject_device(correct_path);
+        // Use diskutil on macOS
+        auto diskutil_path = process_compat::search_executable("diskutil");
+        if (diskutil_path.empty()) {
+            BOOST_LOG_TRIVIAL(error) << "diskutil not found";
+            return;
+        }
+
+        int exit_code = process_compat::run_script("sh",
+            diskutil_path + " eject " + correct_path + " 2>&1",
+            std_err);
 #else
-    		boost::process::search_path("umount"), correct_path.c_str(), (boost::process::std_out & boost::process::std_err) > istd_err);
+        // Use umount on Linux
+        auto umount_path = process_compat::search_executable("umount");
+        if (umount_path.empty()) {
+            BOOST_LOG_TRIVIAL(error) << "umount not found";
+            return;
+        }
+
+        int exit_code = process_compat::run_script("sh", umount_path + " " + correct_path + " 2>&1",
+            std_err);
 #endif
-		std::string line;
-		while (child.running() && std::getline(istd_err, line)) {
-			BOOST_LOG_TRIVIAL(trace) << line;
-		}
-		// wait for command to finnish (blocks ui thread)
-		std::error_code ec;
-		child.wait(ec);
-		bool success = false;
-		if (ec) {
-            // The wait call can fail, as it did in https://github.com/prusa3d/PrusaSlicer/issues/5507
-            // It can happen even in cases where the eject is sucessful, but better report it as failed.
-            // We did not find a way to reliably retrieve the exit code of the process.
-			BOOST_LOG_TRIVIAL(error) << "boost::process::child::wait() failed during Ejection. State of Ejection is unknown. Error code: " << ec.value();
-		} else {
-			int err = child.exit_code();
-	    	if (err) {
-	    		BOOST_LOG_TRIVIAL(error) << "Ejecting failed. Exit code: " << err;
-	    	} else {
-				BOOST_LOG_TRIVIAL(info) << "Ejecting finished";
-				success = true;
-			}
-		}
-		assert(m_callback_evt_handler);
-		if (m_callback_evt_handler) 
-			wxPostEvent(m_callback_evt_handler, RemovableDriveEjectEvent(EVT_REMOVABLE_DRIVE_EJECTED, std::pair<DriveData, bool>(drive_data, success)));
-		if (success) {
-			// Remove the drive_data from m_current drives, searching by value, not by pointer, as m_current_drives may get modified during
-			// asynchronous execution on m_eject_thread.
-			std::scoped_lock<std::mutex> lock(m_drives_mutex);
-			auto it = std::find(m_current_drives.begin(), m_current_drives.end(), drive_data);
-			if (it != m_current_drives.end())
-				m_current_drives.erase(it);
-		}
-	}
-#if __APPLE__
-	);
-#endif // __APPLE__
+
+        // Log any output
+        if (!std_err.empty()) {
+            BOOST_LOG_TRIVIAL(trace) << "Eject output: " << std_err;
+        }
+
+        bool success = (exit_code == 0);
+
+        // Send result event
+        assert(m_callback_evt_handler);
+        if (m_callback_evt_handler) {
+            wxPostEvent(m_callback_evt_handler,
+                       RemovableDriveEjectEvent(EVT_REMOVABLE_DRIVE_EJECTED,
+                                              std::pair<DriveData, bool>(drive_data, success)));
+        }
+
+        if (success) {
+            // Remove the drive from current drives list
+            std::scoped_lock<std::mutex> lock2(m_drives_mutex);
+            auto it = std::find_if(m_current_drives.begin(), m_current_drives.end(),
+                [&drive_data](const DriveData &data) { return data.path == drive_data.path; });
+            if (it != m_current_drives.end()) {
+                m_current_drives.erase(it);
+            }
+        }
+    }
+#endif // !__APPLE__ && !defined(_WIN32)
 }
 
 std::string RemovableDriveManager::get_removable_drive_path(const std::string &path)
@@ -931,7 +932,7 @@ std::string RemovableDriveManager::get_removable_drive_from_path(const std::stri
     // trim the filename
     found = new_path.find_last_of("/");
     new_path = new_path.substr(0, found);
-    
+
 	// check if same filesystem
 	std::scoped_lock<std::mutex> lock(m_drives_mutex);
 	for (const DriveData &drive_data : m_current_drives)
@@ -968,7 +969,7 @@ void RemovableDriveManager::shutdown()
 {
 #if __APPLE__
 	// If eject is still pending on the eject thread, wait until it finishes.
-	//FIXME while waiting for the eject thread to finish, the main thread is not pumping Cocoa messages, which may lead 
+	//FIXME while waiting for the eject thread to finish, the main thread is not pumping Cocoa messages, which may lead
 	// to blocking by the diskutil tool for a couple (up to 10) seconds. This is likely not critical, as the eject normally
 	// finishes quickly.
 	this->eject_thread_finish();
@@ -1009,13 +1010,13 @@ RemovableDriveManager::RemovableDrivesStatus RemovableDriveManager::status()
 	RemovableDriveManager::RemovableDrivesStatus out;
 	{
 		std::scoped_lock<std::mutex> lock(m_drives_mutex);
-		out.has_eject = 
+		out.has_eject =
 			// Cannot control eject on Chromium.
 			platform_flavor() != PlatformFlavor::LinuxOnChromium &&
 			this->find_last_save_path_drive_data() != m_current_drives.end();
 		out.has_removable_drives = ! m_current_drives.empty();
 	}
-	if (! out.has_eject) 
+	if (! out.has_eject)
 		m_last_save_path.clear();
 	out.has_eject = out.has_eject && m_exporting_finished;
 	return out;
@@ -1041,13 +1042,13 @@ void RemovableDriveManager::update()
 			assert(m_callback_evt_handler);
 			if (m_callback_evt_handler)
 				wxPostEvent(m_callback_evt_handler, RemovableDrivesChangedEvent(EVT_REMOVABLE_DRIVES_CHANGED));
-			
+
 			// event for printer config file
 			std::vector<DriveData> new_drives;
 			std::set_difference(current_drives.begin(), current_drives.end(), m_current_drives.begin(), m_current_drives.end(),
 				std::inserter(new_drives, new_drives.begin()));
-			
-			for (const DriveData& data : new_drives) { 
+
+			for (const DriveData& data : new_drives) {
 				if (data.path.empty())
 					continue;
 				wxCommandEvent* evt = new wxCommandEvent(EVT_REMOVABLE_DRIVE_ADDED);
@@ -1055,7 +1056,7 @@ void RemovableDriveManager::update()
 				evt->SetInt((int)m_first_update);
 				m_callback_evt_handler->QueueEvent(evt);
 			}
-			
+
 		}
 		m_current_drives = std::move(current_drives);
 		m_first_update = false;
@@ -1098,7 +1099,7 @@ void RemovableDriveManager::thread_proc()
 std::vector<DriveData>::const_iterator RemovableDriveManager::find_last_save_path_drive_data() const
 {
 	return Slic3r::binary_find_by_predicate(m_current_drives.begin(), m_current_drives.end(),
-		[this](const DriveData &data){ return data.path < m_last_save_path; }, 
+		[this](const DriveData &data){ return data.path < m_last_save_path; },
 		[this](const DriveData &data){ return data.path == m_last_save_path; });
 }
 
