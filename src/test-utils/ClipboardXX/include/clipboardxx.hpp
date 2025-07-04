@@ -4,7 +4,7 @@
 #if defined(_WIN32) || defined(WIN32)
     #define WINDOWS
     #include "detail/windows.hpp"
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__FreeBSD__)
     #define LINUX
     #include "detail/linux.hpp"
 #else

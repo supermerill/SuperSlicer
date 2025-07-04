@@ -37,7 +37,7 @@
 #ifdef WIN32
 #include <wx/msw/registry.h>
 #endif // WIN32
-#ifdef __linux__
+#if defined(__linux__) || defined(__FreeBSD__)
 #include "DesktopIntegrationDialog.hpp"
 #endif //__linux__
 
@@ -1281,7 +1281,7 @@ void PreferencesDialog::accept(wxEvent&)
 			this->m_downloader->allow(it->second == "1");
 		if (!this->m_downloader->on_finish())
 			return;
-#ifdef __linux__
+#if defined(__linux__) || defined(__FreeBSD__)
 		if( this->m_downloader->get_perform_registration_linux()) 
 			DesktopIntegrationDialog::perform_downloader_desktop_integration();
 #endif // __linux__

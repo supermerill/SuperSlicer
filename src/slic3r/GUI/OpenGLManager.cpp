@@ -344,10 +344,12 @@ bool OpenGLManager::init_gl()
         glewExperimental = true;
 #endif // ENABLE_GL_CORE_PROFILE || ENABLE_OPENGL_ES
         GLenum err = glewInit();
+#ifndef __FreeBSD__
         if (err != GLEW_OK) {
             BOOST_LOG_TRIVIAL(error) << "Unable to init glew library: " << glewGetErrorString(err);
             return false;
         }
+#endif
 
 #if ENABLE_GL_CORE_PROFILE
         do {

@@ -951,7 +951,7 @@ int read_config_builtin();
 #if defined(WIN32NATIVE)
 #  include <malloc.h>
 #else
-#  include <alloca.h>
+#  include <stdlib.h>
 #endif
 
 
