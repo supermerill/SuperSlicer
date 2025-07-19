@@ -594,6 +594,7 @@ target_include_directories(libslic3r PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} PUBLIC 
 target_include_directories(libslic3r PUBLIC ${EXPAT_INCLUDE_DIRS})
 
 find_package(JPEG REQUIRED)
+find_package(NanoSVG REQUIRED)
 
 target_link_libraries(libslic3r
     libnest2d
@@ -615,6 +616,7 @@ target_link_libraries(libslic3r
     PNG::PNG
     ZLIB::ZLIB
     JPEG::JPEG
+    NanoSVG::nanosvg
     qoi
     LibBGCode::bgcode_convert
     )

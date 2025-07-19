@@ -9,7 +9,6 @@
 #include "libslic3r/BoundingBox.hpp"
 #include "libslic3r/Format/ZipperArchiveImport.hpp"
 
-#define NANOSVG_IMPLEMENTATION
 #include "nanosvg/nanosvg.h"
 
 #include <limits>
