@@ -2,7 +2,6 @@
 
 
 #include <boost/log/trivial.hpp>
-#include <boost/nowide/system.hpp>
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/filesystem.hpp>
 

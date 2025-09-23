@@ -33,6 +33,7 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/log/trivial.hpp>
+#include <boost/nowide/convert.hpp>
 
 #include <wx/progdlg.h>
 #include <wx/listbook.h>
@@ -4756,7 +4757,7 @@ void ObjectList::fix_through_winsdk()
 
     // Show info notification
     wxString msg = MenuFactory::get_repaire_result_message(succes_models, failed_models);
-    plater->get_notification_manager()->push_notification(NotificationType::RepairFinished, NotificationManager::NotificationLevel::PrintInfoShortNotificationLevel, boost::nowide::narrow(msg));
+    plater->get_notification_manager()->push_notification(NotificationType::RepairFinished, NotificationManager::NotificationLevel::PrintInfoShortNotificationLevel, boost::nowide::narrow(msg.wc_str()));
 }
 
 void ObjectList::simplify()

@@ -17,6 +17,7 @@
 #include "libslic3r/BoundingBox.hpp"
 #include "libslic3r/AABBTreeIndirect.hpp"
 #include "libslic3r/KDTreeIndirect.hpp"
+#include "libslic3r/TriangleMesh.hpp"
 
 namespace Slic3r {
 

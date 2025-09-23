@@ -7,13 +7,19 @@ if (NOT APPLE)
 endif ()
 add_subdirectory(admesh)
 add_subdirectory(avrdude)
-# boost/nowide
-add_subdirectory(boost)
+
+find_package(Boost REQUIRED COMPONENTS system filesystem thread process)
+
 add_subdirectory(clipper)
+
 add_subdirectory(miniz)
-add_subdirectory(glu-libtess)
+
+find_package(GLU REQUIRED)
+
 add_subdirectory(semver)
+
 add_subdirectory(libigl)
+
 add_subdirectory(hints)
 add_subdirectory(qoi)
 add_subdirectory(libnest2d)
@@ -36,12 +42,11 @@ endif ()
 
 if (SLIC3R_GUI)
     add_subdirectory(imgui)
-    add_subdirectory(hidapi)
-    include_directories(hidapi/include)
+
+    find_package(hidapi REQUIRED)
+
     add_subdirectory(exif)
-    include_directories(exif/include)
     add_subdirectory(angelscript)
-    # include_directories(angelscript/include)
 
     if(WIN32)
         message(STATUS "WXWIN environment set to: $ENV{WXWIN}")
@@ -56,7 +61,8 @@ if (SLIC3R_GUI)
 
     if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
         set (wxWidgets_CONFIG_OPTIONS "--toolkit=gtk${SLIC3R_GTK}")
-            endif ()
+    endif ()
+
     if(WIN32)
         find_package(wxWidgets 3.2 MODULE REQUIRED COMPONENTS base core adv html gl stc scintilla)
     else()
@@ -73,6 +79,7 @@ if (SLIC3R_GUI)
 
     find_package(JPEG MODULE QUIET)
     find_package(NanoSVG REQUIRED)
+    find_package(EXPAT REQUIRED)
 
     string(REGEX MATCH "wxpng" WX_PNG_BUILTIN ${wxWidgets_LIBRARIES})
     if (PNG_FOUND AND NOT WX_PNG_BUILTIN)
@@ -92,26 +99,20 @@ if (SLIC3R_GUI)
         list(APPEND wxWidgets_LIBRARIES libexpat)
     endif ()
     
-    # This is an issue in the new wxWidgets cmake build, doesn't deal with librt
     find_library(LIBRT rt)
     if(LIBRT)
         list(APPEND wxWidgets_LIBRARIES ${LIBRT})
     endif()
 
-    # This fixes a OpenGL linking issue on OSX. wxWidgets cmake build includes
-    # wrong libs for opengl in the link line and it does not link to it by himself.
-    # libslic3r_gui will link to opengl anyway, so lets override wx
     list(FILTER wxWidgets_LIBRARIES EXCLUDE REGEX OpenGL)
     
     if (UNIX AND NOT APPLE)
         list(APPEND wxWidgets_LIBRARIES X11 wayland-client wayland-egl EGL)
     endif ()
-#    list(REMOVE_ITEM wxWidgets_LIBRARIES oleacc)
     message(STATUS "wx libs: ${wxWidgets_LIBRARIES}")
 
     add_subdirectory(slic3r)
 endif()
-
 
 # Create a Slic3r executable
 # Process mainfests for various platforms.

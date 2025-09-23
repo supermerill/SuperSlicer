@@ -5,6 +5,8 @@
 #ifndef slic3r_Format_3mf_hpp_
 #define slic3r_Format_3mf_hpp_
 
+#include <string>
+
 namespace Slic3r {
 
     /* The format for saving the SLA points was changing in the past. This enum holds the latest version that is being currently used.

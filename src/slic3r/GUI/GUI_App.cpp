@@ -58,7 +58,7 @@
 #include <wx/splash.h>
 #include <wx/fontutil.h>
 
-#include "exif.h"
+#include "exif/include/exif.h"
 
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/Model.hpp"

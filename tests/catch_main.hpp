@@ -4,7 +4,7 @@
 #define CATCH_CONFIG_EXTERNAL_INTERFACES
 #define CATCH_CONFIG_MAIN
 // #define CATCH_CONFIG_DEFAULT_REPORTER "verboseconsole"
-#include <catch2/catch.hpp>
+#include <catch2/reporters/catch_reporter_console.hpp>
 
 namespace Catch {
 struct VerboseConsoleReporter : public ConsoleReporter {

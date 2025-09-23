@@ -13,8 +13,8 @@
 #include <boost/log/trivial.hpp>
 #include <boost/format.hpp>
 #include <boost/nowide/convert.hpp>
-#include <boost/nowide/cenv.hpp>
 #include <boost/nowide/fstream.hpp>
+#include <boost/nowide/cstdlib.hpp>
 
 #include <cstdlib>   // getenv()
 #ifdef WIN32
@@ -29,7 +29,11 @@
 // POSIX
 #include <sstream>
 #include <boost/process.hpp>
-#include <unistd.h>     //readlink
+#include <boost/process/process.hpp>
+#include <boost/process/v1/child.hpp>
+#include <boost/process/v1/io.hpp>
+#include <boost/process/v2/stdio.hpp>
+#include <unistd.h> //readlink
 #endif
 
 
@@ -228,8 +232,8 @@ static int run_script(const std::string &script, const std::string &gcode, std::
     command_line.push_back('\'');
 
     BOOST_LOG_TRIVIAL(trace) << boost::format("Executing script, shell: %1%, command: %2%") % shell % command_line;
-    process::ipstream istd_err;
-    process::child child(shell, "-c", command_line, process::std_err > istd_err);
+    process::v1::ipstream istd_err;
+    process::v1::child child(shell, "-c", command_line, process::v1::std_err > istd_err);
 
     std_err.clear();
     std::string line;

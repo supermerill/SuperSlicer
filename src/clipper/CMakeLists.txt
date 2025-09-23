@@ -9,4 +9,4 @@ add_library(clipper STATIC
     clipper_z.hpp
 )
 
-target_link_libraries(clipper TBB::tbb TBB::tbbmalloc)
+target_link_libraries(clipper TBB::tbb TBB::tbbmalloc libslic3r)

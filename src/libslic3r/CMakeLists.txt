@@ -420,7 +420,7 @@ set(SLIC3R_SOURCES
     TriangleMeshSlicer.hpp
     MeshSplitImpl.hpp
     TriangulateWall.hpp
-    utils.cpp
+    Utils.cpp
     Utils.hpp
     Time.cpp
     Time.hpp
@@ -520,7 +520,7 @@ set(SLIC3R_SOURCES
     Arachne/utils/PolylineStitcher.hpp
     Arachne/utils/PolylineStitcher.cpp
     Geometry/Voronoi.cpp
-    Geometry/VoronoiUtils.hpp
+   Geometry/VoronoiUtils.hpp
     Geometry/VoronoiUtils.cpp
     Arachne/SkeletalTrapezoidation.hpp
     Arachne/SkeletalTrapezoidation.cpp
@@ -581,7 +581,7 @@ if (_opts)
     target_compile_options(libslic3r_cgal PRIVATE "${_opts_bad}")
 endif()
 
-target_link_libraries(libslic3r_cgal PRIVATE ${_cgal_tgt} libigl)
+target_link_libraries(libslic3r_cgal PRIVATE ${_cgal_tgt} libigl admesh)
 
 if (MSVC AND "${CMAKE_SIZEOF_VOID_P}" STREQUAL "4") # 32 bit MSVC workaround
     target_compile_definitions(libslic3r_cgal PRIVATE CGAL_DO_NOT_USE_MPZF)
@@ -603,9 +603,11 @@ target_link_libraries(libslic3r
     miniz
     boost_libs
     clipper
-    nowide
+    #nowide
+    Boost::nowide
     libexpat
-    glu-libtess
+    #glu-libtess
+    GLU
     qhull
     semver
     TBB::tbb

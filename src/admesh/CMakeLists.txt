@@ -11,4 +11,5 @@ add_library(admesh STATIC
     util.cpp
 )
 
-target_link_libraries(admesh PRIVATE boost_headeronly)
+target_include_directories(admesh PUBLIC ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(admesh PRIVATE boost_headeronly libslic3r)

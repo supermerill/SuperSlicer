@@ -26,7 +26,7 @@
 #include <boost/format/format_fwd.hpp>
 #include <boost/locale.hpp>
 #include <boost/log/trivial.hpp>
-#include <boost/nowide/cenv.hpp>
+#include <boost/nowide/cstdlib.hpp>
 #include <boost/nowide/fstream.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include <boost/property_tree/ptree_fwd.hpp>

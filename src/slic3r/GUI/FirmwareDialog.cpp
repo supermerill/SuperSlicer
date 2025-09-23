@@ -18,7 +18,6 @@
 #endif
 
 #include "libslic3r/Utils.hpp"
-#include "avrdude/avrdude-slic3r.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
 #include "I18N.hpp"
@@ -26,6 +25,7 @@
 #include "../Utils/HexFile.hpp"
 #include "../Utils/Serial.hpp"
 #include "wxExtensions.hpp"
+#include "avrdude/avrdude-slic3r.hpp"
 
 // wx includes need to come after asio because of the WinSock.h problem
 #include "FirmwareDialog.hpp"

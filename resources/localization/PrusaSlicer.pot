@@ -1,0 +1,456 @@
+
+#: resources/data/hints.ini: [hint:Fuzzy skin]
+msgid "Fuzzy skin\nDid you know that you can create rough fibre-like texture on the sides of your models using the<a>Fuzzy skin</a>feature? You can also use modifiers to apply fuzzy-skin only to a portion of your model."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Shapes gallery]
+msgid "Shapes gallery\nDid you know that PrusaSlicer has a Shapes Gallery? You can use the included models as modifiers, negative volumes or as printable objects. Right-click the platter and select<a>Add Shape - Gallery</a>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Arrange settings]
+msgid "Arrange settings\nDid you know that you can right-click the<a>Arrange icon</a>to adjust the size of the gap between objects and to allow automatic rotations?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Negative volume]
+msgid "Negative volume\nDid you know that you can subtract one mesh from another using the Negative volume modifier? That way you can, for example, create easily resizable holes directly in PrusaSlicer. Read more in the documentation. (Requires Advanced or Expert mode.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Simplify mesh]
+msgid "Simplify mesh\nDid you know that you can reduce the number of triangles in a mesh using the Simplify mesh feature? Right-click the model and select Simplify model. Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Reload from disk]
+msgid "Reload from disk\nDid you know that if you created a newer version of your model, you can simply reload it in PrusaSlicer? Right-click the model in the 3D view and choose Reload from disk. Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Hiding sidebar]
+msgid "Hiding sidebar\nDid you know that you can hide the right sidebar using the shortcut <b>Shift+Tab</b>? You can also enable the icon for this from the<a>Preferences</a>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Perspective camera]
+msgid "Perspective camera\nDid you know that you can use the <b>K</b> key to quickly switch between an orthographic and perspective camera?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Camera Views]
+msgid "Camera Views\nDid you know that you can use the number keys <b>0-6</b> to quickly switch between predefined camera angles?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Place on face]
+msgid "Place on face\nDid you know that you can quickly orient a model so that one of its faces sits on the print bed? Select the<a>Place on face</a>function or press the <b>F</b> key."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Set number of instances]
+msgid "Set number of instances\nDid you know that you can right-click a model and set an exact number of instances instead of copy-pasting it several times?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Combine infill]
+msgid "Combine infill\nDid you know that you can print the infill with a higher layer height compared to perimeters to save print time using the setting<a>Combine infill every</a>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Variable layer height]
+msgid "Variable layer height\nDid you know that you can print different regions of your model with a different layer height and smooth the transitions between them? Try the<a>Variable layer height tool</a>. (Not available for SLA printers.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Undo/redo history]
+msgid "Undo/redo history\nDid you know that you can right-click the<a>undo/redo arrows</a>to see the history of changes and to undo or redo several actions at once?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Different layer height for each model]
+msgid "Different layer height for each model\nDid you know that you can print each model on the plater with a different layer height? Right-click the model in the 3D view, choose Layers and Perimeters and adjust the values in the right panel. Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Solid infill threshold area]
+msgid "Solid infill threshold area\nDid you know that you can make parts of your model with a small cross-section be filled with solid infill automatically? Set the<a>Solid infill threshold area</a>. (Expert mode only.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Search functionality]
+msgid "Search functionality\nDid you know that you use the<a>Search</a>tool to quickly find a specific PrusaSlicer setting? Or use the familiar shortcut <b>Ctrl+F</b>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Box selection]
+msgid "Box selection\nDid you know that you can do a box selection with Shift+Mouse drag? You can also box-deselect objects with <b>Alt+Mouse drag</b>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Zoom on selected objects or on all objects if none selected]
+msgid "Zoom on selected objects or on all objects if none selected\nDid you know that you can zoom in on selected objects by pressing the <b>Z</b> key? If none are selected, the camera will zoom on all objects in the scene."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Printable toggle]
+msgid "Printable toggle\nDid you know that you can disable the G-code generation for the selected model without having to move or delete it? Toggle the Printable property of a model from the Right-click context menu."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Mirror]
+msgid "Mirror\nDid you know that you can mirror the selected model to create a reversed version of it? Right-click the model, select Mirror and pick the mirror axis."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:PageUp / PageDown quick rotation by 45 degrees]
+msgid "PageUp / PageDown quick rotation by 45 degrees\nDid you know that you can quickly rotate selected models by 45 degrees around the Z-axis clockwise or counter-clockwise by pressing <b>Page Up</b> or <b>Page Down</b> respectively?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Load config from G-code]
+msgid "Load config from G-code\nDid you know that you can use File-Import-Import Config to load print, filament and printer profiles from an existing G-code file? Similarly, you can use File-Import-Import SL1 / SL1S archive, which also lets you reconstruct 3D models from the voxel data."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Ironing]
+msgid "Ironing\nDid you know that you can smooth top surfaces of prints using Ironing? The nozzle will run a special second infill phase at the same layer to fill in holes and flatten any lifted plastic. Read more in the documentation. (Requires Advanced or Expert mode.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Paint-on supports]
+msgid "Paint-on supports\nDid you know that you can paint directly on the object and select areas, where supports should be enforced or blocked? Try the<a>Paint-on supports</a>feature. (Requires Advanced or Expert mode.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Paint-on seam]
+msgid "Paint-on seam\nDid you know that you can paint directly on the object and select where to place the start/endpoint of each perimeter loop? Try the<a>Seam painting</a>feature. (Requires Advanced or Expert mode.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Insert Pause]
+msgid "Insert Pause\nDid you know that you can schedule the print to pause at a specific layer? Right-click the layer slider in the Preview and select Add pause print (M601). This can be used to insert magnets, weights or nuts into your prints. Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Insert Custom G-code]
+msgid "Insert Custom G-code\nDid you know that you can insert a custom G-code at a specific layer? Left-click the layer in the Preview, Right-click the plus icon and select Add custom G-code. With this function you can, for example, create a temperature tower. Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Configuration snapshots]
+msgid "Configuration snapshots\nDid you know that you can roll back to a complete backup of all system and user profiles? You can view and move back and forth between snapshots using the Configuration - <a>Configuration snapshots menu</a>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Minimum shell thickness]
+msgid "Minimum shell thickness\nDid you know that instead of the number of top and bottom layers, you can define the<a>Minimum shell thickness</a>in millimeters? This feature is especially useful when using the variable layer height function."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Settings in non-modal window]
+msgid "Settings in non-modal window\nDid you know that you can open the Settings in a new non-modal window? This means you can have settings open on one screen and the G-code Preview on the other. Go to the<a>Preferences</a>and select Settings in non-modal window."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Adaptive infills]
+msgid "Adaptive infills\nDid you know that you can use the Adaptive cubic and Support cubic infills to decrease the print time and lower the filament consumption? Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Lightning infill]
+msgid "Lightning infill\nDid you know that you can use the Lightning infill to support only the top surfaces, save a lot of the filament, and decrease the print time? Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Fullscreen mode]
+msgid "Fullscreen mode\nDid you know that you can switch PrusaSlicer to fullscreen mode? Use the <b>F11</b> hotkey."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Printables integration]
+msgid "Printables.com integration\nDid you know that when you are browsing Printables.com, you can send 3D model files to PrusaSlicer with a single click? Learn more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Cut tool]
+msgid "Cut tool\nDid you know that you can cut a model at any angle and even create aligning pins with the updated <a>Cut tool</a>? Learn more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Measurement tool]
+msgid "Measurement tool\nDid you know that you can <a>measure</a> the distances between points, edges and planes, the radius of a hole or the angle between edges or planes? Learn more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Text tool]
+msgid "Text tool\nDid you know that you can add custom text labels to your models or even use the text as a modifier? Learn more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Fuzzy skin]
+msgid "Fuzzy skin\nDid you know that you can create rough fibre-like texture on the sides of your models using the<a>Fuzzy skin</a>feature? You can also use modifiers to apply fuzzy-skin only to a portion of your model."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Shapes gallery]
+msgid "Shapes gallery\nDid you know that PrusaSlicer has a Shapes Gallery? You can use the included models as modifiers, negative volumes or as printable objects. Right-click the platter and select<a>Add Shape - Gallery</a>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Arrange settings]
+msgid "Arrange settings\nDid you know that you can right-click the<a>Arrange icon</a>to adjust the size of the gap between objects and to allow automatic rotations?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Negative volume]
+msgid "Negative volume\nDid you know that you can subtract one mesh from another using the Negative volume modifier? That way you can, for example, create easily resizable holes directly in PrusaSlicer. Read more in the documentation. (Requires Advanced or Expert mode.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Simplify mesh]
+msgid "Simplify mesh\nDid you know that you can reduce the number of triangles in a mesh using the Simplify mesh feature? Right-click the model and select Simplify model. Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Reload from disk]
+msgid "Reload from disk\nDid you know that if you created a newer version of your model, you can simply reload it in PrusaSlicer? Right-click the model in the 3D view and choose Reload from disk. Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Hiding sidebar]
+msgid "Hiding sidebar\nDid you know that you can hide the right sidebar using the shortcut <b>Shift+Tab</b>? You can also enable the icon for this from the<a>Preferences</a>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Perspective camera]
+msgid "Perspective camera\nDid you know that you can use the <b>K</b> key to quickly switch between an orthographic and perspective camera?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Camera Views]
+msgid "Camera Views\nDid you know that you can use the number keys <b>0-6</b> to quickly switch between predefined camera angles?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Place on face]
+msgid "Place on face\nDid you know that you can quickly orient a model so that one of its faces sits on the print bed? Select the<a>Place on face</a>function or press the <b>F</b> key."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Set number of instances]
+msgid "Set number of instances\nDid you know that you can right-click a model and set an exact number of instances instead of copy-pasting it several times?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Combine infill]
+msgid "Combine infill\nDid you know that you can print the infill with a higher layer height compared to perimeters to save print time using the setting<a>Combine infill every</a>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Variable layer height]
+msgid "Variable layer height\nDid you know that you can print different regions of your model with a different layer height and smooth the transitions between them? Try the<a>Variable layer height tool</a>. (Not available for SLA printers.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Undo/redo history]
+msgid "Undo/redo history\nDid you know that you can right-click the<a>undo/redo arrows</a>to see the history of changes and to undo or redo several actions at once?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Different layer height for each model]
+msgid "Different layer height for each model\nDid you know that you can print each model on the plater with a different layer height? Right-click the model in the 3D view, choose Layers and Perimeters and adjust the values in the right panel. Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Solid infill threshold area]
+msgid "Solid infill threshold area\nDid you know that you can make parts of your model with a small cross-section be filled with solid infill automatically? Set the<a>Solid infill threshold area</a>. (Expert mode only.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Search functionality]
+msgid "Search functionality\nDid you know that you use the<a>Search</a>tool to quickly find a specific PrusaSlicer setting? Or use the familiar shortcut <b>Ctrl+F</b>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Box selection]
+msgid "Box selection\nDid you know that you can do a box selection with Shift+Mouse drag? You can also box-deselect objects with <b>Alt+Mouse drag</b>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Zoom on selected objects or on all objects if none selected]
+msgid "Zoom on selected objects or on all objects if none selected\nDid you know that you can zoom in on selected objects by pressing the <b>Z</b> key? If none are selected, the camera will zoom on all objects in the scene."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Printable toggle]
+msgid "Printable toggle\nDid you know that you can disable the G-code generation for the selected model without having to move or delete it? Toggle the Printable property of a model from the Right-click context menu."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Mirror]
+msgid "Mirror\nDid you know that you can mirror the selected model to create a reversed version of it? Right-click the model, select Mirror and pick the mirror axis."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:PageUp / PageDown quick rotation by 45 degrees]
+msgid "PageUp / PageDown quick rotation by 45 degrees\nDid you know that you can quickly rotate selected models by 45 degrees around the Z-axis clockwise or counter-clockwise by pressing <b>Page Up</b> or <b>Page Down</b> respectively?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Load config from G-code]
+msgid "Load config from G-code\nDid you know that you can use File-Import-Import Config to load print, filament and printer profiles from an existing G-code file? Similarly, you can use File-Import-Import SL1 / SL1S archive, which also lets you reconstruct 3D models from the voxel data."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Ironing]
+msgid "Ironing\nDid you know that you can smooth top surfaces of prints using Ironing? The nozzle will run a special second infill phase at the same layer to fill in holes and flatten any lifted plastic. Read more in the documentation. (Requires Advanced or Expert mode.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Paint-on supports]
+msgid "Paint-on supports\nDid you know that you can paint directly on the object and select areas, where supports should be enforced or blocked? Try the<a>Paint-on supports</a>feature. (Requires Advanced or Expert mode.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Paint-on seam]
+msgid "Paint-on seam\nDid you know that you can paint directly on the object and select where to place the start/endpoint of each perimeter loop? Try the<a>Seam painting</a>feature. (Requires Advanced or Expert mode.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Insert Pause]
+msgid "Insert Pause\nDid you know that you can schedule the print to pause at a specific layer? Right-click the layer slider in the Preview and select Add pause print (M601). This can be used to insert magnets, weights or nuts into your prints. Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Insert Custom G-code]
+msgid "Insert Custom G-code\nDid you know that you can insert a custom G-code at a specific layer? Left-click the layer in the Preview, Right-click the plus icon and select Add custom G-code. With this function you can, for example, create a temperature tower. Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Configuration snapshots]
+msgid "Configuration snapshots\nDid you know that you can roll back to a complete backup of all system and user profiles? You can view and move back and forth between snapshots using the Configuration - <a>Configuration snapshots menu</a>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Minimum shell thickness]
+msgid "Minimum shell thickness\nDid you know that instead of the number of top and bottom layers, you can define the<a>Minimum shell thickness</a>in millimeters? This feature is especially useful when using the variable layer height function."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Settings in non-modal window]
+msgid "Settings in non-modal window\nDid you know that you can open the Settings in a new non-modal window? This means you can have settings open on one screen and the G-code Preview on the other. Go to the<a>Preferences</a>and select Settings in non-modal window."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Adaptive infills]
+msgid "Adaptive infills\nDid you know that you can use the Adaptive cubic and Support cubic infills to decrease the print time and lower the filament consumption? Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Lightning infill]
+msgid "Lightning infill\nDid you know that you can use the Lightning infill to support only the top surfaces, save a lot of the filament, and decrease the print time? Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Fullscreen mode]
+msgid "Fullscreen mode\nDid you know that you can switch PrusaSlicer to fullscreen mode? Use the <b>F11</b> hotkey."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Printables integration]
+msgid "Printables.com integration\nDid you know that when you are browsing Printables.com, you can send 3D model files to PrusaSlicer with a single click? Learn more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Cut tool]
+msgid "Cut tool\nDid you know that you can cut a model at any angle and even create aligning pins with the updated <a>Cut tool</a>? Learn more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Measurement tool]
+msgid "Measurement tool\nDid you know that you can <a>measure</a> the distances between points, edges and planes, the radius of a hole or the angle between edges or planes? Learn more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Text tool]
+msgid "Text tool\nDid you know that you can add custom text labels to your models or even use the text as a modifier? Learn more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Fuzzy skin]
+msgid "Fuzzy skin\nDid you know that you can create rough fibre-like texture on the sides of your models using the<a>Fuzzy skin</a>feature? You can also use modifiers to apply fuzzy-skin only to a portion of your model."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Shapes gallery]
+msgid "Shapes gallery\nDid you know that PrusaSlicer has a Shapes Gallery? You can use the included models as modifiers, negative volumes or as printable objects. Right-click the platter and select<a>Add Shape - Gallery</a>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Arrange settings]
+msgid "Arrange settings\nDid you know that you can right-click the<a>Arrange icon</a>to adjust the size of the gap between objects and to allow automatic rotations?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Negative volume]
+msgid "Negative volume\nDid you know that you can subtract one mesh from another using the Negative volume modifier? That way you can, for example, create easily resizable holes directly in PrusaSlicer. Read more in the documentation. (Requires Advanced or Expert mode.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Simplify mesh]
+msgid "Simplify mesh\nDid you know that you can reduce the number of triangles in a mesh using the Simplify mesh feature? Right-click the model and select Simplify model. Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Reload from disk]
+msgid "Reload from disk\nDid you know that if you created a newer version of your model, you can simply reload it in PrusaSlicer? Right-click the model in the 3D view and choose Reload from disk. Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Hiding sidebar]
+msgid "Hiding sidebar\nDid you know that you can hide the right sidebar using the shortcut <b>Shift+Tab</b>? You can also enable the icon for this from the<a>Preferences</a>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Perspective camera]
+msgid "Perspective camera\nDid you know that you can use the <b>K</b> key to quickly switch between an orthographic and perspective camera?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Camera Views]
+msgid "Camera Views\nDid you know that you can use the number keys <b>0-6</b> to quickly switch between predefined camera angles?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Place on face]
+msgid "Place on face\nDid you know that you can quickly orient a model so that one of its faces sits on the print bed? Select the<a>Place on face</a>function or press the <b>F</b> key."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Set number of instances]
+msgid "Set number of instances\nDid you know that you can right-click a model and set an exact number of instances instead of copy-pasting it several times?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Combine infill]
+msgid "Combine infill\nDid you know that you can print the infill with a higher layer height compared to perimeters to save print time using the setting<a>Combine infill every</a>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Variable layer height]
+msgid "Variable layer height\nDid you know that you can print different regions of your model with a different layer height and smooth the transitions between them? Try the<a>Variable layer height tool</a>. (Not available for SLA printers.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Undo/redo history]
+msgid "Undo/redo history\nDid you know that you can right-click the<a>undo/redo arrows</a>to see the history of changes and to undo or redo several actions at once?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Different layer height for each model]
+msgid "Different layer height for each model\nDid you know that you can print each model on the plater with a different layer height? Right-click the model in the 3D view, choose Layers and Perimeters and adjust the values in the right panel. Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Solid infill threshold area]
+msgid "Solid infill threshold area\nDid you know that you can make parts of your model with a small cross-section be filled with solid infill automatically? Set the<a>Solid infill threshold area</a>. (Expert mode only.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Search functionality]
+msgid "Search functionality\nDid you know that you use the<a>Search</a>tool to quickly find a specific PrusaSlicer setting? Or use the familiar shortcut <b>Ctrl+F</b>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Box selection]
+msgid "Box selection\nDid you know that you can do a box selection with Shift+Mouse drag? You can also box-deselect objects with <b>Alt+Mouse drag</b>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Zoom on selected objects or on all objects if none selected]
+msgid "Zoom on selected objects or on all objects if none selected\nDid you know that you can zoom in on selected objects by pressing the <b>Z</b> key? If none are selected, the camera will zoom on all objects in the scene."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Printable toggle]
+msgid "Printable toggle\nDid you know that you can disable the G-code generation for the selected model without having to move or delete it? Toggle the Printable property of a model from the Right-click context menu."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Mirror]
+msgid "Mirror\nDid you know that you can mirror the selected model to create a reversed version of it? Right-click the model, select Mirror and pick the mirror axis."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:PageUp / PageDown quick rotation by 45 degrees]
+msgid "PageUp / PageDown quick rotation by 45 degrees\nDid you know that you can quickly rotate selected models by 45 degrees around the Z-axis clockwise or counter-clockwise by pressing <b>Page Up</b> or <b>Page Down</b> respectively?"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Load config from G-code]
+msgid "Load config from G-code\nDid you know that you can use File-Import-Import Config to load print, filament and printer profiles from an existing G-code file? Similarly, you can use File-Import-Import SL1 / SL1S archive, which also lets you reconstruct 3D models from the voxel data."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Ironing]
+msgid "Ironing\nDid you know that you can smooth top surfaces of prints using Ironing? The nozzle will run a special second infill phase at the same layer to fill in holes and flatten any lifted plastic. Read more in the documentation. (Requires Advanced or Expert mode.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Paint-on supports]
+msgid "Paint-on supports\nDid you know that you can paint directly on the object and select areas, where supports should be enforced or blocked? Try the<a>Paint-on supports</a>feature. (Requires Advanced or Expert mode.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Paint-on seam]
+msgid "Paint-on seam\nDid you know that you can paint directly on the object and select where to place the start/endpoint of each perimeter loop? Try the<a>Seam painting</a>feature. (Requires Advanced or Expert mode.)"
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Insert Pause]
+msgid "Insert Pause\nDid you know that you can schedule the print to pause at a specific layer? Right-click the layer slider in the Preview and select Add pause print (M601). This can be used to insert magnets, weights or nuts into your prints. Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Insert Custom G-code]
+msgid "Insert Custom G-code\nDid you know that you can insert a custom G-code at a specific layer? Left-click the layer in the Preview, Right-click the plus icon and select Add custom G-code. With this function you can, for example, create a temperature tower. Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Configuration snapshots]
+msgid "Configuration snapshots\nDid you know that you can roll back to a complete backup of all system and user profiles? You can view and move back and forth between snapshots using the Configuration - <a>Configuration snapshots menu</a>."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Minimum shell thickness]
+msgid "Minimum shell thickness\nDid you know that instead of the number of top and bottom layers, you can define the<a>Minimum shell thickness</a>in millimeters? This feature is especially useful when using the variable layer height function."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Settings in non-modal window]
+msgid "Settings in non-modal window\nDid you know that you can open the Settings in a new non-modal window? This means you can have settings open on one screen and the G-code Preview on the other. Go to the<a>Preferences</a>and select Settings in non-modal window."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Adaptive infills]
+msgid "Adaptive infills\nDid you know that you can use the Adaptive cubic and Support cubic infills to decrease the print time and lower the filament consumption? Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Lightning infill]
+msgid "Lightning infill\nDid you know that you can use the Lightning infill to support only the top surfaces, save a lot of the filament, and decrease the print time? Read more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Fullscreen mode]
+msgid "Fullscreen mode\nDid you know that you can switch PrusaSlicer to fullscreen mode? Use the <b>F11</b> hotkey."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Printables integration]
+msgid "Printables.com integration\nDid you know that when you are browsing Printables.com, you can send 3D model files to PrusaSlicer with a single click? Learn more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Cut tool]
+msgid "Cut tool\nDid you know that you can cut a model at any angle and even create aligning pins with the updated <a>Cut tool</a>? Learn more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Measurement tool]
+msgid "Measurement tool\nDid you know that you can <a>measure</a> the distances between points, edges and planes, the radius of a hole or the angle between edges or planes? Learn more in the documentation."
+msgstr ""
+
+#: resources/data/hints.ini: [hint:Text tool]
+msgid "Text tool\nDid you know that you can add custom text labels to your models or even use the text as a modifier? Learn more in the documentation."
+msgstr ""

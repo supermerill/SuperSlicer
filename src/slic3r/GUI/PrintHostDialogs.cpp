@@ -205,7 +205,7 @@ std::string PrintHostSendDialog::storage() const
         return GUI::format("%1%", m_preselected_storage);
     if (combo_storage->GetSelection() < 0 || combo_storage->GetSelection() >= int(m_paths.size()))
         return {};
-    return boost::nowide::narrow(m_paths[combo_storage->GetSelection()]);
+    return boost::nowide::narrow(m_paths[combo_storage->GetSelection()].wc_str());
 }
 
 void PrintHostSendDialog::EndModal(int ret)
@@ -469,7 +469,7 @@ void PrintHostQueueDialog::on_progress(Event &evt)
         wxVariant nm, hst;
         job_list->GetValue(nm, evt.job_id, COL_FILENAME);
         job_list->GetValue(hst, evt.job_id, COL_HOST);
-        wxGetApp().notification_manager()->set_upload_job_notification_percentage(evt.job_id + 1, boost::nowide::narrow(nm.GetString()), boost::nowide::narrow(hst.GetString()), evt.progress / 100.f);
+        wxGetApp().notification_manager()->set_upload_job_notification_percentage(evt.job_id + 1, boost::nowide::narrow(nm.GetString().wc_str()), boost::nowide::narrow(hst.GetString().wc_str()), evt.progress / 100.f);
     }
 }
 
@@ -490,7 +490,7 @@ void PrintHostQueueDialog::on_error(Event &evt)
     wxVariant nm, hst;
     job_list->GetValue(nm, evt.job_id, COL_FILENAME);
     job_list->GetValue(hst, evt.job_id, COL_HOST);
-    wxGetApp().notification_manager()->upload_job_notification_show_error(evt.job_id + 1, boost::nowide::narrow(nm.GetString()), boost::nowide::narrow(hst.GetString()));
+    wxGetApp().notification_manager()->upload_job_notification_show_error(evt.job_id + 1, boost::nowide::narrow(nm.GetString().wc_str()), boost::nowide::narrow(hst.GetString().wc_str()));
 }
 
 void PrintHostQueueDialog::on_cancel(Event &evt)
@@ -505,7 +505,7 @@ void PrintHostQueueDialog::on_cancel(Event &evt)
     wxVariant nm, hst;
     job_list->GetValue(nm, evt.job_id, COL_FILENAME);
     job_list->GetValue(hst, evt.job_id, COL_HOST);
-    wxGetApp().notification_manager()->upload_job_notification_show_canceled(evt.job_id + 1, boost::nowide::narrow(nm.GetString()), boost::nowide::narrow(hst.GetString()));
+    wxGetApp().notification_manager()->upload_job_notification_show_canceled(evt.job_id + 1, boost::nowide::narrow(nm.GetString().wc_str()), boost::nowide::narrow(hst.GetString().wc_str()));
 }
 
 void PrintHostQueueDialog::on_info(Event& evt)
@@ -515,17 +515,17 @@ void PrintHostQueueDialog::on_info(Event& evt)
     if (evt.tag == L"resolve") {
         wxVariant hst(evt.status);
         job_list->SetValue(hst, evt.job_id, COL_HOST);
-        wxGetApp().notification_manager()->set_upload_job_notification_host(evt.job_id + 1, boost::nowide::narrow(evt.status));
+        wxGetApp().notification_manager()->set_upload_job_notification_host(evt.job_id + 1, boost::nowide::narrow(evt.status.wc_str()));
     } else if (evt.tag == L"complete") {
         wxVariant hst(evt.status);
         job_list->SetValue(hst, evt.job_id, COL_ERRORMSG);
         wxGetApp().notification_manager()->set_upload_job_notification_completed(evt.job_id + 1);
-        wxGetApp().notification_manager()->set_upload_job_notification_status(evt.job_id + 1, boost::nowide::narrow(evt.status));
+        wxGetApp().notification_manager()->set_upload_job_notification_status(evt.job_id + 1, boost::nowide::narrow(evt.status.wc_str()));
     } else if(evt.tag == L"complete_with_warning"){
         wxVariant hst(evt.status);
         job_list->SetValue(hst, evt.job_id, COL_ERRORMSG);
         wxGetApp().notification_manager()->set_upload_job_notification_completed_with_warning(evt.job_id + 1);
-        wxGetApp().notification_manager()->set_upload_job_notification_status(evt.job_id + 1, boost::nowide::narrow(evt.status));
+        wxGetApp().notification_manager()->set_upload_job_notification_status(evt.job_id + 1, boost::nowide::narrow(evt.status.wc_str()));
     } else if (evt.tag == L"set_complete_off") {
         wxGetApp().notification_manager()->set_upload_job_notification_comp_on_100(evt.job_id + 1, false);
     }

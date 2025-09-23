@@ -40,6 +40,7 @@ namespace pt = boost::property_tree;
 #include <expat.h>
 #include <Eigen/Dense>
 #include "miniz_extension.hpp"
+#include "miniz/miniz.h"
 
 #include "TextConfiguration.hpp"
 #include "EmbossShape.hpp"

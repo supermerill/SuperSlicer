@@ -6,7 +6,7 @@
 
 #include "ExPolygon.hpp"
 
-#include <glu-libtess.h>
+#include <GL/glu.h>
 
 namespace Slic3r {
 

@@ -10,7 +10,7 @@
 
 #include "libslic3r/Point.hpp"
 
-#include "hidapi.h"
+#include <hidapi/hidapi.h>
 
 #include <queue>
 #include <atomic>

@@ -377,7 +377,7 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
                 }
                 label += "}";
             }
-            found.emplace_back(FoundOption{ label, label, boost::nowide::narrow(get_tooltip(opt, true)), i, 0 });
+            found.emplace_back(FoundOption{ label, label, boost::nowide::narrow(get_tooltip(opt, true).wc_str()), i, 0 });
             continue;
         }
 
@@ -456,7 +456,7 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
             boost::erase_all(label_plain, std::string(1, char(ImGui::ColorMarkerStart)));
             boost::erase_all(label_plain, std::string(1, char(ImGui::ColorMarkerEnd)));
 #endif
-	        found.emplace_back(FoundOption{ label_plain, label_u8, boost::nowide::narrow(get_tooltip(opt, true)), i, score });
+	        found.emplace_back(FoundOption{ label_plain, label_u8, boost::nowide::narrow(get_tooltip(opt, true).wc_str()), i, score });
         }
     }
 

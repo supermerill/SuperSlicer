@@ -56,6 +56,8 @@ option(SLIC3R_MSVC_PDB          "Generate PDB files on MSVC in Release mode" 1)
 option(SLIC3R_ASAN              "Enable ASan on Clang and GCC" 0)
 option(SLIC3R_UBSAN             "Enable UBSan on Clang and GCC" 0)
 option(SLIC3R_ENABLE_FORMAT_STEP "Enable compilation of STEP file support" ON)
+# Use system libraries instead of bundled ones
+option(SLIC3R_USE_SYSTEM_LIBS   "Use system libraries instead of bundled ones" ON)
 # If SLIC3R_FHS is 1 -> SLIC3R_DESKTOP_INTEGRATION is always 0, othrewise variable.
 CMAKE_DEPENDENT_OPTION(SLIC3R_DESKTOP_INTEGRATION "Allow perfoming desktop integration during runtime" 1 "NOT SLIC3R_FHS" 0)
 
@@ -65,6 +67,11 @@ set(SLIC3R_GTK "2" CACHE STRING "GTK version to use with wxWidgets on Linux")
 
 set(IS_CROSS_COMPILE FALSE)
 
+# Prefer system packages when using system libraries
+if (SLIC3R_USE_SYSTEM_LIBS)
+    set(CMAKE_FIND_PACKAGE_PREFER_CONFIG OFF)
+endif ()
+
 if (SLIC3R_STATIC)
     # Prefer config scripts over find modules. This is helpful when building with
     # the static dependencies. Many libraries have their own export scripts
@@ -73,8 +80,8 @@ if (SLIC3R_STATIC)
     set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
 endif ()
 
-# Dependency build management
-option(${PROJECT_NAME}_BUILD_DEPS "Build dependencies before the project" OFF)
+# Dependency build management - disable when using system libs
+CMAKE_DEPENDENT_OPTION(${PROJECT_NAME}_BUILD_DEPS "Build dependencies before the project" OFF "NOT SLIC3R_USE_SYSTEM_LIBS" OFF)
 option(${PROJECT_NAME}_DEPS_OUTPUT_QUIET "Don't print build output for dependencies" OFF)
 set(${PROJECT_NAME}_DEPS_PRESET "default" CACHE STRING "Preset of the dependencies when ${PROJECT_NAME}_BUILD_DEPS is ON")
 set(${PROJECT_NAME}_DEPS_BUILD_DIR "" CACHE PATH "Binary dir of the dependencies build when ${PROJECT_NAME}_BUILD_DEPS is ON")
@@ -158,6 +165,7 @@ endif ()
 
 # Display and check CMAKE_PREFIX_PATH
 message(STATUS "SLIC3R_STATIC: ${SLIC3R_STATIC}")
+message(STATUS "SLIC3R_USE_SYSTEM_LIBS: ${SLIC3R_USE_SYSTEM_LIBS}")
 if (NOT "${CMAKE_PREFIX_PATH}" STREQUAL "")
     message(STATUS "CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH} (from cache or command line)")
     set(PREFIX_PATH_CHECK ${CMAKE_PREFIX_PATH})
@@ -350,8 +358,13 @@ endif ()
 # Where all the bundled libraries reside?
 set(LIBDIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set(LIBDIR_BIN ${CMAKE_CURRENT_BINARY_DIR}/src)
-# For the bundled boost libraries (boost::nowide)
-include_directories(${LIBDIR})
+
+# Only include bundled boost libraries when not using system libs
+if (NOT SLIC3R_USE_SYSTEM_LIBS)
+    # For the bundled boost libraries (boost::nowide)
+    include_directories(${LIBDIR})
+endif()
+
 # For generated header files
 include_directories(${LIBDIR_BIN}/platform)
 
@@ -384,7 +397,20 @@ endif()
 # boost::process was introduced first in version 1.64.0,
 # boost::beast::detail::base64 was introduced first in version 1.66.0
 set(MINIMUM_BOOST_VERSION "1.66.0")
-set(_boost_components "system;filesystem;thread;log;locale;regex;chrono;atomic;date_time;iostreams")
+set(_boost_components
+    system
+    filesystem
+    thread
+    log
+    locale
+    regex
+    chrono
+    atomic
+    date_time
+    iostreams
+    process
+    nowide
+)
 find_package(Boost ${MINIMUM_BOOST_VERSION} REQUIRED COMPONENTS ${_boost_components})
 # boost compile only in release & debug. We have to force the release version for RELWITHDEBINFO compilation
 if (MSVC)
@@ -436,8 +462,6 @@ else()
     target_link_libraries(boost_libs INTERFACE boost_headeronly ${Boost_LIBRARIES})
 endif()
 
-
-
 # Find and configure intel-tbb
 if(SLIC3R_STATIC)
     set(TBB_STATIC 1)
@@ -446,14 +470,6 @@ set(TBB_DEBUG 1)
 find_package(TBB REQUIRED)
 slic3r_remap_configs(TBB::tbb RelWithDebInfo Release)
 slic3r_remap_configs(TBB::tbbmalloc RelWithDebInfo Release)
-# include_directories(${TBB_INCLUDE_DIRS})
-# add_definitions(${TBB_DEFINITIONS})
-# if(MSVC)
-#     # Suppress implicit linking of the TBB libraries by the Visual Studio compiler.
-#     add_definitions(-D__TBB_NO_IMPLICIT_LINKAGE)
-# endif()
-# The Intel TBB library will use the std::exception_ptr feature of C++11.
-# add_definitions(-DTBB_USE_CAPTURED_EXCEPTION=0)
 
 find_package(CURL REQUIRED)
 
@@ -472,12 +488,15 @@ endif()
 ## OPTIONAL packages
 
 # Find eigen3 or use bundled version
-if (NOT SLIC3R_STATIC)
+if (SLIC3R_USE_SYSTEM_LIBS OR NOT SLIC3R_STATIC)
     find_package(Eigen3 3.3)
 endif ()
 if (NOT EIGEN3_FOUND)
     set(EIGEN3_FOUND 1)
     set(EIGEN3_INCLUDE_DIR ${LIBDIR}/eigen/)
+    message(STATUS "Using bundled Eigen3")
+else()
+    message(STATUS "Using system Eigen3")
 endif ()
 include_directories(BEFORE SYSTEM ${EIGEN3_INCLUDE_DIR})
 
@@ -485,13 +504,15 @@ include_directories(BEFORE SYSTEM ${EIGEN3_INCLUDE_DIR})
 # no matter what.
 find_package(EXPAT REQUIRED)
 
-add_library(libexpat INTERFACE)
-
-if (TARGET EXPAT::EXPAT )
-    target_link_libraries(libexpat INTERFACE EXPAT::EXPAT)
-elseif(TARGET expat::expat)
-    target_link_libraries(libexpat INTERFACE expat::expat)
-endif ()
+if (NOT TARGET libexpat)
+    add_library(libexpat INTERFACE)
+    
+    if (TARGET EXPAT::EXPAT )
+        target_link_libraries(libexpat INTERFACE EXPAT::EXPAT)
+    elseif(TARGET expat::expat)
+        target_link_libraries(libexpat INTERFACE expat::expat)
+    endif ()
+endif()
 
 find_package(PNG REQUIRED)
 
@@ -517,83 +538,112 @@ endif()
 
 # l10n
 set(L10N_DIR "${SLIC3R_RESOURCES_DIR}/localization")
-add_custom_target(gettext_make_pot
-    COMMAND xgettext --keyword=L --keyword=_L --keyword=_u8L --keyword=L_CONTEXT:1,2c --keyword=_L_PLURAL:1,2 --add-comments=TRN --from-code=UTF-8 --debug --boost
-        -f "${L10N_DIR}/list.txt"
-        -o "${L10N_DIR}/Slic3r.pot"
-    COMMAND hintsToPot ${SLIC3R_RESOURCES_DIR} ${L10N_DIR}
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    COMMENT "Generate pot file from strings in the source tree"
-)
 
-add_custom_target(gettext_merge_community_po_with_pot
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    COMMENT "Merge community po with new generated pot file"
-)
-file(GLOB L10N_PO_FILES "${L10N_DIR}/*/Slic3r*.po")
-# list of names of directories, which are licalized by PS internally
-list(APPEND PS_L10N_DIRS "cs" "de" "es" "fr" "it" "ja" "pl")
-foreach(po_file ${L10N_PO_FILES})
-    GET_FILENAME_COMPONENT(po_dir "${po_file}" DIRECTORY)
-    GET_FILENAME_COMPONENT(po_dir_name "${po_dir}" NAME)
-    list(FIND PS_L10N_DIRS ${po_dir_name} found_dir_id)
-    # found_dir_id==-1 means that po_dir_name wasn't found in PS_L10N_DIRS
-    if(found_dir_id LESS 0)
-    add_custom_command(
-            TARGET gettext_merge_community_po_with_pot PRE_BUILD
-        COMMAND msgmerge -N -o ${po_file} ${po_file} "${L10N_DIR}/Slic3r.pot"
-        # delete obsolete lines from resulting PO to avoid conflicts after a merging of it with wxWidgets.po
-        COMMAND msgattrib --no-obsolete -o ${po_file} ${po_file}
-        DEPENDS ${po_file}
-    )
+# Find gettext tools - system ones when using system libs
+if (SLIC3R_USE_SYSTEM_LIBS)
+    find_program(XGETTEXT_EXECUTABLE xgettext)
+    find_program(MSGMERGE_EXECUTABLE msgmerge)
+    find_program(MSGATTRIB_EXECUTABLE msgattrib)
+    find_program(MSGCAT_EXECUTABLE msgcat)
+    find_program(MSGFMT_EXECUTABLE msgfmt)
+    
+    if(NOT XGETTEXT_EXECUTABLE)
+        message(WARNING "xgettext not found, localization targets may not work")
     endif()
-endforeach()
+endif()
 
-add_custom_target(gettext_concat_wx_po_with_po
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    COMMENT "Concatenate and merge wxWidgets localization po with Slic3r po file"
-)
-file(GLOB L10N_PO_FILES "${L10N_DIR}/*/Slic3r*.po")
-foreach(po_file ${L10N_PO_FILES})
-    GET_FILENAME_COMPONENT(po_dir "${po_file}" DIRECTORY)
-    GET_FILENAME_COMPONENT(po_dir_name "${po_dir}" NAME)
-    SET(wx_po_file "${L10N_DIR}/wx_locale/${po_dir_name}.po")
-    #SET(po_new_file "${po_dir}/Slic3r_.po")
-    add_custom_command(
-        TARGET gettext_concat_wx_po_with_po PRE_BUILD
-        COMMAND msgcat --use-first -o ${po_file} ${po_file} ${wx_po_file}
-        # delete obsolete lines from resulting PO
-        COMMAND msgattrib --no-obsolete -o ${po_file} ${po_file}
-        DEPENDS ${po_file}
+if(XGETTEXT_EXECUTABLE OR NOT SLIC3R_USE_SYSTEM_LIBS)
+    add_custom_target(gettext_make_pot
+        COMMAND xgettext --keyword=L --keyword=_L --keyword=_u8L --keyword=L_CONTEXT:1,2c --keyword=_L_PLURAL:1,2 --add-comments=TRN --from-code=UTF-8 --debug --boost
+            -f "${L10N_DIR}/list.txt"
+            -o "${L10N_DIR}/Slic3r.pot"
+        COMMAND hintsToPot ${SLIC3R_RESOURCES_DIR} ${L10N_DIR}
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        COMMENT "Generate pot file from strings in the source tree"
     )
-endforeach()
-
-add_custom_target(gettext_po_to_mo
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    COMMENT "Generate localization mo files (binary) from po files (texts)"
-)
-file(GLOB L10N_PO_FILES "${L10N_DIR}/*/Slic3r.po")
-foreach(po_file ${L10N_PO_FILES})
-    GET_FILENAME_COMPONENT(po_dir "${po_file}" DIRECTORY)
-    SET(mo_file "${po_dir}/${SLIC3R_APP_KEY}.mo")
-    message(STATUS "po_dir mo_file imgui : '${po_file}' and mo file is '${mo_file}'") 
-    add_custom_command(
-        TARGET gettext_po_to_mo PRE_BUILD
-        COMMAND msgfmt ARGS --check-format -o ${mo_file} ${po_file}
-        #COMMAND msgfmt ARGS --check-compatibility -o ${mo_file} ${po_file}
-        DEPENDS ${po_file}
+    
+    add_custom_target(gettext_merge_community_po_with_pot
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        COMMENT "Merge community po with new generated pot file"
     )
-endforeach()
+    file(GLOB L10N_PO_FILES "${L10N_DIR}/*/Slic3r*.po")
+    # list of names of directories, which are licalized by PS internally
+    list(APPEND PS_L10N_DIRS "cs" "de" "es" "fr" "it" "ja" "pl")
+    foreach(po_file ${L10N_PO_FILES})
+        GET_FILENAME_COMPONENT(po_dir "${po_file}" DIRECTORY)
+        GET_FILENAME_COMPONENT(po_dir_name "${po_dir}" NAME)
+        list(FIND PS_L10N_DIRS ${po_dir_name} found_dir_id)
+        # found_dir_id==-1 means that po_dir_name wasn't found in PS_L10N_DIRS
+        if(found_dir_id LESS 0)
+        add_custom_command(
+                TARGET gettext_merge_community_po_with_pot PRE_BUILD
+            COMMAND msgmerge -N -o ${po_file} ${po_file} "${L10N_DIR}/Slic3r.pot"
+            # delete obsolete lines from resulting PO to avoid conflicts after a merging of it with wxWidgets.po
+            COMMAND msgattrib --no-obsolete -o ${po_file} ${po_file}
+            DEPENDS ${po_file}
+        )
+        endif()
+    endforeach()
+    
+    add_custom_target(gettext_concat_wx_po_with_po
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        COMMENT "Concatenate and merge wxWidgets localization po with Slic3r po file"
+    )
+    file(GLOB L10N_PO_FILES "${L10N_DIR}/*/Slic3r*.po")
+    foreach(po_file ${L10N_PO_FILES})
+        GET_FILENAME_COMPONENT(po_dir "${po_file}" DIRECTORY)
+        GET_FILENAME_COMPONENT(po_dir_name "${po_dir}" NAME)
+        SET(wx_po_file "${L10N_DIR}/wx_locale/${po_dir_name}.po")
+        #SET(po_new_file "${po_dir}/Slic3r_.po")
+        add_custom_command(
+            TARGET gettext_concat_wx_po_with_po PRE_BUILD
+            COMMAND msgcat --use-first -o ${po_file} ${po_file} ${wx_po_file}
+            # delete obsolete lines from resulting PO
+            COMMAND msgattrib --no-obsolete -o ${po_file} ${po_file}
+            DEPENDS ${po_file}
+        )
+    endforeach()
+    
+    add_custom_target(gettext_po_to_mo
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        COMMENT "Generate localization mo files (binary) from po files (texts)"
+    )
+    file(GLOB L10N_PO_FILES "${L10N_DIR}/*/Slic3r.po")
+    foreach(po_file ${L10N_PO_FILES})
+        GET_FILENAME_COMPONENT(po_dir "${po_file}" DIRECTORY)
+        SET(mo_file "${po_dir}/${SLIC3R_APP_KEY}.mo")
+        message(STATUS "po_dir mo_file imgui : '${po_file}' and mo file is '${mo_file}'") 
+        add_custom_command(
+            TARGET gettext_po_to_mo PRE_BUILD
+            COMMAND msgfmt ARGS --check-format -o ${mo_file} ${po_file}
+            #COMMAND msgfmt ARGS --check-compatibility -o ${mo_file} ${po_file}
+            DEPENDS ${po_file}
+        )
+    endforeach()
+endif()
 
 find_package(NLopt 1.4 REQUIRED)
 slic3r_remap_configs(NLopt::nlopt RelWithDebInfo Release)
 
-if(SLIC3R_STATIC)
+# OpenVDB - prefer system version when using system libs
+if(SLIC3R_USE_SYSTEM_LIBS)
+    find_package(OpenVDB 5.0 COMPONENTS openvdb)
+    if(OpenVDB_FOUND)
+        message(STATUS "Using system OpenVDB")
+    else()
+        message(STATUS "System OpenVDB not found, falling back to bundled version")
+    endif()
+endif()
+
+if(SLIC3R_STATIC OR NOT OpenVDB_FOUND)
     set(OPENVDB_USE_STATIC_LIBS ON)
     set(USE_BLOSC TRUE)
 endif ()
 
-find_package(OpenVDB 5.0 COMPONENTS openvdb)
+if(NOT OpenVDB_FOUND)
+    find_package(OpenVDB 5.0 COMPONENTS openvdb)
+endif()
+
 if(OpenVDB_FOUND)
     slic3r_remap_configs(IlmBase::Half RelWithDebInfo Release)
     slic3r_remap_configs(Blosc::blosc RelWithDebInfo Release)
@@ -637,25 +687,29 @@ function(prusaslicer_copy_dlls target)
         set (_out_dir "$<TARGET_PROPERTY:${target},BINARY_DIR>")
     endif ()
     
-    # This has to be a separate target due to the windows command line lenght limits    
-    add_custom_command(TARGET ${target} POST_BUILD 
-        COMMAND ${CMAKE_COMMAND} -E copy ${TOP_LEVEL_PROJECT_DIR}/deps/+GMP/gmp/lib/win${_bits}/libgmp-10.dll ${_out_dir}
-        COMMENT "Copy gmp runtime to build tree"
-        VERBATIM)
-    
-    add_custom_command(TARGET ${target} POST_BUILD 
-        COMMAND ${CMAKE_COMMAND} -E copy ${TOP_LEVEL_PROJECT_DIR}/deps/+MPFR/mpfr/lib/win${_bits}/libmpfr-4.dll ${_out_dir}
-        COMMENT "Copy mpfr runtime to build tree"
-        VERBATIM)
-
+    # Only copy bundled DLLs if not using system libs
+    if (NOT SLIC3R_USE_SYSTEM_LIBS)
+        # This has to be a separate target due to the windows command line length limits    
+        add_custom_command(TARGET ${target} POST_BUILD 
+            COMMAND ${CMAKE_COMMAND} -E copy ${TOP_LEVEL_PROJECT_DIR}/deps/+GMP/gmp/lib/win${_bits}/libgmp-10.dll ${_out_dir}
+            COMMENT "Copy gmp runtime to build tree"
+            VERBATIM)
+        
+        add_custom_command(TARGET ${target} POST_BUILD 
+            COMMAND ${CMAKE_COMMAND} -E copy ${TOP_LEVEL_PROJECT_DIR}/deps/+MPFR/mpfr/lib/win${_bits}/libmpfr-4.dll ${_out_dir}
+            COMMENT "Copy mpfr runtime to build tree"
+            VERBATIM)
+    endif()
 endfunction()
-
 
 # libslic3r, Slic3r GUI and the Slic3r executable.
 add_subdirectory(src)
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Slic3r_app_console)
 
-add_dependencies(gettext_make_pot hintsToPot)
+# Only add dependency if gettext targets exist
+if(TARGET gettext_make_pot AND TARGET hintsToPot)
+    add_dependencies(gettext_make_pot hintsToPot)
+endif()
 
 if(SLIC3R_BUILD_SANDBOXES)
     add_subdirectory(sandboxes)
@@ -729,4 +783,3 @@ if (NOT WIN32)
 endif()
 
 include(CPack)
-

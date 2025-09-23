@@ -45,6 +45,9 @@
 // note: don't put it in a header, as it can create problems. Here it's safe enough to be used, as it's just applied for the process.hpp file and this source code.
 #define pid_t pid_t
 #include <boost/process.hpp>
+#include <boost/process/v1/child.hpp>
+#include <boost/process/v1/io.hpp>
+#include <boost/process/v1/async.hpp>
 
 #include <cstdlib>   // getenv()
 
@@ -63,11 +66,11 @@ namespace GUI {
     //now that we have process.hpp, we can define the ExecVar
     class ExecVar {
     public:
-        boost::process::opstream pyin;
+        boost::process::v1::opstream pyin;
         boost::asio::io_context ios;
         std::future<std::string> data_out;
         std::future<std::string> data_err;
-        std::unique_ptr<boost::process::child> process;
+        std::unique_ptr<boost::process::v1::child> process;
 };
 
     //TODO: auto tab
@@ -843,8 +846,8 @@ bool FreeCADDialog::init_start_python() {
         get_string_from_web_async("https://api.github.com/repos/supermerill/FreePySCAD/commits/master", this, &FreeCADDialog::test_update_script_file);
     }
 
-    exec_var->process.reset(new boost::process::child(pythonpath.string() + " -u -i", boost::process::std_in < exec_var->pyin,
-        boost::process::std_out > exec_var->data_out, boost::process::std_err > exec_var->data_err, exec_var->ios));
+    exec_var->process.reset(new boost::process::v1::child(pythonpath.string() + " -u -i", boost::process::v1::std_in < exec_var->pyin,
+        boost::process::v1::std_out > exec_var->data_out, boost::process::v1::std_err > exec_var->data_err, exec_var->ios));
     exec_var->pyin << "import sys" << std::endl;
     // add freecad lib path if not already done
     exec_var->pyin << "sys.path.append('" << (freecadpath / "lib").string() << "')" << std::endl;
