@@ -205,7 +205,7 @@ typedef std::vector<std::string>    t_config_option_keys;
 // idx is -1 if it's not a vector, or if the whole vector is used.
 struct OptionKeyIdx
 {
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__FreeBSD__)
     // apple 'set<X> t2 = t1' needs the assignment operator, that needs to have no const data
     t_config_option_key key;
     int32_t idx;

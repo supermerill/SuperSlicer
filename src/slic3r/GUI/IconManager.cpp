@@ -6,8 +6,8 @@
 #include <boost/nowide/cstdio.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/algorithm/string.hpp>
-#include "nanosvg/nanosvg.h"
-#include "nanosvg/nanosvgrast.h"
+#include "nanosvg.h"
+#include "nanosvgrast.h"
 #include "libslic3r/Utils.hpp" // ScopeGuard   
 
 #include "3DScene.hpp" // glsafe

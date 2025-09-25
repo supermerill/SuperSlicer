@@ -340,11 +340,15 @@ static void CustomGLDebugOutput(GLenum source, GLenum type, unsigned int id, GLe
 bool OpenGLManager::init_gl()
 {
     if (!m_gl_initialized) {
-#if ENABLE_GL_CORE_PROFILE || ENABLE_OPENGL_ES
+#if ENABLE_GL_CORE_PROFILE || ENABLE_OPENGL_ES || defined(__FreeBSD__)
         glewExperimental = true;
-#endif // ENABLE_GL_CORE_PROFILE || ENABLE_OPENGL_ES
+#endif // ENABLE_GL_CORE_PROFILE || ENABLE_OPENGL_ES || defined(__FreeBSD__)
         GLenum err = glewInit();
+#if defined(__FreeBSD__)
+        if (err != GLEW_OK && err != GLEW_ERROR_NO_GLX_DISPLAY) {
+#else
         if (err != GLEW_OK) {
+#endif
             BOOST_LOG_TRIVIAL(error) << "Unable to init glew library: " << glewGetErrorString(err);
             return false;
         }
@@ -455,6 +459,13 @@ wxGLContext* OpenGLManager::init_glcontext(wxGLCanvas& canvas)
         m_context = new wxGLContext(&canvas, nullptr, &attrs);
 #elif ENABLE_GL_CORE_PROFILE
         m_debug_enabled = enable_debug;
+#if defined(__FreeBSD__)
+        if (!m_context->SetCurrent(&canvas)) {
+            BOOST_LOG_TRIVIAL(error) << "Unable to make GLContext Current";
+        } else {
+            BOOST_LOG_TRIVIAL(info) << "made GLContext Current OK";
+        }
+#endif
 
         const int gl_major = required_opengl_version.first;
         const int gl_minor = required_opengl_version.second;

@@ -419,7 +419,7 @@ target_link_libraries(libslic3r_gui libslic3r avrdude libcereal imgui GLEW::GLEW
 
 if (MSVC)
     target_link_libraries(libslic3r_gui Setupapi.lib)
-elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
     target_link_libraries(libslic3r_gui ${DBUS_LIBRARIES}) 
 elseif (APPLE)
     target_link_libraries(libslic3r_gui ${DISKARBITRATION_LIBRARY} ${COREWLAN_LIBRARY})

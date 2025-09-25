@@ -37,7 +37,7 @@
 #ifdef WIN32
 #include <wx/msw/registry.h>
 #endif // WIN32
-#ifdef __linux__
+#if defined(__linux__) || defined(__FreeBSD__)
 #include "DesktopIntegrationDialog.hpp"
 #endif //__linux__
 
@@ -488,7 +488,7 @@ void PreferencesDialog::build()
 		tabs = new Notebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP | wxTAB_TRAVERSAL | wxNB_NOPAGETHEME | wxNB_DEFAULT);
 #else
     tabs = new wxNotebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP | wxTAB_TRAVERSAL  |wxNB_NOPAGETHEME | wxNB_DEFAULT );
-#ifdef __linux__
+#if defined(__linux__) || defined(__FreeBSD__)
 	tabs->Bind(wxEVT_NOTEBOOK_PAGE_CHANGED, [this](wxBookCtrlEvent& e) {
 		e.Skip();
 		CallAfter([this]() { tabs->GetCurrentPage()->Layout(); });
@@ -1286,7 +1286,7 @@ void PreferencesDialog::accept(wxEvent&)
 			this->m_downloader->allow(it->second == "1");
 		if (!this->m_downloader->on_finish())
 			return;
-#ifdef __linux__
+#if defined(__linux__) || defined(__FreeBSD__)
 		if( this->m_downloader->get_perform_registration_linux()) 
 			DesktopIntegrationDialog::perform_downloader_desktop_integration();
 #endif // __linux__
@@ -1814,7 +1814,7 @@ void PreferencesDialog::create_settings_font_widget(wxWindow* tab, std::shared_p
 		font_example->SetFont(font);
 		m_values[opt_key] = format("%1%", val);
 		stb_sizer->Layout();
-#ifdef __linux__
+#if defined(__linux__) || defined(__FreeBSD__)
 		CallAfter([this, opt_grp]() { refresh_og(opt_grp); });
 #else
 		refresh_og(opt_grp);

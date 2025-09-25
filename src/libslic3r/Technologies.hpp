@@ -55,7 +55,11 @@
 // Enable OpenGL ES
 #define ENABLE_OPENGL_ES 0
 // Enable OpenGL core profile context (tested against Mesa 20.1.8 on Windows)
+#if defined(__FreeBSD__)
+#define ENABLE_GL_CORE_PROFILE 0
+#else
 #define ENABLE_GL_CORE_PROFILE (1 && !ENABLE_OPENGL_ES)
+#endif
 
 // Enable imgui dialog which allows to set the parameters used to export binarized gcode
 #define ENABLE_BINARIZED_GCODE_DEBUG_WINDOW 0

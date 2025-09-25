@@ -26,6 +26,8 @@ if (TARGET OpenVDB::openvdb)
     set(OpenVDBUtils_SOURCES OpenVDBUtils.cpp OpenVDBUtils.hpp OpenVDBUtilsLegacy.hpp)
 endif()
 
+find_package(NanoSVG REQUIRED)
+
 find_package(LibBGCode REQUIRED COMPONENTS Convert)
 slic3r_remap_configs(LibBGCode::bgcode_core RelWithDebInfo Release)
 slic3r_remap_configs(LibBGCode::bgcode_binarize RelWithDebInfo Release)
@@ -564,6 +566,7 @@ add_library(libslic3r_cgal STATIC
     Triangulation.hpp Triangulation.cpp
 )
 target_include_directories(libslic3r_cgal PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(libslic3r_cgal PRIVATE NanoSVG::nanosvg)
 
 # Reset compile options of libslic3r_cgal. Despite it being linked privately, CGAL options
 # (-frounding-math) still propagate to dependent libs which is not desired.
@@ -617,6 +620,8 @@ target_link_libraries(libslic3r
     JPEG::JPEG
     qoi
     LibBGCode::bgcode_convert
+    NanoSVG::nanosvg
+    NanoSVG::nanosvgrast
     )
 
 if (APPLE)

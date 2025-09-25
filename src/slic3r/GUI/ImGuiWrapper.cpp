@@ -42,8 +42,8 @@
 #include "wxExtensions.hpp"
 
 #include "../Utils/MacDarkMode.hpp"
-#include <nanosvg/nanosvg.h>
-#include <nanosvg/nanosvgrast.h>
+#include <nanosvg.h>
+#include <nanosvgrast.h>
 
 // suggest location
 #include "libslic3r/ClipperUtils.hpp" // Slic3r::intersection

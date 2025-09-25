@@ -32,7 +32,7 @@ namespace DownloaderUtils {
         wxWindow*   m_parent{ nullptr };
         wxTextCtrl* m_input_path{ nullptr };
         bool        downloader_checked{ false };
-#ifdef __linux__
+#if defined(__linux__) || defined(__FreeBSD__)
         bool        perform_registration_linux{ false };
 #endif // __linux__
 
@@ -51,7 +51,7 @@ namespace DownloaderUtils {
 
         bool on_finish();
         bool perform_register(const std::string& path_override = {});
-#ifdef __linux__
+#if defined(__linux__) || defined(__FreeBSD__)
         bool get_perform_registration_linux() { return perform_registration_linux; }
 #endif // __linux__
     };

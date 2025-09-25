@@ -12,7 +12,7 @@
 #include "Point.hpp" // Transform3d
 #include "ExPolygon.hpp"
 #include "ExPolygonSerialize.hpp"
-#include "nanosvg/nanosvg.h" // NSVGimage
+#include "nanosvg.h" // NSVGimage
 
 namespace Slic3r {
 

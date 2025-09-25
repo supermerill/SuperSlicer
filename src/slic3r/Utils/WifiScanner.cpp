@@ -17,7 +17,7 @@
 #include "WifiScannerMac.h"
 #endif 
 
-#if __linux__
+#if __linux__ || __FreeBSD__
 #include <dbus/dbus.h> /* Pull in all of D-Bus headers. */
 #endif //__linux__
 

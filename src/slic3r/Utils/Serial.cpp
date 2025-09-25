@@ -54,7 +54,7 @@
 	#include <sys/select.h>
 #endif
 
-#if defined(__APPLE__) || defined(__OpenBSD__)
+#if defined(__APPLE__) || defined(__OpenBSD__) || defined(__FreeBSD__)
 	#include <termios.h>
 #elif defined __linux__
 	#include <fcntl.h>

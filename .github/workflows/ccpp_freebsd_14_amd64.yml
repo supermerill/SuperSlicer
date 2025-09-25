@@ -1,0 +1,45 @@
+name: C/C++ Nightly FreeBSD-14-amd64
+
+on:
+  push:
+    branches:
+      - Nigthly
+      - nightly_dev
+      - nightly_master
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test
+        uses: cross-platform-actions/action@v0.26.0
+        with:
+          operating_system: freebsd
+          version: '14.2'
+          run: |
+            uname -a
+            echo $SHELL
+            pwd
+            ls -lah
+            whoami
+            env | sort
+            sudo env ASSUME_ALWAYS_YES=yes pkg install -y at-spi2-core cmake-core eigen boost-libs cairo cereal cgal curl ninja dbus expat gdk-pixbuf2 gettext-runtime gettext-tools glew glib gmp gtk3 harfbuzz hidapi Imath jpeg-turbo libbgcode libGLU libglvnd libiconv mpfr nlopt onetbb opencascade openvdb pango pkgconf png qhull tiff wx32-gtk3 xorgproto git
+            pkg info | sort
+            cd /home/runner
+            git clone https://github.com/fltk/nanosvg.git
+            cd nanosvg
+            git reset --hard abcd277
+            mkdir _build _install
+            cd _build
+            export VERBOSE=1
+            cmake -DCMAKE_INSTALL_PREFIX=/home/runner/nanosvg/_install ..
+            cmake --build .
+            cmake --install .
+            cd /home/runner/work/SuperSlicer/SuperSlicer
+            mkdir _build
+            cd _build
+            cmake -DNanoSVG_DIR:PATH="/home/runner/nanosvg/_install/lib/cmake/NanoSVG/" -DSLIC3R_FHS=1 -DSLIC3R_GTK=3 -DSLIC3R_APP_KEY="SuperSlicer" -DCMAKE_C_COMPILER:STRING="cc" -DCMAKE_CXX_COMPILER:STRING="c++" -DCMAKE_C_FLAGS:STRING="-O2 -pipe -fstack-protector-strong -isystem /usr/local/include -fno-strict-aliasing " -DCMAKE_C_FLAGS_DEBUG:STRING="-O2 -pipe -fstack-protector-strong -isystem /usr/local/include -fno-strict-aliasing " -DCMAKE_C_FLAGS_RELEASE:STRING="-O2 -pipe -fstack-protector-strong -isystem /usr/local/include -fno-strict-aliasing -DNDEBUG" -DCMAKE_CXX_FLAGS:STRING="-O2 -pipe -fstack-protector-strong -isystem /usr/local/include -fno-strict-aliasing -isystem /usr/local/include " -DCMAKE_CXX_FLAGS_DEBUG:STRING="-O2 -pipe -fstack-protector-strong -isystem /usr/local/include -fno-strict-aliasing -isystem /usr/local/include " -DCMAKE_CXX_FLAGS_RELEASE:STRING="-O2 -pipe -fstack-protector-strong -isystem /usr/local/include -fno-strict-aliasing -isystem /usr/local/include -DNDEBUG" -DCMAKE_EXE_LINKER_FLAGS:STRING=" -fstack-protector-strong -L/usr/local/lib " -DCMAKE_MODULE_LINKER_FLAGS:STRING=" -fstack-protector-strong -L/usr/local/lib " -DCMAKE_SHARED_LINKER_FLAGS:STRING=" -fstack-protector-strong -L/usr/local/lib " -DCMAKE_INSTALL_PREFIX:PATH="/usr/local" -DCMAKE_AUTOGEN_PARALLEL:STRING="24" -DCMAKE_BUILD_TYPE:STRING="Release" -DTHREADS_HAVE_PTHREAD_ARG:BOOL=YES -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=YES -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DFETCHCONTENT_FULLY_DISCONNECTED:BOOL=ON -DDEP_WX_GTK3:BOOL=ON -DCMAKE_COLOR_MAKEFILE:BOOL=OFF -GNinja -DICONV_INCLUDE_DIR=/usr/local/include -DICONV_LIBRARIES=/usr/local/lib/libiconv.so -DICONV_LIBRARY=/usr/local/lib/libiconv.so -DLIBICONV_INCLUDE_DIR=/usr/local/include -DLIBICONV_LIBRARIES=/usr/local/lib/libiconv.so -DLIBICONV_LIBRARY=/usr/local/lib/libiconv.so ..
+            cmake --build .
+            echo "Build completed successfully"
