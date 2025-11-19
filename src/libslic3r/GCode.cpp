@@ -1020,10 +1020,13 @@ namespace DoExport {
                 std::set<double> mm3_per_mm;
                 for (auto object : print.objects()) {
                     for (size_t region_id = 0; region_id < object->num_printing_regions(); ++region_id) {
-                        const PrintRegion &region = object->printing_region(region_id);
+                        auto region_ptr = object->printing_region_ptr(region_id);
+                        if (!region_ptr) continue;
+                        const PrintRegion &region = *region_ptr;
                         for (auto layer : object->layers()) {
                             const LayerRegion *layerm = layer->regions()[region_id];
                             const LayerTools *tools_for_layer = tool_ordering.tools_for_layer(layer->print_z);
+                            if (!tools_for_layer) continue;
                             if (tools_for_layer->perimeter_extruder(layerm->region().config()) == extruder_id &&
                                 compute_min_mm3_per_mm.is_compatible(
                                     {ExtrusionRole::Perimeter, ExtrusionRole::ExternalPerimeter,
@@ -1044,6 +1047,7 @@ namespace DoExport {
                     }
                     for (auto layer : object->support_layers()) {
                         const LayerTools *layer_tools = tool_ordering.tools_for_layer(layer->print_z);
+                        if (!layer_tools) continue;
                         // Soluble?
                         bool soluble = print.config().filament_soluble.get_at(extruder_id);
                         uint16_t support_extruder = object->config().support_material_extruder;

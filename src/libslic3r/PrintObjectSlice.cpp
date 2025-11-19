@@ -560,7 +560,7 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
     for(auto &slices : slices_by_region) for(auto &expolys : slices) assert_valid(expolys);
 
     // filament shrink
-    for (const std::unique_ptr<PrintRegion>& pr : print_object_regions.all_regions) {
+    for (const std::shared_ptr<PrintRegion>& pr : print_object_regions.all_regions) {
         if (pr.get()) {
             std::vector<ExPolygons>& region_polys = slices_by_region[pr->print_object_region_id()];
             const size_t extruder_id = pr->extruder(FlowRole::frPerimeter, print_object) - 1;
@@ -1625,7 +1625,7 @@ void PrintObject::slice_volumes()
     for (Layer* layer : m_layers) {
         layer->m_regions.clear();
         layer->m_regions.reserve(m_shared_regions->all_regions.size());
-        for (const std::unique_ptr<PrintRegion> &pr : m_shared_regions->all_regions)
+        for (const std::shared_ptr<PrintRegion> &pr : m_shared_regions->all_regions)
             layer->m_regions.emplace_back(new LayerRegion(layer, pr.get()));
     }
 

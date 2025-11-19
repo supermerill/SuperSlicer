@@ -172,7 +172,7 @@ std::vector<std::reference_wrapper<const PrintRegion>> PrintObject::all_regions(
 {
     std::vector<std::reference_wrapper<const PrintRegion>> out;
     out.reserve(m_shared_regions->all_regions.size());
-    for (const std::unique_ptr<Slic3r::PrintRegion> &region : m_shared_regions->all_regions) {
+    for (const std::shared_ptr<Slic3r::PrintRegion> &region : m_shared_regions->all_regions) {
         out.emplace_back(*region.get());
     }
     return out;

@@ -663,7 +663,7 @@ bool verify_update_print_object_regions(
     // Sort by ModelVolume ID.
     model_volumes_sort_by_id(model_volumes);
 
-    for (std::unique_ptr<PrintRegion> &region : print_object_regions.all_regions)
+    for (std::shared_ptr<PrintRegion> &region : print_object_regions.all_regions)
         print_region_ref_reset(*region);
 
     // Verify and / or update PrintRegions produced by ModelVolumes, layer range modifiers, modifier volumes.
@@ -758,7 +758,7 @@ bool verify_update_print_object_regions(
     {
         std::vector<const PrintRegion*> regions;
         regions.reserve(print_object_regions.all_regions.size());
-        for (std::unique_ptr<PrintRegion> &region : print_object_regions.all_regions) {
+        for (std::shared_ptr<PrintRegion> &region : print_object_regions.all_regions) {
             assert(print_region_ref_cnt(*region) > 0);
             regions.emplace_back(&(*region.get()));
         }
@@ -898,7 +898,7 @@ static PrintObjectRegions* generate_print_object_regions(
         if (it != region_set.end() && (*it)->config_hash() == hash && (*it)->config() == config)
             return *it;
         // Insert into a sorted array, it has O(n) complexity, but the calling algorithm has an O(n^2*log(n)) complexity anyways.
-        all_regions.emplace_back(std::make_unique<PrintRegion>(std::move(config), hash, int(all_regions.size())));
+        all_regions.emplace_back(std::make_shared<PrintRegion>(std::move(config), hash, int(all_regions.size())));
         PrintRegion *region = all_regions.back().get();
         region_set.emplace(it, region);
         return region;
@@ -1473,7 +1473,7 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
         for (PrintObject *print_object : m_objects)
             if (print_object_regions != print_object->m_shared_regions) {
                 print_object_regions = print_object->m_shared_regions;
-                for (std::unique_ptr<Slic3r::PrintRegion> &print_region : print_object_regions->all_regions)
+                for (std::shared_ptr<Slic3r::PrintRegion> &print_region : print_object_regions->all_regions)
                     if (auto it = region_set.find(print_region.get()); it == region_set.end()) {
                         int print_region_id = int(m_print_regions.size());
                         m_print_regions.emplace_back(print_region.get());

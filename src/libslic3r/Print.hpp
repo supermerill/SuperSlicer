@@ -45,6 +45,7 @@
 #include <atomic>
 #include <ctime>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <set>
 #include <tcbspan/span.hpp>
@@ -284,7 +285,7 @@ public:
         SupportSpotsGenerator::PartialObjects partial_objects;
     };
 
-    std::vector<std::unique_ptr<PrintRegion>>   all_regions;
+    std::vector<std::shared_ptr<PrintRegion>>   all_regions;
     std::vector<LayerRangeRegions>              layer_ranges;
     // Transformation of this ModelObject into one of the associated PrintObjects (all PrintObjects derived from a single modelObject differ by a Z rotation only).
     // This transformation is used to calculate VolumeExtents.
@@ -382,8 +383,9 @@ public:
     const SlicingParameters&                    slicing_parameters() const { return *m_slicing_params; }
     static std::shared_ptr<SlicingParameters>   slicing_parameters(const DynamicPrintConfig &full_config, const ModelObject &model_object, float object_max_z);
 
-    size_t                      num_printing_regions() const throw() { assert(m_shared_regions); return m_shared_regions->all_regions.size(); }
-    const PrintRegion&          printing_region(size_t idx) const throw() { assert(m_shared_regions); return *m_shared_regions->all_regions[idx].get(); }
+    size_t                                      num_printing_regions() const throw() { assert(m_shared_regions); return m_shared_regions->all_regions.size(); }
+    const PrintRegion&                          printing_region(size_t idx) const throw() { assert(m_shared_regions); return *m_shared_regions->all_regions[idx].get(); }
+    std::shared_ptr<const PrintRegion>          printing_region_ptr(size_t idx) const throw() { assert(m_shared_regions); return m_shared_regions->all_regions[idx]; }
     //FIXME returing all possible regions before slicing, thus some of the regions may not be slicing at the end.
     std::vector<std::reference_wrapper<const PrintRegion>> all_regions() const;
     const PrintObjectRegions*   shared_regions() const throw() { return m_shared_regions; }
