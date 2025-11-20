@@ -485,9 +485,12 @@ include_directories(BEFORE SYSTEM ${EIGEN3_INCLUDE_DIR})
 # no matter what.
 find_package(EXPAT REQUIRED)
 
-add_library(libexpat INTERFACE)
 
-if (TARGET EXPAT::EXPAT )
+if (NOT TARGET libexpat)
+    add_library(libexpat INTERFACE)
+endif()
+
+if (TARGET EXPAT::EXPAT)
     target_link_libraries(libexpat INTERFACE EXPAT::EXPAT)
 elseif(TARGET expat::expat)
     target_link_libraries(libexpat INTERFACE expat::expat)

@@ -1,5 +1,6 @@
 #include "FreeCADDialog.hpp"
 
+#include "string.h"
 #include "I18N.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/Model.hpp"
@@ -44,7 +45,7 @@
 // and so boost/process has a line 'typedef int int'instead of 'typedef int pid_t' that makes it crash
 // note: don't put it in a header, as it can create problems. Here it's safe enough to be used, as it's just applied for the process.hpp file and this source code.
 #define pid_t pid_t
-#include <boost/process.hpp>
+#include "BoostProcessCompat.hpp"
 
 #include <cstdlib>   // getenv()
 
@@ -60,15 +61,30 @@ static wxSize get_screen_size(wxWindow* window)
 namespace Slic3r {
 namespace GUI {
 
-    //now that we have process.hpp, we can define the ExecVar
-    class ExecVar {
-    public:
-        boost::process::opstream pyin;
-        boost::asio::io_context ios;
-        std::future<std::string> data_out;
-        std::future<std::string> data_err;
-        std::unique_ptr<boost::process::child> process;
-};
+	class ExecVar {
+	public:
+		ExecVar() : process_() {}
+
+		// Unified interface regardless of Boost.Process version
+		process_compat::ProcessWrapper process_;
+
+		// For backward compatibility, provide these methods:
+		void write_to_stdin(const std::string& command) {
+			process_.stdin_stream().write(command);
+		}
+
+		std::string get_stdout() {
+			return process_.stdout_stream().read_all();
+		}
+
+		std::string get_stderr() {
+			return process_.stderr_stream().read_all();
+		}
+
+		void run_io() {
+			process_.run_io();
+		}
+	};
 
     //TODO: auto tab
 
@@ -102,7 +118,7 @@ std::string create_help_text() {
     ss << "cone(r1,r2,h)\n";
     ss << "iso_thread(d,p,h\n  ,internal,offset)\n";
     ss << "solid_slices(...)\n";
-    ss << "importStl(file)\n"; 
+    ss << "importStl(file)\n";
     ss << " == 3D op ==\n";
     ss << "cut()(...3D)\n";
     ss << "union()(...3D)\n";
@@ -242,7 +258,7 @@ FreeCADDialog::FreeCADDialog(GUI_App* app, MainFrame* mainframe)
 
     this->main_sizer->AddGrowableCol(1);
     this->main_sizer->AddGrowableRow(2);
-    
+
     wxStdDialogButtonSizer* buttons = new wxStdDialogButtonSizer();
 
     wxButton* bt_new = new wxButton(this, wxID_FILE1, _(L("New")));
@@ -313,7 +329,7 @@ void FreeCADDialog::close_me(wxCommandEvent& event_args) {
 void FreeCADDialog::load_script(wxCommandEvent& event_args) {
     wxFileDialog dialog(this,
         _(L("Choose one file (py):")),
-        gui_app->app_config->get_last_dir(), 
+        gui_app->app_config->get_last_dir(),
         "",
         "FreePySCAD files (*.py)|*.py",
         wxFD_OPEN | wxFD_FILE_MUST_EXIST);
@@ -518,7 +534,7 @@ void FreeCADDialog::on_char_add(wxStyledTextEvent& event) {
         stc->SetTargetStart(current_pos);
         stc->SetTargetEnd(current_pos + 1);
         stc->ReplaceTarget("");
-    } else if (stc->GetTextLength() > current_pos && event.GetKey() == int('"') && stc->GetCharAt(current_pos - 1) == '"' 
+    } else if (stc->GetTextLength() > current_pos && event.GetKey() == int('"') && stc->GetCharAt(current_pos - 1) == '"'
         && (stc->GetCharAt(current_pos) == ')' || stc->GetCharAt(current_pos) == ',') ) {
         stc->InsertText(current_pos, "\"");
     }
@@ -646,7 +662,7 @@ void FreeCADDialog::on_key_type(wxKeyEvent& event)
                     m_text->SetTargetEnd(current_pos + del_more);
                 }
                 m_text->ReplaceTarget("");
-                return; // don't use the backdel event, it's already del 
+                return; // don't use the backdel event, it's already del
             }
         }
         event.Skip(true);
@@ -711,7 +727,7 @@ void FreeCADDialog::createSTC()
     m_text->StyleSetBold(wxSTC_P_DEFNAME, true),
     m_text->StyleSetForeground(wxSTC_P_OPERATOR, wxColour(255u, 0u, 0u));
     m_text->StyleSetBold(wxSTC_P_OPERATOR, true),
-    
+
     m_text->StyleSetForeground(wxSTC_P_IDENTIFIER, wxColour(255u, 64u, 255u)); // function call and almost all defined words in the language, violet
 
     //add text if the saved file exist
@@ -738,7 +754,7 @@ void FreeCADDialog::on_dpi_changed(const wxRect& suggested_rect)
 time_t parse_iso_time(std::string &str) {
     int y, M, d, h, m;
     float s;
-    sscanf(str.c_str(), "%d-%d-%dT%d:%d:%fZ", &y, &M, &d, &h, &m, &s); 
+    sscanf(str.c_str(), "%d-%d-%dT%d:%d:%fZ", &y, &M, &d, &h, &m, &s);
     tm time;
     time.tm_year = y - 1900; // Year since 1900
     time.tm_mon = M - 1;     // 0-11
@@ -837,41 +853,41 @@ bool FreeCADDialog::init_start_python() {
     } else if (!this->update_done) {
         this->update_done = true;
         //try to check last version on website
-        //it's async so maybe you won't update it in time, but it's not the end of the world. 
+        //it's async so maybe you won't update it in time, but it's not the end of the world.
         const boost::filesystem::path pyscad_path = scripts_path / "FreePySCAD";
         std::function<void(FreeCADDialog*, std::string&)> truc = &FreeCADDialog::test_update_script_file;
         get_string_from_web_async("https://api.github.com/repos/supermerill/FreePySCAD/commits/master", this, &FreeCADDialog::test_update_script_file);
     }
 
-    exec_var->process.reset(new boost::process::child(pythonpath.string() + " -u -i", boost::process::std_in < exec_var->pyin,
-        boost::process::std_out > exec_var->data_out, boost::process::std_err > exec_var->data_err, exec_var->ios));
-    exec_var->pyin << "import sys" << std::endl;
-    // add freecad lib path if not already done
-    exec_var->pyin << "sys.path.append('" << (freecadpath / "lib").string() << "')" << std::endl;
-    exec_var->pyin << "import FreeCAD" << std::endl;
-    exec_var->pyin << "import Part" << std::endl;
-    exec_var->pyin << "import Draft" << std::endl;
-    exec_var->pyin << "sys.path.append('" << scripts_path.generic_string() << "')" << std::endl;
-    exec_var->pyin << "from FreePySCAD.freepyscad import *" << std::endl;
-    exec_var->pyin << "App.newDocument(\"document\")" << std::endl;
+    exec_var->process_.start(pythonpath.string(), {"-u", "-i"});
+    // Send initialization commands
+    exec_var->write_to_stdin("import sys\n");
+    exec_var->write_to_stdin("sys.path.append('" + (freecadpath / "lib").string() + "')\n");
+    exec_var->write_to_stdin("import FreeCAD\n");
+    exec_var->write_to_stdin("import Part\n");
+    exec_var->write_to_stdin("import Draft\n");
+    exec_var->write_to_stdin("sys.path.append('" + scripts_path.generic_string() + "')\n");
+    exec_var->write_to_stdin("from FreePySCAD.freepyscad import *\n");
+    exec_var->write_to_stdin("App.newDocument(\"document\")\n");
+
+
 #ifdef __WINDOWS__
-    exec_var->pyin << "set_font_dir(\"C:/Windows/Fonts/\")" << std::endl;
+    exec_var->write_to_stdin("set_font_dir(\"C:/Windows/Fonts/\")\n");
 #endif
 #ifdef __APPLE__
-    exec_var->pyin << "set_font_dir([\"/System/Library/Fonts/\", \"~/Library/Fonts/\"])" << std::endl;
+    exec_var->write_to_stdin("set_font_dir([\"/System/Library/Fonts/\", \"~/Library/Fonts/\"])\n");
 #endif
 #ifdef __linux__
-    exec_var->pyin << "set_font_dir([\"/usr/share/fonts/\",\"~/.fonts/\"])" << std::endl;
-    // also add 
+    exec_var->write_to_stdin("set_font_dir([\"/usr/share/fonts/\",\"~/.fonts/\"])\n");
 #endif
 
     return true;
 }
 
 bool FreeCADDialog::end_python() {
-    exec_var->pyin << "quit()" << std::endl;
-    exec_var->process->wait();
-    exec_var->ios.run();
+    exec_var->write_to_stdin("quit()\n");
+    exec_var->process_.wait();
+    exec_var->run_io();
     return true;
 }
 
@@ -939,11 +955,11 @@ void FreeCADDialog::create_geometry(wxCommandEvent& event_args) {
             boost::filesystem::path temp_stl(Slic3r::data_dir());
             temp_stl = temp_stl / "temp" / ss.str();
             TriangleMesh mesh = (idx_plater_obj == 0) ? this->main_frame->plater()->model().mesh() : this->main_frame->plater()->model().objects[idx_plater_obj - 1]->mesh();
-            Slic3r::store_stl(temp_stl.generic_string().c_str(), 
+            Slic3r::store_stl(temp_stl.generic_string().c_str(),
                 &mesh,
                 true);
         } else {
-            m_errors->AppendText("Error, cannot find object " + std::to_string(idx_plater_obj) 
+            m_errors->AppendText("Error, cannot find object " + std::to_string(idx_plater_obj)
                 + ", there is only "+ std::to_string(this->main_frame->plater()->model().objects.size()) +" objects!");
             return;
         }
@@ -956,26 +972,27 @@ void FreeCADDialog::create_geometry(wxCommandEvent& event_args) {
     //also write the current temp file
     this->write_text_in_file(m_text->GetText(), boost::filesystem::path(Slic3r::data_dir()) / "temp" / "current_pyscad.py");
 
+	exec_var->write_to_stdin("exec(open('" + temp_file.generic_string() + "').read())\n");
 
-    //exec_var->pyin << "scene().redraw("<< boost::replace_all_copy(boost::replace_all_copy(m_text->GetText(), "\r", ""), "\n", "") <<")" << std::endl;
-    exec_var->pyin << ("exec(open('" + temp_file.generic_string() + "').read())\n");
-    //filter to avoid importing "intermediate" object like ones from importStl
-    exec_var->pyin << "Mesh.export(list(filter(lambda x: isinstance(x, Part.Feature),App.ActiveDocument.RootObjects)), u\"" << object_path.generic_string() << "\")" << std::endl;
-    exec_var->pyin << "print('exported!')" << std::endl;
-    exec_var->pyin << "App.ActiveDocument.RootObjects" << std::endl;
+    exec_var->write_to_stdin("Mesh.export(list(filter(lambda x: isinstance(x, Part.Feature),App.ActiveDocument.RootObjects)), u\"" + object_path.generic_string() + "\")\n");
+    exec_var->write_to_stdin("print('exported!')\n");
+    exec_var->write_to_stdin("App.ActiveDocument.RootObjects\n");
 
     end_python();
 
-    std::string pyout_str_hello;
-    BOOST_LOG_TRIVIAL(trace) << "==cout==\n" << exec_var->data_out.get()<<"\n";
-    std::string errStr = exec_var->data_err.get();
-    BOOST_LOG_TRIVIAL(trace) << "==cerr==\n" << errStr <<"\n";
-    std::string cleaned = boost::replace_all_copy(boost::replace_all_copy(errStr, ">>> ", ""),"\r","");
+    // Get output
+    std::string stdout_output = exec_var->get_stdout();
+    std::string stderr_output = exec_var->get_stderr();
+
+    BOOST_LOG_TRIVIAL(trace) << "==cout==\n" << stdout_output << "\n";
+    BOOST_LOG_TRIVIAL(trace) << "==cerr==\n" << stderr_output << "\n";
+
+    std::string cleaned = boost::replace_all_copy(boost::replace_all_copy(stderr_output, ">>> ", ""),"\r","");
     boost::replace_all(cleaned, "QWaitCondition: Destroyed while threads are still waiting\n", "");
     boost::replace_all(cleaned, "Type \"help\", \"copyright\", \"credits\" or \"license\" for more information.\n", "");
     boost::replace_all(cleaned, "\n\n", "\n");
     m_errors->AppendText(cleaned);
-    
+
     if (!exists(object_path)) {
         m_errors->AppendText("\nError, no object generated.");
         return;
