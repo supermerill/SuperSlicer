@@ -11348,12 +11348,18 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
         }
         return nullptr;
     }
+    if (opt_key == "fill_density" || opt_key == "infill_every_layers" || opt_key == "infill_dense") {
+        if (this->update_phony(config_collection) != nullptr) {
+            return this;
+        }
+    }
 
     bool something_changed = false;
     // width -> spacing
     if (opt_key.find("extrusion_spacing") != std::string::npos) {
         const ConfigOptionFloats* nozzle_diameter_option = find_option<ConfigOptionFloats>("nozzle_diameter", this, config_collection);
         const ConfigOptionFloat* layer_height_option = find_option<ConfigOptionFloat>("layer_height", this, config_collection);
+        const ConfigOptionFloat* first_layer_height_option = find_option<ConfigOptionFloatOrPercent>("first_layer_height", this, config_collection);
         ConfigOptionFloatOrPercent* spacing_option = this->option<ConfigOptionFloatOrPercent>(opt_key);
         if (layer_height_option && spacing_option && nozzle_diameter_option) {
             //compute spacing with current height and change the width
@@ -11509,6 +11515,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
     if (opt_key.find("extrusion_width") != std::string::npos) {
         const ConfigOptionFloats* nozzle_diameter_option = find_option<ConfigOptionFloats>("nozzle_diameter", this, config_collection);
         const ConfigOptionFloat* layer_height_option = find_option<ConfigOptionFloat>("layer_height", this, config_collection);
+        const ConfigOptionFloat* first_layer_height_option = find_option<ConfigOptionFloatOrPercent>("first_layer_height", this, config_collection);
         ConfigOptionFloatOrPercent* default_width_option = this->option<ConfigOptionFloatOrPercent>("extrusion_width");
         ConfigOptionFloatOrPercent* width_option = this->option<ConfigOptionFloatOrPercent>(opt_key);
         float overlap_ratio = 1;
@@ -11547,7 +11554,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                             else {
                                 Flow flow = Flow::new_from_config_width(FlowRole::frPerimeter, 
                                     width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, 
-                                    max_nozzle_diameter, layer_height_option->value, overlap_ratio, 0);
+                                    max_nozzle_diameter, first_layer_height_option->value, overlap_ratio, 0);
                                 if (flow.width() < flow.height()) flow.with_height(flow.width());
                                 spacing_option->value = (width_option->percent) ? std::round(100 * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * 10000) / 10000);
                             }
@@ -11565,7 +11572,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                             else {
                                 Flow flow = Flow::new_from_config_width(FlowRole::frPerimeter, 
                                     width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, 
-                                    max_nozzle_diameter, layer_height_option->value, overlap_ratio, 0);
+                                    max_nozzle_diameter, first_layer_height_option->value, overlap_ratio, 0);
                                 if (flow.width() < flow.height()) flow.with_height(flow.width());
                                 spacing_option->value = (width_option->percent) ? std::round(100 * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * 10000) / 10000);
                             }
@@ -11615,13 +11622,28 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                 }
                 if (opt_key == "infill_extrusion_width") {
                     spacing_option = this->option<ConfigOptionFloatOrPercent>("infill_extrusion_spacing");
+                    const ConfigOptionInt* infill_every_layers = this->option<ConfigOptionInt>("infill_every_layers");
+                    const ConfigOptionBool* infill_dense = this->option<ConfigOptionBool>("infill_dense");
+                    const ConfigOptionPercent* fill_density = this->option<ConfigOptionPercent>("fill_density");
+
+                    double layer_height = layer_height_option->value;
+
+                    if (infill_every_layers->value > 1 && fill_density->value != 0.0 && !infill_dense->value) {
+                        layer_height = infill_every_layers->value * layer_height_option->value;
+
+                        if (layer_height > max_nozzle_diameter) {
+                            layer_height = max_nozzle_diameter;
+                        }
+                    }
+
+
                     if (width_option) {
                         width_option->set_phony(false);
                         spacing_option->set_phony(true);
                         if (width_option->value == 0)
                             spacing_option->value = 0;
                         else {
-                            Flow flow = Flow::new_from_config_width(FlowRole::frInfill, width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, max_nozzle_diameter, layer_height_option->value, overlap_ratio, 0);
+                            Flow flow = Flow::new_from_config_width(FlowRole::frInfill, width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, max_nozzle_diameter, layer_height, overlap_ratio, 0);
                             if (flow.width() < flow.height()) flow = flow.with_height(flow.width());
                             spacing_option->value = (width_option->percent) ? std::round(100 * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * 10000) / 10000);
                         }
