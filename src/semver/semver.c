@@ -314,9 +314,11 @@ semver_compare_prerelease (semver_t x, semver_t y) {
 
 int
 semver_compare_version (semver_t x, semver_t y) {
-  int res = binary_comparison(x.counter_size, y.counter_size);
+  int x_size = (x.counters != NULL) ? x.counter_size : 0;
+  int y_size = (y.counters != NULL) ? y.counter_size : 0;
+  int res = binary_comparison(x_size, y_size);
 
-  for (int i = 0; i < x.counter_size && i < y.counter_size; i++) {
+  for (int i = 0; i < x_size && i < y_size; i++) {
       if ((res = binary_comparison(x.counters[i], y.counters[i])) != 0)
           return res;
   }
@@ -688,8 +690,10 @@ semver_copy(const semver_t *ver) {
   if (ver->prerelease != NULL) {
       res.prerelease = strdup(ver->prerelease);
   }
-  if (ver->counters) {
+  if (ver->counters != NULL) {
       res.counters = semver_intdup(ver->counters, ver->counter_size);
+      if (res.counters == NULL)
+          res.counter_size = 0;
   }
   return res;
 }
