@@ -7393,7 +7393,11 @@ std::string GCodeGenerator::_before_extrude(const ExtrusionPath &path, const std
     // compensate retraction
     if (m_delayed_layer_change.empty()) {
         gcode += m_writer.unlift();//this->unretract();
+#ifdef _DEBUGINFO
         assert(is_approx(m_writer.get_position().z(), m_layer->print_z, EPSILON) || m_loop_vase_mode);
+#else
+        assert(is_approx(m_writer.get_position().z(), m_layer->print_z, EPSILON));
+#endif
     } else {
         //check if an unlift happens
         std::string unlift = m_writer.unlift();
@@ -7955,7 +7959,11 @@ void GCodeGenerator::write_travel_to(std::string &gcode, Polyline& travel, std::
         this->writer().set_lift(this->writer().get_position().z() - *m_new_z_target);
         m_new_z_target.reset();
     }
+#ifdef _DEBUGINFO
     assert(!m_layer || is_approx(this->writer().get_unlifted_position().z(), m_layer->print_z, EPSILON) || comment == "Travel to a Wipe Tower" || m_loop_vase_mode);
+#else
+    assert(!m_layer || is_approx(this->writer().get_unlifted_position().z(), m_layer->print_z, EPSILON) || comment == "Travel to a Wipe Tower");
+#endif
 }
 
 // generate a travel in xyz
