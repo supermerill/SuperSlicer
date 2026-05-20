@@ -204,7 +204,8 @@ counter = 2;
 while os.path.isdir(release_path) and os.listdir(release_path):
 	release_path = f"{base_path}_{counter}";
 	counter += 1;
-os.mkdir(release_path);
+if not os.path.isdir(release_path):
+	os.mkdir(release_path);
 
 #urllib.urlretrieve ("https://api.github.com/repos/"+repo+"/actions/artifacts", release_path+"artifacts.json");
 need_more = True
