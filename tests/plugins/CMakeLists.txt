@@ -12,6 +12,7 @@ add_executable(${_TEST_NAME}_tests
     test_perimeter_extra_perimeter_below_area.cpp
     test_perimeter_extra_perimeter_count.cpp
     test_perimeter_extra_perimeter_odd_layer.cpp
+    test_perimeter_extra_perimeters_on_overhangs.cpp
     test_perimeter_fuzzy_skin.cpp
     test_perimeter_hairy_object.cpp
     test_perimeter_only_one_perimeter_first_layer.cpp

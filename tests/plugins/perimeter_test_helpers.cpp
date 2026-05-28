@@ -496,6 +496,7 @@ const char *const ONLY_ONE_PERIMETER_FIRST_LAYER = "perimeter.module.only_one_pe
 const char *const ONLY_ONE_PERIMETER_ON_TOP = "perimeter.module.only_one_perimeter_on_top";
 const char *const SEPARATE_HOLE_CONTOUR = "perimeter.module.separate_hole_contour";
 const char *const REMOVE_GAP_FILL_ON_OVERHANGS = "perimeter.module.remove_gap_fill_on_overhangs";
+const char *const EXTRA_PERIMETERS_ON_OVERHANGS = "perimeter.post_process.extra_perimeters_on_overhangs";
 const char *const FUZZY_SKIN = "perimeter.post_process.fuzzy_skin";
 const char *const INITIAL_TYPED_SURFACE_BUILDER = "surface.initial_typed_surface_builder";
 const char *const SOLID_SHELLS = "surface.solid_shells";
@@ -652,6 +653,53 @@ PerimeterRunCapture run_perimeter_and_post_case_with_regions(
 
     for (const PerimeterRegionOverride &override_region : region_overrides)
         add_partitioned_region(prepared, layer, override_region.area, override_region.settings);
+
+    {
+        ScopedActivePlugins active_scope(perimeter_plugins);
+        Steps::StepGeneratePerimeter::clean_and_prepare(prepared.print);
+        Steps::StepGeneratePerimeter::run_step(Orchestrator::instance(), prepared.print);
+    }
+
+    {
+        ScopedActivePlugins active_scope(post_plugins);
+        Steps::StepPostPerimeterGeneration::run_step(Orchestrator::instance(), prepared.print);
+    }
+
+    return capture_perimeter_outputs(layer.island(0));
+}
+
+PerimeterRunCapture run_perimeter_and_post_case_with_lower_area(
+    const DynamicPrintConfig &config,
+    std::initializer_list<const char *> perimeter_plugins,
+    std::initializer_list<const char *> post_plugins,
+    const ExPolygon &area,
+    const ExPolygon &lower_area,
+    const size_t layer_idx,
+    std::initializer_list<std::pair<std::string, std::string>> region_overrides,
+    const ExPolygon *region_area)
+{
+    PreparedPerimeterPrint prepared;
+    prepare_cube_print(prepared, config);
+    PrintObject &object = prepared.print.object(0);
+    REQUIRE(layer_idx > 0);
+    REQUIRE(layer_idx < object.layer_count());
+
+    // Overhang post-process tests need a target island and an independently
+    // shaped island below it. The normal fixture slices a straight cube, so we
+    // patch both layers and rebuild the upper/lower links before running the
+    // perimeter steps.
+    Layer &lower_layer = object.layer(layer_idx - 1);
+    replace_layer_island(lower_layer, lower_area);
+    Layer &layer = object.layer(layer_idx);
+    replace_layer_island(layer, area);
+    rebuild_island_overlap_graph(object);
+
+    if (region_overrides.size() > 0) {
+        const ExPolygon default_region_area = rectangle_expolygon(-6., -6., 6., 6.);
+        const ExPolygon &override_area = region_area != nullptr ? *region_area : default_region_area;
+        for (const std::pair<std::string, std::string> &entry : region_overrides)
+            add_partitioned_region(prepared, layer, override_area, entry.first, entry.second);
+    }
 
     {
         ScopedActivePlugins active_scope(perimeter_plugins);

@@ -29,6 +29,7 @@ extern const char *const ONLY_ONE_PERIMETER_FIRST_LAYER;
 extern const char *const ONLY_ONE_PERIMETER_ON_TOP;
 extern const char *const SEPARATE_HOLE_CONTOUR;
 extern const char *const REMOVE_GAP_FILL_ON_OVERHANGS;
+extern const char *const EXTRA_PERIMETERS_ON_OVERHANGS;
 extern const char *const FUZZY_SKIN;
 extern const char *const INITIAL_TYPED_SURFACE_BUILDER;
 extern const char *const SOLID_SHELLS;
@@ -120,6 +121,16 @@ PerimeterRunCapture run_perimeter_and_post_case_with_regions(
     const ExPolygon &area,
     size_t layer_idx,
     const std::vector<PerimeterRegionOverride> &region_overrides);
+
+PerimeterRunCapture run_perimeter_and_post_case_with_lower_area(
+    const DynamicPrintConfig &config,
+    std::initializer_list<const char *> perimeter_plugins,
+    std::initializer_list<const char *> post_plugins,
+    const ExPolygon &area,
+    const ExPolygon &lower_area,
+    size_t layer_idx,
+    std::initializer_list<std::pair<std::string, std::string>> region_overrides = {},
+    const ExPolygon *region_area = nullptr);
 
 PerimeterRunCapture run_perimeter_and_post_case_with_generic_facet_painting(
     const DynamicPrintConfig &config,
