@@ -163,6 +163,10 @@ OverhangFlow overhang_flow_from_perimeter_flow(const c_flow &perimeter_flow)
         Slic3r::ExtrusionFlow(perimeter_flow.mm3_per_mm,
                               float(unscaled(perimeter_flow.width)),
                               float(unscaled(perimeter_flow.height))));
+    // These generated anchors already choose their start point from the
+    // supported area. Seam placement would be allowed to move the start onto an
+    // unsupported span, so the paths opt out of seam candidate extraction.
+    out.attributes.no_seam = true;
     return out;
 }
 
@@ -738,12 +742,9 @@ void append_extra_path(MutableExtrusionEntity &dst, const Slic3r::ExtrusionPath 
     if (path.empty())
         return;
 
-    if (path.first_point().coincides_with_epsilon(path.last_point())) {
-        Slic3r::ExtrusionLoop loop(path, Slic3r::ExtrusionLoopRole::elrDefault);
-        append_native_copy(dst, loop);
-        return;
-    }
-
+    // A closed overhang anchor is still stored as a path, not as a loop. Loops
+    // are split by the seam placer, while this anchor must keep the start/end
+    // chosen by the overhang ordering algorithm.
     append_native_copy(dst, path);
 }
 

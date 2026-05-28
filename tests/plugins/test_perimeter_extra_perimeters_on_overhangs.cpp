@@ -80,6 +80,33 @@ size_t count_role_leaves(const ExtrusionEntity &entity, const ExtrusionRoleModif
     return count;
 }
 
+size_t count_role_loops(const ExtrusionEntity &entity, const ExtrusionRoleModifier role)
+{
+    if (entity.is_nop())
+        return 0;
+
+    size_t count = entity.is_loop() && entity.role().has(role) ? 1 : 0;
+    if (!entity.is_leaf())
+        for (size_t child_idx = 0; child_idx < entity.child_count(); ++child_idx)
+            count += count_role_loops(entity.child(child_idx), role);
+    return count;
+}
+
+bool role_leaves_disable_seams(const ExtrusionEntity &entity, const ExtrusionRoleModifier role)
+{
+    if (entity.is_nop())
+        return true;
+    if (entity.is_leaf() && entity.role().has(role)) {
+        const ExtrusionAttributes *attributes = entity.get_property<ExtrusionAttributes>();
+        return attributes != nullptr && attributes->no_seam;
+    }
+
+    for (size_t child_idx = 0; child_idx < entity.child_count(); ++child_idx)
+        if (!role_leaves_disable_seams(entity.child(child_idx), role))
+            return false;
+    return true;
+}
+
 } // namespace
 
 TEST_CASE("Extra perimeters on overhangs is inert when disabled or fully supported", "[plugins][perimeter][extra-overhang]")
@@ -144,6 +171,10 @@ TEST_CASE("Extra perimeters on overhangs inserts anchors before normal perimeter
     // before the standard island perimeters.
     REQUIRE(external_perimeter_count(post) > external_perimeter_count(baseline));
     REQUIRE(count_role_leaves(post.external_perimeters, ExtrusionRole::OverhangPerimeter) > 0);
+    // Overhang anchors deliberately stay as paths. Turning them into loops
+    // would let seam placement move their start point away from the supported
+    // anchor.
+    REQUIRE(count_role_loops(post.external_perimeters, ExtrusionRole::OverhangPerimeter) == 0);
     REQUIRE_FALSE(post.external_perimeters.can_sort());
     REQUIRE(post.external_perimeters.child_count() >= 2);
     REQUIRE(first_leaf_role_has(post.external_perimeters.child(0), ExtrusionRole::OverhangPerimeter));
@@ -152,6 +183,26 @@ TEST_CASE("Extra perimeters on overhangs inserts anchors before normal perimeter
     // area published to the next steps must shrink accordingly while still
     // remaining a valid partition for later infill generation.
     REQUIRE(free_fill_area(post) < free_fill_area(baseline));
+    require_leaf_fill_area_consistency(post);
+}
+
+TEST_CASE("Extra perimeters on overhangs disables seam placement on generated anchors", "[plugins][perimeter][extra-overhang]")
+{
+    const ExPolygon target = overhang_target();
+    const ExPolygon lower_support = narrow_left_support();
+    const DynamicPrintConfig enabled = extra_overhang_config({});
+
+    const PerimeterRunCapture post =
+        run_perimeter_and_post_case_with_lower_area(
+            enabled, {SIMPLE_PERIMETER_GENERATOR}, {EXTRA_PERIMETERS_ON_OVERHANGS},
+            target, lower_support, 1);
+
+    // Generated overhang anchors are ordered from supported material outward.
+    // Seam placement must not treat them as regular perimeter candidates,
+    // because moving their start point can put the first extrusion segment over
+    // unsupported air.
+    REQUIRE(count_role_leaves(post.external_perimeters, ExtrusionRole::OverhangPerimeter) > 0);
+    REQUIRE(role_leaves_disable_seams(post.external_perimeters, ExtrusionRole::OverhangPerimeter));
     require_leaf_fill_area_consistency(post);
 }
 
