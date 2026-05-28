@@ -597,42 +597,44 @@ PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosit
     for (const LayerSliceIsland &layer_island_ptr : layer->islands()) {
         for (const LayerRegionIsland &region_island_ptr : layer_island_ptr.regions_islands()) {
             if(!region_island_ptr.has_extrusion(LayerRegionIsland::PERIMETERS)) continue;
-            for (const ExtrusionEntity *ex_entity : region_island_ptr.extrusion(LayerRegionIsland::PERIMETERS)) {
-                const LayerRegion *lregion = *region_island_ptr.regions().begin();
-                visitor.set_current_layer_region(lregion);
-                assert(!ex_entity->empty());
-                if (ex_entity->empty())
-                    continue;
-                assert(ex_entity->is_collection()); // collection of inner, outer, and overhang perimeters
-                ex_entity->visit(visitor);
-                if (polylines.empty()) {
-                    // maybe only thin walls?
-                    visitor.also_thin_walls = true;
-                    ex_entity->visit(visitor);
-                    if (polylines.empty()) {
-                        // can happen if the external is fully an overhang
-                        bool old = visitor.also_overhangs;
-                        visitor.also_overhangs = true;
-                        ex_entity->visit(visitor);
-                        visitor.also_overhangs = old;
-                        if (polylines.empty()) {
-                            // shouldn't happen
-                            assert(ex_entity->role() == ExtrusionRole::ThinWall ||
-                                   lregion->region().config().perimeter_generator ==
-                                       PerimeterGeneratorType::Arachne); // no loops
-                            // ex_entity->visit(visitor);
-                            // what to do in this case?
-                            Points pts;
-                            ex_entity->collect_points(pts);
-                            assert(!pts.empty());
-                            bool is_loop = pts.front() == pts.back();
-                            assert(!is_loop);
-                            polylines.emplace_back(std::move(pts), true, !is_loop, PolylineWithEnd::PolyDir::BOTH);
-                            corresponding_regions_for_flow_out.push_back(lregion);
-                        }
+            const ExtrusionEntity &perimeters = region_island_ptr.extrusion(LayerRegionIsland::PERIMETERS);
+            const LayerRegion *lregion = *region_island_ptr.regions().begin();
+            const size_t polylines_before_region_island = polylines.size();
+            visitor.set_current_layer_region(lregion);
+            assert(!perimeters.empty());
+            if (perimeters.empty())
+                continue;
+
+            // LayerRegionIsland stores a perimeter extrusion root, but callers
+            // should not assume a specific child layout under that root. Plugin
+            // post-processors may insert a path directly next to nested groups,
+            // so seam extraction must traverse the tree through the visitor
+            // instead of iterating only top-level children.
+            perimeters.visit(visitor);
+            if (polylines.size() == polylines_before_region_island) {
+                // Some islands may contain only thin-wall-like paths. Try them
+                // as seam carriers before falling back to a raw point dump.
+                visitor.also_thin_walls = true;
+                perimeters.visit(visitor);
+                if (polylines.size() == polylines_before_region_island) {
+                    // This fallback keeps seam placement alive for exotic
+                    // perimeter trees that contain printable geometry but no
+                    // entity accepted by the regular filters above. The points
+                    // are used only as candidates; the G-code extrusion tree is
+                    // not modified here.
+                    assert(perimeters.role() == ExtrusionRole::ThinWall ||
+                           lregion->region().config().perimeter_generator == PerimeterGeneratorType::Arachne);
+                    Points pts;
+                    perimeters.collect_points(pts);
+                    assert(!pts.empty());
+                    if (!pts.empty()) {
+                        bool is_loop = pts.front() == pts.back();
+                        assert(!is_loop);
+                        polylines.emplace_back(std::move(pts), true, !is_loop, PolylineWithEnd::PolyDir::BOTH);
+                        corresponding_regions_for_flow_out.push_back(lregion);
                     }
-                    visitor.also_thin_walls = false;
                 }
+                visitor.also_thin_walls = false;
             }
         }
     }
