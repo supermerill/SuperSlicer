@@ -77,6 +77,19 @@ RecordingPluginState g_pre_group_second = {
     "Second label should not win",
     "Second tooltip should not win."
 };
+RecordingPluginState g_pre_legacy_base = {
+    "test.pre_perimeter.legacy_base",
+    STEP_PRE_PERIMETER,
+    -3
+};
+RecordingPluginState g_pre_legacy_alternative = {
+    "test.pre_perimeter.legacy_alternative",
+    STEP_PRE_PERIMETER,
+    3,
+    "test.pre_perimeter.legacy_base",
+    "Legacy replacement group",
+    "Choose between a legacy plugin and one of its alternatives."
+};
 RecordingPluginState g_post_first = {"test.post_perimeter.first", STEP_POST_PERIMETER, -10};
 RecordingPluginState g_post_second = {"test.post_perimeter.second", STEP_POST_PERIMETER, 20};
 RecordingPluginState g_post_inactive = {"test.post_perimeter.inactive", STEP_POST_PERIMETER, 0};
@@ -88,6 +101,8 @@ RecordingPluginState *const g_recording_plugins[] = {
     &g_pre_inactive,
     &g_pre_group_first,
     &g_pre_group_second,
+    &g_pre_legacy_base,
+    &g_pre_legacy_alternative,
     &g_post_first,
     &g_post_second,
     &g_post_inactive,
@@ -623,4 +638,43 @@ TEST_CASE("Explicit exclusive groups select one object-step plugin", "[plugins][
     CHECK(setup_ids[1] == g_pre_group_first.id);
 
     require_object_payloads(events, prepared.print, STEP_PRE_PERIMETER);
+}
+
+TEST_CASE("A plugin without explicit group can receive an alternative", "[plugins][perimeter][steps]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    register_recording_plugins();
+
+    Orchestrator &orchestrator = Orchestrator::instance();
+    const Plugin *legacy = orchestrator.get_plugin(g_pre_legacy_base.id);
+    REQUIRE(legacy != nullptr);
+
+    // Older plugins may not know that alternatives will exist later. The host
+    // still assigns their plugin id as a singleton exclusive group, so a new
+    // plugin can opt into that group without modifying the legacy plugin.
+    REQUIRE(legacy->get_exclusive_group() == legacy->get_id());
+
+    ScopedActivePlugins active_scope({
+        g_pre_legacy_base.id,
+        g_pre_legacy_alternative.id
+    });
+
+    const std::vector<Steps::StepExclusivePluginGroup> groups =
+        Steps::active_exclusive_plugin_groups(orchestrator);
+    const Steps::StepExclusivePluginGroup *group =
+        find_exclusive_group(groups, g_pre_legacy_base.id);
+    REQUIRE(group != nullptr);
+    REQUIRE(group->plugins.size() == 2);
+    CHECK(group->plugins[0]->get_id() == g_pre_legacy_base.id);
+    CHECK(group->plugins[1]->get_id() == g_pre_legacy_alternative.id);
+
+    // The legacy plugin has no selector text, but the alternative can still
+    // provide a human-readable label and tooltip for the shared group.
+    CHECK(group->group.label_storage == g_pre_legacy_alternative.exclusive_group_label);
+    CHECK(group->group.tooltip_storage == g_pre_legacy_alternative.exclusive_group_tooltip);
+
+    const std::vector<Plugin *> selected =
+        Steps::selected_or_active_plugins_for_step(orchestrator, STEP_PRE_PERIMETER, nullptr);
+    REQUIRE(selected.size() == 1);
+    CHECK(selected.front()->get_id() == g_pre_legacy_base.id);
 }

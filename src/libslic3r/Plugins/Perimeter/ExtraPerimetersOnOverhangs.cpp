@@ -33,7 +33,6 @@ namespace slic3r_api { namespace Perimeter { namespace ExtraPerimetersOnOverhang
 namespace {
 
 const char *k_extra_overhang_perimeters_id = "perimeter.post_process.extra_perimeters_on_overhangs";
-const char *k_extra_overhang_perimeters_group = "perimeter.post_process.extra_perimeters_on_overhangs";
 const char *k_no_dependencies[] = { nullptr };
 const raw_used_config_key k_used_config_keys[] = {
     { "extra_perimeters_on_overhangs", RAW_CO_BOOL, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE },
@@ -937,21 +936,6 @@ const char *ExtraPerimetersOnOverhangs::name_impl() const noexcept
 const char *ExtraPerimetersOnOverhangs::description_impl() const noexcept
 {
     return "Adds anchored perimeter paths under unsupported overhang areas.";
-}
-
-const char *ExtraPerimetersOnOverhangs::exclusive_group_impl() const noexcept
-{
-    return k_extra_overhang_perimeters_group;
-}
-
-const char *ExtraPerimetersOnOverhangs::exclusive_group_label_impl() const noexcept
-{
-    return "Extra overhang perimeter strategy";
-}
-
-const char *ExtraPerimetersOnOverhangs::exclusive_group_tooltip_impl() const noexcept
-{
-    return "Choose the algorithm used to add extra perimeter anchors under overhangs.";
 }
 
 slicing_step_t ExtraPerimetersOnOverhangs::step_impl() const noexcept

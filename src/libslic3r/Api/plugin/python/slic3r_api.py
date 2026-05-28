@@ -176,10 +176,11 @@ class PluginBase:
     Set plugin_id, name, description, step, priority, dependencies and
     used_config_keys in __init__ by calling the base constructor. Entries in
     used_config_keys should be created with used_config_key(...), so the host
-    can validate the expected option type. If several plugins are alternatives
-    for the same work, give them the same exclusive_group so the host can expose
-    a selector and run only one of them. Override initialize/setup/setup_run/run
-    as needed.
+    can validate the expected option type. Every plugin has an exclusive group:
+    when exclusive_group is not supplied, it defaults to plugin_id and behaves as
+    a singleton group. If several plugins are alternatives for the same work,
+    give them the same exclusive_group so the host can expose a selector and run
+    only one of them. Override initialize/setup/setup_run/run as needed.
 
     Callback arguments are raw C pointer addresses represented as Python int:
     - initialize(storage_address)
@@ -208,7 +209,7 @@ class PluginBase:
         self.plugin_id = plugin_id
         self.name = name or plugin_id
         self.description = description
-        self.exclusive_group = exclusive_group
+        self.exclusive_group = exclusive_group or plugin_id
         self.exclusive_group_label = exclusive_group_label
         self.exclusive_group_tooltip = exclusive_group_tooltip
         self.step = int(step)

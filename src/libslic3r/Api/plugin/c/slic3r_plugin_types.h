@@ -137,11 +137,15 @@ typedef struct plugin_vtable {
     const char* (*get_description)(void *plugin_ctx);
 
     /*
-    Optional machine-readable exclusive group id.
+    Machine-readable exclusive group id.
 
     Plugins in the same exclusive group are alternatives: the project stores a
     selector setting and the host runs only the selected active plugin from the
-    group. Return NULL or an empty string for normal additive plugins.
+    group. Return the plugin id when the plugin has no known alternatives yet;
+    the host also treats NULL or an empty string as the plugin id for backward
+    compatibility with older plugins. This gives every plugin a stable
+    singleton group that future alternatives may join without modifying the
+    original plugin.
 
     Some host-defined "unique" steps force all active plugins for that step into
     one exclusive group even if this callback returns empty. This lets old-style

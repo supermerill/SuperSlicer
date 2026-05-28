@@ -375,11 +375,12 @@ protected:
     // Longer user-facing description. Dialogs may show this as helper text.
     virtual const char *description_impl() const noexcept { return ""; }
 
-    // Optional exclusive group id. Plugins sharing a non-empty group id are
-    // mutually exclusive: the host creates one selector and runs only the
-    // selected active plugin. Most pipeline extension plugins should keep this
-    // empty unless they are true alternatives.
-    virtual const char *exclusive_group_impl() const noexcept { return ""; }
+    // Exclusive group id. Plugins sharing the same group are mutually
+    // exclusive: the host creates one selector and runs only the selected
+    // active plugin. A plugin that has no alternatives should use its own id as
+    // a singleton group; this makes it possible for a future alternative to
+    // target the old plugin without modifying the old implementation.
+    virtual const char *exclusive_group_impl() const noexcept { return id_impl(); }
 
     // Optional user-facing text for the selector created for an exclusive
     // group. The first active plugin in the group that returns non-empty text

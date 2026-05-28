@@ -106,7 +106,9 @@ Plugin::Plugin(plugin_instance c_api) : m_c_api(c_api) {
     this->m_id = plugin_id != nullptr ? plugin_id : "";
     this->m_name = plugin_name != nullptr && plugin_name[0] != '\0' ? plugin_name : this->m_id;
     this->m_description = plugin_description != nullptr ? plugin_description : "";
-    this->m_exclusive_group = plugin_exclusive_group != nullptr ? plugin_exclusive_group : "";
+    this->m_exclusive_group = plugin_exclusive_group != nullptr && plugin_exclusive_group[0] != '\0' ?
+        plugin_exclusive_group :
+        this->m_id;
     this->m_exclusive_group_label = plugin_exclusive_group_label != nullptr ? plugin_exclusive_group_label : "";
     this->m_exclusive_group_tooltip = plugin_exclusive_group_tooltip != nullptr ? plugin_exclusive_group_tooltip : "";
     this->m_step = c_api.vt->get_step(c_api.ctx);

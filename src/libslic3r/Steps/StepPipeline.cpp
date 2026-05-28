@@ -348,6 +348,7 @@ std::vector<StepExclusivePluginGroup> active_exclusive_plugin_groups(Orchestrato
 
             StepExclusivePluginGroup plugin_group;
             plugin_group.group = make_plugin_exclusive_group(step_plugins.first, entry.first, *entry.second.front());
+            apply_plugin_group_text(plugin_group.group, entry.second);
             plugin_group.plugins = entry.second;
             out.push_back(std::move(plugin_group));
         }
@@ -404,10 +405,6 @@ std::vector<Plugin *> selected_or_active_plugins_for_step(Orchestrator &orchestr
     for (Plugin *plugin : active_plugins) {
         if (plugin == nullptr)
             continue;
-        if (plugin->get_exclusive_group().empty()) {
-            selected_plugins.push_back(plugin);
-            continue;
-        }
 
         const std::string &group_id = plugin->get_exclusive_group();
         if (group_already_emitted[group_id])
