@@ -272,7 +272,13 @@ Slic3r::Polylines reconnect_polylines(const Slic3r::Polylines &polylines,
             Slic3r::Polyline &next = connected.at(second_idx);
             if ((base.last_point() - next.first_point()).cast<Slic3r::coordf_t>().squaredNorm() <
                 limit_distance * limit_distance) {
-                base.append(std::move(next));
+                // The clipping output may leave a small gap between two pieces
+                // that should be printed as one stroke. Polyline::append(Polyline)
+                // is only valid when the endpoints already coincide, so append
+                // the raw point list here: it keeps a real connector segment
+                // when there is a gap and skips the duplicate point when the
+                // pieces already touch.
+                base.append(std::move(next.points));
                 connected.erase(second_idx);
             } else if ((base.last_point() - next.last_point()).cast<Slic3r::coordf_t>().squaredNorm() <
                        limit_distance * limit_distance) {
@@ -280,14 +286,14 @@ Slic3r::Polylines reconnect_polylines(const Slic3r::Polylines &polylines,
                 connected.erase(second_idx);
             } else if ((base.first_point() - next.last_point()).cast<Slic3r::coordf_t>().squaredNorm() <
                        limit_distance * limit_distance) {
-                next.append(std::move(base));
+                next.append(std::move(base.points));
                 base = std::move(next);
                 base.reverse();
                 connected.erase(second_idx);
             } else if ((base.first_point() - next.first_point()).cast<Slic3r::coordf_t>().squaredNorm() <
                        limit_distance * limit_distance) {
                 base.reverse();
-                base.append(std::move(next));
+                base.append(std::move(next.points));
                 base.reverse();
                 connected.erase(second_idx);
             }
