@@ -33,6 +33,7 @@
 #include "libslic3r/Plugins/Perimeter/ExtraPerimeterBelowArea.hpp"
 #include "libslic3r/Plugins/Perimeter/ExtraPerimeterCount.hpp"
 #include "libslic3r/Plugins/Perimeter/ExtraPerimeterOddLayer.hpp"
+#include "libslic3r/Plugins/Perimeter/ExtraPerimeterOverhangWave.hpp"
 #include "libslic3r/Plugins/Perimeter/ExtraPerimetersOnOverhangs.hpp"
 #include "libslic3r/Plugins/Perimeter/FuzzySkin.hpp"
 #include "libslic3r/Plugins/Perimeter/OnlyOnePerimeterFirstLayer.hpp"
@@ -199,6 +200,8 @@ void ensure_plugin_test_runtime_initialized()
             orchestrator_handle_value);
         slic3r_api::Perimeter::ExtraPerimetersOnOverhangsPlugin::register_extra_perimeters_on_overhangs_plugin(
             orchestrator_handle_value);
+        slic3r_api::Perimeter::ExtraPerimeterOverhangWavePlugin::register_extra_perimeter_overhang_wave_plugin(
+            orchestrator_handle_value);
         slic3r_api::Perimeter::FuzzySkinPlugin::register_fuzzy_skin_plugin(orchestrator_handle_value);
         slic3r_api::SurfaceGeneration::InitialTypedSurfaceBuilderPlugin::register_initial_typed_surface_builder_plugin(
             orchestrator_handle_value);
@@ -237,6 +240,7 @@ void ensure_plugin_test_runtime_initialized()
         activate_plugin_or_fail(orchestrator, "perimeter.module.separate_hole_contour");
         activate_plugin_or_fail(orchestrator, "perimeter.module.remove_gap_fill_on_overhangs");
         activate_plugin_or_fail(orchestrator, "perimeter.post_process.extra_perimeters_on_overhangs");
+        activate_plugin_or_fail(orchestrator, "perimeter.post_process.extra_perimeter_overhang_wave");
         activate_plugin_or_fail(orchestrator, "perimeter.post_process.fuzzy_skin");
         activate_plugin_or_fail(orchestrator, "surface.initial_typed_surface_builder");
         activate_plugin_or_fail(orchestrator, "surface.solid_shells");

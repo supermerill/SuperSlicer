@@ -3,24 +3,25 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 
-#ifndef plugins_perimeter_extraperimetersonoverhangs_hpp_
-#define plugins_perimeter_extraperimetersonoverhangs_hpp_
+#ifndef plugins_perimeter_extraperimeteroverhangwave_hpp_
+#define plugins_perimeter_extraperimeteroverhangwave_hpp_
 
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
 
-namespace slic3r_api { namespace Perimeter { namespace ExtraPerimetersOnOverhangsPlugin {
+namespace slic3r_api { namespace Perimeter { namespace ExtraPerimeterOverhangWavePlugin {
 
-// STEP_POST_PERIMETER plugin that adds local overhang perimeter paths after
-// the main perimeter generator has produced the normal perimeter tree. The
-// generated paths are inserted before the normal perimeters so they can anchor
-// into supported plastic before the rest of the island is printed.
-class ExtraPerimetersOnOverhangs : public PluginBase
+// STEP_POST_PERIMETER alternative for the "extra overhang perimeter" feature.
+// It grows printable waves from lower-layer support and clips them to the
+// unsupported fill domain. The plugin shares an exclusive group with the
+// legacy shrink-based strategy, so only one algorithm owns this feature during
+// a slicing run.
+class ExtraPerimeterOverhangWave : public PluginBase
 {
 public:
-    static ExtraPerimetersOnOverhangs &instance(orchestrator_handle *orch);
+    static ExtraPerimeterOverhangWave &instance(orchestrator_handle *orch);
 
 private:
-    ExtraPerimetersOnOverhangs(orchestrator_handle *orch) : PluginBase(orch) {}
+    ExtraPerimeterOverhangWave(orchestrator_handle *orch) : PluginBase(orch) {}
 
     const char *id_impl() const noexcept override;
     const char *name_impl() const noexcept override;
@@ -37,8 +38,8 @@ private:
     void run_impl(const plugin_run_context *run_ctx) const override;
 };
 
-void register_extra_perimeters_on_overhangs_plugin(orchestrator_handle *orch);
+void register_extra_perimeter_overhang_wave_plugin(orchestrator_handle *orch);
 
-}}} // namespace slic3r_api::Perimeter::ExtraPerimetersOnOverhangsPlugin
+}}} // namespace slic3r_api::Perimeter::ExtraPerimeterOverhangWavePlugin
 
-#endif // plugins_perimeter_extraperimetersonoverhangs_hpp_
+#endif // plugins_perimeter_extraperimeteroverhangwave_hpp_

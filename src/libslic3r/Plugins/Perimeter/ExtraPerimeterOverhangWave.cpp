@@ -1,0 +1,786 @@
+///|/ Copyright (c) SuperSlicer 2026 Durand Rémi @supermerill
+///|/
+///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
+///|/
+
+#include "ExtraPerimeterOverhangWave.hpp"
+
+#include <algorithm>
+#include <cassert>
+#include <cstdint>
+#include <limits>
+#include <unordered_map>
+#include <vector>
+
+#include "libslic3r/AABBTreeLines.hpp"
+#include "libslic3r/Api/plugin/c/steps/slic3r_step_post_perimeter.h"
+#include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
+#include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
+#include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
+#include "libslic3r/ClipperUtils.hpp"
+#include "libslic3r/ExPolygon.hpp"
+#include "libslic3r/ExtrusionEntityCollection.hpp"
+#include "libslic3r/Line.hpp"
+#include "libslic3r/Polyline.hpp"
+
+namespace slic3r_api { namespace Perimeter { namespace ExtraPerimeterOverhangWavePlugin {
+
+namespace {
+
+const char *k_extra_overhang_perimeters_wave_id = "perimeter.post_process.extra_perimeter_overhang_wave";
+const char *k_extra_overhang_perimeters_group = "perimeter.post_process.extra_perimeters_on_overhangs";
+const char *k_no_dependencies[] = { nullptr };
+const raw_used_config_key k_used_config_keys[] = {
+    { "extra_perimeters_on_overhangs", RAW_CO_BOOL, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE },
+    { "bridged_infill_margin", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE },
+    { "bridge_angle", RAW_CO_FLOAT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE },
+    { "bridge_precision", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE },
+    { "infill_overlap", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE },
+    { "overhangs_extrusion_spacing", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE },
+    { "perimeters", RAW_CO_INT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE },
+    { "raft_layers", RAW_CO_INT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE }
+};
+const char *k_extra_perimeters_on_overhangs_key = "extra_perimeters_on_overhangs";
+const char *k_infill_overlap_key = "infill_overlap";
+const char *k_overhangs_extrusion_spacing_key = "overhangs_extrusion_spacing";
+const char *k_perimeters_key = "perimeters";
+const char *k_raft_layers_key = "raft_layers";
+
+struct OverhangFlow
+{
+    Slic3r::ExtrusionAttributes attributes;
+    Slic3r::coord_t width = 0;
+    Slic3r::coord_t spacing = 0;
+};
+
+struct OverhangGenerationInput
+{
+    Slic3r::coord_t perimeter_depth = 0;
+    Slic3r::coord_t overhang_spacing = 0;
+    OverhangFlow overhang_flow;
+    Slic3r::Polygons lower_slices;
+};
+
+struct OverhangGenerationOutput
+{
+    std::vector<Slic3r::ExtrusionPaths> extra_perimeters;
+    Slic3r::ExPolygons filled_area;
+    Slic3r::ExPolygons unfilled_area;
+};
+
+const Slic3r::ExPolygons &native_expolygons(const expolygon_collection_handle *handle)
+{
+    assert(handle != nullptr);
+    return *reinterpret_cast<const Slic3r::ExPolygons *>(handle);
+}
+
+const Slic3r::ExPolygon &native_expolygon(const expolygon_handle *handle)
+{
+    assert(handle != nullptr);
+    return *reinterpret_cast<const Slic3r::ExPolygon *>(handle);
+}
+
+const extrusion_entity_handle *native_entity_handle(const Slic3r::ExtrusionEntity &entity)
+{
+    return reinterpret_cast<const extrusion_entity_handle *>(&entity);
+}
+
+Slic3r::ExPolygons native_collection(const ExPolygonCollection &collection)
+{
+    if (collection.empty())
+        return {};
+    return native_expolygons(collection.handle());
+}
+
+Slic3r::coord_t scaled_float_or_percent_value(const Config &config,
+                                              const char *key,
+                                              double ratio,
+                                              Slic3r::coord_t fallback = 0)
+{
+    if (!config.has(key))
+        return fallback;
+    return Slic3r::scale_i(config.get(key).get_effective_value(ratio));
+}
+
+int32_t config_int_or(const Config &config, const char *key, int32_t fallback)
+{
+    return config.has(key) ? config.get(key).get_int() : fallback;
+}
+
+Slic3r::coord_t overhang_spacing_from_config(const Config &config, const c_flow &perimeter_flow)
+{
+    const Slic3r::coord_t configured = scaled_float_or_percent_value(
+        config, k_overhangs_extrusion_spacing_key, unscaled(perimeter_flow.nozzle_diameter), 0);
+    return configured > 0 ? configured : perimeter_flow.spacing;
+}
+
+OverhangFlow overhang_flow_from_perimeter_flow(const c_flow &perimeter_flow)
+{
+    // The C API does not expose a dedicated overhang flow yet. Use the normal
+    // perimeter cross-section and mark the generated paths as overhangs so
+    // later G-code logic can still apply overhang-specific handling.
+    OverhangFlow out;
+    out.width = perimeter_flow.width;
+    out.spacing = perimeter_flow.spacing;
+    out.attributes = Slic3r::ExtrusionAttributes(
+        Slic3r::ExtrusionRole::OverhangPerimeter,
+        Slic3r::ExtrusionFlow(perimeter_flow.mm3_per_mm,
+                              float(unscaled(perimeter_flow.width)),
+                              float(unscaled(perimeter_flow.height))));
+    // The wave algorithm deliberately chooses starts near existing support.
+    // Letting seam placement move those starts could put them in mid-air.
+    out.attributes.no_seam = true;
+    return out;
+}
+
+Slic3r::Polygons lower_slices_for_island(const LayerIsland &island)
+{
+    Slic3r::ExPolygons lower_expolygons;
+    const std::vector<LayerIsland> lower_islands = island.lower_islands();
+    lower_expolygons.reserve(lower_islands.size());
+    for (const LayerIsland &lower_island : lower_islands)
+        lower_expolygons.push_back(native_expolygon(lower_island.slice().handle()));
+
+    if (lower_expolygons.empty())
+        return {};
+    return Slic3r::to_polygons(Slic3r::union_ex(lower_expolygons));
+}
+
+Slic3r::ExPolygons enabled_infill_area(storage_handle *storage,
+                                       const Slic3r::ExPolygons &candidate,
+                                       const RegionSettings &settings)
+{
+    // RegionSettings clips the island by the regions whose setting value is
+    // active. The wave generation only receives the part of the infill domain
+    // where the feature is enabled.
+    if (!settings.has_many_config(k_extra_perimeters_on_overhangs_key)) {
+        if (!settings.get_solo_config(k_extra_perimeters_on_overhangs_key)
+                 .get_bool(k_extra_perimeters_on_overhangs_key))
+            return {};
+        return candidate;
+    }
+
+    Slic3r::ExPolygons enabled;
+    const RegionSettings::AreaMap &areas = settings.get_areas(k_extra_perimeters_on_overhangs_key);
+    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
+        if (!entry.first.get_bool(k_extra_perimeters_on_overhangs_key))
+            continue;
+
+        if (entry.second.is_accept_all()) {
+            enabled = candidate;
+            break;
+        }
+
+        const Slic3r::ExPolygons clip = native_collection(entry.second.expolygons());
+        const Slic3r::ExPolygons clipped = Slic3r::intersection_ex(candidate, clip);
+        enabled.insert(enabled.end(), clipped.begin(), clipped.end());
+    }
+
+    (void)storage;
+    return Slic3r::union_ex(enabled);
+}
+
+Slic3r::ExPolygons disabled_infill_area(const Slic3r::ExPolygons &candidate,
+                                        const Slic3r::ExPolygons &enabled)
+{
+    if (candidate.empty() || enabled.empty())
+        return candidate;
+    return Slic3r::diff_ex(candidate, enabled);
+}
+
+Slic3r::Polylines reconnect_polylines(const Slic3r::Polylines &polylines,
+                                      Slic3r::coordf_t limit_distance,
+                                      Slic3r::coord_t resolution)
+{
+    if (polylines.empty())
+        return polylines;
+
+    std::unordered_map<size_t, Slic3r::Polyline> connected;
+    connected.reserve(polylines.size());
+    for (size_t idx = 0; idx < polylines.size(); idx++)
+        if (!polylines[idx].empty())
+            connected.emplace(idx, polylines[idx]);
+
+    // Boolean clipping often splits one conceptual wave into small adjacent
+    // pieces. Reconnect only near endpoints here; longer gaps are preserved so
+    // they become real travels between separate extrusion paths.
+    for (size_t first_idx = 0; first_idx < polylines.size(); first_idx++) {
+        if (connected.find(first_idx) == connected.end())
+            continue;
+        Slic3r::Polyline &base = connected.at(first_idx);
+        for (size_t second_idx = first_idx + 1; second_idx < polylines.size(); second_idx++) {
+            if (connected.find(second_idx) == connected.end())
+                continue;
+            Slic3r::Polyline &next = connected.at(second_idx);
+            if ((base.last_point() - next.first_point()).cast<Slic3r::coordf_t>().squaredNorm() <
+                limit_distance * limit_distance) {
+                base.append(std::move(next.points));
+                connected.erase(second_idx);
+            } else if ((base.last_point() - next.last_point()).cast<Slic3r::coordf_t>().squaredNorm() <
+                       limit_distance * limit_distance) {
+                base.points.insert(base.points.end(), next.points.rbegin(), next.points.rend());
+                connected.erase(second_idx);
+            } else if ((base.first_point() - next.last_point()).cast<Slic3r::coordf_t>().squaredNorm() <
+                       limit_distance * limit_distance) {
+                next.append(std::move(base.points));
+                base = std::move(next);
+                base.reverse();
+                connected.erase(second_idx);
+            } else if ((base.first_point() - next.first_point()).cast<Slic3r::coordf_t>().squaredNorm() <
+                       limit_distance * limit_distance) {
+                base.reverse();
+                base.append(std::move(next.points));
+                base.reverse();
+                connected.erase(second_idx);
+            }
+        }
+    }
+
+    Slic3r::Polylines result;
+    result.reserve(connected.size());
+    for (std::pair<const size_t, Slic3r::Polyline> &entry : connected)
+        result.push_back(std::move(entry.second));
+
+    Slic3r::ensure_valid(result, resolution);
+    return result;
+}
+
+void orient_extra_perimeter_from_support(
+    Slic3r::ExtrusionPath &path,
+    const Slic3r::AABBTreeLines::LinesDistancer<Slic3r::Line> &lower_layer_aabb_tree)
+{
+    if (path.empty())
+        return;
+
+    // Every generated stroke should start from the side closest to existing
+    // material. Open strokes choose their direction; closed strokes rotate
+    // their first point to the closest sampled vertex.
+    Slic3r::Polyline discrete_polyline = path.polyline().to_polyline();
+    if (discrete_polyline.size() < 2)
+        return;
+
+    if (discrete_polyline.front() == discrete_polyline.back()) {
+        size_t closest_idx = 0;
+        double closest_distance = std::numeric_limits<double>::max();
+        discrete_polyline.points.pop_back();
+        for (size_t idx = 0; idx < discrete_polyline.size(); idx++) {
+            const double distance = lower_layer_aabb_tree.distance_from_lines<true>(discrete_polyline.points[idx]);
+            if (distance < closest_distance) {
+                closest_distance = distance;
+                closest_idx = idx;
+            }
+        }
+        std::rotate(discrete_polyline.begin(), discrete_polyline.begin() + closest_idx, discrete_polyline.end());
+        discrete_polyline.points.push_back(discrete_polyline.points.front());
+        path.polyline() = Slic3r::ArcPolyline(discrete_polyline);
+        return;
+    }
+
+    const double first_distance = lower_layer_aabb_tree.distance_from_lines<true>(path.first_point());
+    const double last_distance = lower_layer_aabb_tree.distance_from_lines<true>(path.last_point());
+    if (last_distance < first_distance)
+        path.reverse();
+}
+
+double squared_distance(const Slic3r::Point &lhs, const Slic3r::Point &rhs)
+{
+    return (lhs - rhs).cast<double>().squaredNorm();
+}
+
+Slic3r::ExtrusionPath make_overhang_path(const Slic3r::Polyline &polyline,
+                                         const OverhangGenerationInput &input)
+{
+    Slic3r::ExtrusionPath path(
+        Slic3r::ArcPolyline(polyline),
+        input.overhang_flow.attributes,
+        Slic3r::ExtrusionPropertyOverhang(1, 2, 0, true, true, false, false).clone(),
+        false);
+    path.set_can_reverse(false);
+    return path;
+}
+
+void append_polyline_to_wave_path(Slic3r::ExtrusionPath &dst, const Slic3r::Polyline &src)
+{
+    if (src.empty())
+        return;
+
+    // This append intentionally preserves a short connector as an extrusion
+    // segment. The caller has already checked that the connector is short
+    // enough to extrude instead of forcing a travel.
+    dst.polyline().append(src.points);
+}
+
+void append_wave_polyline(Slic3r::ExtrusionPaths &zone_paths,
+                          Slic3r::Polyline polyline,
+                          const OverhangGenerationInput &input,
+                          const Slic3r::AABBTreeLines::LinesDistancer<Slic3r::Line> &lower_layer_aabb_tree)
+{
+    if (!polyline.is_valid() || polyline.length() < input.overhang_flow.width)
+        return;
+
+    Slic3r::ExtrusionPath path = make_overhang_path(polyline, input);
+    if (!zone_paths.empty()) {
+        const Slic3r::Point previous_end = zone_paths.back().last_point();
+        const double forward_distance = squared_distance(previous_end, path.first_point());
+        const double reverse_distance = squared_distance(previous_end, path.last_point());
+        const double link_distance = double(input.overhang_flow.width) * 2.0;
+
+        // Keep one physical zone in wave order. Nearby consecutive waves are
+        // joined into one extrusion; distant waves become separate leaves, so
+        // the printer travels without breaking the zone order.
+        if (std::min(forward_distance, reverse_distance) < link_distance * link_distance) {
+            if (reverse_distance < forward_distance)
+                path.reverse();
+            append_polyline_to_wave_path(zone_paths.back(), path.polyline().to_polyline());
+            return;
+        }
+    }
+
+    orient_extra_perimeter_from_support(path, lower_layer_aabb_tree);
+    zone_paths.push_back(std::move(path));
+}
+
+Slic3r::Polylines order_wave_polylines_from_current_point(Slic3r::Polylines polylines,
+                                                          const Slic3r::Point *current_point)
+{
+    if (current_point == nullptr || polylines.size() < 2)
+        return polylines;
+
+    Slic3r::Polylines ordered;
+    ordered.reserve(polylines.size());
+    Slic3r::Point cursor = *current_point;
+
+    // Clipper does not return pieces in travel-friendly order. Pick the next
+    // piece by closest endpoint so any connector remains as short as possible.
+    while (!polylines.empty()) {
+        size_t best_idx = 0;
+        double best_distance = std::numeric_limits<double>::max();
+        for (size_t idx = 0; idx < polylines.size(); ++idx) {
+            const Slic3r::Polyline &candidate = polylines[idx];
+            if (candidate.empty())
+                continue;
+            const double candidate_distance =
+                std::min(squared_distance(cursor, candidate.first_point()),
+                         squared_distance(cursor, candidate.last_point()));
+            if (candidate_distance < best_distance) {
+                best_distance = candidate_distance;
+                best_idx = idx;
+            }
+        }
+
+        ordered.push_back(std::move(polylines[best_idx]));
+        cursor = ordered.back().last_point();
+        polylines.erase(polylines.begin() + best_idx);
+    }
+
+    return ordered;
+}
+
+Slic3r::ExPolygons coverage_for_extra_perimeters(const std::vector<Slic3r::ExtrusionPaths> &extra_perimeters,
+                                                 const Slic3r::ExPolygons &clip_area,
+                                                 const OverhangGenerationInput &input)
+{
+    Slic3r::ExPolygons coverage;
+    for (const Slic3r::ExtrusionPaths &paths : extra_perimeters)
+        for (const Slic3r::ExtrusionPath &path : paths) {
+            if (path.empty())
+                continue;
+            Slic3r::ExPolygons path_coverage =
+                Slic3r::offset_ex(path.polyline().to_polyline(),
+                                  0.5 * double(input.overhang_flow.width),
+                                  Slic3r::ClipperLib::jtSquare,
+                                  0.,
+                                  Slic3r::ClipperLib::etOpenSquare);
+            coverage.insert(coverage.end(), path_coverage.begin(), path_coverage.end());
+        }
+
+    if (coverage.empty())
+        return {};
+    return Slic3r::intersection_ex(Slic3r::union_ex(coverage), clip_area);
+}
+
+OverhangGenerationOutput generate_extra_perimeters_over_overhangs_wave(
+    const Slic3r::ExPolygons &infill_area,
+    const OverhangGenerationInput &input)
+{
+    if (infill_area.empty() || input.lower_slices.empty() ||
+        input.perimeter_depth <= 0 || input.overhang_spacing <= 0)
+        return {};
+
+    const Slic3r::BoundingBox infill_area_bb =
+        Slic3r::get_extents(infill_area).inflated(SCALED_EPSILON + input.perimeter_depth);
+    const Slic3r::Polygons optimized_lower_slices =
+        Slic3r::ClipperUtils::clip_clipper_polygons_with_subject_bbox(input.lower_slices, infill_area_bb);
+    if (optimized_lower_slices.empty())
+        return {};
+
+    // The printable domain is the enabled infill area that is not already
+    // covered by lower-layer material. Each later wave is clipped to this area.
+    const Slic3r::ExPolygons overhangs = Slic3r::diff_ex(infill_area, optimized_lower_slices);
+    if (overhangs.empty())
+        return {};
+
+    Slic3r::AABBTreeLines::LinesDistancer<Slic3r::Line> lower_layer_aabb_tree{
+        Slic3r::to_lines(optimized_lower_slices)
+    };
+    std::vector<Slic3r::ExtrusionPaths> extra_perimeters;
+
+    // A zone is printed from the support boundary outward. Multiple zones are
+    // independent and may later be sorted as whole units by the wrapper entity.
+    const Slic3r::ExPolygons zones = Slic3r::union_ex(overhangs);
+    for (const Slic3r::ExPolygon &zone : zones) {
+        Slic3r::ExtrusionPaths zone_paths;
+        const Slic3r::ExPolygons zone_clip = { zone };
+
+        for (Slic3r::coord_t distance_from_support = std::max<Slic3r::coord_t>(SCALED_EPSILON, input.overhang_spacing / 2);
+             distance_from_support <= input.perimeter_depth + SCALED_EPSILON;
+             distance_from_support += input.overhang_spacing) {
+            const Slic3r::ExPolygons wave_area =
+                Slic3r::offset_ex(optimized_lower_slices, double(distance_from_support));
+            if (wave_area.empty())
+                continue;
+
+            Slic3r::Polylines wave_lines =
+                Slic3r::intersection_pl(Slic3r::to_polylines(wave_area), zone_clip);
+            wave_lines = reconnect_polylines(wave_lines, SCALED_EPSILON * 2, Slic3r::coord_t(SCALED_EPSILON));
+            if (wave_lines.empty())
+                continue;
+
+            const Slic3r::Point *current_point =
+                zone_paths.empty() ? nullptr : &zone_paths.back().last_point();
+            wave_lines = order_wave_polylines_from_current_point(std::move(wave_lines), current_point);
+            for (Slic3r::Polyline &line : wave_lines)
+                append_wave_polyline(zone_paths, std::move(line), input, lower_layer_aabb_tree);
+        }
+
+        zone_paths.erase(
+            std::remove_if(zone_paths.begin(), zone_paths.end(),
+                           [](const Slic3r::ExtrusionPath &path) { return path.empty(); }),
+            zone_paths.end());
+        if (!zone_paths.empty())
+            extra_perimeters.push_back(std::move(zone_paths));
+    }
+
+    OverhangGenerationOutput out;
+    out.extra_perimeters = std::move(extra_perimeters);
+    out.filled_area = Slic3r::ensure_valid(coverage_for_extra_perimeters(out.extra_perimeters, infill_area, input));
+    out.unfilled_area = Slic3r::ensure_valid(Slic3r::diff_ex(infill_area, out.filled_area));
+    return out;
+}
+
+OverhangGenerationInput generation_input_for_island(const Print &print,
+                                                    const Object &object,
+                                                    const LayerIsland &island,
+                                                    uint32_t layer_idx,
+                                                    const c_flow &perimeter_flow,
+                                                    const c_flow &external_flow)
+{
+    const Config region_config = island.region(0).print_region().config();
+    const Config object_config = object.config();
+    const int32_t perimeter_count = std::max(0, config_int_or(region_config, k_perimeters_key, 0));
+
+    OverhangGenerationInput input;
+    input.overhang_flow = overhang_flow_from_perimeter_flow(perimeter_flow);
+    input.overhang_spacing = overhang_spacing_from_config(region_config, perimeter_flow);
+    input.perimeter_depth = perimeter_count <= 0 ? 0 :
+        external_flow.width + perimeter_flow.spacing * (perimeter_count - 1);
+    input.lower_slices = lower_slices_for_island(island);
+
+    // Object-local first layers do not receive extra overhang anchors. There
+    // is no lower object material to grow from even if raft/support exists.
+    if (layer_idx == 0 || (object_config.has(k_raft_layers_key) &&
+                           layer_idx <= uint32_t(std::max(0, object_config.get(k_raft_layers_key).get_int()))))
+        input.perimeter_depth = 0;
+
+    (void)print;
+    return input;
+}
+
+Slic3r::coord_t infill_overlap_for_island(const LayerIsland &island,
+                                          const c_flow &perimeter_flow,
+                                          const c_flow &external_flow)
+{
+    if (island.region_count() == 0)
+        return 0;
+
+    const Config config = island.region(0).print_region().config();
+    const int32_t perimeter_count = std::max(0, config_int_or(config, k_perimeters_key, 0));
+    if (perimeter_count <= 0 || !config.has(k_infill_overlap_key))
+        return 0;
+
+    const double ratio = unscaled(perimeter_count == 1 ? external_flow.spacing : perimeter_flow.spacing);
+    return Slic3r::scale_i(config.get(k_infill_overlap_key).get_effective_value(ratio));
+}
+
+void append_native_copy(MutableExtrusionEntity &dst, const Slic3r::ExtrusionEntity &src)
+{
+    const uint32_t index =
+        extrusion_insert_child_copy(dst.mutable_handle(), dst.child_count(), native_entity_handle(src));
+    assert(!is_invalid_index(index));
+    (void)index;
+}
+
+void append_extra_path(MutableExtrusionEntity dst, const Slic3r::ExtrusionPath &path)
+{
+    if (path.empty())
+        return;
+    append_native_copy(dst, path);
+}
+
+void prepend_extra_perimeter_zone_groups_to_root(storage_handle *storage,
+                                                 MutableExtrusionEntity root,
+                                                 const std::vector<Slic3r::ExtrusionPaths> &extra_perimeters)
+{
+    // The root prints the overhang wrapper first, then the original perimeter
+    // tree. The wrapper itself is sortable between zones, while every zone is
+    // locked so its waves stay ordered from support toward open air.
+    StoredExtrusionEntity original(storage, root.readonly());
+    StoredExtrusionEntity extra_zones(storage);
+
+    for (const Slic3r::ExtrusionPaths &zone_paths : extra_perimeters) {
+        if (zone_paths.empty())
+            continue;
+
+        StoredExtrusionEntity zone(storage);
+        for (const Slic3r::ExtrusionPath &path : zone_paths)
+            append_extra_path(zone.mutable_view(), path);
+        if (!zone.empty()) {
+            zone.disable_sort();
+            zone.disable_reverse();
+            const uint32_t idx = extra_zones.add_child(zone.mutable_view());
+            assert(!is_invalid_index(idx));
+            (void)idx;
+        }
+    }
+
+    extra_zones.set_flags(extra_zones.flags() | RAW_EXTRUSION_FLAG_SORTABLE);
+    extra_zones.disable_reverse();
+
+    root.clear_content();
+    if (!extra_zones.empty()) {
+        const uint32_t idx = root.add_child(extra_zones.mutable_view());
+        assert(!is_invalid_index(idx));
+        (void)idx;
+    }
+
+    if (original.child_count() > 0) {
+        while (original.child_count() > 0)
+            root.move_child_from(root.child_count(), original.mutable_view(), 0);
+    } else if (!original.empty()) {
+        root.add_child(original.mutable_view());
+    }
+
+    root.disable_sort();
+    root.disable_reverse();
+}
+
+bool extra_perimeters_empty(const std::vector<Slic3r::ExtrusionPaths> &extra_perimeters)
+{
+    for (const Slic3r::ExtrusionPaths &paths : extra_perimeters)
+        if (!paths.empty())
+            return false;
+    return true;
+}
+
+void publish_fill_areas(const run_ctx_post_perimeter_generation &ctx,
+                        const LayerIsland &island,
+                        const Slic3r::ExPolygons &fill_areas,
+                        const Slic3r::ExPolygons &free_areas)
+{
+    const expolygon_collection_handle *fill_handle =
+        reinterpret_cast<const expolygon_collection_handle *>(&fill_areas);
+    const expolygon_collection_handle *free_handle =
+        reinterpret_cast<const expolygon_collection_handle *>(&free_areas);
+    const int32_t fill_ok = ctx.set_island_fill_areas(island.handle(), fill_handle);
+    const int32_t free_ok = ctx.set_island_fill_free_areas(island.handle(), free_handle);
+    assert(fill_ok != 0);
+    assert(free_ok != 0);
+    (void)fill_ok;
+    (void)free_ok;
+}
+
+void update_fill_areas(const run_ctx_post_perimeter_generation &ctx,
+                       const LayerIsland &island,
+                       const OverhangGenerationOutput &generated,
+                       Slic3r::coord_t infill_overlap)
+{
+    // The generated paths now occupy part of the infill area. Keep the strict
+    // free area conservative, and rebuild the wider fill area with the same
+    // overlap rule used by the post-perimeter pipeline.
+    const Slic3r::ExPolygons fill_areas = native_collection(island.infill_areas());
+    const Slic3r::ExPolygons free_areas = native_collection(island.infill_no_overlap_areas());
+    const Slic3r::ExPolygons free_source = free_areas.empty() ? fill_areas : free_areas;
+
+    Slic3r::ExPolygons next_fill_areas;
+    Slic3r::ExPolygons next_free_areas = Slic3r::diff_ex(free_source, generated.filled_area);
+    if (infill_overlap != 0) {
+        next_fill_areas =
+            Slic3r::intersection_ex(fill_areas, Slic3r::offset_ex(generated.unfilled_area, infill_overlap));
+    } else {
+        next_fill_areas = Slic3r::diff_ex(fill_areas, generated.filled_area);
+    }
+
+    publish_fill_areas(ctx, island, next_fill_areas, next_free_areas);
+}
+
+MutableExtrusionEntity first_mutable_perimeter_root(const run_ctx_post_perimeter_generation &ctx,
+                                                    const LayerIsland &island)
+{
+    for (uint32_t idx = 0; idx < island.region_island_count(); ++idx) {
+        const LayerRegionIsland region_island = island.region_island(idx);
+        extrusion_entity_handle *root =
+            ctx.get_region_island_mutable_extrusion(region_island.handle(), RAW_EXTRUSION_ROLE_PERIMETER);
+        if (root != nullptr)
+            return MutableExtrusionEntity(root);
+    }
+    return MutableExtrusionEntity();
+}
+
+void process_island(const run_ctx_post_perimeter_generation &ctx,
+                    storage_handle *storage,
+                    const Print &print,
+                    const Object &object,
+                    const LayerIsland &island,
+                    uint32_t layer_idx)
+{
+    if (island.region_count() == 0 || island.region_island_count() == 0 ||
+        island.infill_areas().empty() || island.lower_island_count() == 0)
+        return;
+
+    MutableExtrusionEntity root = first_mutable_perimeter_root(ctx, island);
+    if (!root)
+        return;
+
+    const c_flow perimeter_flow = island.region(0).flow(RAW_EXTRUSION_ROLE_INTERNAL_PERIMETER);
+    const c_flow external_flow = island.region(0).flow(RAW_EXTRUSION_ROLE_EXTERNAL_PERIMETER);
+    OverhangGenerationInput input =
+        generation_input_for_island(print, object, island, layer_idx, perimeter_flow, external_flow);
+    if (input.perimeter_depth <= 0 || input.overhang_spacing <= 0 || input.lower_slices.empty())
+        return;
+
+    RegionSettings settings(storage, island, {{k_extra_perimeters_on_overhangs_key}});
+    settings.segregate(island.slice());
+
+    const Slic3r::ExPolygons infill_candidate =
+        island.infill_no_overlap_areas().empty() ?
+        native_collection(island.infill_areas()) :
+        native_collection(island.infill_no_overlap_areas());
+    Slic3r::ExPolygons enabled_area = enabled_infill_area(storage, infill_candidate, settings);
+    if (enabled_area.empty())
+        return;
+
+    OverhangGenerationOutput generated = generate_extra_perimeters_over_overhangs_wave(enabled_area, input);
+    if (extra_perimeters_empty(generated.extra_perimeters))
+        return;
+
+    if (settings.has_many_config(k_extra_perimeters_on_overhangs_key)) {
+        const Slic3r::ExPolygons disabled_area = disabled_infill_area(infill_candidate, enabled_area);
+        generated.unfilled_area = Slic3r::union_ex(generated.unfilled_area, disabled_area);
+    }
+
+    prepend_extra_perimeter_zone_groups_to_root(storage, root, generated.extra_perimeters);
+    update_fill_areas(ctx, island, generated, infill_overlap_for_island(island, perimeter_flow, external_flow));
+}
+
+} // namespace
+
+ExtraPerimeterOverhangWave &
+ExtraPerimeterOverhangWave::instance(orchestrator_handle *orch)
+{
+    static ExtraPerimeterOverhangWave s_instance(orch);
+    return s_instance;
+}
+
+const char *ExtraPerimeterOverhangWave::id_impl() const noexcept
+{
+    return k_extra_overhang_perimeters_wave_id;
+}
+
+const char *ExtraPerimeterOverhangWave::name_impl() const noexcept
+{
+    return "Extra perimeter overhang wave";
+}
+
+const char *ExtraPerimeterOverhangWave::description_impl() const noexcept
+{
+    return "Adds overhang perimeter anchors by growing printable waves from lower-layer support.";
+}
+
+const char *ExtraPerimeterOverhangWave::exclusive_group_impl() const noexcept
+{
+    return k_extra_overhang_perimeters_group;
+}
+
+const char *ExtraPerimeterOverhangWave::exclusive_group_label_impl() const noexcept
+{
+    return "Extra overhang perimeter strategy";
+}
+
+const char *ExtraPerimeterOverhangWave::exclusive_group_tooltip_impl() const noexcept
+{
+    return "Choose the algorithm used to add extra perimeter anchors under overhangs.";
+}
+
+slicing_step_t ExtraPerimeterOverhangWave::step_impl() const noexcept
+{
+    return STEP_POST_PERIMETER;
+}
+
+const char *const *ExtraPerimeterOverhangWave::dependencies_impl() const noexcept
+{
+    return k_no_dependencies;
+}
+
+int32_t ExtraPerimeterOverhangWave::priority_impl() const noexcept
+{
+    return -19;
+}
+
+int32_t ExtraPerimeterOverhangWave::used_config_keys(raw_used_config_key *keys) const noexcept
+{
+    if (keys != nullptr)
+        for (uint32_t idx = 0; idx < sizeof(k_used_config_keys) / sizeof(k_used_config_keys[0]); ++idx)
+            keys[idx] = k_used_config_keys[idx];
+    return int32_t(sizeof(k_used_config_keys) / sizeof(k_used_config_keys[0]));
+}
+
+const char *ExtraPerimeterOverhangWave::progress_message_format_impl() const noexcept
+{
+    return "Extra overhang wave perimeters: %u / %u layers";
+}
+
+void ExtraPerimeterOverhangWave::setup_run_impl(const plugin_run_context *run_ctx) const
+{
+    const run_ctx_post_perimeter_generation *ctx = plugin_ctx_as_post_perimeter_generation(run_ctx);
+    if (ctx != nullptr && ctx->object != nullptr)
+        progress().add_max(Object(ctx->object).layer_count());
+}
+
+void ExtraPerimeterOverhangWave::run_impl(const plugin_run_context *run_ctx) const
+{
+    const run_ctx_post_perimeter_generation *ctx = plugin_ctx_as_post_perimeter_generation(run_ctx);
+    if (ctx == nullptr || run_ctx == nullptr || run_ctx->plugin_storage == nullptr ||
+        ctx->print == nullptr || ctx->object == nullptr ||
+        ctx->get_region_island_mutable_extrusion == nullptr ||
+        ctx->set_island_fill_areas == nullptr ||
+        ctx->set_island_fill_free_areas == nullptr)
+        return;
+
+    const Print print(ctx->print);
+    const Object object(ctx->object);
+    for (uint32_t layer_idx = 0; layer_idx < object.layer_count(); ++layer_idx) {
+        throw_if_cancelled(run_ctx);
+        const Layer layer = object.layer(layer_idx);
+        for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx)
+            process_island(*ctx, run_ctx->plugin_storage, print, object, layer.island(island_idx), layer_idx);
+        progress().increment();
+    }
+}
+
+void register_extra_perimeter_overhang_wave_plugin(orchestrator_handle *orch)
+{
+    orchestrator_register_plugin(orch, ExtraPerimeterOverhangWave::instance(orch).c_instance());
+}
+
+}}} // namespace slic3r_api::Perimeter::ExtraPerimeterOverhangWavePlugin
+

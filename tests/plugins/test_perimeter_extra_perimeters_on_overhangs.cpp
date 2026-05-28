@@ -108,6 +108,19 @@ bool role_leaves_disable_seams(const ExtrusionEntity &entity, const ExtrusionRol
     return true;
 }
 
+bool role_leaves_are_not_reversible(const ExtrusionEntity &entity, const ExtrusionRoleModifier role)
+{
+    if (entity.is_nop())
+        return true;
+    if (entity.is_leaf() && entity.role().has(role))
+        return !entity.can_reverse();
+
+    for (size_t child_idx = 0; child_idx < entity.child_count(); ++child_idx)
+        if (!role_leaves_are_not_reversible(entity.child(child_idx), role))
+            return false;
+    return true;
+}
+
 bool role_leaf_starts_closer_to_support_than_end(const ExtrusionEntity &entity,
                                                  const ExtrusionRoleModifier role,
                                                  const AABBTreeLines::LinesDistancer<Line> &support_distancer)
@@ -129,6 +142,39 @@ bool role_leaf_starts_closer_to_support_than_end(const ExtrusionEntity &entity,
 AABBTreeLines::LinesDistancer<Line> support_distancer_for(const ExPolygon &support)
 {
     return AABBTreeLines::LinesDistancer<Line>{to_lines(to_polygons(ExPolygons{ support }))};
+}
+
+const ExtrusionEntity *first_overhang_wrapper(const ExtrusionEntity &root)
+{
+    if (root.is_nop() || root.is_leaf())
+        return nullptr;
+    for (size_t child_idx = 0; child_idx < root.child_count(); ++child_idx) {
+        const ExtrusionEntity &child = root.child(child_idx);
+        if (count_role_leaves(child, ExtrusionRole::OverhangPerimeter) > 0)
+            return &child;
+    }
+    return nullptr;
+}
+
+size_t direct_overhang_zone_count(const ExtrusionEntity &wrapper)
+{
+    size_t count = 0;
+    for (size_t child_idx = 0; child_idx < wrapper.child_count(); ++child_idx)
+        if (count_role_leaves(wrapper.child(child_idx), ExtrusionRole::OverhangPerimeter) > 0)
+            ++count;
+    return count;
+}
+
+bool direct_overhang_zones_are_order_locked(const ExtrusionEntity &wrapper)
+{
+    for (size_t child_idx = 0; child_idx < wrapper.child_count(); ++child_idx) {
+        const ExtrusionEntity &zone = wrapper.child(child_idx);
+        if (count_role_leaves(zone, ExtrusionRole::OverhangPerimeter) == 0)
+            continue;
+        if (zone.can_sort() || zone.can_reverse())
+            return false;
+    }
+    return true;
 }
 
 } // namespace
@@ -261,4 +307,106 @@ TEST_CASE("Extra perimeters on overhangs honors region-local enablement", "[plug
     REQUIRE(count_role_leaves(local_enabled.external_perimeters, ExtrusionRole::OverhangPerimeter) > 0);
     REQUIRE(free_fill_area(local_enabled) < free_fill_area(disabled));
     require_leaf_fill_area_consistency(local_enabled);
+}
+
+TEST_CASE("Extra perimeter overhang wave grows ordered zones from support", "[plugins][perimeter][extra-overhang][wave]")
+{
+    const ExPolygon target = overhang_target();
+    const ExPolygon lower_support = narrow_left_support();
+    const DynamicPrintConfig enabled = extra_overhang_config({});
+
+    const PerimeterRunCapture baseline =
+        run_perimeter_case(enabled, {SIMPLE_PERIMETER_GENERATOR}, target, 1);
+    const PerimeterRunCapture post =
+        run_perimeter_and_post_case_with_lower_area(
+            enabled, {SIMPLE_PERIMETER_GENERATOR}, {EXTRA_PERIMETER_OVERHANG_WAVE},
+            target, lower_support, 1);
+
+    // Geometry: the lower layer supports only the left strip of a wider upper
+    // island. The wave plugin starts at that supported strip, offsets outward,
+    // and clips each wave to the unsupported fill domain. This should create
+    // overhang anchors before the normal perimeter tree while preserving the
+    // later fill/free-area partition.
+    REQUIRE(external_perimeter_count(post) > external_perimeter_count(baseline));
+    REQUIRE(count_role_leaves(post.external_perimeters, ExtrusionRole::OverhangPerimeter) > 0);
+    REQUIRE(count_role_loops(post.external_perimeters, ExtrusionRole::OverhangPerimeter) == 0);
+    REQUIRE(role_leaves_disable_seams(post.external_perimeters, ExtrusionRole::OverhangPerimeter));
+    REQUIRE(role_leaves_are_not_reversible(post.external_perimeters, ExtrusionRole::OverhangPerimeter));
+
+    const AABBTreeLines::LinesDistancer<Line> support_distancer = support_distancer_for(lower_support);
+    REQUIRE(role_leaf_starts_closer_to_support_than_end(
+        post.external_perimeters, ExtrusionRole::OverhangPerimeter, support_distancer));
+
+    // The root is unsortable so the whole extra-overhang wrapper is emitted
+    // before the original perimeter tree. Inside that wrapper, each individual
+    // zone is unsortable/non-reversible because its paths must keep their
+    // support-to-air order.
+    const ExtrusionEntity *wrapper = first_overhang_wrapper(post.external_perimeters);
+    REQUIRE(wrapper != nullptr);
+    REQUIRE(wrapper->can_sort());
+    REQUIRE(direct_overhang_zone_count(*wrapper) == 1);
+    REQUIRE(direct_overhang_zones_are_order_locked(*wrapper));
+
+    REQUIRE(free_fill_area(post) < free_fill_area(baseline));
+    require_leaf_fill_area_consistency(post);
+}
+
+TEST_CASE("Extra perimeter overhang wave keeps disconnected zones independently sortable", "[plugins][perimeter][extra-overhang][wave]")
+{
+    const ExPolygon target = rectangle_expolygon(-12., -8., 12., 8.);
+    const ExPolygon central_support = rectangle_expolygon(-2., -8., 2., 8.);
+    const DynamicPrintConfig enabled = extra_overhang_config({});
+
+    const PerimeterRunCapture post =
+        run_perimeter_and_post_case_with_lower_area(
+            enabled, {SIMPLE_PERIMETER_GENERATOR}, {EXTRA_PERIMETER_OVERHANG_WAVE},
+            target, central_support, 1);
+
+    // Geometry: a narrow supported column below the middle of the island leaves
+    // two independent unsupported regions, left and right. Each region must
+    // keep its own strict wave order, but the two regions may be printed in
+    // either order to reduce travel. The wrapper/zone hierarchy encodes that
+    // exact contract for the downstream G-code ordering code.
+    const ExtrusionEntity *wrapper = first_overhang_wrapper(post.external_perimeters);
+    REQUIRE(wrapper != nullptr);
+    REQUIRE(wrapper->can_sort());
+    REQUIRE(direct_overhang_zone_count(*wrapper) == 2);
+    REQUIRE(direct_overhang_zones_are_order_locked(*wrapper));
+    REQUIRE(count_role_leaves(post.external_perimeters, ExtrusionRole::OverhangPerimeter) > 0);
+    require_leaf_fill_area_consistency(post);
+}
+
+TEST_CASE("Extra perimeter overhang wave separates paths when wave jumps require travel", "[plugins][perimeter][extra-overhang][wave]")
+{
+    const ExPolygon target = rectangle_expolygon(-18., -8., 18., 8.);
+    const ExPolygon lower_support = rectangle_expolygon(-18., -8., -10., 8.);
+    const DynamicPrintConfig close_waves = extra_overhang_config({
+        {"perimeters", "8"},
+        {"overhangs_extrusion_spacing", "0.25"}
+    });
+    const DynamicPrintConfig far_waves = extra_overhang_config({
+        {"perimeters", "8"},
+        {"overhangs_extrusion_spacing", "1.2"}
+    });
+
+    const PerimeterRunCapture connected =
+        run_perimeter_and_post_case_with_lower_area(
+            close_waves, {SIMPLE_PERIMETER_GENERATOR}, {EXTRA_PERIMETER_OVERHANG_WAVE},
+            target, lower_support, 1);
+    const PerimeterRunCapture separated =
+        run_perimeter_and_post_case_with_lower_area(
+            far_waves, {SIMPLE_PERIMETER_GENERATOR}, {EXTRA_PERIMETER_OVERHANG_WAVE},
+            target, lower_support, 1);
+
+    // The wave plugin joins two successive wave fragments only when the
+    // connector is shorter than two extrusion widths. A small spacing should
+    // therefore build longer continuous paths, while a deliberately large
+    // spacing must leave separate path leaves so the printer can travel.
+    REQUIRE(count_role_leaves(connected.external_perimeters, ExtrusionRole::OverhangPerimeter) > 0);
+    REQUIRE(count_role_leaves(separated.external_perimeters, ExtrusionRole::OverhangPerimeter) >
+            count_role_leaves(connected.external_perimeters, ExtrusionRole::OverhangPerimeter));
+    REQUIRE(role_leaves_disable_seams(separated.external_perimeters, ExtrusionRole::OverhangPerimeter));
+    REQUIRE(role_leaves_are_not_reversible(separated.external_perimeters, ExtrusionRole::OverhangPerimeter));
+    require_leaf_fill_area_consistency(connected);
+    require_leaf_fill_area_consistency(separated);
 }
