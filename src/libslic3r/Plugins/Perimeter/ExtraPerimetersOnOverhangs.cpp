@@ -313,6 +313,43 @@ Slic3r::Polylines reconnect_polylines(const Slic3r::Polylines &polylines,
     return result;
 }
 
+void orient_extra_perimeter_from_support(
+    Slic3r::ExtrusionPath &path,
+    const Slic3r::AABBTreeLines::LinesDistancer<Slic3r::Line> &lower_layer_aabb_tree)
+{
+    if (path.empty())
+        return;
+
+    // The extra path ordering has a physical meaning: the first printed point
+    // should be the part that is closest to already supported material. Closed
+    // paths need a rotation, while open paths only need their direction chosen.
+    Slic3r::Polyline discrete_polyline = path.polyline().to_polyline();
+    if (discrete_polyline.size() < 2)
+        return;
+
+    if (discrete_polyline.front() == discrete_polyline.back()) {
+        size_t closest_idx = 0;
+        double closest_distance = std::numeric_limits<double>::max();
+        discrete_polyline.points.pop_back();
+        for (size_t idx = 0; idx < discrete_polyline.size(); idx++) {
+            const double distance = lower_layer_aabb_tree.distance_from_lines<true>(discrete_polyline.points[idx]);
+            if (distance < closest_distance) {
+                closest_distance = distance;
+                closest_idx = idx;
+            }
+        }
+        std::rotate(discrete_polyline.begin(), discrete_polyline.begin() + closest_idx, discrete_polyline.end());
+        discrete_polyline.points.push_back(discrete_polyline.points.front());
+        path.polyline() = Slic3r::ArcPolyline(discrete_polyline);
+        return;
+    }
+
+    const double first_distance = lower_layer_aabb_tree.distance_from_lines<true>(path.first_point());
+    const double last_distance = lower_layer_aabb_tree.distance_from_lines<true>(path.last_point());
+    if (last_distance < first_distance)
+        path.reverse();
+}
+
 Slic3r::ExtrusionPaths sort_extra_perimeters(const Slic3r::ExtrusionPaths &extra_perims,
                                              int index_of_first_unanchored,
                                              Slic3r::coordf_t extrusion_spacing)
@@ -632,23 +669,10 @@ OverhangGenerationOutput generate_extra_perimeters_over_overhangs(
 
                 if (!first_overhang_is_closed_and_anchored) {
                     std::reverse(overhang_region.begin(), overhang_region.end());
-                } else {
-                    size_t min_dist_idx = 0;
-                    double min_dist = std::numeric_limits<double>::max();
-                    for (size_t idx = 0; idx < discrete_polyline.size(); idx++) {
-                        const Slic3r::Point point = discrete_polyline[idx];
-                        const double distance = lower_layer_aabb_tree.distance_from_lines<true>(point);
-                        if (distance < min_dist) {
-                            min_dist = distance;
-                            min_dist_idx = idx;
-                        }
-                    }
-                    discrete_polyline.points.pop_back();
-                    std::rotate(discrete_polyline.begin(), discrete_polyline.begin() + min_dist_idx,
-                                discrete_polyline.end());
-                    discrete_polyline.points.push_back(discrete_polyline.points.front());
-                    overhang_region.front().polyline() = Slic3r::ArcPolyline(discrete_polyline);
                 }
+
+                for (Slic3r::ExtrusionPath &path : overhang_region)
+                    orient_extra_perimeter_from_support(path, lower_layer_aabb_tree);
 
                 const Slic3r::ExtrusionPaths::iterator first_unanchored =
                     std::stable_partition(overhang_region.begin(), overhang_region.end(), is_anchored);

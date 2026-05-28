@@ -2,6 +2,7 @@
 
 #include "perimeter_test_helpers.hpp"
 
+#include "libslic3r/AABBTreeLines.hpp"
 #include "libslic3r/ClipperUtils.hpp"
 
 namespace {
@@ -107,6 +108,29 @@ bool role_leaves_disable_seams(const ExtrusionEntity &entity, const ExtrusionRol
     return true;
 }
 
+bool role_leaf_starts_closer_to_support_than_end(const ExtrusionEntity &entity,
+                                                 const ExtrusionRoleModifier role,
+                                                 const AABBTreeLines::LinesDistancer<Line> &support_distancer)
+{
+    if (entity.is_nop())
+        return true;
+    if (entity.is_leaf() && entity.has_polyline() && entity.role().has(role)) {
+        const double first_distance = support_distancer.distance_from_lines<true>(entity.first_point());
+        const double last_distance = support_distancer.distance_from_lines<true>(entity.last_point());
+        return first_distance <= last_distance + SCALED_EPSILON;
+    }
+
+    for (size_t child_idx = 0; child_idx < entity.child_count(); ++child_idx)
+        if (!role_leaf_starts_closer_to_support_than_end(entity.child(child_idx), role, support_distancer))
+            return false;
+    return true;
+}
+
+AABBTreeLines::LinesDistancer<Line> support_distancer_for(const ExPolygon &support)
+{
+    return AABBTreeLines::LinesDistancer<Line>{to_lines(to_polygons(ExPolygons{ support }))};
+}
+
 } // namespace
 
 TEST_CASE("Extra perimeters on overhangs is inert when disabled or fully supported", "[plugins][perimeter][extra-overhang]")
@@ -175,6 +199,12 @@ TEST_CASE("Extra perimeters on overhangs inserts anchors before normal perimeter
     // would let seam placement move their start point away from the supported
     // anchor.
     REQUIRE(count_role_loops(post.external_perimeters, ExtrusionRole::OverhangPerimeter) == 0);
+    // Every anchor path is oriented from its most supported endpoint. Without
+    // this, the first emitted overhang move may start in the air even though
+    // the same path has a supported endpoint at the other end.
+    const AABBTreeLines::LinesDistancer<Line> support_distancer = support_distancer_for(lower_support);
+    REQUIRE(role_leaf_starts_closer_to_support_than_end(
+        post.external_perimeters, ExtrusionRole::OverhangPerimeter, support_distancer));
     REQUIRE_FALSE(post.external_perimeters.can_sort());
     REQUIRE(post.external_perimeters.child_count() >= 2);
     REQUIRE(first_leaf_role_has(post.external_perimeters.child(0), ExtrusionRole::OverhangPerimeter));
