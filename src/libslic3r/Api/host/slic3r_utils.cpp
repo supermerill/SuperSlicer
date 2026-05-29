@@ -12,6 +12,24 @@ void slic3r_parallel_for(uint32_t begin, uint32_t end, void *user_data, void (*f
     Slic3r::parallel_for(begin, end, [&](size_t i) { fn(uint32_t(i), user_data); });
 }
 
+void slic3r_parallel_for_storage(uint32_t begin,
+                                 uint32_t end,
+                                 void *user_data,
+                                 slic3r_parallel_for_storage_fn fn)
+{
+    if (fn == nullptr)
+        return;
+
+    Slic3r::parallel_for(begin, end, [&](size_t i) {
+        // A fresh scratch storage per item gives plugin code a simple lifetime:
+        // every temporary handle created from scratch_storage dies when this
+        // callback returns. Long-lived results must be copied or moved through
+        // a step callback before that point.
+        Slic3r::PluginStorage scratch_storage;
+        fn(uint32_t(i), reinterpret_cast<storage_handle *>(&scratch_storage), user_data);
+    });
+}
+
 
 /* release all objects that were created in the storage */
 void storage_clear(storage_handle *me) {
