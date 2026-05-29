@@ -39,15 +39,9 @@ constexpr raw_surface_type k_internal_solid = RAW_SURFACE_TYPE_POS_INTERNAL | RA
 constexpr raw_surface_type k_internal_sparse = RAW_SURFACE_TYPE_POS_INTERNAL | RAW_SURFACE_TYPE_DENS_SPARSE;
 constexpr raw_surface_type k_internal_void = RAW_SURFACE_TYPE_POS_INTERNAL | RAW_SURFACE_TYPE_DENS_VOID;
 
-bool has_flag(raw_surface_type type, raw_surface_type flag)
-{
-    return (type & flag) != 0;
-}
-
 bool is_top_surface(raw_surface_type type)
 {
-    return has_flag(type, RAW_SURFACE_TYPE_POS_TOP) &&
-           has_flag(type, RAW_SURFACE_TYPE_DENS_SOLID);
+    return surface_type_is_top(type) && surface_type_is_solid(type);
 }
 
 bool is_rebuildable_internal_surface(raw_surface_type type)
@@ -55,9 +49,9 @@ bool is_rebuildable_internal_surface(raw_surface_type type)
     // The top-margin projection changes only ordinary internal sparse/void
     // infill. Bridge and already-solid areas are left intact: bridge expansion
     // and solid-shell detection have their own modules in this step.
-    return has_flag(type, RAW_SURFACE_TYPE_POS_INTERNAL) &&
-           !has_flag(type, RAW_SURFACE_TYPE_MOD_BRIDGE) &&
-           !has_flag(type, RAW_SURFACE_TYPE_DENS_SOLID);
+    return surface_type_is_internal(type) &&
+           !surface_type_is_bridge(type) &&
+           !surface_type_is_solid(type);
 }
 
 StoredExPolygonCollection collection_from_expolygon(storage_handle *storage, const ExPolygon &expolygon)

@@ -213,6 +213,120 @@ public:
 
 constexpr srf_type_position srf_type() { return srf_type_position(); }
 
+inline constexpr raw_surface_type k_surface_type_position_flags =
+    RAW_SURFACE_TYPE_POS_TOP |
+    RAW_SURFACE_TYPE_POS_BOTTOM |
+    RAW_SURFACE_TYPE_POS_INTERNAL |
+    RAW_SURFACE_TYPE_POS_PERIMETER;
+
+inline constexpr raw_surface_type k_surface_type_density_flags =
+    RAW_SURFACE_TYPE_DENS_SOLID |
+    RAW_SURFACE_TYPE_DENS_SPARSE |
+    RAW_SURFACE_TYPE_DENS_VOID;
+
+inline constexpr raw_surface_type k_surface_type_modifier_flags =
+    RAW_SURFACE_TYPE_MOD_BRIDGE |
+    RAW_SURFACE_TYPE_MOD_OVERBRIDGE;
+
+// raw_surface_type is a bitmask. These helpers keep plugins readable and avoid
+// repeating ad-hoc `(type & flag)` expressions with slightly different names.
+constexpr bool surface_type_has_flag(raw_surface_type type, raw_surface_type flag)
+{
+    return (type & flag) != 0;
+}
+
+constexpr bool surface_type_has_any_flag(raw_surface_type type, raw_surface_type flags)
+{
+    return (type & flags) != 0;
+}
+
+constexpr bool surface_type_has_all_flags(raw_surface_type type, raw_surface_type flags)
+{
+    return (type & flags) == flags;
+}
+
+constexpr raw_surface_type surface_type_add_flags(raw_surface_type type, raw_surface_type flags)
+{
+    return raw_surface_type(type | flags);
+}
+
+constexpr raw_surface_type surface_type_remove_flags(raw_surface_type type, raw_surface_type flags)
+{
+    return raw_surface_type(type & ~flags);
+}
+
+constexpr raw_surface_type surface_type_set_flags(raw_surface_type type, raw_surface_type flags, bool enabled)
+{
+    return enabled ? surface_type_add_flags(type, flags) : surface_type_remove_flags(type, flags);
+}
+
+constexpr raw_surface_type surface_type_replace_flags(raw_surface_type type,
+                                                      raw_surface_type mask,
+                                                      raw_surface_type replacement)
+{
+    return raw_surface_type((type & ~mask) | (replacement & mask));
+}
+
+constexpr raw_surface_type surface_type_position(raw_surface_type type)
+{
+    return raw_surface_type(type & k_surface_type_position_flags);
+}
+
+constexpr raw_surface_type surface_type_density(raw_surface_type type)
+{
+    return raw_surface_type(type & k_surface_type_density_flags);
+}
+
+constexpr raw_surface_type surface_type_modifiers(raw_surface_type type)
+{
+    return raw_surface_type(type & k_surface_type_modifier_flags);
+}
+
+constexpr bool surface_type_is_top(raw_surface_type type)
+{
+    return surface_type_has_flag(type, RAW_SURFACE_TYPE_POS_TOP);
+}
+
+constexpr bool surface_type_is_bottom(raw_surface_type type)
+{
+    return surface_type_has_flag(type, RAW_SURFACE_TYPE_POS_BOTTOM);
+}
+
+constexpr bool surface_type_is_internal(raw_surface_type type)
+{
+    return surface_type_has_flag(type, RAW_SURFACE_TYPE_POS_INTERNAL);
+}
+
+constexpr bool surface_type_is_perimeter(raw_surface_type type)
+{
+    return surface_type_has_flag(type, RAW_SURFACE_TYPE_POS_PERIMETER);
+}
+
+constexpr bool surface_type_is_solid(raw_surface_type type)
+{
+    return surface_type_has_flag(type, RAW_SURFACE_TYPE_DENS_SOLID);
+}
+
+constexpr bool surface_type_is_sparse(raw_surface_type type)
+{
+    return surface_type_has_flag(type, RAW_SURFACE_TYPE_DENS_SPARSE);
+}
+
+constexpr bool surface_type_is_void(raw_surface_type type)
+{
+    return surface_type_has_flag(type, RAW_SURFACE_TYPE_DENS_VOID);
+}
+
+constexpr bool surface_type_is_bridge(raw_surface_type type)
+{
+    return surface_type_has_flag(type, RAW_SURFACE_TYPE_MOD_BRIDGE);
+}
+
+constexpr bool surface_type_is_overbridge(raw_surface_type type)
+{
+    return surface_type_has_flag(type, RAW_SURFACE_TYPE_MOD_OVERBRIDGE);
+}
+
 class Surface
 {
 public:
@@ -236,7 +350,15 @@ public:
     }
 
     bool has_flag(raw_surface_type flag) const {
-        return m_handle != nullptr ? surface_get_flag(m_handle, flag) != 0 : (surface.type & flag) != 0;
+        return m_handle != nullptr ? surface_get_flag(m_handle, flag) != 0 : surface_type_has_flag(surface.type, flag);
+    }
+
+    bool has_any_flag(raw_surface_type flags) const {
+        return surface_type_has_any_flag(type(), flags);
+    }
+
+    bool has_all_flags(raw_surface_type flags) const {
+        return surface_type_has_all_flags(type(), flags);
     }
 
     c_surface c_view() const {

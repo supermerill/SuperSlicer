@@ -43,21 +43,16 @@ struct SurfaceAreaGroup
     StoredExPolygonCollection areas;
 };
 
-bool has_flag(raw_surface_type type, raw_surface_type flag)
-{
-    return (type & flag) != 0;
-}
-
 bool is_sparse_surface(raw_surface_type type)
 {
-    return has_flag(type, RAW_SURFACE_TYPE_DENS_SPARSE);
+    return surface_type_is_sparse(type);
 }
 
 raw_surface_type solid_version(raw_surface_type type)
 {
     // Keep the position and modifiers intact. Only the density changes from
     // sparse to solid, so a sparse top/bridge/internal surface keeps its role.
-    return raw_surface_type((type & ~RAW_SURFACE_TYPE_DENS_SPARSE) | RAW_SURFACE_TYPE_DENS_SOLID);
+    return surface_type_replace_flags(type, k_surface_type_density_flags, RAW_SURFACE_TYPE_DENS_SOLID);
 }
 
 double area_sum(const ExPolygonCollection &areas)
