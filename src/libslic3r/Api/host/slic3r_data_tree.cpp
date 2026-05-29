@@ -50,6 +50,9 @@ static const PrintObject *to_object(const object_handle *me) { return reinterpre
 static Print *to_print(print_handle *me) { return reinterpret_cast<Print*>(me); }
 static const Print *to_print(const print_handle *me) { return reinterpret_cast<const Print*>(me); }
 
+static ExPolygon *to_expolygon(expolygon_handle *me) { return reinterpret_cast<ExPolygon*>(me); }
+static const ExPolygon *to_expolygon(const expolygon_handle *me) { return reinterpret_cast<const ExPolygon*>(me); }
+
 static ExPolygons *to_expolygons(expolygon_collection_handle *me) { return reinterpret_cast<ExPolygons*>(me); }
 static const ExPolygons *to_expolygons(const expolygon_collection_handle *me) { return reinterpret_cast<const ExPolygons*>(me); }
 
@@ -154,11 +157,6 @@ c_surface surface_c_view(const surface_handle *me)
     };
 }
 
-expolygon_handle *surface_get_expolygon_mutable(surface_handle *me)
-{
-    return me == nullptr ? nullptr : reinterpret_cast<expolygon_handle*>(&Slic3r::to_surface(me)->expolygon);
-}
-
 const expolygon_handle *surface_get_expolygon(const surface_handle *me)
 {
     return me == nullptr ? nullptr : reinterpret_cast<const expolygon_handle*>(&Slic3r::to_surface(me)->expolygon);
@@ -169,30 +167,12 @@ raw_surface_type surface_get_type(const surface_handle *me)
     return me == nullptr ? RAW_SURFACE_TYPE_NONE : static_cast<raw_surface_type>(Slic3r::to_surface(me)->surface_type);
 }
 
-void surface_set_type(surface_handle *me, raw_surface_type type)
-{
-    if (me != nullptr)
-        Slic3r::to_surface(me)->surface_type = static_cast<Slic3r::SurfaceType>(type);
-}
-
 int32_t surface_get_flag(const surface_handle *me, raw_surface_type flag)
 {
     return me != nullptr && (surface_get_type(me) & flag) != 0;
 }
 
-void surface_set_flag(surface_handle *me, raw_surface_type flag, int32_t enabled)
-{
-    if (me == nullptr)
-        return;
-    raw_surface_type type = surface_get_type(me);
-    if (enabled)
-        type = raw_surface_type(type | flag);
-    else
-        type = raw_surface_type(type & ~flag);
-    surface_set_type(me, type);
-}
-
-surface_collection_handle *surface_collection_create(storage_handle *me)
+surface_collection_handle *storage_new_surface_collection(storage_handle *me)
 {
     Slic3r::PluginStorage *storage = reinterpret_cast<Slic3r::PluginStorage *>(me);
     if (storage == nullptr)
@@ -209,25 +189,48 @@ void surface_collection_clear(surface_collection_handle *me)
         Slic3r::to_surface_collection(me)->clear();
 }
 
-void surface_collection_append(surface_collection_handle *me,
-                               const expolygon_collection_handle *areas,
-                               raw_surface_type surface_type)
+void surface_collection_append_expolygon_copy(surface_collection_handle *me,
+                                              const expolygon_handle *area,
+                                              raw_surface_type surface_type)
+{
+    if (me != nullptr && area != nullptr)
+        Slic3r::to_surface_collection(me)->surfaces.emplace_back(
+            static_cast<Slic3r::SurfaceType>(surface_type), *Slic3r::to_expolygon(area));
+}
+
+void surface_collection_append_expolygon_move(surface_collection_handle *me,
+                                              expolygon_handle *area,
+                                              raw_surface_type surface_type)
+{
+    if (me == nullptr || area == nullptr)
+        return;
+
+    Slic3r::to_surface_collection(me)->surfaces.emplace_back(
+        static_cast<Slic3r::SurfaceType>(surface_type), std::move(*Slic3r::to_expolygon(area)));
+    Slic3r::to_expolygon(area)->clear();
+}
+
+void surface_collection_append_expolygons_copy(surface_collection_handle *me,
+                                               const expolygon_collection_handle *areas,
+                                               raw_surface_type surface_type)
 {
     if (me != nullptr && areas != nullptr)
         Slic3r::to_surface_collection(me)->append(*Slic3r::to_expolygons(areas),
                                                   static_cast<Slic3r::SurfaceType>(surface_type));
 }
 
+void surface_collection_append_expolygons_move(surface_collection_handle *me,
+                                               expolygon_collection_handle *areas,
+                                               raw_surface_type surface_type)
+{
+    if (me != nullptr && areas != nullptr)
+        Slic3r::to_surface_collection(me)->append(std::move(*Slic3r::to_expolygons(areas)),
+                                                  static_cast<Slic3r::SurfaceType>(surface_type));
+}
+
 uint32_t surface_collection_size(const surface_collection_handle *me)
 {
     return me == nullptr ? 0u : uint32_t(Slic3r::to_surface_collection(me)->size());
-}
-
-surface_handle *surface_collection_at_mutable(surface_collection_handle *me, uint32_t idx)
-{
-    if (me == nullptr || idx >= Slic3r::to_surface_collection(me)->size())
-        return nullptr;
-    return reinterpret_cast<surface_handle *>(&Slic3r::to_surface_collection(me)->at(idx));
 }
 
 const surface_handle *surface_collection_at(const surface_collection_handle *me, uint32_t idx)

@@ -403,14 +403,8 @@ class Slic3rAPI:
     def surface(self, handle: int) -> Surface:
         return Surface(self, handle)
 
-    def mutable_surface(self, handle: int) -> MutableSurface:
-        return MutableSurface(self, handle)
-
     def surface_collection(self, handle: int) -> SurfaceCollection:
         return SurfaceCollection(self, handle)
-
-    def mutable_surface_collection(self, handle: int) -> MutableSurfaceCollection:
-        return MutableSurfaceCollection(self, handle)
 
     def print(self, handle: int) -> Print:
         return Print(self, handle)

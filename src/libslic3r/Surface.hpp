@@ -117,9 +117,9 @@ public:
             bridge_angle(rhs.bridge_angle), extra_perimeters(rhs.extra_perimeters),
             maxNbSolidLayersOnTop(rhs.maxNbSolidLayersOnTop),
             priority(rhs.priority) {};
-    Surface(SurfaceType _surface_type, const ExPolygon &&_expolygon)
+    Surface(SurfaceType _surface_type, ExPolygon &&_expolygon)
         : surface_type(_surface_type), expolygon(std::move(_expolygon)) {};
-    Surface(const Surface &other, const ExPolygon &&_expolygon)
+    Surface(const Surface &other, ExPolygon &&_expolygon)
         : surface_type(other.surface_type), expolygon(std::move(_expolygon)),
             m_thickness(other.m_thickness), thickness_layers(other.thickness_layers), 
             bridge_angle(other.bridge_angle), extra_perimeters(other.extra_perimeters),

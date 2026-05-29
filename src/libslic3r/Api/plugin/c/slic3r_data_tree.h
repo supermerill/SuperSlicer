@@ -97,26 +97,38 @@ Surface may grow new fields, or when you need to mutate it.
 */
 SLIC3R_HOST_API c_surface surface_c_view(const surface_handle *me);
 
-/* Get expolygon (non-const / const). */
-SLIC3R_HOST_API expolygon_handle *surface_get_expolygon_mutable(surface_handle *me);
+/* Borrow the geometry owned by a read-only Surface view. */
 SLIC3R_HOST_API const expolygon_handle *surface_get_expolygon(const surface_handle *me);
 
-/* Surface type bitmask access. */
+/* Surface type bitmask access. Surfaces are read-only views in the public API. */
 SLIC3R_HOST_API raw_surface_type surface_get_type(const surface_handle *me);
-SLIC3R_HOST_API void surface_set_type(surface_handle *me, raw_surface_type type);
 
-/* Convenience helpers for one flag inside the surface type bitmask. */
+/* Convenience helper for one flag inside the surface type bitmask. */
 SLIC3R_HOST_API int32_t surface_get_flag(const surface_handle *me, raw_surface_type flag);
-SLIC3R_HOST_API void surface_set_flag(surface_handle *me, raw_surface_type flag, int32_t enabled);
 
-/* Surface collection view. The collection owns its Surface elements. */
-SLIC3R_HOST_API surface_collection_handle *surface_collection_create(storage_handle *storage);
+/*
+Surface collection storage.
+
+Surface remains a read-only data-tree view. Plugins create temporary
+SurfaceCollections in their storage, fill them with copied or moved ExPolygons,
+then pass the whole collection to a step callback that moves it into the host
+data tree.
+*/
+SLIC3R_HOST_API surface_collection_handle *storage_new_surface_collection(storage_handle *storage);
 SLIC3R_HOST_API void surface_collection_clear(surface_collection_handle *me);
-SLIC3R_HOST_API void surface_collection_append(surface_collection_handle *me,
-                                               const expolygon_collection_handle *areas,
-                                               raw_surface_type surface_type);
+SLIC3R_HOST_API void surface_collection_append_expolygon_copy(surface_collection_handle *me,
+                                                              const expolygon_handle *area,
+                                                              raw_surface_type surface_type);
+SLIC3R_HOST_API void surface_collection_append_expolygon_move(surface_collection_handle *me,
+                                                              expolygon_handle *area,
+                                                              raw_surface_type surface_type);
+SLIC3R_HOST_API void surface_collection_append_expolygons_copy(surface_collection_handle *me,
+                                                               const expolygon_collection_handle *areas,
+                                                               raw_surface_type surface_type);
+SLIC3R_HOST_API void surface_collection_append_expolygons_move(surface_collection_handle *me,
+                                                               expolygon_collection_handle *areas,
+                                                               raw_surface_type surface_type);
 SLIC3R_HOST_API uint32_t surface_collection_size(const surface_collection_handle *me);
-SLIC3R_HOST_API surface_handle *surface_collection_at_mutable(surface_collection_handle *me, uint32_t idx);
 SLIC3R_HOST_API const surface_handle *surface_collection_at(const surface_collection_handle *me, uint32_t idx);
 
 /* ========================= LAYER ========================= */

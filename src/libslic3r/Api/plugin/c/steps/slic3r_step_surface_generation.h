@@ -37,12 +37,13 @@ typedef layer_region_island_handle *(*surface_generation_get_or_create_region_is
 Replace the fill surfaces of a LayerRegionIsland by moving a complete
 SurfaceCollection into it.
 
-surfaces must be a storage-owned collection built with surface_collection_create()
-and filled before the callback is called. The host moves the collection content
-into the LayerRegionIsland; after a successful call, the source collection is
-valid but empty. Passing surfaces == NULL clears the destination collection.
-This keeps ownership transfer explicit and avoids exposing mutable
-LayerRegionIsland internals in the general data-tree API.
+surfaces must be a storage-owned collection built with
+storage_new_surface_collection() and filled before the callback is called. The
+host moves the collection content into the LayerRegionIsland; after a
+successful call, the source collection is valid but empty. Passing
+surfaces == NULL clears the destination collection. This keeps ownership
+transfer explicit and avoids exposing mutable LayerRegionIsland internals in
+the general data-tree API.
 */
 typedef int32_t (*surface_generation_set_region_island_fill_surfaces_fn)(
     layer_region_island_handle *region_island,
@@ -56,7 +57,8 @@ This helper belongs to STEP_SURFACE_GENERATION because it is mainly useful
 when a surface plugin clips an existing Surface and must preserve its host-side
 metadata: bridge angle, thickness, priority, dense-infill hints, and any future
 fields that are not represented by the small C surface type bitmask. Newly
-created surfaces can still use surface_collection_append().
+created surfaces can still use the surface_collection_append_expolygon*()
+helpers.
 */
 typedef void (*surface_generation_append_surface_like_fn)(
     surface_collection_handle *dst,

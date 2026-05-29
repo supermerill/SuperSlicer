@@ -357,22 +357,6 @@ class Surface:
         return (self.type() & int(flag)) != 0
 
 
-# Mutable surface view. Use only for mutable surface handles returned by a
-# mutable layer-region or surface collection.
-class MutableSurface(Surface):
-    def mutable_c_handle(self) -> ctypes.c_void_p:
-        return self.c_handle()
-
-    def expolygon_mutable(self) -> ExPolygon:
-        return ExPolygon(self.api, self.api.host.surface_get_expolygon_mutable(self.mutable_c_handle()))
-
-    def set_type(self, surface_type: int) -> None:
-        self.api.host.surface_set_type(self.mutable_c_handle(), int(surface_type))
-
-    def set_flag(self, flag: int, enabled: bool) -> None:
-        self.api.host.surface_set_flag(self.mutable_c_handle(), int(flag), int(enabled))
-
-
 # Borrowed read-only surface collection.
 class SurfaceCollection(DataTreeView):
     def size(self) -> int:
@@ -407,15 +391,6 @@ class SurfaceCollection(DataTreeView):
         if idx < 0 or idx >= self.size():
             raise IndexError(idx)
         return self.at(idx)
-
-
-# Mutable surface collection. Its element views are borrowed mutable handles.
-class MutableSurfaceCollection(SurfaceCollection):
-    def mutable_c_handle(self) -> ctypes.c_void_p:
-        return self.c_handle()
-
-    def at_mutable(self, idx: int) -> MutableSurface:
-        return MutableSurface(self.api, self.api.host.surface_collection_at_mutable(self.mutable_c_handle(), int(idx)))
 
 
 class TriangleMesh(DataTreeView):
@@ -827,8 +802,6 @@ __all__ = [
     "MutableObject",
     "MutablePrint",
     "MutablePrintRegion",
-    "MutableSurface",
-    "MutableSurfaceCollection",
     "Object",
     "Print",
     "PrintRegion",

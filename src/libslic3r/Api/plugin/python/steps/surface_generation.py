@@ -186,7 +186,7 @@ class SurfaceGenerationContext:
         so top/bottom/internal classification does not overwrite itself.
         """
         storage = _void_p(self.plugin_storage())
-        surfaces = self.api.host.surface_collection_create(storage)
+        surfaces = self.api.host.storage_new_surface_collection(storage)
         if not surfaces:
             return False
         try:
@@ -195,7 +195,11 @@ class SurfaceGenerationContext:
                     continue
                 if hasattr(areas, "empty") and areas.empty():
                     continue
-                self.api.host.surface_collection_append(surfaces, _void_p(_areas_handle(areas)), int(surface_type))
+                self.api.host.surface_collection_append_expolygons_copy(
+                    surfaces,
+                    _void_p(_areas_handle(areas)),
+                    int(surface_type),
+                )
             return bool(self.payload.set_region_island_fill_surfaces(region_island.c_handle(), surfaces))
         finally:
             self.api.host.storage_free(storage, surfaces)
@@ -206,7 +210,8 @@ class SurfaceGenerationContext:
 
         Use this when a surface-generation plugin splits an existing Surface and
         must keep the host-side metadata attached to it. New surfaces with only
-        a type bitmask should use surface_collection_append() instead.
+        a type bitmask should use surface_collection_append_expolygons_copy()
+        instead.
         """
         if areas is None:
             return

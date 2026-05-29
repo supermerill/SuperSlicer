@@ -250,7 +250,9 @@ class StoredExPolygonCollection
     void append_move_from(StoredExPolygonCollection &other);
     void append_move_from(StoredExPolygonCollection &&other);
     void push_back(const ExPolygon &value);
+    void push_back_move(StoredExPolygon &&value);
     void insert(const ExPolygon &value, uint32_t idx);
+    void insert_move(StoredExPolygon &&value, uint32_t idx);
     void erase(uint32_t idx);
     StoredExPolygon clone(uint32_t idx) const;
     StoredExPolygon extract(uint32_t idx);
@@ -798,9 +800,18 @@ public:
     void append_move_from(Derived &&other) { Traits::append_move(self().mutable_handle(), other.mutable_handle()); }
 
     void push_back(const typename Traits::View &value) { insert(value, self().size()); }
+    void push_back_move(stored_value_type &&value) { insert_move(std::move(value), self().size()); }
 
     void insert(const typename Traits::View &value, uint32_t idx) {
         Traits::insert_copy(self().mutable_handle(), idx, value.handle());
+    }
+
+    // Move the element payload into the collection while keeping both storage
+    // handles owned by their C++ wrappers. The moved-from Stored* remains valid
+    // but no longer contains the original geometry payload.
+    void insert_move(stored_value_type &&value, uint32_t idx) {
+        assert(idx <= self().size());
+        Traits::insert_move(self().mutable_handle(), idx, value.mutable_handle());
     }
 
     void erase(uint32_t idx) {

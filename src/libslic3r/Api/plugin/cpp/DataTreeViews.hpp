@@ -304,7 +304,7 @@ class StoredSurfaceCollection
 {
 public:
     explicit StoredSurfaceCollection(storage_handle *storage) :
-        m_storage(storage), m_handle(surface_collection_create(storage)) {
+        m_storage(storage), m_handle(storage_new_surface_collection(storage)) {
         assert(m_storage != nullptr);
         assert(m_handle != nullptr);
     }
@@ -356,8 +356,29 @@ public:
     bool empty() const { return size() == 0; }
     void clear() { surface_collection_clear(mutable_handle()); }
 
+    // Copy borrowed geometry into new Surface objects with the requested type.
+    // Use this for views returned by the host data tree or by Clipper outputs
+    // that are still needed afterwards.
     void append(const ExPolygonCollection &areas, raw_surface_type surface_type) {
-        surface_collection_append(mutable_handle(), areas.handle(), surface_type);
+        if (!areas.empty())
+            surface_collection_append_expolygons_copy(mutable_handle(), areas.handle(), surface_type);
+    }
+
+    // Move storage-owned geometry into Surface objects. This avoids copying
+    // temporary areas produced only to build this SurfaceCollection.
+    void append_move(StoredExPolygonCollection &&areas, raw_surface_type surface_type) {
+        if (!areas.empty())
+            surface_collection_append_expolygons_move(mutable_handle(), areas.mutable_handle(), surface_type);
+    }
+
+    void append(const ExPolygon &area, raw_surface_type surface_type) {
+        surface_collection_append_expolygon_copy(mutable_handle(), area.handle(), surface_type);
+    }
+
+    // Single-area move variant for algorithms that naturally produce one
+    // StoredExPolygon at a time.
+    void append_move(StoredExPolygon &&area, raw_surface_type surface_type) {
+        surface_collection_append_expolygon_move(mutable_handle(), area.mutable_handle(), surface_type);
     }
 
     bool free_from_storage() { return reset(); }
@@ -570,6 +591,7 @@ public:
     coord_t height() const { return layer_get_height(handle()); }
     coord_t print_z() const { return layer_get_print_z(handle()); }
     coord_t slice_z() const { return layer_get_slice_z(handle()); }
+    coord_t bottom_z() const { return print_z() - height(); }
     coord_t support_id() const { return layer_get_support_id(handle()); }
 
     Layer upper_layer() const {
