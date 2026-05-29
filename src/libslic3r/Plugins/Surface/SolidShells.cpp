@@ -9,6 +9,7 @@
 #include <cassert>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
@@ -20,10 +21,9 @@
 namespace slic3r_api { namespace SurfaceGeneration { namespace SolidShellsPlugin {
 namespace {
 
-// This module is intentionally a refinement pass, not the initial surface
-// builder. It reads the LayerRegionIsland fill surfaces produced earlier in
+// This module reads the LayerRegionIsland fill surfaces produced earlier in
 // STEP_SURFACE_GENERATION, keeps already-special surfaces unchanged, and only
-// reclassifies ordinary internal sparse/void areas as internal solid.
+// reclassifies internal sparse/void areas as internal solid.
 const char *k_solid_shells_id = "surface.solid_shells";
 const char *k_no_dependencies[] = { nullptr };
 
@@ -44,11 +44,6 @@ const raw_used_config_key k_used_config_keys[] = {
 constexpr raw_surface_type k_internal_solid = RAW_SURFACE_TYPE_POS_INTERNAL | RAW_SURFACE_TYPE_DENS_SOLID;
 constexpr raw_surface_type k_internal_sparse = RAW_SURFACE_TYPE_POS_INTERNAL | RAW_SURFACE_TYPE_DENS_SPARSE;
 
-struct SurfacePrerequisites
-{
-    bool has_surfaces = false;
-};
-
 bool has_flag(raw_surface_type type, raw_surface_type flag)
 {
     return (type & flag) != 0;
@@ -65,52 +60,48 @@ bool processable_internal_surface(raw_surface_type type)
            !has_flag(type, RAW_SURFACE_TYPE_DENS_SOLID);
 }
 
-coord_t scaled_bottom_z(const Layer &layer)
+bool scan_surface_prerequisites(const SurfaceCollection &surfaces)
 {
-    // Bottom shells are measured from the lower side of each layer. print_z is
-    // the top of the layer in scaled coordinates, so subtract the layer height.
-    return layer.print_z() - layer.height();
-}
+    if (surfaces.empty())
+        return true;
 
-StoredExPolygonCollection collection_from_expolygon(storage_handle *storage, const ExPolygon &expolygon)
-{
-    StoredExPolygonCollection out(storage);
-    out.push_back(expolygon);
-    return out;
-}
-
-void scan_surface_prerequisites(SurfacePrerequisites &out, const SurfaceCollection &surfaces)
-{
-    // SolidShells runs after the initial surface classifier. The object may
-    // legitimately have only top anchors, only bottom anchors, or neither on a
-    // particular layer. The hard failure is reserved for the real pipeline
-    // error: no LayerRegionIsland fill surfaces were produced at all.
+    // Surface-generation plugins after the initial builder need typed,
+    // non-empty areas. Missing position/density bits usually mean that an
+    // earlier plugin skipped the initial classification step.
     for (const Surface surface : surfaces) {
         if (surface.expolygon().contour().empty())
-            continue;
-
-        out.has_surfaces = true;
+            return true;
+        if ((surface.type() & (RAW_SURFACE_TYPE_POS_INTERNAL | RAW_SURFACE_TYPE_POS_TOP | RAW_SURFACE_TYPE_POS_BOTTOM)) == 0)
+            return true;
+        if ((surface.type() & (RAW_SURFACE_TYPE_DENS_VOID | RAW_SURFACE_TYPE_DENS_SPARSE | RAW_SURFACE_TYPE_DENS_SOLID)) == 0)
+            return true;
     }
+    return false;
 }
 
-SurfacePrerequisites scan_object_surface_prerequisites(const Object &object)
+bool scan_object_surface_prerequisites(const Object &object)
 {
-    SurfacePrerequisites out;
     for (uint32_t layer_idx = 0; layer_idx < object.layer_count(); ++layer_idx) {
         const Layer layer = object.layer(layer_idx);
         for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx) {
             const LayerIsland island = layer.island(island_idx);
-            for (uint32_t region_island_idx = 0; region_island_idx < island.region_island_count(); ++region_island_idx)
-                scan_surface_prerequisites(out, island.region_island(region_island_idx).fill_surfaces_collection());
+            // If no fill area exists, no surface is expected for that island.
+            if (island.infill_areas().empty())
+                continue;
+            for (uint32_t region_island_idx = 0; region_island_idx < island.region_island_count();
+                 ++region_island_idx) {
+                if (scan_surface_prerequisites(island.region_island(region_island_idx).fill_surfaces_collection()))
+                    return true;
+            }
         }
     }
-    return out;
+    return false;
 }
 
 bool validate_surface_prerequisites(const plugin_run_context *run_ctx, const Object &object)
 {
-    const SurfacePrerequisites prerequisites = scan_object_surface_prerequisites(object);
-    if (prerequisites.has_surfaces)
+    const bool error_found = scan_object_surface_prerequisites(object);
+    if (!error_found)
         return true;
 
     std::string message =
@@ -120,88 +111,72 @@ bool validate_surface_prerequisites(const plugin_run_context *run_ctx, const Obj
     return false;
 }
 
-void append_surface(StoredSurfaceCollection &surfaces,
-                    storage_handle *storage,
-                    const ExPolygon &area,
-                    raw_surface_type type)
+ClipperOperand union_shape(ClipperOperand &&areas)
 {
-    StoredExPolygonCollection single(storage);
-    single.push_back(area);
-    surfaces.append(single.readonly(), type);
-}
-
-void append_surface_group(StoredSurfaceCollection &surfaces,
-                          const ExPolygonCollection &areas,
-                          raw_surface_type type)
-{
-    if (!areas.empty())
-        surfaces.append(areas, type);
-}
-
-StoredExPolygonCollection union_collection(storage_handle *storage, const ExPolygonCollection &areas)
-{
+    // Keep intermediate geometry inside the Clipper representation. The caller
+    // materializes to ExPolygons only when it needs to iterate or publish
+    // surfaces.
     if (areas.empty())
-        return StoredExPolygonCollection(storage);
-
-    ClipperContext clip(storage);
-    return clipper_union(clip(areas)).to_expolygon_collection();
+        return std::move(areas);
+    return clipper_union(areas);
 }
 
-StoredExPolygonCollection linked_island_slices(storage_handle *storage, const std::vector<LayerIsland> &linked_islands)
+ClipperOperand linked_island_slices_shape(storage_handle *storage, const std::vector<LayerIsland> &linked_islands)
 {
-    StoredExPolygonCollection slices(storage);
+    ClipperContext clip(storage);
+    ClipperOperand slices = ClipperOperand::create_empty(storage);
     for (const LayerIsland &linked_island : linked_islands)
-        slices.push_back(linked_island.slice());
+        slices += clip(linked_island.slice());
     return slices;
 }
 
-StoredExPolygonCollection exposed_island_area(storage_handle *storage,
-                                              const LayerIsland &island,
-                                              const bool top_side)
+ClipperOperand exposed_island_shape(storage_handle *storage,
+                                    const LayerIsland &island,
+                                    const bool top_side)
 {
     // A top area is the part of this island not covered by islands above it.
     // A bottom area is the same test against islands below it. These exposed
     // areas are projected through neighboring layers to request solid shells.
+    ClipperContext clip(storage);
     const std::vector<LayerIsland> linked_islands = top_side ? island.upper_islands() : island.lower_islands();
     if (linked_islands.empty())
-        return collection_from_expolygon(storage, island.slice());
+        return clip(island.slice());
 
-    StoredExPolygonCollection linked_slices = linked_island_slices(storage, linked_islands);
-    ClipperContext clip(storage);
-    return clipper_diff(clip(island.slice()), clip(linked_slices.readonly())).to_expolygon_collection();
+    ClipperOperand linked_slices = linked_island_slices_shape(storage, linked_islands);
+    return clipper_diff(clip(island.slice()), linked_slices);
 }
 
-StoredExPolygonCollection exposed_layer_areas(storage_handle *storage, const Layer &layer, const bool top_side)
+ClipperOperand exposed_layer_shape(storage_handle *storage, const Layer &layer, const bool top_side)
 {
     // Each island computes its own exposed area against the island overlap
     // graph. The final union gives a layer-wide projection target, which lets a
     // shell on one island solidify matching areas on a neighboring lower/upper
     // island when geometry overlaps after slicing.
-    StoredExPolygonCollection exposed(storage);
+    ClipperOperand exposed = ClipperOperand::create_empty(storage);
     for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx) {
-        StoredExPolygonCollection island_exposed = exposed_island_area(storage, layer.island(island_idx), top_side);
-        exposed.append_move_from(std::move(island_exposed));
+        ClipperOperand island_exposed = exposed_island_shape(storage, layer.island(island_idx), top_side);
+        exposed += island_exposed;
     }
-    return union_collection(storage, exposed.readonly());
+    return union_shape(std::move(exposed));
 }
 
-StoredExPolygonCollection island_perimeter_area(storage_handle *storage, const LayerIsland &island)
+ClipperOperand island_perimeter_shape(storage_handle *storage, const LayerIsland &island)
 {
     // Perimeter-owned area is what remains between the full island slice and
     // the strict free infill area. If perimeters consumed the whole island,
     // infill_no_overlap_areas() is empty and the whole slice becomes perimeter.
     ClipperContext clip(storage);
-    return clipper_diff(clip(island.slice()), clip(island.infill_no_overlap_areas())).to_expolygon_collection();
+    return clipper_diff(clip(island.slice()), clip(island.infill_no_overlap_areas()));
 }
 
-StoredExPolygonCollection layer_perimeter_area(storage_handle *storage, const Layer &layer)
+ClipperOperand layer_perimeter_shape(storage_handle *storage, const Layer &layer)
 {
-    StoredExPolygonCollection perimeters(storage);
+    ClipperOperand perimeters = ClipperOperand::create_empty(storage);
     for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx) {
-        StoredExPolygonCollection island_perimeters = island_perimeter_area(storage, layer.island(island_idx));
-        perimeters.append_move_from(std::move(island_perimeters));
+        ClipperOperand island_perimeters = island_perimeter_shape(storage, layer.island(island_idx));
+        perimeters += island_perimeters;
     }
-    return union_collection(storage, perimeters.readonly());
+    return union_shape(std::move(perimeters));
 }
 
 bool include_top_layer(const Layer &current_layer,
@@ -226,13 +201,13 @@ bool include_bottom_layer(const Layer &current_layer,
     // Bottom thickness is measured between lower layer boundaries. This mirrors
     // the top shell test while keeping asymmetric layer heights correct.
     return (bottom_solid_layers > 0 && int32_t(distance) < bottom_solid_layers) ||
-           (min_thickness > 0 && scaled_bottom_z(current_layer) - scaled_bottom_z(candidate_layer) < min_thickness);
+           (min_thickness > 0 && current_layer.bottom_z() - candidate_layer.bottom_z() < min_thickness);
 }
 
-StoredExPolygonCollection projected_top_shell(storage_handle *storage,
-                                              const Object &object,
-                                              const uint32_t layer_idx,
-                                              const RegionSettingsValue &settings)
+ClipperOperand projected_top_shell_shape(storage_handle *storage,
+                                         const Object &object,
+                                         const uint32_t layer_idx,
+                                         const RegionSettingsValue &settings)
 {
     // Build the area that would become unsupported from above if this layer
     // stayed sparse. We collect exposed areas from the upper layers requested
@@ -241,26 +216,26 @@ StoredExPolygonCollection projected_top_shell(storage_handle *storage,
     const int32_t top_solid_layers = std::max<int32_t>(0, settings.get_int(k_top_solid_layers_key));
     const coord_t min_thickness = scale_to_layer_coord(std::max(0.0, settings.get_float(k_top_solid_min_thickness_key)));
     if (top_solid_layers == 0 && min_thickness == 0)
-        return StoredExPolygonCollection(storage);
+        return ClipperOperand::create_empty(storage);
 
     const Layer current_layer = object.layer(layer_idx);
-    StoredExPolygonCollection shell(storage);
+    ClipperOperand shell = ClipperOperand::create_empty(storage);
     for (uint32_t upper_idx = layer_idx + 1; upper_idx < object.layer_count(); ++upper_idx) {
         const uint32_t distance = upper_idx - layer_idx;
         const Layer upper_layer = object.layer(upper_idx);
         if (!include_top_layer(current_layer, upper_layer, distance, top_solid_layers, min_thickness))
             break;
 
-        StoredExPolygonCollection exposed = exposed_layer_areas(storage, upper_layer, true);
-        shell.append_move_from(std::move(exposed));
+        ClipperOperand exposed = exposed_layer_shape(storage, upper_layer, true);
+        shell += exposed;
     }
-    return union_collection(storage, shell.readonly());
+    return union_shape(std::move(shell));
 }
 
-StoredExPolygonCollection projected_bottom_shell(storage_handle *storage,
-                                                 const Object &object,
-                                                 const uint32_t layer_idx,
-                                                 const RegionSettingsValue &settings)
+ClipperOperand projected_bottom_shell_shape(storage_handle *storage,
+                                            const Object &object,
+                                            const uint32_t layer_idx,
+                                            const RegionSettingsValue &settings)
 {
     // Same idea as projected_top_shell(), but looking downward. Exposed bottom
     // areas from lower layers request solid material above them until the
@@ -269,27 +244,27 @@ StoredExPolygonCollection projected_bottom_shell(storage_handle *storage,
     const coord_t min_thickness =
         scale_to_layer_coord(std::max(0.0, settings.get_float(k_bottom_solid_min_thickness_key)));
     if (bottom_solid_layers == 0 && min_thickness == 0)
-        return StoredExPolygonCollection(storage);
+        return ClipperOperand::create_empty(storage);
 
     const Layer current_layer = object.layer(layer_idx);
-    StoredExPolygonCollection shell(storage);
+    ClipperOperand shell = ClipperOperand::create_empty(storage);
     for (int32_t lower_idx = int32_t(layer_idx) - 1; lower_idx >= 0; --lower_idx) {
         const uint32_t distance = layer_idx - uint32_t(lower_idx);
         const Layer lower_layer = object.layer(uint32_t(lower_idx));
         if (!include_bottom_layer(current_layer, lower_layer, distance, bottom_solid_layers, min_thickness))
             break;
 
-        StoredExPolygonCollection exposed = exposed_layer_areas(storage, lower_layer, false);
-        shell.append_move_from(std::move(exposed));
+        ClipperOperand exposed = exposed_layer_shape(storage, lower_layer, false);
+        shell += exposed;
     }
-    return union_collection(storage, shell.readonly());
+    return union_shape(std::move(shell));
 }
 
-StoredExPolygonCollection perimeter_stack_coverage(storage_handle *storage,
-                                                   const Object &object,
-                                                   const uint32_t layer_idx,
-                                                   const bool top_side,
-                                                   const int32_t solid_over_perimeters)
+ClipperOperand perimeter_stack_coverage_shape(storage_handle *storage,
+                                              const Object &object,
+                                              const uint32_t layer_idx,
+                                              const bool top_side,
+                                              const int32_t solid_over_perimeters)
 {
     // solid_over_perimeters prevents promoting a shell candidate when the whole
     // candidate is already backed by enough perimeter-owned material in the
@@ -297,18 +272,18 @@ StoredExPolygonCollection perimeter_stack_coverage(storage_handle *storage,
     // adjacent layer; if any layer is missing or has no perimeter coverage, the
     // exemption cannot apply.
     if (solid_over_perimeters <= 0)
-        return StoredExPolygonCollection(storage);
+        return ClipperOperand::create_empty(storage);
 
-    StoredExPolygonCollection coverage(storage);
+    ClipperOperand coverage = ClipperOperand::create_empty(storage);
     bool has_coverage = false;
     for (int32_t step = 1; step <= solid_over_perimeters; ++step) {
         const int32_t adjacent_idx = top_side ? int32_t(layer_idx) + step : int32_t(layer_idx) - step;
         if (adjacent_idx < 0 || adjacent_idx >= int32_t(object.layer_count()))
-            return StoredExPolygonCollection(storage);
+            return ClipperOperand::create_empty(storage);
 
-        StoredExPolygonCollection layer_perimeters = layer_perimeter_area(storage, object.layer(uint32_t(adjacent_idx)));
+        ClipperOperand layer_perimeters = layer_perimeter_shape(storage, object.layer(uint32_t(adjacent_idx)));
         if (layer_perimeters.empty())
-            return StoredExPolygonCollection(storage);
+            return ClipperOperand::create_empty(storage);
 
         if (!has_coverage) {
             coverage = std::move(layer_perimeters);
@@ -316,31 +291,28 @@ StoredExPolygonCollection perimeter_stack_coverage(storage_handle *storage,
             continue;
         }
 
-        ClipperContext clip(storage);
-        coverage = clipper_intersection(clip(coverage.readonly()), clip(layer_perimeters.readonly())).to_expolygon_collection();
+        coverage = clipper_intersection(coverage, layer_perimeters);
         if (coverage.empty())
             return coverage;
     }
     return coverage;
 }
 
-bool fully_covered_by(storage_handle *storage, const ExPolygon &area, const ExPolygonCollection &coverage)
+bool fully_covered_by(storage_handle *storage, const ExPolygon &area, const ClipperOperand &coverage)
 {
     // The exemption is all-or-nothing. Partial perimeter coverage is not enough
     // because the uncovered part still needs solid infill to carry the shell.
     if (coverage.empty())
         return false;
 
-    StoredExPolygonCollection single = collection_from_expolygon(storage, area);
     ClipperContext clip(storage);
-    StoredExPolygonCollection uncovered =
-        clipper_diff(clip(single.readonly()), clip(coverage)).to_expolygon_collection();
+    ClipperOperand uncovered = clipper_diff(clip(area), coverage);
     return uncovered.empty();
 }
 
 StoredExPolygonCollection remove_fully_perimeter_covered_candidates(storage_handle *storage,
                                                                     const ExPolygonCollection &candidates,
-                                                                    const ExPolygonCollection &perimeter_coverage)
+                                                                    const ClipperOperand &perimeter_coverage)
 {
     // Keep only candidates that still need solid infill. Fully perimeter-backed
     // candidates stay sparse so solid_over_perimeters behaves like the legacy
@@ -359,9 +331,9 @@ StoredExPolygonCollection remove_fully_perimeter_covered_candidates(storage_hand
 }
 
 StoredExPolygonCollection solid_candidates_for_direction(storage_handle *storage,
-                                                         const ExPolygonCollection &source,
-                                                         const ExPolygonCollection &shell_zone,
-                                                         const ExPolygonCollection &perimeter_coverage)
+                                                         const ClipperOperand &source,
+                                                         const ClipperOperand &shell_zone,
+                                                         const ClipperOperand &perimeter_coverage)
 {
     // A top/bottom shell request only affects the part of the current sparse
     // source area that overlaps the projected exposed zone. The perimeter stack
@@ -370,9 +342,11 @@ StoredExPolygonCollection solid_candidates_for_direction(storage_handle *storage
     if (source.empty() || shell_zone.empty())
         return StoredExPolygonCollection(storage);
 
-    ClipperContext clip(storage);
-    StoredExPolygonCollection candidates =
-        clipper_intersection(clip(source), clip(shell_zone)).to_expolygon_collection();
+    ClipperOperand candidate_shape = clipper_intersection(source, shell_zone);
+    if (perimeter_coverage.empty())
+        return candidate_shape.to_expolygon_collection();
+
+    StoredExPolygonCollection candidates = candidate_shape.to_expolygon_collection();
     return remove_fully_perimeter_covered_candidates(storage, candidates.readonly(), perimeter_coverage);
 }
 
@@ -389,10 +363,11 @@ StoredExPolygonCollection collect_processable_surfaces(storage_handle *storage,
         if (!processable_internal_surface(surface.type()))
             continue;
 
-        StoredExPolygonCollection single = collection_from_expolygon(storage, surface.expolygon());
-        if (settings_clip.is_accept_all())
-            source.append_copy_from(single.readonly());
-        else {
+        if (settings_clip.is_accept_all()) {
+            source.push_back(surface.expolygon());
+        } else {
+            StoredExPolygonCollection single(storage);
+            single.push_back(surface.expolygon());
             StoredExPolygonCollection clipped = settings_clip.intersections(single.readonly());
             source.append_move_from(std::move(clipped));
         }
@@ -400,21 +375,21 @@ StoredExPolygonCollection collect_processable_surfaces(storage_handle *storage,
     return source;
 }
 
-StoredExPolygonCollection subtract_areas(storage_handle *storage,
-                                         const ExPolygonCollection &subject,
-                                         const ExPolygonCollection &clip_areas)
+ClipperOperand subtract_shape(storage_handle *storage,
+                              const ExPolygonCollection &subject,
+                              const ClipperOperand &clip_areas)
 {
     if (subject.empty())
-        return StoredExPolygonCollection(storage);
-    if (clip_areas.empty())
-        return subject.clone(storage);
+        return ClipperOperand::create_empty(storage);
 
     ClipperContext clip(storage);
-    return clipper_diff(clip(subject), clip(clip_areas)).to_expolygon_collection();
+    if (clip_areas.empty())
+        return clip(subject);
+
+    return clipper_diff(clip(subject), clip_areas);
 }
 
 void append_unchanged_surfaces(StoredSurfaceCollection &out,
-                               storage_handle *storage,
                                const SurfaceCollection &surfaces)
 {
     // Preserve bridge, already-solid, and non-internal surfaces exactly as they
@@ -422,7 +397,7 @@ void append_unchanged_surfaces(StoredSurfaceCollection &out,
     // refinements that may run before or after it.
     for (const Surface surface : surfaces) {
         if (!processable_internal_surface(surface.type()))
-            append_surface(out, storage, surface.expolygon(), surface.type());
+            out.append(surface.expolygon(), surface.type());
     }
 }
 
@@ -435,14 +410,16 @@ void append_solid_and_sparse_results(StoredSurfaceCollection &out,
     // Top and bottom requests produce the same final surface type, so they are
     // unioned before rebuilding the residual sparse area. This guarantees that
     // the output surfaces do not positively overlap.
-    StoredExPolygonCollection solid(storage);
-    solid.append_move_from(std::move(top_solid));
-    solid.append_move_from(std::move(bottom_solid));
-    solid = union_collection(storage, solid.readonly());
+    ClipperContext clip(storage);
+    ClipperOperand solid_shape = ClipperOperand::create_empty(storage);
+    solid_shape += clip(top_solid.readonly());
+    solid_shape += clip(bottom_solid.readonly());
+    solid_shape = union_shape(std::move(solid_shape));
 
-    StoredExPolygonCollection sparse = subtract_areas(storage, source.readonly(), solid.readonly());
-    append_surface_group(out, solid.readonly(), k_internal_solid);
-    append_surface_group(out, sparse.readonly(), k_internal_sparse);
+    StoredExPolygonCollection solid = solid_shape.to_expolygon_collection();
+    StoredExPolygonCollection sparse = subtract_shape(storage, source.readonly(), solid_shape).to_expolygon_collection();
+    out.append_move(std::move(solid), k_internal_solid);
+    out.append_move(std::move(sparse), k_internal_sparse);
 }
 
 void rebuild_region_island_surfaces(const run_ctx_surface_generation &ctx,
@@ -473,7 +450,7 @@ void rebuild_region_island_surfaces(const run_ctx_surface_generation &ctx,
     settings.segregate(island.slice());
 
     StoredSurfaceCollection output(storage);
-    append_unchanged_surfaces(output, storage, input_surfaces);
+    append_unchanged_surfaces(output, input_surfaces);
 
     const RegionSettings::AreaMap &areas = settings.get_areas(k_top_solid_layers_key);
     for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
@@ -487,25 +464,28 @@ void rebuild_region_island_surfaces(const run_ctx_surface_generation &ctx,
         const int32_t solid_over_perimeters =
             std::max<int32_t>(0, entry.first.get_int(k_solid_over_perimeters_key));
 
-        StoredExPolygonCollection top_shell = projected_top_shell(storage, object, layer_idx, entry.first);
-        StoredExPolygonCollection top_perimeter_coverage =
-            perimeter_stack_coverage(storage, object, layer_idx, true, solid_over_perimeters);
+        ClipperContext clip(storage);
+        ClipperOperand source_shape = clip(source.readonly());
+        ClipperOperand top_shell = projected_top_shell_shape(storage, object, layer_idx, entry.first);
+        ClipperOperand top_perimeter_coverage =
+            perimeter_stack_coverage_shape(storage, object, layer_idx, true, solid_over_perimeters);
         StoredExPolygonCollection top_solid =
-            solid_candidates_for_direction(storage, source.readonly(), top_shell.readonly(), top_perimeter_coverage.readonly());
+            solid_candidates_for_direction(storage, source_shape, top_shell, top_perimeter_coverage);
 
         // Bottom shell detection works on the part not already made solid by
         // the top pass. Both outputs use the same final Surface type, but this
         // avoids duplicated solid areas when top and bottom ranges overlap.
-        StoredExPolygonCollection source_without_top =
-            subtract_areas(storage, source.readonly(), top_solid.readonly());
-        StoredExPolygonCollection bottom_shell = projected_bottom_shell(storage, object, layer_idx, entry.first);
-        StoredExPolygonCollection bottom_perimeter_coverage =
-            perimeter_stack_coverage(storage, object, layer_idx, false, solid_over_perimeters);
+        ClipperOperand top_solid_shape = clip(top_solid.readonly());
+        ClipperOperand source_without_top =
+            top_solid_shape.empty() ? clip(source.readonly()) : clipper_diff(source_shape, top_solid_shape);
+        ClipperOperand bottom_shell = projected_bottom_shell_shape(storage, object, layer_idx, entry.first);
+        ClipperOperand bottom_perimeter_coverage =
+            perimeter_stack_coverage_shape(storage, object, layer_idx, false, solid_over_perimeters);
         StoredExPolygonCollection bottom_solid =
             solid_candidates_for_direction(storage,
-                                           source_without_top.readonly(),
-                                           bottom_shell.readonly(),
-                                           bottom_perimeter_coverage.readonly());
+                                           source_without_top,
+                                           bottom_shell,
+                                           bottom_perimeter_coverage);
 
         append_solid_and_sparse_results(output,
                                         storage,
