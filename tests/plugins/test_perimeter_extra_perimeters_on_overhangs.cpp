@@ -159,6 +159,21 @@ bool role_leaves_disable_seams(const ExtrusionEntity &entity, const ExtrusionRol
     return true;
 }
 
+bool role_leaves_allow_seams(const ExtrusionEntity &entity, const ExtrusionRoleModifier role)
+{
+    if (entity.is_nop())
+        return true;
+    if (entity.is_leaf() && entity.role().has(role)) {
+        const ExtrusionAttributes *attributes = entity.get_property<ExtrusionAttributes>();
+        return attributes != nullptr && !attributes->no_seam;
+    }
+
+    for (size_t child_idx = 0; child_idx < entity.child_count(); ++child_idx)
+        if (!role_leaves_allow_seams(entity.child(child_idx), role))
+            return false;
+    return true;
+}
+
 bool role_leaves_are_not_reversible(const ExtrusionEntity &entity, const ExtrusionRoleModifier role)
 {
     if (entity.is_nop())
@@ -427,7 +442,9 @@ TEST_CASE("Extra perimeter overhang wave grows ordered zones from support", "[pl
     REQUIRE(external_perimeter_count(post) > external_perimeter_count(baseline));
     REQUIRE(count_role_leaves(post.external_perimeters, ExtrusionRole::OverhangPerimeter) > 0);
     REQUIRE(count_role_loops(post.external_perimeters, ExtrusionRole::OverhangPerimeter) == 0);
-    REQUIRE(role_leaves_disable_seams(post.external_perimeters, ExtrusionRole::OverhangPerimeter));
+    // Wave anchors are open paths, not loops. Seam placement cannot rotate
+    // them as closed loops, so they must not carry an unnecessary no-seam tag.
+    REQUIRE(role_leaves_allow_seams(post.external_perimeters, ExtrusionRole::OverhangPerimeter));
     REQUIRE(role_leaves_are_not_reversible(post.external_perimeters, ExtrusionRole::OverhangPerimeter));
 
     const AABBTreeLines::LinesDistancer<Line> support_distancer = support_distancer_for(lower_support);
@@ -509,7 +526,7 @@ TEST_CASE("Extra perimeter overhang wave separates paths when wave jumps require
     REQUIRE(count_role_leaves(connected.external_perimeters, ExtrusionRole::OverhangPerimeter) > 0);
     REQUIRE(count_role_leaves(separated.external_perimeters, ExtrusionRole::OverhangPerimeter) >
             count_role_leaves(connected.external_perimeters, ExtrusionRole::OverhangPerimeter));
-    REQUIRE(role_leaves_disable_seams(separated.external_perimeters, ExtrusionRole::OverhangPerimeter));
+    REQUIRE(role_leaves_allow_seams(separated.external_perimeters, ExtrusionRole::OverhangPerimeter));
     REQUIRE(role_leaves_are_not_reversible(separated.external_perimeters, ExtrusionRole::OverhangPerimeter));
     require_leaf_fill_area_consistency(connected);
     require_leaf_fill_area_consistency(separated);
