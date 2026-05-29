@@ -16,6 +16,7 @@
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_surface_generation.h"
 #include "libslic3r/Api/plugin/cpp/ClipperViews.hpp"
 #include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
+#include "libslic3r/Api/plugin/cpp/ParallelFor.hpp"
 #include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
 
 namespace slic3r_api { namespace SurfaceGeneration { namespace SolidShellsPlugin {
@@ -44,20 +45,15 @@ const raw_used_config_key k_used_config_keys[] = {
 constexpr raw_surface_type k_internal_solid = RAW_SURFACE_TYPE_POS_INTERNAL | RAW_SURFACE_TYPE_DENS_SOLID;
 constexpr raw_surface_type k_internal_sparse = RAW_SURFACE_TYPE_POS_INTERNAL | RAW_SURFACE_TYPE_DENS_SPARSE;
 
-bool has_flag(raw_surface_type type, raw_surface_type flag)
-{
-    return (type & flag) != 0;
-}
-
 bool processable_internal_surface(raw_surface_type type)
 {
     // Bridges are refined by a dedicated bridge module. This plugin only
     // decides whether ordinary internal infill area should be sparse/void or
     // solid. Existing solid areas are left untouched to avoid re-splitting work
     // done by previous surface-generation plugins.
-    return has_flag(type, RAW_SURFACE_TYPE_POS_INTERNAL) &&
-           !has_flag(type, RAW_SURFACE_TYPE_MOD_BRIDGE) &&
-           !has_flag(type, RAW_SURFACE_TYPE_DENS_SOLID);
+    return surface_type_is_internal(type) &&
+           !surface_type_is_bridge(type) &&
+           !surface_type_is_solid(type);
 }
 
 bool scan_surface_prerequisites(const SurfaceCollection &surfaces)
@@ -71,9 +67,12 @@ bool scan_surface_prerequisites(const SurfaceCollection &surfaces)
     for (const Surface surface : surfaces) {
         if (surface.expolygon().contour().empty())
             return true;
-        if ((surface.type() & (RAW_SURFACE_TYPE_POS_INTERNAL | RAW_SURFACE_TYPE_POS_TOP | RAW_SURFACE_TYPE_POS_BOTTOM)) == 0)
+        if (!surface_type_has_any_flag(surface.type(),
+                                       RAW_SURFACE_TYPE_POS_INTERNAL |
+                                       RAW_SURFACE_TYPE_POS_TOP |
+                                       RAW_SURFACE_TYPE_POS_BOTTOM))
             return true;
-        if ((surface.type() & (RAW_SURFACE_TYPE_DENS_VOID | RAW_SURFACE_TYPE_DENS_SPARSE | RAW_SURFACE_TYPE_DENS_SOLID)) == 0)
+        if (!surface_type_has_any_flag(surface.type(), k_surface_type_density_flags))
             return true;
     }
     return false;
@@ -109,16 +108,6 @@ bool validate_surface_prerequisites(const plugin_run_context *run_ctx, const Obj
     message += " No LayerRegionIsland fill surfaces were found.";
     report_error(run_ctx, message.c_str());
     return false;
-}
-
-ClipperOperand union_shape(ClipperOperand &&areas)
-{
-    // Keep intermediate geometry inside the Clipper representation. The caller
-    // materializes to ExPolygons only when it needs to iterate or publish
-    // surfaces.
-    if (areas.empty())
-        return std::move(areas);
-    return clipper_union(areas);
 }
 
 ClipperOperand linked_island_slices_shape(storage_handle *storage, const std::vector<LayerIsland> &linked_islands)
@@ -157,7 +146,7 @@ ClipperOperand exposed_layer_shape(storage_handle *storage, const Layer &layer, 
         ClipperOperand island_exposed = exposed_island_shape(storage, layer.island(island_idx), top_side);
         exposed += island_exposed;
     }
-    return union_shape(std::move(exposed));
+    return clipper_union(exposed);
 }
 
 ClipperOperand island_perimeter_shape(storage_handle *storage, const LayerIsland &island)
@@ -176,7 +165,7 @@ ClipperOperand layer_perimeter_shape(storage_handle *storage, const Layer &layer
         ClipperOperand island_perimeters = island_perimeter_shape(storage, layer.island(island_idx));
         perimeters += island_perimeters;
     }
-    return union_shape(std::move(perimeters));
+    return clipper_union(perimeters);
 }
 
 bool include_top_layer(const Layer &current_layer,
@@ -229,7 +218,7 @@ ClipperOperand projected_top_shell_shape(storage_handle *storage,
         ClipperOperand exposed = exposed_layer_shape(storage, upper_layer, true);
         shell += exposed;
     }
-    return union_shape(std::move(shell));
+    return clipper_union(shell);
 }
 
 ClipperOperand projected_bottom_shell_shape(storage_handle *storage,
@@ -257,7 +246,7 @@ ClipperOperand projected_bottom_shell_shape(storage_handle *storage,
         ClipperOperand exposed = exposed_layer_shape(storage, lower_layer, false);
         shell += exposed;
     }
-    return union_shape(std::move(shell));
+    return clipper_union(shell);
 }
 
 ClipperOperand perimeter_stack_coverage_shape(storage_handle *storage,
@@ -375,20 +364,6 @@ StoredExPolygonCollection collect_processable_surfaces(storage_handle *storage,
     return source;
 }
 
-ClipperOperand subtract_shape(storage_handle *storage,
-                              const ExPolygonCollection &subject,
-                              const ClipperOperand &clip_areas)
-{
-    if (subject.empty())
-        return ClipperOperand::create_empty(storage);
-
-    ClipperContext clip(storage);
-    if (clip_areas.empty())
-        return clip(subject);
-
-    return clipper_diff(clip(subject), clip_areas);
-}
-
 void append_unchanged_surfaces(StoredSurfaceCollection &out,
                                const SurfaceCollection &surfaces)
 {
@@ -414,10 +389,10 @@ void append_solid_and_sparse_results(StoredSurfaceCollection &out,
     ClipperOperand solid_shape = ClipperOperand::create_empty(storage);
     solid_shape += clip(top_solid.readonly());
     solid_shape += clip(bottom_solid.readonly());
-    solid_shape = union_shape(std::move(solid_shape));
+    solid_shape = clipper_union(solid_shape);
 
     StoredExPolygonCollection solid = solid_shape.to_expolygon_collection();
-    StoredExPolygonCollection sparse = subtract_shape(storage, source.readonly(), solid_shape).to_expolygon_collection();
+    StoredExPolygonCollection sparse = clipper_diff(clip(source.readonly()), solid_shape).to_expolygon_collection();
     out.append_move(std::move(solid), k_internal_solid);
     out.append_move(std::move(sparse), k_internal_sparse);
 }
@@ -476,8 +451,7 @@ void rebuild_region_island_surfaces(const run_ctx_surface_generation &ctx,
         // the top pass. Both outputs use the same final Surface type, but this
         // avoids duplicated solid areas when top and bottom ranges overlap.
         ClipperOperand top_solid_shape = clip(top_solid.readonly());
-        ClipperOperand source_without_top =
-            top_solid_shape.empty() ? clip(source.readonly()) : clipper_diff(source_shape, top_solid_shape);
+        ClipperOperand source_without_top = clipper_diff(source_shape, top_solid_shape);
         ClipperOperand bottom_shell = projected_bottom_shell_shape(storage, object, layer_idx, entry.first);
         ClipperOperand bottom_perimeter_coverage =
             perimeter_stack_coverage_shape(storage, object, layer_idx, false, solid_over_perimeters);
@@ -494,10 +468,14 @@ void rebuild_region_island_surfaces(const run_ctx_surface_generation &ctx,
                                         std::move(bottom_solid));
     }
 
-    if (ctx.set_region_island_fill_surfaces != nullptr)
+    if (ctx.set_region_island_fill_surfaces != nullptr) {
+        // The collection was built in worker-local scratch storage. The callback
+        // moves it into this LayerRegionIsland. The parallel loop assigns one
+        // layer to each job, so two workers never publish to the same region island.
         ctx.set_region_island_fill_surfaces(
             const_cast<layer_region_island_handle *>(region_island.handle()),
             output.mutable_handle());
+    }
 }
 
 void process_layer(const run_ctx_surface_generation &ctx,
@@ -574,6 +552,9 @@ const char *SolidShells::progress_message_format_impl() const noexcept
 
 void SolidShells::setup_run_impl(const plugin_run_context *run_ctx) const
 {
+    if (run_ctx == nullptr)
+        return;
+
     const run_ctx_surface_generation *ctx = plugin_ctx_as_surface_generation(run_ctx);
     if (ctx != nullptr && ctx->object != nullptr) {
         const Object object(ctx->object);
@@ -583,19 +564,30 @@ void SolidShells::setup_run_impl(const plugin_run_context *run_ctx) const
 
 void SolidShells::run_impl(const plugin_run_context *run_ctx) const
 {
+    if (run_ctx == nullptr)
+        return;
+
     const run_ctx_surface_generation *ctx = plugin_ctx_as_surface_generation(run_ctx);
-    if (ctx == nullptr || ctx->object == nullptr || run_ctx == nullptr || run_ctx->plugin_storage == nullptr)
+    if (ctx == nullptr || ctx->object == nullptr)
         return;
 
     const Object object(ctx->object);
     if (!validate_surface_prerequisites(run_ctx, object))
         return;
 
-    for (uint32_t layer_idx = 0; layer_idx < object.layer_count(); ++layer_idx) {
-        throw_if_cancelled(run_ctx);
-        process_layer(*ctx, run_ctx->plugin_storage, object, layer_idx);
-        progress().increment();
-    }
+    // The helper handles cancellation, per-worker scratch storage, and progress
+    // accounting. Each worker owns a layer, so rebuilt surfaces are published
+    // into disjoint LayerRegionIsland objects.
+    parallel_for_storage_with_progress(
+        0,
+        object.layer_count(),
+        run_ctx,
+        &progress(),
+        [ctx, &object](const uint32_t layer_idx, storage_handle *scratch_storage) {
+            assert(scratch_storage != nullptr);
+            assert(ctx != nullptr);
+            process_layer(*ctx, scratch_storage, object, layer_idx);
+        });
 }
 
 void register_solid_shells_plugin(orchestrator_handle *orch)
