@@ -501,6 +501,18 @@ void register_exclusive_step_group_options_impl(Orchestrator &orchestrator)
     }
 }
 
+bool has_ui_fragment(Orchestrator &orchestrator,
+                     const std::string &target_file,
+                     const std::string &fragment_id)
+{
+    const std::vector<Orchestrator::PluginUiFragment> fragments =
+        orchestrator.ui_fragments_for_file(target_file);
+    for (const Orchestrator::PluginUiFragment &fragment : fragments)
+        if (fragment.fragment_id == fragment_id)
+            return true;
+    return false;
+}
+
 void register_exclusive_step_group_ui_fragments_impl(Orchestrator &orchestrator)
 {
     for (Steps::StepExclusivePluginGroup plugin_group : Steps::active_exclusive_plugin_groups(orchestrator)) {
@@ -509,6 +521,11 @@ void register_exclusive_step_group_ui_fragments_impl(Orchestrator &orchestrator)
         // fragment while keeping de-duplication stable and independent from the
         // generated setting name.
         const Steps::StepExclusiveGroup &group = plugin_group.group;
+        // A feature plugin may place the selector next to its own controls.
+        // The generic Notes-page selector is only a fallback for groups that
+        // did not already publish an explicit placement fragment.
+        if (has_ui_fragment(orchestrator, "print.ui", group.group_id))
+            continue;
         orchestrator.add_ui_fragment("print.ui", group.group_id.c_str(), group.ui_fragment.c_str(), 0);
     }
 }

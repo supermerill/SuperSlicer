@@ -1,8 +1,10 @@
 #include <catch2/catch.hpp>
 
 #include "perimeter_test_helpers.hpp"
+#include "plugin_test_helpers.hpp"
 
 #include "libslic3r/AABBTreeLines.hpp"
+#include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/ClipperUtils.hpp"
 
 namespace {
@@ -54,6 +56,55 @@ double area_sum(const ExPolygons &areas)
 double free_fill_area(const PerimeterRunCapture &capture)
 {
     return area_sum(surface_expolygons(capture.fill_no_overlap_surfaces));
+}
+
+ExPolygons free_fill_expolygons(const PerimeterRunCapture &capture)
+{
+    return union_ex(surface_expolygons(capture.fill_no_overlap_surfaces));
+}
+
+ExPolygons consumed_free_fill_expolygons(const PerimeterRunCapture &baseline,
+                                         const PerimeterRunCapture &post)
+{
+    return diff_ex(free_fill_expolygons(baseline), free_fill_expolygons(post));
+}
+
+const ExtrusionEntity *first_overhang_wrapper(const ExtrusionEntity &root);
+
+void require_wave_consumes_only_printed_volume(const DynamicPrintConfig &config,
+                                               const ExPolygon &target,
+                                               const ExPolygon &lower_support,
+                                               const coord_t wave_spacing)
+{
+    const PerimeterRunCapture baseline =
+        run_perimeter_case(config, {SIMPLE_PERIMETER_GENERATOR}, target, 1);
+    const PerimeterRunCapture wave =
+        run_perimeter_and_post_case_with_lower_area(
+            config, {SIMPLE_PERIMETER_GENERATOR}, {EXTRA_PERIMETER_OVERHANG_WAVE},
+            target, lower_support, 1);
+
+    const ExPolygons wave_consumed = consumed_free_fill_expolygons(baseline, wave);
+    REQUIRE(area_sum(wave_consumed) > 0.);
+
+    const ExtrusionEntity *wrapper = first_overhang_wrapper(wave.external_perimeters);
+    REQUIRE(wrapper != nullptr);
+    REQUIRE(extrusion_length(*wrapper) > 0.);
+
+    // The post-process removes a free-fill area, and every removed square
+    // micron should correspond to a real generated centerline. Compare area
+    // rather than mm3/mm: overhang extrusion may sag below the nominal layer,
+    // but the centerline length times spacing is still the 2D budget that this
+    // feature is allowed to consume from the next infill step. Corners and
+    // short connectors overlap their own swept envelope, so a small excess in
+    // the length-based estimate is acceptable; a large one would mean that the
+    // plugin is printing more material than the free-fill area it returned.
+    const double consumed_area = area_sum(wave_consumed);
+    const double nominal_path_area = extrusion_length(*wrapper) * double(wave_spacing);
+    const double tolerance = double(scale_i(0.04)) * double(scale_i(0.04));
+    CHECK(nominal_path_area <= consumed_area * 1.05 + tolerance);
+    CHECK(consumed_area <= nominal_path_area * 1.15 + tolerance);
+
+    require_leaf_fill_area_consistency(wave);
 }
 
 bool first_leaf_role_has(const ExtrusionEntity &entity, const ExtrusionRoleModifier role)
@@ -175,6 +226,52 @@ bool direct_overhang_zones_are_order_locked(const ExtrusionEntity &wrapper)
             return false;
     }
     return true;
+}
+
+double point_distance_squared(const Point &lhs, const Point &rhs)
+{
+    return (lhs - rhs).cast<double>().squaredNorm();
+}
+
+bool zone_first_overhang_starts_after_supported_anchor(const ExtrusionEntity &zone,
+                                                       const coord_t link_distance)
+{
+    const ExtrusionEntity *previous_leaf = nullptr;
+    for (size_t child_idx = 0; child_idx < zone.child_count(); ++child_idx) {
+        const ExtrusionEntity &leaf = zone.child(child_idx);
+        if (!leaf.is_leaf() || !leaf.has_polyline())
+            continue;
+
+        if (leaf.role().has(ExtrusionRole::OverhangPerimeter)) {
+            if (previous_leaf == nullptr ||
+                previous_leaf->role().has(ExtrusionRole::OverhangPerimeter))
+                return false;
+
+            const double distance_squared =
+                point_distance_squared(previous_leaf->last_point(), leaf.first_point());
+            const double limit = double(link_distance);
+            return distance_squared <= limit * limit;
+        }
+
+        previous_leaf = &leaf;
+    }
+
+    return false;
+}
+
+bool all_overhang_zones_start_from_supported_anchor(const ExtrusionEntity &wrapper,
+                                                    const coord_t link_distance)
+{
+    bool saw_overhang_zone = false;
+    for (size_t child_idx = 0; child_idx < wrapper.child_count(); ++child_idx) {
+        const ExtrusionEntity &zone = wrapper.child(child_idx);
+        if (count_role_leaves(zone, ExtrusionRole::OverhangPerimeter) == 0)
+            continue;
+        saw_overhang_zone = true;
+        if (!zone_first_overhang_starts_after_supported_anchor(zone, link_distance))
+            return false;
+    }
+    return saw_overhang_zone;
 }
 
 } // namespace
@@ -346,6 +443,12 @@ TEST_CASE("Extra perimeter overhang wave grows ordered zones from support", "[pl
     REQUIRE(wrapper->can_sort());
     REQUIRE(direct_overhang_zone_count(*wrapper) == 1);
     REQUIRE(direct_overhang_zones_are_order_locked(*wrapper));
+    // The supported pre-line has a normal perimeter role, so it cannot be
+    // merged into the first overhang path. It still belongs to the same locked
+    // local group and must end next to the first overhang start, otherwise the
+    // generated G-code travels back to the opposite side before printing the
+    // first unsupported wave.
+    REQUIRE(all_overhang_zones_start_from_supported_anchor(*wrapper, 2 * post.external_perimeter_width));
 
     REQUIRE(free_fill_area(post) < free_fill_area(baseline));
     require_leaf_fill_area_consistency(post);
@@ -372,6 +475,7 @@ TEST_CASE("Extra perimeter overhang wave keeps disconnected zones independently 
     REQUIRE(wrapper->can_sort());
     REQUIRE(direct_overhang_zone_count(*wrapper) == 2);
     REQUIRE(direct_overhang_zones_are_order_locked(*wrapper));
+    REQUIRE(all_overhang_zones_start_from_supported_anchor(*wrapper, 2 * post.external_perimeter_width));
     REQUIRE(count_role_leaves(post.external_perimeters, ExtrusionRole::OverhangPerimeter) > 0);
     require_leaf_fill_area_consistency(post);
 }
@@ -409,4 +513,56 @@ TEST_CASE("Extra perimeter overhang wave separates paths when wave jumps require
     REQUIRE(role_leaves_are_not_reversible(separated.external_perimeters, ExtrusionRole::OverhangPerimeter));
     require_leaf_fill_area_consistency(connected);
     require_leaf_fill_area_consistency(separated);
+}
+
+TEST_CASE("Extra perimeter overhang wave consumes only the volume it prints", "[plugins][perimeter][extra-overhang][wave]")
+{
+    const DynamicPrintConfig enabled = extra_overhang_config({
+        {"perimeters", "4"},
+        {"overhangs_extrusion_spacing", "0.45"}
+    });
+
+    // The wave strategy may consume less free-fill area than the shrink-based
+    // strategy, because it intentionally gives supported leftovers back to
+    // later infill. It must not consume more area than its generated paths can
+    // justify, otherwise those leftovers are printed twice.
+    SECTION("one unsupported side")
+    {
+        require_wave_consumes_only_printed_volume(
+            enabled, overhang_target(), narrow_left_support(), scale_i(0.45));
+    }
+
+    SECTION("two disconnected unsupported sides")
+    {
+        const ExPolygon target = rectangle_expolygon(-12., -8., 12., 8.);
+        const ExPolygon central_support = rectangle_expolygon(-2., -8., 2., 8.);
+        require_wave_consumes_only_printed_volume(
+            enabled, target, central_support, scale_i(0.45));
+    }
+}
+
+TEST_CASE("Extra perimeter overhang wave places the strategy selector beside the activation setting", "[plugins][perimeter][extra-overhang][wave]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    const std::vector<Orchestrator::PluginUiFragment> fragments =
+        Orchestrator::instance().ui_fragments_for_file("print.ui");
+    size_t group_fragment_count = 0;
+    const Orchestrator::PluginUiFragment *group_fragment = nullptr;
+    for (const Orchestrator::PluginUiFragment &fragment : fragments) {
+        if (fragment.fragment_id != EXTRA_PERIMETERS_ON_OVERHANGS)
+            continue;
+        ++group_fragment_count;
+        group_fragment = &fragment;
+    }
+
+    // The wave implementation owns the explicit placement for this exclusive
+    // group. The fallback Notes-page fragment must not be registered too,
+    // otherwise the selector appears twice in the generated UI.
+    REQUIRE(group_fragment_count == 1);
+    REQUIRE(group_fragment != nullptr);
+    CHECK(group_fragment->content.find("line:Extra perimeters") != std::string::npos);
+    CHECK(group_fragment->content.find("insert$aftersetting$extra_perimeters_on_overhangs") != std::string::npos);
+    CHECK(group_fragment->content.find(
+        "exclusive_group_700_perimeter_post_process_extra_perimeters_on_overhangs_plugin") != std::string::npos);
 }
