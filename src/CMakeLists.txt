@@ -143,7 +143,7 @@ else ()
 endif ()
 
 if (MINGW)
-    target_link_options(Slic3r PUBLIC "-Wl,-allow-multiple-definition")
+    target_link_options(Slic3r PRIVATE "-Wl,-allow-multiple-definition")
     set_target_properties(Slic3r PROPERTIES PREFIX "")
 endif (MINGW)
 
@@ -154,7 +154,7 @@ if (NOT WIN32)
     set_target_properties(Slic3r PROPERTIES RUNTIME_OUTPUT_DIRECTORY  "${CMAKE_BINARY_DIR}/bin")
 endif ()
 
-target_link_libraries(Slic3r libslic3r libcereal)
+target_link_libraries(Slic3r PRIVATE libslic3r libcereal)
 
 add_subdirectory(plugins_cpp)
 add_subdirectory(plugins_python)
@@ -163,29 +163,29 @@ if (APPLE)
 #    add_compile_options(-stdlib=libc++)
 #    add_definitions(-DBOOST_THREAD_DONT_USE_CHRONO -DBOOST_NO_CXX11_RVALUE_REFERENCES -DBOOST_THREAD_USES_MOVE)
     # -liconv: boost links to libiconv by default
-    target_link_libraries(Slic3r "-liconv -framework IOKit" "-framework CoreFoundation" -lc++)
+    target_link_libraries(Slic3r PRIVATE "-liconv -framework IOKit" "-framework CoreFoundation" -lc++)
 elseif (MSVC)
     # Manifest is provided through Slic3r.rc, don't generate your own.
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO")
 else ()
     # Boost on Raspberry-Pi does not link to pthreads explicitely.
-    target_link_libraries(Slic3r ${CMAKE_DL_LIBS} -lstdc++ Threads::Threads)
+    target_link_libraries(Slic3r PRIVATE ${CMAKE_DL_LIBS} -lstdc++ Threads::Threads)
 endif ()
 
 # Add the Slic3r GUI library, libcurl, OpenGL and GLU libraries.
 if (SLIC3R_GUI)
 #    target_link_libraries(PrusaSlicer ws2_32 uxtheme setupapi libslic3r_gui ${wxWidgets_LIBRARIES})
-target_link_libraries(Slic3r libslic3r_gui)
+target_link_libraries(Slic3r PRIVATE libslic3r_gui)
     if (MSVC)
         # Generate debug symbols even in release mode.
-        target_link_options(Slic3r PUBLIC "$<$<CONFIG:RELEASE>:/DEBUG>")
-        target_link_libraries(Slic3r user32.lib Setupapi.lib)
+        target_link_options(Slic3r PRIVATE "$<$<CONFIG:RELEASE>:/DEBUG>")
+        target_link_libraries(Slic3r PRIVATE user32.lib Setupapi.lib)
     elseif (MINGW)
-        target_link_libraries(Slic3r ws2_32 uxtheme setupapi)
+        target_link_libraries(Slic3r PRIVATE ws2_32 uxtheme setupapi)
     elseif (APPLE)
-        target_link_libraries(Slic3r "-framework OpenGL")
+        target_link_libraries(Slic3r PRIVATE "-framework OpenGL")
     else ()
-        target_link_libraries(Slic3r -ldl)
+        target_link_libraries(Slic3r PRIVATE -ldl)
     endif ()
     if (WIN32)
         find_library(PSAPI_LIB NAMES Psapi)
@@ -193,7 +193,7 @@ target_link_libraries(Slic3r libslic3r_gui)
             message("WARNING: Psapi can't be find, trying again with hint to ${CMAKE_WINDOWS_KITS_10_DIR}/Lib/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/um/x64")
             find_library(PSAPI_LIB Psapi PATH "${CMAKE_WINDOWS_KITS_10_DIR}/Lib/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/um/x64")
         endif()
-        target_link_libraries(Slic3r ${PSAPI_LIB})
+        target_link_libraries(Slic3r PRIVATE ${PSAPI_LIB})
     endif ()
 endif ()
 
@@ -214,7 +214,9 @@ if (WIN32)
     endif()
     target_compile_definitions(Slic3r_app_gui PRIVATE -DSLIC3R_WRAPPER_NOCONSOLE)
     add_dependencies(Slic3r_app_gui Slic3r)
-    set_target_properties(Slic3r_app_gui PROPERTIES OUTPUT_NAME ${SLIC3R_APP_CMD})
+    set_target_properties(Slic3r_app_gui PROPERTIES
+        OUTPUT_NAME ${SLIC3R_APP_CMD}
+        ARCHIVE_OUTPUT_NAME "${SLIC3R_APP_CMD}_app_gui")
     target_link_libraries(Slic3r_app_gui PRIVATE boost_headeronly)
 
     add_executable(Slic3r_app_console PrusaSlicer_app_msvc.cpp ${CMAKE_CURRENT_BINARY_DIR}/${SLIC3R_APP_KEY}.rc)
@@ -225,7 +227,9 @@ if (WIN32)
     endif ()
     target_compile_definitions(Slic3r_app_console PRIVATE -DSLIC3R_WRAPPER_CONSOLE)
     add_dependencies(Slic3r_app_console Slic3r)
-    set_target_properties(Slic3r_app_console PROPERTIES OUTPUT_NAME "${SLIC3R_APP_CMD}_console")
+    set_target_properties(Slic3r_app_console PROPERTIES
+        OUTPUT_NAME "${SLIC3R_APP_CMD}_console"
+        ARCHIVE_OUTPUT_NAME "${SLIC3R_APP_CMD}_console_app")
     target_link_libraries(Slic3r_app_console PRIVATE boost_headeronly)
 
     add_executable(PrusaSlicer_app_gcodeviewer WIN32 PrusaSlicer_app_msvc.cpp ${CMAKE_CURRENT_BINARY_DIR}/${SLIC3R_APP_KEY}-gcodeviewer.rc ${CMAKE_CURRENT_BINARY_DIR}/libslic3r_version.h)
@@ -236,7 +240,9 @@ if (WIN32)
     endif ()
     target_compile_definitions(PrusaSlicer_app_gcodeviewer PRIVATE -DSLIC3R_WRAPPER_NOCONSOLE -DSLIC3R_WRAPPER_GCODEVIEWER)
     add_dependencies(PrusaSlicer_app_gcodeviewer Slic3r)
-    set_target_properties(PrusaSlicer_app_gcodeviewer PROPERTIES OUTPUT_NAME "${GCODEVIEWER_APP_CMD}")
+    set_target_properties(PrusaSlicer_app_gcodeviewer PROPERTIES
+        OUTPUT_NAME "${GCODEVIEWER_APP_CMD}"
+        ARCHIVE_OUTPUT_NAME "${GCODEVIEWER_APP_CMD}_app")
     target_link_libraries(PrusaSlicer_app_gcodeviewer PRIVATE boost_headeronly)
 endif ()
 
