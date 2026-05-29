@@ -385,12 +385,20 @@ private:
 };
 
 // Convenience wrappers around the C ABI. Each operation returns a new
-// storage-owned ClipperOperand handle so operations can be chained.
+// storage-owned ClipperOperand handle so operations can be chained. The wrappers
+// also short-circuit empty inputs so plugin algorithms do not need to repeat the
+// same "nothing to clip" checks before every boolean or offset operation.
 inline ClipperOperand clipper_diff(storage_handle *storage, const ClipperOperand &subject, const ClipperOperand &clip) {
+    if (subject.empty())
+        return ClipperOperand::create_empty(storage);
+    if (clip.empty())
+        return ClipperOperand::adopt(storage, ::clipper_union(storage, subject.handle()));
     return ClipperOperand::adopt(storage, ::clipper_diff(storage, subject.handle(), clip.handle()));
 }
 
 inline ClipperOperand clipper_intersection(storage_handle *storage, const ClipperOperand &subject, const ClipperOperand &clip) {
+    if (subject.empty() || clip.empty())
+        return ClipperOperand::create_empty(storage);
     return ClipperOperand::adopt(storage, ::clipper_intersection(storage, subject.handle(), clip.handle()));
 }
 
@@ -412,18 +420,26 @@ inline ClipperOperand clipper_intersection(const ClipperOperand &subject, const 
 inline ClipperOperand clipper_diff_with_safety_offset(storage_handle *storage,
                                                     const ClipperOperand &subject,
                                                     const ClipperOperand &clip) {
+    if (subject.empty())
+        return ClipperOperand::create_empty(storage);
+    if (clip.empty())
+        return ClipperOperand::adopt(storage, ::clipper_union(storage, subject.handle()));
     return ClipperOperand::adopt(storage, ::clipper_diff_with_safety_offset(storage, subject.handle(), clip.handle()));
 }
 
 inline ClipperOperand clipper_intersection_with_safety_offset(storage_handle *storage,
                                                            const ClipperOperand &subject,
                                                            const ClipperOperand &clip) {
+    if (subject.empty() || clip.empty())
+        return ClipperOperand::create_empty(storage);
     return ClipperOperand::adopt(storage, ::clipper_intersection_with_safety_offset(storage, subject.handle(), clip.handle()));
 }
 
 // basically union(offset(safety_offset))
 inline ClipperOperand clipper_union_with_safety_offset(storage_handle *storage,
                                                            const ClipperOperand &subject) {
+    if (subject.empty())
+        return ClipperOperand::create_empty(storage);
     return ClipperOperand::adopt(storage, ::clipper_union_with_safety_offset(storage, subject.handle()));
 }
 
@@ -442,10 +458,12 @@ inline ClipperOperand clipper_intersection_with_safety_offset(const ClipperOpera
 // basically union(offset(safety_offset))
 inline ClipperOperand clipper_union_with_safety_offset(const ClipperOperand &subject) {
     assert(subject.storage() != nullptr);
-    return ClipperOperand::adopt(subject.storage(), ::clipper_union_with_safety_offset(subject.storage(), subject.handle()));
+    return clipper_union_with_safety_offset(subject.storage(), subject);
 }
 
 inline ClipperOperand clipper_union(storage_handle *storage, const ClipperOperand &subject) {
+    if (subject.empty())
+        return ClipperOperand::create_empty(storage);
     return ClipperOperand::adopt(storage, ::clipper_union(storage, subject.handle()));
 }
 
@@ -456,6 +474,10 @@ inline ClipperOperand clipper_union(const ClipperOperand &subject) {
 inline ClipperOperand clipper_union2(storage_handle *storage,
                                    const ClipperOperand &subject1,
                                    const ClipperOperand &subject2) {
+    if (subject1.empty())
+        return clipper_union(storage, subject2);
+    if (subject2.empty())
+        return clipper_union(storage, subject1);
     return ClipperOperand::adopt(storage, ::clipper_union2(storage, subject1.handle(), subject2.handle()));
 }
 
@@ -471,6 +493,8 @@ inline ClipperOperand clipper_offset(storage_handle *storage,
                                    clipper_join_type_t join_type = CLIPPER_JOIN_MITER,
                                    double miter_limit = 3.0,
                                    clipper_end_type_t end_type = CLIPPER_END_CLOSED_POLYGON) {
+    if (subject.empty())
+        return ClipperOperand::create_empty(storage);
     return ClipperOperand::adopt(storage, ::clipper_offset(storage, subject.handle(), delta, join_type, miter_limit, end_type));
 }
 
@@ -489,6 +513,8 @@ inline ClipperOperand clipper_offset2(storage_handle *storage,
                                     clipper_join_type_t join_type = CLIPPER_JOIN_MITER,
                                     double miter_limit = 3.0,
                                     clipper_end_type_t end_type = CLIPPER_END_CLOSED_POLYGON) {
+    if (subject.empty())
+        return ClipperOperand::create_empty(storage);
     return ClipperOperand::adopt(storage, ::clipper_offset2(storage, subject.handle(), delta1, delta2, join_type, miter_limit, end_type));
 }
 
@@ -505,6 +531,13 @@ inline StoredPolylineCollection clipper_diff_polyline_expolygons(storage_handle 
                                                                  const Polyline &subject,
                                                                  const ExPolygonCollection &clip)
 {
+    if (subject.empty())
+        return StoredPolylineCollection(storage);
+    if (clip.empty()) {
+        StoredPolylineCollection out(storage);
+        out.push_back(subject);
+        return out;
+    }
     return StoredPolylineCollection::adopt(storage, ::clipper_diff_polyline_expolygons(storage, subject.handle(), clip.handle()));
 }
 
@@ -512,6 +545,8 @@ inline StoredPolylineCollection clipper_intersection_polyline_expolygons(storage
                                                                          const Polyline &subject,
                                                                          const ExPolygonCollection &clip)
 {
+    if (subject.empty() || clip.empty())
+        return StoredPolylineCollection(storage);
     return StoredPolylineCollection::adopt(storage, ::clipper_intersection_polyline_expolygons(storage, subject.handle(), clip.handle()));
 }
 
@@ -519,6 +554,8 @@ inline StoredExPolygonCollection clipper_clip_expolygons_with_subject_bbox(stora
                                                                            const ExPolygonCollection &src,
                                                                            c_bounding_box bbox)
 {
+    if (src.empty())
+        return StoredExPolygonCollection(storage);
     return StoredExPolygonCollection::adopt(storage, ::clipper_clip_expolygons_with_subject_bbox(storage, src.handle(), bbox));
 }
 
