@@ -1159,6 +1159,20 @@ private:
         StoredGeometryHandleView<StoredExPolygonCollection, ExPolygonCollection, expolygon_collection_handle>(storage, handle) {}
 };
 
+inline StoredPolylineCollection expolygons_to_polylines(storage_handle *storage,
+                                                        const ExPolygonCollection &src)
+{
+    return StoredPolylineCollection::adopt(storage, ::expolygons_to_polylines(storage, src.handle()));
+}
+
+inline StoredPolylineCollection expolygon_medial_axis(storage_handle *storage,
+                                                      const ExPolygon &src,
+                                                      double min_width,
+                                                      double max_width)
+{
+    return StoredPolylineCollection::adopt(storage, ::expolygon_medial_axis(storage, src.handle(), min_width, max_width));
+}
+
 } // namespace slic3r_api
 
 

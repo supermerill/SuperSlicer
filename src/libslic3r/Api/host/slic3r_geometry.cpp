@@ -1141,6 +1141,17 @@ void expolygons_to_polygons(const expolygon_collection_handle *src, polygon_coll
     }
 }
 
+polyline_collection_handle *expolygons_to_polylines(storage_handle *storage,
+                                                    const expolygon_collection_handle *src)
+{
+    if (storage == nullptr || src == nullptr)
+        return nullptr;
+
+    polyline_collection_handle *out_handle = storage_new_polylines(storage);
+    *Slic3r::to_polylines(out_handle) = Slic3r::to_polylines(*Slic3r::to_expolygons(src));
+    return out_handle;
+}
+
 expolygon_status polygons_to_expolygons(const polygon_collection_handle *src, expolygon_collection_handle *dst) {
     if (src == nullptr || dst == nullptr)
         return EXPOLYGON_STATUS_EMPTY;
@@ -1160,6 +1171,19 @@ expolygon_status polygons_to_expolygons(const polygon_collection_handle *src, ex
         }
     }
     return expolygons_valid(dst);
+}
+
+polyline_collection_handle *expolygon_medial_axis(storage_handle *storage,
+                                                  const expolygon_handle *src,
+                                                  double min_width,
+                                                  double max_width)
+{
+    if (storage == nullptr || src == nullptr)
+        return nullptr;
+
+    polyline_collection_handle *out_handle = storage_new_polylines(storage);
+    Slic3r::to_expolygon(src)->medial_axis(min_width, max_width, *Slic3r::to_polylines(out_handle));
+    return out_handle;
 }
 
 } // extern "C"

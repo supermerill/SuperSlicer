@@ -4,4 +4,5 @@
 #/|/
 
 add_subdirectory(FlatAreaLayerHeight)
+add_subdirectory(ExtraPerimeterOverhangWave)
 add_subdirectory(Polyholes)

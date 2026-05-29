@@ -202,6 +202,19 @@ public:
         return clipper_diff(clip(subject), clip(m_expolygons->readonly())).to_expolygon_collection();
     }
 
+    void append_copy_from(const ExPolygonCollection &expolygons) {
+        ensure_collection().append_copy_from(expolygons);
+    }
+
+    void make_accept_all() { m_expolygons.reset(); }
+
+    void union_self() {
+        if (is_accept_all() || m_expolygons->empty())
+            return;
+        ClipperContext clip(m_storage);
+        *m_expolygons = clipper_union(clip(m_expolygons->readonly())).to_expolygon_collection();
+    }
+
 private:
     friend class RegionSettings;
 
@@ -214,22 +227,6 @@ private:
     // mutable method for RegionSettings
     void append_move_from(StoredExPolygonCollection &&expolygons) {
         ensure_collection().append_move_from(std::move(expolygons));
-    }
-    
-    // mutable method for RegionSettings
-    void append_copy_from(const ExPolygonCollection &expolygons) {
-        ensure_collection().append_copy_from(expolygons);
-    }
-
-    // mutable method for RegionSettings
-    void make_accept_all() { m_expolygons.reset(); }
-
-    // mutable method for RegionSettings
-    void union_self() {
-        if (is_accept_all() || m_expolygons->empty())
-            return;
-        ClipperContext clip(m_storage);
-        *m_expolygons = clipper_union(clip(m_expolygons->readonly())).to_expolygon_collection();
     }
 
     storage_handle *m_storage = nullptr;

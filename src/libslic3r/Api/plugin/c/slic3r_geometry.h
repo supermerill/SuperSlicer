@@ -527,12 +527,26 @@ SLIC3R_HOST_API void expolygons_move(expolygon_collection_handle *dst, expolygon
 /* Conversion: clear dst, then copy each expolygon from src into dst. */
 SLIC3R_HOST_API void expolygons_to_polygons(const expolygon_collection_handle *src, polygon_collection_handle *dst);
 /*
+Convert every contour and hole boundary from src into polylines owned by
+storage. The returned collection must be released with storage_free().
+*/
+SLIC3R_HOST_API polyline_collection_handle *expolygons_to_polylines(storage_handle *storage, const expolygon_collection_handle *src);
+/*
 Clear dst, then convert Polygons from src into expolygons.
 A CCW polygon starts a new expolygon, and following polygons become its holes
 until the next CCW polygon.
 Returns a status code on failure.
 */
 SLIC3R_HOST_API expolygon_status polygons_to_expolygons(const polygon_collection_handle *src, expolygon_collection_handle *dst);
+
+/*
+Compute the medial axis of src into polylines owned by storage.
+The returned collection must be released with storage_free().
+*/
+SLIC3R_HOST_API polyline_collection_handle *expolygon_medial_axis(storage_handle *storage,
+                                                                  const expolygon_handle *src,
+                                                                  double min_width,
+                                                                  double max_width);
 
 #ifdef __cplusplus
 }

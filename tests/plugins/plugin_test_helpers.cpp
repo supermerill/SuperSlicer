@@ -33,7 +33,6 @@
 #include "libslic3r/Plugins/Perimeter/ExtraPerimeterBelowArea.hpp"
 #include "libslic3r/Plugins/Perimeter/ExtraPerimeterCount.hpp"
 #include "libslic3r/Plugins/Perimeter/ExtraPerimeterOddLayer.hpp"
-#include "libslic3r/Plugins/Perimeter/ExtraPerimeterOverhangWave.hpp"
 #include "libslic3r/Plugins/Perimeter/ExtraPerimetersOnOverhangs.hpp"
 #include "libslic3r/Plugins/Perimeter/FuzzySkin.hpp"
 #include "libslic3r/Plugins/Perimeter/OnlyOnePerimeterFirstLayer.hpp"
@@ -55,6 +54,7 @@
 #include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/SLA/SLAPrintConfig.hpp"
 #include "plugins_cpp/FlatAreaLayerHeight/FlatAreaLayerHeight.hpp"
+#include "plugins_cpp/ExtraPerimeterOverhangWave/ExtraPerimeterOverhangWave.hpp"
 #include "plugins_cpp/Polyholes/Polyholes.hpp"
 
 namespace {

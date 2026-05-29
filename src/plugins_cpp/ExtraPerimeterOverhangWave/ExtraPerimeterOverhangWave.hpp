@@ -3,8 +3,8 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 
-#ifndef plugins_perimeter_extraperimeteroverhangwave_hpp_
-#define plugins_perimeter_extraperimeteroverhangwave_hpp_
+#ifndef plugins_cpp_extraperimeteroverhangwave_hpp_
+#define plugins_cpp_extraperimeteroverhangwave_hpp_
 
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
 
@@ -44,4 +44,4 @@ void register_extra_perimeter_overhang_wave_plugin(orchestrator_handle *orch);
 
 }}} // namespace slic3r_api::Perimeter::ExtraPerimeterOverhangWavePlugin
 
-#endif // plugins_perimeter_extraperimeteroverhangwave_hpp_
+#endif // plugins_cpp_extraperimeteroverhangwave_hpp_
