@@ -10,6 +10,74 @@
 
 namespace slic3r_api {
 
+/*
+Clipper C++ views
+=================
+
+This header is the C++ plugin helper for polygon boolean operations, offsets and
+polyline clipping. It wraps the C ABI from slic3r_clipper.h without exposing the
+host-only C++ geometry internals to external plugins.
+
+Mental model
+------------
+ClipperOperand is an intermediate shape object. It can be built from Polygon,
+Polyline, PolygonCollection, ExPolygon or ExPolygonCollection views, then passed
+to operations such as clipper_diff(), clipper_intersection(), clipper_union(),
+clipper_offset() and clipper_offset2(). When the algorithm needs normal
+geometry again, materialize the operand with to_expolygon_collection(),
+to_polygon_collection(), write_expolygons_to() or write_polygons_to().
+
+Typical pattern:
+
+    ClipperContext clip(storage);
+    ClipperOperand subject = clip(island.infill_areas());
+    ClipperOperand forbidden = clip(region_clip);
+    StoredExPolygonCollection allowed =
+        clipper_diff(subject, forbidden).to_expolygon_collection();
+
+Ownership and lifetime
+----------------------
+All ClipperOperand handles are tied to one storage_handle. Most constructors and
+all Clipper operations allocate a storage-owned handle, and the C++ object frees
+that handle in its destructor. ClipperOperand is therefore move-only. Returning a
+ClipperOperand by value is fine; copying one is not allowed.
+
+The constructors from geometry views create an adapter over existing geometry.
+They do not deep-copy every source point. Keep the source geometry view alive
+until the ClipperOperand has been consumed. The materialized output collections
+are independent storage-owned collections.
+
+Concatenation versus union
+--------------------------
+concat(), concat_replace(), operator+ and operator+= append raw paths without
+performing geometric cleanup. This is useful for accumulating many pieces
+cheaply. Call clipper_union() afterwards when the result must be normalized,
+merged, and have holes rebuilt.
+
+Safety-offset helpers
+---------------------
+clipper_diff_with_safety_offset() and clipper_intersection_with_safety_offset()
+mirror the common host-side "safety offset" behavior: the clip side is expanded
+slightly before the boolean operation. Use them when tiny numerical gaps at a
+boundary would otherwise leave slivers. Use the plain variants when exact area
+accounting is more important than absorbing boundary noise.
+
+Offsets
+-------
+clipper_offset(subject, delta) grows closed polygons for positive delta and
+shrinks them for negative delta. clipper_offset2(subject, delta1, delta2) is the
+two-stage offset helper used by many slicer algorithms to remove narrow features
+or build rings. For open polylines, pass the appropriate CLIPPER_END_* type.
+
+Choosing output form
+--------------------
+Use StoredExPolygonCollection when contour/hole topology matters. Use
+StoredPolygonCollection only when a flat list of polygons is enough. For open
+paths, use clipper_diff_polyline_expolygons() or
+clipper_intersection_polyline_expolygons(); converting an open polyline through
+ClipperOperand and back to polygons is not the same operation.
+*/
+
 /* ========================= generic read-only / stored views ========================= */
 /*
 MutableHandleView is the mixed read/write base used by data-tree and Clipper views.

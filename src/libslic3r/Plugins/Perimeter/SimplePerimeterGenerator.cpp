@@ -31,7 +31,7 @@ template<class Payload>
 Payload &get_or_add_property(StoredExtrusionEntity &entity)
 {
     ExtrusionPropertyMutableApi<StoredExtrusionEntity> &properties = entity;
-    return properties.template property<Payload>();
+    return properties.template get_or_add_property<Payload>();
 }
 
 StoredExPolygonCollection offset_area(storage_handle *storage, const ExPolygon &area, double delta)
