@@ -33,6 +33,40 @@ SLIC3R_HOST_API bridge_detector_instance orchestrator_create_bridge_detector(
 );
 
 /*
+Register a generic property payload and receive its runtime numeric id.
+
+The namespaced_name is the stable identity of the payload layout, for example
+"com.example.plugin.surface_priority". The returned id is the compact key
+stored by PluginPropertyContainer and ExtrusionPropertyContainer. Custom ids
+belong to one orchestrator; register the same name again for each slicing
+orchestrator instead of serializing the numeric value.
+
+If the name was already registered with the same size and alignment, the
+existing id is returned. If the same name is registered with a different layout,
+SLIC3R_PROPERTY_TYPE_INVALID is returned.
+*/
+SLIC3R_HOST_API slic3r_property_type orchestrator_register_property(
+    orchestrator_handle *orch,
+    const char *namespaced_name,
+    uint32_t byte_count,
+    uint32_t alignment
+);
+
+/* Return metadata for a built-in or registered property type. */
+SLIC3R_HOST_API uint32_t orchestrator_property_byte_count(
+    const orchestrator_handle *orch,
+    slic3r_property_type type
+);
+SLIC3R_HOST_API uint32_t orchestrator_property_alignment(
+    const orchestrator_handle *orch,
+    slic3r_property_type type
+);
+SLIC3R_HOST_API const char *orchestrator_property_name(
+    const orchestrator_handle *orch,
+    slic3r_property_type type
+);
+
+/*
 Register a simple seam-like FacetsAnnotation kind.
 
 This is intentionally a small declaration API, not a custom GUI API. The host

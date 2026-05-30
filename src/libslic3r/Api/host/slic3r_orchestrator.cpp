@@ -10,10 +10,63 @@
 #include <boost/log/trivial.hpp>
 
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
+#include "libslic3r/Api/plugin/c/slic3r_extrusion_property.h"
 #include "libslic3r/Print.hpp"
 
 #include "Orchestrator.hpp"
 #include "Plugin.hpp"
+
+namespace {
+
+struct GenericPropertyInfo
+{
+    slic3r_property_type type;
+    const char *name;
+    uint32_t byte_count;
+    uint32_t alignment;
+};
+
+const std::vector<GenericPropertyInfo> &builtin_property_infos()
+{
+    static const std::vector<GenericPropertyInfo> infos = {
+        { SLIC3R_PROPERTY_TYPE_EXTRUSION_ATTRIBUTES,      "slic3r.extrusion.attributes",      sizeof(c_extrusion_property_attributes),      alignof(c_extrusion_property_attributes) },
+        { SLIC3R_PROPERTY_TYPE_EXTRUSION_SPEED,           "slic3r.extrusion.speed",           sizeof(c_extrusion_property_speed),           alignof(c_extrusion_property_speed) },
+        { SLIC3R_PROPERTY_TYPE_EXTRUSION_MODIFIER,        "slic3r.extrusion.modifier",        sizeof(c_extrusion_property_modifier),        alignof(c_extrusion_property_modifier) },
+        { SLIC3R_PROPERTY_TYPE_EXTRUSION_CUSTOM_GCODE,    "slic3r.extrusion.custom_gcode",    sizeof(c_extrusion_property_custom_gcode),    alignof(c_extrusion_property_custom_gcode) },
+        { SLIC3R_PROPERTY_TYPE_EXTRUSION_SPECIAL_COMMAND, "slic3r.extrusion.special_command", sizeof(c_extrusion_property_special_command), alignof(c_extrusion_property_special_command) },
+        { SLIC3R_PROPERTY_TYPE_EXTRUSION_OVERHANG,        "slic3r.extrusion.overhang",        sizeof(c_extrusion_property_overhang),        alignof(c_extrusion_property_overhang) },
+        { SLIC3R_PROPERTY_TYPE_EXTRUSION_Z_OFFSET,        "slic3r.extrusion.z_offset",        sizeof(c_extrusion_property_z_offset),        alignof(c_extrusion_property_z_offset) },
+        { SLIC3R_PROPERTY_TYPE_EXTRUSION_PERIMETER,       "slic3r.extrusion.perimeter",       sizeof(c_extrusion_property_perimeter),       alignof(c_extrusion_property_perimeter) },
+    };
+    return infos;
+}
+
+const GenericPropertyInfo *builtin_property_info(slic3r_property_type type)
+{
+    for (const GenericPropertyInfo &info : builtin_property_infos())
+        if (info.type == type)
+            return &info;
+    return nullptr;
+}
+
+bool is_power_of_two(uint32_t value)
+{
+    return value != 0 && (value & (value - 1)) == 0;
+}
+
+Slic3r::Orchestrator *to_orchestrator(orchestrator_handle *orch)
+{
+    return orch == nullptr ? &Slic3r::Orchestrator::instance() :
+                             reinterpret_cast<Slic3r::Orchestrator *>(orch);
+}
+
+const Slic3r::Orchestrator *to_orchestrator(const orchestrator_handle *orch)
+{
+    return orch == nullptr ? &Slic3r::Orchestrator::instance() :
+                             reinterpret_cast<const Slic3r::Orchestrator *>(orch);
+}
+
+} // namespace
 
 extern "C" {
 
@@ -33,6 +86,62 @@ bridge_detector_instance orchestrator_create_bridge_detector(orchestrator_handle
     Slic3r::Orchestrator *orchestrator = orch == nullptr ? &Slic3r::Orchestrator::instance() :
                                                            reinterpret_cast<Slic3r::Orchestrator *>(orch);
     return orchestrator == nullptr ? out : orchestrator->create_bridge_detector(*input);
+}
+
+slic3r_property_type orchestrator_register_property(orchestrator_handle *orch,
+                                                    const char *namespaced_name,
+                                                    uint32_t byte_count,
+                                                    uint32_t alignment)
+{
+    if (namespaced_name == nullptr || namespaced_name[0] == '\0' ||
+        byte_count == 0 || !is_power_of_two(alignment))
+        return SLIC3R_PROPERTY_TYPE_INVALID;
+
+    /*
+    Built-in names are reserved. A plugin may use the numeric built-in id
+    directly, but it must not re-register the same name with a different ABI
+    contract.
+    */
+    for (const GenericPropertyInfo &info : builtin_property_infos())
+        if (std::string(info.name) == namespaced_name)
+            return info.byte_count == byte_count && info.alignment == alignment ?
+                info.type :
+                SLIC3R_PROPERTY_TYPE_INVALID;
+
+    Slic3r::Orchestrator *orchestrator = to_orchestrator(orch);
+    return orchestrator == nullptr ?
+        SLIC3R_PROPERTY_TYPE_INVALID :
+        orchestrator->register_property(namespaced_name, byte_count, alignment);
+}
+
+uint32_t orchestrator_property_byte_count(const orchestrator_handle *orch, slic3r_property_type type)
+{
+    if (const GenericPropertyInfo *info = builtin_property_info(type))
+        return info->byte_count;
+    const Slic3r::Orchestrator *orchestrator = to_orchestrator(orch);
+    const Slic3r::Orchestrator::PropertyInfo *info =
+        orchestrator == nullptr ? nullptr : orchestrator->property_info(type);
+    return info == nullptr ? 0u : info->byte_count;
+}
+
+uint32_t orchestrator_property_alignment(const orchestrator_handle *orch, slic3r_property_type type)
+{
+    if (const GenericPropertyInfo *info = builtin_property_info(type))
+        return info->alignment;
+    const Slic3r::Orchestrator *orchestrator = to_orchestrator(orch);
+    const Slic3r::Orchestrator::PropertyInfo *info =
+        orchestrator == nullptr ? nullptr : orchestrator->property_info(type);
+    return info == nullptr ? 0u : info->alignment;
+}
+
+const char *orchestrator_property_name(const orchestrator_handle *orch, slic3r_property_type type)
+{
+    if (const GenericPropertyInfo *info = builtin_property_info(type))
+        return info->name;
+    const Slic3r::Orchestrator *orchestrator = to_orchestrator(orch);
+    const Slic3r::Orchestrator::PropertyInfo *info =
+        orchestrator == nullptr ? nullptr : orchestrator->property_info(type);
+    return info == nullptr ? nullptr : info->name.c_str();
 }
 
 int32_t orchestrator_register_generic_facets_annotation(

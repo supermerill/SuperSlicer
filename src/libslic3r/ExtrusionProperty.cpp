@@ -6,8 +6,6 @@
 #include "ExtrusionProperty.hpp"
 
 #include <algorithm>
-#include <cstring>
-
 #include "Api/internal/ExtrusionPropertyAccess.hpp"
 #include "Flow.hpp"
 
@@ -81,132 +79,6 @@ ExtrusionPropertyLoopRole::ExtrusionPropertyLoopRole()
 ExtrusionPropertyLoopRole::ExtrusionPropertyLoopRole(ExtrusionLoopRole role)
     : c_extrusion_property_perimeter{ -1, 0, uint16_t(role) }
 {
-}
-
-RawBuffer::RawBuffer(RawBuffer &&rhs) noexcept
-    : m_data(rhs.m_data)
-    , m_size(rhs.m_size)
-    , m_alignment(rhs.m_alignment)
-{
-    rhs.m_data = nullptr;
-    rhs.m_size = 0;
-    rhs.m_alignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
-}
-
-RawBuffer& RawBuffer::operator=(RawBuffer &&rhs) noexcept
-{
-    if (this != &rhs) {
-        this->reset();
-        m_data = rhs.m_data;
-        m_size = rhs.m_size;
-        m_alignment = rhs.m_alignment;
-        rhs.m_data = nullptr;
-        rhs.m_size = 0;
-        rhs.m_alignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
-    }
-    return *this;
-}
-
-RawBuffer::~RawBuffer()
-{
-    this->reset();
-}
-
-void RawBuffer::allocate(size_t byte_count, size_t alignment)
-{
-    this->reset();
-    if (byte_count == 0)
-        return;
-    m_data = ::operator new(byte_count, std::align_val_t(alignment));
-    m_size = byte_count;
-    m_alignment = alignment;
-}
-
-void RawBuffer::copy_from(const void *data, size_t byte_count, size_t alignment)
-{
-    this->allocate(byte_count, alignment);
-    if (byte_count > 0 && data != nullptr)
-        std::memcpy(m_data, data, byte_count);
-}
-
-void RawBuffer::reset()
-{
-    if (m_data != nullptr) {
-        ::operator delete(m_data, std::align_val_t(m_alignment));
-        m_data = nullptr;
-    }
-    m_size = 0;
-    m_alignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
-}
-
-PropertySlot::PropertySlot(const PropertySlot &rhs)
-{
-    if (!rhs.empty()) {
-        m_data.copy_from(rhs.m_data.data(), rhs.m_data.size(), rhs.m_data.alignment());
-        m_raw_type = rhs.m_raw_type;
-    }
-}
-
-PropertySlot::PropertySlot(PropertySlot &&rhs) noexcept
-    : m_data(std::move(rhs.m_data))
-    , m_raw_type(rhs.m_raw_type)
-{
-    rhs.m_raw_type = extrusion_property_type_invalid;
-}
-
-PropertySlot& PropertySlot::operator=(const PropertySlot &rhs)
-{
-    if (this != &rhs) {
-        this->reset();
-        if (!rhs.empty()) {
-            m_data.copy_from(rhs.m_data.data(), rhs.m_data.size(), rhs.m_data.alignment());
-            m_raw_type = rhs.m_raw_type;
-        }
-    }
-    return *this;
-}
-
-PropertySlot& PropertySlot::operator=(PropertySlot &&rhs) noexcept
-{
-    if (this != &rhs) {
-        this->reset();
-        m_data = std::move(rhs.m_data);
-        m_raw_type = rhs.m_raw_type;
-        rhs.m_raw_type = extrusion_property_type_invalid;
-    }
-    return *this;
-}
-
-void PropertySlot::reset()
-{
-    m_data.reset();
-    m_raw_type = extrusion_property_type_invalid;
-}
-
-void PropertySlot::emplace_raw(extrusion_property_type type, const void *data, size_t byte_count, size_t alignment)
-{
-    this->reset();
-    m_data.copy_from(data, byte_count, alignment);
-    m_raw_type = type;
-}
-
-void PropertySlot::emplace_zeroed(extrusion_property_type type, size_t byte_count, size_t alignment)
-{
-    this->reset();
-    m_data.allocate(byte_count, alignment);
-    if (byte_count > 0)
-        std::memset(m_data.data(), 0, byte_count);
-    m_raw_type = type;
-}
-
-void* PropertySlot::data()
-{
-    return m_data.data();
-}
-
-const void* PropertySlot::data() const
-{
-    return const_cast<PropertySlot*>(this)->data();
 }
 
 ExtrusionPropertyContainer::ExtrusionPropertyContainer(ExtrusionPropertyUPtr &&property)
@@ -313,7 +185,7 @@ ExtrusionPropertyContainer::DataResource::DataResource(const DataResource &rhs)
     , owner_type(rhs.owner_type)
     , owner_field_offset(rhs.owner_field_offset)
 {
-    data.copy_from(rhs.data.data(), rhs.data.size(), rhs.data.alignment());
+    data.assign_copy(rhs.data.data(), rhs.data.byte_count(), rhs.data.alignment());
 }
 
 ExtrusionPropertyContainer::DataResource&
@@ -323,7 +195,7 @@ ExtrusionPropertyContainer::DataResource::operator=(const DataResource &rhs)
         id = rhs.id;
         owner_type = rhs.owner_type;
         owner_field_offset = rhs.owner_field_offset;
-        data.copy_from(rhs.data.data(), rhs.data.size(), rhs.data.alignment());
+        data.assign_copy(rhs.data.data(), rhs.data.byte_count(), rhs.data.alignment());
     }
     return *this;
 }
@@ -342,13 +214,13 @@ const void* ExtrusionPropertyContainer::property_data(extrusion_property_type ty
 void* ExtrusionPropertyContainer::property_data_mutable(extrusion_property_type type)
 {
     PropertySlot *slot = this->find_slot(type);
-    return slot != nullptr ? slot->data() : nullptr;
+    return slot != nullptr ? slot->data_mutable() : nullptr;
 }
 
 void* ExtrusionPropertyContainer::get_or_add_property_data_mutable(extrusion_property_type type, size_t byte_count, size_t alignment)
 {
     if (PropertySlot *slot = this->find_slot(type))
-        return slot->data();
+        return slot->data_mutable();
 
     switch (type) {
     case ExtrusionAttributes::property_type:
@@ -373,7 +245,7 @@ void* ExtrusionPropertyContainer::get_or_add_property_data_mutable(extrusion_pro
         PropertySlot raw_slot;
         raw_slot.emplace_zeroed(type, byte_count, alignment);
         m_properties.emplace_back(std::move(raw_slot));
-        return m_properties.back().data();
+        return m_properties.back().data_mutable();
     }
 }
 
@@ -397,7 +269,7 @@ uint32_t ExtrusionPropertyContainer::store_data_aligned(const void *data, size_t
     resource.id = m_next_data_resource_id++;
     if (resource.id == uint32_t(-1))
         resource.id = m_next_data_resource_id++;
-    resource.data.copy_from(data, byte_count, alignment);
+    resource.data.assign_copy(data, byte_count, alignment);
     m_data_resources.emplace_back(std::move(resource));
     return m_data_resources.back().id;
 }
@@ -428,7 +300,7 @@ uint32_t ExtrusionPropertyContainer::store_property_data_aligned(
         resource.id = m_next_data_resource_id++;
     resource.owner_type = owner_type;
     resource.owner_field_offset = owner_field_offset;
-    resource.data.copy_from(data, byte_count, alignment);
+    resource.data.assign_copy(data, byte_count, alignment);
 
     this->release_property_field_resources(owner_type, owner_field_offset);
     m_data_resources.emplace_back(std::move(resource));
@@ -443,7 +315,7 @@ const void* ExtrusionPropertyContainer::stored_data(uint32_t data_id, uint32_t *
     for (const DataResource &resource : m_data_resources)
         if (resource.id == data_id) {
             if (byte_size_out != nullptr)
-                *byte_size_out = uint32_t(resource.data.size());
+                *byte_size_out = uint32_t(resource.data.byte_count());
             return resource.data.data();
         }
     return nullptr;

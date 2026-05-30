@@ -787,9 +787,6 @@ void Layer::_make_fills(LayerSliceIsland& island,
         LayerRegionIsland *region_island_solid = nb_solid == 0 ?
             nullptr :
             &island.get_or_add_region_island(regions, uint16_t(solid_fill_extruder));
-        if (region_island_sparse && (*regions.begin())->region().config().wipe_into_infill) {
-            region_island_sparse->set_tag("can_wipe", 1./* true*/);
-        }
         assert(!region_island_sparse || !region_island_sparse->has_extrusion(LayerRegionIsland::INFILLS));
         assert(!region_island_solid || !region_island_solid->has_extrusion(LayerRegionIsland::INFILLS));
         ExtrusionEntityCollection *root_sparse = region_island_sparse ?

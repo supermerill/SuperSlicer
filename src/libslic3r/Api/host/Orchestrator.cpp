@@ -613,25 +613,41 @@ bool Orchestrator::add_gui_rule(const raw_gui_rule *rule)
     return true;
 }
 
+slic3r_property_type Orchestrator::register_property(const char *namespaced_name,
+                                                     uint32_t byte_count,
+                                                     uint32_t alignment)
+{
+    if (namespaced_name == nullptr || namespaced_name[0] == '\0' || byte_count == 0 || alignment == 0)
+        return SLIC3R_PROPERTY_TYPE_INVALID;
+
+    /*
+    The orchestrator owns the string-to-id mapping for custom properties. The
+    numeric id is only a compact runtime handle; callers must register by name
+    again for each orchestrator so parallel plugin configurations do not share
+    mutable global state.
+    */
+    if (const PropertyInfo *existing = this->property_info(namespaced_name)) {
+        return existing->byte_count == byte_count && existing->alignment == alignment ?
+            existing->type :
+            SLIC3R_PROPERTY_TYPE_INVALID;
+    }
+
+    PropertyInfo info;
+    info.type = m_next_custom_property_type++;
+    if (info.type == SLIC3R_PROPERTY_TYPE_INVALID)
+        info.type = m_next_custom_property_type++;
+    info.name = namespaced_name;
+    info.byte_count = byte_count;
+    info.alignment = alignment;
+    m_custom_property_infos.emplace_back(std::move(info));
+    return m_custom_property_infos.back().type;
+}
+
 extrusion_property_type Orchestrator::register_custom_extrusion_property(const char *namespaced_name,
                                                                          uint32_t byte_count,
                                                                          uint32_t alignment)
 {
-    if (const CustomExtrusionPropertyInfo *existing = this->custom_extrusion_property_info(namespaced_name)) {
-        return existing->byte_count == byte_count && existing->alignment == alignment ?
-            existing->type :
-            EXTRUSION_PROPERTY_TYPE_INVALID;
-    }
-
-    CustomExtrusionPropertyInfo info;
-    info.type = m_next_custom_extrusion_property_type++;
-    if (info.type == EXTRUSION_PROPERTY_TYPE_INVALID)
-        info.type = m_next_custom_extrusion_property_type++;
-    info.name = namespaced_name;
-    info.byte_count = byte_count;
-    info.alignment = alignment;
-    m_custom_extrusion_property_infos.emplace_back(std::move(info));
-    return m_custom_extrusion_property_infos.back().type;
+    return static_cast<extrusion_property_type>(this->register_property(namespaced_name, byte_count, alignment));
 }
 
 bool Orchestrator::register_generic_facets_annotation(GenericFacetsAnnotationDefinition def)
@@ -671,7 +687,13 @@ bool Orchestrator::register_generic_facets_annotation(GenericFacetsAnnotationDef
 const Orchestrator::CustomExtrusionPropertyInfo*
 Orchestrator::custom_extrusion_property_info(extrusion_property_type type) const
 {
-    for (const CustomExtrusionPropertyInfo &info : m_custom_extrusion_property_infos)
+    return this->property_info(type);
+}
+
+const Orchestrator::PropertyInfo*
+Orchestrator::property_info(slic3r_property_type type) const
+{
+    for (const PropertyInfo &info : m_custom_property_infos)
         if (info.type == type)
             return &info;
     return nullptr;
@@ -680,10 +702,16 @@ Orchestrator::custom_extrusion_property_info(extrusion_property_type type) const
 const Orchestrator::CustomExtrusionPropertyInfo*
 Orchestrator::custom_extrusion_property_info(const char *namespaced_name) const
 {
+    return this->property_info(namespaced_name);
+}
+
+const Orchestrator::PropertyInfo*
+Orchestrator::property_info(const char *namespaced_name) const
+{
     if (namespaced_name == nullptr)
         return nullptr;
 
-    for (const CustomExtrusionPropertyInfo &info : m_custom_extrusion_property_infos)
+    for (const PropertyInfo &info : m_custom_property_infos)
         if (info.name == namespaced_name)
             return &info;
     return nullptr;

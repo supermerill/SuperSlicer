@@ -24,6 +24,7 @@
 
 #include "ExPolygon.hpp"
 #include "libslic3r.h"
+#include "PluginProperty.hpp"
 
 namespace Slic3r {
 
@@ -76,7 +77,16 @@ inline SurfaceType operator&=(SurfaceType& a, SurfaceType b) {
 std::string surfaceType_to_string(SurfaceType st);
 
 
-class Surface
+/*
+Surface is the geometric unit consumed by infill generation.
+
+The geometry and surface_type describe where the infill area is and what broad
+kind of infill it needs. PluginPropertyContainer carries small extra payloads
+owned by surface-processing plugins. When a Surface is split into several
+ExPolygons, constructors taking another Surface copy these properties so later
+plugins still see the metadata attached by earlier plugins.
+*/
+class Surface : public PluginPropertyContainer
 {
     coord_t          m_thickness        { -1 };
 public:
@@ -97,6 +107,7 @@ public:
     uint16_t        priority              {  0_u };
     
     Surface(const Surface &rhs) :
+        PluginPropertyContainer(rhs),
         surface_type(rhs.surface_type), expolygon(rhs.expolygon),
             m_thickness(rhs.m_thickness), thickness_layers(rhs.thickness_layers), 
             bridge_angle(rhs.bridge_angle), extra_perimeters(rhs.extra_perimeters),
@@ -106,13 +117,15 @@ public:
     Surface(SurfaceType _surface_type, const ExPolygon &_expolygon)
         : surface_type(_surface_type), expolygon(_expolygon) {};
     Surface(const Surface &other, const ExPolygon &_expolygon)
-        : surface_type(other.surface_type), expolygon(_expolygon),
+        : PluginPropertyContainer(other),
+            surface_type(other.surface_type), expolygon(_expolygon),
             m_thickness(other.m_thickness), thickness_layers(other.thickness_layers), 
             bridge_angle(other.bridge_angle), extra_perimeters(other.extra_perimeters),
             maxNbSolidLayersOnTop(other.maxNbSolidLayersOnTop),
             priority(other.priority) {};
     Surface(Surface &&rhs)
-        : surface_type(rhs.surface_type), expolygon(std::move(rhs.expolygon)),
+        : PluginPropertyContainer(std::move(rhs)),
+            surface_type(rhs.surface_type), expolygon(std::move(rhs.expolygon)),
             m_thickness(rhs.m_thickness), thickness_layers(rhs.thickness_layers), 
             bridge_angle(rhs.bridge_angle), extra_perimeters(rhs.extra_perimeters),
             maxNbSolidLayersOnTop(rhs.maxNbSolidLayersOnTop),
@@ -120,7 +133,8 @@ public:
     Surface(SurfaceType _surface_type, ExPolygon &&_expolygon)
         : surface_type(_surface_type), expolygon(std::move(_expolygon)) {};
     Surface(const Surface &other, ExPolygon &&_expolygon)
-        : surface_type(other.surface_type), expolygon(std::move(_expolygon)),
+        : PluginPropertyContainer(other),
+            surface_type(other.surface_type), expolygon(std::move(_expolygon)),
             m_thickness(other.m_thickness), thickness_layers(other.thickness_layers), 
             bridge_angle(other.bridge_angle), extra_perimeters(other.extra_perimeters),
             maxNbSolidLayersOnTop(other.maxNbSolidLayersOnTop),
@@ -128,6 +142,7 @@ public:
 
     Surface& operator=(const Surface &rhs)
     {
+        PluginPropertyContainer::operator=(rhs);
         surface_type     = rhs.surface_type;
         expolygon        = rhs.expolygon;
         m_thickness      = rhs.m_thickness;
@@ -141,6 +156,7 @@ public:
 
     Surface& operator=(Surface &&rhs)
     {
+        PluginPropertyContainer::operator=(std::move(rhs));
         surface_type     = rhs.surface_type;
         expolygon        = std::move(rhs.expolygon);
         m_thickness      = rhs.m_thickness;
@@ -354,7 +370,8 @@ inline bool surfaces_could_merge(const Surface &s1, const Surface &s2)
         s1.surface_type      == s2.surface_type     &&
         s1.scaled_thickness()== s2.scaled_thickness()&&
         s1.thickness_layers  == s2.thickness_layers &&
-        s1.bridge_angle      == s2.bridge_angle;
+        s1.bridge_angle      == s2.bridge_angle &&
+        s1.properties_equal(s2);
 }
 
 // remove any point that are at epsilon  (or resolution) 'distance' (douglas_peuckere algo for now) and all polygons that are too small to be valid

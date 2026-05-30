@@ -8,6 +8,28 @@
 #include <assert.h>
 #include <stdint.h>
 
+/*
+Generic property ids shared by every host-side property container.
+
+The numeric id is the fast runtime key stored on objects. Built-in ids are
+reserved in this header so host and plugin code agree at compile time.
+Plugin-defined ids are allocated by orchestrator_register_property() from the
+custom range and are valid only for the orchestrator that registered them.
+*/
+typedef uint32_t slic3r_property_type;
+
+#define SLIC3R_PROPERTY_TYPE_INVALID                  ((slic3r_property_type)UINT32_MAX)
+#define SLIC3R_PROPERTY_TYPE_CUSTOM_BEGIN             ((slic3r_property_type)0x80000000u)
+
+#define SLIC3R_PROPERTY_TYPE_EXTRUSION_ATTRIBUTES      ((slic3r_property_type)1u)
+#define SLIC3R_PROPERTY_TYPE_EXTRUSION_SPEED           ((slic3r_property_type)2u)
+#define SLIC3R_PROPERTY_TYPE_EXTRUSION_MODIFIER        ((slic3r_property_type)3u)
+#define SLIC3R_PROPERTY_TYPE_EXTRUSION_CUSTOM_GCODE    ((slic3r_property_type)4u)
+#define SLIC3R_PROPERTY_TYPE_EXTRUSION_SPECIAL_COMMAND ((slic3r_property_type)5u)
+#define SLIC3R_PROPERTY_TYPE_EXTRUSION_OVERHANG        ((slic3r_property_type)6u)
+#define SLIC3R_PROPERTY_TYPE_EXTRUSION_Z_OFFSET        ((slic3r_property_type)7u)
+#define SLIC3R_PROPERTY_TYPE_EXTRUSION_PERIMETER       ((slic3r_property_type)9u)
+
 #ifdef __cplusplus
 #define SLIC3R_CONSTEXPR_INLINE constexpr inline
 #define SLIC3R_CONSTEXPR_STATIC constexpr static

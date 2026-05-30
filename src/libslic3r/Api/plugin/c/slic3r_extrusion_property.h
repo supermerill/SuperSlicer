@@ -32,17 +32,17 @@ extrusion_data_id field that will reference the data.
 typedef struct extrusion_entity_handle extrusion_entity_handle;
 typedef struct orchestrator_handle orchestrator_handle;
 
-typedef uint32_t extrusion_property_type;
+typedef slic3r_property_type extrusion_property_type;
 
-#define EXTRUSION_PROPERTY_TYPE_INVALID         ((extrusion_property_type)UINT32_MAX)
-#define EXTRUSION_PROPERTY_TYPE_ATTRIBUTES      ((extrusion_property_type)1u)
-#define EXTRUSION_PROPERTY_TYPE_SPEED           ((extrusion_property_type)2u)
-#define EXTRUSION_PROPERTY_TYPE_MODIFIER        ((extrusion_property_type)3u)
-#define EXTRUSION_PROPERTY_TYPE_CUSTOM_GCODE    ((extrusion_property_type)4u)
-#define EXTRUSION_PROPERTY_TYPE_SPECIAL_COMMAND ((extrusion_property_type)5u)
-#define EXTRUSION_PROPERTY_TYPE_OVERHANG        ((extrusion_property_type)6u)
-#define EXTRUSION_PROPERTY_TYPE_Z_OFFSET        ((extrusion_property_type)7u)
-#define EXTRUSION_PROPERTY_TYPE_PERIMETER       ((extrusion_property_type)9u)
+#define EXTRUSION_PROPERTY_TYPE_INVALID         ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_INVALID)
+#define EXTRUSION_PROPERTY_TYPE_ATTRIBUTES      ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_EXTRUSION_ATTRIBUTES)
+#define EXTRUSION_PROPERTY_TYPE_SPEED           ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_EXTRUSION_SPEED)
+#define EXTRUSION_PROPERTY_TYPE_MODIFIER        ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_EXTRUSION_MODIFIER)
+#define EXTRUSION_PROPERTY_TYPE_CUSTOM_GCODE    ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_EXTRUSION_CUSTOM_GCODE)
+#define EXTRUSION_PROPERTY_TYPE_SPECIAL_COMMAND ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_EXTRUSION_SPECIAL_COMMAND)
+#define EXTRUSION_PROPERTY_TYPE_OVERHANG        ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_EXTRUSION_OVERHANG)
+#define EXTRUSION_PROPERTY_TYPE_Z_OFFSET        ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_EXTRUSION_Z_OFFSET)
+#define EXTRUSION_PROPERTY_TYPE_PERIMETER       ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_EXTRUSION_PERIMETER)
 
 typedef uint32_t extrusion_data_id;
 

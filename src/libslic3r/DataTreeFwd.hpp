@@ -10,11 +10,12 @@
 #include <set>
 #include <string>
 #include <type_traits>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include <tcbspan/span.hpp>
+
+#include "PluginProperty.hpp"
 
 // Forward declarations for the main data tree types.
 // Include this file from headers that only store pointers, references or simple
@@ -183,22 +184,6 @@ using PrintObjectCRefs = RefView<PrintObject, const PrintObjectUPtrs>;
 using PrintObjectRefs = RefView<PrintObject, PrintObjectUPtrs>;
 using PrintRegionCRefs = RefView<PrintRegion, const PrintRegionPtrs>;
 
-
-// Extended by data objects to be able to support plugin's extra data.
-class ExtraDataContainer
-{
-protected:
-    std::unordered_map<std::string, double> m_tags;
-
-public:
-    double get_tag(const std::string &tag) const {
-        std::unordered_map<std::string, double>::const_iterator it = m_tags.find(tag);
-        if (it == m_tags.end())
-            return 0.0;
-        return it->second;
-    }
-    void set_tag(const std::string &tag, double value) { m_tags[tag] = value; }
-};
 
 } // namespace Slic3r
 

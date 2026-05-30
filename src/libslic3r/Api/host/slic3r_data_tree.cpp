@@ -10,6 +10,7 @@
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/internal/LayerIslandAccess.hpp"
 #include "libslic3r/Api/plugin/c/slic3r_data_tree.h"
+#include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/ConfigDef.hpp"
 #include "libslic3r/ExPolygon.hpp"
 #include "libslic3r/ExtrusionEntityCollection.hpp"
@@ -19,6 +20,7 @@
 #include "libslic3r/Print.hpp"
 #include "libslic3r/PrintObject.hpp"
 #include "libslic3r/PrintRegion.hpp"
+#include "libslic3r/PluginProperty.hpp"
 #include "libslic3r/Surface.hpp"
 #include "libslic3r/SurfaceCollection.hpp"
 
@@ -49,6 +51,21 @@ static const PrintObject *to_object(const object_handle *me) { return reinterpre
 
 static Print *to_print(print_handle *me) { return reinterpret_cast<Print*>(me); }
 static const Print *to_print(const print_handle *me) { return reinterpret_cast<const Print*>(me); }
+
+static PluginPropertyContainer *to_plugin_properties(plugin_property_container_handle *me)
+{
+    return reinterpret_cast<PluginPropertyContainer *>(me);
+}
+
+static const PluginPropertyContainer *to_plugin_properties(const plugin_property_container_handle *me)
+{
+    return reinterpret_cast<const PluginPropertyContainer *>(me);
+}
+
+static plugin_property_container_handle *to_mutable_property_handle(const PluginPropertyContainer *container)
+{
+    return reinterpret_cast<plugin_property_container_handle *>(const_cast<PluginPropertyContainer *>(container));
+}
 
 static ExPolygon *to_expolygon(expolygon_handle *me) { return reinterpret_cast<ExPolygon*>(me); }
 static const ExPolygon *to_expolygon(const expolygon_handle *me) { return reinterpret_cast<const ExPolygon*>(me); }
@@ -146,6 +163,66 @@ static ConfigBase *mutable_config(const Print &print)
 
 extern "C" {
 
+uint32_t plugin_property_count(const plugin_property_container_handle *me)
+{
+    return me == nullptr ? 0u : static_cast<uint32_t>(Slic3r::to_plugin_properties(me)->property_count());
+}
+
+plugin_property_type plugin_property_type_at(const plugin_property_container_handle *me, uint32_t idx)
+{
+    return me == nullptr ? PLUGIN_PROPERTY_TYPE_INVALID : Slic3r::to_plugin_properties(me)->property_type_at(idx);
+}
+
+int32_t plugin_property_has(const plugin_property_container_handle *me, plugin_property_type type)
+{
+    return me != nullptr && Slic3r::to_plugin_properties(me)->has_property(type);
+}
+
+uint32_t plugin_property_data_size(const plugin_property_container_handle *me, plugin_property_type type)
+{
+    return me == nullptr ? 0u : Slic3r::to_plugin_properties(me)->property_data_size(type);
+}
+
+const void *plugin_property_data(const plugin_property_container_handle *me, plugin_property_type type)
+{
+    return me == nullptr ? nullptr : Slic3r::to_plugin_properties(me)->property_data(type);
+}
+
+void *plugin_property_data_mutable(plugin_property_container_handle *me, plugin_property_type type)
+{
+    return me == nullptr ? nullptr : Slic3r::to_plugin_properties(me)->property_data_mutable(type);
+}
+
+void *plugin_property_get_or_add_data_mutable(orchestrator_handle *orch,
+                                              plugin_property_container_handle *me,
+                                              plugin_property_type type)
+{
+    const uint32_t byte_count = orchestrator_property_byte_count(orch, type);
+    const uint32_t alignment = orchestrator_property_alignment(orch, type);
+    if (byte_count == 0 || alignment == 0)
+        return nullptr;
+    return me == nullptr ?
+               nullptr :
+               Slic3r::to_plugin_properties(me)->get_or_add_property_data_mutable(type, byte_count, alignment);
+}
+
+int32_t plugin_property_remove(plugin_property_container_handle *me, plugin_property_type type)
+{
+    return me != nullptr && Slic3r::to_plugin_properties(me)->remove_property(type);
+}
+
+void plugin_property_clear(plugin_property_container_handle *me)
+{
+    if (me != nullptr)
+        Slic3r::to_plugin_properties(me)->clear_properties();
+}
+
+void plugin_property_copy_all(plugin_property_container_handle *dst, const plugin_property_container_handle *src)
+{
+    if (dst != nullptr && src != nullptr)
+        Slic3r::to_plugin_properties(dst)->copy_properties_from(*Slic3r::to_plugin_properties(src));
+}
+
 c_surface surface_c_view(const surface_handle *me)
 {
     if (me == nullptr)
@@ -170,6 +247,11 @@ raw_surface_type surface_get_type(const surface_handle *me)
 int32_t surface_get_flag(const surface_handle *me, raw_surface_type flag)
 {
     return me != nullptr && (surface_get_type(me) & flag) != 0;
+}
+
+plugin_property_container_handle *surface_get_properties(const surface_handle *me)
+{
+    return me == nullptr ? nullptr : Slic3r::to_mutable_property_handle(static_cast<const Slic3r::PluginPropertyContainer *>(Slic3r::to_surface(me)));
 }
 
 surface_collection_handle *storage_new_surface_collection(storage_handle *me)
@@ -240,6 +322,13 @@ const surface_handle *surface_collection_at(const surface_collection_handle *me,
     return reinterpret_cast<const surface_handle *>(&Slic3r::to_surface_collection(me)->at(idx));
 }
 
+surface_handle *surface_collection_at_mutable(surface_collection_handle *me, uint32_t idx)
+{
+    if (me == nullptr || idx >= Slic3r::to_surface_collection(me)->size())
+        return nullptr;
+    return reinterpret_cast<surface_handle *>(&Slic3r::to_surface_collection(me)->at(idx));
+}
+
 coord_t layer_get_height(const layer_handle *me)
 {
     return me == nullptr ? 0 : Slic3r::to_layer(me)->scaled_height();
@@ -305,15 +394,9 @@ const layer_handle *layer_get_lower_layer(const layer_handle *me)
     return me == nullptr ? nullptr : reinterpret_cast<const layer_handle*>(Slic3r::to_layer(me)->lower_layer);
 }
 
-void layer_set_tag(layer_handle *me, const char *tag, double value)
+plugin_property_container_handle *layer_get_properties(const layer_handle *me)
 {
-    if (me != nullptr && tag != nullptr)
-        Slic3r::to_layer(me)->set_tag(tag, value);
-}
-
-double layer_get_tag(const layer_handle *me, const char *tag)
-{
-    return (me == nullptr || tag == nullptr) ? 0.0 : Slic3r::to_layer(me)->get_tag(tag);
+    return me == nullptr ? nullptr : Slic3r::to_mutable_property_handle(static_cast<const Slic3r::PluginPropertyContainer *>(Slic3r::to_layer(me)));
 }
 
 uint32_t layer_count_region(const layer_handle *me)
@@ -354,15 +437,9 @@ const layer_island_handle *layer_get_island(const layer_handle *me, uint32_t idx
     return reinterpret_cast<const layer_island_handle*>(&Slic3r::to_layer(me)->island(idx));
 }
 
-void layer_region_set_tag(layer_region_handle *me, const char *tag, double value)
+plugin_property_container_handle *layer_region_get_properties(const layer_region_handle *me)
 {
-    if (me != nullptr && tag != nullptr)
-        Slic3r::to_layer_region(me)->set_tag(tag, value);
-}
-
-double layer_region_get_tag(const layer_region_handle *me, const char *tag)
-{
-    return (me == nullptr || tag == nullptr) ? 0.0 : Slic3r::to_layer_region(me)->get_tag(tag);
+    return me == nullptr ? nullptr : Slic3r::to_mutable_property_handle(static_cast<const Slic3r::PluginPropertyContainer *>(Slic3r::to_layer_region(me)));
 }
 
 c_flow layer_region_get_flow(const layer_region_handle *me, raw_extrusion_role flow_role)
@@ -453,15 +530,9 @@ const expolygon_collection_handle *layer_island_get_infill_no_overlap_areas(cons
                                &Slic3r::to_layer_island(me)->infill_free_areas());
 }
 
-void layer_island_set_tag(layer_island_handle *me, const char *tag, double value)
+plugin_property_container_handle *layer_island_get_properties(const layer_island_handle *me)
 {
-    if (me != nullptr && tag != nullptr)
-        Slic3r::to_layer_island(me)->set_tag(tag, value);
-}
-
-double layer_island_get_tag(const layer_island_handle *me, const char *tag)
-{
-    return (me == nullptr || tag == nullptr) ? 0.0 : Slic3r::to_layer_island(me)->get_tag(tag);
+    return me == nullptr ? nullptr : Slic3r::to_mutable_property_handle(static_cast<const Slic3r::PluginPropertyContainer *>(Slic3r::to_layer_island(me)));
 }
 
 uint32_t layer_island_count_region(const layer_island_handle *me)
@@ -582,15 +653,9 @@ const surface_handle *layer_region_island_get_fill_surface(const layer_region_is
     return surface_collection_at(layer_region_island_get_fill_surfaces(me), idx);
 }
 
-void layer_region_island_set_tag(layer_region_island_handle *me, const char *tag, double value)
+plugin_property_container_handle *layer_region_island_get_properties(const layer_region_island_handle *me)
 {
-    if (me != nullptr && tag != nullptr)
-        Slic3r::to_layer_region_island(me)->set_tag(tag, value);
-}
-
-double layer_region_island_get_tag(const layer_region_island_handle *me, const char *tag)
-{
-    return (me == nullptr || tag == nullptr) ? 0.0 : Slic3r::to_layer_region_island(me)->get_tag(tag);
+    return me == nullptr ? nullptr : Slic3r::to_mutable_property_handle(static_cast<const Slic3r::PluginPropertyContainer *>(Slic3r::to_layer_region_island(me)));
 }
 
 uint32_t layer_region_island_count_region(const layer_region_island_handle *me)
@@ -626,6 +691,11 @@ config_handle *object_get_config_mutable(object_handle *me)
 const config_handle *object_get_config(const object_handle *me)
 {
     return me == nullptr ? nullptr : Slic3r::ApiHost::to_config_handle(&Slic3r::to_object(me)->config());
+}
+
+plugin_property_container_handle *object_get_properties(const object_handle *me)
+{
+    return me == nullptr ? nullptr : Slic3r::to_mutable_property_handle(static_cast<const Slic3r::PluginPropertyContainer *>(Slic3r::to_object(me)));
 }
 
 coord_t object_get_max_z(const object_handle *me)

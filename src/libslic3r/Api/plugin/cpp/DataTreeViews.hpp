@@ -9,11 +9,13 @@
 #include <cstddef>
 #include <iterator>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "libslic3r/Api/plugin/c/slic3r_config_option.h"
 #include "libslic3r/Api/plugin/c/slic3r_data_tree.h"
+#include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/cpp/GeometryViews.hpp"
 
 namespace slic3r_api {
@@ -22,6 +24,7 @@ class ConfigOption;
 class Config;
 class Surface;
 class SurfaceCollection;
+class MutableSurface;
 class Volume;
 class PrintRegion;
 class Object;
@@ -128,6 +131,88 @@ public:
 };
 
 /* ========================= surface views ========================= */
+
+/*
+View over the generic plugin-property container.
+
+Every payload type used with these helpers should look like this:
+
+    struct MySurfaceData {
+        static constexpr plugin_property_type property_type = ...;
+        uint32_t priority = 0;
+    };
+
+The numeric property_type is returned by orchestrator_register_property().
+Built-in host properties may use compile-time constants, while plugin-defined
+properties should register their namespaced string during initialization and
+store the returned id. The payload is copied as raw bytes by the host. Keep it a
+plain C-style struct: no std::string, no std::vector, no owning pointers.
+
+The view is mutable even when it comes from a const Layer, Island or Surface
+handle. This mutates only plugin metadata; it does not make the object geometry
+or native slicer fields writable.
+*/
+class PluginProperties
+{
+public:
+    explicit PluginProperties(plugin_property_container_handle *handle = nullptr) : m_handle(handle) {}
+
+    bool valid() const { return m_handle != nullptr; }
+    const plugin_property_container_handle *handle() const { return m_handle; }
+    plugin_property_container_handle *mutable_handle() const { return m_handle; }
+    uint32_t count() const { return plugin_property_count(m_handle); }
+    plugin_property_type type_at(uint32_t idx) const { return plugin_property_type_at(m_handle, idx); }
+    bool has(plugin_property_type type) const { return plugin_property_has(m_handle, type) != 0; }
+    uint32_t data_size(plugin_property_type type) const { return plugin_property_data_size(m_handle, type); }
+    const void *data(plugin_property_type type) const { return plugin_property_data(m_handle, type); }
+
+    template<class PropertyType> const PropertyType *get() const
+    {
+        static_assert(std::is_trivially_copyable<PropertyType>::value,
+                      "Plugin property payloads are copied as bytes and must be trivially copyable.");
+        if (data_size(PropertyType::property_type) != sizeof(PropertyType))
+            return nullptr;
+        return reinterpret_cast<const PropertyType *>(data(PropertyType::property_type));
+    }
+
+    void clear() { plugin_property_clear(mutable_handle()); }
+    void copy_from(const PluginProperties &other) {
+        plugin_property_copy_all(mutable_handle(), other.handle());
+    }
+    bool remove(plugin_property_type type) { return plugin_property_remove(mutable_handle(), type) != 0; }
+
+    template<class PropertyType> PropertyType *get()
+    {
+        static_assert(std::is_trivially_copyable<PropertyType>::value,
+                      "Plugin property payloads are copied as bytes and must be trivially copyable.");
+        if (data_size(PropertyType::property_type) != sizeof(PropertyType))
+            return nullptr;
+        return reinterpret_cast<PropertyType *>(
+            plugin_property_data_mutable(mutable_handle(), PropertyType::property_type));
+    }
+
+    template<class PropertyType> PropertyType &get_or_add(orchestrator_handle *orchestrator)
+    {
+        static_assert(std::is_trivially_copyable<PropertyType>::value,
+                      "Plugin property payloads are copied as bytes and must be trivially copyable.");
+        /*
+        A new payload is zero-initialized. If the assertion fires, another
+        property type is unknown to this orchestrator or an existing payload
+        with that numeric id has a different binary layout.
+        */
+        void *data = plugin_property_get_or_add_data_mutable(
+            orchestrator, mutable_handle(), PropertyType::property_type);
+        assert(data != nullptr);
+        return *reinterpret_cast<PropertyType *>(data);
+    }
+
+    void *get_or_add(orchestrator_handle *orchestrator, plugin_property_type type) {
+        return plugin_property_get_or_add_data_mutable(orchestrator, mutable_handle(), type);
+    }
+
+private:
+    plugin_property_container_handle *m_handle = nullptr;
+};
 
 /*
 C++ convenience builder for raw_surface_type.
@@ -368,9 +453,55 @@ public:
         return m_handle != nullptr ? surface_c_view(m_handle) : surface;
     }
 
+    PluginProperties properties() const {
+        return PluginProperties(m_handle != nullptr ? surface_get_properties(m_handle) : nullptr);
+    }
+
+    template<class PropertyType> const PropertyType *property() const {
+        return properties().get<PropertyType>();
+    }
+
 private:
     const surface_handle *m_handle = nullptr;
     c_surface surface = {};
+};
+
+class MutableSurface
+{
+public:
+    explicit MutableSurface(surface_handle *handle) : m_handle(handle) { assert(handle != nullptr); }
+
+    surface_handle *mutable_handle() const {
+        assert(m_handle != nullptr);
+        return m_handle;
+    }
+
+    const surface_handle *handle() const { return mutable_handle(); }
+    Surface readonly() const { return Surface(handle()); }
+    operator Surface() const { return readonly(); }
+
+    ExPolygon expolygon() const { return readonly().expolygon(); }
+    raw_surface_type type() const { return readonly().type(); }
+    bool has_flag(raw_surface_type flag) const { return readonly().has_flag(flag); }
+    PluginProperties properties() const { return readonly().properties(); }
+    PluginProperties mutable_properties() const {
+        return PluginProperties(surface_get_properties(mutable_handle()));
+    }
+
+    void copy_properties_from(const Surface &other) {
+        mutable_properties().copy_from(other.properties());
+    }
+
+    template<class PropertyType> const PropertyType *property() const {
+        return properties().get<PropertyType>();
+    }
+
+    template<class PropertyType> PropertyType &get_or_add_property(orchestrator_handle *orchestrator) const {
+        return mutable_properties().get_or_add<PropertyType>(orchestrator);
+    }
+
+private:
+    surface_handle *m_handle = nullptr;
 };
 
 class SurfaceCollection : public ConstDataTreeHandleView<surface_collection_handle>
@@ -480,6 +611,14 @@ public:
     uint32_t size() const { return surface_collection_size(handle()); }
     bool empty() const { return size() == 0; }
     void clear() { surface_collection_clear(mutable_handle()); }
+    MutableSurface mutable_at(uint32_t idx) const {
+        assert(idx < size());
+        return MutableSurface(surface_collection_at_mutable(mutable_handle(), idx));
+    }
+    MutableSurface back_mutable() const {
+        assert(!empty());
+        return mutable_at(size() - 1);
+    }
 
     // Copy borrowed geometry into new Surface objects with the requested type.
     // Use this for views returned by the host data tree or by Clipper outputs
@@ -506,9 +645,45 @@ public:
         surface_collection_append_expolygon_move(mutable_handle(), area.mutable_handle(), surface_type);
     }
 
+    /*
+    Append geometry while preserving the metadata of an existing Surface.
+
+    This is the common operation when a plugin clips or splits a surface: the
+    new pieces have new geometry, but they still represent the same logical
+    surface for later plugins, so their properties must be copied too.
+    */
+    void append_like(const ExPolygonCollection &areas, const Surface &surface_template) {
+        const uint32_t first_new_idx = size();
+        append(areas, surface_template.type());
+        copy_properties_to_range(first_new_idx, surface_template);
+    }
+
+    void append_like_move(StoredExPolygonCollection &&areas, const Surface &surface_template) {
+        const uint32_t first_new_idx = size();
+        append_move(std::move(areas), surface_template.type());
+        copy_properties_to_range(first_new_idx, surface_template);
+    }
+
+    void append_like(const ExPolygon &area, const Surface &surface_template) {
+        const uint32_t first_new_idx = size();
+        append(area, surface_template.type());
+        mutable_at(first_new_idx).copy_properties_from(surface_template);
+    }
+
+    void append_like_move(StoredExPolygon &&area, const Surface &surface_template) {
+        const uint32_t first_new_idx = size();
+        append_move(std::move(area), surface_template.type());
+        mutable_at(first_new_idx).copy_properties_from(surface_template);
+    }
+
     bool free_from_storage() { return reset(); }
 
 private:
+    void copy_properties_to_range(uint32_t first_new_idx, const Surface &surface_template) {
+        for (uint32_t idx = first_new_idx; idx < size(); ++idx)
+            mutable_at(idx).copy_properties_from(surface_template);
+    }
+
     bool reset() {
         if (m_storage == nullptr || m_handle == nullptr)
             return false;
@@ -570,7 +745,9 @@ class LayerRegion : public ConstDataTreeHandleView<layer_region_handle>
 public:
     using ConstDataTreeHandleView<layer_region_handle>::ConstDataTreeHandleView;
 
-    double get_tag(const char *tag) const { return layer_region_get_tag(handle(), tag); }
+    PluginProperties properties() const {
+        return PluginProperties(layer_region_get_properties(handle()));
+    }
 
     c_flow flow(raw_extrusion_role role) const { return layer_region_get_flow(handle(), role); }
     c_flow bridging_flow(raw_extrusion_role role) const { return layer_region_get_bridging_flow(handle(), role); }
@@ -599,7 +776,9 @@ public:
         return layer_region_island_get_extrusion(handle(), role);
     }
 
-    double get_tag(const char *tag) const { return layer_region_island_get_tag(handle(), tag); }
+    PluginProperties properties() const {
+        return PluginProperties(layer_region_island_get_properties(handle()));
+    }
     uint32_t region_count() const { return layer_region_island_count_region(handle()); }
 
     // Regions owned by this LayerRegionIsland. Surface-generation plugins use
@@ -657,7 +836,9 @@ public:
         return ExPolygonCollection(layer_island_get_infill_no_overlap_areas(handle()));
     }
 
-    double get_tag(const char *tag) const { return layer_island_get_tag(handle(), tag); }
+    PluginProperties properties() const {
+        return PluginProperties(layer_island_get_properties(handle()));
+    }
     uint32_t region_count() const { return layer_island_count_region(handle()); }
 
     LayerRegion region(uint32_t idx) const {
@@ -728,7 +909,9 @@ public:
         return Layer(layer_get_lower_layer(handle()));
     }
 
-    double get_tag(const char *tag) const { return layer_get_tag(handle(), tag); }
+    PluginProperties properties() const {
+        return PluginProperties(layer_get_properties(handle()));
+    }
 
     uint32_t region_count() const { return layer_count_region(handle()); }
     uint32_t island_count() const { return layer_count_island(handle()); }
@@ -761,6 +944,10 @@ public:
 
     Config config() const {
         return Config(object_get_config(handle()));
+    }
+
+    PluginProperties properties() const {
+        return PluginProperties(object_get_properties(handle()));
     }
 
     coord_t max_z() const { return object_get_max_z(handle()); }

@@ -19,12 +19,13 @@
 
 #include "Api/plugin/c/slic3r_extrusion_property.h"
 #include "ExtrusionRole.hpp"
+#include "PropertyStorage.hpp"
 #include "libslic3r.h"
 
 namespace Slic3r {
 
 class Flow;
-class PropertySlot;
+using PropertySlot = PropertyStorageSlot;
 struct ExtrusionAttributes;
 class ExtrusionPropertySpeed;
 class ExtrusionPropertyModifier;
@@ -285,114 +286,11 @@ static_assert(std::is_trivially_copyable<ExtrusionPropertyOverhang>::value, "Sto
 static_assert(std::is_trivially_copyable<ExtrusionPropertyZOffset>::value, "Stored extrusion properties must be trivially copyable");
 static_assert(std::is_trivially_copyable<ExtrusionPropertyLoopRole>::value, "Stored extrusion properties must be trivially copyable");
 
-class RawBuffer
-{
-public:
-    RawBuffer() = default;
-    RawBuffer(const RawBuffer&) = delete;
-    RawBuffer(RawBuffer &&rhs) noexcept;
-    RawBuffer& operator=(const RawBuffer&) = delete;
-    RawBuffer& operator=(RawBuffer &&rhs) noexcept;
-    ~RawBuffer();
-
-    void allocate(size_t byte_count, size_t alignment);
-    void copy_from(const void *data, size_t byte_count, size_t alignment);
-    void reset();
-
-    void* data() { return m_data; }
-    const void* data() const { return m_data; }
-    size_t size() const { return m_size; }
-    size_t alignment() const { return m_alignment; }
-
-    template<typename T> T& as()
-    {
-        assert(m_data != nullptr);
-        assert(m_size == sizeof(T));
-        assert(m_alignment >= alignof(T));
-        return *reinterpret_cast<T*>(m_data);
-    }
-
-    template<typename T> const T& as() const
-    {
-        assert(m_data != nullptr);
-        assert(m_size == sizeof(T));
-        assert(m_alignment >= alignof(T));
-        return *reinterpret_cast<const T*>(m_data);
-    }
-
-private:
-    // The buffer owns raw storage only. PropertySlot is responsible for
-    // constructing and destroying the property object stored in this memory.
-    void  *m_data = nullptr;
-    size_t m_size = 0;
-    size_t m_alignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
-};
-
 // Type-tagged raw storage for one extrusion property.
-// Built-in properties and plugin properties are stored with the same rule:
-// trivially copyable C payload bytes, tagged by extrusion_property_type.
-// C++ property classes are zero-overhead wrappers over those C payloads.
-class PropertySlot
-{
-    friend class ExtrusionPropertyContainer;
-    friend struct ApiInternal::ExtrusionPropertyAccess;
-
-public:
-    PropertySlot() = default;
-    PropertySlot(const PropertySlot &rhs);
-    PropertySlot(PropertySlot &&rhs) noexcept;
-    PropertySlot& operator=(const PropertySlot &rhs);
-    PropertySlot& operator=(PropertySlot &&rhs) noexcept;
-    ~PropertySlot() = default;
-
-    extrusion_property_type type() const { return m_raw_type; }
-    bool empty() const { return m_raw_type == extrusion_property_type_invalid; }
-
-    template<typename PropertyType, typename... Args> PropertyType& emplace(Args&&... args)
-    {
-        static_assert(std::is_trivially_copyable<PropertyType>::value, "Stored extrusion properties must be trivially copyable");
-        this->reset();
-        m_data.allocate(sizeof(PropertyType), alignof(PropertyType));
-        PropertyType *property = new (m_data.data()) PropertyType(std::forward<Args>(args)...);
-        m_raw_type = ExtrusionPropertyTraits<PropertyType>::type;
-        return *property;
-    }
-
-    template<typename PropertyType> PropertyType* get_if()
-    {
-        return this->type() == ExtrusionPropertyTraits<PropertyType>::type ? &m_data.as<PropertyType>() : nullptr;
-    }
-
-    template<typename PropertyType> const PropertyType* get_if() const
-    {
-        return this->type() == ExtrusionPropertyTraits<PropertyType>::type ? &m_data.as<PropertyType>() : nullptr;
-    }
-
-    template<typename PropertyType> PropertyType& as()
-    {
-        assert(this->type() == ExtrusionPropertyTraits<PropertyType>::type);
-        return m_data.as<PropertyType>();
-    }
-
-    template<typename PropertyType> const PropertyType& as() const
-    {
-        assert(this->type() == ExtrusionPropertyTraits<PropertyType>::type);
-        return m_data.as<PropertyType>();
-    }
-
-    void reset();
-
-private:
-    void emplace_raw(extrusion_property_type type, const void *data, size_t byte_count, size_t alignment);
-    void emplace_zeroed(extrusion_property_type type, size_t byte_count, size_t alignment);
-    void* data();
-    const void* data() const;
-    size_t byte_count() const { return m_data.size(); }
-    size_t alignment() const { return m_data.alignment(); }
-
-    RawBuffer m_data;
-    extrusion_property_type m_raw_type = extrusion_property_type_invalid;
-};
+// Built-in extrusion properties and generic plugin properties now use the same
+// byte-storage backend. The extrusion container keeps the higher-level rules:
+// inherited property semantics, C++ wrappers and data resources owned by a
+// property field.
 
 template<typename PropertyType>
 inline ExtrusionPropertyUPtr clone_property_to_slot(const PropertyType &property)
@@ -512,7 +410,7 @@ protected:
         uint32_t id = 0;
         extrusion_property_type owner_type = extrusion_property_type_invalid;
         uint32_t owner_field_offset = uint32_t(-1);
-        RawBuffer data;
+        PropertyRawBuffer data;
 
         DataResource() = default;
         DataResource(const DataResource &rhs);

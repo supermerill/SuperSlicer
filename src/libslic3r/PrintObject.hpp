@@ -87,7 +87,7 @@ struct PrintInstance
 	Point 				 shift;
 };
 
-class PrintObject : public PrintObjectBaseWithState<Print, PrintObjectStep, posCount>
+class PrintObject : public PrintObjectBaseWithState<Print, PrintObjectStep, posCount>, public PluginPropertyContainer
 {
 private: // Prevents erroneous use by other classes.
     typedef PrintObjectBaseWithState<Print, PrintObjectStep, posCount> Inherited;

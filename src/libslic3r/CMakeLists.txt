@@ -559,6 +559,10 @@ set(SLIC3R_SOURCES
     PerimeterGenerator.hpp
     PlaceholderParser.cpp
     PlaceholderParser.hpp
+    PluginProperty.cpp
+    PluginProperty.hpp
+    PropertyStorage.cpp
+    PropertyStorage.hpp
     Platform.cpp
     Platform.hpp
     Point.cpp

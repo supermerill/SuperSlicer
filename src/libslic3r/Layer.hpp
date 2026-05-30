@@ -38,7 +38,7 @@ namespace FillLightning {
 };
 
 // kind of similar as old's LayerSlice
-class LayerSliceIsland : public ExtraDataContainer
+class LayerSliceIsland : public PluginPropertyContainer
 {
 public:
     // only filled when Layer's LayerSliceIsland are locked.
@@ -121,7 +121,7 @@ public:
 //    std::vector<LayerIsland>;
 //#endif // NDEBUG
 
-class Layer : public ExtraDataContainer
+class Layer : public PluginPropertyContainer
 {
     coord_t             m_height;        // layer height
     coord_t             m_print_z;       // Z used for printing

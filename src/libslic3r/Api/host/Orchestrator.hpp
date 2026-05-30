@@ -97,11 +97,13 @@ class Orchestrator
 public:
     struct CustomExtrusionPropertyInfo
     {
-        extrusion_property_type type;
+        slic3r_property_type type;
         std::string name;
         uint32_t byte_count;
         uint32_t alignment;
     };
+
+    using PropertyInfo = CustomExtrusionPropertyInfo;
 
     struct PluginUiFragment
     {
@@ -236,6 +238,11 @@ public:
     void request_plugin_cancel();
     void reset_plugin_cancel();
     void initialize_plugins();
+    slic3r_property_type register_property(const char *namespaced_name,
+                                           uint32_t byte_count,
+                                           uint32_t alignment);
+    const PropertyInfo *property_info(slic3r_property_type type) const;
+    const PropertyInfo *property_info(const char *namespaced_name) const;
     extrusion_property_type register_custom_extrusion_property(const char *namespaced_name,
                                                                uint32_t byte_count,
                                                                uint32_t alignment);
@@ -255,8 +262,8 @@ private:
     uint64_t m_next_ui_fragment_order { 0 };
     std::vector<PluginGuiRule> m_gui_rules;
     std::map<std::string, ConfigOptionOwner> m_config_option_owners;
-    std::vector<CustomExtrusionPropertyInfo> m_custom_extrusion_property_infos;
-    extrusion_property_type m_next_custom_extrusion_property_type { extrusion_property_type(0x80000000u) };
+    std::vector<PropertyInfo> m_custom_property_infos;
+    slic3r_property_type m_next_custom_property_type { SLIC3R_PROPERTY_TYPE_CUSTOM_BEGIN };
     std::vector<GenericFacetsAnnotationDefinition> m_generic_facets_annotations;
     std::atomic_bool m_plugin_cancel_requested { false };
     std::mutex m_plugin_messages_mutex;

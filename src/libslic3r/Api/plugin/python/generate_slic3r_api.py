@@ -47,6 +47,8 @@ TYPE_ALIASES = {
     "raw_extrusion_role": "int32_t",
     "raw_config_option_mode": "uint64_t",
     "RawConfigOptionFlags": "uint64_t",
+    "slic3r_property_type": "uint32_t",
+    "plugin_property_type": "uint32_t",
     "extrusion_property_type": "uint32_t",
     "extrusion_data_id": "uint32_t",
     "expolygon_status": "int32_t",
@@ -217,7 +219,7 @@ def clean_type(c_type: str) -> str:
 
 def strip_casts(expr: str) -> str:
     return re.sub(
-        r"\(\s*(?:uint\d+_t|int\d+_t|coord_t|distf_t|coordf_t|extrusion_property_type|extrusion_data_id)\s*\)",
+        r"\(\s*(?:uint\d+_t|int\d+_t|coord_t|distf_t|coordf_t|slic3r_property_type|plugin_property_type|extrusion_property_type|extrusion_data_id)\s*\)",
         "",
         expr,
     )

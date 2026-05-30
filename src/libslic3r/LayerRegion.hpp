@@ -37,7 +37,7 @@ namespace ApiInternal { struct LayerAccess; }
 namespace ApiInternal { struct LayerRegionAccess; }
 
 
-class LayerRegion : public ExtraDataContainer
+class LayerRegion : public PluginPropertyContainer
 {
     friend struct ApiInternal::LayerAccess;
 
@@ -166,7 +166,7 @@ using LayerRegionSetCPtrs = std::set<const LayerRegion*>;
 // each LayerIsland containing a set of perimeter extrusions extruded with one particular PrintRegionConfig parameters
 // and one or multiple 
 // kind of similar as old's LayerIsland
-class LayerRegionIsland : public ExtraDataContainer
+class LayerRegionIsland : public PluginPropertyContainer
 {
 private:
     friend class Layer;

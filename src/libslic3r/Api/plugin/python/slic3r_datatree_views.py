@@ -464,9 +464,6 @@ class MutablePrintRegion(PrintRegion):
 
 # Borrowed layer-region view.
 class LayerRegion(DataTreeView):
-    def get_tag(self, tag: str) -> float:
-        return float(self.api.host.layer_region_get_tag(self.c_handle(), _as_bytes(tag)))
-
     def flow(self, role: int) -> CFlow:
         return self.api.host.layer_region_get_flow(self.c_handle(), int(role))
 
@@ -487,9 +484,6 @@ class MutableLayerRegion(LayerRegion):
     def mutable_c_handle(self) -> ctypes.c_void_p:
         return self.c_handle()
 
-    def set_tag(self, tag: str, value: float) -> None:
-        self.api.host.layer_region_set_tag(self.mutable_c_handle(), _as_bytes(tag), float(value))
-
 
 # Borrowed layer-region island view. It is the usual entry point for extrusion
 # trees attached to one island/region pair.
@@ -505,9 +499,6 @@ class LayerRegionIsland(DataTreeView):
 
     def extrusion(self, role: int) -> ExtrusionEntity | None:
         return _optional(ExtrusionEntity, self.api, self.api.host.layer_region_island_get_extrusion(self.c_handle(), int(role)))
-
-    def get_tag(self, tag: str) -> float:
-        return float(self.api.host.layer_region_island_get_tag(self.c_handle(), _as_bytes(tag)))
 
     def fill_surfaces_collection(self) -> SurfaceCollection:
         return SurfaceCollection(self.api, self.api.host.layer_region_island_get_fill_surfaces(self.c_handle()))
@@ -533,9 +524,6 @@ class MutableLayerRegionIsland(LayerRegionIsland):
             self.api.host.layer_region_island_get_mutable_extrusion(self.mutable_c_handle(), int(role)),
         )
 
-    def set_tag(self, tag: str, value: float) -> None:
-        self.api.host.layer_region_island_set_tag(self.mutable_c_handle(), _as_bytes(tag), float(value))
-
 
 # Borrowed layer island view.
 class LayerIsland(DataTreeView):
@@ -559,9 +547,6 @@ class LayerIsland(DataTreeView):
 
     def infill_no_overlap_areas(self) -> ExPolygonCollection:
         return ExPolygonCollection(self.api, self.api.host.layer_island_get_infill_no_overlap_areas(self.c_handle()))
-
-    def get_tag(self, tag: str) -> float:
-        return float(self.api.host.layer_island_get_tag(self.c_handle(), _as_bytes(tag)))
 
     def region_count(self) -> int:
         return int(self.api.host.layer_island_count_region(self.c_handle()))
@@ -614,9 +599,6 @@ class MutableLayerIsland(LayerIsland):
     def slice_mutable(self) -> ExPolygon:
         return ExPolygon(self.api, self.api.host.layer_island_get_slice_mutable(self.mutable_c_handle()))
 
-    def set_tag(self, tag: str, value: float) -> None:
-        self.api.host.layer_island_set_tag(self.mutable_c_handle(), _as_bytes(tag), float(value))
-
     def region_mutable(self, idx: int) -> MutableLayerRegion:
         return MutableLayerRegion(self.api, self.api.host.layer_island_get_region_mutable(self.mutable_c_handle(), int(idx)))
 
@@ -646,9 +628,6 @@ class Layer(DataTreeView):
 
     def lower_layer(self) -> "Layer | None":
         return _optional(Layer, self.api, self.api.host.layer_get_lower_layer(self.c_handle()))
-
-    def get_tag(self, tag: str) -> float:
-        return float(self.api.host.layer_get_tag(self.c_handle(), _as_bytes(tag)))
 
     def region_count(self) -> int:
         return int(self.api.host.layer_count_region(self.c_handle()))
@@ -683,9 +662,6 @@ class MutableLayer(Layer):
 
     def lower_layer_mutable(self) -> "MutableLayer | None":
         return _optional(MutableLayer, self.api, self.api.host.layer_get_lower_layer_mutable(self.mutable_c_handle()))
-
-    def set_tag(self, tag: str, value: float) -> None:
-        self.api.host.layer_set_tag(self.mutable_c_handle(), _as_bytes(tag), float(value))
 
     def region_mutable(self, idx: int) -> MutableLayerRegion:
         return MutableLayerRegion(self.api, self.api.host.layer_get_region_mutable(self.mutable_c_handle(), int(idx)))
