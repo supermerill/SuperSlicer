@@ -88,10 +88,12 @@ struct Fragment
              const std::vector<c_point> &points,
              const EPropertyAttributes &attributes,
              double order_in,
-             bool changed_in) :
+             bool changed_in,
+             double min_length_in = 0.) :
         entity(storage, source),
         order(order_in),
-        changed(changed_in)
+        changed(changed_in),
+        min_length(min_length_in)
     {
         entity.set_points(points);
         entity.get_or_add_property<EPropertyAttributes>() = attributes;
@@ -100,6 +102,7 @@ struct Fragment
     StoredExtrusionEntity entity;
     double order = 0.;
     bool changed = false;
+    double min_length = 0.;
 };
 
 StoredPolyline polyline_from_points(storage_handle *storage, const std::vector<c_point> &points)
@@ -169,6 +172,136 @@ bool same_points(const std::vector<c_point> &lhs, const std::vector<c_point> &rh
         if (lhs[idx].x != rhs[idx].x || lhs[idx].y != rhs[idx].y)
             return false;
     return true;
+}
+
+double point_path_length(const std::vector<c_point> &points)
+{
+    double length = 0.;
+    for (size_t idx = 1; idx < points.size(); ++idx)
+        length += norm(points[idx] - points[idx - 1]);
+    return length;
+}
+
+double minimum_split_length(const OverhangConfig &config, const EPropertyAttributes &attributes)
+{
+    // Overhang detection is a classifier, not a path generator. Very short
+    // classifier fragments should be absorbed by a neighbor because they do
+    // not carry enough printable length to justify a separate G-code move.
+    const raw_extrusion_role role = raw_extrusion_role(attributes.extrusion_role());
+    const bool external_perimeter = RAW_EXTRUSION_ROLE_IS_EXTERNAL(role);
+    const double min_mm = external_perimeter ?
+        config.nozzle_diameter_mm / 4. :
+        std::max(config.nozzle_diameter_mm, config.max_threshold_mm()) / 10.;
+    return scale_d(std::max(0.001, min_mm));
+}
+
+void append_connected_points(std::vector<c_point> &dst, const std::vector<c_point> &src)
+{
+    if (src.empty())
+        return;
+    if (dst.empty()) {
+        dst = src;
+        return;
+    }
+
+    const size_t first = points_equal(dst.back(), src.front()) ? 1u : 0u;
+    dst.insert(dst.end(), src.begin() + first, src.end());
+}
+
+void replace_fragment_points(Fragment &fragment, std::vector<c_point> &&points)
+{
+    fragment.entity.set_points(points);
+    fragment.changed = true;
+}
+
+void append_fragment_points(Fragment &dst, const Fragment &src)
+{
+    std::vector<c_point> points = dst.entity.points();
+    append_connected_points(points, src.entity.points());
+    replace_fragment_points(dst, std::move(points));
+}
+
+void prepend_fragment_points(Fragment &dst, const Fragment &src)
+{
+    std::vector<c_point> points = src.entity.points();
+    append_connected_points(points, dst.entity.points());
+    replace_fragment_points(dst, std::move(points));
+}
+
+bool is_tiny_fragment(const Fragment &fragment)
+{
+    return fragment.min_length > 0. &&
+           point_path_length(fragment.entity.points()) < fragment.min_length;
+}
+
+bool collapse_tiny_segments(Fragment &fragment)
+{
+    if (fragment.min_length <= 0.)
+        return true;
+
+    const std::vector<c_point> source = fragment.entity.points();
+    if (source.size() < 2)
+        return false;
+
+    const double min_length_sq = fragment.min_length * fragment.min_length;
+    std::vector<c_point> cleaned;
+    cleaned.reserve(source.size());
+    cleaned.push_back(source.front());
+    for (size_t point_idx = 1; point_idx < source.size(); ++point_idx) {
+        const bool last_point = point_idx + 1 == source.size();
+        const double dx = double(cleaned.back().x - source[point_idx].x);
+        const double dy = double(cleaned.back().y - source[point_idx].y);
+        const double distance_sq = dx * dx + dy * dy;
+        if (distance_sq >= min_length_sq) {
+            cleaned.push_back(source[point_idx]);
+        } else if (last_point && cleaned.size() > 1) {
+            cleaned.back() = source[point_idx];
+        }
+    }
+
+    if (cleaned.size() < 2)
+        return false;
+
+    replace_fragment_points(fragment, std::move(cleaned));
+    return true;
+}
+
+void merge_tiny_fragments(std::vector<Fragment> &fragments)
+{
+    // The support/overhang boundary can cut an extrusion at a very shallow
+    // angle and leave a classifier-only sliver. Keeping that sliver as its own
+    // path creates almost-zero extrusion moves. Merging it into a neighbor
+    // preserves the centerline order and merely lets the neighbor's overhang
+    // classification cover an unprintably small distance.
+    fragments.erase(
+        std::remove_if(fragments.begin(), fragments.end(),
+                       [](Fragment &fragment) {
+                           return !collapse_tiny_segments(fragment) || fragment.entity.point_count() < 2;
+                       }),
+        fragments.end());
+
+    for (size_t idx = 0; idx < fragments.size();) {
+        if (!is_tiny_fragment(fragments[idx])) {
+            ++idx;
+            continue;
+        }
+
+        if (idx > 0) {
+            append_fragment_points(fragments[idx - 1], fragments[idx]);
+            collapse_tiny_segments(fragments[idx - 1]);
+            fragments.erase(fragments.begin() + idx);
+            continue;
+        }
+
+        if (fragments.size() > 1) {
+            prepend_fragment_points(fragments[1], fragments[0]);
+            collapse_tiny_segments(fragments[1]);
+            fragments.erase(fragments.begin());
+            continue;
+        }
+
+        ++idx;
+    }
 }
 
 std::vector<c_point> densify_points(const std::vector<c_point> &points, coord_t max_segment_length)
@@ -426,6 +559,7 @@ void append_supported_fragment(storage_handle *storage,
                                const Polyline &polyline,
                                const std::vector<c_point> &source_points,
                                const EPropertyAttributes &effective_attributes,
+                               const OverhangConfig &config,
                                std::vector<Fragment> &fragments)
 {
     if (polyline.size() < 2)
@@ -434,7 +568,8 @@ void append_supported_fragment(storage_handle *storage,
     EPropertyAttributes attributes = effective_attributes;
     attributes.extrusion_role(attributes.extrusion_role() & ~RAW_EXTRUSION_ROLE_BRIDGE);
     fragments.emplace_back(storage, source, polyline.points(), attributes,
-                           distance_along_points(source_points, polyline.front()), true);
+                           distance_along_points(source_points, polyline.front()), true,
+                           minimum_split_length(config, effective_attributes));
     fragments.back().entity.remove_property<EPropertyOverhang>();
 }
 
@@ -491,7 +626,8 @@ void append_overhang_fragments(storage_handle *storage,
         std::vector<c_point> fragment_points(points.begin() + begin, points.begin() + end + 1);
         EPropertyAttributes attributes = effective_attributes;
         fragments.emplace_back(storage, source, fragment_points, attributes,
-                               distance_along_points(source_points, fragment_points.front()), true);
+                               distance_along_points(source_points, fragment_points.front()), true,
+                               minimum_split_length(config, effective_attributes));
         apply_overhang_properties(attributes, fragments.back().entity, config, min_distance, max_distance, curled);
 
         begin = end;
@@ -523,7 +659,7 @@ void append_region_fragments(storage_handle *storage,
         StoredPolylineCollection supported_polylines =
             clipper_intersection_polyline_expolygons(storage, region_polyline, supported_area);
         for (const Polyline supported : supported_polylines)
-            append_supported_fragment(storage, source, supported, source_points, effective_attributes, fragments);
+            append_supported_fragment(storage, source, supported, source_points, effective_attributes, config, fragments);
 
         StoredPolylineCollection overhang_polylines =
             clipper_diff_polyline_expolygons(storage, region_polyline, supported_area);
@@ -569,6 +705,7 @@ std::vector<Fragment> split_leaf(storage_handle *storage,
 
     std::sort(fragments.begin(), fragments.end(),
               [](const Fragment &lhs, const Fragment &rhs) { return lhs.order < rhs.order; });
+    merge_tiny_fragments(fragments);
     return fragments;
 }
 
@@ -593,6 +730,9 @@ void replace_root_leaf_with_fragments(MutableExtrusionEntity root, std::vector<F
         return;
     }
 
+    // In the new extrusion tree a leaf is a plain ExtrusionEntity, so replacing
+    // its local polyline by ordered children is safe. The visitor intentionally
+    // does not revisit these freshly inserted children during the same pass.
     const bool was_reversible = (root.flags() & RAW_EXTRUSION_FLAG_REVERSIBLE) != 0;
     root.clear_content();
     root.set_flags((was_reversible ? RAW_EXTRUSION_FLAG_REVERSIBLE : 0) | RAW_EXTRUSION_FLAG_CONTINUOUS);

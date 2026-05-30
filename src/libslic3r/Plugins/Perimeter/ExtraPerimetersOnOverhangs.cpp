@@ -99,6 +99,28 @@ const extrusion_entity_handle *native_entity_handle(const Slic3r::ExtrusionEntit
     return reinterpret_cast<const extrusion_entity_handle *>(&entity);
 }
 
+c_point c_point_from_native(const Slic3r::Point &point)
+{
+    return c_point{ point.x(), point.y() };
+}
+
+std::vector<c_point> c_points_from_native(const Slic3r::Polyline &polyline)
+{
+    std::vector<c_point> out;
+    out.reserve(polyline.size());
+    for (const Slic3r::Point &point : polyline.points)
+        out.push_back(c_point_from_native(point));
+    return out;
+}
+
+EPropertyAttributes attributes_from_native(const Slic3r::ExtrusionAttributes &attributes)
+{
+    EPropertyAttributes out;
+    static_cast<c_extrusion_property_attributes &>(out) =
+        static_cast<const c_extrusion_property_attributes &>(attributes);
+    return out;
+}
+
 Slic3r::ExPolygons native_collection(const ExPolygonCollection &collection)
 {
     if (collection.empty())
@@ -144,6 +166,78 @@ Slic3r::coord_t overhang_spacing_from_config(const Config &config, const c_flow 
     const Slic3r::coord_t configured = scaled_float_or_percent_value(
         config, k_overhangs_extrusion_spacing_key, unscaled(perimeter_flow.nozzle_diameter), 0);
     return configured > 0 ? configured : perimeter_flow.spacing;
+}
+
+Slic3r::coord_t minimum_printable_split_length(const Slic3r::coordf_t spacing)
+{
+    return std::max<Slic3r::coord_t>(
+        Slic3r::coord_t(SCALED_EPSILON),
+        Slic3r::coord_t(spacing / 10.0));
+}
+
+double squared_distance(const Slic3r::Point &lhs, const Slic3r::Point &rhs)
+{
+    return (lhs - rhs).cast<double>().squaredNorm();
+}
+
+void collapse_tiny_segments(Slic3r::Polyline &polyline, const Slic3r::coord_t min_length)
+{
+    if (polyline.size() < 2)
+        return;
+
+    const double min_length_squared = double(min_length) * double(min_length);
+    const bool closed = polyline.front() == polyline.back();
+    Slic3r::Points source = polyline.points;
+    if (closed && source.size() > 1)
+        source.pop_back();
+    if (source.size() < 2) {
+        polyline.clear();
+        return;
+    }
+
+    // Clipper can create very short pieces when a generated line barely
+    // touches the clipping boundary. They are below the physical spacing budget
+    // and later become almost zero-length G-code moves, so merge them into the
+    // neighboring segment before the extrusion path is published.
+    Slic3r::Points cleaned;
+    cleaned.reserve(source.size() + (closed ? 1 : 0));
+    cleaned.push_back(source.front());
+    for (size_t point_idx = 1; point_idx < source.size(); ++point_idx) {
+        const bool last_point = point_idx + 1 == source.size();
+        if (squared_distance(cleaned.back(), source[point_idx]) >= min_length_squared) {
+            cleaned.push_back(source[point_idx]);
+        } else if (last_point && cleaned.size() > 1) {
+            cleaned.back() = source[point_idx];
+        }
+    }
+
+    if (closed) {
+        while (cleaned.size() > 2 &&
+               squared_distance(cleaned.back(), cleaned.front()) < min_length_squared)
+            cleaned.pop_back();
+        if (cleaned.size() > 2)
+            cleaned.push_back(cleaned.front());
+    }
+
+    if (cleaned.size() < 2 || (closed && cleaned.size() < 4)) {
+        polyline.clear();
+        return;
+    }
+
+    polyline.points = std::move(cleaned);
+}
+
+void collapse_tiny_segments(Slic3r::Polylines &polylines, const Slic3r::coord_t min_length)
+{
+    for (Slic3r::Polyline &polyline : polylines)
+        collapse_tiny_segments(polyline, min_length);
+
+    polylines.erase(
+        std::remove_if(polylines.begin(), polylines.end(),
+                       [min_length](const Slic3r::Polyline &polyline) {
+                           return polyline.size() < 2 || polyline.length() < min_length;
+                       }),
+        polylines.end());
 }
 
 OverhangFlow overhang_flow_from_perimeter_flow(const c_flow &perimeter_flow)
@@ -354,6 +448,9 @@ Slic3r::ExtrusionPaths sort_extra_perimeters(const Slic3r::ExtrusionPaths &extra
     if (extra_perims.empty())
         return {};
 
+    const Slic3r::coord_t min_split_length = minimum_printable_split_length(extrusion_spacing);
+    const double min_split_length_squared = double(min_split_length) * double(min_split_length);
+
     // Every path before index_of_first_unanchored is already touching lower
     // material. Later paths should be printed only once they are connected to a
     // processed path, otherwise unsupported strokes may be emitted in mid-air.
@@ -462,11 +559,27 @@ Slic3r::ExtrusionPaths sort_extra_perimeters(const Slic3r::ExtrusionPaths &extra
     Slic3r::ExtrusionPaths reconnected;
     reconnected.reserve(sorted_paths.size());
     for (Slic3r::ExtrusionPath &path : sorted_paths) {
+        if (path.length() < min_split_length)
+            continue;
+
         if (!reconnected.empty() &&
-            (reconnected.back().last_point() - path.first_point()).cast<double>().squaredNorm() <
+            squared_distance(reconnected.back().last_point(), path.first_point()) <
                 extrusion_spacing * extrusion_spacing * 4.0) {
-            if (reconnected.back().last_point() != path.first_point() &&
-                reconnected.back().last_point().coincides_with_epsilon(path.first_point())) {
+            const double connector_length_squared =
+                squared_distance(reconnected.back().last_point(), path.first_point());
+            if (connector_length_squared < min_split_length_squared) {
+                // A connector shorter than spacing/10 is a clipping crumb, not
+                // a printable split. Snap the next path onto the previous one
+                // so the G-code writer does not receive a 100 nm segment.
+                path.polyline().set_front(reconnected.back().last_point());
+                while (path.polyline().size() > 1 &&
+                       squared_distance(path.polyline().front(), path.polyline().get_point(1)) <
+                           min_split_length_squared) {
+                    path.polyline().pop_front();
+                    path.polyline().set_front(reconnected.back().last_point());
+                }
+            } else if (reconnected.back().last_point() != path.first_point() &&
+                       reconnected.back().last_point().coincides_with_epsilon(path.first_point())) {
                 path.polyline().set_front(reconnected.back().last_point());
                 if (path.polyline().front().coincides_with_epsilon(path.polyline().get_point(1))) {
                     path.polyline().pop_front();
@@ -475,7 +588,7 @@ Slic3r::ExtrusionPaths sort_extra_perimeters(const Slic3r::ExtrusionPaths &extra
             } else if (reconnected.back().last_point() != path.first_point()) {
                 reconnected.back().polyline().append(path.polyline().front());
             }
-            if (path.length() > SCALED_EPSILON)
+            if (path.length() > min_split_length)
                 reconnected.back().polyline().append(path.polyline());
         } else {
             reconnected.push_back(path);
@@ -495,9 +608,13 @@ void append_overhang_paths(Slic3r::ExtrusionPaths &dst,
                            Slic3r::Polylines &&polylines,
                            const OverhangGenerationInput &input)
 {
+    const Slic3r::coord_t min_split_length = minimum_printable_split_length(input.overhang_spacing);
+    Slic3r::Polylines reconnected =
+        reconnect_polylines(polylines, input.overhang_spacing, Slic3r::coord_t(SCALED_EPSILON));
+    collapse_tiny_segments(reconnected, min_split_length);
     Slic3r::extrusion_paths_append(
         dst,
-        reconnect_polylines(polylines, input.overhang_spacing, Slic3r::coord_t(SCALED_EPSILON)),
+        std::move(reconnected),
         input.overhang_flow.attributes,
         false);
 }
@@ -758,7 +875,7 @@ void append_native_copy(MutableExtrusionEntity &dst, const Slic3r::ExtrusionEnti
     (void)index;
 }
 
-void append_extra_path(MutableExtrusionEntity dst, const Slic3r::ExtrusionPath &path)
+void append_extra_path(storage_handle *storage, MutableExtrusionEntity dst, const Slic3r::ExtrusionPath &path)
 {
     if (path.empty())
         return;
@@ -766,7 +883,17 @@ void append_extra_path(MutableExtrusionEntity dst, const Slic3r::ExtrusionPath &
     // A closed extra anchor is still stored as a path, not as a loop. Loops
     // may be split or rotated by later ordering code, while this path should
     // keep the start/end selected by the anchor ordering algorithm.
-    append_native_copy(dst, path);
+    //
+    // Publish the result through the plugin extrusion ABI instead of copying
+    // the native ExtrusionPath object. ExtrusionPath is a legacy host class;
+    // post-process plugins in the new pipeline expect plain ExtrusionEntity
+    // nodes whose behavior is entirely described by content, flags and
+    // properties.
+    StoredExtrusionEntity entity(storage);
+    entity.set_points(c_points_from_native(path.polyline().to_polyline()));
+    entity.get_or_add_property<EPropertyAttributes>() = attributes_from_native(path.attributes());
+    entity.set_flags(path.can_reverse() ? RAW_EXTRUSION_FLAG_REVERSIBLE : 0);
+    dst.add_child(entity.mutable_view());
 }
 
 void prepend_extra_perimeters_to_root(storage_handle *storage,
@@ -781,7 +908,7 @@ void prepend_extra_perimeters_to_root(storage_handle *storage,
 
     for (const Slic3r::ExtrusionPaths &paths : extra_perimeters)
         for (const Slic3r::ExtrusionPath &path : paths)
-            append_extra_path(root, path);
+            append_extra_path(storage, root, path);
 
     if (original.child_count() > 0) {
         while (original.child_count() > 0)

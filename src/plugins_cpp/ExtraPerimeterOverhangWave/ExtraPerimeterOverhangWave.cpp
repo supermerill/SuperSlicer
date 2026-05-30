@@ -104,6 +104,11 @@ coord_t overhang_spacing_from_config(const Config &config, const c_flow &perimet
     return configured > 0 ? configured : perimeter_flow.spacing;
 }
 
+coord_t minimum_printable_split_length(const coord_t spacing)
+{
+    return std::max<coord_t>(SCALED_EPSILON, spacing / 10);
+}
+
 WaveFlow wave_flow_from_perimeter_flow(const c_flow &perimeter_flow)
 {
     // The wave paths are regular internal perimeters. This plugin only creates
@@ -474,7 +479,9 @@ bool append_wave_polyline(storage_handle *storage,
                           const OverhangGenerationInput &input,
                           const LineDistancer &lower_layer_distancer)
 {
-    if (!polyline.is_valid() || polyline.length() < input.wave_flow.width)
+    const coord_t min_split_length = minimum_printable_split_length(input.overhang_spacing);
+    if (!polyline.is_valid() ||
+        polyline.length() < std::max<double>(double(input.wave_flow.width), double(min_split_length)))
         return false;
 
     StoredExtrusionEntity path(storage, polyline);
@@ -494,7 +501,14 @@ bool append_wave_polyline(storage_handle *storage,
         // the printer travels without breaking the zone order.
         if (link_choice.distance_squared < link_distance * link_distance) {
             std::vector<c_point> previous_points = previous.points();
-            const std::vector<c_point> path_points = path.points();
+            std::vector<c_point> path_points = path.points();
+            if (link_choice.distance_squared < double(min_split_length) * double(min_split_length) &&
+                !path_points.empty()) {
+                // If the split created a sub-spacing connector, snap the next
+                // wave to the previous endpoint instead of emitting a tiny
+                // segment that cannot be printed reliably.
+                path_points.front() = previous.back();
+            }
             previous_points.insert(previous_points.end(), path_points.begin(), path_points.end());
             previous.set_points(previous_points);
             return true;

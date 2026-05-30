@@ -61,6 +61,41 @@ ExPolygon triangle_lower_support()
     }));
 }
 
+ExPolygon wide_detect_overhang_target()
+{
+    return rectangle_expolygon(-12., -8., 12., 8.);
+}
+
+ExPolygon wide_triangular_lower_support()
+{
+    return ExPolygon(Polygon({
+        Point(scale_i(-12.), scale_i(-8.)),
+        Point(scale_i(12.), scale_i(-2.)),
+        Point(scale_i(-12.), scale_i(8.))
+    }));
+}
+
+double shortest_leaf_segment_length(const ExtrusionEntity &entity)
+{
+    if (entity.is_nop())
+        return std::numeric_limits<double>::max();
+    if (entity.is_leaf() && entity.has_polyline()) {
+        Points points;
+        entity.collect_points(points);
+        double shortest = std::numeric_limits<double>::max();
+        for (size_t point_idx = 1; point_idx < points.size(); ++point_idx)
+            shortest = std::min(
+                shortest,
+                (points[point_idx] - points[point_idx - 1]).cast<double>().norm());
+        return shortest;
+    }
+
+    double shortest = std::numeric_limits<double>::max();
+    for (size_t child_idx = 0; child_idx < entity.child_count(); ++child_idx)
+        shortest = std::min(shortest, shortest_leaf_segment_length(entity.child(child_idx)));
+    return shortest;
+}
+
 void collect_detected_overhang_stats(const ExtrusionEntity &entity, DetectedOverhangStats &out)
 {
     if (entity.is_nop())
@@ -265,4 +300,42 @@ TEST_CASE("Detect overhang skips work when flow and speed outputs are disabled",
     CHECK(external_perimeter_count(capture) == external_perimeter_count(baseline));
     CHECK(total_polyline_points(capture.external_perimeters) == total_polyline_points(baseline.external_perimeters));
     CHECK(extrusion_length(capture.external_perimeters) == Approx(extrusion_length(baseline.external_perimeters)));
+}
+
+TEST_CASE("Detect overhang does not create tiny split crumbs", "[plugins][perimeter][detect-overhang]")
+{
+    // Extra-overhang perimeter generation already filters the tiny segments
+    // produced by geometric clipping. This regression runs DetectOverhang after
+    // that clean output, because DetectOverhang performs its own support split
+    // and must not reintroduce near-zero fragments that later fail G-code checks.
+    DynamicPrintConfig config = detect_overhang_config({
+        {"bridged_infill_margin", "200%"},
+        {"bridge_precision", "10%"},
+        {"extra_perimeters_on_overhangs", "1"},
+        {"infill_overlap", "0"},
+        {"overhangs_extrusion_spacing", "5"},
+        {"overhangs_width", "5"},
+        {"overhangs_width_speed", "5"},
+        {"perimeters", "2"}
+    });
+
+    const ExPolygon target = wide_detect_overhang_target();
+    const ExPolygon lower_support = wide_triangular_lower_support();
+    const PerimeterRunCapture before_detection =
+        run_perimeter_and_post_case_with_lower_area(
+            config, {SIMPLE_PERIMETER_GENERATOR}, {EXTRA_PERIMETERS_ON_OVERHANGS},
+            target, lower_support, 1);
+    const PerimeterRunCapture after_detection =
+        run_perimeter_and_post_case_with_lower_area(
+            config, {SIMPLE_PERIMETER_GENERATOR}, {EXTRA_PERIMETERS_ON_OVERHANGS, DETECT_OVERHANG},
+            target, lower_support, 1);
+
+    // Any segment much shorter than the path width is only a classifier crumb:
+    // it does not make a useful extrusion and can later show up as an almost
+    // zero-length G-code move. The exact geometry here used to create a
+    // roughly 0.06 mm piece after DetectOverhang even though the input from the
+    // extra-overhang pass was clean.
+    const double min_printable_segment = double(before_detection.external_perimeter_width) / 5.0;
+    REQUIRE(shortest_leaf_segment_length(before_detection.external_perimeters) >= min_printable_segment);
+    CHECK(shortest_leaf_segment_length(after_detection.external_perimeters) >= min_printable_segment);
 }

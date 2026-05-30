@@ -7,6 +7,9 @@
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/ClipperUtils.hpp"
 
+#include <algorithm>
+#include <limits>
+
 namespace {
 using namespace Slic3r;
 using namespace Slic3r::Test::PerimeterPluginTests;
@@ -33,6 +36,15 @@ ExPolygon overhang_target()
 ExPolygon narrow_left_support()
 {
     return rectangle_expolygon(-12., -8., -3., 8.);
+}
+
+ExPolygon triangular_lower_support(double tip_y = 0.15)
+{
+    return ExPolygon(Polygon({
+        Point(scale_i(-12.), scale_i(-8.)),
+        Point(scale_i(12.), scale_i(tip_y)),
+        Point(scale_i(-12.), scale_i(8.))
+    }));
 }
 
 ExPolygons surface_expolygons(const SurfaceCollection &surfaces)
@@ -207,6 +219,26 @@ bool generated_tree_has_no_overhang_markers(const ExtrusionEntity &entity)
            count_overhang_properties(entity) == 0;
 }
 
+double shortest_leaf_segment_length(const ExtrusionEntity &entity)
+{
+    if (entity.is_nop())
+        return std::numeric_limits<double>::max();
+    if (entity.is_leaf() && entity.has_polyline()) {
+        const Polyline polyline = entity.as_polyline().to_polyline();
+        double shortest = std::numeric_limits<double>::max();
+        for (size_t point_idx = 1; point_idx < polyline.size(); ++point_idx)
+            shortest = std::min(
+                shortest,
+                (polyline.points[point_idx] - polyline.points[point_idx - 1]).cast<double>().norm());
+        return shortest;
+    }
+
+    double shortest = std::numeric_limits<double>::max();
+    for (size_t child_idx = 0; child_idx < entity.child_count(); ++child_idx)
+        shortest = std::min(shortest, shortest_leaf_segment_length(entity.child(child_idx)));
+    return shortest;
+}
+
 AABBTreeLines::LinesDistancer<Line> support_distancer_for(const ExPolygon &support)
 {
     return AABBTreeLines::LinesDistancer<Line>{to_lines(to_polygons(ExPolygons{ support }))};
@@ -342,6 +374,28 @@ TEST_CASE("Extra perimeters on overhangs leave overhang classification to Detect
     REQUIRE(external_perimeter_count(post) > 0);
     REQUIRE(generated_tree_has_no_overhang_markers(post.external_perimeters));
     REQUIRE(leaf_paths_allow_seams(post.external_perimeters.child(0)));
+    require_leaf_fill_area_consistency(post);
+}
+
+TEST_CASE("Extra perimeters on overhangs do not publish tiny split crumbs", "[plugins][perimeter][extra-overhang]")
+{
+    const ExPolygon target = overhang_target();
+    const DynamicPrintConfig config = extra_overhang_config({
+        {"overhangs_extrusion_spacing", "5"}
+    });
+
+    const PerimeterRunCapture post =
+        run_perimeter_and_post_case_with_lower_area(
+            config, {SIMPLE_PERIMETER_GENERATOR}, {EXTRA_PERIMETERS_ON_OVERHANGS},
+            target, triangular_lower_support(-2.), 1);
+
+    // Boolean clipping may split one intended anchor into very short crumbs.
+    // Such crumbs are smaller than the physical spacing budget and can later
+    // trip G-code checks as almost zero-length extrusions. The post-process
+    // should either reconnect them into a useful stroke or drop them.
+    const double min_printable_segment = double(scale_i(5.0)) / 10.0;
+    REQUIRE(external_perimeter_count(post) > 0);
+    CHECK(shortest_leaf_segment_length(post.external_perimeters) >= min_printable_segment);
     require_leaf_fill_area_consistency(post);
 }
 
