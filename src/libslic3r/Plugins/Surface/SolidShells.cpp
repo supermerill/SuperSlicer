@@ -428,20 +428,20 @@ void rebuild_region_island_surfaces(const run_ctx_surface_generation &ctx,
     append_unchanged_surfaces(output, input_surfaces);
 
     const RegionSettings::AreaMap &areas = settings.get_areas(k_top_solid_layers_key);
-    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
+    for (const auto &[setting_value, setting_clip] : areas) {
         // First collect only the source surfaces covered by this exact settings
         // combination. The same layer island can therefore have different solid
         // shell behavior in different regions without pre-splitting the island.
-        StoredExPolygonCollection source = collect_processable_surfaces(storage, input_surfaces, entry.second);
+        StoredExPolygonCollection source = collect_processable_surfaces(storage, input_surfaces, setting_clip);
         if (source.empty())
             continue;
 
         const int32_t solid_over_perimeters =
-            std::max<int32_t>(0, entry.first.get_int(k_solid_over_perimeters_key));
+            std::max<int32_t>(0, setting_value.get_int(k_solid_over_perimeters_key));
 
         ClipperContext clip(storage);
         ClipperOperand source_shape = clip(source.readonly());
-        ClipperOperand top_shell = projected_top_shell_shape(storage, object, layer_idx, entry.first);
+        ClipperOperand top_shell = projected_top_shell_shape(storage, object, layer_idx, setting_value);
         ClipperOperand top_perimeter_coverage =
             perimeter_stack_coverage_shape(storage, object, layer_idx, true, solid_over_perimeters);
         StoredExPolygonCollection top_solid =
@@ -452,7 +452,7 @@ void rebuild_region_island_surfaces(const run_ctx_surface_generation &ctx,
         // avoids duplicated solid areas when top and bottom ranges overlap.
         ClipperOperand top_solid_shape = clip(top_solid.readonly());
         ClipperOperand source_without_top = clipper_diff(source_shape, top_solid_shape);
-        ClipperOperand bottom_shell = projected_bottom_shell_shape(storage, object, layer_idx, entry.first);
+        ClipperOperand bottom_shell = projected_bottom_shell_shape(storage, object, layer_idx, setting_value);
         ClipperOperand bottom_perimeter_coverage =
             perimeter_stack_coverage_shape(storage, object, layer_idx, false, solid_over_perimeters);
         StoredExPolygonCollection bottom_solid =

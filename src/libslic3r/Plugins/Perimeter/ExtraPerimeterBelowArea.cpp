@@ -158,13 +158,13 @@ void module_after(void *, void *user_context, perimeter_generation_context *cont
             continue;
 
         const RegionSettings::AreaMap &areas = settings->get_areas(k_extra_perimeter_below_area_key);
-        for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
+        for (const auto &[setting_value, setting_clip] : areas) {
             // Disabled clips explicitly opt out of the rule.
-            if (entry.first.get_float(k_extra_perimeter_below_area_key) <= 0.)
+            if (setting_value.get_float(k_extra_perimeter_below_area_key) <= 0.)
                 continue;
 
-            const double area_scaled = threshold_area_scaled(context_view, entry.first);
-            if (entry.second.is_accept_all()) {
+            const double area_scaled = threshold_area_scaled(context_view, setting_value);
+            if (setting_clip.is_accept_all()) {
                 // Uniform setting: the whole child is governed by one value, so
                 // no geometric split is needed.
                 force_extra_perimeters_if_small(child, area_scaled);
@@ -174,7 +174,7 @@ void module_after(void *, void *user_context, perimeter_generation_context *cont
             // Region-local setting: split the child into the part covered by
             // this clip and the part outside. Only the inside nodes inherit the
             // threshold value from this entry.
-            const std::vector<PerimeterNodeView> inside_nodes = context_view.split_node(child, entry.second);
+            const std::vector<PerimeterNodeView> inside_nodes = context_view.split_node(child, setting_clip);
             for (const PerimeterNodeView &inside_node : inside_nodes)
                 force_extra_perimeters_if_small(inside_node, area_scaled);
         }

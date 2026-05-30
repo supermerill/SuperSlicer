@@ -370,16 +370,16 @@ void propagate_top_margin_to_region_island(const run_ctx_surface_generation &ctx
     append_surfaces_not_rebuilt(output, storage, input_surfaces);
 
     const RegionSettings::AreaMap &areas = settings.get_areas(k_external_infill_margin_key);
-    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
+    for (const auto &[setting_value, setting_clip] : areas) {
         StoredExPolygonCollection sparse =
-            collect_surfaces(storage, input_surfaces, k_internal_sparse, entry.second);
+            collect_surfaces(storage, input_surfaces, k_internal_sparse, setting_clip);
         StoredExPolygonCollection empty =
-            collect_surfaces(storage, input_surfaces, k_internal_void, entry.second);
+            collect_surfaces(storage, input_surfaces, k_internal_void, setting_clip);
         if (sparse.empty() && empty.empty())
             continue;
 
         StoredExPolygonCollection projected_rings =
-            projected_top_margin_rings(storage, object, layer_idx, entry.first, shell_width);
+            projected_top_margin_rings(storage, object, layer_idx, setting_value, shell_width);
         StoredExPolygonCollection projected_inside_island =
             intersection_collection(storage, projected_rings.readonly(), island.infill_areas());
 
@@ -438,9 +438,9 @@ void expand_top_surfaces_in_region_island(const run_ctx_surface_generation &ctx,
     const coord_t shell_width = max_shell_width_reference(island);
     StoredExPolygonCollection expanded_top(storage);
     const RegionSettings::AreaMap &areas = settings.get_areas(k_external_infill_margin_key);
-    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
-        StoredExPolygonCollection source_top = collect_top_surfaces(storage, input_surfaces, entry.second);
-        const coord_t margin = external_infill_margin(entry.first, shell_width);
+    for (const auto &[setting_value, setting_clip] : areas) {
+        StoredExPolygonCollection source_top = collect_top_surfaces(storage, input_surfaces, setting_clip);
+        const coord_t margin = external_infill_margin(setting_value, shell_width);
         StoredExPolygonCollection expanded =
             expand_top_surfaces(storage, source_top.readonly(), margin, island.infill_areas());
         expanded_top.append_move_from(std::move(expanded));

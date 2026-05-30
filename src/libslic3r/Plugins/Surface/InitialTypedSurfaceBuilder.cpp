@@ -251,8 +251,9 @@ void build_island_surfaces(const run_ctx_surface_generation &ctx,
 
     const bool first_layer_top_priority = first_layer_top_surface_has_priority(object, is_first_layer);
     const bool single_group = grouped_regions.size() == 1;
-    for (const std::pair<const int32_t, std::vector<LayerRegion>> &entry : grouped_regions) {
-        layer_region_island_handle *region_island = get_or_create_region_island(ctx, island, entry.second);
+    for (const auto &[extruder_id, regions] : grouped_regions) {
+        (void)extruder_id;
+        layer_region_island_handle *region_island = get_or_create_region_island(ctx, island, regions);
         if (region_island == nullptr)
             continue;
 
@@ -263,7 +264,7 @@ void build_island_surfaces(const run_ctx_surface_generation &ctx,
             continue;
         }
 
-        StoredExPolygonCollection clipped_areas = clip_infill_areas_to_regions(storage, island, entry.second);
+        StoredExPolygonCollection clipped_areas = clip_infill_areas_to_regions(storage, island, regions);
         StoredSurfaceCollection surfaces =
             classify_areas(storage, island, clipped_areas.readonly(), is_first_layer, first_layer_top_priority);
         set_region_island_surfaces(ctx, region_island, surfaces);

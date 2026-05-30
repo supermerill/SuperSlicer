@@ -18,6 +18,7 @@
 #include "libslic3r/Api/plugin/c/slic3r_utils.h"
 #include "libslic3r/Api/plugin/cpp/ClipperViews.hpp"
 #include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
+#include "libslic3r/Api/plugin/cpp/ExtrusionTreeVisitors.hpp"
 #include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
 #include "libslic3r/Api/plugin/cpp/LineDistancer.hpp"
 #include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
@@ -49,12 +50,6 @@ const char *k_overhangs_dynamic_speed_key = "overhangs_dynamic_speed";
 
 constexpr double k_distance_split_ratio = 0.01;
 constexpr double k_curled_split_epsilon = 0.001;
-
-struct InheritedExtrusionState
-{
-    bool has_attributes = false;
-    EPropertyAttributes attributes = {};
-};
 
 struct OverhangConfig
 {
@@ -224,7 +219,7 @@ StoredExPolygonCollection supported_centerline_area(storage_handle *storage,
 
     ClipperContext clip(storage);
     ClipperOperand merged_lower = clipper_union(clip(lower_slices.readonly()));
-    return clipper_offset(merged_lower, -0.5 * double(external_perimeter_width)).to_expolygon_collection();
+    return clipper_offset(merged_lower, SCALED_EPSILON -0.5 * double(external_perimeter_width)).to_expolygon_collection();
 }
 
 OverhangConfig overhang_config_from_value(const RegionSettingsValue &value, const LayerRegion &region, bool external_role)
@@ -510,8 +505,7 @@ void append_region_fragments(storage_handle *storage,
                              const ExtrusionEntity &source,
                              const StoredPolyline &source_polyline,
                              const std::vector<c_point> &source_points,
-                             const RegionSettingsClip &clip,
-                             const ExPolygon &island_slice,
+                             const ExPolygonCollection &region_area,
                              const EPropertyAttributes &effective_attributes,
                              const OverhangConfig &config,
                              const ExPolygonCollection &supported_area,
@@ -519,12 +513,11 @@ void append_region_fragments(storage_handle *storage,
                              const CurledLineProximity &curled_lines,
                              std::vector<Fragment> &fragments)
 {
-    StoredExPolygonCollection region_area = explicit_region_clip(storage, island_slice, clip);
     if (region_area.empty())
         return;
 
     StoredPolylineCollection region_polylines =
-        clipper_intersection_polyline_expolygons(storage, source_polyline, region_area.readonly());
+        clipper_intersection_polyline_expolygons(storage, source_polyline, region_area);
     for (const Polyline region_polyline : region_polylines) {
         if (region_polyline.size() < 2)
             continue;
@@ -555,27 +548,31 @@ std::vector<Fragment> split_leaf(storage_handle *storage,
                                  const ExPolygonCollection &supported_area,
                                  const CurledLineProximity &curled_lines,
                                  MutableExtrusionEntity entity,
-                                 const InheritedExtrusionState &state)
+                                 const EPropertyAttributes &effective_attributes)
 {
     std::vector<Fragment> fragments;
     const std::vector<c_point> source_points = entity.points();
-    if (source_points.size() < 2 || entity.has_z_offsets() || !state.has_attributes)
+    if (source_points.size() < 2 || entity.has_z_offsets())
         return fragments;
 
-    const raw_extrusion_role role = raw_extrusion_role(state.attributes.extrusion_role());
+    const raw_extrusion_role role = raw_extrusion_role(effective_attributes.extrusion_role());
     if (!RAW_EXTRUSION_ROLE_IS_PERIMETER(role))
         return fragments;
 
+    // All overhang options are consumed together when one extrusion fragment is
+    // classified. Keep them in one RegionSettings group so each clipped area
+    // carries a complete and internally consistent configuration tuple.
     StoredPolyline source_polyline = polyline_from_points(storage, source_points);
     const RegionSettings::AreaMap &areas = settings.get_areas(k_overhangs_key);
-    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
-        const std::vector<LayerRegion> &regions = settings.get_regions(k_overhangs_key, entry.first);
+    const bool external_role = RAW_EXTRUSION_ROLE_IS_EXTERNAL(role);
+    for (const auto &[setting_value, setting_clip] : areas) {
+        const std::vector<LayerRegion> &regions = settings.get_regions(k_overhangs_key, setting_value);
         const LayerRegion region = !regions.empty() ? regions.front() : region_island.region(0);
-        const bool external_role = RAW_EXTRUSION_ROLE_IS_EXTERNAL(role);
-        const OverhangConfig config = overhang_config_from_value(entry.first, region, external_role);
+        const OverhangConfig config = overhang_config_from_value(setting_value, region, external_role);
+        StoredExPolygonCollection region_area = explicit_region_clip(storage, island_slice, setting_clip);
 
         append_region_fragments(storage, entity.readonly(), source_polyline, source_points,
-                                entry.second, island_slice, state.attributes, config,
+                                region_area.readonly(), effective_attributes, config,
                                 supported_area, support_distancer, curled_lines, fragments);
     }
 
@@ -612,61 +609,50 @@ void replace_root_leaf_with_fragments(MutableExtrusionEntity root, std::vector<F
         root.add_child(fragment.entity.mutable_view());
 }
 
-void process_entity(storage_handle *storage,
-                    const ExPolygon &island_slice,
-                    const RegionSettings &settings,
-                    const LayerRegionIsland &region_island,
-                    const LineDistancer &support_distancer,
-                    const ExPolygonCollection &supported_area,
-                    const CurledLineProximity &curled_lines,
-                    MutableExtrusionEntity entity,
-                    const InheritedExtrusionState &parent_state);
-
-void process_children(storage_handle *storage,
-                      const ExPolygon &island_slice,
-                      const RegionSettings &settings,
-                      const LayerRegionIsland &region_island,
-                      const LineDistancer &support_distancer,
-                      const ExPolygonCollection &supported_area,
-                      const CurledLineProximity &curled_lines,
-                      MutableExtrusionEntity parent,
-                      const InheritedExtrusionState &state)
+class DetectOverhangVisitor : public ExtrusionTreeVisitor<>
 {
-    for (uint32_t idx = 0; idx < parent.child_count(); ++idx) {
-        MutableExtrusionEntity child = parent.child_mutable(idx);
-        process_entity(storage, island_slice, settings, region_island, support_distancer, supported_area,
-                       curled_lines, child, state);
-    }
-}
-
-void process_entity(storage_handle *storage,
-                    const ExPolygon &island_slice,
-                    const RegionSettings &settings,
-                    const LayerRegionIsland &region_island,
-                    const LineDistancer &support_distancer,
-                    const ExPolygonCollection &supported_area,
-                    const CurledLineProximity &curled_lines,
-                    MutableExtrusionEntity entity,
-                    const InheritedExtrusionState &parent_state)
-{
-    InheritedExtrusionState state = parent_state;
-    if (const EPropertyAttributes *attributes = entity.property<EPropertyAttributes>()) {
-        state.has_attributes = true;
-        state.attributes = *attributes;
+public:
+    DetectOverhangVisitor(storage_handle *storage,
+                          const ExPolygon &island_slice,
+                          const RegionSettings &settings,
+                          const LayerRegionIsland &region_island,
+                          const LineDistancer &support_distancer,
+                          const ExPolygonCollection &supported_area,
+                          const CurledLineProximity &curled_lines) :
+        m_storage(storage),
+        m_island_slice(island_slice),
+        m_settings(settings),
+        m_region_island(region_island),
+        m_support_distancer(support_distancer),
+        m_supported_area(supported_area),
+        m_curled_lines(curled_lines)
+    {
+        assert(m_storage != nullptr);
     }
 
-    if (!entity.is_leaf()) {
-        process_children(storage, island_slice, settings, region_island, support_distancer, supported_area,
-                         curled_lines, entity, state);
-        return;
+protected:
+    void visit_leaf(MutableExtrusionEntity entity) override
+    {
+        const EPropertyAttributes *attributes = current_property<EPropertyAttributes>();
+        if (attributes == nullptr)
+            return;
+
+        std::vector<Fragment> fragments =
+            split_leaf(m_storage, m_island_slice, m_settings, m_region_island, m_support_distancer,
+                       m_supported_area, m_curled_lines, entity, *attributes);
+        if (fragments_need_replacement(fragments, entity))
+            replace_root_leaf_with_fragments(entity, fragments);
     }
 
-    std::vector<Fragment> fragments =
-        split_leaf(storage, island_slice, settings, region_island, support_distancer, supported_area,
-                   curled_lines, entity, state);
-    if (fragments_need_replacement(fragments, entity))
-        replace_root_leaf_with_fragments(entity, fragments);
-}
+private:
+    storage_handle *m_storage = nullptr;
+    const ExPolygon &m_island_slice;
+    const RegionSettings &m_settings;
+    const LayerRegionIsland &m_region_island;
+    const LineDistancer &m_support_distancer;
+    const ExPolygonCollection &m_supported_area;
+    const CurledLineProximity &m_curled_lines;
+};
 
 void process_region_island(const run_ctx_post_perimeter_generation &ctx,
                            storage_handle *storage,
@@ -687,8 +673,10 @@ void process_region_island(const run_ctx_post_perimeter_generation &ctx,
         return;
 
     MutableExtrusionEntity root(root_handle);
-    process_entity(storage, island.slice(), settings, region_island, support_distancer, supported_area,
-                   curled_lines, root, InheritedExtrusionState{});
+    const ExPolygon island_slice = island.slice();
+    DetectOverhangVisitor visitor(storage, island_slice, settings, region_island,
+                                  support_distancer, supported_area, curled_lines);
+    visitor.traverse(root);
 }
 
 coord_t external_perimeter_width(const LayerIsland &island)

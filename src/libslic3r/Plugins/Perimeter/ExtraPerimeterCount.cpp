@@ -71,17 +71,17 @@ bool build_extra_clip(const RegionSettings::AreaMap &areas,
     // either "accept all" for the uniform case, or a union of all still-eligible
     // region-local areas.
     bool has_clip = false;
-    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
-        const int32_t extra_perimeters_count = entry.first.get_int(k_extra_perimeter_count_key);
+    for (const auto &[setting_value, setting_clip] : areas) {
+        const int32_t extra_perimeters_count = setting_value.get_int(k_extra_perimeter_count_key);
         if (already_extruded_extra >= extra_perimeters_count)
             continue;
 
-        if (entry.second.is_accept_all()) {
+        if (setting_clip.is_accept_all()) {
             clip_out.make_accept_all();
             return true;
         }
 
-        clip_out.append_copy_from(entry.second.expolygons());
+        clip_out.append_copy_from(setting_clip.expolygons());
         has_clip = true;
     }
 

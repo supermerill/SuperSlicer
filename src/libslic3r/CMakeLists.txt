@@ -128,6 +128,7 @@ set(SLIC3R_SOURCES
 	Api/plugin/cpp/BridgeDetectorViews.hpp
 	Api/plugin/cpp/ClipperViews.hpp
 	Api/plugin/cpp/DataTreeViews.hpp
+	Api/plugin/cpp/ExtrusionTreeVisitors.hpp
 	Api/plugin/cpp/ExtrusionViews.hpp
 	Api/plugin/cpp/GeometryViews.hpp
 	Api/plugin/cpp/LineDistancer.hpp

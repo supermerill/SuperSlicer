@@ -201,8 +201,8 @@ bool any_area_can_fuzzify_role(const RegionSettings::AreaMap &areas,
                                double nozzle_diameter,
                                const FuzzyPaintingClip &painting)
 {
-    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
-        const FuzzyParameters params = fuzzy_parameters_from_value(entry.first, nozzle_diameter);
+    for (const auto &[setting_value, setting_clip] : areas) {
+        const FuzzyParameters params = fuzzy_parameters_from_value(setting_value, nozzle_diameter);
         if (role == RAW_EXTRUSION_ROLE_GAP_FILL ? params.can_fuzz_gap_fill() : params.can_fuzz_perimeters())
             return true;
         const FuzzyParameters painted_params = parameters_for_painting_enforcer(params);
@@ -356,12 +356,12 @@ std::vector<FuzzyClip> fuzzy_clips_for_leaf(storage_handle *storage,
     // - enforcer facets create fuzzy clips even where fuzzy_skin is none;
     // - blocker facets are subtracted from both sources.
     std::vector<FuzzyClip> clips;
-    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
-        StoredExPolygonCollection region_area = explicit_region_clip(storage, island_slice, entry.second);
+    for (const auto &[setting_value, setting_clip] : areas) {
+        StoredExPolygonCollection region_area = explicit_region_clip(storage, island_slice, setting_clip);
         if (region_area.empty())
             continue;
 
-        const FuzzyParameters params = fuzzy_parameters_from_value(entry.first, nozzle_diameter);
+        const FuzzyParameters params = fuzzy_parameters_from_value(setting_value, nozzle_diameter);
         if (should_fuzzify_for_role(role, params, state)) {
             StoredExPolygonCollection enabled_area =
                 area_without_painting_blockers(storage, region_area.readonly(), painting);

@@ -128,9 +128,9 @@ bool read_plugin_activation_ini(const boost::filesystem::path &config_path,
 std::vector<std::string> enabled_plugin_ids(const std::map<std::string, bool> &plugin_states)
 {
     std::vector<std::string> plugin_ids;
-    for (const std::pair<const std::string, bool> &entry : plugin_states)
-        if (entry.second)
-            plugin_ids.push_back(entry.first);
+    for (const auto &[plugin_id, is_enabled] : plugin_states)
+        if (is_enabled)
+            plugin_ids.push_back(plugin_id);
     return plugin_ids;
 }
 
@@ -190,9 +190,9 @@ std::vector<std::string> read_active_plugin_ids(const boost::filesystem::path &c
         // the user file as a real opt-out.
         std::map<std::string, bool> default_plugin_states;
         if (read_plugin_activation_ini(default_active_plugin_config_path(), default_plugin_states))
-            for (const std::pair<const std::string, bool> &entry : default_plugin_states)
-                if (entry.second && plugin_states.find(entry.first) == plugin_states.end())
-                    plugin_states.emplace(entry.first, true);
+            for (const auto &[plugin_id, is_enabled] : default_plugin_states)
+                if (is_enabled && plugin_states.find(plugin_id) == plugin_states.end())
+                    plugin_states.emplace(plugin_id, true);
     }
 
     return enabled_plugin_ids(plugin_states);

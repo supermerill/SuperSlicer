@@ -297,14 +297,14 @@ void split_surface_by_region_settings(orchestrator_handle *orchestrator,
     }
 
     const RegionSettings::AreaMap &areas = settings.get_areas(primary_key);
-    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
-        const std::vector<LayerRegion> &target_regions = settings.get_regions(primary_key, entry.first);
+    for (const auto &[setting_value, setting_clip] : areas) {
+        const std::vector<LayerRegion> &target_regions = settings.get_regions(primary_key, setting_value);
         if (target_regions.empty())
             continue;
 
         RegionKey target_key = key_from_regions(target_regions);
         StoredSurfaceCollection &surfaces = surfaces_for_region_key(groups, storage, std::move(target_key));
-        append_surface_piece(surfaces, storage, ctx, surface, entry.second);
+        append_surface_piece(surfaces, storage, ctx, surface, setting_clip);
     }
 }
 

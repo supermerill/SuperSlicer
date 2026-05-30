@@ -151,10 +151,10 @@ void module_after(void *, void *user_context, perimeter_generation_context *cont
     // Different regions/modifier areas have different values. Split the child
     // branches and clamp only the parts where the setting is enabled.
     const RegionSettings::AreaMap &areas = settings->get_areas(k_only_one_perimeter_first_layer_key);
-    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
-        if (!entry.first.get_bool(k_only_one_perimeter_first_layer_key))
+    for (const auto &[setting_value, setting_clip] : areas) {
+        if (!setting_value.get_bool(k_only_one_perimeter_first_layer_key))
             continue;
-        set_enabled_children_to_one_perimeter(context_view, parent, entry.second);
+        set_enabled_children_to_one_perimeter(context_view, parent, setting_clip);
     }
 }
 

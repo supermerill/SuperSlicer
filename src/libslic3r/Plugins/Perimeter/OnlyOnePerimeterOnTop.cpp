@@ -641,10 +641,10 @@ void module_after(void *, void *user_context, perimeter_generation_context *cont
     if (!state->has_upper_islands()) {
         // == real top layer code path ==
         // No upper island exists, so every enabled area is a top surface.
-        for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
-            if (!entry.first.get_bool(k_only_one_perimeter_top_key))
+        for (const auto &[setting_value, setting_clip] : areas) {
+            if (!setting_value.get_bool(k_only_one_perimeter_top_key))
                 continue;
-            set_enabled_children_to_one_perimeter(context, parent, entry.second);
+            set_enabled_children_to_one_perimeter(context, parent, setting_clip);
         }
         return;
     }
@@ -662,8 +662,8 @@ void module_after(void *, void *user_context, perimeter_generation_context *cont
     StoredExPolygonCollection stop_areas(context_view.storage());
     StoredExPolygonCollection normal_child_area(context_view.storage());
     bool has_processed_enabled_area = false;
-    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
-        if (!entry.first.get_bool(k_only_one_perimeter_top_key))
+    for (const auto &[setting_value, setting_clip] : areas) {
+        if (!setting_value.get_bool(k_only_one_perimeter_top_key))
             continue;
         if (has_processed_enabled_area && normal_child_area.empty())
             break;
@@ -680,7 +680,7 @@ void module_after(void *, void *user_context, perimeter_generation_context *cont
             normal_child_area.readonly().clone(context_view.storage());
 
         StoredExPolygonCollection current_stop_area =
-            build_one_perimeter_stop_area(context_view, parent, entry.first, entry.second,
+            build_one_perimeter_stop_area(context_view, parent, setting_value, setting_clip,
                                           source_child_area, normal_child_area);
         stop_areas = union_append(context_view.storage(), std::move(stop_areas), std::move(current_stop_area));
         has_processed_enabled_area = true;

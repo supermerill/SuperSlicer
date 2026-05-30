@@ -128,17 +128,17 @@ StoredExPolygonCollection gap_fill_no_overhang_area(const PerimeterGenerationCon
     const ExPolygonCollection lower_slices = state.lower_slices();
     const RegionSettings::AreaMap &areas = state.settings().get_areas(k_gap_fill_no_overhang_key);
 
-    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
-        if (!entry.first.get_bool(k_gap_fill_no_overhang_key))
+    for (const auto &[setting_value, setting_clip] : areas) {
+        if (!setting_value.get_bool(k_gap_fill_no_overhang_key))
             continue;
 
         // A uniform true value means "apply to the whole node". A local true
         // value means "apply only to the part of this node covered by this
         // region or modifier". This is what lets the setting vary by region
         // without forcing the generator to split the whole island up front.
-        StoredExPolygonCollection enabled_area = entry.second.is_accept_all() ?
+        StoredExPolygonCollection enabled_area = setting_clip.is_accept_all() ?
             node_area.readonly().clone(storage) :
-            entry.second.intersections(node_area);
+            setting_clip.intersections(node_area);
         if (enabled_area.empty())
             continue;
 

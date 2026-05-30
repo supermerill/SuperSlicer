@@ -199,16 +199,16 @@ Slic3r::ExPolygons enabled_infill_area(storage_handle *storage,
 
     Slic3r::ExPolygons enabled;
     const RegionSettings::AreaMap &areas = settings.get_areas(k_extra_perimeters_on_overhangs_key);
-    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
-        if (!entry.first.get_bool(k_extra_perimeters_on_overhangs_key))
+    for (const auto &[setting_value, setting_clip] : areas) {
+        if (!setting_value.get_bool(k_extra_perimeters_on_overhangs_key))
             continue;
 
-        if (entry.second.is_accept_all()) {
+        if (setting_clip.is_accept_all()) {
             enabled = candidate;
             break;
         }
 
-        const Slic3r::ExPolygons clip = native_collection(entry.second.expolygons());
+        const Slic3r::ExPolygons clip = native_collection(setting_clip.expolygons());
         const Slic3r::ExPolygons clipped = Slic3r::intersection_ex(candidate, clip);
         enabled.insert(enabled.end(), clipped.begin(), clipped.end());
     }
@@ -306,8 +306,10 @@ Slic3r::Polylines reconnect_polylines(const Slic3r::Polylines &polylines,
 
     Slic3r::Polylines result;
     result.reserve(connected.size());
-    for (std::pair<const size_t, Slic3r::Polyline> &entry : connected)
-        result.push_back(std::move(entry.second));
+    for (auto &[source_idx, polyline] : connected) {
+        (void)source_idx;
+        result.push_back(std::move(polyline));
+    }
 
     Slic3r::ensure_valid(result, resolution);
     return result;

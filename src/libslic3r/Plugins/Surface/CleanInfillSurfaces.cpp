@@ -154,12 +154,12 @@ StoredExPolygonCollection layer_area_promotion_zone(storage_handle *storage,
     const double total_layer_area = layer_infill_area(layer);
     StoredExPolygonCollection zone(storage);
     const RegionSettings::AreaMap &areas = settings.get_areas(k_solid_infill_below_layer_area_key);
-    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
-        const double threshold = scaled_area_threshold(entry.first, k_solid_infill_below_layer_area_key);
+    for (const auto &[setting_value, setting_clip] : areas) {
+        const double threshold = scaled_area_threshold(setting_value, k_solid_infill_below_layer_area_key);
         if (threshold <= 0. || total_layer_area > threshold)
             continue;
 
-        StoredExPolygonCollection clipped = clipped_infill_areas(storage, island, entry.second);
+        StoredExPolygonCollection clipped = clipped_infill_areas(storage, island, setting_clip);
         zone.append_move_from(std::move(clipped));
     }
     return union_collection(storage, zone.readonly());
@@ -174,8 +174,8 @@ StoredExPolygonCollection small_infill_area_promotion_zone(storage_handle *stora
     // RegionSettings entry so modifiers can use different thresholds.
     StoredExPolygonCollection zone(storage);
     const RegionSettings::AreaMap &areas = settings.get_areas(k_solid_infill_below_area_key);
-    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
-        const double threshold = scaled_area_threshold(entry.first, k_solid_infill_below_area_key);
+    for (const auto &[setting_value, setting_clip] : areas) {
+        const double threshold = scaled_area_threshold(setting_value, k_solid_infill_below_area_key);
         if (threshold <= 0.)
             continue;
 
@@ -184,10 +184,10 @@ StoredExPolygonCollection small_infill_area_promotion_zone(storage_handle *stora
                 continue;
 
             StoredExPolygonCollection single = collection_from_expolygon(storage, infill_area);
-            if (entry.second.is_accept_all())
+            if (setting_clip.is_accept_all())
                 zone.append_move_from(std::move(single));
             else {
-                StoredExPolygonCollection clipped = entry.second.intersections(single.readonly());
+                StoredExPolygonCollection clipped = setting_clip.intersections(single.readonly());
                 zone.append_move_from(std::move(clipped));
             }
         }
@@ -313,9 +313,9 @@ StoredSurfaceCollection collapse_sparse_width(storage_handle *storage,
         // only partial clips. Track what was processed and keep any residual
         // sparse area unchanged.
         StoredExPolygonCollection processed(storage);
-        for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas) {
-            StoredExPolygonCollection source = clipped_surface(storage, surface, entry.second);
-            const coord_t half_width = solid_below_half_width(entry.first, reference_width);
+        for (const auto &[setting_value, setting_clip] : areas) {
+            StoredExPolygonCollection source = clipped_surface(storage, surface, setting_clip);
+            const coord_t half_width = solid_below_half_width(setting_value, reference_width);
             append_thin_width_result(output, storage, source.readonly(), surface.type(), half_width);
             processed.append_move_from(std::move(source));
         }

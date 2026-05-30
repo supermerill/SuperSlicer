@@ -168,9 +168,9 @@ void module_after(void *, void *user_context, perimeter_generation_context *cont
         return;
 
     const RegionSettings::AreaMap &areas = settings->get_areas(k_extra_perimeter_odd_layer_key);
-    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : areas)
-        if (entry.first.get_bool())
-            request_extra_perimeter_for_children(context_view, parent, entry.second, *state);
+    for (const auto &[setting_value, setting_clip] : areas)
+        if (setting_value.get_bool())
+            request_extra_perimeter_for_children(context_view, parent, setting_clip, *state);
 }
 
 void module_end(void *, void *user_context, perimeter_generation_context *)
