@@ -153,7 +153,7 @@ void set_demand_from_operand(const run_ctx_support_demand &ctx,
 void append_bridge_segment_area(storage_handle *storage,
                                 const ExPolygonCollection &lower_support,
                                 const BridgeLineFlow &flow,
-                                const ClipperContext &clip,
+                                const ClipperContext &clipper,
                                 const c_extrusion_segment &segment,
                                 ClipperOperand &bridges)
 {
@@ -194,7 +194,7 @@ void append_bridge_segment_area(storage_handle *storage,
         if (!front_supported || !back_supported)
             continue;
 
-        ClipperOperand bridge_area = clipper_offset(clip(line), flow.half_width, CLIPPER_JOIN_SQUARE, 0.,
+        ClipperOperand bridge_area = clipper_offset(clipper(line), flow.half_width, CLIPPER_JOIN_SQUARE, 0.,
                                                     CLIPPER_END_OPEN_SQUARE);
         if (!bridge_area.empty())
             bridges.concat_replace(bridge_area);
@@ -204,7 +204,7 @@ void append_bridge_segment_area(storage_handle *storage,
 void append_bridge_areas_from_entity(storage_handle *storage,
                                      const ExPolygonCollection &lower_support,
                                      const BridgeLineFlow &flow,
-                                     const ClipperContext &clip,
+                                     const ClipperContext &clipper,
                                      const ExtrusionEntity &entity,
                                      ClipperOperand &bridges)
 {
@@ -212,16 +212,16 @@ void append_bridge_areas_from_entity(storage_handle *storage,
     // describe printable bridge spans, so recurse until we find leaves carrying
     // segments.
     for (uint32_t segment_idx = 0; segment_idx < entity.segment_count(); ++segment_idx)
-        append_bridge_segment_area(storage, lower_support, flow, clip, entity.segment(segment_idx), bridges);
+        append_bridge_segment_area(storage, lower_support, flow, clipper, entity.segment(segment_idx), bridges);
 
     for (uint32_t child_idx = 0; child_idx < entity.child_count(); ++child_idx)
-        append_bridge_areas_from_entity(storage, lower_support, flow, clip, entity.child(child_idx), bridges);
+        append_bridge_areas_from_entity(storage, lower_support, flow, clipper, entity.child(child_idx), bridges);
 }
 
 void append_bridge_areas_from_region_island(storage_handle *storage,
                                             const ExPolygonCollection &lower_support,
                                             const BridgeLineFlow &flow,
-                                            const ClipperContext &clip,
+                                            const ClipperContext &clipper,
                                             const LayerRegionIsland &region_island,
                                             raw_extrusion_role role,
                                             ClipperOperand &bridges)
@@ -230,18 +230,18 @@ void append_bridge_areas_from_region_island(storage_handle *storage,
         return;
 
     const ExtrusionEntity root(region_island.extrusion(role));
-    append_bridge_areas_from_entity(storage, lower_support, flow, clip,
+    append_bridge_areas_from_entity(storage, lower_support, flow, clipper,
                                     root, bridges);
 }
 
 ClipperOperand bridge_areas_for_island(storage_handle *storage,
                                        const Layer &lower_layer,
                                        const LayerIsland &island,
-                                       const ClipperContext &clip)
+                                       const ClipperContext &clipper)
 {
-    ClipperOperand bridges = clip.empty();
+    ClipperOperand bridges = clipper.empty();
     const BridgeLineFlow flow = bridge_line_flow(island);
-    ClipperOperand lower_support_operand = clipper_offset(clip(lower_layer.slices()),
+    ClipperOperand lower_support_operand = clipper_offset(clipper(lower_layer.slices()),
                                                           flow.support_probe_offset,
                                                           CLIPPER_JOIN_SQUARE,
                                                           0.);
@@ -250,9 +250,9 @@ ClipperOperand bridge_areas_for_island(storage_handle *storage,
 
     for (uint32_t region_island_idx = 0; region_island_idx < island.region_island_count(); ++region_island_idx) {
         const LayerRegionIsland region_island = island.region_island(region_island_idx);
-        append_bridge_areas_from_region_island(storage, lower_support, flow, clip, region_island,
+        append_bridge_areas_from_region_island(storage, lower_support, flow, clipper, region_island,
                                                RAW_EXTRUSION_ROLE_PERIMETER, bridges);
-        append_bridge_areas_from_region_island(storage, lower_support, flow, clip, region_island,
+        append_bridge_areas_from_region_island(storage, lower_support, flow, clipper, region_island,
                                                RAW_EXTRUSION_ROLE_GAP_FILL, bridges);
     }
 
@@ -263,18 +263,18 @@ void remove_bridges_from_island_demand(const run_ctx_support_demand &ctx,
                                        storage_handle *storage,
                                        const Layer &lower_layer,
                                        const LayerIsland &island,
-                                       const ClipperContext &clip)
+                                       const ClipperContext &clipper)
 {
     expolygon_collection_handle *existing_handle = ctx.get(ctx.demand, island.handle());
     if (existing_handle == nullptr)
         return;
 
-    ClipperOperand bridges = bridge_areas_for_island(storage, lower_layer, island, clip);
+    ClipperOperand bridges = bridge_areas_for_island(storage, lower_layer, island, clipper);
     if (bridges.empty())
         return;
 
     ExPolygonCollection existing(existing_handle);
-    ClipperOperand remaining = clipper_diff_with_safety_offset(clip(existing), bridges);
+    ClipperOperand remaining = clipper_diff_with_safety_offset(clipper(existing), bridges);
     set_demand_from_operand(ctx, island, std::move(remaining));
 }
 
@@ -399,7 +399,7 @@ void SupportDemandBridgeRemoval::run_impl(const plugin_run_context *run_ctx) con
     }
 
     storage_handle *storage = run_ctx->plugin_storage;
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     for (uint32_t layer_idx = 1; layer_idx < object.layer_count(); ++layer_idx) {
         throw_if_cancelled(run_ctx);
 
@@ -409,7 +409,7 @@ void SupportDemandBridgeRemoval::run_impl(const plugin_run_context *run_ctx) con
             throw_if_cancelled(run_ctx);
 
             const LayerIsland island = layer.island(island_idx);
-            remove_bridges_from_island_demand(*ctx, storage, lower_layer, island, clip);
+            remove_bridges_from_island_demand(*ctx, storage, lower_layer, island, clipper);
             progress().increment();
         }
     }

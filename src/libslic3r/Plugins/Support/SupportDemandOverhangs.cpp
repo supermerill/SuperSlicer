@@ -98,14 +98,14 @@ void add_to_demand(const run_ctx_support_demand &ctx,
     if (unsupported.empty())
         return;
 
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     StoredExPolygonCollection polygons = unsupported.to_expolygon_collection();
     polygons.ensure_valid();
 
     expolygon_collection_handle *existing = ctx.get(ctx.demand, island.handle());
     if (existing != nullptr) {
         ExPolygonCollection existing_polygons(existing);
-        polygons = clipper_union2(clip(existing_polygons), clip(polygons)).to_expolygon_collection();
+        polygons = clipper_union2(clipper(existing_polygons), clipper(polygons)).to_expolygon_collection();
         polygons.ensure_valid();
     }
 
@@ -180,7 +180,7 @@ void SupportDemandOverhangs::run_impl(const plugin_run_context *run_ctx) const
     }
 
     storage_handle *storage = run_ctx->plugin_storage;
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     const bool support_auto = has_auto_support(object_config);
 
     for (uint32_t layer_idx = 1; layer_idx < object.layer_count(); ++layer_idx) {
@@ -200,12 +200,12 @@ void SupportDemandOverhangs::run_impl(const plugin_run_context *run_ctx) const
                 continue;
             }
 
-            ClipperOperand lower_support = clip(lower_slices);
+            ClipperOperand lower_support = clipper(lower_slices);
             const coord_t offset = lower_layer_offset(object_config, lower_layer, island, layer_idx);
             if (offset > 0)
                 lower_support = clipper_offset(lower_support, double(offset));
 
-            ClipperOperand unsupported = clipper_diff_with_safety_offset(clip(island.slice()), lower_support);
+            ClipperOperand unsupported = clipper_diff_with_safety_offset(clipper(island.slice()), lower_support);
             add_to_demand(*ctx, island, storage, unsupported);
             progress().increment();
         }

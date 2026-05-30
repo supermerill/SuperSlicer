@@ -338,8 +338,8 @@ StoredExPolygonCollection supported_centerline_area(storage_handle *storage,
     if (lower_slices.empty())
         return lower_slices;
 
-    ClipperContext clip(storage);
-    ClipperOperand merged_lower = clipper_union(clip(lower_slices.readonly()));
+    ClipperContext clipper(storage);
+    ClipperOperand merged_lower = clipper_union(clipper(lower_slices.readonly()));
     return clipper_offset(merged_lower, SCALED_EPSILON -0.5 * double(external_perimeter_width)).to_expolygon_collection();
 }
 

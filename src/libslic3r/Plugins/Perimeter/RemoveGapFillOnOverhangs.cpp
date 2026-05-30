@@ -96,8 +96,8 @@ StoredExPolygonCollection lower_slice_coverage(storage_handle *storage, const La
     if (lower_slices.empty())
         return lower_slices;
 
-    ClipperContext clip(storage);
-    return clipper_union(clip(lower_slices)).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_union(clipper(lower_slices)).to_expolygon_collection();
 }
 
 StoredExPolygonCollection node_area_collection(storage_handle *storage, const PerimeterNodeView &node)
@@ -147,9 +147,9 @@ StoredExPolygonCollection gap_fill_no_overhang_area(const PerimeterGenerationCon
         if (lower_slices.empty())
             unsupported_area.move_from(std::move(enabled_area));
         else {
-            ClipperContext clip(storage);
+            ClipperContext clipper(storage);
             unsupported_area =
-                clipper_diff(clip(enabled_area), clip(lower_slices)).to_expolygon_collection();
+                clipper_diff(clipper(enabled_area), clipper(lower_slices)).to_expolygon_collection();
         }
 
         if (!unsupported_area.empty())
@@ -160,8 +160,8 @@ StoredExPolygonCollection gap_fill_no_overhang_area(const PerimeterGenerationCon
         // Several regions may contribute overlapping forbidden fragments. Merge
         // them before clipping polylines so each candidate is clipped once
         // against a clean area.
-        ClipperContext clip(storage);
-        forbidden_area = clipper_union(clip(forbidden_area)).to_expolygon_collection();
+        ClipperContext clipper(storage);
+        forbidden_area = clipper_union(clipper(forbidden_area)).to_expolygon_collection();
         forbidden_area.ensure_valid();
     }
     return forbidden_area;

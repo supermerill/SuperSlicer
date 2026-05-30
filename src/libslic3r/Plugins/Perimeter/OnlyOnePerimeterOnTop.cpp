@@ -140,8 +140,8 @@ StoredExPolygonCollection lower_slice_coverage(storage_handle *storage, const La
     if (lower_slices.empty())
         return lower_slices;
 
-    ClipperContext clip(storage);
-    return clipper_union(clip(lower_slices)).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_union(clipper(lower_slices)).to_expolygon_collection();
 }
 
 // Build the union of upper islands. This coverage is later grown to decide
@@ -156,8 +156,8 @@ StoredExPolygonCollection upper_slice_coverage(storage_handle *storage, const La
     if (upper_slices.empty())
         return upper_slices;
 
-    ClipperContext clip(storage);
-    return clipper_union(clip(upper_slices)).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_union(clipper(upper_slices)).to_expolygon_collection();
 }
 
 // Append two temporary collections and normalize them with a union. This keeps
@@ -172,8 +172,8 @@ StoredExPolygonCollection union_append(storage_handle *storage,
     if (lhs.empty())
         return std::move(lhs);
 
-    ClipperContext clip(storage);
-    return clipper_union(clip(lhs)).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_union(clipper(lhs)).to_expolygon_collection();
 }
 
 // Common one-line geometry helpers. They centralize the storage/ClipperContext
@@ -182,8 +182,8 @@ StoredExPolygonCollection offset_collection(storage_handle *storage,
                                             const ExPolygonCollection &subject,
                                             double delta)
 {
-    ClipperContext clip(storage);
-    return clipper_offset(clip(subject), delta).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_offset(clipper(subject), delta).to_expolygon_collection();
 }
 
 StoredExPolygonCollection diff_collection(storage_handle *storage,
@@ -193,8 +193,8 @@ StoredExPolygonCollection diff_collection(storage_handle *storage,
     if (subject.empty() || clip_area.empty())
         return subject.clone(storage);
 
-    ClipperContext clip(storage);
-    return clipper_diff_with_safety_offset(clip(subject), clip(clip_area)).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_diff_with_safety_offset(clipper(subject), clipper(clip_area)).to_expolygon_collection();
 }
 
 StoredExPolygonCollection intersection_collection(storage_handle *storage,
@@ -204,8 +204,8 @@ StoredExPolygonCollection intersection_collection(storage_handle *storage,
     if (subject.empty() || clip_area.empty())
         return StoredExPolygonCollection(storage);
 
-    ClipperContext clip(storage);
-    return clipper_intersection_with_safety_offset(clip(subject), clip(clip_area)).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_intersection_with_safety_offset(clipper(subject), clipper(clip_area)).to_expolygon_collection();
 }
 
 // Return the bounding box of an ExPolygon collection using contours only. Holes
@@ -314,8 +314,8 @@ StoredExPolygonCollection build_bridge_checker(const PerimeterGenerationContextV
 
         StoredExPolygonCollection grown = offset_collection(storage, bridge_checker, current_offset);
         StoredExPolygonCollection clipped = intersection_collection(storage, grown, orig_polygons);
-        ClipperContext clip(storage);
-        bridge_checker = clipper_offset2(clip(clipped), -current_offset, current_offset).to_expolygon_collection();
+        ClipperContext clipper(storage);
+        bridge_checker = clipper_offset2(clipper(clipped), -current_offset, current_offset).to_expolygon_collection();
     }
 
     return bridge_checker;
@@ -331,7 +331,7 @@ StoredExPolygonCollection grow_upper_slices_preserving_islands(storage_handle *s
     // topology participate in the contour offset. Processing each ExPolygon
     // independently keeps thin upper islands disappearing locally without
     // turning close-but-separate islands into one blocking blob.
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     StoredExPolygonCollection grown_accumulator(storage);
 
     for (const ExPolygon &expolygon : upper_slices) {
@@ -340,7 +340,7 @@ StoredExPolygonCollection grow_upper_slices_preserving_islands(storage_handle *s
                         expolygon.contour().multipoint_handle());
 
         StoredPolygonCollection grown_contours =
-            clipper_offset2(clip(contour_expolygon.readonly()), -double(offset_top_surface),
+            clipper_offset2(clipper(contour_expolygon.readonly()), -double(offset_top_surface),
                             double(offset_top_surface) + double(min_width_top_surface)).to_polygon_collection();
         if (grown_contours.empty())
             continue;
@@ -360,15 +360,15 @@ StoredExPolygonCollection grow_upper_slices_preserving_islands(storage_handle *s
         }
 
         StoredPolygonCollection shrunken_holes =
-            clipper_offset(clip(holes.readonly()), -double(min_width_top_surface)).to_polygon_collection();
+            clipper_offset(clipper(holes.readonly()), -double(min_width_top_surface)).to_polygon_collection();
         StoredExPolygonCollection grown_with_holes =
-            clipper_diff(clip(grown_contours.readonly()), clip(shrunken_holes.readonly())).to_expolygon_collection();
+            clipper_diff(clipper(grown_contours.readonly()), clipper(shrunken_holes.readonly())).to_expolygon_collection();
         grown_accumulator.append_move_from(std::move(grown_with_holes));
     }
 
     if (grown_accumulator.empty())
         return grown_accumulator;
-    return clipper_union(clip(grown_accumulator)).to_expolygon_collection();
+    return clipper_union(clipper(grown_accumulator)).to_expolygon_collection();
 }
 
 // Build the geometric domain owned by the children created from the first
@@ -384,8 +384,8 @@ StoredExPolygonCollection child_area_collection(storage_handle *storage, const P
     if (children_area.empty())
         return children_area;
 
-    ClipperContext clip(storage);
-    return clipper_union(clip(children_area)).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_union(clipper(children_area)).to_expolygon_collection();
 }
 
 // Find the part of source_child_area that should stop after the first perimeter.
@@ -438,12 +438,12 @@ StoredExPolygonCollection build_one_perimeter_stop_area(const PerimeterGeneratio
     // become one-perimeter top fill.
     StoredExPolygonCollection upper_slices =
         build_upper_slices_for_area(context, enabled_area, source_child_area);
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     StoredExPolygonCollection grown_upper_slices(storage);
     if (upper_slices.empty()) {
         grown_upper_slices = StoredExPolygonCollection(storage);
     } else if (!values.get_bool(k_only_one_perimeter_top_other_algo_key)) {
-        grown_upper_slices = clipper_offset(clip(upper_slices), min_width_top_surface).to_expolygon_collection();
+        grown_upper_slices = clipper_offset(clipper(upper_slices), min_width_top_surface).to_expolygon_collection();
     } else {
         grown_upper_slices =
             grow_upper_slices_preserving_islands(storage, upper_slices, offset_top_surface, min_width_top_surface);

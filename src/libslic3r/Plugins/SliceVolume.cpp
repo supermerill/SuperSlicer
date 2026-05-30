@@ -190,7 +190,7 @@ void process_complex_volume_regions_with_clipping(
     const std::vector<ComplexSlice> &complex_slices,
     std::vector<std::vector<StoredExPolygonCollection>> &region_slices)
 {
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
 
     // Per-volume material for one complex layer. region_id is the destination
     // PrintRegion index; -1 means the volume is not printable for this layer.
@@ -263,8 +263,8 @@ void process_complex_volume_regions_with_clipping(
                     // A modifier receives only the area inside its parent. The
                     // parent then loses that same source area so following
                     // regions do not see duplicated material.
-                    this_slice.expolygons = clipper_intersection(clip(parent_slice.expolygons), clip(source)).to_expolygon_collection();
-                    parent_slice.expolygons = clipper_diff(clip(parent_slice.expolygons), clip(source)).to_expolygon_collection();
+                    this_slice.expolygons = clipper_intersection(clipper(parent_slice.expolygons), clipper(source)).to_expolygon_collection();
+                    parent_slice.expolygons = clipper_diff(clipper(parent_slice.expolygons), clipper(source)).to_expolygon_collection();
                 }
 
                 if (idx + 1 < volume_region_count) {
@@ -295,7 +295,7 @@ void process_complex_volume_regions_with_clipping(
                     // later higher-priority model/negative volumes remove material from
                     // previous non-negative regions.
                     temp_slices[worse_idx].expolygons =
-                        clipper_diff(clip(temp_slices[worse_idx].expolygons), clip(temp_slices[idx].expolygons))
+                        clipper_diff(clipper(temp_slices[worse_idx].expolygons), clipper(temp_slices[idx].expolygons))
                             .to_expolygon_collection();
                 }
             }
@@ -310,7 +310,7 @@ void process_complex_volume_regions_with_clipping(
 
             StoredExPolygonCollection &dst = region_slices[uint32_t(slice.region_id)][complex_slice.layer_idx];
             dst.append_move_from(std::move(slice.expolygons));
-            dst = clipper_union(clip(dst)).to_expolygon_collection();
+            dst = clipper_union(clipper(dst)).to_expolygon_collection();
             dst.ensure_valid();
         }
     }

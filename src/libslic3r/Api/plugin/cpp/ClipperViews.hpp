@@ -29,9 +29,9 @@ to_polygon_collection(), write_expolygons_to() or write_polygons_to().
 
 Typical pattern:
 
-    ClipperContext clip(storage);
-    ClipperOperand subject = clip(island.infill_areas());
-    ClipperOperand forbidden = clip(region_clip);
+    ClipperContext clipper(storage);
+    ClipperOperand subject = clipper(island.infill_areas());
+    ClipperOperand forbidden = clipper(region_clip);
     StoredExPolygonCollection allowed =
         clipper_diff(subject, forbidden).to_expolygon_collection();
 
@@ -139,8 +139,8 @@ internal ApiClipper::ClipperShapes provider interface. It mirrors the C API
 exactly while still allowing plugin code to read like normal C++:
 
     ClipperOperand subject(storage, polygon);
-    ClipperOperand clip(storage, expolygons);
-    ClipperOperand result = clipper_diff(storage, subject, clip);
+    ClipperOperand mask(storage, expolygons);
+    ClipperOperand result = clipper_diff(storage, subject, mask);
     StoredExPolygonCollection islands = result.to_expolygon_collection();
 
 Use free_from_storage() or storage_free(storage, handle) for temporary
@@ -560,7 +560,7 @@ inline StoredExPolygonCollection clipper_clip_expolygons_with_subject_bbox(stora
 }
 
 // context utility method to shorten 'ClipperOperand(storage_handler, bridged_other_layers_area))' to a
-// 'clip(bridged_other_layers_area)' if you define ClipperContext clip(my_storage_handler)
+// 'clipper(bridged_other_layers_area)' if you define ClipperContext clipper(my_storage_handler)
 class ClipperContext
 {
 public:

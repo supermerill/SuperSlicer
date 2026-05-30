@@ -51,28 +51,28 @@ void set_demand_from_operand(const run_ctx_support_demand &ctx,
 
 void add_painting_to_island(const run_ctx_support_demand &ctx,
                             const LayerIsland &island,
-                            const ClipperContext &clip,
+                            const ClipperContext &clipper,
                             const std::vector<StoredPolygonCollection> &painting,
                             uint32_t layer_idx)
 {
     if (!has_layer_painting(painting, layer_idx))
         return;
 
-    ClipperOperand enforced = clipper_intersection(clip(island.slice()), clip(painting[layer_idx]));
+    ClipperOperand enforced = clipper_intersection(clipper(island.slice()), clipper(painting[layer_idx]));
     if (enforced.empty())
         return;
 
     expolygon_collection_handle *existing_handle = ctx.get(ctx.demand, island.handle());
     if (existing_handle != nullptr) {
         ExPolygonCollection existing(existing_handle);
-        enforced = clipper_union2(clip(existing), enforced);
+        enforced = clipper_union2(clipper(existing), enforced);
     }
     set_demand_from_operand(ctx, island, std::move(enforced));
 }
 
 void remove_painting_from_island(const run_ctx_support_demand &ctx,
                                  const LayerIsland &island,
-                                 const ClipperContext &clip,
+                                 const ClipperContext &clipper,
                                  const std::vector<StoredPolygonCollection> &painting,
                                  uint32_t layer_idx)
 {
@@ -84,8 +84,8 @@ void remove_painting_from_island(const run_ctx_support_demand &ctx,
         return;
 
     ExPolygonCollection existing(existing_handle);
-    ClipperOperand blocked = clipper_offset(clip(painting[layer_idx]), 1000. * double(SCALED_EPSILON));
-    ClipperOperand remaining = clipper_diff(clip(existing), blocked);
+    ClipperOperand blocked = clipper_offset(clipper(painting[layer_idx]), 1000. * double(SCALED_EPSILON));
+    ClipperOperand remaining = clipper_diff(clipper(existing), blocked);
     set_demand_from_operand(ctx, island, std::move(remaining));
 }
 
@@ -162,7 +162,7 @@ void SupportDemandPainting::run_impl(const plugin_run_context *run_ctx) const
     std::vector<StoredPolygonCollection> blockers = project_painting_to_polygons(
         storage, object, RAW_FACET_PAINTING_FDM_SUPPORT, RAW_FACET_PAINTING_BLOCKER);
 
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     for (uint32_t layer_idx = 0; layer_idx < object.layer_count(); ++layer_idx) {
         throw_if_cancelled(run_ctx);
 
@@ -171,8 +171,8 @@ void SupportDemandPainting::run_impl(const plugin_run_context *run_ctx) const
             throw_if_cancelled(run_ctx);
 
             const LayerIsland island = layer.island(island_idx);
-            add_painting_to_island(*ctx, island, clip, enforcers, layer_idx);
-            remove_painting_from_island(*ctx, island, clip, blockers, layer_idx);
+            add_painting_to_island(*ctx, island, clipper, enforcers, layer_idx);
+            remove_painting_from_island(*ctx, island, clipper, blockers, layer_idx);
             progress().increment();
         }
     }

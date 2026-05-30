@@ -113,9 +113,9 @@ StoredExPolygonCollection clip_infill_areas_to_regions(storage_handle *storage,
     for (const LayerRegion &region : regions)
         region_slices.append_copy_from(region.slices());
 
-    ClipperContext clip(storage);
-    ClipperOperand merged_regions = clipper_union(clip(region_slices.readonly()));
-    ClipperOperand clipped = clipper_intersection(clip(island.infill_areas()), merged_regions);
+    ClipperContext clipper(storage);
+    ClipperOperand merged_regions = clipper_union(clipper(region_slices.readonly()));
+    ClipperOperand clipped = clipper_intersection(clipper(island.infill_areas()), merged_regions);
     return clipped.to_expolygon_collection();
 }
 
@@ -143,8 +143,8 @@ StoredExPolygonCollection areas_without_linked_slices(storage_handle *storage,
         return areas.clone(storage);
 
     StoredExPolygonCollection slices = linked_island_slices(storage, linked_islands);
-    ClipperContext clip(storage);
-    ClipperOperand uncovered = clipper_diff(clip(areas), clip(slices.readonly()));
+    ClipperContext clipper(storage);
+    ClipperOperand uncovered = clipper_diff(clipper(areas), clipper(slices.readonly()));
     return uncovered.to_expolygon_collection();
 }
 
@@ -159,8 +159,8 @@ StoredExPolygonCollection subtract_areas(storage_handle *storage,
     if (clip_areas.empty())
         return subject.clone(storage);
 
-    ClipperContext clip(storage);
-    return clipper_diff(clip(subject), clip(clip_areas)).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_diff(clipper(subject), clipper(clip_areas)).to_expolygon_collection();
 }
 
 StoredExPolygonCollection occupied_union(storage_handle *storage,
@@ -175,8 +175,8 @@ StoredExPolygonCollection occupied_union(storage_handle *storage,
     if (occupied.empty())
         return occupied;
 
-    ClipperContext clip(storage);
-    return clipper_union(clip(occupied.readonly())).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_union(clipper(occupied.readonly())).to_expolygon_collection();
 }
 
 void append_surface_group(StoredSurfaceCollection &surfaces,

@@ -305,12 +305,12 @@ StoredExPolygonCollection area_without_painting_blockers(storage_handle *storage
     if (!painting.has_blockers())
         return area.clone(storage);
 
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     // Expand blockers by a tiny amount so a painted edge reliably cuts a
     // perimeter fragment instead of leaving a nearly coincident fuzzy sliver.
-    ClipperOperand blockers = clipper_offset(clip(painting.blockers.readonly()),
+    ClipperOperand blockers = clipper_offset(clipper(painting.blockers.readonly()),
                                              1000. * double(SCALED_EPSILON));
-    return clipper_diff(clip(area), blockers).to_expolygon_collection();
+    return clipper_diff(clipper(area), blockers).to_expolygon_collection();
 }
 
 StoredExPolygonCollection area_inside_painting_enforcers(storage_handle *storage,
@@ -320,10 +320,10 @@ StoredExPolygonCollection area_inside_painting_enforcers(storage_handle *storage
     if (!painting.has_enforcers())
         return StoredExPolygonCollection(storage);
 
-    ClipperContext clip(storage);
-    ClipperOperand enforced = clipper_intersection(clip(area), clip(painting.enforcers.readonly()));
+    ClipperContext clipper(storage);
+    ClipperOperand enforced = clipper_intersection(clipper(area), clipper(painting.enforcers.readonly()));
     if (painting.has_blockers()) {
-        ClipperOperand blockers = clipper_offset(clip(painting.blockers.readonly()),
+        ClipperOperand blockers = clipper_offset(clipper(painting.blockers.readonly()),
                                                  1000. * double(SCALED_EPSILON));
         enforced = clipper_diff(enforced, blockers);
     }
@@ -374,8 +374,8 @@ StoredExPolygonCollection union_fuzzy_clips(storage_handle *storage, const std::
         accepted_area.append_copy_from(clip_area.area.readonly());
 
     if (!accepted_area.empty()) {
-        ClipperContext clip(storage);
-        accepted_area = clipper_union(clip(accepted_area)).to_expolygon_collection();
+        ClipperContext clipper(storage);
+        accepted_area = clipper_union(clipper(accepted_area)).to_expolygon_collection();
         accepted_area.ensure_valid();
     }
     return accepted_area;
@@ -954,11 +954,11 @@ StoredExPolygonCollection painting_polygons_for_island(storage_handle *storage,
     if (!has_layer_painting(by_layer, layer_idx))
         return out;
 
-    ClipperContext clip(storage);
-    ClipperOperand painted = clip((*by_layer)[layer_idx].readonly());
+    ClipperContext clipper(storage);
+    ClipperOperand painted = clipper((*by_layer)[layer_idx].readonly());
     if (painting_margin > 0.)
         painted = clipper_offset(painted, painting_margin);
-    ClipperOperand clipped = clipper_intersection(clip(island.slice()), painted);
+    ClipperOperand clipped = clipper_intersection(clipper(island.slice()), painted);
     if (!clipped.empty()) {
         out = clipper_union(clipped).to_expolygon_collection();
         out.ensure_valid();

@@ -66,8 +66,8 @@ StoredExPolygonCollection union_collection(storage_handle *storage, const ExPoly
     if (areas.empty())
         return StoredExPolygonCollection(storage);
 
-    ClipperContext clip(storage);
-    return clipper_union(clip(areas)).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_union(clipper(areas)).to_expolygon_collection();
 }
 
 StoredExPolygonCollection diff_collection(storage_handle *storage,
@@ -79,8 +79,8 @@ StoredExPolygonCollection diff_collection(storage_handle *storage,
     if (clip_areas.empty())
         return subject.clone(storage);
 
-    ClipperContext clip(storage);
-    return clipper_diff(clip(subject), clip(clip_areas)).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_diff(clipper(subject), clipper(clip_areas)).to_expolygon_collection();
 }
 
 StoredExPolygonCollection intersection_collection(storage_handle *storage,
@@ -90,8 +90,8 @@ StoredExPolygonCollection intersection_collection(storage_handle *storage,
     if (subject.empty() || clip_areas.empty())
         return StoredExPolygonCollection(storage);
 
-    ClipperContext clip(storage);
-    return clipper_intersection(clip(subject), clip(clip_areas)).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_intersection(clipper(subject), clipper(clip_areas)).to_expolygon_collection();
 }
 
 void append_surface_group(StoredSurfaceCollection &surfaces,
@@ -193,9 +193,9 @@ StoredExPolygonCollection expand_single_top_surface(storage_handle *storage,
     if (margin <= 0)
         return source_collection.readonly().clone(storage);
 
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     StoredExPolygonCollection expanded =
-        clipper_offset(clip(source_collection.readonly()), double(margin)).to_expolygon_collection();
+        clipper_offset(clipper(source_collection.readonly()), double(margin)).to_expolygon_collection();
     expanded = intersection_collection(storage, expanded.readonly(), domain);
 
     StoredExPolygonCollection kept(storage);

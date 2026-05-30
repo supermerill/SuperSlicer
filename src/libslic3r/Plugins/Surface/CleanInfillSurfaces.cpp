@@ -82,8 +82,8 @@ StoredExPolygonCollection union_collection(storage_handle *storage, const ExPoly
     if (areas.empty())
         return StoredExPolygonCollection(storage);
 
-    ClipperContext clip(storage);
-    return clipper_union(clip(areas)).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_union(clipper(areas)).to_expolygon_collection();
 }
 
 StoredExPolygonCollection diff_collection(storage_handle *storage,
@@ -95,8 +95,8 @@ StoredExPolygonCollection diff_collection(storage_handle *storage,
     if (clip_areas.empty())
         return subject.clone(storage);
 
-    ClipperContext clip(storage);
-    return clipper_diff(clip(subject), clip(clip_areas)).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_diff(clipper(subject), clipper(clip_areas)).to_expolygon_collection();
 }
 
 StoredExPolygonCollection intersection_collection(storage_handle *storage,
@@ -106,8 +106,8 @@ StoredExPolygonCollection intersection_collection(storage_handle *storage,
     if (subject.empty() || clip_areas.empty())
         return StoredExPolygonCollection(storage);
 
-    ClipperContext clip(storage);
-    return clipper_intersection(clip(subject), clip(clip_areas)).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_intersection(clipper(subject), clipper(clip_areas)).to_expolygon_collection();
 }
 
 void append_surface_group(StoredSurfaceCollection &surfaces,
@@ -252,9 +252,9 @@ void append_thin_width_result(StoredSurfaceCollection &output,
     // A negative/positive offset pair removes sparse parts that cannot contain
     // the requested width. The removed pieces are not discarded: they become
     // solid so narrow infill islands still receive material.
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     StoredExPolygonCollection wide_sparse =
-        clipper_offset2(clip(source), -double(half_width), double(half_width)).to_expolygon_collection();
+        clipper_offset2(clipper(source), -double(half_width), double(half_width)).to_expolygon_collection();
     wide_sparse = intersection_collection(storage, wide_sparse.readonly(), source);
 
     StoredExPolygonCollection thin_solid = diff_collection(storage, source, wide_sparse.readonly());
@@ -315,9 +315,9 @@ bool intersects_after_epsilon_offset(storage_handle *storage,
     // while still rejecting unrelated micro islands.
     StoredExPolygonCollection lhs_single = collection_from_expolygon(storage, lhs);
     StoredExPolygonCollection rhs_single = collection_from_expolygon(storage, rhs);
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     StoredExPolygonCollection expanded =
-        clipper_offset(clip(lhs_single.readonly()), double(SCALED_EPSILON)).to_expolygon_collection();
+        clipper_offset(clipper(lhs_single.readonly()), double(SCALED_EPSILON)).to_expolygon_collection();
     StoredExPolygonCollection overlap = intersection_collection(storage, expanded.readonly(), rhs_single.readonly());
     return !overlap.empty();
 }

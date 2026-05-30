@@ -180,7 +180,7 @@ void MaxOverhangThreshold::run_impl(const plugin_run_context *run_ctx) const {
     Print print(ctx->print);
     Object object(ctx->object);
     storage_handle *storage = run_ctx->plugin_storage;
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     bool has_enlargment = false;
 
     coord_t max_nz_diam = 0;
@@ -235,7 +235,7 @@ void MaxOverhangThreshold::run_impl(const plugin_run_context *run_ctx) const {
 
         // const ExPolygons supported_area = ensure_valid(intersection_ex(my_layer.slices(), lower_layer.slices()),
         // resolution);
-        ClipperOperand supported_area_co = clipper_intersection(clip(my_layer.slices()), clip(lower_layer.slices()));
+        ClipperOperand supported_area_co = clipper_intersection(clipper(my_layer.slices()), clipper(lower_layer.slices()));
         // TODO: ensure_valid/clean supported_area_co
 
         // Detect bridgeable unsupported areas first. Bridges are added back to
@@ -244,8 +244,8 @@ void MaxOverhangThreshold::run_impl(const plugin_run_context *run_ctx) const {
             LayerRegion lregion = my_layer.region(lregion_idx);
             c_flow bridge_flow = lregion.flow(RAW_EXTRUSION_ROLE_INFILL | RAW_EXTRUSION_ROLE_SOLID |
                                               RAW_EXTRUSION_ROLE_BRIDGE);
-            ClipperOperand bridged_area_co = clip();
-            ClipperOperand bridged_other_layers_areas_co = clip();
+            ClipperOperand bridged_area_co = clipper();
+            ClipperOperand bridged_other_layers_areas_co = clipper();
 
             Config region_config = lregion.print_region().config();
             // Bridge detection is enabled either by a non-zero explicit limit or
@@ -253,8 +253,8 @@ void MaxOverhangThreshold::run_impl(const plugin_run_context *run_ctx) const {
             // semantics.
             if (region_config.get("overhangs_bridge_threshold").get_float() != 0 ||
                 !region_config.get("overhangs_bridge_threshold").is_enabled()) {
-                ClipperOperand unsupported_co = clipper_diff_with_safety_offset(clip(lregion.slices()),
-                                                                                clip(lower_layer.slices()));
+                ClipperOperand unsupported_co = clipper_diff_with_safety_offset(clipper(lregion.slices()),
+                                                                                clipper(lower_layer.slices()));
 
                 if (!unsupported_co.empty()) {
                     // Remove tiny unsupported islands before asking the bridge
@@ -285,7 +285,7 @@ void MaxOverhangThreshold::run_impl(const plugin_run_context *run_ctx) const {
                         if (detector.detect_angle()) {
                             StoredPolygonCollection coverage_polygons(storage);
                             if (detector.coverage(coverage_polygons) > 0) {
-                                bridged_area_co += clipper_union(clip(coverage_polygons));
+                                bridged_area_co += clipper_union(clipper(coverage_polygons));
                             }
                         }
                     });
@@ -312,7 +312,7 @@ void MaxOverhangThreshold::run_impl(const plugin_run_context *run_ctx) const {
                         }
                         // Support available for upper bridge detection excludes
                         // the future enlarged area, which has not been computed.
-                        ClipperOperand previous_supported_co = clip();
+                        ClipperOperand previous_supported_co = clipper();
                         previous_supported_co += supported_area_co;
                         previous_supported_co += bridged_area_co;
                         previous_supported_co = clipper_union_with_safety_offset(previous_supported_co);
@@ -322,9 +322,9 @@ void MaxOverhangThreshold::run_impl(const plugin_run_context *run_ctx) const {
                             // before checking whether the remaining area bridges.
                             still_unsupported_co =
                                 clipper_intersection(still_unsupported_co,
-                                                     clip(object.layer(other_layer_bridge_idx).slices()));
+                                                     clipper(object.layer(other_layer_bridge_idx).slices()));
                             // Detect newly bridgeable areas on the upper layer.
-                            ClipperOperand new_bridged_area_co = clip();
+                            ClipperOperand new_bridged_area_co = clipper();
                             for (size_t other_region_idx = 0; other_region_idx < my_layer.region_count();
                                  ++other_region_idx) {
                                 LayerRegion other_lregion = my_layer.region(other_region_idx);
@@ -337,12 +337,12 @@ void MaxOverhangThreshold::run_impl(const plugin_run_context *run_ctx) const {
                                             .get_effective_value(unscaled(max_nz_diam))); // me or other?
                                     enlargement = std::max(enlargement, max_nz_diam);
                                     ClipperOperand other_to_bridge_co =
-                                        clipper_intersection(still_unsupported_co, clip(other_lregion.slices()));
+                                        clipper_intersection(still_unsupported_co, clipper(other_lregion.slices()));
                                     other_to_bridge_co.for_each_expolygon([&](const ExPolygon &other_to_bridge) {
                                         // Collapse too-small areas before bridge
                                         // detection; they cannot produce useful
                                         // bridge coverage and create false work.
-                                        ClipperOperand test_empty_co = clipper_offset(clip(other_to_bridge),
+                                        ClipperOperand test_empty_co = clipper_offset(clipper(other_to_bridge),
                                                                                       -enlargement);
                                         if (test_empty_co.empty()) {
                                             return; // continue;
@@ -375,7 +375,7 @@ void MaxOverhangThreshold::run_impl(const plugin_run_context *run_ctx) const {
                                             StoredPolygonCollection coverage_polygons(storage);
                                             if (detector.coverage(coverage_polygons) > 0) {
                                                 new_bridged_area_co += clipper_union2(new_bridged_area_co,
-                                                                                      clip(coverage_polygons));
+                                                                                      clipper(coverage_polygons));
                                             }
                                         }
                                     });
@@ -415,12 +415,12 @@ void MaxOverhangThreshold::run_impl(const plugin_run_context *run_ctx) const {
                     // Only remove bridge areas not fully enclosed by the enlarged
                     // support; enclosed bridge areas do not affect the boundary.
                     bridged_other_layers_areas_co.for_each_expolygon([&](const ExPolygon &bridged_other_layers_area) {
-                        ClipperOperand check_co = clipper_diff(clip(bridged_other_layers_area), enlarged_support_co);
+                        ClipperOperand check_co = clipper_diff(clipper(bridged_other_layers_area), enlarged_support_co);
                         if (!check_co.empty()) {
                             StoredExPolygonCollection check = check_co.to_expolygon_collection();
                             if (check.size() > 1 || !equals(check.at(0), bridged_other_layers_area)) {
                                 enlarged_support_co = clipper_diff(enlarged_support_co,
-                                                                   clip(bridged_other_layers_area));
+                                                                   clipper(bridged_other_layers_area));
                             }
                         }
                     });
@@ -450,7 +450,7 @@ void MaxOverhangThreshold::run_impl(const plugin_run_context *run_ctx) const {
                         assert(hole.is_clockwise());
                     }
                 }
-                enlarged_support_co = clipper_intersection(clip(enlarged_support), max_enlarged_support_co);
+                enlarged_support_co = clipper_intersection(clipper(enlarged_support), max_enlarged_support_co);
                 enlarged_support_co = clipper_union2(enlarged_support_co, min_enlarged_support_co);
                 // Build replacement raw slices for this LayerRegion by clipping
                 // the enlarged support against each original raw slice.
@@ -458,7 +458,7 @@ void MaxOverhangThreshold::run_impl(const plugin_run_context *run_ctx) const {
                 ExPolygonCollection src_slices = lregion.slices();
                 for (size_t slice_idx = 0; slice_idx < src_slices.size(); slice_idx++) {
                     ClipperOperand new_slice_co = clipper_intersection(enlarged_support_co,
-                                                                       clip(src_slices[slice_idx]));
+                                                                       clipper(src_slices[slice_idx]));
                     // If look-ahead bridges were found, smooth the enlargement so
                     // spikes do not appear near bridge boundaries.
                     if (!bridged_other_layers_areas_co.empty()) {

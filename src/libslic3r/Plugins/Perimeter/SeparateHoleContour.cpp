@@ -205,8 +205,8 @@ StoredExPolygonCollection offset_collection(storage_handle *storage,
     if (subject.empty())
         return StoredExPolygonCollection(storage);
 
-    ClipperContext clip(storage);
-    return clipper_offset(clip(subject), delta).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_offset(clipper(subject), delta).to_expolygon_collection();
 }
 
 StoredExPolygonCollection offset2_collection(storage_handle *storage,
@@ -218,8 +218,8 @@ StoredExPolygonCollection offset2_collection(storage_handle *storage,
     if (subject.empty())
         return StoredExPolygonCollection(storage);
 
-    ClipperContext clip(storage);
-    return clipper_offset2(clip(subject), delta1, delta2).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_offset2(clipper(subject), delta1, delta2).to_expolygon_collection();
 }
 
 StoredExPolygonCollection diff_collection(storage_handle *storage,
@@ -232,8 +232,8 @@ StoredExPolygonCollection diff_collection(storage_handle *storage,
     if (clip_area.empty())
         return subject.clone(storage);
 
-    ClipperContext clip(storage);
-    return clipper_diff(clip(subject), clip(clip_area)).to_expolygon_collection();
+    ClipperContext clipper(storage);
+    return clipper_diff(clipper(subject), clipper(clip_area)).to_expolygon_collection();
 }
 
 StoredExPolygonCollection extrusion_coverage_area(storage_handle *storage,
@@ -254,9 +254,9 @@ StoredExPolygonCollection extrusion_coverage_area(storage_handle *storage,
     // available for the next child node, turn kept centerlines into a physical
     // coverage area. CLOSED_LINE is intentional: a loop centerline covers a
     // stroke around the line, not the whole polygon interior.
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     StoredExPolygonCollection area =
-        clipper_union(clipper_offset(clip(polygons),
+        clipper_union(clipper_offset(clipper(polygons),
                                      std::max(radius, cleanup_distance),
                                      CLIPPER_JOIN_MITER,
                                      3.0,

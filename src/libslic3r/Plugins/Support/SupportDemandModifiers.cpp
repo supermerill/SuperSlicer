@@ -130,10 +130,10 @@ bool has_layer_slices(const std::vector<StoredExPolygonCollection> &by_layer, ui
 
 ClipperOperand clip_layer_slices(const std::vector<StoredExPolygonCollection> &by_layer,
                                  uint32_t layer_idx,
-                                 const ClipperContext &clip)
+                                 const ClipperContext &clipper)
 {
     assert(has_layer_slices(by_layer, layer_idx));
-    return clip(by_layer[layer_idx]);
+    return clipper(by_layer[layer_idx]);
 }
 
 void set_demand_from_operand(const run_ctx_support_demand &ctx,
@@ -147,28 +147,29 @@ void set_demand_from_operand(const run_ctx_support_demand &ctx,
 
 void add_enforcers_to_island(const run_ctx_support_demand &ctx,
                              const LayerIsland &island,
-                             const ClipperContext &clip,
+                             const ClipperContext &clipper,
                              const std::vector<StoredExPolygonCollection> &enforcers,
                              uint32_t layer_idx)
 {
     if (!has_layer_slices(enforcers, layer_idx))
         return;
 
-    ClipperOperand enforced = clipper_intersection(clip(island.slice()), clip_layer_slices(enforcers, layer_idx, clip));
+    ClipperOperand enforced =
+        clipper_intersection(clipper(island.slice()), clip_layer_slices(enforcers, layer_idx, clipper));
     if (enforced.empty())
         return;
 
     expolygon_collection_handle *existing_handle = ctx.get(ctx.demand, island.handle());
     if (existing_handle != nullptr) {
         ExPolygonCollection existing(existing_handle);
-        enforced = clipper_union2(clip(existing), enforced);
+        enforced = clipper_union2(clipper(existing), enforced);
     }
     set_demand_from_operand(ctx, island, std::move(enforced));
 }
 
 void remove_blockers_from_island(const run_ctx_support_demand &ctx,
                                  const LayerIsland &island,
-                                 const ClipperContext &clip,
+                                 const ClipperContext &clipper,
                                  const std::vector<StoredExPolygonCollection> &blockers,
                                  uint32_t layer_idx)
 {
@@ -180,8 +181,9 @@ void remove_blockers_from_island(const run_ctx_support_demand &ctx,
         return;
 
     ExPolygonCollection existing(existing_handle);
-    ClipperOperand blocked = clipper_offset(clip_layer_slices(blockers, layer_idx, clip), 1000. * double(SCALED_EPSILON));
-    ClipperOperand remaining = clipper_diff(clip(existing), blocked);
+    ClipperOperand blocked =
+        clipper_offset(clip_layer_slices(blockers, layer_idx, clipper), 1000. * double(SCALED_EPSILON));
+    ClipperOperand remaining = clipper_diff(clipper(existing), blocked);
     set_demand_from_operand(ctx, island, std::move(remaining));
 }
 
@@ -264,7 +266,7 @@ void SupportDemandModifiers::run_impl(const plugin_run_context *run_ctx) const
         return;
     }
 
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     for (uint32_t layer_idx = 0; layer_idx < object.layer_count(); ++layer_idx) {
         throw_if_cancelled(run_ctx);
 
@@ -275,9 +277,9 @@ void SupportDemandModifiers::run_impl(const plugin_run_context *run_ctx) const
             const LayerIsland island = layer.island(island_idx);
             for (const SlicedSupportModifier &modifier : modifiers) {
                 if (modifier.type == RAW_VOLUME_TYPE_SUPPORT_ENFORCER)
-                    add_enforcers_to_island(*ctx, island, clip, modifier.slices, layer_idx);
+                    add_enforcers_to_island(*ctx, island, clipper, modifier.slices, layer_idx);
                 else if (modifier.type == RAW_VOLUME_TYPE_SUPPORT_BLOCKER)
-                    remove_blockers_from_island(*ctx, island, clip, modifier.slices, layer_idx);
+                    remove_blockers_from_island(*ctx, island, clipper, modifier.slices, layer_idx);
             }
             progress().increment();
         }

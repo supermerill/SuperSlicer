@@ -112,10 +112,10 @@ bool validate_surface_prerequisites(const plugin_run_context *run_ctx, const Obj
 
 ClipperOperand linked_island_slices_shape(storage_handle *storage, const std::vector<LayerIsland> &linked_islands)
 {
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     ClipperOperand slices = ClipperOperand::create_empty(storage);
     for (const LayerIsland &linked_island : linked_islands)
-        slices += clip(linked_island.slice());
+        slices += clipper(linked_island.slice());
     return slices;
 }
 
@@ -126,13 +126,13 @@ ClipperOperand exposed_island_shape(storage_handle *storage,
     // A top area is the part of this island not covered by islands above it.
     // A bottom area is the same test against islands below it. These exposed
     // areas are projected through neighboring layers to request solid shells.
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     const std::vector<LayerIsland> linked_islands = top_side ? island.upper_islands() : island.lower_islands();
     if (linked_islands.empty())
-        return clip(island.slice());
+        return clipper(island.slice());
 
     ClipperOperand linked_slices = linked_island_slices_shape(storage, linked_islands);
-    return clipper_diff(clip(island.slice()), linked_slices);
+    return clipper_diff(clipper(island.slice()), linked_slices);
 }
 
 ClipperOperand exposed_layer_shape(storage_handle *storage, const Layer &layer, const bool top_side)
@@ -154,8 +154,8 @@ ClipperOperand island_perimeter_shape(storage_handle *storage, const LayerIsland
     // Perimeter-owned area is what remains between the full island slice and
     // the strict free infill area. If perimeters consumed the whole island,
     // infill_no_overlap_areas() is empty and the whole slice becomes perimeter.
-    ClipperContext clip(storage);
-    return clipper_diff(clip(island.slice()), clip(island.infill_no_overlap_areas()));
+    ClipperContext clipper(storage);
+    return clipper_diff(clipper(island.slice()), clipper(island.infill_no_overlap_areas()));
 }
 
 ClipperOperand layer_perimeter_shape(storage_handle *storage, const Layer &layer)
@@ -294,8 +294,8 @@ bool fully_covered_by(storage_handle *storage, const ExPolygon &area, const Clip
     if (coverage.empty())
         return false;
 
-    ClipperContext clip(storage);
-    ClipperOperand uncovered = clipper_diff(clip(area), coverage);
+    ClipperContext clipper(storage);
+    ClipperOperand uncovered = clipper_diff(clipper(area), coverage);
     return uncovered.empty();
 }
 
@@ -378,14 +378,14 @@ void append_solid_and_sparse_results(StoredSurfaceCollection &out,
     // Top and bottom requests produce the same final surface type, so they are
     // unioned before rebuilding the residual sparse area. This guarantees that
     // the output surfaces do not positively overlap.
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     ClipperOperand solid_shape = ClipperOperand::create_empty(storage);
-    solid_shape += clip(top_solid.readonly());
-    solid_shape += clip(bottom_solid.readonly());
+    solid_shape += clipper(top_solid.readonly());
+    solid_shape += clipper(bottom_solid.readonly());
     solid_shape = clipper_union(solid_shape);
 
     StoredExPolygonCollection solid = solid_shape.to_expolygon_collection();
-    StoredExPolygonCollection sparse = clipper_diff(clip(source.readonly()), solid_shape).to_expolygon_collection();
+    StoredExPolygonCollection sparse = clipper_diff(clipper(source.readonly()), solid_shape).to_expolygon_collection();
     out.append_move(std::move(solid), k_internal_solid);
     out.append_move(std::move(sparse), k_internal_sparse);
 }
@@ -432,8 +432,8 @@ void rebuild_region_island_surfaces(const run_ctx_surface_generation &ctx,
         const int32_t solid_over_perimeters =
             std::max<int32_t>(0, setting_value.get_int(k_solid_over_perimeters_key));
 
-        ClipperContext clip(storage);
-        ClipperOperand source_shape = clip(source.readonly());
+        ClipperContext clipper(storage);
+        ClipperOperand source_shape = clipper(source.readonly());
         ClipperOperand top_shell = projected_top_shell_shape(storage, object, layer_idx, setting_value);
         ClipperOperand top_perimeter_coverage =
             perimeter_stack_coverage_shape(storage, object, layer_idx, true, solid_over_perimeters);
@@ -443,7 +443,7 @@ void rebuild_region_island_surfaces(const run_ctx_surface_generation &ctx,
         // Bottom shell detection works on the part not already made solid by
         // the top pass. Both outputs use the same final Surface type, but this
         // avoids duplicated solid areas when top and bottom ranges overlap.
-        ClipperOperand top_solid_shape = clip(top_solid.readonly());
+        ClipperOperand top_solid_shape = clipper(top_solid.readonly());
         ClipperOperand source_without_top = clipper_diff(source_shape, top_solid_shape);
         ClipperOperand bottom_shell = projected_bottom_shell_shape(storage, object, layer_idx, setting_value);
         ClipperOperand bottom_perimeter_coverage =

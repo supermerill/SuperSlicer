@@ -362,8 +362,8 @@ StoredExPolygonCollection lower_slices_for_island(storage_handle *storage, const
         lower_expolygons.push_back(lower_island.slice());
 
     if (lower_islands.size() > 1) {
-        ClipperContext clip(storage);
-        lower_expolygons = clipper_union(clip(lower_expolygons)).to_expolygon_collection();
+        ClipperContext clipper(storage);
+        lower_expolygons = clipper_union(clipper(lower_expolygons)).to_expolygon_collection();
     }
     return lower_expolygons;
 }
@@ -536,7 +536,7 @@ StoredExPolygonCollection coverage_for_extra_perimeters(storage_handle *storage,
                                                         const OverhangGenerationInput &input)
 {
     StoredExPolygonCollection coverage(storage);
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     for (const StoredExtrusionEntity &zone : extra_perimeters) {
         for (const ExtrusionEntity path : zone.children()) {
             if (path.empty() || path.point_count() < 2)
@@ -552,7 +552,7 @@ StoredExPolygonCollection coverage_for_extra_perimeters(storage_handle *storage,
             // the layer, but the next infill step only needs to reserve the
             // nominal 2D slot occupied by the generated centerline.
             StoredExPolygonCollection path_coverage =
-                clipper_offset(clip(centerline),
+                clipper_offset(clipper(centerline),
                                0.5 * double(input.overhang_spacing),
                                CLIPPER_JOIN_SQUARE,
                                0.,
@@ -565,8 +565,8 @@ StoredExPolygonCollection coverage_for_extra_perimeters(storage_handle *storage,
         return StoredExPolygonCollection(storage);
 
     StoredExPolygonCollection coverage_union =
-        clipper_union(clip(coverage)).to_expolygon_collection();
-    return clipper_intersection(clip(coverage_union), clip(clip_area)).to_expolygon_collection();
+        clipper_union(clipper(coverage)).to_expolygon_collection();
+    return clipper_intersection(clipper(coverage_union), clipper(clip_area)).to_expolygon_collection();
 }
 
 bool residual_area_is_too_small_for_gap_fill(storage_handle *storage,
@@ -584,8 +584,8 @@ bool residual_area_is_too_small_for_gap_fill(storage_handle *storage,
     if (input.overhang_spacing < input.wave_flow.nozzle_diameter / 10)
         return true;
 
-    ClipperContext clip(storage);
-    return clipper_offset(clip(area), -double(input.wave_flow.nozzle_diameter)).empty();
+    ClipperContext clipper(storage);
+    return clipper_offset(clipper(area), -double(input.wave_flow.nozzle_diameter)).empty();
 }
 
 void append_residual_gap_fill_paths(storage_handle *storage,
@@ -652,12 +652,12 @@ OverhangGenerationOutput generate_extra_perimeters_over_overhangs_wave(storage_h
     if (optimized_lower_slices.empty())
         return out;
 
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
 
     // The printable domain is the enabled infill area that is not already
     // covered by lower-layer material. Each later wave is clipped to this area.
     StoredExPolygonCollection overhangs =
-        clipper_diff(clip(infill_area), clip(optimized_lower_slices)).to_expolygon_collection();
+        clipper_diff(clipper(infill_area), clipper(optimized_lower_slices)).to_expolygon_collection();
     if (overhangs.empty())
         return out;
 
@@ -666,7 +666,7 @@ OverhangGenerationOutput generate_extra_perimeters_over_overhangs_wave(storage_h
 
     // A zone is printed from the support boundary outward. Multiple zones are
     // independent and may later be sorted as whole units by the wrapper entity.
-    StoredExPolygonCollection zones = clipper_union(clip(overhangs)).to_expolygon_collection();
+    StoredExPolygonCollection zones = clipper_union(clipper(overhangs)).to_expolygon_collection();
     for (const ExPolygon zone : zones) {
         StoredExtrusionEntity zone_paths(storage);
         bool has_unsupported_wave = false;
@@ -681,14 +681,14 @@ OverhangGenerationOutput generate_extra_perimeters_over_overhangs_wave(storage_h
         // This line consumes only a narrow supported band and returns the rest
         // of the supported fill domain to the regular infill generator.
         StoredExPolygonCollection supported_lower =
-            clipper_intersection(clip(infill_area), clip(optimized_lower_slices)).to_expolygon_collection();
+            clipper_intersection(clipper(infill_area), clipper(optimized_lower_slices)).to_expolygon_collection();
         StoredExPolygonCollection zone_margin =
-            clipper_offset(clip(zone_clip), double(input.overhang_spacing)).to_expolygon_collection();
+            clipper_offset(clipper(zone_clip), double(input.overhang_spacing)).to_expolygon_collection();
         StoredExPolygonCollection supported_band =
-            clipper_intersection(clip(supported_lower), clip(zone_margin)).to_expolygon_collection();
+            clipper_intersection(clipper(supported_lower), clipper(zone_margin)).to_expolygon_collection();
         if (!supported_band.empty()) {
             StoredExPolygonCollection support_wave_area =
-                clipper_offset(clip(optimized_lower_slices), -0.5 * double(input.overhang_spacing)).to_expolygon_collection();
+                clipper_offset(clipper(optimized_lower_slices), -0.5 * double(input.overhang_spacing)).to_expolygon_collection();
             StoredPolylineCollection support_area_lines =
                 expolygons_to_polylines(storage, support_wave_area);
             StoredPolylineCollection support_lines =
@@ -704,7 +704,7 @@ OverhangGenerationOutput generate_extra_perimeters_over_overhangs_wave(storage_h
              distance_from_support <= max_wave_distance + SCALED_EPSILON;
              distance_from_support += input.overhang_spacing) {
             StoredExPolygonCollection wave_area =
-                clipper_offset(clip(optimized_lower_slices), double(distance_from_support)).to_expolygon_collection();
+                clipper_offset(clipper(optimized_lower_slices), double(distance_from_support)).to_expolygon_collection();
             if (wave_area.empty())
                 continue;
 
@@ -743,7 +743,7 @@ OverhangGenerationOutput generate_extra_perimeters_over_overhangs_wave(storage_h
         coverage_for_extra_perimeters(storage, out.extra_perimeters, infill_area, input);
     wave_filled_area.ensure_valid();
     StoredExPolygonCollection residual_overhangs =
-        clipper_diff(clip(overhangs), clip(wave_filled_area)).to_expolygon_collection();
+        clipper_diff(clipper(overhangs), clipper(wave_filled_area)).to_expolygon_collection();
     residual_overhangs.ensure_valid();
 
     // Any leftover inside the overhang domain is owned by this post-process:
@@ -752,9 +752,9 @@ OverhangGenerationOutput generate_extra_perimeters_over_overhangs_wave(storage_h
     // so it cannot be printed twice.
     append_residual_gap_fill_paths(storage, out.extra_perimeters, residual_overhangs, input, lower_layer_distancer);
     out.filled_area =
-        clipper_union2(clip(wave_filled_area), clip(residual_overhangs)).to_expolygon_collection();
+        clipper_union2(clipper(wave_filled_area), clipper(residual_overhangs)).to_expolygon_collection();
     out.filled_area.ensure_valid();
-    out.unfilled_area = clipper_diff(clip(infill_area), clip(out.filled_area)).to_expolygon_collection();
+    out.unfilled_area = clipper_diff(clipper(infill_area), clipper(out.filled_area)).to_expolygon_collection();
     out.unfilled_area.ensure_valid();
     return out;
 }
@@ -857,18 +857,18 @@ void update_fill_areas(storage_handle *storage,
         island.infill_areas() :
         island.infill_no_overlap_areas();
 
-    ClipperContext clip(storage);
+    ClipperContext clipper(storage);
     StoredExPolygonCollection next_free_areas =
-        clipper_diff(clip(free_source), clip(generated.filled_area)).to_expolygon_collection();
+        clipper_diff(clipper(free_source), clipper(generated.filled_area)).to_expolygon_collection();
     StoredExPolygonCollection next_fill_areas(storage);
     if (infill_overlap != 0) {
         StoredExPolygonCollection expanded_unfilled =
-            clipper_offset(clip(generated.unfilled_area), infill_overlap).to_expolygon_collection();
+            clipper_offset(clipper(generated.unfilled_area), infill_overlap).to_expolygon_collection();
         next_fill_areas =
-            clipper_intersection(clip(fill_areas), clip(expanded_unfilled)).to_expolygon_collection();
+            clipper_intersection(clipper(fill_areas), clipper(expanded_unfilled)).to_expolygon_collection();
     } else {
         next_fill_areas =
-            clipper_diff(clip(fill_areas), clip(generated.filled_area)).to_expolygon_collection();
+            clipper_diff(clipper(fill_areas), clipper(generated.filled_area)).to_expolygon_collection();
     }
 
     const int32_t fill_ok = ctx.set_island_fill_areas(island.handle(), next_fill_areas.handle());
@@ -934,11 +934,11 @@ void process_island(const run_ctx_post_perimeter_generation &ctx,
         return;
 
     if (settings.has_many_config(k_extra_perimeters_on_overhangs_key)) {
-        ClipperContext clip(storage);
+        ClipperContext clipper(storage);
         StoredExPolygonCollection disabled_area =
-            clipper_diff(clip(infill_candidate), clip(enabled_area)).to_expolygon_collection();
+            clipper_diff(clipper(infill_candidate), clipper(enabled_area)).to_expolygon_collection();
         generated.unfilled_area =
-            clipper_union2(clip(generated.unfilled_area), clip(disabled_area)).to_expolygon_collection();
+            clipper_union2(clipper(generated.unfilled_area), clipper(disabled_area)).to_expolygon_collection();
     }
 
     prepend_extra_perimeter_zone_groups_to_root(storage, root, generated.extra_perimeters);
