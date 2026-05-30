@@ -914,6 +914,8 @@ public:
     StoredPolygonCollection &operator=(StoredPolygonCollection &&) noexcept = default;
     explicit StoredPolygonCollection(storage_handle *storage) :
         StoredPolygonCollection(storage, PolygonCollectionTraits::create(storage)) {}
+    StoredPolygonCollection(storage_handle *storage, const Polygon &polygon) :
+        StoredPolygonCollection(storage) { push_back(polygon); }
 
     static StoredPolygonCollection adopt(storage_handle *storage, polygon_collection_handle *handle) {
         return StoredPolygonCollection(storage, handle);
@@ -943,6 +945,8 @@ public:
     StoredPolylineCollection &operator=(StoredPolylineCollection &&) noexcept = default;
     explicit StoredPolylineCollection(storage_handle *storage) :
         StoredPolylineCollection(storage, PolylineCollectionTraits::create(storage)) {}
+    StoredPolylineCollection(storage_handle *storage, const Polyline &polyline) :
+        StoredPolylineCollection(storage) { push_back(polyline); }
 
     static StoredPolylineCollection adopt(storage_handle *storage, polyline_collection_handle *handle) {
         return StoredPolylineCollection(storage, handle);
@@ -1144,6 +1148,8 @@ public:
     StoredExPolygonCollection &operator=(StoredExPolygonCollection &&) noexcept = default;
     explicit StoredExPolygonCollection(storage_handle *storage) :
         StoredExPolygonCollection(storage, ExPolygonCollectionTraits::create(storage)) {}
+    StoredExPolygonCollection(storage_handle *storage, const ExPolygon &expolygon) :
+        StoredExPolygonCollection(storage) { push_back(expolygon); }
 
     static StoredExPolygonCollection adopt(storage_handle *storage, expolygon_collection_handle *handle) {
         return StoredExPolygonCollection(storage, handle);
