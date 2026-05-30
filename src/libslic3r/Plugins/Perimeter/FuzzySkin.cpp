@@ -277,18 +277,6 @@ double distance_along_points(const std::vector<c_point> &source, c_point point)
     return best_distance;
 }
 
-StoredExPolygonCollection explicit_region_clip(storage_handle *storage,
-                                               const ExPolygon &island_slice,
-                                               const RegionSettingsClip &clip)
-{
-    StoredExPolygonCollection area(storage);
-    if (clip.is_accept_all())
-        area.push_back(island_slice);
-    else if (!clip.has_explicit_empty_geometry())
-        area.copy_from(clip.expolygons());
-    return area;
-}
-
 FuzzyParameters parameters_for_painting_enforcer(FuzzyParameters params)
 {
     // A painted enforcer is an explicit request for fuzzy skin in the painted
@@ -357,7 +345,7 @@ std::vector<FuzzyClip> fuzzy_clips_for_leaf(storage_handle *storage,
     // - blocker facets are subtracted from both sources.
     std::vector<FuzzyClip> clips;
     for (const auto &[setting_value, setting_clip] : areas) {
-        StoredExPolygonCollection region_area = explicit_region_clip(storage, island_slice, setting_clip);
+        StoredExPolygonCollection region_area = setting_clip.intersections(island_slice);
         if (region_area.empty())
             continue;
 

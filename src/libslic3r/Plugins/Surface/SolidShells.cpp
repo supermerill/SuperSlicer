@@ -352,14 +352,7 @@ StoredExPolygonCollection collect_processable_surfaces(storage_handle *storage,
         if (!processable_internal_surface(surface.type()))
             continue;
 
-        if (settings_clip.is_accept_all()) {
-            source.push_back(surface.expolygon());
-        } else {
-            StoredExPolygonCollection single(storage);
-            single.push_back(surface.expolygon());
-            StoredExPolygonCollection clipped = settings_clip.intersections(single.readonly());
-            source.append_move_from(std::move(clipped));
-        }
+        settings_clip.append_intersections_to(source, surface.expolygon());
     }
     return source;
 }

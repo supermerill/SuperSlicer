@@ -178,11 +178,33 @@ public:
         return m_expolygons == nullptr ? nullptr : m_expolygons->handle();
     }
 
+    /*
+    Apply this clip to closed polygonal subjects.
+
+    The "accept all" state is intentionally handled as "no clipping":
+    - intersections(subject) clones the whole subject;
+    - diff(subject) returns an empty collection.
+
+    This lets callers use RegionSettingsClip like a real clipping policy without
+    first converting the implicit accept-all state into a finite artificial
+    polygon.
+    */
     StoredExPolygonCollection intersections(const ExPolygonCollection &subject) const {
         if (is_accept_all())
             return subject.clone(m_storage);
         ClipperContext clip(m_storage);
         return clipper_intersection(clip(subject), clip(m_expolygons->readonly())).to_expolygon_collection();
+    }
+
+    StoredExPolygonCollection intersections(const ExPolygon &subject) const {
+        if (is_accept_all()) {
+            StoredExPolygonCollection out(m_storage);
+            out.push_back(subject);
+            return out;
+        }
+        StoredExPolygonCollection single(m_storage);
+        single.push_back(subject);
+        return intersections(single.readonly());
     }
 
     StoredExPolygonCollection intersections(coord_t offset, const ExPolygonCollection &subject) const {
@@ -200,6 +222,66 @@ public:
             return StoredExPolygonCollection(m_storage);
         ClipperContext clip(m_storage);
         return clipper_diff(clip(subject), clip(m_expolygons->readonly())).to_expolygon_collection();
+    }
+
+    StoredExPolygonCollection diff(const ExPolygon &subject) const {
+        if (is_accept_all())
+            return StoredExPolygonCollection(m_storage);
+        StoredExPolygonCollection single(m_storage);
+        single.push_back(subject);
+        return diff(single.readonly());
+    }
+
+    /*
+    Apply this clip to an open polyline.
+
+    Open paths cannot be passed through the generic polygon boolean helpers.
+    These overloads keep the correct polyline clipping semantics and make the
+    accept-all case read naturally at the call site.
+    */
+    StoredPolylineCollection intersections(const Polyline &subject) const {
+        if (is_accept_all()) {
+            StoredPolylineCollection out(m_storage);
+            out.push_back(subject);
+            return out;
+        }
+        return clipper_intersection_polyline_expolygons(m_storage, subject, m_expolygons->readonly());
+    }
+
+    StoredPolylineCollection diff(const Polyline &subject) const {
+        if (is_accept_all())
+            return StoredPolylineCollection(m_storage);
+        return clipper_diff_polyline_expolygons(m_storage, subject, m_expolygons->readonly());
+    }
+
+    std::tuple<StoredExPolygonCollection, StoredExPolygonCollection>
+    split_to_inside_outside(const ExPolygonCollection &subject) const {
+        return std::make_tuple(intersections(subject), diff(subject));
+    }
+
+    std::tuple<StoredExPolygonCollection, StoredExPolygonCollection>
+    split_to_inside_outside(const ExPolygon &subject) const {
+        return std::make_tuple(intersections(subject), diff(subject));
+    }
+
+    std::tuple<StoredPolylineCollection, StoredPolylineCollection>
+    split_to_inside_outside(const Polyline &subject) const {
+        return std::make_tuple(intersections(subject), diff(subject));
+    }
+
+    void append_intersections_to(StoredExPolygonCollection &dst, const ExPolygonCollection &subject) const {
+        StoredExPolygonCollection clipped = intersections(subject);
+        dst.append_move_from(std::move(clipped));
+    }
+
+    void append_intersections_to(StoredExPolygonCollection &dst, const ExPolygon &subject) const {
+        StoredExPolygonCollection clipped = intersections(subject);
+        dst.append_move_from(std::move(clipped));
+    }
+
+    void append_intersections_to(StoredPolylineCollection &dst, const Polyline &subject) const {
+        StoredPolylineCollection clipped = intersections(subject);
+        dst.append_move_from(std::move(clipped));
     }
 
     void append_copy_from(const ExPolygonCollection &expolygons) {

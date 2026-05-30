@@ -102,15 +102,6 @@ void append_surface_group(StoredSurfaceCollection &surfaces,
         surfaces.append(areas, type);
 }
 
-StoredExPolygonCollection clipped_surface_area(storage_handle *storage,
-                                               const Surface &surface,
-                                               const RegionSettingsClip &settings_clip)
-{
-    StoredExPolygonCollection single = collection_from_expolygon(storage, surface.expolygon());
-    return settings_clip.is_accept_all() ? single.readonly().clone(storage) :
-                                           settings_clip.intersections(single.readonly());
-}
-
 StoredExPolygonCollection collect_surfaces(storage_handle *storage,
                                            const SurfaceCollection &surfaces,
                                            raw_surface_type type,
@@ -121,7 +112,7 @@ StoredExPolygonCollection collect_surfaces(storage_handle *storage,
         if (surface.type() != type)
             continue;
 
-        StoredExPolygonCollection clipped = clipped_surface_area(storage, surface, settings_clip);
+        StoredExPolygonCollection clipped = settings_clip.intersections(surface.expolygon());
         out.append_move_from(std::move(clipped));
     }
     return out;
@@ -136,7 +127,7 @@ StoredExPolygonCollection collect_top_surfaces(storage_handle *storage,
         if (!is_top_surface(surface.type()))
             continue;
 
-        StoredExPolygonCollection clipped = clipped_surface_area(storage, surface, settings_clip);
+        StoredExPolygonCollection clipped = settings_clip.intersections(surface.expolygon());
         out.append_move_from(std::move(clipped));
     }
     return out;

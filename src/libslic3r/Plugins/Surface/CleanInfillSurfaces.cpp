@@ -126,14 +126,6 @@ void append_single_surface(StoredSurfaceCollection &surfaces,
     append_surface_group(surfaces, single.readonly(), surface.type());
 }
 
-StoredExPolygonCollection clipped_infill_areas(storage_handle *storage,
-                                               const LayerIsland &island,
-                                               const RegionSettingsClip &settings_clip)
-{
-    return settings_clip.is_accept_all() ? island.infill_areas().clone(storage) :
-                                           settings_clip.intersections(island.infill_areas());
-}
-
 double layer_infill_area(const Layer &layer)
 {
     double out = 0.;
@@ -159,7 +151,7 @@ StoredExPolygonCollection layer_area_promotion_zone(storage_handle *storage,
         if (threshold <= 0. || total_layer_area > threshold)
             continue;
 
-        StoredExPolygonCollection clipped = clipped_infill_areas(storage, island, setting_clip);
+        StoredExPolygonCollection clipped = setting_clip.intersections(island.infill_areas());
         zone.append_move_from(std::move(clipped));
     }
     return union_collection(storage, zone.readonly());
@@ -183,13 +175,7 @@ StoredExPolygonCollection small_infill_area_promotion_zone(storage_handle *stora
             if (std::abs(infill_area.area()) > threshold)
                 continue;
 
-            StoredExPolygonCollection single = collection_from_expolygon(storage, infill_area);
-            if (setting_clip.is_accept_all())
-                zone.append_move_from(std::move(single));
-            else {
-                StoredExPolygonCollection clipped = setting_clip.intersections(single.readonly());
-                zone.append_move_from(std::move(clipped));
-            }
+            setting_clip.append_intersections_to(zone, infill_area);
         }
     }
     return union_collection(storage, zone.readonly());
@@ -249,15 +235,6 @@ coord_t solid_below_half_width(const RegionSettingsValue &settings, const coord_
     return scale_i(width_mm) / 2;
 }
 
-StoredExPolygonCollection clipped_surface(storage_handle *storage,
-                                          const Surface &surface,
-                                          const RegionSettingsClip &settings_clip)
-{
-    StoredExPolygonCollection single = collection_from_expolygon(storage, surface.expolygon());
-    return settings_clip.is_accept_all() ? single.readonly().clone(storage) :
-                                           settings_clip.intersections(single.readonly());
-}
-
 void append_thin_width_result(StoredSurfaceCollection &output,
                               storage_handle *storage,
                               const ExPolygonCollection &source,
@@ -314,7 +291,7 @@ StoredSurfaceCollection collapse_sparse_width(storage_handle *storage,
         // sparse area unchanged.
         StoredExPolygonCollection processed(storage);
         for (const auto &[setting_value, setting_clip] : areas) {
-            StoredExPolygonCollection source = clipped_surface(storage, surface, setting_clip);
+            StoredExPolygonCollection source = setting_clip.intersections(surface.expolygon());
             const coord_t half_width = solid_below_half_width(setting_value, reference_width);
             append_thin_width_result(output, storage, source.readonly(), surface.type(), half_width);
             processed.append_move_from(std::move(source));

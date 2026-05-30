@@ -194,18 +194,6 @@ std::vector<c_point> densify_points(const std::vector<c_point> &points, coord_t 
     return out;
 }
 
-StoredExPolygonCollection explicit_region_clip(storage_handle *storage,
-                                               const ExPolygon &island_slice,
-                                               const RegionSettingsClip &clip)
-{
-    StoredExPolygonCollection area(storage);
-    if (clip.is_accept_all())
-        area.push_back(island_slice);
-    else if (!clip.has_explicit_empty_geometry())
-        area.copy_from(clip.expolygons());
-    return area;
-}
-
 StoredExPolygonCollection supported_centerline_area(storage_handle *storage,
                                                     const LayerIsland &island,
                                                     coord_t external_perimeter_width)
@@ -229,6 +217,19 @@ OverhangConfig overhang_config_from_value(const RegionSettingsValue &value, cons
     if (!out.enabled)
         return out;
 
+    const ConfigOption flow_ratio = value.option(k_overhangs_flow_ratio_key);
+    const ConfigOption speed_width = value.option(k_overhangs_width_speed_key);
+    out.flow_enabled = flow_ratio.is_enabled();
+    out.speed_enabled = speed_width.is_enabled();
+
+    // Detecting overhangs only makes sense when some later rule will consume
+    // the result. If both optional overhang flow and overhang speed are disabled,
+    // keep the path in the same fast no-op branch as the global overhang switch.
+    if (!out.flow_enabled && !out.speed_enabled) {
+        out.enabled = false;
+        return out;
+    }
+
     const raw_extrusion_role base_role =
         external_role ? RAW_EXTRUSION_ROLE_EXTERNAL_PERIMETER : RAW_EXTRUSION_ROLE_INTERNAL_PERIMETER;
     const c_flow normal_flow = region.flow(base_role);
@@ -237,8 +238,6 @@ OverhangConfig overhang_config_from_value(const RegionSettingsValue &value, cons
     if (out.nozzle_diameter_mm <= 0.)
         out.nozzle_diameter_mm = unscaled(out.overhang_flow.nozzle_diameter);
 
-    const ConfigOption flow_ratio = value.option(k_overhangs_flow_ratio_key);
-    out.flow_enabled = flow_ratio.is_enabled();
     if (out.flow_enabled) {
         out.flow_threshold_mm = value.get_effective_value(out.nozzle_diameter_mm, k_overhangs_width_key);
         const ConfigOption dynamic_flow = value.option(k_overhangs_dynamic_flow_key);
@@ -246,8 +245,6 @@ OverhangConfig overhang_config_from_value(const RegionSettingsValue &value, cons
         out.dynamic_flow_graph = dynamic_flow.graph();
     }
 
-    const ConfigOption speed_width = value.option(k_overhangs_width_speed_key);
-    out.speed_enabled = speed_width.is_enabled();
     if (out.speed_enabled) {
         out.speed_threshold_mm = speed_width.get_effective_value(out.nozzle_diameter_mm);
         const ConfigOption dynamic_speed = value.option(k_overhangs_dynamic_speed_key);
@@ -505,7 +502,7 @@ void append_region_fragments(storage_handle *storage,
                              const ExtrusionEntity &source,
                              const StoredPolyline &source_polyline,
                              const std::vector<c_point> &source_points,
-                             const ExPolygonCollection &region_area,
+                             const RegionSettingsClip &setting_clip,
                              const EPropertyAttributes &effective_attributes,
                              const OverhangConfig &config,
                              const ExPolygonCollection &supported_area,
@@ -513,11 +510,7 @@ void append_region_fragments(storage_handle *storage,
                              const CurledLineProximity &curled_lines,
                              std::vector<Fragment> &fragments)
 {
-    if (region_area.empty())
-        return;
-
-    StoredPolylineCollection region_polylines =
-        clipper_intersection_polyline_expolygons(storage, source_polyline, region_area);
+    StoredPolylineCollection region_polylines = setting_clip.intersections(source_polyline);
     for (const Polyline region_polyline : region_polylines) {
         if (region_polyline.size() < 2)
             continue;
@@ -541,7 +534,6 @@ void append_region_fragments(storage_handle *storage,
 }
 
 std::vector<Fragment> split_leaf(storage_handle *storage,
-                                 const ExPolygon &island_slice,
                                  const RegionSettings &settings,
                                  const LayerRegionIsland &region_island,
                                  const LineDistancer &support_distancer,
@@ -569,10 +561,9 @@ std::vector<Fragment> split_leaf(storage_handle *storage,
         const std::vector<LayerRegion> &regions = settings.get_regions(k_overhangs_key, setting_value);
         const LayerRegion region = !regions.empty() ? regions.front() : region_island.region(0);
         const OverhangConfig config = overhang_config_from_value(setting_value, region, external_role);
-        StoredExPolygonCollection region_area = explicit_region_clip(storage, island_slice, setting_clip);
 
         append_region_fragments(storage, entity.readonly(), source_polyline, source_points,
-                                region_area.readonly(), effective_attributes, config,
+                                setting_clip, effective_attributes, config,
                                 supported_area, support_distancer, curled_lines, fragments);
     }
 
@@ -613,14 +604,12 @@ class DetectOverhangVisitor : public ExtrusionTreeVisitor<>
 {
 public:
     DetectOverhangVisitor(storage_handle *storage,
-                          const ExPolygon &island_slice,
                           const RegionSettings &settings,
                           const LayerRegionIsland &region_island,
                           const LineDistancer &support_distancer,
                           const ExPolygonCollection &supported_area,
                           const CurledLineProximity &curled_lines) :
         m_storage(storage),
-        m_island_slice(island_slice),
         m_settings(settings),
         m_region_island(region_island),
         m_support_distancer(support_distancer),
@@ -638,7 +627,7 @@ protected:
             return;
 
         std::vector<Fragment> fragments =
-            split_leaf(m_storage, m_island_slice, m_settings, m_region_island, m_support_distancer,
+            split_leaf(m_storage, m_settings, m_region_island, m_support_distancer,
                        m_supported_area, m_curled_lines, entity, *attributes);
         if (fragments_need_replacement(fragments, entity))
             replace_root_leaf_with_fragments(entity, fragments);
@@ -646,7 +635,6 @@ protected:
 
 private:
     storage_handle *m_storage = nullptr;
-    const ExPolygon &m_island_slice;
     const RegionSettings &m_settings;
     const LayerRegionIsland &m_region_island;
     const LineDistancer &m_support_distancer;
@@ -656,7 +644,6 @@ private:
 
 void process_region_island(const run_ctx_post_perimeter_generation &ctx,
                            storage_handle *storage,
-                           const LayerIsland &island,
                            const LayerRegionIsland &region_island,
                            const RegionSettings &settings,
                            const ExPolygonCollection &supported_area,
@@ -673,8 +660,7 @@ void process_region_island(const run_ctx_post_perimeter_generation &ctx,
         return;
 
     MutableExtrusionEntity root(root_handle);
-    const ExPolygon island_slice = island.slice();
-    DetectOverhangVisitor visitor(storage, island_slice, settings, region_island,
+    DetectOverhangVisitor visitor(storage, settings, region_island,
                                   support_distancer, supported_area, curled_lines);
     visitor.traverse(root);
 }
@@ -709,7 +695,7 @@ void process_island(const run_ctx_post_perimeter_generation &ctx,
     CurledLineProximity curled_lines(island.layer());
 
     for (uint32_t idx = 0; idx < island.region_island_count(); ++idx)
-        process_region_island(ctx, storage, island, island.region_island(idx), settings,
+        process_region_island(ctx, storage, island.region_island(idx), settings,
                               supported_area.readonly(), support_distancer, curled_lines);
 }
 

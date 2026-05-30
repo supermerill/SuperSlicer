@@ -215,22 +215,6 @@ StoredSurfaceCollection &surfaces_for_region_key(std::vector<PendingSurfaceGroup
     return groups.back().surfaces;
 }
 
-StoredExPolygonCollection collection_from_expolygon(storage_handle *storage, const ExPolygon &expolygon)
-{
-    StoredExPolygonCollection out(storage);
-    out.push_back(expolygon);
-    return out;
-}
-
-StoredExPolygonCollection clipped_surface_area(storage_handle *storage,
-                                               const Surface &surface,
-                                               const RegionSettingsClip &clip)
-{
-    StoredExPolygonCollection single = collection_from_expolygon(storage, surface.expolygon());
-    return clip.is_accept_all() ? single.readonly().clone(storage) :
-                                  clip.intersections(single.readonly());
-}
-
 void append_surface_like(const run_ctx_surface_generation &ctx,
                          StoredSurfaceCollection &dst,
                          const Surface &source,
@@ -244,14 +228,13 @@ void append_surface_like(const run_ctx_surface_generation &ctx,
 }
 
 void append_surface_piece(StoredSurfaceCollection &dst,
-                          storage_handle *storage,
                           const run_ctx_surface_generation &ctx,
                           const Surface &surface,
                           const RegionSettingsClip &clip)
 {
     // Preserve every non-geometry field by appending "like" the source surface.
     // The only thing that changes is the ExPolygon produced by the split.
-    StoredExPolygonCollection clipped = clipped_surface_area(storage, surface, clip);
+    StoredExPolygonCollection clipped = clip.intersections(surface.expolygon());
     append_surface_like(ctx, dst, surface, clipped.readonly());
 }
 
@@ -262,7 +245,8 @@ void append_unsplit_surface(std::vector<PendingSurfaceGroup> &groups,
                             const Surface &surface)
 {
     StoredSurfaceCollection &surfaces = surfaces_for_region_key(groups, storage, RegionKey(region_key));
-    StoredExPolygonCollection single = collection_from_expolygon(storage, surface.expolygon());
+    StoredExPolygonCollection single(storage);
+    single.push_back(surface.expolygon());
     append_surface_like(ctx, surfaces, surface, single.readonly());
 }
 
@@ -304,7 +288,7 @@ void split_surface_by_region_settings(orchestrator_handle *orchestrator,
 
         RegionKey target_key = key_from_regions(target_regions);
         StoredSurfaceCollection &surfaces = surfaces_for_region_key(groups, storage, std::move(target_key));
-        append_surface_piece(surfaces, storage, ctx, surface, setting_clip);
+        append_surface_piece(surfaces, ctx, surface, setting_clip);
     }
 }
 

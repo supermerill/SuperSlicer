@@ -243,3 +243,26 @@ TEST_CASE("Detect overhang preserves disabled overhang regions", "[plugins][peri
     CHECK(stats.bridge_role == 0);
     CHECK(extrusion_length(capture.external_perimeters) > 0.);
 }
+
+TEST_CASE("Detect overhang skips work when flow and speed outputs are disabled", "[plugins][perimeter][detect-overhang]")
+{
+    // This is the nullable-setting counterpart of the global overhang switch.
+    // The current layer has a large unsupported span, but both consumers of the
+    // detection result are disabled. The plugin should therefore behave like a
+    // no-op: no overhang metadata, no bridge role, and no extra path splitting.
+    const DynamicPrintConfig config = detect_overhang_config({
+        {"overhangs_flow_ratio", "!100"},
+        {"overhangs_width_speed", "!0.2"}
+    });
+    const PerimeterRunCapture baseline = run_perimeter_and_post_case(
+        config, {SIMPLE_PERIMETER_GENERATOR}, {},
+        detected_overhang_target(), 1);
+    const PerimeterRunCapture capture = run_detect_overhang_case(config, half_width_lower_support());
+    const DetectedOverhangStats stats = detected_overhang_stats(capture);
+
+    CHECK(stats.overhang_properties == 0);
+    CHECK(stats.bridge_role == 0);
+    CHECK(external_perimeter_count(capture) == external_perimeter_count(baseline));
+    CHECK(total_polyline_points(capture.external_perimeters) == total_polyline_points(baseline.external_perimeters));
+    CHECK(extrusion_length(capture.external_perimeters) == Approx(extrusion_length(baseline.external_perimeters)));
+}

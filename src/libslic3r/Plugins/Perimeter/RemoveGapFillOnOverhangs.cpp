@@ -136,9 +136,7 @@ StoredExPolygonCollection gap_fill_no_overhang_area(const PerimeterGenerationCon
         // value means "apply only to the part of this node covered by this
         // region or modifier". This is what lets the setting vary by region
         // without forcing the generator to split the whole island up front.
-        StoredExPolygonCollection enabled_area = setting_clip.is_accept_all() ?
-            node_area.readonly().clone(storage) :
-            setting_clip.intersections(node_area);
+        StoredExPolygonCollection enabled_area = setting_clip.intersections(node_area);
         if (enabled_area.empty())
             continue;
 
