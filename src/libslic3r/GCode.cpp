@@ -8651,9 +8651,6 @@ double_t GCodeGenerator::_compute_speed_mm_per_sec(const ExtrusionPath& path, co
     // compute overhangs dynamic if needed
     // OverhangPerimeter or OverhangExternalPerimeter
     // don't need to do anything on first layer, as there is no overhangs? (at least, the data to compute them is not generated)
-    assert(overhang_attributes == nullptr || overhang_attributes->has_full_overhangs_speed ||
-           overhang_attributes->has_dynamic_overhangs_speed);
-
     if (overhang_attributes && overhang_attributes->has_dynamic_overhangs_speed) {
         assert(this->layer()->id() > 0);
         double my_speed = speed;
