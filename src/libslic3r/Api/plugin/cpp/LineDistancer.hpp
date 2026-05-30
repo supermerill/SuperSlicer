@@ -28,6 +28,10 @@ public:
 
     bool empty() const { return m_segments.empty(); }
 
+    void append_segment(c_point a, c_point b) {
+        m_segments.push_back({a, b});
+    }
+
     double distance_from_lines(c_point point, bool signed_distance = false) const {
         if (m_segments.empty())
             return std::numeric_limits<double>::infinity();
@@ -43,6 +47,19 @@ public:
         if (signed_distance && contains(point))
             distance = -distance;
         return distance;
+    }
+
+    std::vector<size_t> all_lines_in_radius(c_point point, double radius) const {
+        std::vector<size_t> out;
+        if (radius < 0.)
+            return out;
+
+        const double radius_squared = radius * radius;
+        for (size_t idx = 0; idx < m_segments.size(); ++idx) {
+            if (segment_distance_squared(point, m_segments[idx]) <= radius_squared)
+                out.push_back(idx);
+        }
+        return out;
     }
 
 private:

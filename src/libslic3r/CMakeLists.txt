@@ -161,6 +161,8 @@ set(SLIC3R_SOURCES
 	Plugins/Perimeter/ExtraPerimeterCount.hpp
 	Plugins/Perimeter/ExtraPerimeterOddLayer.cpp
 	Plugins/Perimeter/ExtraPerimeterOddLayer.hpp
+	Plugins/Perimeter/DetectOverhang.cpp
+	Plugins/Perimeter/DetectOverhang.hpp
 	Plugins/Perimeter/ExtraPerimetersOnOverhangs.cpp
 	Plugins/Perimeter/ExtraPerimetersOnOverhangs.hpp
 	Plugins/Perimeter/FuzzySkin.cpp

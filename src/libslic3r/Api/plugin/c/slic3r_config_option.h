@@ -71,6 +71,14 @@ SLIC3R_HOST_API int32_t            config_option_get_int(const config_option_han
 SLIC3R_HOST_API double             config_option_get_float(const config_option_handle *me, uint32_t idx);
 SLIC3R_HOST_API c_float_or_percent config_option_get_float_or_percent(const config_option_handle *me, uint32_t idx);
 SLIC3R_HOST_API int32_t            config_option_get_bool(const config_option_handle *me, uint32_t idx);
+/*
+Borrow one GraphData payload from a graph option.
+
+For scalar graph options, idx is ignored. For vector graph options, idx selects
+the vector item. The returned pointer is owned by the config option and remains
+valid only while that option is not modified.
+*/
+SLIC3R_HOST_API const graph_data_handle *config_option_get_graph(const config_option_handle *me, uint32_t idx);
 SLIC3R_HOST_API void               config_option_set_int(config_option_handle *me, int32_t value, uint32_t idx);
 SLIC3R_HOST_API void               config_option_set_float(config_option_handle *me, double value, uint32_t idx);
 SLIC3R_HOST_API void               config_option_set_float_or_percent(config_option_handle *me, c_float_or_percent value, uint32_t idx);

@@ -80,6 +80,9 @@ public:
         c_float_or_percent value = config_option_get_float_or_percent(handle(), idx);
         return c_float_or_percent_get_effective_value(&value, ratio);
     }
+    const graph_data_handle *graph(uint32_t idx = 0) const {
+        return config_option_get_graph(handle(), idx);
+    }
     bool is_enabled(uint32_t idx = 0) const { return config_option_is_enabled(handle(), idx) != 0; }
     bool is_vector() const { return config_option_is_vector(handle()) != 0; }
 
@@ -570,6 +573,7 @@ public:
     double get_tag(const char *tag) const { return layer_region_get_tag(handle(), tag); }
 
     c_flow flow(raw_extrusion_role role) const { return layer_region_get_flow(handle(), role); }
+    c_flow bridging_flow(raw_extrusion_role role) const { return layer_region_get_bridging_flow(handle(), role); }
 
     ExPolygonCollection slices() const { return ExPolygonCollection(layer_region_get_slices(handle())); }
 
@@ -728,6 +732,7 @@ public:
 
     uint32_t region_count() const { return layer_count_region(handle()); }
     uint32_t island_count() const { return layer_count_island(handle()); }
+    uint32_t curled_line_count() const { return layer_count_curled_line(handle()); }
 
     ExPolygonCollection slices() const { return ExPolygonCollection(layer_get_slices(handle())); }
 
@@ -737,6 +742,15 @@ public:
 
     LayerIsland island(uint32_t idx) const {
         return LayerIsland(layer_get_island(handle(), idx));
+    }
+
+    std::vector<c_curled_line> curled_lines() const {
+        std::vector<c_curled_line> result;
+        const uint32_t count = curled_line_count();
+        result.reserve(count);
+        for (uint32_t idx = 0; idx < count; ++idx)
+            result.push_back(layer_get_curled_line(handle(), idx));
+        return result;
     }
 };
 
@@ -786,6 +800,16 @@ public:
         return Object(print_get_object(handle(), idx));
     }
 };
+
+inline Layer LayerRegion::layer() const
+{
+    return Layer(layer_region_get_layer(handle()));
+}
+
+inline Layer LayerIsland::layer() const
+{
+    return Layer(layer_island_get_layer(handle()));
+}
 
 } // namespace slic3r_api
 

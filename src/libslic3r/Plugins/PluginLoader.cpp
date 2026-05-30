@@ -45,6 +45,7 @@
 #include "libslic3r/Plugins/Perimeter/ExtraPerimeterBelowArea.hpp"
 #include "libslic3r/Plugins/Perimeter/ExtraPerimeterCount.hpp"
 #include "libslic3r/Plugins/Perimeter/ExtraPerimeterOddLayer.hpp"
+#include "libslic3r/Plugins/Perimeter/DetectOverhang.hpp"
 #include "libslic3r/Plugins/Perimeter/ExtraPerimetersOnOverhangs.hpp"
 #include "libslic3r/Plugins/Perimeter/FuzzySkin.hpp"
 #include "libslic3r/Plugins/Perimeter/OnlyOnePerimeterFirstLayer.hpp"
@@ -374,6 +375,8 @@ void register_builtin_plugins(orchestrator_handle *orchestrator)
         slic3r_api::Perimeter::RemoveGapFillOnOverhangsPlugin::register_remove_gap_fill_on_overhangs_plugin);
     register_builtin_plugin(orchestrator, "perimeter.post_process.extra_perimeters_on_overhangs",
         slic3r_api::Perimeter::ExtraPerimetersOnOverhangsPlugin::register_extra_perimeters_on_overhangs_plugin);
+    register_builtin_plugin(orchestrator, "perimeter.post_process.detect_overhang",
+        slic3r_api::Perimeter::DetectOverhangPlugin::register_detect_overhang_plugin);
     register_builtin_plugin(orchestrator, "perimeter.post_process.fuzzy_skin",
         slic3r_api::Perimeter::FuzzySkinPlugin::register_fuzzy_skin_plugin);
     register_builtin_plugin(orchestrator, "perimeter.generator.arachne",

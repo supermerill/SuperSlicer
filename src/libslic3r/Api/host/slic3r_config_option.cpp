@@ -264,6 +264,25 @@ int32_t config_option_get_bool(const config_option_handle *me, uint32_t idx)
     return me != nullptr && Slic3r::to_option(me)->get_bool(idx);
 }
 
+const graph_data_handle *config_option_get_graph(const config_option_handle *me, uint32_t idx)
+{
+    if (me == nullptr)
+        return nullptr;
+
+    const Slic3r::ConfigOption *opt = Slic3r::to_option(me);
+    if (const Slic3r::ConfigOptionGraph *graph = dynamic_cast<const Slic3r::ConfigOptionGraph *>(opt))
+        return reinterpret_cast<const graph_data_handle *>(&graph->value);
+
+    if (const Slic3r::ConfigOptionGraphs *graphs = dynamic_cast<const Slic3r::ConfigOptionGraphs *>(opt)) {
+        const std::vector<Slic3r::GraphData> &values = graphs->get_values();
+        if (idx >= values.size())
+            return nullptr;
+        return reinterpret_cast<const graph_data_handle *>(&values[idx]);
+    }
+
+    return nullptr;
+}
+
 void config_option_set_int(config_option_handle *me, int32_t value, uint32_t idx)
 {
     if (me == nullptr)

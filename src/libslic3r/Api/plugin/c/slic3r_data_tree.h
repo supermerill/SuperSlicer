@@ -31,6 +31,13 @@ typedef struct surface_handle surface_handle;
 typedef struct surface_collection_handle surface_collection_handle;
 typedef struct config_handle config_handle;
 
+typedef struct c_curled_line
+{
+    c_point a;
+    c_point b;
+    float curled_height;
+} c_curled_line;
+
 /* ========================= SURFACE TYPE ========================= */
 
 /*
@@ -142,6 +149,16 @@ SLIC3R_HOST_API coord_t layer_get_support_id(const layer_handle *me);
 
 SLIC3R_HOST_API const expolygon_collection_handle *layer_get_slices(const layer_handle *me);
 
+/*
+Curled-line estimates attached to this layer.
+
+They are produced by the host curl-estimation step. Post-perimeter plugins use
+them as a local slowdown/flow signal near already curled material without
+needing access to the native AABBTreeLines helper.
+*/
+SLIC3R_HOST_API uint32_t layer_count_curled_line(const layer_handle *me);
+SLIC3R_HOST_API c_curled_line layer_get_curled_line(const layer_handle *me, uint32_t idx);
+
 SLIC3R_HOST_API layer_handle *layer_get_upper_layer_mutable(layer_handle *me);
 SLIC3R_HOST_API const layer_handle *layer_get_upper_layer(const layer_handle *me);
 
@@ -167,6 +184,8 @@ SLIC3R_HOST_API void layer_region_set_tag(layer_region_handle *me, const char *t
 SLIC3R_HOST_API double layer_region_get_tag(const layer_region_handle *me, const char *tag);
 
 SLIC3R_HOST_API c_flow layer_region_get_flow(const layer_region_handle *me, raw_extrusion_role flow_role);
+/* Bridge/overhang flow for a perimeter or infill role. */
+SLIC3R_HOST_API c_flow layer_region_get_bridging_flow(const layer_region_handle *me, raw_extrusion_role flow_role);
 SLIC3R_HOST_API const expolygon_collection_handle *layer_region_get_slices(const layer_region_handle *me);
 SLIC3R_HOST_API c_bounding_box layer_region_get_bounding_box(const layer_region_handle *me);
 

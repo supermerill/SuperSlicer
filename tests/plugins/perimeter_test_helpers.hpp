@@ -31,6 +31,7 @@ extern const char *const SEPARATE_HOLE_CONTOUR;
 extern const char *const REMOVE_GAP_FILL_ON_OVERHANGS;
 extern const char *const EXTRA_PERIMETERS_ON_OVERHANGS;
 extern const char *const EXTRA_PERIMETER_OVERHANG_WAVE;
+extern const char *const DETECT_OVERHANG;
 extern const char *const FUZZY_SKIN;
 extern const char *const INITIAL_TYPED_SURFACE_BUILDER;
 extern const char *const SOLID_SHELLS;

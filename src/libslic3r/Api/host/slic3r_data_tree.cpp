@@ -267,6 +267,24 @@ const expolygon_collection_handle *layer_get_slices(const layer_handle *me) {
     return me == nullptr ? nullptr : reinterpret_cast<const expolygon_collection_handle*>(&Slic3r::to_layer(me)->lslices());
 }
 
+uint32_t layer_count_curled_line(const layer_handle *me)
+{
+    return me == nullptr ? 0u : uint32_t(Slic3r::to_layer(me)->curled_lines.size());
+}
+
+c_curled_line layer_get_curled_line(const layer_handle *me, uint32_t idx)
+{
+    c_curled_line out = {};
+    if (me == nullptr || idx >= Slic3r::to_layer(me)->curled_lines.size())
+        return out;
+
+    const Slic3r::CurledLine &line = Slic3r::to_layer(me)->curled_lines[idx];
+    out.a = Slic3r::to_c_point(line.a);
+    out.b = Slic3r::to_c_point(line.b);
+    out.curled_height = line.curled_height;
+    return out;
+}
+
 layer_handle *layer_get_upper_layer_mutable(layer_handle *me)
 {
     return me == nullptr ? nullptr : reinterpret_cast<layer_handle*>(Slic3r::to_layer(me)->upper_layer);
@@ -353,6 +371,14 @@ c_flow layer_region_get_flow(const layer_region_handle *me, raw_extrusion_role f
     if (me == nullptr)
         return out;
     return Slic3r::to_c_flow(Slic3r::to_layer_region(me)->flow(Slic3r::to_flow_role(flow_role)));
+}
+
+c_flow layer_region_get_bridging_flow(const layer_region_handle *me, raw_extrusion_role flow_role)
+{
+    c_flow out = {};
+    if (me == nullptr)
+        return out;
+    return Slic3r::to_c_flow(Slic3r::to_layer_region(me)->bridging_flow(Slic3r::to_flow_role(flow_role)));
 }
 
 const expolygon_collection_handle *layer_region_get_slices(const layer_region_handle *me)

@@ -498,6 +498,7 @@ const char *const SEPARATE_HOLE_CONTOUR = "perimeter.module.separate_hole_contou
 const char *const REMOVE_GAP_FILL_ON_OVERHANGS = "perimeter.module.remove_gap_fill_on_overhangs";
 const char *const EXTRA_PERIMETERS_ON_OVERHANGS = "perimeter.post_process.extra_perimeters_on_overhangs";
 const char *const EXTRA_PERIMETER_OVERHANG_WAVE = "perimeter.post_process.extra_perimeter_overhang_wave";
+const char *const DETECT_OVERHANG = "perimeter.post_process.detect_overhang";
 const char *const FUZZY_SKIN = "perimeter.post_process.fuzzy_skin";
 const char *const INITIAL_TYPED_SURFACE_BUILDER = "surface.initial_typed_surface_builder";
 const char *const SOLID_SHELLS = "surface.solid_shells";
