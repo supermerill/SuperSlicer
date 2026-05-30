@@ -51,7 +51,8 @@ const char *k_raft_layers_key = "raft_layers";
 //  2. enabled_infill_area() clips the island infill area to regions where the
 //     option is active. Disabled regions are returned to normal infill.
 //  3. generate_extra_perimeters_over_overhangs_wave() creates ordered,
-//     non-reversible wave groups from the lower-layer outline toward open air.
+//     non-reversible internal-perimeter wave groups from the lower-layer
+//     outline toward open air.
 //  4. update_fill_areas() removes the consumed 2D footprint from the island so
 //     later infill and gap-fill stages do not print the same volume twice.
 //
@@ -75,7 +76,6 @@ struct OverhangGenerationInput
     coord_t perimeter_depth = 0;
     coord_t overhang_spacing = 0;
     WaveFlow wave_flow;
-    EPropertyAttributes supported_anchor_attributes;
     StoredExPolygonCollection lower_slices;
 };
 
@@ -106,29 +106,16 @@ coord_t overhang_spacing_from_config(const Config &config, const c_flow &perimet
 
 WaveFlow wave_flow_from_perimeter_flow(const c_flow &perimeter_flow)
 {
-    // The wave paths are tagged as overhangs for downstream classification,
-    // but their physical section stays the normal perimeter flow. This keeps
-    // the feature focused on ordering/anchoring instead of changing flow.
+    // The wave paths are regular internal perimeters. This plugin only creates
+    // extra geometry and updates the fill domains; DetectOverhang later
+    // decides which spans are unsupported and need overhang behavior.
     WaveFlow out = {};
     out.width = perimeter_flow.width;
     out.spacing = perimeter_flow.spacing;
     out.height = perimeter_flow.height;
     out.nozzle_diameter = perimeter_flow.nozzle_diameter;
     out.mm3_per_mm = perimeter_flow.mm3_per_mm;
-    out.attributes.extrusion_role(RAW_EXTRUSION_ROLE_OVERHANG_PERIMETER)
-                         .mm3_per_mm(perimeter_flow.mm3_per_mm)
-                         .width(float(unscaled(perimeter_flow.width)))
-                         .height(float(unscaled(perimeter_flow.height)));
-    return out;
-}
-
-EPropertyAttributes supported_anchor_attributes_from_perimeter_flow(const c_flow &perimeter_flow)
-{
-    // The first wave is placed slightly on the supported side of the boundary.
-    // It is a real printable anchor, but it must not be tagged as overhang
-    // material because it is not suspended in air.
-    EPropertyAttributes out = {};
-    out.extrusion_role(RAW_EXTRUSION_ROLE_INTERNAL_PERIMETER)
+    out.attributes.extrusion_role(RAW_EXTRUSION_ROLE_INTERNAL_PERIMETER)
                          .mm3_per_mm(perimeter_flow.mm3_per_mm)
                          .width(float(unscaled(perimeter_flow.width)))
                          .height(float(unscaled(perimeter_flow.height)));
@@ -441,9 +428,9 @@ struct EndpointLinkChoice
 EndpointLinkChoice closest_endpoint_link(const ExtrusionEntity &previous,
                                          const ExtrusionEntity &next)
 {
-    // Two consecutive leaves may have different roles and therefore cannot be
-    // merged into the same path. They can still be oriented as a pair so the
-    // previous leaf ends near the next leaf's start.
+    // Consecutive waves are allowed to reverse locally before linking. This
+    // keeps the physical zone continuous without making the whole zone
+    // reversible for the later G-code sorter.
     EndpointLinkChoice best;
     const c_point previous_first = previous.front();
     const c_point previous_last = previous.back();
@@ -481,40 +468,14 @@ EndpointLinkChoice closest_endpoint_link(const ExtrusionEntity &previous,
     return best;
 }
 
-bool entity_is_overhang_perimeter(const ExtrusionEntity &entity)
-{
-    const EPropertyAttributes *attributes = entity.property<EPropertyAttributes>();
-    return attributes != nullptr &&
-           RAW_EXTRUSION_ROLE_IS_PERIMETER(attributes->role) &&
-           RAW_EXTRUSION_ROLE_IS_BRIDGE(attributes->role);
-}
-
-void append_supported_anchor_polyline(storage_handle *storage,
-                                      StoredExtrusionEntity &zone_paths,
-                                      const Polyline &polyline,
-                                      const OverhangGenerationInput &input,
-                                      const LineDistancer &lower_layer_distancer)
-{
-    if (!polyline.is_valid() || polyline.length() < input.wave_flow.width)
-        return;
-
-    StoredExtrusionEntity path(storage, polyline);
-    path.get_or_add_property<EPropertyAttributes>() = input.supported_anchor_attributes;
-    path.disable_reverse();
-    orient_extra_perimeter_from_support(path.mutable_view(), lower_layer_distancer);
-    const uint32_t idx = zone_paths.add_child(path.mutable_view());
-    assert(!is_invalid_index(idx));
-    (void)idx;
-}
-
-void append_wave_polyline(storage_handle *storage,
+bool append_wave_polyline(storage_handle *storage,
                           StoredExtrusionEntity &zone_paths,
                           const Polyline &polyline,
                           const OverhangGenerationInput &input,
                           const LineDistancer &lower_layer_distancer)
 {
     if (!polyline.is_valid() || polyline.length() < input.wave_flow.width)
-        return;
+        return false;
 
     StoredExtrusionEntity path(storage, polyline);
     path.get_or_add_property<EPropertyAttributes>() = input.wave_flow.attributes;
@@ -531,29 +492,28 @@ void append_wave_polyline(storage_handle *storage,
         // Keep one physical zone in wave order. Nearby consecutive waves are
         // joined into one extrusion; distant waves become separate leaves, so
         // the printer travels without breaking the zone order.
-        if (entity_is_overhang_perimeter(previous.readonly()) &&
-            link_choice.distance_squared < link_distance * link_distance) {
+        if (link_choice.distance_squared < link_distance * link_distance) {
             std::vector<c_point> previous_points = previous.points();
             const std::vector<c_point> path_points = path.points();
             previous_points.insert(previous_points.end(), path_points.begin(), path_points.end());
             previous.set_points(previous_points);
-            return;
+            return true;
         }
 
-        // A supported pre-line has a different role from the first overhang
-        // line, so it stays a separate leaf. It still participates in endpoint
-        // orientation above, which avoids an immediate travel back to the
-        // opposite end of the same local wave group.
+        // Distant waves stay separate leaves inside the same locked zone. The
+        // wrapper preserves the support-to-air order while allowing a travel
+        // move between leaves that are too far apart to merge cleanly.
         const uint32_t idx = zone_paths.add_child(path.mutable_view());
         assert(!is_invalid_index(idx));
         (void)idx;
-        return;
+        return true;
     }
 
     orient_extra_perimeter_from_support(path.mutable_view(), lower_layer_distancer);
     const uint32_t idx = zone_paths.add_child(path.mutable_view());
     assert(!is_invalid_index(idx));
     (void)idx;
+    return true;
 }
 
 StoredExPolygonCollection coverage_for_extra_perimeters(storage_handle *storage,
@@ -695,6 +655,7 @@ OverhangGenerationOutput generate_extra_perimeters_over_overhangs_wave(storage_h
     StoredExPolygonCollection zones = clipper_union(clip(overhangs)).to_expolygon_collection();
     for (const ExPolygon zone : zones) {
         StoredExtrusionEntity zone_paths(storage);
+        bool has_unsupported_wave = false;
         StoredExPolygonCollection zone_clip = collection_from_expolygon(storage, zone);
         const c_bounding_box zone_bbox = bounding_box(zone_clip);
         const coord_t max_wave_distance =
@@ -722,7 +683,7 @@ OverhangGenerationOutput generate_extra_perimeters_over_overhangs_wave(storage_h
                 reconnect_polylines(storage, support_lines, SCALED_EPSILON * 2, coord_t(SCALED_EPSILON));
             support_lines = order_wave_polylines_from_current_point(storage, support_lines, nullptr);
             for (const Polyline line : support_lines)
-                append_supported_anchor_polyline(storage, zone_paths, line, input, lower_layer_distancer);
+                (void)append_wave_polyline(storage, zone_paths, line, input, lower_layer_distancer);
         }
 
         for (coord_t distance_from_support = std::max<coord_t>(SCALED_EPSILON, input.overhang_spacing / 2);
@@ -748,21 +709,15 @@ OverhangGenerationOutput generate_extra_perimeters_over_overhangs_wave(storage_h
             }
             wave_lines = order_wave_polylines_from_current_point(storage, wave_lines, current_point_ptr);
             for (const Polyline line : wave_lines)
-                append_wave_polyline(storage, zone_paths, line, input, lower_layer_distancer);
+                has_unsupported_wave |=
+                    append_wave_polyline(storage, zone_paths, line, input, lower_layer_distancer);
         }
 
-        bool has_overhang_path = false;
-        for (const ExtrusionEntity path : zone_paths.readonly().children()) {
-            if (entity_is_overhang_perimeter(path)) {
-                has_overhang_path = true;
-                break;
-            }
-        }
-
-        // A supported pre-line is only useful as the lead-in for real overhang
-        // strokes. If clipping removed all overhang strokes from a tiny zone,
-        // do not consume supported fill just to print that lead-in alone.
-        if (!zone_paths.empty() && has_overhang_path) {
+        // A supported pre-line is only useful as the lead-in for real
+        // unsupported-side waves. If clipping removed every unsupported wave
+        // from a tiny zone, do not consume supported fill just to print that
+        // lead-in alone.
+        if (!zone_paths.empty() && has_unsupported_wave) {
             zone_paths.disable_sort();
             zone_paths.disable_reverse();
             extra_perimeters.push_back(std::move(zone_paths));
@@ -803,7 +758,6 @@ OverhangGenerationInput generation_input_for_island(storage_handle *storage,
 
     OverhangGenerationInput input(storage);
     input.wave_flow = wave_flow_from_perimeter_flow(perimeter_flow);
-    input.supported_anchor_attributes = supported_anchor_attributes_from_perimeter_flow(perimeter_flow);
     input.overhang_spacing = overhang_spacing_from_config(region_config, perimeter_flow);
     input.perimeter_depth = perimeter_count <= 0 ? 0 :
         external_flow.width + perimeter_flow.spacing * (perimeter_count - 1);
@@ -838,9 +792,10 @@ void prepend_extra_perimeter_zone_groups_to_root(storage_handle *storage,
                                                  MutableExtrusionEntity root,
                                                  std::vector<StoredExtrusionEntity> &extra_perimeters)
 {
-    // The root prints the overhang wrapper first, then the original perimeter
-    // tree. The wrapper itself is sortable between zones, while every zone is
-    // locked so its waves stay ordered from support toward open air.
+    // The root prints the extra-perimeter wrapper first, then the original
+    // perimeter tree. The wrapper itself is sortable between zones, while
+    // every zone is locked so its waves stay ordered from support toward open
+    // air.
     StoredExtrusionEntity original(storage, root.readonly());
     StoredExtrusionEntity extra_zones(storage);
 

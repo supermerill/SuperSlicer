@@ -148,25 +148,20 @@ Slic3r::coord_t overhang_spacing_from_config(const Config &config, const c_flow 
 
 OverhangFlow overhang_flow_from_perimeter_flow(const c_flow &perimeter_flow)
 {
-    // The legacy algorithm uses the region overhang/bridge flow. The current C
-    // API does not expose that dedicated flow yet, so this post-process keeps
-    // the perimeter cross-section and marks the extrusion role/properties as an
-    // overhang. G-code flow/speed modifiers can still interpret the overhang
-    // property on the generated paths.
+    // These generated paths are geometric anchors under overhang areas. They
+    // deliberately stay normal internal perimeters: the DetectOverhang
+    // post-process is responsible for tagging unsupported spans and applying
+    // overhang speed/flow behavior later in the pipeline.
     OverhangFlow out;
     out.width = perimeter_flow.width;
     out.spacing = perimeter_flow.spacing;
     out.width_mm = float(unscaled(perimeter_flow.width));
     out.spacing_mm = float(unscaled(perimeter_flow.spacing));
     out.attributes = Slic3r::ExtrusionAttributes(
-        Slic3r::ExtrusionRole::OverhangPerimeter,
+        Slic3r::ExtrusionRole::Perimeter,
         Slic3r::ExtrusionFlow(perimeter_flow.mm3_per_mm,
                               float(unscaled(perimeter_flow.width)),
                               float(unscaled(perimeter_flow.height))));
-    // These generated anchors already choose their start point from the
-    // supported area. Seam placement would be allowed to move the start onto an
-    // unsupported span, so the paths opt out of seam candidate extraction.
-    out.attributes.no_seam = true;
     return out;
 }
 
@@ -504,7 +499,6 @@ void append_overhang_paths(Slic3r::ExtrusionPaths &dst,
         dst,
         reconnect_polylines(polylines, input.overhang_spacing, Slic3r::coord_t(SCALED_EPSILON)),
         input.overhang_flow.attributes,
-        Slic3r::ExtrusionPropertyOverhang(1, 2, 0, true, true, false, false),
         false);
 }
 
@@ -702,9 +696,10 @@ OverhangGenerationInput generation_input_for_island(const Print &print,
                                                     const c_flow &external_flow)
 {
     // Gather the small immutable bundle needed by the copied legacy algorithm.
-    // The C API currently exposes perimeter flows but not the dedicated legacy
-    // overhang flow, so overhang paths reuse the perimeter cross-section and
-    // carry an overhang role/property for downstream speed/flow logic.
+    // Geometry still uses the configured overhang spacing so the anchors are
+    // distributed as before, but the generated paths are plain internal
+    // perimeters. DetectOverhang later decides which spans are really
+    // unsupported.
     const Config region_config = island.region(0).print_region().config();
     const Config print_config = print.config();
     const Config object_config = object.config();
@@ -768,9 +763,9 @@ void append_extra_path(MutableExtrusionEntity dst, const Slic3r::ExtrusionPath &
     if (path.empty())
         return;
 
-    // A closed overhang anchor is still stored as a path, not as a loop. Loops
-    // are split by the seam placer, while this anchor must keep the start/end
-    // chosen by the overhang ordering algorithm.
+    // A closed extra anchor is still stored as a path, not as a loop. Loops
+    // may be split or rotated by later ordering code, while this path should
+    // keep the start/end selected by the anchor ordering algorithm.
     append_native_copy(dst, path);
 }
 
@@ -779,7 +774,7 @@ void prepend_extra_perimeters_to_root(storage_handle *storage,
                                       const std::vector<Slic3r::ExtrusionPaths> &extra_perimeters)
 {
     // Preserve the current perimeter bucket before clearing it. The rebuilt
-    // root is an unsortable collection: generated overhang anchors first,
+    // root is an unsortable collection: generated extra anchors first,
     // followed by the original normal perimeter children in their old order.
     StoredExtrusionEntity original(storage, root.readonly());
     root.clear_content();
@@ -798,7 +793,7 @@ void prepend_extra_perimeters_to_root(storage_handle *storage,
     // Adding the first child turns an empty entity into a regular collection,
     // and the host helper defaults such collections to sortable. Force the
     // final ordering contract after all children are in place: generated
-    // overhang anchors first, then the normal perimeter tree.
+    // extra anchors first, then the normal perimeter tree.
     root.disable_sort();
     root.disable_reverse();
 }
