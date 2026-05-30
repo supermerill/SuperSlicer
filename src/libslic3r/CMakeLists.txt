@@ -130,6 +130,7 @@ set(SLIC3R_SOURCES
 	Api/plugin/cpp/DataTreeViews.hpp
 	Api/plugin/cpp/ExtrusionViews.hpp
 	Api/plugin/cpp/GeometryViews.hpp
+	Api/plugin/cpp/LineDistancer.hpp
 	Api/plugin/cpp/ParallelFor.hpp
 	Api/plugin/cpp/PerimeterStepViews.hpp
 	Api/plugin/cpp/PluginBase.hpp
