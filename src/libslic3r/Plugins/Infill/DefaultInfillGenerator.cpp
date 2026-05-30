@@ -31,7 +31,7 @@ const char *k_no_dependencies[] = { nullptr };
 
 struct SurfaceInfillRecipe
 {
-    std::string pattern_id;
+    std::string pattern_plugin_id;
     raw_infill_pattern_params raw = {};
     Slic3r::ExPolygons no_overlap_areas;
 };
@@ -198,7 +198,7 @@ SurfaceInfillRecipe make_recipe(const Slic3r::Print &print,
         normal_flow_for_surface(layer, region, extrusion_role, surface);
 
     SurfaceInfillRecipe recipe;
-    recipe.pattern_id = serialized_pattern_id(pattern);
+    recipe.pattern_plugin_id = serialized_pattern_id(pattern);
     recipe.raw.surface_type = static_cast<raw_surface_type>(surface.surface_type);
     recipe.raw.extrusion_role = raw_role_for_surface(surface, bridge);
     recipe.raw.flow = to_c_flow(flow);
@@ -305,15 +305,31 @@ void generate_surface(const run_ctx_generate_infill &ctx,
                       const Slic3r::Surface &surface)
 {
     SurfaceInfillRecipe recipe = make_recipe(print, object, layer, island, region, surface);
-    recipe.raw.pattern_id = recipe.pattern_id.c_str();
-    if (recipe.raw.density <= 0.f)
+
+    // Config stores the selected pattern as a stable plugin id string. The
+    // infill ABI uses a compact runtime id so recipe modifiers can switch
+    // patterns without editing caller-owned text buffers.
+    recipe.raw.pattern_id = ctx.resolve_pattern_id != nullptr ?
+        ctx.resolve_pattern_id(&ctx, recipe.pattern_plugin_id.c_str()) :
+        INFILL_PATTERN_RUNTIME_ID_INVALID;
+    if (ctx.modify_surface_recipe != nullptr) {
+        ctx.modify_surface_recipe(&ctx,
+                                  reinterpret_cast<const layer_handle *>(&layer),
+                                  reinterpret_cast<const layer_island_handle *>(&island),
+                                  reinterpret_cast<const layer_region_island_handle *>(&region_island),
+                                  reinterpret_cast<const layer_region_handle *>(&region),
+                                  reinterpret_cast<const surface_handle *>(&surface),
+                                  reinterpret_cast<const expolygon_collection_handle *>(&recipe.no_overlap_areas),
+                                  &recipe.raw);
+    }
+    if (recipe.raw.pattern_id == INFILL_PATTERN_RUNTIME_ID_INVALID || recipe.raw.density <= 0.f)
         return;
 
     Slic3r::ExtrusionEntityCollection output;
     output.set_can_sort_reverse(false, false);
 
     const int32_t generated = ctx.generate_pattern(&ctx,
-                                                   recipe.pattern_id.c_str(),
+                                                   recipe.raw.pattern_id,
                                                    reinterpret_cast<const layer_handle *>(&layer),
                                                    reinterpret_cast<const layer_island_handle *>(&island),
                                                    reinterpret_cast<const layer_region_island_handle *>(&region_island),

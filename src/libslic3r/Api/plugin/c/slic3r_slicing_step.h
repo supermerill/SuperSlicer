@@ -65,6 +65,16 @@ typedef enum slicing_step_t : uint16_t
     INFILL_PATTERN                 = 10000,
 
     /*
+    Service plugin type used by STEP_INFILL generators to adjust the recipe
+    prepared for one fill surface before the selected INFILL_PATTERN runs.
+
+    These plugins do not generate geometry. They inspect one surface and edit
+    raw_infill_pattern_params, for example to turn a sparse surface into dense
+    infill, change the selected pattern runtime id, or adjust the fill priority.
+    */
+    INFILL_SURFACE_RECIPE_MODIFIER = 10050,
+
+    /*
     Service plugin used to create bridge detector instances on demand.
     */
     BRIDGE_DETECTOR                = 10100,
