@@ -489,6 +489,9 @@ perimeter_generation_module_instance create_module_instance(const char *plugin_i
 const char *const SIMPLE_PERIMETER_GENERATOR = "perimeter.generator.simple";
 const char *const PYTHON_SIMPLE_PERIMETER_GENERATOR = "python.perimeter.generator.simple";
 const char *const ARACHNE_PERIMETER_GENERATOR = "perimeter.generator.arachne";
+const char *const DENSE_INFILL_SURFACE_MARKER = "dense_infill.surface_marker";
+const char *const DENSE_INFILL_RECIPE_MODIFIER = "dense_infill.recipe_modifier";
+const char *const DENSE_INFILL_POST_INFILL_ORDER = "dense_infill.post_infill_order";
 const char *const EXTRA_PERIMETER_COUNT = "perimeter.module.extra_perimeter_count";
 const char *const EXTRA_PERIMETER_BELOW_AREA = "perimeter.module.extra_perimeter_below_area";
 const char *const EXTRA_PERIMETER_ODD_LAYER = "perimeter.module.extra_perimeter_odd_layer";

@@ -2,6 +2,7 @@ get_filename_component(_TEST_NAME ${CMAKE_CURRENT_LIST_DIR} NAME)
 
 add_executable(${_TEST_NAME}_tests
     ${_TEST_NAME}_tests.cpp
+    ../../src/plugins_cpp/DenseInfill/DenseInfill.cpp
     ../../src/plugins_cpp/ExtraPerimeterOverhangWave/ExtraPerimeterOverhangWave.cpp
     ../../src/plugins_cpp/FlatAreaLayerHeight/FlatAreaLayerHeight.cpp
     ../../src/plugins_cpp/Polyholes/Polyholes.cpp
@@ -25,6 +26,7 @@ add_executable(${_TEST_NAME}_tests
     test_perimeter_separate_hole_contour.cpp
     test_perimeter_simple_generator.cpp
     test_polyholes.cpp
+    test_dense_infill.cpp
     test_support_demand_modifiers.cpp
     test_support_demand_overhangs.cpp
     test_surface_clean_infill_surfaces.cpp
