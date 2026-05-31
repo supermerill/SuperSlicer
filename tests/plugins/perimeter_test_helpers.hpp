@@ -22,6 +22,7 @@ namespace Slic3r::Test::PerimeterPluginTests {
 extern const char *const SIMPLE_PERIMETER_GENERATOR;
 extern const char *const PYTHON_SIMPLE_PERIMETER_GENERATOR;
 extern const char *const ARACHNE_PERIMETER_GENERATOR;
+extern const char *const CLASSIC_PERIMETER_GENERATOR;
 extern const char *const DENSE_INFILL_SURFACE_MARKER;
 extern const char *const DENSE_INFILL_RECIPE_MODIFIER;
 extern const char *const DENSE_INFILL_POST_INFILL_ORDER;

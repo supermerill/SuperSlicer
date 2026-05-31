@@ -156,6 +156,8 @@ set(SLIC3R_SOURCES
 	Plugins/MaxOverhangThreshold.hpp
 	Plugins/Perimeter/ArachnePerimeterGenerator.cpp
 	Plugins/Perimeter/ArachnePerimeterGenerator.hpp
+	Plugins/Perimeter/ClassicPerimeterGenerator.cpp
+	Plugins/Perimeter/ClassicPerimeterGenerator.hpp
 	Plugins/Perimeter/ExtraPerimeterBelowArea.cpp
 	Plugins/Perimeter/ExtraPerimeterBelowArea.hpp
 	Plugins/Perimeter/ExtraPerimeterCount.cpp
