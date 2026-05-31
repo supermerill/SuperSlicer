@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdint>
 #include <map>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -68,18 +69,6 @@ enum class DenseAlgo
     Disabled
 };
 
-struct DenseArea
-{
-    StoredExPolygonCollection areas;
-    uint16_t priority = 1;
-};
-
-struct DenseAreaResult
-{
-    std::vector<DenseArea> dense_areas;
-    StoredExPolygonCollection dense_union;
-};
-
 plugin_property_type register_dense_hint_property(orchestrator_handle *orch)
 {
     if (SurfaceDenseInfillHint::property_type == PLUGIN_PROPERTY_TYPE_INVALID) {
@@ -93,431 +82,504 @@ plugin_property_type register_dense_hint_property(orchestrator_handle *orch)
     return SurfaceDenseInfillHint::property_type;
 }
 
-double area_sum(const ExPolygonCollection &areas)
+StoredExPolygonCollection dense_fill_fit_to_size(storage_handle *storage,
+                                                 const ExPolygon &bad_polygon_to_cover,
+                                                 const ExPolygon &growing_area,
+                                                 const coord_t offset,
+                                                 float coverage)
 {
-    double out = 0.;
-    for (ExPolygon area : areas)
-        out += std::abs(area.area());
-    return out;
-}
-
-StoredExPolygonCollection union_collection(storage_handle *storage, const ExPolygonCollection &areas)
-{
-    if (areas.empty())
-        return StoredExPolygonCollection(storage);
-
     ClipperContext clipper(storage);
-    return clipper_union(clipper(areas)).to_expolygon_collection();
-}
 
-StoredExPolygonCollection intersection_collection(storage_handle *storage,
-                                                  const ExPolygonCollection &lhs,
-                                                  const ExPolygonCollection &rhs)
-{
-    if (lhs.empty() || rhs.empty())
-        return StoredExPolygonCollection(storage);
+    const auto try_fit_to_size = [storage](const ExPolygon &polygon_to_check, const ExPolygon &allowed_points) {
+        StoredExPolygon polygon_reduced(storage);
+        polygon_reduced.copy_from(polygon_to_check);
 
-    ClipperContext clipper(storage);
-    return clipper_intersection(clipper(lhs), clipper(rhs)).to_expolygon_collection();
-}
+        polygon_handle *contour = expolygon_contour(polygon_reduced.mutable_handle());
+        multipoint_handle *contour_points = polygon_as_multipoint(contour);
+        uint32_t pos_check = 0;
+        while (pos_check < multipoint_size(contour_points)) {
+            const c_point tested_point = multipoint_get(contour_points, pos_check);
+            c_point best_point = polygon_point_projection(allowed_points.contour().handle(), tested_point, nullptr);
+            for (uint32_t hole_idx = 0; hole_idx < allowed_points.hole_size(); ++hole_idx) {
+                const c_point hole_point = polygon_point_projection(allowed_points.hole(hole_idx).handle(), tested_point, nullptr);
+                if (norm(hole_point - tested_point) < norm(best_point - tested_point))
+                    best_point = hole_point;
+            }
+            if (norm(best_point - tested_point) < scale_i(0.01))
+                ++pos_check;
+            else
+                multipoint_erase(contour_points, pos_check, 1);
+        }
+        // edge case
+        if (multipoint_size(contour_points) == 1)
+            multipoint_clear(contour_points);
+        polygon_reduced.holes_clear();
+        return polygon_reduced;
+    };
 
-StoredExPolygonCollection diff_collection(storage_handle *storage,
-                                          const ExPolygonCollection &lhs,
-                                          const ExPolygonCollection &rhs)
-{
-    if (lhs.empty())
-        return StoredExPolygonCollection(storage);
-    if (rhs.empty())
-        return lhs.clone(storage);
+    //fix uncoverable area
+    StoredExPolygonCollection polygons_to_cover =
+        clipper_intersection(clipper(bad_polygon_to_cover), clipper(growing_area)).to_expolygon_collection();
+    if (polygons_to_cover.size() != 1)
+        return StoredExPolygonCollection(storage, growing_area);
+    const ExPolygon polygon_to_cover = polygons_to_cover.front();
 
-    ClipperContext clipper(storage);
-    return clipper_diff(clipper(lhs), clipper(rhs)).to_expolygon_collection();
-}
-
-StoredExPolygonCollection offset_collection(storage_handle *storage,
-                                            const ExPolygonCollection &areas,
-                                            double delta)
-{
-    if (areas.empty())
-        return StoredExPolygonCollection(storage);
-
-    ClipperContext clipper(storage);
-    return clipper_offset(clipper(areas), delta).to_expolygon_collection();
-}
-
-StoredExPolygonCollection offset2_collection(storage_handle *storage,
-                                             const ExPolygonCollection &areas,
-                                             double first_delta,
-                                             double second_delta)
-{
-    if (areas.empty())
-        return StoredExPolygonCollection(storage);
-
-    ClipperContext clipper(storage);
-    return clipper_offset2(clipper(areas), first_delta, second_delta).to_expolygon_collection();
-}
-
-StoredExPolygonCollection intersect_area_with_clip(storage_handle *storage,
-                                                   const ExPolygon &area,
-                                                   const RegionSettingsClip &clip)
-{
-    StoredExPolygonCollection clipped = clip.intersections(area);
-    if (clipped.empty())
-        return clipped;
-    return union_collection(storage, clipped.readonly());
-}
-
-DenseAlgo dense_algo_from_serialized(std::string serialized)
-{
-    if (!serialized.empty() && serialized.front() == '!')
-        serialized.erase(serialized.begin());
-
-    if (serialized == "autonotfull")
-        return DenseAlgo::AutoNotFull;
-    if (serialized == "autoenlarged")
-        return DenseAlgo::AutoOrEnlarged;
-    if (serialized == "autosmall")
-        return DenseAlgo::AutoOrNothing;
-    if (serialized == "enlarged")
-        return DenseAlgo::Enlarged;
-    if (serialized == "disabled")
-        return DenseAlgo::Disabled;
-    return DenseAlgo::Automatic;
-}
-
-DenseAlgo effective_dense_algo(const RegionSettingsValue &settings)
-{
-    DenseAlgo algo = dense_algo_from_serialized(settings.option(k_infill_dense_algo_key).serialize());
-
-    // The legacy option keeps dense infill useful for vase-like sparse-free
-    // prints. With 0% infill, the algorithms that normally avoid turning a
-    // whole sparse surface dense must be remapped to variants that can still
-    // create a local support patch under a bridge.
-    if (settings.get_float(k_fill_density_key) <= 0.) {
-        if (algo == DenseAlgo::AutoOrEnlarged)
-            algo = DenseAlgo::Automatic;
-        else if (algo != DenseAlgo::Automatic)
-            algo = DenseAlgo::AutoNotFull;
+    //grow the polygon_to_check enough to cover polygon_to_cover
+    float current_coverage = coverage;
+    coord_t previous_offset = 0;
+    coord_t current_offset = offset;
+    StoredExPolygon polygon_reduced = try_fit_to_size(polygon_to_cover, growing_area);
+    while (polygon_reduced.contour().size() < 3) {
+        current_offset *= 2;
+        StoredExPolygonCollection bigger_polygon =
+            clipper_offset(clipper(polygon_to_cover), double(current_offset)).to_expolygon_collection();
+        if (bigger_polygon.size() != 1)
+            break;
+        bigger_polygon =
+            clipper_intersection(clipper(bigger_polygon.front()), clipper(growing_area)).to_expolygon_collection();
+        if (bigger_polygon.size() != 1)
+            break;
+        polygon_reduced = try_fit_to_size(bigger_polygon.front(), growing_area);
     }
-
-    return algo;
-}
-
-double fill_density_percent(const RegionSettingsValue &settings)
-{
-    const double value = settings.get_float(k_fill_density_key);
-    return value <= 1.0 ? value * 100.0 : value;
-}
-
-bool dense_processing_enabled(const RegionSettingsValue &settings)
-{
-    return settings.get_bool(k_infill_dense_key) &&
-           fill_density_percent(settings) < 40. &&
-           effective_dense_algo(settings) != DenseAlgo::Disabled;
-}
-
-coord_t maximum_nozzle_diameter(const Print &print)
-{
-    if (!print.config().has(k_nozzle_diameter_key))
-        return scale_d(0.4);
-
-    const ConfigOption nozzles = print.config().get(k_nozzle_diameter_key);
-    double max_nozzle = 0.;
-    for (uint32_t idx = 0; idx < nozzles.size(); ++idx)
-        max_nozzle = std::max(max_nozzle, nozzles.get_float(idx));
-
-    return scale_d(max_nozzle > 0. ? max_nozzle : 0.4);
-}
-
-coord_t effective_external_margin(const RegionSettingsValue &settings, const LayerRegion &primary_region)
-{
-    const int32_t perimeter_count = std::max(1, settings.get_int(k_perimeters_key));
-    const c_flow external_perimeter = primary_region.flow(RAW_EXTRUSION_ROLE_EXTERNAL_PERIMETER);
-    const c_flow internal_perimeter = primary_region.flow(RAW_EXTRUSION_ROLE_INTERNAL_PERIMETER);
-    const coord_t reference_width =
-        external_perimeter.width + coord_t(std::max(0, perimeter_count - 1)) * internal_perimeter.spacing;
-    return scale_d(settings.get_effective_value(unscaled(reference_width), k_external_infill_margin_key));
-}
-
-bool candidate_is_small_enough_for_auto(const ExPolygonCollection &candidate,
-                                        const ExPolygonCollection &source,
-                                        coord_t max_nozzle,
-                                        double fill_density)
-{
-    if (candidate.empty())
-        return false;
-
-    const double source_area = std::max(1.0, area_sum(source));
-    const double candidate_area = area_sum(candidate);
-    const double density_factor = std::max(1.0, fill_density);
-    const double loose_width = std::max<double>(max_nozzle, 1.0) / density_factor;
-
-    // This is a deliberately conservative approximation of the old
-    // boundary-fit test. It accepts only local patches that are small compared
-    // with the source sparse surface or thin enough to be treated like a
-    // bridge-anchor strip.
-    return candidate_area <= source_area * 0.35 ||
-           candidate_area <= loose_width * loose_width * 100.0;
-}
-
-StoredExPolygonCollection build_enlarged_dense_area(storage_handle *storage,
-                                                    const ExPolygonCollection &source,
-                                                    const ExPolygonCollection &candidate,
-                                                    coord_t external_margin)
-{
-    if (source.empty() || candidate.empty())
-        return StoredExPolygonCollection(storage);
-
-    StoredExPolygonCollection expanded = offset_collection(storage, candidate, double(external_margin));
-    return intersection_collection(storage, source, expanded.readonly());
-}
-
-StoredExPolygonCollection build_automatic_dense_area(storage_handle *storage,
-                                                     const ExPolygonCollection &source,
-                                                     const ExPolygonCollection &candidate,
-                                                     coord_t infill_width)
-{
-    if (source.empty() || candidate.empty())
-        return StoredExPolygonCollection(storage);
-
-    // The legacy dense infill pass tries to make a compact area that the
-    // infill pattern can cover with straight anchored strokes. Reproducing its
-    // whole fitting search would require host-only geometry helpers, so the
-    // plugin version keeps the same contract in a simpler way: grow the bridge
-    // demand a few line widths, then clip it back to the current sparse
-    // surface. Later cleanup plugins may merge tiny residuals.
-    StoredExPolygonCollection expanded = offset_collection(storage, candidate, double(4 * infill_width));
-    return intersection_collection(storage, source, expanded.readonly());
-}
-
-StoredExPolygonCollection compute_dense_area_for_value(storage_handle *storage,
-                                                       const Print &print,
-                                                       const LayerRegion &primary_region,
-                                                       const RegionSettingsValue &settings,
-                                                       const ExPolygonCollection &source,
-                                                       const ExPolygonCollection &upper_solid)
-{
-    if (!dense_processing_enabled(settings) || source.empty() || upper_solid.empty())
-        return StoredExPolygonCollection(storage);
-
-    const c_flow infill_flow = primary_region.flow(RAW_EXTRUSION_ROLE_INTERNAL_INFILL);
-    const coord_t infill_width = std::max<coord_t>(1, infill_flow.width);
-
-    StoredExPolygonCollection candidate =
-        intersection_collection(storage, source, upper_solid);
-    candidate = offset2_collection(storage, candidate.readonly(), -double(infill_width), double(infill_width));
-    if (candidate.empty())
-        return candidate;
-
-    DenseAlgo algo = effective_dense_algo(settings);
-    const coord_t external_margin = effective_external_margin(settings, primary_region);
-    const coord_t max_nozzle = maximum_nozzle_diameter(print);
-
-    if (algo == DenseAlgo::AutoOrNothing || algo == DenseAlgo::AutoOrEnlarged) {
-        const bool small_enough = candidate_is_small_enough_for_auto(
-            candidate.readonly(),
-            source,
-            max_nozzle,
-            fill_density_percent(settings));
-
-        if (algo == DenseAlgo::AutoOrNothing)
-            algo = small_enough ? DenseAlgo::AutoNotFull : DenseAlgo::Disabled;
-        else
-            algo = small_enough ? DenseAlgo::Automatic : DenseAlgo::Enlarged;
+    //ExPolygons to_check = offset_ex(polygon_to_cover, -offset);
+    StoredExPolygonCollection not_covered =
+        clipper_diff_with_safety_offset(clipper(polygon_to_cover), clipper(polygon_reduced.readonly())).to_expolygon_collection();
+    while (!not_covered.empty()) {
+        //not enough, use a bigger offset
+        float percent_coverage = float(polygon_reduced.area() / growing_area.area());
+        float next_coverage = percent_coverage + (percent_coverage - current_coverage) * 4;
+        previous_offset = current_offset;
+        current_offset *= 2;
+        if (next_coverage < 0.1f)
+            current_offset *= 2;
+        //create the bigger polygon and test it
+        StoredExPolygonCollection bigger_polygon =
+            clipper_offset(clipper(polygon_to_cover), double(current_offset)).to_expolygon_collection();
+        if (bigger_polygon.size() != 1) {
+            // Error, growing a single polygon result in many/no other  => abord
+            return StoredExPolygonCollection(storage);
+        }
+        bigger_polygon =
+            clipper_intersection(clipper(bigger_polygon.front()), clipper(growing_area)).to_expolygon_collection();
+        // After he intersection, we may have section of the bigger_polygon that jumped over a 'clif' to exist in an other area, have to remove them.
+        if (bigger_polygon.size() > 1) {
+            //remove polygon not in intersection with polygon_to_cover
+            for (uint32_t i = 0; i < bigger_polygon.size();) {
+                StoredExPolygonCollection contact =
+                    clipper_intersection(clipper(bigger_polygon[i]), clipper(polygon_to_cover)).to_expolygon_collection();
+                if (contact.empty())
+                    bigger_polygon.erase(i);
+                else
+                    ++i;
+            }
+        }
+        if (bigger_polygon.size() != 1 || bigger_polygon.front().area() > growing_area.area()) {
+            // Growing too much  => we can as well use the full coverage, in this case
+            polygon_reduced.copy_from(growing_area);
+            break;
+            //return ExPolygons() = { growing_area };
+        }
+        //polygon_reduced = try_fit_to_size(bigger_polygon[0], allowedPoints);
+        polygon_reduced = try_fit_to_size(bigger_polygon.front(), growing_area);
+        not_covered =
+            clipper_diff_with_safety_offset(clipper(polygon_to_cover), clipper(polygon_reduced.readonly())).to_expolygon_collection();
     }
-
-    if (algo == DenseAlgo::Disabled)
-        return StoredExPolygonCollection(storage);
-
-    if (algo == DenseAlgo::Enlarged)
-        return build_enlarged_dense_area(storage, source, candidate.readonly(), external_margin);
-
-    StoredExPolygonCollection automatic =
-        build_automatic_dense_area(storage, source, candidate.readonly(), infill_width);
-
-    if (algo == DenseAlgo::AutoNotFull &&
-        area_sum(automatic.readonly()) * 1.1 > area_sum(source))
-        return StoredExPolygonCollection(storage);
-
-    if (algo == DenseAlgo::AutoOrEnlarged) {
-        StoredExPolygonCollection enlarged =
-            build_enlarged_dense_area(storage, source, candidate.readonly(), external_margin);
-        return area_sum(enlarged.readonly()) < area_sum(automatic.readonly()) ?
-            std::move(enlarged) :
-            std::move(automatic);
-    }
-
-    return automatic;
-}
-
-StoredExPolygonCollection collect_upper_solid_areas(storage_handle *storage, const LayerIsland &island)
-{
-    StoredExPolygonCollection out(storage);
-
-    // Dense infill supports solid/bridge material in the layer above. The
-    // upper-island links are already clipped by actual island overlap, so this
-    // loop stays local to nearby geometry instead of scanning the whole layer.
-    for (const LayerIsland upper_island : island.upper_islands()) {
-        for (uint32_t region_island_idx = 0; region_island_idx < upper_island.region_island_count(); ++region_island_idx) {
-            const LayerRegionIsland upper_region_island = upper_island.region_island(region_island_idx);
-            for (const Surface surface : upper_region_island.fill_surfaces_collection()) {
-                if (surface_type_is_solid(surface.type()) || surface_type_is_bridge(surface.type()))
-                    out.push_back(surface.expolygon());
+    //ok, we have a good one, now try to optimise (unless there are almost no growth)
+    if (current_offset > offset * 3) {
+        //try to shrink
+        uint32_t nb_opti_max = 6;
+        for (uint32_t i = 0; i < nb_opti_max; ++i) {
+            coord_t new_offset = (previous_offset + current_offset) / 2;
+            StoredExPolygonCollection bigger_polygon =
+                clipper_offset(clipper(polygon_to_cover), double(new_offset)).to_expolygon_collection();
+            if (bigger_polygon.size() != 1) {
+                //Warn, growing a single polygon result in many/no other, use previous good result
+                break;
+            }
+            bigger_polygon =
+                clipper_intersection(clipper(bigger_polygon.front()), clipper(growing_area)).to_expolygon_collection();
+            if (bigger_polygon.size() != 1 || bigger_polygon.front().area() > growing_area.area()) {
+                //growing too much, use previous good result (imo, should not be possible to enter this branch)
+                break;
+            }
+            //ExPolygon polygon_test = try_fit_to_size(bigger_polygon[0], allowedPoints);
+            StoredExPolygon polygon_test = try_fit_to_size(bigger_polygon.front(), growing_area);
+            not_covered =
+                clipper_diff_with_safety_offset(clipper(polygon_to_cover), clipper(polygon_test.readonly())).to_expolygon_collection();
+            if (!not_covered.empty()) {
+                //bad, not enough, use a bigger offset
+                previous_offset = new_offset;
+            } else {
+                //good, we may now try a smaller offset
+                current_offset = new_offset;
+                polygon_reduced = std::move(polygon_test);
             }
         }
     }
 
-    return union_collection(storage, out.readonly());
-}
+    //return the area which cover the growing_area. Intersect it to retreive the holes.
+    StoredExPolygonCollection to_print =
+        clipper_intersection(clipper(polygon_reduced.readonly()), clipper(growing_area)).to_expolygon_collection();
 
-DenseAreaResult build_dense_areas_for_surface(storage_handle *storage,
-                                              const Print &print,
-                                              const LayerIsland &island,
-                                              const LayerRegion &primary_region,
-                                              const Surface &source,
-                                              const ExPolygonCollection &upper_solid)
-{
-    DenseAreaResult result { {}, StoredExPolygonCollection(storage) };
-
-    if (!surface_type_is_sparse(source.type()) || surface_type_is_solid(source.type()) || upper_solid.empty())
-        return result;
-
-    RegionSettings settings(storage,
-                            island,
-                            {{ k_infill_dense_key,
-                               k_infill_dense_algo_key,
-                               k_fill_density_key,
-                               k_external_infill_margin_key,
-                               k_perimeters_key }});
-    settings.segregate(island.slice());
-
-    ClipperContext clipper(storage);
-    uint16_t priority = 1;
-    for (const auto &[settings_value, settings_clip] : settings.get_areas(k_infill_dense_key)) {
-        StoredExPolygonCollection source_in_settings =
-            intersect_area_with_clip(storage, source.expolygon(), settings_clip);
-        if (source_in_settings.empty())
-            continue;
-
-        StoredExPolygonCollection dense_area = compute_dense_area_for_value(
-            storage,
-            print,
-            primary_region,
-            settings_value,
-            source_in_settings.readonly(),
-            upper_solid);
-        if (dense_area.empty())
-            continue;
-
-        // Avoid overlapping dense pieces when several region settings touch
-        // the same source surface. The pre-diff intersection decides whether a
-        // later dense piece should receive a larger print priority.
-        StoredExPolygonCollection dense_touch_area =
-            offset_collection(storage, dense_area.readonly(), double(SCALED_EPSILON));
-        const bool touches_previous =
-            !result.dense_union.empty() &&
-            !clipper_intersection(
-                 clipper(dense_touch_area.readonly()),
-                 clipper(result.dense_union.readonly())).empty();
-        if (touches_previous)
-            ++priority;
-
-        if (!result.dense_union.empty())
-            dense_area = diff_collection(storage, dense_area.readonly(), result.dense_union.readonly());
-        dense_area = union_collection(storage, dense_area.readonly());
-        if (dense_area.empty())
-            continue;
-
-        result.dense_union = result.dense_union.empty() ?
-            dense_area.readonly().clone(storage) :
-            clipper_union2(clipper(result.dense_union.readonly()), clipper(dense_area.readonly())).to_expolygon_collection();
-
-        result.dense_areas.push_back(DenseArea{std::move(dense_area), priority});
+    //remove polygon not in intersection with polygon_to_cover
+    for (uint32_t i = 0; i < to_print.size();) {
+        StoredExPolygonCollection contact =
+            clipper_intersection(clipper(to_print[i]), clipper(polygon_to_cover)).to_expolygon_collection();
+        if (contact.empty())
+            to_print.erase(i);
+        else
+            ++i;
     }
-
-    return result;
+    return to_print;
 }
 
-void append_dense_surfaces(orchestrator_handle *orchestrator,
-                           StoredSurfaceCollection &output,
-                           const Surface &source,
-                           DenseArea &dense_area)
+struct DenseSurfaceMarkerResult
 {
-    if (dense_area.areas.empty())
-        return;
+    const layer_region_island_handle *region_island = nullptr;
+    StoredSurfaceCollection surfaces;
 
-    const uint32_t first_new_idx = output.size();
-    output.append_move(std::move(dense_area.areas), k_dense_surface_type);
-    for (uint32_t idx = first_new_idx; idx < output.size(); ++idx) {
-        MutableSurface surface = output.mutable_at(idx);
-        surface.copy_properties_from(source);
-        SurfaceDenseInfillHint &hint = surface.get_or_add_property<SurfaceDenseInfillHint>(orchestrator);
-        hint.max_solid_layers_on_top = 1;
-        hint.priority = dense_area.priority;
-    }
-}
+    DenseSurfaceMarkerResult(const layer_region_island_handle *region_island, StoredSurfaceCollection &&surfaces) :
+        region_island(region_island), surfaces(std::move(surfaces)) {}
+    DenseSurfaceMarkerResult(DenseSurfaceMarkerResult &&) noexcept = default;
+    DenseSurfaceMarkerResult &operator=(DenseSurfaceMarkerResult &&) noexcept = default;
+};
 
-void append_sparse_remainder(StoredSurfaceCollection &output,
-                             storage_handle *storage,
-                             const Surface &source,
-                             const ExPolygonCollection &dense_union)
+struct DenseSurfaceMarkerStore
 {
-    StoredExPolygonCollection source_area(storage, source.expolygon());
-    StoredExPolygonCollection sparse =
-        dense_union.empty() ?
-        std::move(source_area) :
-        diff_collection(storage, source_area.readonly(), dense_union);
+    const run_ctx_surface_generation *ctx = nullptr;
+    orchestrator_handle *orchestrator = nullptr;
+    storage_handle *persistent_storage = nullptr;
+    std::mutex mutex;
+    std::vector<DenseSurfaceMarkerResult> results;
+};
 
-    if (!sparse.empty())
-        output.append_like_move(std::move(sparse), source);
-}
-
-void process_region_island_surfaces(const run_ctx_surface_generation &ctx,
-                                    storage_handle *storage,
+void process_surface_marker_surface(storage_handle *storage,
                                     orchestrator_handle *orchestrator,
                                     const Print &print,
                                     const LayerIsland &island,
                                     const LayerRegionIsland &region_island,
-                                    const ExPolygonCollection &upper_solid)
+                                    const RegionSettings &settings,
+                                    const Surface &surface,
+                                    StoredSurfaceCollection &surface_output,
+                                    bool &changed)
 {
-    const SurfaceCollection input = region_island.fill_surfaces_collection();
-    if (input.empty())
-        return;
+    const auto area_sum = [](const ExPolygonCollection &areas) {
+        double out = 0.;
+        for (const ExPolygon area : areas)
+            out += std::abs(area.area());
+        return out;
+    };
+    const auto dense_algo_from_serialized = [](std::string serialized) {
+        if (!serialized.empty() && serialized.front() == '!')
+            serialized.erase(serialized.begin());
+        if (serialized == "autonotfull")
+            return DenseAlgo::AutoNotFull;
+        if (serialized == "autoenlarged")
+            return DenseAlgo::AutoOrEnlarged;
+        if (serialized == "autosmall")
+            return DenseAlgo::AutoOrNothing;
+        if (serialized == "enlarged")
+            return DenseAlgo::Enlarged;
+        if (serialized == "disabled")
+            return DenseAlgo::Disabled;
+        return DenseAlgo::Automatic;
+    };
+    const auto max_nozzle_diameter = [&print]() {
+        if (!print.config().has(k_nozzle_diameter_key))
+            return scale_d(0.4);
+        const ConfigOption nozzles = print.config().get(k_nozzle_diameter_key);
+        double max_nozzle = 0.;
+        for (uint32_t idx = 0; idx < nozzles.size(); ++idx)
+            max_nozzle = std::max(max_nozzle, nozzles.get_float(idx));
+        return scale_d(max_nozzle > 0. ? max_nozzle : 0.4);
+    };
 
-    const std::vector<LayerRegion> regions = region_island.regions();
-    if (regions.empty())
+    // Dense infill only refines sparse/void surfaces. Existing solid surfaces
+    // are inputs for other layers to detect support, so this pass must preserve
+    // them exactly instead of reclassifying them.
+    if (surface_type_is_solid(surface.type())) {
+        surface_output.append_like(surface.expolygon(), surface);
         return;
+    }
 
-    StoredSurfaceCollection output(storage);
-    bool changed = false;
-    const LayerRegion primary_region = regions.front();
-    for (const Surface surface : input) {
-        DenseAreaResult dense =
-            build_dense_areas_for_surface(storage, print, island, primary_region, surface, upper_solid);
-        if (dense.dense_areas.empty()) {
-            output.append_like(surface.expolygon(), surface);
+    ClipperContext clipper(storage);
+    bool surface_changed = false;
+
+    // Split the source surface by the settings that control dense infill. Each
+    // clipped piece is handled independently, which keeps region-specific
+    // settings local while still writing the final surfaces into the
+    // LayerRegionIsland-owned output collection.
+    for (const auto &[settings_value, settings_clip] : settings.get_areas(k_infill_dense_key)) {
+        StoredExPolygonCollection source_parts = settings_clip.intersections(surface.expolygon());
+        if (source_parts.empty())
+            continue;
+
+        const double fill_density_value = settings_value.get_float(k_fill_density_key);
+        const double fill_density_percent = fill_density_value <= 1.0 ? fill_density_value * 100.0 : fill_density_value;
+        DenseAlgo setting_algo = dense_algo_from_serialized(settings_value.option(k_infill_dense_algo_key).serialize());
+        if (!settings_value.get_bool(k_infill_dense_key) ||
+            fill_density_percent >= 40. ||
+            setting_algo == DenseAlgo::Disabled) {
+            // This settings zone does not request dense infill. We still copy
+            // the clipped part, because another settings zone may densify a
+            // different part of the same original surface.
+            surface_output.append_like_move(std::move(source_parts), surface);
             continue;
         }
 
-        changed = true;
-        for (DenseArea &dense_area : dense.dense_areas)
-            append_dense_surfaces(orchestrator, output, surface, dense_area);
-        append_sparse_remainder(output, storage, surface, dense.dense_union.readonly());
+        for (const ExPolygon surf_with_overlap : source_parts) {
+            // sparse_polys is the remaining ordinary sparse area for this
+            // settings piece. Each accepted dense patch is removed from it
+            // immediately, so later upper surfaces cannot create overlapping
+            // dense patches.
+            StoredExPolygonCollection sparse_polys(storage, surf_with_overlap);
+            StoredExPolygonCollection dense_polys(storage);
+            std::vector<uint16_t> dense_priority;
+
+            //find the surface which intersect with the smallest maxNb possible
+            for (const LayerIsland upper_island : island.upper_islands()) {
+                for (uint32_t upper_region_island_idx = 0; upper_region_island_idx < upper_island.region_island_count(); ++upper_region_island_idx) {
+                    const LayerRegionIsland upper_region_island = upper_island.region_island(upper_region_island_idx);
+                    for (const Surface upp : upper_region_island.fill_surfaces_collection()) {
+                        if (!surface_type_is_solid(upp.type()) && !surface_type_is_bridge(upp.type()))
+                            continue;
+
+                        // i'm using intersection_ex because the result different than
+                        // upp.expolygon.overlaps(surf.expolygon) or surf.expolygon.overlaps(upp.expolygon)
+                        // and a little offset2 to remove the almost supported area
+                        // LayerRegionIsland has already grouped compatible
+                        // regions for this surface bucket. Dense infill only
+                        // needs flow widths here, so the first region gives the
+                        // same kind of values the legacy LayerRegion path used.
+                        const LayerRegion layer_region = region_island.region(0);
+                        const c_flow infill_flow = layer_region.flow(RAW_EXTRUSION_ROLE_INTERNAL_INFILL);
+                        const coord_t scaled_width = infill_flow.width;
+                        StoredExPolygonCollection intersect =
+                            clipper_offset2(
+                                clipper_intersection_with_safety_offset(clipper(sparse_polys.readonly()), clipper(upp.expolygon())),
+                                -double(scaled_width),
+                                double(scaled_width)).to_expolygon_collection();
+                        if (!intersect.empty()) {
+                            DenseAlgo algo = setting_algo;
+
+                            //if no infill, don't bother, it's always yes
+                            if (fill_density_value == 0.) {
+                                if (algo == DenseAlgo::AutoOrEnlarged)
+                                    algo = DenseAlgo::Automatic;
+                                else if (algo != DenseAlgo::Automatic)
+                                    algo = DenseAlgo::AutoNotFull;
+                            }
+                            if (algo == DenseAlgo::AutoOrNothing ||
+                                algo == DenseAlgo::AutoOrEnlarged) {
+                                //check if small enough
+                                const double effective_density =
+                                    std::max(0.0001, settings_value.get_effective_value(1., k_fill_density_key));
+                                coordf_t min_width = max_nozzle_diameter() / effective_density;
+                                StoredExPolygonCollection smalls =
+                                    clipper_offset(clipper(intersect.readonly()), -min_width).to_expolygon_collection();
+                                //small enough ?
+                                if (smalls.empty()) {
+                                    if (algo == DenseAlgo::AutoOrNothing)
+                                        algo = DenseAlgo::AutoNotFull;
+                                    if (algo == DenseAlgo::AutoOrEnlarged)
+                                        algo = DenseAlgo::Automatic;
+                                } else if (algo == DenseAlgo::AutoOrNothing) {
+                                    algo = DenseAlgo::Disabled;
+                                }
+                            }
+                            const int32_t perimeter_count = std::max(0, settings_value.get_int(k_perimeters_key));
+                            const c_flow external_perimeter = layer_region.flow(RAW_EXTRUSION_ROLE_EXTERNAL_PERIMETER);
+                            const c_flow perimeter = layer_region.flow(RAW_EXTRUSION_ROLE_INTERNAL_PERIMETER);
+                            const double perimeter_width = perimeter_count == 0 ? 0. :
+                                (unscaled(external_perimeter.width) + unscaled(perimeter.spacing) * double(perimeter_count - 1));
+                            const double offset_expand =
+                                settings_value.get_effective_value(perimeter_width, k_external_infill_margin_key);
+                            if (algo == DenseAlgo::Enlarged) {
+                                //expand the area a bit
+                                intersect =
+                                    clipper_offset(clipper(intersect.readonly()), scale_d(offset_expand)).to_expolygon_collection();
+                                intersect =
+                                    clipper_intersection(clipper(intersect.readonly()), clipper(sparse_polys.readonly())).to_expolygon_collection();
+                            } else if (algo == DenseAlgo::Disabled) {
+                                intersect.clear();
+                            } else {
+                                // Automatic modes try to cover the upper solid
+                                // with a compact dense patch. AutoNotFull
+                                // refuses to densify the whole sparse surface,
+                                // while the other modes may enlarge or fit the
+                                // patch depending on their legacy rules.
+                                double sparse_area = surf_with_overlap.area();
+                                double area_to_cover = 0;
+                                if (algo == DenseAlgo::AutoNotFull) {
+                                    // calculate area to decide if area is small enough for autofill
+                                    area_to_cover = area_sum(intersect.readonly());
+                                    // if we have to fill everything, don't bother
+                                    if (area_to_cover * 1.1 > sparse_area)
+                                        intersect.clear();
+                                }
+                                //like intersect.empty() but more resilient
+                                StoredExPolygonCollection cover_intersect(storage);
+
+                                // it will be a dense infill, split the surface if needed
+                                //ExPolygons cover_intersect;
+                                for (const ExPolygon expoly_tocover : intersect) {
+                                    StoredExPolygonCollection temp =
+                                        dense_fill_fit_to_size(
+                                            storage,
+                                            expoly_tocover,
+                                            surf_with_overlap,
+                                            4 * scaled_width,
+                                            0.01f);
+                                    cover_intersect.append_move_from(std::move(temp));
+                                }
+                                // calculate area to decide if area is small enough for autofill
+                                if (algo == DenseAlgo::AutoOrEnlarged) {
+                                    // Compare the legacy fitted shape with the
+                                    // simply enlarged shape and keep the one
+                                    // that covers less area. This limits the
+                                    // amount of 50% dense infill we introduce.
+                                    double area_dense_covered = area_sum(cover_intersect.readonly());
+                                    // if enlarge is smaller, use enlarge
+                                    intersect =
+                                        clipper_offset(clipper(intersect.readonly()), scale_d(offset_expand)).to_expolygon_collection();
+                                    intersect =
+                                        clipper_intersection(clipper(intersect.readonly()), clipper(sparse_polys.readonly())).to_expolygon_collection();
+                                    double area_enlarged_covered = area_sum(intersect.readonly());
+                                    if (area_dense_covered < area_enlarged_covered)
+                                        intersect = std::move(cover_intersect);
+                                } else {
+                                    intersect = std::move(cover_intersect);
+                                }
+                            }
+                            if (!intersect.empty()) {
+
+                                StoredExPolygonCollection sparse_surfaces =
+                                    clipper_diff_with_safety_offset(clipper(sparse_polys.readonly()), clipper(intersect.readonly())).to_expolygon_collection();
+                                StoredExPolygonCollection dense_surfaces =
+                                    clipper_diff_with_safety_offset(clipper(sparse_polys.readonly()), clipper(sparse_surfaces.readonly())).to_expolygon_collection();
+                                (void)dense_surfaces;
+                                // Dense patches that overlap earlier dense
+                                // patches must be printed later. The priority
+                                // is stored on the resulting Surface and used
+                                // by the post-infill ordering plugin.
+                                for (const ExPolygon poly : intersect) {
+                                    uint16_t priority = 1;
+                                    StoredExPolygonCollection dense(storage, poly);
+                                    for (uint32_t idx_dense = 0; idx_dense < dense_polys.size(); ++idx_dense) {
+                                        const double area_before = area_sum(dense.readonly());
+                                        StoredExPolygonCollection dense_test =
+                                            clipper_diff_with_safety_offset(clipper(dense.readonly()), clipper(dense_polys[idx_dense])).to_expolygon_collection();
+                                        if (area_sum(dense_test.readonly()) + double(SCALED_EPSILON) < area_before)
+                                            priority = std::max(priority, uint16_t(dense_priority[idx_dense] + 1));
+                                        dense = std::move(dense_test);
+                                    }
+                                    dense_polys.append_move_from(std::move(dense));
+                                    while (dense_priority.size() < dense_polys.size())
+                                        dense_priority.push_back(priority);
+                                }
+                                //assign (copy)
+                                sparse_polys = std::move(sparse_surfaces);
+
+                            }
+                        }
+                        //check if we are full-dense
+                        if (sparse_polys.empty())
+                            break;
+                    }
+                    if (sparse_polys.empty())
+                        break;
+                }
+                if (sparse_polys.empty())
+                    break;
+            }
+
+            //check if we need to split the surface
+            if (!dense_polys.empty()) {
+                double area_dense = area_sum(dense_polys.readonly());
+                double area_sparse = area_sum(sparse_polys.readonly());
+                // if almost no empty space, simplify by filling everything (else)
+                if (area_sparse > area_dense * 0.1) {
+                    //split
+                    // Split mode: create dense surfaces for the dense patches,
+                    // then put the leftover sparse area back as surfaces like
+                    // the original. This keeps the island coverage intact.
+                    for (uint32_t idx_dense = 0; idx_dense < dense_polys.size(); ++idx_dense) {
+                        ExPolygon dense_poly = dense_polys[idx_dense];
+                        //remove overlap with perimeter
+                        StoredExPolygonCollection offseted_dense_polys =
+                            island.infill_no_overlap_areas().empty() ?
+                            StoredExPolygonCollection(storage, dense_poly) :
+                            clipper_intersection(clipper(dense_poly), clipper(island.infill_no_overlap_areas())).to_expolygon_collection();
+                        //add overlap with everything
+                        const LayerRegion layer_region = region_island.region(0);
+                        coord_t overlap = layer_region.flow(RAW_EXTRUSION_ROLE_INTERNAL_INFILL).width / 4;
+                        offseted_dense_polys =
+                            clipper_offset(clipper(offseted_dense_polys.readonly()), double(overlap)).to_expolygon_collection();
+                        const coord_t scaled_resolution = print.config().has(k_resolution_key) ?
+                            std::max(SCALED_EPSILON, scale_i(print.config().get(k_resolution_key).get_float())) :
+                            SCALED_EPSILON;
+                        offseted_dense_polys.ensure_valid(scaled_resolution);
+                        const uint32_t first_new_idx = surface_output.size();
+                        surface_output.append_move(std::move(offseted_dense_polys), k_dense_surface_type);
+                        for (uint32_t idx = first_new_idx; idx < surface_output.size(); ++idx) {
+                            MutableSurface dense_surface = surface_output.mutable_at(idx);
+                            dense_surface.copy_properties_from(surface);
+                            SurfaceDenseInfillHint &hint =
+                                dense_surface.get_or_add_property<SurfaceDenseInfillHint>(orchestrator);
+                            hint.max_solid_layers_on_top = 1;
+                            hint.priority = idx_dense < dense_priority.size() ? dense_priority[idx_dense] : 1;
+                        }
+                    }
+                    sparse_polys = clipper_union(clipper(sparse_polys.readonly())).to_expolygon_collection();
+                    const coord_t scaled_resolution = print.config().has(k_resolution_key) ?
+                        std::max(SCALED_EPSILON, scale_i(print.config().get(k_resolution_key).get_float())) :
+                        SCALED_EPSILON;
+                    sparse_polys.ensure_valid(scaled_resolution);
+                    surface_output.append_like_move(std::move(sparse_polys), surface);
+                    surface_changed = true;
+                } else {
+                    // Almost all of the current piece became dense. Avoid tiny
+                    // sparse leftovers and retype the complete piece as dense,
+                    // which matches the legacy simplification branch.
+                    const uint32_t first_new_idx = surface_output.size();
+                    surface_output.append(surf_with_overlap, k_dense_surface_type);
+                    MutableSurface dense_surface = surface_output.mutable_at(first_new_idx);
+                    dense_surface.copy_properties_from(surface);
+                    SurfaceDenseInfillHint &hint =
+                        dense_surface.get_or_add_property<SurfaceDenseInfillHint>(orchestrator);
+                    hint.max_solid_layers_on_top = 1;
+                    hint.priority = 1;
+                    surface_changed = true;
+                    break;
+                }
+            } else {
+                surface_output.append_like(surf_with_overlap, surface);
+                // mitigation: if this piece cannot be made dense, keep it as
+                // its original sparse surface and let the other pieces be
+                // tested independently.
+                continue;
+            }
+        }
     }
 
-    if (changed && ctx.set_region_island_fill_surfaces != nullptr)
-        ctx.set_region_island_fill_surfaces(
-            const_cast<layer_region_island_handle *>(region_island.handle()),
-            output.mutable_handle());
+    // If no settings clip produced anything for this surface, preserve the
+    // original geometry. The caller publishes the whole LayerRegionIsland only
+    // when at least one surface actually changed.
+    if (surface_output.empty())
+        surface_output.append_like(surface.expolygon(), surface);
+    else if (surface_changed)
+        changed = true;
 }
 
 void process_surface_marker_layer(uint32_t layer_idx,
                                   storage_handle *scratch_storage,
                                   const run_ctx_surface_generation *ctx,
-                                  orchestrator_handle *orchestrator)
+                                  DenseSurfaceMarkerStore *store)
 {
     assert(ctx != nullptr);
-    assert(orchestrator != nullptr);
+    assert(store != nullptr);
+    assert(store->orchestrator != nullptr);
+    assert(store->persistent_storage != nullptr);
     assert(ctx->print != nullptr);
     assert(ctx->object != nullptr);
 
@@ -526,19 +588,73 @@ void process_surface_marker_layer(uint32_t layer_idx,
     const Layer layer = object.layer(layer_idx);
     for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx) {
         const LayerIsland island = layer.island(island_idx);
-        const StoredExPolygonCollection upper_solid = collect_upper_solid_areas(scratch_storage, island);
-        if (upper_solid.empty())
+        if (island.upper_island_count() == 0)
             continue;
 
-        for (uint32_t region_island_idx = 0; region_island_idx < island.region_island_count(); ++region_island_idx)
-            process_region_island_surfaces(
-                *ctx,
-                scratch_storage,
-                orchestrator,
-                print,
-                island,
-                island.region_island(region_island_idx),
-                upper_solid.readonly());
+        for (uint32_t region_island_idx = 0; region_island_idx < island.region_island_count(); ++region_island_idx) {
+            const LayerRegionIsland region_island = island.region_island(region_island_idx);
+            bool changed = false;
+            StoredSurfaceCollection new_surfaces(scratch_storage);
+            const SurfaceCollection input = region_island.fill_surfaces_collection();
+            if (!input.empty() && region_island.region_count() > 0) {
+
+                RegionSettings settings(scratch_storage, island,
+                                        {{k_infill_dense_key, k_infill_dense_algo_key, k_fill_density_key,
+                                          k_external_infill_margin_key, k_perimeters_key}});
+                settings.segregate(island.slice());
+
+                // check all surfaces to cover
+                for (const Surface surface : input)
+                    process_surface_marker_surface(scratch_storage, store->orchestrator, print, island, region_island, settings,
+                                                   surface, new_surfaces, changed);
+            }
+            if (!changed)
+                continue;
+
+            // The per-job scratch storage is destroyed when this callback
+            // returns. Copy the finished result into plugin storage under a
+            // lock, then publish it later from the caller thread. worker threads compute proposed
+            // replacements, but they never replace host surfaces while another
+            // worker may still read them as "upper solid" input.
+            std::lock_guard<std::mutex> lock(store->mutex);
+            StoredSurfaceCollection persistent(store->persistent_storage);
+            for (const Surface surface : new_surfaces.readonly()) {
+                if (surface.expolygon().contour().size() >= 3)
+                    persistent.append_like(surface.expolygon(), surface);
+            }
+            store->results.emplace_back(region_island.handle(), std::move(persistent));
+        }
+    }
+}
+
+void run_surface_marker_monothread(const plugin_run_context *run_ctx,
+                                   const run_ctx_surface_generation *ctx,
+                                   orchestrator_handle *orchestrator,
+                                   PluginProgress &progress)
+{
+    if (ctx == nullptr || ctx->object == nullptr || ctx->print == nullptr ||
+        ctx->set_region_island_fill_surfaces == nullptr)
+        return;
+
+    const Object object(ctx->object);
+    DenseSurfaceMarkerStore store;
+    store.ctx = ctx;
+    store.orchestrator = orchestrator;
+    store.persistent_storage = run_ctx->plugin_storage;
+    parallel_for_storage_with_progress(
+        0,
+        object.layer_count(),
+        run_ctx,
+        &progress,
+        process_surface_marker_layer,
+        ctx,
+        &store);
+
+    // now set the new surfaces
+    for (DenseSurfaceMarkerResult &result : store.results) {
+        ctx->set_region_island_fill_surfaces(
+            const_cast<layer_region_island_handle *>(result.region_island),
+            result.surfaces.mutable_handle());
     }
 }
 
@@ -769,15 +885,7 @@ void DenseInfillSurfaceMarker::run_impl(const plugin_run_context *run_ctx) const
     if (ctx == nullptr || ctx->object == nullptr || ctx->print == nullptr)
         return;
 
-    const Object object(ctx->object);
-    parallel_for_storage_with_progress(
-        0,
-        object.layer_count(),
-        run_ctx,
-        &progress(),
-        process_surface_marker_layer,
-        ctx,
-        m_orchestrator);
+    run_surface_marker_monothread(run_ctx, ctx, m_orchestrator, progress());
 }
 
 DenseInfillRecipeModifier &DenseInfillRecipeModifier::instance(orchestrator_handle *orch)
