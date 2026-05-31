@@ -59,13 +59,15 @@ void PostInfillGapFill::run_impl(const plugin_run_context *run_ctx) const
 {
     const run_ctx_post_infill_generation *ctx = plugin_ctx_as_post_infill_generation(run_ctx);
     assert(ctx != nullptr);
+    assert(ctx->get_region_island_mutable_extrusion != nullptr);
     (void) ctx;
 
-    // This plugin is intentionally a no-op until the post-infill step exposes
-    // the residual-area data needed to recreate gap fill independently from
-    // Fill::fill_surface_extrusion(). Keeping the pass registered now prevents
-    // new INFILL_PATTERN plugins from depending on the old per-pattern gap-fill
-    // flag and gives the pipeline a stable extension point.
+    // The plugin is registered now so the pipeline already has a named place
+    // for gap-fill-after-infill work. It does not generate extrusion yet:
+    // creating good gap fill needs a residual-area input that this step does
+    // not publish for the moment. Once that input exists, this plugin will be
+    // able to borrow the infill/gap-fill roots from the context and append the
+    // new extrusion trees there.
 }
 
 void register_post_infill_gap_fill_plugin(orchestrator_handle *orch)

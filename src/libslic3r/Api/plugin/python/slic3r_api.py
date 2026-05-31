@@ -91,6 +91,7 @@ from steps.post_slicing import *
 from steps.perimeter import *
 from steps.perimeter_module import *
 from steps.post_perimeter import *
+from steps.post_infill import *
 from steps.surface_generation import *
 
 
@@ -465,6 +466,9 @@ class Slic3rAPI:
 
     def post_perimeter(self, run_ctx_address: int) -> PostPerimeterContext | None:
         return PostPerimeterContext.from_run_context(self, run_ctx_address)
+
+    def post_infill(self, run_ctx_address: int) -> PostInfillContext | None:
+        return PostInfillContext.from_run_context(self, run_ctx_address)
 
     def perimeter(self, run_ctx_address: int) -> PerimeterContext | None:
         return PerimeterContext.from_run_context(self, run_ctx_address)

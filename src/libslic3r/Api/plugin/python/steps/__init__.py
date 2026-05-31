@@ -9,6 +9,7 @@ from .post_slicing import PostSlicingContext
 from .perimeter import PerimeterContext, PerimeterGenerationContextView, PerimeterNodeView
 from .perimeter_module import PerimeterModuleContext, PublishedPerimeterGenerationModule
 from .post_perimeter import PostPerimeterContext
+from .post_infill import PostInfillContext
 from .surface_generation import SurfaceGenerationContext
 
 __all__ = [
@@ -25,5 +26,6 @@ __all__ = [
     "PerimeterModuleContext",
     "PublishedPerimeterGenerationModule",
     "PostPerimeterContext",
+    "PostInfillContext",
     "SurfaceGenerationContext",
 ]

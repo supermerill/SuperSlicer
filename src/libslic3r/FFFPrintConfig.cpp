@@ -4663,6 +4663,10 @@ void init_fff_params(PrintConfigDef &definition)
     def->mode = comSimpleAE | comSuSi;
     def->set_default_value(new ConfigOptionBool(false));
     
+    // Deprecated: the dense-infill algorithm is moving to a plugin-owned
+    // option. Keep this legacy definition while the old pipeline still reads
+    // it; plugin option registration is idempotent when the existing
+    // definition is compatible.
     def = definition.add("infill_dense_algo", coEnum, ptFFF);
     def->label = L("Algorithm");
     def->full_label = L("Dense infill algorithm");

@@ -15,6 +15,7 @@
 #include "libslic3r/Api/internal/LayerAccess.hpp"
 #include "libslic3r/Api/internal/LayerRegionAccess.hpp"
 #include "libslic3r/Api/plugin/c/slic3r_extrusion_entity.h"
+#include "libslic3r/Api/plugin/c/steps/slic3r_step_post_infill.h"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_post_perimeter.h"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_pre_perimeter.h"
 #include "libslic3r/Layer.hpp"
@@ -23,6 +24,7 @@
 #include "libslic3r/Print.hpp"
 #include "libslic3r/PrintObject.hpp"
 #include "libslic3r/Steps/StepGeneratePerimeter.hpp"
+#include "libslic3r/Steps/StepPostInfillGeneration.hpp"
 #include "libslic3r/Steps/StepPostPerimeterGeneration.hpp"
 #include "libslic3r/Steps/StepPrepareForPeriemters.hpp"
 #include "libslic3r/Steps/StepPipeline.hpp"
@@ -54,8 +56,12 @@ struct RecordingPluginState
     std::vector<RecordedEvent> *events = nullptr;
     std::mutex *mutex = nullptr;
     bool mutate_post_perimeter_outputs = false;
+    bool mutate_post_infill_outputs = false;
     bool saw_mutable_extrusion = false;
+    bool saw_post_infill_region_island = false;
+    bool created_empty_gap_fill_root = false;
     bool changed_fill_areas = false;
+    bool rejected_perimeter_bucket = false;
 };
 
 RecordingPluginState g_pre_first  = {"test.pre_perimeter.first", STEP_PRE_PERIMETER, -10};
@@ -94,6 +100,10 @@ RecordingPluginState g_post_first = {"test.post_perimeter.first", STEP_POST_PERI
 RecordingPluginState g_post_second = {"test.post_perimeter.second", STEP_POST_PERIMETER, 20};
 RecordingPluginState g_post_inactive = {"test.post_perimeter.inactive", STEP_POST_PERIMETER, 0};
 RecordingPluginState g_post_mutator = {"test.post_perimeter.mutator", STEP_POST_PERIMETER, 0};
+RecordingPluginState g_post_infill_first = {"test.post_infill.first", STEP_POST_INFILL, -10};
+RecordingPluginState g_post_infill_second = {"test.post_infill.second", STEP_POST_INFILL, 20};
+RecordingPluginState g_post_infill_inactive = {"test.post_infill.inactive", STEP_POST_INFILL, 0};
+RecordingPluginState g_post_infill_mutator = {"test.post_infill.mutator", STEP_POST_INFILL, 0};
 
 RecordingPluginState *const g_recording_plugins[] = {
     &g_pre_first,
@@ -106,7 +116,11 @@ RecordingPluginState *const g_recording_plugins[] = {
     &g_post_first,
     &g_post_second,
     &g_post_inactive,
-    &g_post_mutator
+    &g_post_mutator,
+    &g_post_infill_first,
+    &g_post_infill_second,
+    &g_post_infill_inactive,
+    &g_post_infill_mutator
 };
 
 const_strings_t recording_get_dependencies(void *)
@@ -191,6 +205,12 @@ void fill_payload_event(const plugin_run_context *run_ctx, RecordedEvent &event)
             event.print = payload->print;
             event.object = payload->object;
         }
+    } else if (run_ctx->step == STEP_POST_INFILL) {
+        const run_ctx_post_infill_generation *payload = plugin_ctx_as_post_infill_generation(run_ctx);
+        if (payload != nullptr) {
+            event.print = payload->print;
+            event.object = payload->object;
+        }
     }
 }
 
@@ -237,6 +257,74 @@ void mutate_post_perimeter_outputs(RecordingPluginState &state, const plugin_run
     }
 }
 
+void mutate_post_infill_outputs(RecordingPluginState &state, const plugin_run_context *run_ctx)
+{
+    const run_ctx_post_infill_generation *payload = plugin_ctx_as_post_infill_generation(run_ctx);
+    if (payload == nullptr || payload->object == nullptr ||
+        payload->get_or_create_region_island == nullptr ||
+        payload->get_region_island_mutable_extrusion == nullptr)
+        return;
+
+    const uint32_t layer_count = object_count_layer(payload->object);
+    for (uint32_t layer_idx = 0; layer_idx < layer_count; ++layer_idx) {
+        const layer_handle *layer = object_get_layer(payload->object, layer_idx);
+        const uint32_t island_count = layer_count_island(layer);
+        for (uint32_t island_idx = 0; island_idx < island_count; ++island_idx) {
+            const layer_island_handle *island = layer_get_island(layer, island_idx);
+
+            std::vector<const layer_region_handle *> region_handles;
+            const uint32_t region_count = layer_island_count_region(island);
+            region_handles.reserve(region_count);
+            for (uint32_t region_idx = 0; region_idx < region_count; ++region_idx) {
+                const layer_region_handle *region = layer_island_get_region(island, region_idx);
+                if (region != nullptr)
+                    region_handles.push_back(region);
+            }
+
+            // STEP_POST_INFILL can create or retrieve the destination
+            // LayerRegionIsland used by a post-process that merges infill from
+            // several source groups. The root returned below is still the
+            // normal infill bucket of that destination group.
+            layer_region_island_handle *destination_region_island =
+                payload->get_or_create_region_island(
+                    island,
+                    region_handles.empty() ? nullptr : region_handles.data(),
+                    uint32_t(region_handles.size()));
+            if (destination_region_island != nullptr) {
+                state.saw_post_infill_region_island = true;
+
+                extrusion_entity_handle *root =
+                    payload->get_region_island_mutable_extrusion(
+                        destination_region_island, RAW_EXTRUSION_ROLE_INTERNAL_INFILL);
+                if (root != nullptr &&
+                    extrusion_set_flags(root, RAW_EXTRUSION_FLAG_CONTINUOUS) != 0)
+                    state.saw_mutable_extrusion = true;
+
+                // Valid post-infill roles create an empty root when missing.
+                // The step cleanup should remove that empty bucket after the
+                // plugin returns, so probing remains harmless.
+                if (payload->get_region_island_mutable_extrusion(
+                        destination_region_island, RAW_EXTRUSION_ROLE_GAP_FILL) != nullptr)
+                    state.created_empty_gap_fill_root = true;
+            }
+
+            const uint32_t region_island_count = layer_island_count_region_island(island);
+            for (uint32_t region_island_idx = 0; region_island_idx < region_island_count; ++region_island_idx) {
+                const layer_region_island_handle *region_island =
+                    layer_island_get_region_island(island, region_island_idx);
+
+                // STEP_POST_INFILL deliberately exposes only infill-owned
+                // buckets. Perimeters are present in this test, but the
+                // post-infill callback must refuse them so plugin authors do
+                // not accidentally edit geometry owned by another step.
+                if (payload->get_region_island_mutable_extrusion(
+                        region_island, RAW_EXTRUSION_ROLE_PERIMETER) == nullptr)
+                    state.rejected_perimeter_bucket = true;
+            }
+        }
+    }
+}
+
 void recording_setup(void *plugin_ctx, const plugin_run_context *run_ctx, uint32_t run_count)
 {
     RecordingPluginState &state = *static_cast<RecordingPluginState *>(plugin_ctx);
@@ -265,6 +353,8 @@ void recording_run(void *plugin_ctx, const plugin_run_context *run_ctx)
     record_event(state, std::move(event));
     if (state.mutate_post_perimeter_outputs)
         mutate_post_perimeter_outputs(state, run_ctx);
+    if (state.mutate_post_infill_outputs)
+        mutate_post_infill_outputs(state, run_ctx);
 }
 
 const plugin_vtable *recording_vtable()
@@ -454,6 +544,14 @@ void rebuild_island_overlap_graph(PrintObject &object)
         Layer::build_up_down_graph(object.layer(layer_idx - 1), object.layer(layer_idx));
 }
 
+ExtrusionPath straight_test_path(ExtrusionRole role, const double y_mm)
+{
+    ExtrusionPath path(ExtrusionAttributes(role, ExtrusionFlow(0.1, 0.4f, 0.2f)), nullptr, true);
+    path.polyline().append(Point(scale_i(-4.), scale_i(y_mm)));
+    path.polyline().append(Point(scale_i(4.), scale_i(y_mm)));
+    return path;
+}
+
 const Steps::StepExclusivePluginGroup *find_exclusive_group(const std::vector<Steps::StepExclusivePluginGroup> &groups,
                                                             const char *group_id)
 {
@@ -542,6 +640,15 @@ TEST_CASE("Empty perimeter boundary steps run object plugins", "[plugins][perime
                                   g_post_inactive.id,
                                   &Steps::StepPostPerimeterGeneration::run_step);
     }
+
+    SECTION("post-infill step")
+    {
+        run_and_check_object_step(STEP_POST_INFILL,
+                                  g_post_infill_first.id,
+                                  g_post_infill_second.id,
+                                  g_post_infill_inactive.id,
+                                  &Steps::StepPostInfillGeneration::run_step);
+    }
 }
 
 TEST_CASE("Post-perimeter step exposes mutable perimeter outputs", "[plugins][perimeter][steps]")
@@ -587,6 +694,61 @@ TEST_CASE("Post-perimeter step exposes mutable perimeter outputs", "[plugins][pe
     CHECK(mutated_island.infill_areas().empty());
     CHECK(mutated_island.infill_free_areas().empty());
     CHECK(mutated_island.infill_areas_bboxes().empty());
+}
+
+TEST_CASE("Post-infill step exposes mutable infill outputs", "[plugins][infill][steps]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    register_recording_plugins();
+
+    PreparedPerimeterPrint prepared;
+    const DynamicPrintConfig config = perimeter_config({});
+    prepare_cube_print(prepared, config);
+    PrintObject &object = prepared.print.object(0);
+    REQUIRE(object.layer_count() > 0);
+    Layer &layer = object.layer(0);
+    replace_single_layer_island(layer, rectangle_expolygon(-8., -8., 8., 8.));
+    rebuild_island_overlap_graph(object);
+
+    LayerSliceIsland &island = layer.island(0);
+    REQUIRE_FALSE(island.regions().empty());
+    LayerRegionIsland &region_island = island.get_or_add_region_island(island.regions(), 0);
+
+    // The post-infill callback edits already-published infill buckets. This
+    // test creates one small infill path directly instead of running a full
+    // infill pattern; the step boundary does not care which plugin produced the
+    // bucket, only that it is present and host-owned.
+    region_island.mutable_extrusion(LayerRegionIsland::INFILLS).append(
+        straight_test_path(ExtrusionRole::InternalInfill, 0.));
+
+    // A perimeter bucket is present too. STEP_POST_INFILL must not expose it,
+    // even though it lives on the same LayerRegionIsland, because perimeter
+    // edits belong to STEP_POST_PERIMETER.
+    region_island.mutable_extrusion(LayerRegionIsland::PERIMETERS).append(
+        straight_test_path(ExtrusionRole::Perimeter, 2.));
+
+    REQUIRE(region_island.has_extrusion(LayerRegionIsland::INFILLS));
+    REQUIRE(region_island.has_extrusion(LayerRegionIsland::PERIMETERS));
+    CHECK_FALSE(region_island.extrusion(LayerRegionIsland::INFILLS).is_continuous());
+
+    g_post_infill_mutator.mutate_post_infill_outputs = true;
+    g_post_infill_mutator.saw_mutable_extrusion = false;
+    g_post_infill_mutator.saw_post_infill_region_island = false;
+    g_post_infill_mutator.created_empty_gap_fill_root = false;
+    g_post_infill_mutator.rejected_perimeter_bucket = false;
+    {
+        ScopedActivePlugins active_scope({g_post_infill_mutator.id});
+        Steps::StepPostInfillGeneration::run_step(Orchestrator::instance(), prepared.print);
+    }
+    g_post_infill_mutator.mutate_post_infill_outputs = false;
+
+    CHECK(g_post_infill_mutator.saw_mutable_extrusion);
+    CHECK(g_post_infill_mutator.saw_post_infill_region_island);
+    CHECK(g_post_infill_mutator.created_empty_gap_fill_root);
+    CHECK(g_post_infill_mutator.rejected_perimeter_bucket);
+    CHECK(region_island.extrusion(LayerRegionIsland::INFILLS).is_continuous());
+    CHECK_FALSE(region_island.has_extrusion(LayerRegionIsland::GAP_FILLS));
+    CHECK_FALSE(region_island.extrusion(LayerRegionIsland::PERIMETERS).is_continuous());
 }
 
 TEST_CASE("Explicit exclusive groups select one object-step plugin", "[plugins][perimeter][steps]")
