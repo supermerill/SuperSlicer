@@ -228,6 +228,19 @@ struct EPropertyPerimeter :
     int32_t perimeter_role() const { return loop_role; }
 };
 
+/*
+Infill provenance for one generated infill subtree. A STEP_INFILL generator
+stores this on the root entity it publishes for a Surface; descendants inherit
+it so later post-infill plugins can regroup or split paths without losing which
+surface recipe produced them.
+*/
+struct EPropertyInfill :
+    EPropertyPayload<c_extrusion_property_infill, EXTRUSION_PROPERTY_TYPE_INFILL>
+{
+    EPropertyInfill &surface_id(uint64_t value) { source_surface_id = value; return *this; }
+    uint64_t surface_id() const { return source_surface_id; }
+};
+
 // These assertions are the safety rail that lets the C++ helpers be ABI views,
 // not wrappers with a different layout.
 static_assert(sizeof(EPropertyAttributes) == sizeof(c_extrusion_property_attributes), "ABI payload mismatch");
@@ -238,6 +251,7 @@ static_assert(sizeof(EPropertySpecialCommand) == sizeof(c_extrusion_property_spe
 static_assert(sizeof(EPropertyOverhang) == sizeof(c_extrusion_property_overhang), "ABI payload mismatch");
 static_assert(sizeof(EPropertyZOffset) == sizeof(c_extrusion_property_z_offset), "ABI payload mismatch");
 static_assert(sizeof(EPropertyPerimeter) == sizeof(c_extrusion_property_perimeter), "ABI payload mismatch");
+static_assert(sizeof(EPropertyInfill) == sizeof(c_extrusion_property_infill), "ABI payload mismatch");
 
 template<class Payload>
 inline const Payload *property_payload_cast(const void *data)

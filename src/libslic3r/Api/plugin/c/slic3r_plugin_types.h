@@ -36,7 +36,7 @@
 #include "steps/slic3r_step_surface_type.h"
 #include "steps/slic3r_step_wipetower.h"
 
-#define SLIC3R_PLUGIN_ABI_VERSION 15u
+#define SLIC3R_PLUGIN_ABI_VERSION 16u
 
 #ifdef __cplusplus
 extern "C" {

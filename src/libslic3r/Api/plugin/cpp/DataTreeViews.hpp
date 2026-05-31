@@ -420,7 +420,7 @@ class Surface
 public:
     explicit Surface(const surface_handle *handle) : m_handle(handle) { assert(handle != nullptr); }
     Surface(c_surface surface) : surface(surface) {}
-    Surface(ExPolygon expoly, raw_surface_type type) : surface({expoly.handle(), type}) {}
+    Surface(ExPolygon expoly, raw_surface_type type) : surface({expoly.handle(), type, 0}) {}
 
     const surface_handle *handle() const {
         assert(m_handle != nullptr);
@@ -435,6 +435,10 @@ public:
 
     raw_surface_type type() const {
         return m_handle != nullptr ? surface_get_type(m_handle) : surface.type;
+    }
+
+    uint64_t id() const {
+        return m_handle != nullptr ? surface_get_id(m_handle) : surface.id;
     }
 
     bool has_flag(raw_surface_type flag) const {
@@ -715,7 +719,7 @@ public:
 
     raw_surface_type type() const { return m_type; }
 
-    c_surface c_view() const { return c_surface{m_expolygon.handle(), m_type}; }
+    c_surface c_view() const { return c_surface{m_expolygon.handle(), m_type, 0}; }
 
     StoredExPolygon &expolygon_mutable() { return m_expolygon; }
 private:

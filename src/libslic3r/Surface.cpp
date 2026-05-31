@@ -15,7 +15,18 @@
 #include "BoundingBox.hpp"
 #include "SVG.hpp"
 
+#include <atomic>
+
 namespace Slic3r {
+
+uint64_t Surface::next_runtime_id()
+{
+    // The id only has to be unique inside this process. It is assigned from
+    // host code, so one atomic counter is enough even when surface plugins build
+    // or move collections from several worker threads.
+    static std::atomic<uint64_t> next_id { 1 };
+    return next_id.fetch_add(1, std::memory_order_relaxed);
+}
 
 bool Surface::has(SurfaceType type) const {
     return (this->surface_type & type) == type;

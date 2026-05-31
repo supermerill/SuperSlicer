@@ -351,6 +351,9 @@ class Surface:
     def type(self) -> int:
         return int(self.api.host.surface_get_type(self.c_handle())) if self.has_handle() else int(self._surface.type)
 
+    def id(self) -> int:
+        return int(self.api.host.surface_get_id(self.c_handle())) if self.has_handle() else int(self._surface.id)
+
     def has_flag(self, flag: int) -> bool:
         if self.has_handle():
             return bool(self.api.host.surface_get_flag(self.c_handle(), int(flag)))

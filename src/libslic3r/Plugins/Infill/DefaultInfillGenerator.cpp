@@ -14,6 +14,7 @@
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_infill.h"
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/ExtrusionEntityCollection.hpp"
+#include "libslic3r/ExtrusionProperty.hpp"
 #include "libslic3r/FFFPrintConfig.hpp"
 #include "libslic3r/Layer.hpp"
 #include "libslic3r/LayerRegion.hpp"
@@ -340,6 +341,12 @@ void generate_surface(const run_ctx_generate_infill &ctx,
                                                    reinterpret_cast<extrusion_entity_handle *>(&output));
     if (!generated || output.empty())
         return;
+
+    // Keep a direct link from the extrusion subtree to the Surface recipe that
+    // produced it. The property is inherited by every child path, so later
+    // post-infill plugins can split or reorder paths and still recover the
+    // source surface id from the closest parent.
+    output.get_or_add_property<Slic3r::ExtrusionPropertyInfill>().source_surface_id = surface.id();
 
     // The data tree is read-only from the plugin point of view, but this host
     // callback is explicitly the publication channel. The const_cast is limited

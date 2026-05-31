@@ -230,7 +230,8 @@ c_surface surface_c_view(const surface_handle *me)
     const Slic3r::Surface &surface = *Slic3r::to_surface(me);
     return c_surface{
         reinterpret_cast<const expolygon_handle *>(&surface.expolygon),
-        static_cast<raw_surface_type>(surface.surface_type)
+        static_cast<raw_surface_type>(surface.surface_type),
+        surface.id()
     };
 }
 
@@ -242,6 +243,11 @@ const expolygon_handle *surface_get_expolygon(const surface_handle *me)
 raw_surface_type surface_get_type(const surface_handle *me)
 {
     return me == nullptr ? RAW_SURFACE_TYPE_NONE : static_cast<raw_surface_type>(Slic3r::to_surface(me)->surface_type);
+}
+
+uint64_t surface_get_id(const surface_handle *me)
+{
+    return me == nullptr ? 0u : Slic3r::to_surface(me)->id();
 }
 
 int32_t surface_get_flag(const surface_handle *me, raw_surface_type flag)

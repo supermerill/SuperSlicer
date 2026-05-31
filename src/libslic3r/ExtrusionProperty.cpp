@@ -237,6 +237,8 @@ void* ExtrusionPropertyContainer::get_or_add_property_data_mutable(extrusion_pro
         return &this->get_or_add_property<ExtrusionPropertyZOffset>().z_offset;
     case ExtrusionPropertyLoopRole::property_type:
         return &this->get_or_add_property<ExtrusionPropertyLoopRole>().perimeter_idx;
+    case ExtrusionPropertyInfill::property_type:
+        return &this->get_or_add_property<ExtrusionPropertyInfill>().source_surface_id;
     case ExtrusionPropertyCustomGcode::property_type:
         return &this->get_or_add_property<ExtrusionPropertyCustomGcode>();
     default:

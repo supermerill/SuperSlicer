@@ -50,6 +50,7 @@ from typing import Iterator, Sequence
 from slic3r_api_generated import (
     CExtrusionPropertyAttributes,
     CExtrusionPropertyCustomGcode,
+    CExtrusionPropertyInfill,
     CExtrusionPropertyModifier,
     CExtrusionPropertyOverhang,
     CExtrusionPropertyPerimeter,
@@ -63,6 +64,7 @@ from slic3r_api_generated import (
     EXTRUSION_INDEX_INVALID,
     EXTRUSION_PROPERTY_TYPE_ATTRIBUTES,
     EXTRUSION_PROPERTY_TYPE_CUSTOM_GCODE,
+    EXTRUSION_PROPERTY_TYPE_INFILL,
     EXTRUSION_PROPERTY_TYPE_INVALID,
     EXTRUSION_PROPERTY_TYPE_MODIFIER,
     EXTRUSION_PROPERTY_TYPE_OVERHANG,
@@ -86,6 +88,7 @@ CExtrusionPropertySpecialCommand.property_type = EXTRUSION_PROPERTY_TYPE_SPECIAL
 CExtrusionPropertyOverhang.property_type = EXTRUSION_PROPERTY_TYPE_OVERHANG
 CExtrusionPropertyZOffset.property_type = EXTRUSION_PROPERTY_TYPE_Z_OFFSET
 CExtrusionPropertyPerimeter.property_type = EXTRUSION_PROPERTY_TYPE_PERIMETER
+CExtrusionPropertyInfill.property_type = EXTRUSION_PROPERTY_TYPE_INFILL
 
 EPropertyAttributes = CExtrusionPropertyAttributes
 EPropertySpeed = CExtrusionPropertySpeed
@@ -95,6 +98,7 @@ EPropertySpecialCommand = CExtrusionPropertySpecialCommand
 EPropertyOverhang = CExtrusionPropertyOverhang
 EPropertyZOffset = CExtrusionPropertyZOffset
 EPropertyPerimeter = CExtrusionPropertyPerimeter
+EPropertyInfill = CExtrusionPropertyInfill
 
 
 def _address(handle) -> int:
@@ -728,6 +732,7 @@ def register_extrusion_property_type(api, namespaced_name: str, payload_cls) -> 
 __all__ = [
     "CExtrusionPropertyAttributes",
     "CExtrusionPropertyCustomGcode",
+    "CExtrusionPropertyInfill",
     "CExtrusionPropertyModifier",
     "CExtrusionPropertyOverhang",
     "CExtrusionPropertyPerimeter",
@@ -737,6 +742,7 @@ __all__ = [
     "CExtrusionSegment",
     "EPropertyAttributes",
     "EPropertyCustomGcode",
+    "EPropertyInfill",
     "EPropertyModifier",
     "EPropertyOverhang",
     "EPropertyPerimeter",
@@ -747,6 +753,7 @@ __all__ = [
     "EXTRUSION_INDEX_INVALID",
     "EXTRUSION_PROPERTY_TYPE_ATTRIBUTES",
     "EXTRUSION_PROPERTY_TYPE_CUSTOM_GCODE",
+    "EXTRUSION_PROPERTY_TYPE_INFILL",
     "EXTRUSION_PROPERTY_TYPE_INVALID",
     "EXTRUSION_PROPERTY_TYPE_MODIFIER",
     "EXTRUSION_PROPERTY_TYPE_OVERHANG",

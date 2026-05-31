@@ -166,6 +166,7 @@ struct c_surface
 {
     const expolygon_handle *expolygon;
     raw_surface_type type;
+    uint64_t id;
 };
 /*
 Snapshot one Surface into a tiny C value. Prefer the handle API below when the
@@ -178,6 +179,17 @@ SLIC3R_HOST_API const expolygon_handle *surface_get_expolygon(const surface_hand
 
 /* Surface type bitmask access. Surfaces are read-only views in the public API. */
 SLIC3R_HOST_API raw_surface_type surface_get_type(const surface_handle *me);
+
+/*
+Runtime id of this Surface.
+
+The id is unique only inside the current host process. It lets generated
+extrusion trees remember which Surface produced them during the same slice.
+It is not stable across copies, project saves, reloads, or different runs. A
+value of 0 means "no host Surface id", which is possible for plugin-owned
+temporary surface snapshots.
+*/
+SLIC3R_HOST_API uint64_t surface_get_id(const surface_handle *me);
 
 /* Convenience helper for one flag inside the surface type bitmask. */
 SLIC3R_HOST_API int32_t surface_get_flag(const surface_handle *me, raw_surface_type flag);

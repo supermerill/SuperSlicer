@@ -88,6 +88,13 @@ plugins still see the metadata attached by earlier plugins.
 */
 class Surface : public PluginPropertyContainer
 {
+    static uint64_t next_runtime_id();
+
+    // Runtime identity used to connect generated infill extrusions back to the
+    // Surface that produced them. It is not a file-format id: copied surfaces
+    // get a fresh id, while moved surfaces keep their id because their content
+    // and plugin metadata are transferred as the same logical job.
+    uint64_t        m_id               { next_runtime_id() };
     coord_t          m_thickness        { -1 };
 public:
     SurfaceType     surface_type;
@@ -105,11 +112,14 @@ public:
     uint16_t        maxNbSolidLayersOnTop { uint16_t(-1) };
     //for dense infill
     uint16_t        priority              {  0_u };
+
+    uint64_t id() const { return m_id; }
     
     Surface(const Surface &rhs) :
         PluginPropertyContainer(rhs),
-        surface_type(rhs.surface_type), expolygon(rhs.expolygon),
-            m_thickness(rhs.m_thickness), thickness_layers(rhs.thickness_layers), 
+            m_thickness(rhs.m_thickness),
+            surface_type(rhs.surface_type), expolygon(rhs.expolygon),
+            thickness_layers(rhs.thickness_layers),
             bridge_angle(rhs.bridge_angle), extra_perimeters(rhs.extra_perimeters),
             maxNbSolidLayersOnTop(rhs.maxNbSolidLayersOnTop),
             priority(rhs.priority) {};
@@ -118,15 +128,18 @@ public:
         : surface_type(_surface_type), expolygon(_expolygon) {};
     Surface(const Surface &other, const ExPolygon &_expolygon)
         : PluginPropertyContainer(other),
+            m_thickness(other.m_thickness),
             surface_type(other.surface_type), expolygon(_expolygon),
-            m_thickness(other.m_thickness), thickness_layers(other.thickness_layers), 
+            thickness_layers(other.thickness_layers),
             bridge_angle(other.bridge_angle), extra_perimeters(other.extra_perimeters),
             maxNbSolidLayersOnTop(other.maxNbSolidLayersOnTop),
             priority(other.priority) {};
-    Surface(Surface &&rhs)
+    Surface(Surface &&rhs) noexcept
         : PluginPropertyContainer(std::move(rhs)),
+            m_id(rhs.m_id),
+            m_thickness(rhs.m_thickness),
             surface_type(rhs.surface_type), expolygon(std::move(rhs.expolygon)),
-            m_thickness(rhs.m_thickness), thickness_layers(rhs.thickness_layers), 
+            thickness_layers(rhs.thickness_layers),
             bridge_angle(rhs.bridge_angle), extra_perimeters(rhs.extra_perimeters),
             maxNbSolidLayersOnTop(rhs.maxNbSolidLayersOnTop),
             priority(rhs.priority) {};
@@ -134,8 +147,9 @@ public:
         : surface_type(_surface_type), expolygon(std::move(_expolygon)) {};
     Surface(const Surface &other, ExPolygon &&_expolygon)
         : PluginPropertyContainer(other),
+            m_thickness(other.m_thickness),
             surface_type(other.surface_type), expolygon(std::move(_expolygon)),
-            m_thickness(other.m_thickness), thickness_layers(other.thickness_layers), 
+            thickness_layers(other.thickness_layers),
             bridge_angle(other.bridge_angle), extra_perimeters(other.extra_perimeters),
             maxNbSolidLayersOnTop(other.maxNbSolidLayersOnTop),
             priority(other.priority) {};
@@ -143,6 +157,9 @@ public:
     Surface& operator=(const Surface &rhs)
     {
         PluginPropertyContainer::operator=(rhs);
+        // Copy assignment replaces the content of an existing surface. The
+        // destination identity stays stable because existing references to this
+        // Surface still refer to this object, not to rhs.
         surface_type     = rhs.surface_type;
         expolygon        = rhs.expolygon;
         m_thickness      = rhs.m_thickness;
@@ -154,9 +171,13 @@ public:
         return *this;
     }
 
-    Surface& operator=(Surface &&rhs)
+    Surface& operator=(Surface &&rhs) noexcept
     {
         PluginPropertyContainer::operator=(std::move(rhs));
+        // Move assignment transfers the logical surface job with its content.
+        // Keep the source id so generated extrusions continue to reference the
+        // same logical surface after vector moves or collection rewrites.
+        m_id             = rhs.m_id;
         surface_type     = rhs.surface_type;
         expolygon        = std::move(rhs.expolygon);
         m_thickness      = rhs.m_thickness;

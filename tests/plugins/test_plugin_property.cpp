@@ -4,6 +4,9 @@
 #include "libslic3r/PluginProperty.hpp"
 #include "libslic3r/Surface.hpp"
 
+#include <utility>
+#include <vector>
+
 namespace {
 using namespace Slic3r;
 
@@ -102,4 +105,52 @@ TEST_CASE("Surface plugin properties survive splits and protect merge checks",
 
     same_metadata.get_or_add_property<TestSurfacePayload>().priority = 9;
     CHECK_FALSE(surfaces_could_merge(split_piece, same_metadata));
+}
+
+TEST_CASE("Surface runtime ids track logical ownership across copy and move",
+          "[plugins][properties][surface-id]")
+{
+    Surface source(stPosInternal | stDensSparse, rectangle_expolygon(0., 0., 10., 10.));
+    REQUIRE(source.id() != 0);
+
+    // A copied Surface is a new infill job with copied geometry and metadata.
+    // It must therefore receive a fresh runtime id instead of aliasing the
+    // source surface that may generate a different extrusion subtree.
+    Surface copied(source);
+    CHECK(copied.id() != 0);
+    CHECK(copied.id() != source.id());
+
+    // Copy assignment replaces the destination content but keeps destination
+    // identity. This protects code that already holds a reference to that
+    // Surface object while a collection rewrites its geometry in-place.
+    Surface assigned(stPosTop | stDensSolid, rectangle_expolygon(20., 0., 30., 10.));
+    const uint64_t assigned_id = assigned.id();
+    assigned = source;
+    CHECK(assigned.id() == assigned_id);
+    CHECK(assigned.id() != source.id());
+
+    // Move construction and move assignment transfer the logical surface job:
+    // the same geometry/properties continue under a new C++ object, so the id
+    // follows the moved content.
+    Surface move_construct_source(stPosBottom | stDensSolid, rectangle_expolygon(40., 0., 50., 10.));
+    const uint64_t move_construct_id = move_construct_source.id();
+    Surface move_constructed(std::move(move_construct_source));
+    CHECK(move_constructed.id() == move_construct_id);
+
+    Surface move_assign_source(stPosInternal | stDensSparse, rectangle_expolygon(60., 0., 70., 10.));
+    const uint64_t move_assign_source_id = move_assign_source.id();
+    Surface move_assigned(stPosTop | stDensSolid, rectangle_expolygon(80., 0., 90., 10.));
+    move_assigned = std::move(move_assign_source);
+    CHECK(move_assigned.id() == move_assign_source_id);
+
+    // Surface vectors reallocate frequently while clipping and rebuilding
+    // collections. Reallocation must move surfaces, not copy them, otherwise a
+    // completely ordinary push_back could silently change ids already used by
+    // generated infill subtrees.
+    std::vector<Surface> collection;
+    collection.reserve(1);
+    collection.emplace_back(stPosInternal | stDensSparse, rectangle_expolygon(100., 0., 110., 10.));
+    const uint64_t first_id_before_reallocation = collection.front().id();
+    collection.emplace_back(stPosInternal | stDensSparse, rectangle_expolygon(120., 0., 130., 10.));
+    CHECK(collection.front().id() == first_id_before_reallocation);
 }

@@ -43,6 +43,7 @@ typedef slic3r_property_type extrusion_property_type;
 #define EXTRUSION_PROPERTY_TYPE_OVERHANG        ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_EXTRUSION_OVERHANG)
 #define EXTRUSION_PROPERTY_TYPE_Z_OFFSET        ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_EXTRUSION_Z_OFFSET)
 #define EXTRUSION_PROPERTY_TYPE_PERIMETER       ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_EXTRUSION_PERIMETER)
+#define EXTRUSION_PROPERTY_TYPE_INFILL          ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_EXTRUSION_INFILL)
 
 typedef uint32_t extrusion_data_id;
 
@@ -304,6 +305,17 @@ typedef struct c_extrusion_property_perimeter {
     int16_t reserved;
     uint16_t loop_role;
 } c_extrusion_property_perimeter;
+
+/*
+Property type: EXTRUSION_PROPERTY_TYPE_INFILL.
+
+Stored on the root extrusion tree generated for one Surface. Descendant
+extrusions inherit it, so post-infill plugins can still recover the Surface
+that produced a path after splitting or regrouping the tree.
+*/
+typedef struct c_extrusion_property_infill {
+    uint64_t source_surface_id;
+} c_extrusion_property_infill;
 
 #ifdef __cplusplus
 }

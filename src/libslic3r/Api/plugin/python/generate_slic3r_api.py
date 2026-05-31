@@ -137,6 +137,7 @@ CLASS_NAME_OVERRIDES = {
     "c_extrusion_property_overhang": "CExtrusionPropertyOverhang",
     "c_extrusion_property_z_offset": "CExtrusionPropertyZOffset",
     "c_extrusion_property_perimeter": "CExtrusionPropertyPerimeter",
+    "c_extrusion_property_infill": "CExtrusionPropertyInfill",
     "bridge_detector_instance": "BridgeDetectorInstance",
     "bridge_detector_create_input": "BridgeDetectorCreateInput",
     "plugin_run_context": "PluginRunContext",

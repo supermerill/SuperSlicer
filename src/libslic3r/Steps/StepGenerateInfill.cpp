@@ -275,6 +275,14 @@ void append_extrusion_children(ExtrusionEntityCollection &dst, ExtrusionEntity &
         return;
 
     if (ExtrusionEntityCollection *collection = dynamic_cast<ExtrusionEntityCollection *>(&src)) {
+        // A collection with direct properties is a semantic subtree root. For
+        // example, STEP_INFILL stores the source Surface id there and expects
+        // every generated child to inherit it. Flatten only plain transport
+        // collections that do not carry metadata of their own.
+        if (collection->has_properties()) {
+            dst.append(std::move(src));
+            return;
+        }
         dst.append_move_from(*collection);
         return;
     }
