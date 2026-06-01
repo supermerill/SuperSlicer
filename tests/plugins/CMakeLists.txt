@@ -21,6 +21,7 @@ add_executable(${_TEST_NAME}_tests
     test_perimeter_extra_perimeters_on_overhangs.cpp
     test_perimeter_fuzzy_skin.cpp
     test_perimeter_hairy_object.cpp
+    test_perimeter_mark_first_loop.cpp
     test_perimeter_only_one_perimeter_first_layer.cpp
     test_perimeter_only_one_perimeter_on_top.cpp
     test_perimeter_python_simple_generator.cpp

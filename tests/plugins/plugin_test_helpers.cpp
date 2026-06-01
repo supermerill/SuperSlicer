@@ -37,6 +37,7 @@
 #include "libslic3r/Plugins/Perimeter/DetectOverhang.hpp"
 #include "libslic3r/Plugins/Perimeter/ExtraPerimetersOnOverhangs.hpp"
 #include "libslic3r/Plugins/Perimeter/FuzzySkin.hpp"
+#include "libslic3r/Plugins/Perimeter/MarkFirstLoop.hpp"
 #include "libslic3r/Plugins/Perimeter/OnlyOnePerimeterFirstLayer.hpp"
 #include "libslic3r/Plugins/Perimeter/OnlyOnePerimeterOnTop.hpp"
 #include "libslic3r/Plugins/Perimeter/RemoveGapFillOnOverhangs.hpp"
@@ -204,6 +205,7 @@ void ensure_plugin_test_runtime_initialized()
             orchestrator_handle_value);
         slic3r_api::Perimeter::RemoveGapFillOnOverhangsPlugin::register_remove_gap_fill_on_overhangs_plugin(
             orchestrator_handle_value);
+        slic3r_api::Perimeter::MarkFirstLoopPlugin::register_mark_first_loop_plugin(orchestrator_handle_value);
         slic3r_api::Perimeter::ExtraPerimetersOnOverhangsPlugin::register_extra_perimeters_on_overhangs_plugin(
             orchestrator_handle_value);
         slic3r_api::Perimeter::ExtraPerimeterOverhangWavePlugin::register_extra_perimeter_overhang_wave_plugin(
@@ -250,6 +252,7 @@ void ensure_plugin_test_runtime_initialized()
         activate_plugin_or_fail(orchestrator, "perimeter.module.only_one_perimeter_on_top");
         activate_plugin_or_fail(orchestrator, "perimeter.module.separate_hole_contour");
         activate_plugin_or_fail(orchestrator, "perimeter.module.remove_gap_fill_on_overhangs");
+        activate_plugin_or_fail(orchestrator, "perimeter.module.mark_first_loop");
         activate_plugin_or_fail(orchestrator, "perimeter.post_process.extra_perimeters_on_overhangs");
         activate_plugin_or_fail(orchestrator, "perimeter.post_process.extra_perimeter_overhang_wave");
         activate_plugin_or_fail(orchestrator, "perimeter.post_process.detect_overhang");

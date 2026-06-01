@@ -33,6 +33,7 @@ extern const char *const ONLY_ONE_PERIMETER_FIRST_LAYER;
 extern const char *const ONLY_ONE_PERIMETER_ON_TOP;
 extern const char *const SEPARATE_HOLE_CONTOUR;
 extern const char *const REMOVE_GAP_FILL_ON_OVERHANGS;
+extern const char *const MARK_FIRST_LOOP;
 extern const char *const EXTRA_PERIMETERS_ON_OVERHANGS;
 extern const char *const EXTRA_PERIMETER_OVERHANG_WAVE;
 extern const char *const DETECT_OVERHANG;

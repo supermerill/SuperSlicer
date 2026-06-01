@@ -170,6 +170,8 @@ set(SLIC3R_SOURCES
 	Plugins/Perimeter/ExtraPerimetersOnOverhangs.hpp
 	Plugins/Perimeter/FuzzySkin.cpp
 	Plugins/Perimeter/FuzzySkin.hpp
+	Plugins/Perimeter/MarkFirstLoop.cpp
+	Plugins/Perimeter/MarkFirstLoop.hpp
 	Plugins/Perimeter/OnlyOnePerimeterFirstLayer.cpp
 	Plugins/Perimeter/OnlyOnePerimeterFirstLayer.hpp
 	Plugins/Perimeter/OnlyOnePerimeterOnTop.cpp

@@ -500,6 +500,7 @@ const char *const ONLY_ONE_PERIMETER_FIRST_LAYER = "perimeter.module.only_one_pe
 const char *const ONLY_ONE_PERIMETER_ON_TOP = "perimeter.module.only_one_perimeter_on_top";
 const char *const SEPARATE_HOLE_CONTOUR = "perimeter.module.separate_hole_contour";
 const char *const REMOVE_GAP_FILL_ON_OVERHANGS = "perimeter.module.remove_gap_fill_on_overhangs";
+const char *const MARK_FIRST_LOOP = "perimeter.module.mark_first_loop";
 const char *const EXTRA_PERIMETERS_ON_OVERHANGS = "perimeter.post_process.extra_perimeters_on_overhangs";
 const char *const EXTRA_PERIMETER_OVERHANG_WAVE = "perimeter.post_process.extra_perimeter_overhang_wave";
 const char *const DETECT_OVERHANG = "perimeter.post_process.detect_overhang";
