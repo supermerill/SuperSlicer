@@ -76,9 +76,20 @@ std::vector<SimpleLoopInfo> simple_loops(const PerimeterRunCapture &capture)
 size_t loop_count_with_role(const std::vector<SimpleLoopInfo> &loops, const ExtrusionLoopRole role)
 {
     size_t count = 0;
-    for (const SimpleLoopInfo &loop : loops)
-        if (loop.perimeter != nullptr && (loop.perimeter->perimeter_role() & role) != 0)
+    for (const SimpleLoopInfo &loop : loops) {
+        if (loop.perimeter == nullptr)
+            continue;
+        const ExtrusionLoopRole flags = loop.perimeter->perimeter_role();
+        // The LOOP/default bit now means "this entity is a perimeter loop".
+        // A contour is the subset of loops that does not also carry HOLE.
+        if (role == elrDefault) {
+            if ((flags & elrDefault) != 0 && (flags & elrHole) == 0)
+                ++count;
+            continue;
+        }
+        if ((flags & role) != 0)
             ++count;
+    }
     return count;
 }
 

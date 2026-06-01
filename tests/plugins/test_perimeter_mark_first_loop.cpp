@@ -66,7 +66,7 @@ void collect_loop_stats(const ExtrusionEntity &entity, LoopStats &out)
 {
     if (const ExtrusionPropertyLoopRole *loop_role = entity.get_property<ExtrusionPropertyLoopRole>()) {
         const ExtrusionLoopRole flags = loop_role->perimeter_role();
-        if ((flags & elrDefault) != 0 || (flags & elrHole) != 0 || (flags & elrInternal) != 0) {
+        if ((flags & elrDefault) != 0) {
             ++out.loop_count;
             if ((flags & elrFirstLoop) != 0) {
                 ++out.first_loop_count;

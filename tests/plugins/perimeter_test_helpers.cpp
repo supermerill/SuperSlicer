@@ -267,7 +267,13 @@ size_t count_direct_default_perimeter_loops(const ExtrusionEntity &entity)
 
     if (entity.is_loop()) {
         const ExtrusionPropertyLoopRole *loop_role = entity.get_property<ExtrusionPropertyLoopRole>();
-        return loop_role == nullptr || (loop_role->perimeter_role() & elrDefault) != 0 ? 1 : 0;
+        if (loop_role == nullptr)
+            return 1;
+        // In the plugin ABI, LOOP is the base flag and HOLE is a modifier.
+        // Contour loops are therefore "LOOP without HOLE", not every entity
+        // that merely has the LOOP bit set.
+        const ExtrusionLoopRole flags = loop_role->perimeter_role();
+        return (flags & elrDefault) != 0 && (flags & elrHole) == 0 ? 1 : 0;
     }
 
     size_t count = 0;
@@ -821,8 +827,15 @@ size_t total_polyline_points(const ExtrusionEntity &entity)
 
 size_t count_loops_with_role(const ExtrusionEntity &entity, const ExtrusionLoopRole role_mask)
 {
-    if (const ExtrusionPropertyLoopRole *perimeter = entity.get_property<ExtrusionPropertyLoopRole>())
-        return (perimeter->perimeter_role() & role_mask) != 0 ? 1 : 0;
+    if (const ExtrusionPropertyLoopRole *perimeter = entity.get_property<ExtrusionPropertyLoopRole>()) {
+        const ExtrusionLoopRole flags = perimeter->perimeter_role();
+        // Most tests pass elrDefault when they mean "contour loop". The current
+        // perimeter flag model uses elrDefault/C_EXTRUSION_PERIMETER_FLAG_LOOP
+        // as the base loop marker, so holes also carry it and must be excluded.
+        if (role_mask == elrDefault)
+            return (flags & elrDefault) != 0 && (flags & elrHole) == 0 ? 1 : 0;
+        return (flags & role_mask) != 0 ? 1 : 0;
+    }
 
     size_t count = 0;
     for (size_t child_idx = 0; child_idx < entity.child_count(); ++child_idx)
@@ -968,7 +981,7 @@ SeparateHoleContourDirectResult run_separate_hole_contour_module_direct(
     for (uint32_t idx = 0; idx < contour_loop_count; ++idx)
         root.extrusions.append(perimeter_loop(elrDefault, double(idx) * 0.5));
     for (uint32_t idx = 0; idx < hole_loop_count; ++idx)
-        root.extrusions.append(perimeter_loop(elrHole, double(idx) * 0.5));
+        root.extrusions.append(perimeter_loop(ExtrusionLoopRole(elrDefault | elrHole), double(idx) * 0.5));
     if (add_open_polyline)
         root.extrusions.append(open_gap_fill_path());
     if (add_unclassified_closed_loop)
