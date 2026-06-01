@@ -23,7 +23,8 @@ Normal usage:
 - cast plugin_run_context with plugin_ctx_as_post_infill_generation();
 - iterate object -> layers -> islands -> region islands with the data-tree API;
 - call get_or_create_region_island() when the plugin has to publish infill
-  into a LayerRegionIsland matching a specific set of LayerRegions;
+  into a LayerRegionIsland matching a specific set of LayerRegions and an
+  extrusion role;
 - call get_region_island_mutable_extrusion() when an existing infill, gap-fill,
   or ironing extrusion tree has to be edited or extended;
 - leave the object unchanged when the plugin has no work to do.
@@ -39,7 +40,8 @@ in the step payload.
 typedef layer_region_island_handle *(*post_infill_get_or_create_region_island_fn)(
     const layer_island_handle *island,
     const layer_region_handle *const *regions,
-    uint32_t region_count);
+    uint32_t region_count,
+    raw_extrusion_role role);
 
 typedef extrusion_entity_handle *(*post_infill_get_region_island_mutable_extrusion_fn)(
     const layer_region_island_handle *region_island,
@@ -50,13 +52,20 @@ typedef struct run_ctx_post_infill_generation {
     const object_handle *object;
 
     /*
-    Return the LayerRegionIsland that owns infill for one island/region group.
+    Return the LayerRegionIsland that owns infill for one island/region group
+    and extrusion role.
 
     Use this when a post-infill plugin has to move or add infill under a
     region group that may differ from the source LayerRegionIsland. For
     example, a plugin can collect generated infill from several groups, request
     the destination group, then append a non-sortable subtree to that
     destination.
+
+    The role selects the extruder used as part of the LayerRegionIsland key.
+    Sparse infill uses infill_extruder; solid, top, bridge, and ironing infill
+    use solid_infill_extruder. If the region list contains multiple extruders
+    for the requested role, the callback returns NULL and does not create or
+    modify a LayerRegionIsland.
 
     regions is an optional array of LayerRegion handles from the given island.
     Passing regions == NULL or region_count == 0 means "use all regions of the

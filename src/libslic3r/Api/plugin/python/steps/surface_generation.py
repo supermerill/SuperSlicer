@@ -19,7 +19,7 @@ SurfaceGenerationContext exposes:
 * read-only print() and object() views; the plugin iterates layers, islands, and
   LayerRegionIslands through the data-tree views;
 * get_or_create_region_island(), which returns the LayerRegionIsland associated
-  with one island and a compatible set of LayerRegions;
+  with one island, a compatible set of LayerRegions, and an extrusion role;
 * set_fill_surfaces() and set_fill_surface_groups(), which build host-owned
   Surface objects from ExPolygon areas and move them into a LayerRegionIsland;
 * append_surface_like(), for copying the non-geometric attributes of an
@@ -55,6 +55,7 @@ from slic3r_api_generated import (
     PLUGIN_REPORT,
     PLUGIN_REPORT_PROGRESS,
     PluginRunContext,
+    RAW_EXTRUSION_ROLE_INTERNAL_INFILL,
     RunCtxSurfaceGeneration,
     STEP_SURFACE_GENERATION,
 )
@@ -162,7 +163,15 @@ class SurfaceGenerationContext:
         self,
         island: LayerIsland,
         regions: Iterable[LayerRegion],
+        role: int = RAW_EXTRUSION_ROLE_INTERNAL_INFILL,
     ) -> LayerRegionIsland | None:
+        """
+        Return the destination LayerRegionIsland for one fill role.
+
+        The host uses ``role`` to select the extruder that participates in the
+        LayerRegionIsland key. If ``regions`` contains several extruders for
+        that role, the host returns None and does not create a destination.
+        """
         region_addresses = [_region_handle(region) for region in regions]
         region_array = None
         if region_addresses:
@@ -171,6 +180,7 @@ class SurfaceGenerationContext:
             island.c_handle(),
             region_array,
             len(region_addresses),
+            int(role),
         )
         return None if not handle else LayerRegionIsland(self.api, handle)
 

@@ -20,7 +20,7 @@ generation plugin converts those areas into LayerRegionIsland fill surfaces.
 Normal usage:
 - iterate object -> layers -> islands with the data-tree API;
 - group island regions that can share the same fill surfaces;
-- call get_or_create_region_island() for each group;
+- call get_or_create_region_island() for each group and extrusion role;
 - build a storage-owned SurfaceCollection;
 - call set_region_island_fill_surfaces() to move that collection into the
   LayerRegionIsland.
@@ -28,10 +28,22 @@ Normal usage:
 The plugin should not write deprecated LayerRegion fill surface caches here.
 The new infill pipeline reads LayerRegionIsland surfaces.
 */
+/*
+Return the LayerRegionIsland that owns fill surfaces for one region group and
+extrusion role.
+
+The role is used only to choose the destination extruder. For example sparse
+infill maps to infill_extruder, while solid/top/bridge/ironing infill maps to
+solid_infill_extruder. If the supplied regions resolve to more than one
+extruder for that role, the callback returns NULL and leaves the data tree
+unchanged. A plugin must then split the request into smaller compatible region
+groups before publishing surfaces.
+*/
 typedef layer_region_island_handle *(*surface_generation_get_or_create_region_island_fn)(
     const layer_island_handle *island,
     const layer_region_handle *const *regions,
-    uint32_t region_count);
+    uint32_t region_count,
+    raw_extrusion_role role);
 
 /*
 Replace the fill surfaces of a LayerRegionIsland by moving a complete

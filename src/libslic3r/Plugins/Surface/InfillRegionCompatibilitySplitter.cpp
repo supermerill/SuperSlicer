@@ -56,13 +56,18 @@ const raw_used_config_key k_used_config_keys[] = {
 struct RegionKey
 {
     std::vector<const layer_region_handle *> handles;
+    int32_t extruder_id = -1;
 
-    bool operator==(const RegionKey &rhs) const { return handles == rhs.handles; }
+    bool operator==(const RegionKey &rhs) const
+    {
+        return handles == rhs.handles && extruder_id == rhs.extruder_id;
+    }
 };
 
 struct PendingSurfaceGroup
 {
     RegionKey regions;
+    raw_extrusion_role role;
     StoredSurfaceCollection surfaces;
 };
 
@@ -74,6 +79,42 @@ bool is_sparse_surface(const Surface &surface)
 bool is_solid_surface(const Surface &surface)
 {
     return surface_type_is_solid(surface.type());
+}
+
+raw_extrusion_role raw_role_for_surface(const Surface &surface)
+{
+    // The destination LayerRegionIsland is keyed by extruder, and the host
+    // resolves that extruder from an extrusion role. Keep this mapping in sync
+    // with the infill generator: bridge and solid surfaces use the solid-infill
+    // extruder, while sparse surfaces use the sparse-infill extruder.
+    if (surface.has_flag(RAW_SURFACE_TYPE_MOD_BRIDGE))
+        return surface.has_flag(RAW_SURFACE_TYPE_POS_BOTTOM) ? RAW_EXTRUSION_ROLE_BRIDGE_INFILL :
+                                                               RAW_EXTRUSION_ROLE_INTERNAL_BRIDGE_INFILL;
+    if (is_solid_surface(surface))
+        return surface.has_flag(RAW_SURFACE_TYPE_POS_TOP) ? RAW_EXTRUSION_ROLE_TOP_SOLID_INFILL :
+                                                            RAW_EXTRUSION_ROLE_SOLID_INFILL;
+    return RAW_EXTRUSION_ROLE_INTERNAL_INFILL;
+}
+
+const char *extruder_key_for_role(const raw_extrusion_role role)
+{
+    if ((role & RAW_EXTRUSION_ROLE_INFILL) == 0 && role != RAW_EXTRUSION_ROLE_GAP_FILL)
+        return nullptr;
+    if ((role & RAW_EXTRUSION_ROLE_SOLID) != 0 ||
+        (role & RAW_EXTRUSION_ROLE_BRIDGE) != 0 ||
+        (role & RAW_EXTRUSION_ROLE_IRONING) != 0)
+        return k_solid_infill_extruder_key;
+    return k_infill_extruder_key;
+}
+
+int32_t region_extruder_id_for_role(const LayerRegion &region, const raw_extrusion_role role)
+{
+    const char *key = extruder_key_for_role(role);
+    if (key == nullptr || !region.print_region().config().has(key))
+        return -1;
+
+    const int32_t extruder = region.print_region().config().get(key).get_int();
+    return extruder <= 0 ? -1 : extruder - 1;
 }
 
 const char *pattern_key_for_surface(const Surface &surface)
@@ -192,26 +233,37 @@ RegionSettings::OptionKeyGroup option_group_for_surface(orchestrator_handle *orc
     return keys;
 }
 
-RegionKey key_from_regions(const std::vector<LayerRegion> &regions)
+bool key_from_regions(const std::vector<LayerRegion> &regions,
+                      const raw_extrusion_role role,
+                      RegionKey &key)
 {
-    RegionKey key;
     key.handles.reserve(regions.size());
-    for (const LayerRegion &region : regions)
+    for (const LayerRegion &region : regions) {
+        const int32_t extruder_id = region_extruder_id_for_role(region, role);
+        if (extruder_id < 0)
+            return false;
+        if (key.extruder_id < 0)
+            key.extruder_id = extruder_id;
+        else if (key.extruder_id != extruder_id)
+            return false;
         key.handles.push_back(region.handle());
+    }
+
     std::sort(key.handles.begin(), key.handles.end());
     key.handles.erase(std::unique(key.handles.begin(), key.handles.end()), key.handles.end());
-    return key;
+    return key.extruder_id >= 0 && !key.handles.empty();
 }
 
 StoredSurfaceCollection &surfaces_for_region_key(std::vector<PendingSurfaceGroup> &groups,
                                                  storage_handle *storage,
-                                                 RegionKey key)
+                                                 RegionKey key,
+                                                 const raw_extrusion_role role)
 {
     for (PendingSurfaceGroup &group : groups)
         if (group.regions == key)
             return group.surfaces;
 
-    groups.push_back(PendingSurfaceGroup{std::move(key), StoredSurfaceCollection(storage)});
+    groups.push_back(PendingSurfaceGroup{std::move(key), role, StoredSurfaceCollection(storage)});
     return groups.back().surfaces;
 }
 
@@ -241,10 +293,15 @@ void append_surface_piece(StoredSurfaceCollection &dst,
 void append_unsplit_surface(std::vector<PendingSurfaceGroup> &groups,
                             storage_handle *storage,
                             const run_ctx_surface_generation &ctx,
-                            const RegionKey &region_key,
+                            const std::vector<LayerRegion> &regions,
                             const Surface &surface)
 {
-    StoredSurfaceCollection &surfaces = surfaces_for_region_key(groups, storage, RegionKey(region_key));
+    RegionKey region_key;
+    const raw_extrusion_role role = raw_role_for_surface(surface);
+    if (!key_from_regions(regions, role, region_key))
+        return;
+
+    StoredSurfaceCollection &surfaces = surfaces_for_region_key(groups, storage, std::move(region_key), role);
     StoredExPolygonCollection single(storage);
     single.push_back(surface.expolygon());
     append_surface_like(ctx, surfaces, surface, single.readonly());
@@ -255,14 +312,13 @@ void split_surface_by_region_settings(orchestrator_handle *orchestrator,
                                       const run_ctx_surface_generation &ctx,
                                       const Config &print_config,
                                       const std::vector<LayerRegion> &regions,
-                                      const RegionKey &original_region_key,
                                       const Surface &surface,
                                       std::vector<PendingSurfaceGroup> &groups)
 {
     RegionSettings::OptionKeyGroup option_group =
         option_group_for_surface(orchestrator, print_config, regions, surface);
     if (option_group.empty()) {
-        append_unsplit_surface(groups, storage, ctx, original_region_key, surface);
+        append_unsplit_surface(groups, storage, ctx, regions, surface);
         return;
     }
 
@@ -276,7 +332,7 @@ void split_surface_by_region_settings(orchestrator_handle *orchestrator,
 
     const char *primary_key = option_group.front().c_str();
     if (!settings.has_many_config(primary_key)) {
-        append_unsplit_surface(groups, storage, ctx, original_region_key, surface);
+        append_unsplit_surface(groups, storage, ctx, regions, surface);
         return;
     }
 
@@ -286,8 +342,12 @@ void split_surface_by_region_settings(orchestrator_handle *orchestrator,
         if (target_regions.empty())
             continue;
 
-        RegionKey target_key = key_from_regions(target_regions);
-        StoredSurfaceCollection &surfaces = surfaces_for_region_key(groups, storage, std::move(target_key));
+        RegionKey target_key;
+        const raw_extrusion_role role = raw_role_for_surface(surface);
+        if (!key_from_regions(target_regions, role, target_key))
+            continue;
+
+        StoredSurfaceCollection &surfaces = surfaces_for_region_key(groups, storage, std::move(target_key), role);
         append_surface_piece(surfaces, ctx, surface, setting_clip);
     }
 }
@@ -319,7 +379,8 @@ void publish_split_groups(const run_ctx_surface_generation &ctx,
         const layer_region_handle *const *handles =
             group.regions.handles.empty() ? nullptr : group.regions.handles.data();
         layer_region_island_handle *target =
-            ctx.get_or_create_region_island(island.handle(), handles, uint32_t(group.regions.handles.size()));
+            ctx.get_or_create_region_island(
+                island.handle(), handles, uint32_t(group.regions.handles.size()), group.role);
         if (target != nullptr)
             ctx.set_region_island_fill_surfaces(target, group.surfaces.mutable_handle());
     }
@@ -337,10 +398,18 @@ void split_region_island_if_needed(orchestrator_handle *orchestrator,
         return;
 
     const std::vector<LayerRegion> regions = region_island.regions();
-    if (regions.size() <= 1)
+    if (regions.empty())
         return;
 
-    const RegionKey original_region_key = key_from_regions(regions);
+    RegionKey original_region_key;
+    original_region_key.extruder_id = region_island.extruder_id();
+    for (const LayerRegion &region : regions)
+        original_region_key.handles.push_back(region.handle());
+    std::sort(original_region_key.handles.begin(), original_region_key.handles.end());
+    original_region_key.handles.erase(
+        std::unique(original_region_key.handles.begin(), original_region_key.handles.end()),
+        original_region_key.handles.end());
+
     std::vector<PendingSurfaceGroup> groups;
     for (const Surface surface : input_surfaces)
         split_surface_by_region_settings(orchestrator,
@@ -348,7 +417,6 @@ void split_region_island_if_needed(orchestrator_handle *orchestrator,
                                          ctx,
                                          print_config,
                                          regions,
-                                         original_region_key,
                                          surface,
                                          groups);
 

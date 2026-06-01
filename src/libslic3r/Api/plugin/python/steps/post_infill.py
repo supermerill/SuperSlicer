@@ -18,7 +18,7 @@ PostInfillContext exposes:
 
 * read-only print() and object() views;
 * get_or_create_region_island(), which returns the LayerRegionIsland associated
-  with one island and a compatible set of LayerRegions;
+  with one island, a compatible set of LayerRegions, and an extrusion role;
 * mutable_extrusion(), the explicit callback that borrows one infill-owned
   extrusion bucket from a LayerRegionIsland;
 * plugin_storage(), cancellation, progress, warning, and error helpers.
@@ -52,6 +52,7 @@ from slic3r_api_generated import (
     PLUGIN_REPORT,
     PLUGIN_REPORT_PROGRESS,
     PluginRunContext,
+    RAW_EXTRUSION_ROLE_INTERNAL_INFILL,
     RunCtxPostInfillGeneration,
     STEP_POST_INFILL,
 )
@@ -146,6 +147,7 @@ class PostInfillContext:
         self,
         island: LayerIsland,
         regions,
+        role: int = RAW_EXTRUSION_ROLE_INTERNAL_INFILL,
     ) -> LayerRegionIsland | None:
         """
         Return the destination LayerRegionIsland for one island/region group.
@@ -154,6 +156,10 @@ class PostInfillContext:
         ``region_island.regions()``. Passing None or an empty list asks the host
         to use all regions of the island. The returned view is borrowed from
         the host and should be used only during the current plugin run.
+
+        ``role`` chooses the extruder used in the LayerRegionIsland key. If the
+        selected regions do not share one extruder for that role, the host
+        returns None and leaves the data tree unchanged.
         """
         region_addresses = [] if regions is None else [_region_handle(region) for region in regions]
         region_array = None
@@ -163,6 +169,7 @@ class PostInfillContext:
             island.c_handle(),
             region_array,
             len(region_addresses),
+            int(role),
         )
         return None if not handle else LayerRegionIsland(self.api, handle)
 

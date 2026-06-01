@@ -77,24 +77,68 @@ LayerRegionSetCPtrs region_set_from_handles(const layer_region_handle *const *re
     return regions;
 }
 
-uint16_t infill_extruder_id(const LayerRegionSetCPtrs &regions)
+bool region_extruder_id_for_role(const LayerRegion &region,
+                                 const raw_extrusion_role role,
+                                 uint16_t &extruder_id)
 {
-    // LayerRegionIsland groups infill by the extruder that will print it. The
-    // dense-infill post-process may merge output from several source groups,
-    // so the destination group must be requested with the same key as surface
-    // generation uses when it creates fillable groups.
-    if (regions.empty())
-        return uint16_t(-1);
+    // STEP_POST_INFILL may move generated infill between region groups. The
+    // output role decides which region extruder setting participates in the
+    // LayerRegionIsland key, matching STEP_SURFACE_GENERATION.
+    int extruder = 0;
+    if ((role & RAW_EXTRUSION_ROLE_INFILL) != 0) {
+        if ((role & RAW_EXTRUSION_ROLE_SOLID) != 0 ||
+            (role & RAW_EXTRUSION_ROLE_BRIDGE) != 0 ||
+            (role & RAW_EXTRUSION_ROLE_IRONING) != 0)
+            extruder = region.region().config().solid_infill_extruder.value;
+        else
+            extruder = region.region().config().infill_extruder.value;
+    } else if (role == RAW_EXTRUSION_ROLE_GAP_FILL) {
+        extruder = region.region().config().infill_extruder.value;
+    } else {
+        return false;
+    }
 
-    const int16_t extruder_id = int16_t((*regions.begin())->region().config().infill_extruder) - 1;
-    assert(extruder_id >= 0);
-    return extruder_id < 0 ? uint16_t(-1) : uint16_t(extruder_id);
+    if (extruder <= 0)
+        return false;
+
+    extruder_id = uint16_t(extruder - 1);
+    return true;
+}
+
+bool unique_extruder_id_for_role(const LayerRegionSetCPtrs &regions,
+                                 const raw_extrusion_role role,
+                                 uint16_t &extruder_id)
+{
+    // A mixed-extruder group cannot be represented by a single
+    // LayerRegionIsland. Returning false makes the C callback fail with NULL,
+    // which tells the plugin to split the output before publishing it.
+    bool has_extruder = false;
+    for (const LayerRegion *region : regions) {
+        if (region == nullptr)
+            continue;
+
+        uint16_t region_extruder_id = uint16_t(-1);
+        if (!region_extruder_id_for_role(*region, role, region_extruder_id))
+            return false;
+
+        if (!has_extruder) {
+            extruder_id = region_extruder_id;
+            has_extruder = true;
+            continue;
+        }
+
+        if (extruder_id != region_extruder_id)
+            return false;
+    }
+
+    return has_extruder;
 }
 
 layer_region_island_handle *get_or_create_region_island_callback(
     const layer_island_handle *island_handle,
     const layer_region_handle *const *region_handles,
-    uint32_t region_count)
+    uint32_t region_count,
+    raw_extrusion_role role)
 {
     // This is the only topology-writing callback for STEP_POST_INFILL. It lets
     // a plugin request a destination LayerRegionIsland for a region group, but
@@ -107,7 +151,11 @@ layer_region_island_handle *get_or_create_region_island_callback(
     if (regions.empty())
         return nullptr;
 
-    LayerRegionIsland &region_island = island->get_or_add_region_island(regions, infill_extruder_id(regions));
+    uint16_t extruder_id = uint16_t(-1);
+    if (!unique_extruder_id_for_role(regions, role, extruder_id))
+        return nullptr;
+
+    LayerRegionIsland &region_island = island->get_or_add_region_island(regions, extruder_id);
     return reinterpret_cast<layer_region_island_handle *>(&region_island);
 }
 

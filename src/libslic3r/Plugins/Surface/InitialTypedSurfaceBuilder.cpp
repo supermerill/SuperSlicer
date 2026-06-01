@@ -89,14 +89,15 @@ std::vector<const layer_region_handle *> region_handles(const std::vector<LayerR
 
 layer_region_island_handle *get_or_create_region_island(const run_ctx_surface_generation &ctx,
                                                         const LayerIsland &island,
-                                                        const std::vector<LayerRegion> &regions)
+                                                        const std::vector<LayerRegion> &regions,
+                                                        const raw_extrusion_role role)
 {
     if (ctx.get_or_create_region_island == nullptr)
         return nullptr;
 
     std::vector<const layer_region_handle *> handles = region_handles(regions);
     const layer_region_handle *const *raw_handles = handles.empty() ? nullptr : handles.data();
-    return ctx.get_or_create_region_island(island.handle(), raw_handles, uint32_t(handles.size()));
+    return ctx.get_or_create_region_island(island.handle(), raw_handles, uint32_t(handles.size()), role);
 }
 
 StoredExPolygonCollection clip_infill_areas_to_regions(storage_handle *storage,
@@ -253,7 +254,8 @@ void build_island_surfaces(const run_ctx_surface_generation &ctx,
     const bool single_group = grouped_regions.size() == 1;
     for (const auto &[extruder_id, regions] : grouped_regions) {
         (void)extruder_id;
-        layer_region_island_handle *region_island = get_or_create_region_island(ctx, island, regions);
+        layer_region_island_handle *region_island =
+            get_or_create_region_island(ctx, island, regions, RAW_EXTRUSION_ROLE_INTERNAL_INFILL);
         if (region_island == nullptr)
             continue;
 

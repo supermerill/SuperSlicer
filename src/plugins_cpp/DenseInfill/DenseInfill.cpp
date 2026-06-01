@@ -766,7 +766,8 @@ void publish_dense_children_by_priority(const run_ctx_post_infill_generation &ct
         ctx.get_or_create_region_island(
             island.handle(),
             work.destination_regions.empty() ? nullptr : work.destination_regions.data(),
-            static_cast<uint32_t>(work.destination_regions.size()));
+            static_cast<uint32_t>(work.destination_regions.size()),
+            RAW_EXTRUSION_ROLE_INTERNAL_INFILL);
     if (destination_region_island == nullptr)
         return;
 
