@@ -30,6 +30,37 @@
 namespace Slic3r::Steps::StepGeneratePerimeter {
 namespace {
 
+// STEP_PERIMETER turns sliced layer islands into perimeter extrusion trees and
+// island-level fill domains.
+//
+// The host owns the traversal and the data-tree writes. A selected
+// STEP_PERIMETER plugin owns the actual perimeter geometry algorithm. The plugin
+// receives a run_ctx_generate_perimeter payload and normally calls
+// run_region_group() once for every compatible set of LayerRegion settings it
+// wants to process together. Each region group creates or reuses one
+// LayerRegionIsland, so later steps can still know which regions and extruder
+// produced each set of perimeters.
+//
+// The generation flow for one region group is:
+// 1. Build a PerimeterTree whose root is the island slice, or a plugin-provided
+//    root area.
+// 2. Ask the selected generator to emit one perimeter depth for a node. The
+//    generator writes extrusion into that node and returns the inner areas that
+//    become child nodes.
+// 3. Run PERIMETER_GENERATION_MODULE plugins around each node generation. These
+//    modules implement local policies such as adding extra perimeters, limiting
+//    perimeters in some regions, or splitting contour/hole growth.
+// 4. Repeat until every node either reached its requested perimeter count or has
+//    no printable child area.
+// 5. Publish the generated tree into the LayerRegionIsland perimeter bucket and
+//    collect the final leaf areas into LayerSliceIsland infill_areas and
+//    infill_free_areas.
+//
+// The step deliberately exposes only narrow callbacks to plugins. Plugins can
+// split/rebuild perimeter nodes or publish extrusion through the payload, but
+// they do not directly mutate unrelated layer/object state. This keeps the host
+// responsible for pointer lifetime, cancellation, tree synchronization, and the
+// final data layout consumed by surface generation and infill.
 struct PerimeterTreeNode
 {
     explicit PerimeterTreeNode(const ExPolygon &area)
@@ -41,11 +72,30 @@ struct PerimeterTreeNode
     // Canonical C ABI node. The C++ wrapper only owns the heavier objects
     // referenced by the handles below; scalar traversal state lives here.
     perimeter_node node = {};
+
+    // Geometry still to process at this tree level. Perimeter generators read
+    // this area, emit extrusion for its boundary, then publish smaller child
+    // areas through the callback return values.
     ExPolygon area;
+
+    // Fill may be intentionally larger than the strict child area. This keeps
+    // the "where infill may anchor into perimeters" domain attached to the
+    // node that owns the remaining free area.
     ExPolygon infill_areas;
+
+    // Temporary extrusion output for this node only. The tree is flattened into
+    // LayerRegionIsland storage after all perimeter modules have a chance to
+    // split or rebuild nodes.
     ExtrusionEntity extrusions;
+
+    // Children are owned as unique_ptr so their addresses stay stable while C
+    // ABI callbacks hold raw perimeter_node pointers during one generation run.
     std::vector<std::unique_ptr<PerimeterTreeNode>> children;
     std::vector<perimeter_node *> child_nodes;
+
+    // A generated leaf with no children means the perimeter consumed all of the
+    // remaining area. A never-generated leaf means "this area is fill", for
+    // example when perimeters=0.
     bool generated_perimeter = false;
 
     bool needs_more_perimeters() const
@@ -55,6 +105,9 @@ struct PerimeterTreeNode
 
     void sync_c_pointers()
     {
+        // The C ABI sees child_nodes.data(), so rebuild this side array every
+        // time children are added, removed, or rebuilt. The pointed nodes live
+        // in children and keep stable addresses.
         child_nodes.clear();
         child_nodes.reserve(children.size());
         for (std::unique_ptr<PerimeterTreeNode> &child : children) {
@@ -82,6 +135,9 @@ struct PerimeterTree
     }
 
     PerimeterTreeNode root;
+
+    // Scratch span used by split_node_callback(). The callback returns a raw
+    // pointer/count pair, so the vector must live after the callback returns.
     std::vector<perimeter_node *> last_span_nodes;
 
     void sync_c_pointers()
@@ -93,6 +149,10 @@ struct PerimeterTree
 
 struct PerimeterRunContext
 {
+    // Per-island host context carried through the C callbacks. The perimeter
+    // generator plugin receives only the public payload, while callbacks need
+    // access to the host tree, selected generator run context, and final output
+    // buffers for this island.
     Orchestrator *orchestrator = nullptr;
     Plugin *generator_plugin = nullptr;
     plugin_run_context *generator_run_context = nullptr;
@@ -103,12 +163,22 @@ struct PerimeterRunContext
     ExPolygons infill_areas;
     ExPolygons infill_free_areas;
     ExPolygons perimeter_slices;
+
+    // Module host contexts must outlive the module run contexts prepared from
+    // them. Store them on the island run context instead of on the stack inside
+    // create_perimeter_generation_modules().
     std::vector<plugin_host_context> module_host_contexts;
+
+    // A perimeter generator is expected to call run_region_group(). If it does
+    // not, there is nothing safe to publish for this island.
     bool used_region_group = false;
 };
 
 struct PerimeterModuleRun
 {
+    // The module instance is provided by a PERIMETER_GENERATION_MODULE plugin.
+    // start() may return a per-run user_context; the same pointer is passed to
+    // before/after/end and is owned by the module.
     perimeter_generation_module_instance module = {};
     void *user_context = nullptr;
     bool started = false;
@@ -164,6 +234,9 @@ LayerRegionSetCPtrs region_set_from_handles(const layer_region_handle *const *re
                                              uint32_t region_count,
                                              const LayerSliceIsland &island)
 {
+    // Plugins may pass an explicit region subset when they want one generated
+    // region-island for a compatible group of settings. A null/empty list means
+    // "use every region already attached to this layer island".
     LayerRegionSetCPtrs regions;
     for (uint32_t idx = 0; idx < region_count; ++idx) {
         const LayerRegion *region = region_handles == nullptr ? nullptr : to_layer_region(region_handles[idx]);
@@ -178,6 +251,9 @@ LayerRegionSetCPtrs region_set_from_handles(const layer_region_handle *const *re
 
 uint16_t perimeter_extruder_id(const LayerRegionSetCPtrs &regions)
 {
+    // LayerRegionIsland is keyed partly by extruder. For now a region group is
+    // expected to be compatible enough that the first region defines the
+    // perimeter extruder for the whole generated island.
     if (regions.empty())
         return uint16_t(-1);
 
@@ -187,6 +263,9 @@ uint16_t perimeter_extruder_id(const LayerRegionSetCPtrs &regions)
 
 uint32_t requested_perimeter_count(const LayerRegionSetCPtrs &regions)
 {
+    // The host initializes the root node with the base perimeter count. Modules
+    // may later raise or lower child node counts, but the root starts from the
+    // selected region group's normal print setting.
     if (regions.empty())
         return 0;
 
@@ -196,6 +275,9 @@ uint32_t requested_perimeter_count(const LayerRegionSetCPtrs &regions)
 
 void append_extrusion_children(ExtrusionEntityCollection &dst, ExtrusionEntity &src)
 {
+    // Move a plugin-produced subtree into a legacy collection bucket. Nop
+    // entities are ignored, collections donate their children, and leaves are
+    // appended as single printable entities.
     if (src.is_nop())
         return;
 
@@ -218,6 +300,9 @@ void append_extrusion_children(ExtrusionEntityCollection &dst, ExtrusionEntity &
 
 void append_extrusion_children(ExtrusionEntity &dst, ExtrusionEntity &src)
 {
+    // Same transfer as above, but for a generic ExtrusionEntity parent. A leaf
+    // cannot donate children, so clone_move() transfers its payload into a new
+    // owned child and then clears the source shell.
     if (src.is_nop())
         return;
 
@@ -281,6 +366,8 @@ void collect_leaf_areas(const PerimeterTreeNode &node,
 
 PerimeterTreeNode *find_node(PerimeterTreeNode &node, perimeter_node *c_node)
 {
+    // C callbacks receive perimeter_node pointers. Walk the owning C++ tree to
+    // recover the wrapper node that owns geometry and extrusions.
     if (&node.node == c_node)
         return &node;
 
@@ -299,6 +386,10 @@ PerimeterTreeNode *find_node(PerimeterTree &tree, perimeter_node *c_node)
 
 ExPolygon pick_infill_areas_for_child(const ExPolygon &area, const ExPolygons &infill_areas)
 {
+    // The generator may rebuild children with geometry but without a matching
+    // one-to-one fill area list. Use a cheap containment test first; if several
+    // fill areas contain the sample point, pick the one with the largest
+    // geometric intersection with the child.
     if (area.empty() || infill_areas.empty())
         return area;
 
@@ -336,6 +427,9 @@ ExPolygon pick_infill_areas_for_child(const ExPolygon &area, const ExPolygons &i
 
 void set_split_node_area(PerimeterTreeNode &node, ExPolygon &&area, const ExPolygons &fill_clip)
 {
+    // A split node keeps its own free area. Its fill/anchor domain follows the
+    // same clip when available, otherwise it falls back to the free area so the
+    // downstream fill generation still has a valid domain.
     node.area = std::move(area);
     node.infill_areas = node.area;
 
@@ -352,6 +446,9 @@ std::unique_ptr<PerimeterTreeNode> make_child_node(PerimeterTreeNode &parent,
                                                    const ExPolygon &area,
                                                    const ExPolygon *infill_areas)
 {
+    // Child nodes represent the next onion shell. The perimeter index increases
+    // by one, while the requested count is inherited unless a module changes it
+    // later through the public node handle.
     std::unique_ptr<PerimeterTreeNode> child = std::make_unique<PerimeterTreeNode>(area);
     child->node.parent = &parent.node;
     if (infill_areas != nullptr)
@@ -364,6 +461,9 @@ std::unique_ptr<PerimeterTreeNode> make_child_node(PerimeterTreeNode &parent,
 
 std::unique_ptr<PerimeterTreeNode> make_split_sibling(const PerimeterTreeNode &source)
 {
+    // Splitting a leaf creates siblings at the same perimeter depth. The new
+    // node copies traversal state but receives its own geometry before being
+    // inserted next to the source node.
     std::unique_ptr<PerimeterTreeNode> node = std::make_unique<PerimeterTreeNode>(source.area);
     node->node.parent = source.node.parent;
     node->node.perimeter_idx = source.node.perimeter_idx;
@@ -375,6 +475,9 @@ std::unique_ptr<PerimeterTreeNode> make_split_sibling(const PerimeterTreeNode &s
 
 void create_children(PerimeterTreeNode &parent, const ExPolygons &inner_areas, const ExPolygons &inner_infill_areas)
 {
+    // Generator callbacks return the free areas for the next perimeter depth.
+    // When a matching infill list is supplied, keep those fill domains paired by
+    // index; otherwise each child falls back to its own free area.
     parent.children.clear();
     parent.children.reserve(inner_areas.size());
     const bool has_matching_infill_areas = inner_infill_areas.size() == inner_areas.size();
@@ -389,6 +492,9 @@ void create_children(PerimeterTreeNode &parent, const ExPolygons &inner_areas, c
 
 void append_sibling(PerimeterTree &tree, PerimeterTreeNode &node, std::unique_ptr<PerimeterTreeNode> &&sibling)
 {
+    // The split callback mutates a node already stored in its parent. Insert any
+    // extra pieces next to that node, then refresh raw child pointers exposed to
+    // C modules.
     PerimeterTreeNode *parent = find_node(tree, node.node.parent);
     assert(parent != nullptr);
     if (parent == nullptr)
@@ -403,6 +509,10 @@ void split_node_callback(perimeter_generation_context *context,
                          const expolygon_collection_handle *clip,
                          perimeter_node_span *inside_nodes_out)
 {
+    // Perimeter modules use this callback when a setting applies only to part
+    // of a leaf. The callback keeps the inside pieces as the returned span and
+    // leaves outside pieces as siblings so the main generation loop will still
+    // process every part of the island.
     if (inside_nodes_out != nullptr)
         *inside_nodes_out = {};
     if (context == nullptr || node == nullptr || clip == nullptr || inside_nodes_out == nullptr)
@@ -468,6 +578,9 @@ void rebuild_children_callback(perimeter_generation_context *context,
                                const expolygon_collection_handle *areas,
                                const expolygon_collection_handle *infill_areas)
 {
+    // Modules that know a better child topology may replace all children of a
+    // node at once. This is stronger than split_node(): existing child nodes are
+    // discarded and the next generation pass follows the provided areas.
     if (context == nullptr || node == nullptr || areas == nullptr)
         return;
 
@@ -496,6 +609,9 @@ perimeter_generation_context make_generation_context(plugin_run_context *run_con
                                                      layer_region_island_handle *region_island,
                                                      PerimeterTree &tree)
 {
+    // This context is shared by the selected generator and all perimeter
+    // modules for one region group. The host owns the tree; plugins only see
+    // handles and callbacks that mutate it in controlled ways.
     perimeter_generation_context context = {};
     context.run_ctx = run_context;
     context.print = ctx.print;
@@ -513,6 +629,9 @@ perimeter_generation_context make_generation_context(plugin_run_context *run_con
 void call_module_start(std::vector<PerimeterModuleRun> &modules,
                        perimeter_generation_context &context)
 {
+    // start() is called once per region group. Modules use it to build caches
+    // derived from the island, regions, or settings, and end() receives the
+    // returned pointer for cleanup.
     for (PerimeterModuleRun &module_run : modules) {
         module_run.started = true;
         if (module_run.module.vt != nullptr && module_run.module.vt->start != nullptr)
@@ -524,6 +643,9 @@ void call_module_before(const std::vector<PerimeterModuleRun> &modules,
                         perimeter_generation_context &context,
                         perimeter_node &node)
 {
+    // before() runs immediately before the generator emits one perimeter for a
+    // node. It may split the node or adjust node metadata such as the requested
+    // perimeter count.
     for (const PerimeterModuleRun &module_run : modules)
         if (module_run.started && module_run.module.vt != nullptr && module_run.module.vt->before != nullptr)
             module_run.module.vt->before(module_run.module.ctx, module_run.user_context, &context, &node);
@@ -533,6 +655,9 @@ void call_module_after(const std::vector<PerimeterModuleRun> &modules,
                        perimeter_generation_context &context,
                        perimeter_node &node)
 {
+    // after() runs after the generator emitted extrusion and child areas for
+    // this node. Modules commonly refine the newly-created children or move
+    // generated material between perimeter and fill domains.
     for (const PerimeterModuleRun &module_run : modules)
         if (module_run.started && module_run.module.vt != nullptr && module_run.module.vt->after != nullptr)
             module_run.module.vt->after(module_run.module.ctx, module_run.user_context, &context, &node);
@@ -541,6 +666,9 @@ void call_module_after(const std::vector<PerimeterModuleRun> &modules,
 void call_module_end(std::vector<PerimeterModuleRun> &modules,
                      perimeter_generation_context &context)
 {
+    // Always pair a successful start() with end(). The module owns any
+    // user_context allocation and must release it here before the region group
+    // context goes out of scope.
     for (PerimeterModuleRun &module_run : modules) {
         if (module_run.started && module_run.module.vt != nullptr && module_run.module.vt->end != nullptr)
             module_run.module.vt->end(module_run.module.ctx, module_run.user_context, &context);
@@ -560,6 +688,8 @@ public:
 
     ~PerimeterModuleEndGuard()
     {
+        // The generation callback can return early on cancellation or plugin
+        // failure. RAII keeps module cleanup paired with start() in all exits.
         this->finish();
     }
 
@@ -579,6 +709,9 @@ private:
 std::vector<PerimeterModuleRun>
 create_perimeter_generation_modules(PerimeterRunContext &run)
 {
+    // Perimeter generation modules are normal plugins that expose a secondary
+    // vtable instead of doing work directly in their run() method. This setup
+    // phase lets each plugin publish that vtable for the current print.
     std::vector<PerimeterModuleRun> modules;
     if (run.orchestrator == nullptr)
         return modules;
@@ -617,6 +750,10 @@ void publish_region_group(PerimeterRunContext &run,
                           LayerRegionIsland &region_island,
                           PerimeterTree &tree)
 {
+    // Once the generator tree is complete, publish it into the real data tree.
+    // Perimeter extrusion goes to the region-island bucket; leaf areas are
+    // accumulated on the layer island because later surface generation works
+    // from island-level fill domains.
     ExtrusionEntityCollection perimeters;
     perimeters.set_can_sort_reverse(false, false);
     collect_extrusions(tree.root, perimeters);
@@ -636,6 +773,9 @@ int32_t run_region_group_callback(const run_ctx_generate_perimeter *ctx,
                                   void *generator_context,
                                   perimeter_generate_node_fn generate_node)
 {
+    // This is the main host-side execution loop for a generator-selected region
+    // group. The plugin supplies generate_node(), while the host owns traversal,
+    // module calls, cancellation checks, and final publication.
     if (ctx == nullptr || ctx->host_context == nullptr || generate_node == nullptr)
         return 0;
 
@@ -652,6 +792,9 @@ int32_t run_region_group_callback(const run_ctx_generate_perimeter *ctx,
     if (regions.empty())
         return 0;
 
+    // One region group maps to one LayerRegionIsland. Generators can call this
+    // callback multiple times with different compatible region sets; each group
+    // then owns independent extrusion and fill surfaces.
     LayerRegionIsland &region_island =
         run.island->get_or_add_region_island(regions, perimeter_extruder_id(regions));
     PerimeterTree tree(*root_expolygon, requested_perimeter_count(regions));
@@ -669,6 +812,9 @@ int32_t run_region_group_callback(const run_ctx_generate_perimeter *ctx,
     std::vector<PerimeterTreeNode *> pending_nodes;
     pending_nodes.push_back(&tree.root);
     while (!pending_nodes.empty()) {
+        // Depth-first traversal keeps memory small and naturally follows the
+        // onion-shell tree. The order of publication is reconstructed later by
+        // collect_extrusions(), so the pending stack only controls generation.
         PerimeterTreeNode *node = pending_nodes.back();
         pending_nodes.pop_back();
         if (node == nullptr || !node->needs_more_perimeters())
@@ -684,6 +830,9 @@ int32_t run_region_group_callback(const run_ctx_generate_perimeter *ctx,
         node->extrusions.clear_properties();
         ExPolygons inner_areas;
         ExPolygons inner_infill_areas;
+        // The generator emits exactly one perimeter depth for this node. It
+        // returns child areas for the next depth instead of mutating host
+        // containers directly.
         const int32_t ok = generate_node(generator_context,
                                          &generation_context,
                                          &node->node,
@@ -700,6 +849,8 @@ int32_t run_region_group_callback(const run_ctx_generate_perimeter *ctx,
         tree.sync_c_pointers();
         call_module_after(modules, generation_context, node->node);
 
+        // Modules may have rebuilt or split children during after(), so iterate
+        // over the final child list that exists after all module callbacks.
         for (std::unique_ptr<PerimeterTreeNode> &child : node->children)
             pending_nodes.push_back(child.get());
     }
@@ -716,6 +867,9 @@ layer_region_island_handle *get_or_create_region_island_callback(const layer_isl
                                                                  const layer_region_handle *const *region_handles,
                                                                  uint32_t region_count)
 {
+    // Generators may need to create a region-island without running a full
+    // region group, for example to publish auxiliary extrusion. The callback
+    // keeps the same region/extruder grouping rule as run_region_group().
     LayerSliceIsland *island = to_layer_island(const_cast<layer_island_handle *>(island_handle));
     if (island == nullptr)
         return nullptr;
@@ -731,6 +885,9 @@ int32_t set_region_island_extrusion_callback(layer_region_island_handle *region_
                                              raw_extrusion_role role,
                                              extrusion_entity_handle *extrusion_handle)
 {
+    // Direct publication is reserved for generator-owned buckets. The raw role
+    // is mapped to the LayerRegionIsland bucket so plugins can use public role
+    // flags without knowing the host storage enum.
     LayerRegionIsland *region_island = to_region_island(region_island_handle);
     if (region_island == nullptr)
         return 0;
@@ -745,6 +902,9 @@ int32_t set_region_island_extrusion_callback(layer_region_island_handle *region_
 
 void clear_island_outputs(LayerSliceIsland &island)
 {
+    // Perimeter generation owns these island outputs. Cleaning them before a
+    // rerun prevents stale region-islands, fill areas, or perimeter slices from
+    // surviving when a plugin produces less geometry than the previous run.
     island.mutable_regions_islands().clear();
     ApiInternal::LayerIslandAccess::set_infill_areas(island, ExPolygons{});
     ApiInternal::LayerIslandAccess::infill_free_areas_mutable(island).clear();
@@ -759,6 +919,10 @@ void clear_layer_outputs(Layer &layer)
 
 void assign_island_outputs(LayerSliceIsland &island, PerimeterRunContext &run)
 {
+    // The step stores two related fill domains:
+    // - infill_free_areas: strict remaining free space after perimeters;
+    // - infill_areas: print domain that may overlap perimeters for anchoring.
+    // Both are validated here because plugins may emit many small child pieces.
     run.infill_areas = ensure_valid(std::move(run.infill_areas));
     run.infill_free_areas = ensure_valid(std::move(run.infill_free_areas));
 
@@ -771,6 +935,8 @@ void assign_island_outputs(LayerSliceIsland &island, PerimeterRunContext &run)
 
 size_t count_layer_islands(const Print &print)
 {
+    // setup() receives the total number of islands so plugins can initialize
+    // progress bars once before run_step() iterates object/layer/island.
     size_t count = 0;
     for (const PrintObject &object : print.objects())
         for (const Layer &layer : object.layers())
@@ -786,6 +952,9 @@ bool run_generator_for_island(Orchestrator &orchestrator,
                               LayerSliceIsland &island,
                               plugin_host_context &host_context)
 {
+    // Build the STEP_PERIMETER payload for one island. The selected generator
+    // should call run_region_group(); if it does not, used_region_group stays
+    // false and the caller deliberately leaves this island without new output.
     plugin_run_context run_context =
         orchestrator.prepare_plugin_run_context(STEP_PERIMETER, &plugin, &host_context);
 
@@ -821,6 +990,9 @@ bool run_generator_for_island(Orchestrator &orchestrator,
 
 void clean_and_prepare(Print &print)
 {
+    // The new pipeline currently treats perimeter generation as owning all
+    // perimeter-era island outputs, so invalidation is intentionally coarse.
+    // Finer invalidation can keep unaffected islands later.
     for (PrintObject &object : print.objects())
         for (Layer &layer : object.layers())
             clear_layer_outputs(layer);
@@ -828,11 +1000,16 @@ void clean_and_prepare(Print &print)
 
 bool validate_pre(const Print &, std::string *)
 {
+    // The step can start from plain sliced islands. Detailed geometry checks
+    // live in later post-condition validators where generated data exists.
     return true;
 }
 
 bool validate_post(const Print &, std::string *)
 {
+    // Perimeter output validation is still exercised by focused plugin tests.
+    // Keep the production validator cheap until the new pipeline contracts are
+    // stable enough to enforce globally.
     return true;
 }
 
