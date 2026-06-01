@@ -27,8 +27,8 @@ const raw_used_config_key k_used_config_keys[] = {
     { "perimeters", RAW_CO_INT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE }
 };
 
-constexpr uint16_t k_loop_role_default = 1u << 0;
-constexpr uint16_t k_loop_role_hole    = 1u << 3;
+constexpr uint16_t k_perimeter_flags_loop = uint16_t(C_EXTRUSION_PERIMETER_FLAG_LOOP);
+constexpr uint16_t k_perimeter_flags_hole = uint16_t(C_EXTRUSION_PERIMETER_FLAG_LOOP | C_EXTRUSION_PERIMETER_FLAG_HOLE);
 
 struct ClassicGeneratorState
 {
@@ -57,7 +57,7 @@ void append_classic_loop(StoredExtrusionEntity &dst,
                          const c_flow &flow,
                          raw_extrusion_role role,
                          uint16_t perimeter_idx,
-                         uint16_t loop_role)
+                         uint16_t perimeter_flags)
 {
     if (!polygon.valid_polygon() || polygon.empty())
         return;
@@ -75,7 +75,7 @@ void append_classic_loop(StoredExtrusionEntity &dst,
         .height(float(unscaled(flow.height)));
 
     StoredExtrusionEntity loop(dst.storage());
-    get_or_add_property<EPropertyPerimeter>(loop).shell_count(perimeter_idx).perimeter_role(loop_role);
+    get_or_add_property<EPropertyPerimeter>(loop).shell_count(perimeter_idx).perimeter_flags(perimeter_flags);
     loop.add_child(path.mutable_view());
     loop.set_flags(RAW_EXTRUSION_FLAG_CONTINUOUS | RAW_EXTRUSION_FLAG_REVERSIBLE);
     dst.add_child(loop.mutable_view());
@@ -93,9 +93,9 @@ StoredExtrusionEntity make_classic_perimeter_extrusion(storage_handle *storage,
 
     StoredExPolygonCollection loops = offset_area(storage, area, line_offset);
     for (ExPolygon loop : loops) {
-        append_classic_loop(extrusion, loop.contour(), flow, role, perimeter_idx, k_loop_role_default);
+        append_classic_loop(extrusion, loop.contour(), flow, role, perimeter_idx, k_perimeter_flags_loop);
         for (Polygon hole : loop.holes())
-            append_classic_loop(extrusion, hole, flow, role, perimeter_idx, k_loop_role_hole);
+            append_classic_loop(extrusion, hole, flow, role, perimeter_idx, k_perimeter_flags_hole);
     }
     return extrusion;
 }

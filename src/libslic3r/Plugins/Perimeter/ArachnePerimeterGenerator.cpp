@@ -110,7 +110,7 @@ void annotate_paths(Slic3r::ExtrusionPaths &paths,
     for (Slic3r::ExtrusionPath &path : paths) {
         path.get_or_add_property<EPropertyPerimeter>()
             .shell_count(shell_count)
-            .perimeter_role(int32_t(loop_role));
+            .perimeter_flags(uint16_t(loop_role));
     }
 }
 

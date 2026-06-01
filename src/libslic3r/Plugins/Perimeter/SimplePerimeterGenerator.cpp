@@ -24,8 +24,8 @@ namespace {
 const char *k_simple_perimeter_generator_id = "perimeter.generator.simple";
 const char *k_no_dependencies[] = { nullptr };
 
-constexpr uint16_t k_loop_role_default = 1u << 0;
-constexpr uint16_t k_loop_role_hole    = 1u << 3;
+constexpr uint16_t k_perimeter_flags_loop = uint16_t(C_EXTRUSION_PERIMETER_FLAG_LOOP);
+constexpr uint16_t k_perimeter_flags_hole = uint16_t(C_EXTRUSION_PERIMETER_FLAG_LOOP | C_EXTRUSION_PERIMETER_FLAG_HOLE);
 
 template<class Payload>
 Payload &get_or_add_property(StoredExtrusionEntity &entity)
@@ -46,7 +46,7 @@ void append_perimeter_loop(StoredExtrusionEntity &dst,
                            const Polygon &polygon,
                            const c_flow &flow,
                            uint16_t perimeter_idx,
-                           uint16_t loop_role)
+                           uint16_t perimeter_flags)
 {
     if (!polygon.valid_polygon() || polygon.empty())
         return;
@@ -64,7 +64,7 @@ void append_perimeter_loop(StoredExtrusionEntity &dst,
         .height(float(unscaled(flow.height)));
 
     StoredExtrusionEntity loop(dst.storage());
-    get_or_add_property<EPropertyPerimeter>(loop).shell_count(perimeter_idx).perimeter_role(loop_role);
+    get_or_add_property<EPropertyPerimeter>(loop).shell_count(perimeter_idx).perimeter_flags(perimeter_flags);
     loop.add_child(path.mutable_view());
     loop.set_flags(RAW_EXTRUSION_FLAG_CONTINUOUS | RAW_EXTRUSION_FLAG_REVERSIBLE);
     dst.add_child(loop.mutable_view());
@@ -81,9 +81,9 @@ StoredExtrusionEntity make_perimeter_extrusion(storage_handle *storage,
 
     StoredExPolygonCollection loops = offset_area(storage, area, line_offset);
     for (ExPolygon loop : loops) {
-        append_perimeter_loop(extrusion, loop.contour(), flow, perimeter_idx, k_loop_role_default);
+        append_perimeter_loop(extrusion, loop.contour(), flow, perimeter_idx, k_perimeter_flags_loop);
         for (Polygon hole : loop.holes())
-            append_perimeter_loop(extrusion, hole, flow, perimeter_idx, k_loop_role_hole);
+            append_perimeter_loop(extrusion, hole, flow, perimeter_idx, k_perimeter_flags_hole);
     }
     return extrusion;
 }

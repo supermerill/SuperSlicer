@@ -30,9 +30,9 @@ const raw_used_config_key k_used_config_keys[] = {
 const char *k_perimeters_hole_key = "perimeters_hole";
 const char *k_perimeters_key = "perimeters";
 
-// Same bit value as Slic3r::ExtrusionLoopRole::elrHole. The perimeter property
-// is a C payload, so the module only needs the ABI bit, not the C++ enum type.
-const int32_t k_perimeter_loop_role_hole = 1 << 3;
+// The perimeter property is a C payload, so the module only needs the ABI flag,
+// not the C++ ExtrusionLoopRole enum type.
+const uint16_t k_perimeter_flag_hole = uint16_t(C_EXTRUSION_PERIMETER_FLAG_HOLE);
 
 /*
 SeparateHoleContour is a perimeter-generation module, not a generator.
@@ -120,7 +120,7 @@ int32_t count_from_node(const PerimeterNodeView &node)
 bool extrusion_is_hole_perimeter(const ExtrusionEntity &entity)
 {
     const EPropertyPerimeter *perimeter = entity.property<EPropertyPerimeter>();
-    return perimeter != nullptr && (perimeter->perimeter_role() & k_perimeter_loop_role_hole) != 0;
+    return perimeter != nullptr && (perimeter->perimeter_flags() & k_perimeter_flag_hole) != 0;
 }
 
 bool extrusion_is_perimeter_loop_candidate(const ExtrusionEntity &entity)

@@ -221,14 +221,14 @@ struct EPropertyZOffset :
     coord_t get() const { return z_offset; }
 };
 
-/* Perimeter-specific metadata such as shell index and loop role. */
+/* Perimeter-specific metadata such as shell index and loop/perimeter flags. */
 struct EPropertyPerimeter :
     EPropertyPayload<c_extrusion_property_perimeter, EXTRUSION_PROPERTY_TYPE_PERIMETER>
 {
     EPropertyPerimeter &shell_count(int16_t value) { perimeter_idx = value; return *this; }
     int16_t shell_count() const { return perimeter_idx; }
-    EPropertyPerimeter &perimeter_role(int32_t value) { loop_role = value; return *this; }
-    int32_t perimeter_role() const { return loop_role; }
+    EPropertyPerimeter &perimeter_flags(uint16_t value) { c_extrusion_property_perimeter::perimeter_flags = value; return *this; }
+    uint16_t perimeter_flags() const { return c_extrusion_property_perimeter::perimeter_flags; }
 };
 
 /*

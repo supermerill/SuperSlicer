@@ -238,8 +238,8 @@ public:
     ExtrusionPropertyLoopRole();
     explicit ExtrusionPropertyLoopRole(ExtrusionLoopRole role);
 
-    ExtrusionLoopRole perimeter_role() const { return ExtrusionLoopRole(this->loop_role); }
-    void set_perimeter_role(ExtrusionLoopRole role) { this->loop_role = uint16_t(role); }
+    ExtrusionLoopRole perimeter_role() const { return ExtrusionLoopRole(this->perimeter_flags); }
+    void set_perimeter_role(ExtrusionLoopRole role) { this->perimeter_flags = uint16_t(role); }
     ExtrusionPropertyUPtr clone() const;
 };
 

@@ -263,17 +263,33 @@ typedef struct c_extrusion_property_custom_gcode {
     extrusion_data_id text_id;
 } c_extrusion_property_custom_gcode;
 
+/*
+Special commands are non-geometric events carried in the extrusion stream.
+c_extrusion_property_special_command.extra_data stores the numeric parameter
+described below; commands without an explicit parameter ignore it.
+*/
 typedef enum c_extrusion_special_command {
+    /* Change to the tool index stored in extra_data. */
     C_EXTRUSION_SPECIAL_COMMAND_TOOLCHANGE = 0,
+    /* Save the firmware speed override and set it to extra_data, where 1.0 is 100%. */
     C_EXTRUSION_SPECIAL_COMMAND_SAVE_AND_RESET_SPEED_RATIO = 1,
+    /* Restore the previously saved firmware speed override, or fall back to 100%. */
     C_EXTRUSION_SPECIAL_COMMAND_RESTORE_SPEED_RATIO = 2,
+    /* Flush/synchronize the motion planner with a zero-duration dwell. */
     C_EXTRUSION_SPECIAL_COMMAND_FLUSH_PLANNER_QUEUE = 3,
+    /* Emit an E-only extrusion move of extra_data millimeters. */
     C_EXTRUSION_SPECIAL_COMMAND_EXTRUSION = 4,
+    /* Emit an E-only retract/deretract move of extra_data millimeters. */
     C_EXTRUSION_SPECIAL_COMMAND_RETRACT = 5,
+    /* Pause the print for extra_data milliseconds when no custom pause G-code is configured. */
     C_EXTRUSION_SPECIAL_COMMAND_PAUSE = 6,
+    /* Wait for the active extruder temperature; the temperature is carried by speed metadata. */
     C_EXTRUSION_SPECIAL_COMMAND_WAIT_FOR_TEMP = 7,
+    /* Stop emitting preview/G-code viewer tags for following generated G-code. */
     C_EXTRUSION_SPECIAL_COMMAND_DISABLE_PREVIEW = 8,
+    /* Resume emitting preview/G-code viewer tags for following generated G-code. */
     C_EXTRUSION_SPECIAL_COMMAND_ENABLE_PREVIEW = 9,
+    /* Set the extruder motor current/trimpot to extra_data where the firmware supports it. */
     C_EXTRUSION_SPECIAL_COMMAND_EXTRUDER_CURRENT = 10
 } c_extrusion_special_command;
 
@@ -299,11 +315,32 @@ typedef struct c_extrusion_property_z_offset {
     coord_t z_offset;
 } c_extrusion_property_z_offset;
 
+/*
+Bit flags stored in c_extrusion_property_perimeter::perimeter_flags.
+*/
+typedef enum c_extrusion_perimeter_flag {
+    /* No perimeter flag is set; the entity is not tagged as a perimeter loop. */
+    C_EXTRUSION_PERIMETER_FLAG_NONE = 0,
+    /* Base flag for a regular perimeter loop. */
+    C_EXTRUSION_PERIMETER_FLAG_LOOP = 1u << 0,
+    /* The loop has no inner contour and is the most internal perimeter contour. */
+    C_EXTRUSION_PERIMETER_FLAG_INTERNAL = 1u << 1,
+    /* Skirt or brim loop. */
+    C_EXTRUSION_PERIMETER_FLAG_SKIRT = 1u << 2,
+    /* The loop surrounds a hole instead of an infill/material island. */
+    C_EXTRUSION_PERIMETER_FLAG_HOLE = 1u << 3,
+    /* The loop should be emitted as a vase/spiralized loop. */
+    C_EXTRUSION_PERIMETER_FLAG_VASE = 1u << 4,
+    /* The loop has no inner loop, used by seam placement logic. */
+    C_EXTRUSION_PERIMETER_FLAG_FIRST_LOOP = 1u << 5
+} c_extrusion_perimeter_flag;
+
 /* Property type: EXTRUSION_PROPERTY_TYPE_PERIMETER. */
 typedef struct c_extrusion_property_perimeter {
     int16_t perimeter_idx;
     int16_t reserved;
-    uint16_t loop_role;
+    /* Bitmask of c_extrusion_perimeter_flag values. Stored as uint16_t to keep the ABI layout stable. */
+    uint16_t perimeter_flags;
 } c_extrusion_property_perimeter;
 
 /*

@@ -56,7 +56,7 @@ constexpr int32_t k_fuzzy_external = 1;
 constexpr int32_t k_fuzzy_shell    = 2;
 constexpr int32_t k_fuzzy_all      = 3;
 
-constexpr uint16_t k_loop_role_hole    = 1u << 3;
+constexpr uint16_t k_perimeter_flag_hole = uint16_t(C_EXTRUSION_PERIMETER_FLAG_HOLE);
 
 struct FuzzyParameters
 {
@@ -179,7 +179,7 @@ bool should_fuzzify_perimeter(const FuzzyParameters &params, const InheritedExtr
     if (params.mode == k_fuzzy_shell)
         return true;
     if (params.mode == k_fuzzy_external)
-        return (state.perimeter.perimeter_role() & k_loop_role_hole) == 0;
+        return (state.perimeter.perimeter_flags() & k_perimeter_flag_hole) == 0;
     return false;
 }
 
