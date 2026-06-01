@@ -46,6 +46,14 @@ Clipper helpers wrap temporary Clipper operands bound to a storage_handle:
     result = clip.diff(clip(subject_polygons), clip(mask_expolygons))
     result.write_expolygons_to(output_expolygons)
 
+RegionSettings helpers let a plugin process a whole LayerIsland while still
+splitting work where region/modifier settings differ:
+
+    settings = RegionSettings(api, storage_handle, island, [["fuzzy_skin"]])
+    settings.segregate(island.slice())
+    for value, area_clip in settings.get_areas("fuzzy_skin"):
+        selected = area_clip.intersections(candidate_areas)
+
 Do not copy this file, or slic3r_api_generated.py, into each plugin. The loader
 adds both plugins/python and plugins/python/plugins to sys.path before loading
 plugin scripts, so the shared helper module is available to all plugins.
@@ -86,6 +94,7 @@ from slic3r_geometry_views import *
 from slic3r_extrusion_views import *
 from slic3r_datatree_views import *
 from slic3r_clipper_views import *
+from slic3r_region_settings_views import *
 from steps.layer_height import *
 from steps.slicing import *
 from steps.post_slicing import *

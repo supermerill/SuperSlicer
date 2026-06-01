@@ -217,6 +217,23 @@ public:
         return clipper_intersection(clip(subject), clip_area).to_expolygon_collection();
     }
 
+    /*
+    Apply this clip while keeping the subject in Clipper form.
+
+    This overload is for temporary or otherwise consumable Clipper operands.
+    When the clip accepts everything, returning the subject directly avoids a
+    useless materialize-and-rebuild pass. Callers that still need their subject
+    afterward should use the ExPolygonCollection overload or explicitly create a
+    separate operand before moving it here.
+    */
+    ClipperOperand intersections(ClipperOperand &&subject) const {
+        assert(subject.storage() == m_storage);
+        if (is_accept_all())
+            return std::move(subject);
+        ClipperContext clip(m_storage);
+        return clipper_intersection(subject, clip(m_expolygons->readonly()));
+    }
+
     StoredExPolygonCollection diff(const ExPolygonCollection &subject) const {
         if (is_accept_all())
             return StoredExPolygonCollection(m_storage);
