@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <tuple>
 #include <unordered_set>
 #include <vector>
@@ -689,17 +690,49 @@ StoredPolylineCollection clipped_polylines(storage_handle *storage,
     return out;
 }
 
-StoredPolylineCollection medial_axis_for_collection(storage_handle *storage,
-                                                    const ExPolygonCollection &areas,
-                                                    double min_width,
-                                                    double max_width)
+c_flow medial_axis_flow_from_overhang_flow(const OverhangFlow &flow, coord_t spacing)
 {
-    StoredPolylineCollection out(storage);
-    for (ExPolygon area : areas) {
-        StoredPolylineCollection axis = expolygon_medial_axis(storage, area, min_width, max_width);
-        out.append_move_from(std::move(axis));
-    }
+    const c_extrusion_property_attributes &attributes = flow.attributes;
+    c_flow out = {};
+    out.width = flow.width;
+    out.spacing = spacing;
+    out.height = scale_i(attributes.height);
+    out.nozzle_diameter = flow.width;
+    out.is_bridge = 0;
+    out.spacing_ratio = 1.f;
+    out.mm3_per_mm = attributes.mm3_per_mm;
     return out;
+}
+
+void append_medial_axis_paths(storage_handle *storage,
+                              std::vector<GeneratedPath> &dst,
+                              const ExPolygonCollection &areas,
+                              const OverhangGenerationInput &input)
+{
+    /*
+    Gap fill is optional for each area: tiny or degenerate shapes may produce no
+    centerline. try_build() makes that case explicit while still returning a
+    storage-owned extrusion tree when the medial axis finds printable paths.
+    */
+    const c_flow flow = medial_axis_flow_from_overhang_flow(input.overhang_flow, input.overhang_spacing);
+    for (ExPolygon area : areas) {
+        std::optional<StoredExtrusionEntity> tree =
+            medial_axis_extrusion(RAW_EXTRUSION_ROLE_INTERNAL_PERIMETER, flow)
+                .medial_widths(coord_t(0.75 * input.overhang_flow.width), coord_t(3.0 * input.overhang_spacing))
+                .constant_width()
+                .min_extrusion_length(input.overhang_spacing / 10)
+                .try_build(storage, area);
+        if (!tree.has_value())
+            continue;
+
+        for (uint32_t idx = 0; idx < tree->child_count(); ++idx) {
+            GeneratedPath path(storage);
+            path.entity.copy_from(tree->child(idx));
+            path.entity.get_or_add_property<EPropertyAttributes>() = input.overhang_flow.attributes;
+            path.entity.disable_reverse();
+            dst.push_back(std::move(path));
+        }
+    }
 }
 
 bool bridgeable_overhang_area(storage_handle *storage,
@@ -872,16 +905,9 @@ OverhangGenerationOutput generate_extra_perimeters_over_overhangs(storage_handle
                         shrinked.empty() ?
                         clipper_offset(clipper(previous), input.overhang_spacing * 0.5).to_expolygon_collection() :
                         std::move(shrinked);
-                    StoredPolylineCollection fills =
-                        medial_axis_for_collection(storage,
-                                                   gap,
-                                                   0.75 * input.overhang_flow.width,
-                                                   3.0 * input.overhang_spacing);
-                    if (!fills.empty()) {
-                        StoredPolylineCollection clipped_fills =
-                            clipped_polylines(storage, fills, shrinked_overhang_to_cover);
-                        append_overhang_paths(storage, overhang_region, clipped_fills, input);
-                    }
+                    StoredExPolygonCollection clipped_gap =
+                        clipper_intersection(clipper(gap), clipper(shrinked_overhang_to_cover)).to_expolygon_collection();
+                    append_medial_axis_paths(storage, overhang_region, clipped_gap, input);
                     break;
                 }
 

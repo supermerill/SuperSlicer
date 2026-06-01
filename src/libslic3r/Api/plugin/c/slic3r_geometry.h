@@ -539,15 +539,6 @@ Returns a status code on failure.
 */
 SLIC3R_HOST_API expolygon_status polygons_to_expolygons(const polygon_collection_handle *src, expolygon_collection_handle *dst);
 
-/*
-Compute the medial axis of src into polylines owned by storage.
-The returned collection must be released with storage_free().
-*/
-SLIC3R_HOST_API polyline_collection_handle *expolygon_medial_axis(storage_handle *storage,
-                                                                  const expolygon_handle *src,
-                                                                  double min_width,
-                                                                  double max_width);
-
 #ifdef __cplusplus
 }
 #endif

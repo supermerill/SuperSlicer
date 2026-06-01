@@ -5,17 +5,20 @@
 #ifndef slic3r_Api_plugin_cpp_ExtrusionViews_hpp_
 #define slic3r_Api_plugin_cpp_ExtrusionViews_hpp_
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "libslic3r/Api/plugin/c/slic3r_extrusions.h"
 #include "libslic3r/Api/plugin/c/slic3r_extrusion_entity.h"
 #include "libslic3r/Api/plugin/c/slic3r_extrusion_polyline.h"
 #include "libslic3r/Api/plugin/c/slic3r_extrusion_property.h"
@@ -1074,6 +1077,158 @@ private:
     storage_handle *m_storage = nullptr;
     extrusion_entity_handle *m_handle = nullptr;
 };
+
+/*
+Factory for the medial-axis extrusion helper.
+
+The raw C ABI uses one parameter struct because the medial-axis stage and the
+extrusion conversion stage must agree on widths, height and endpoint behavior.
+This factory gives C++ plugins a safer fluent interface: start from role+flow,
+override only the options that matter for the local algorithm, then build the
+storage-owned extrusion tree.
+*/
+class MedialAxisExtrusionFactory
+{
+public:
+    MedialAxisExtrusionFactory(raw_extrusion_role role, c_flow flow)
+    {
+        m_params = {};
+        m_params.role = role;
+        m_params.flow = flow;
+        m_params.min_medial_width = flow.width;
+        m_params.max_medial_width = std::max(flow.width, flow.spacing);
+        m_params.flags = MEDIAL_AXIS_EXTRUSION_TRIM_THIN_ENDPOINTS;
+    }
+
+    MedialAxisExtrusionFactory &medial_widths(coord_t min_width, coord_t max_width) {
+        m_params.min_medial_width = min_width;
+        m_params.max_medial_width = max_width;
+        return *this;
+    }
+
+    MedialAxisExtrusionFactory &extrusion_widths(coord_t min_width, coord_t max_width) {
+        m_params.min_extrusion_width = min_width;
+        m_params.max_extrusion_width = max_width;
+        return *this;
+    }
+
+    MedialAxisExtrusionFactory &min_centerline_length(coord_t value) {
+        m_params.min_centerline_length = value;
+        return *this;
+    }
+
+    MedialAxisExtrusionFactory &extension_area(const ExPolygon &area) {
+        m_params.extension_area = area.handle();
+        return *this;
+    }
+
+    MedialAxisExtrusionFactory &endpoint_extension(coord_t length) {
+        m_params.endpoint_extension_length = length;
+        return *this;
+    }
+
+    MedialAxisExtrusionFactory &endpoint_taper(coord_t length) {
+        m_params.endpoint_taper_length = length;
+        return *this;
+    }
+
+    MedialAxisExtrusionFactory &role(raw_extrusion_role value) {
+        m_params.role = value;
+        return *this;
+    }
+
+    MedialAxisExtrusionFactory &flow(c_flow value) {
+        m_params.flow = value;
+        return *this;
+    }
+
+    MedialAxisExtrusionFactory &variable_width_resolution(coord_t value) {
+        m_params.variable_width_resolution = value;
+        return *this;
+    }
+
+    MedialAxisExtrusionFactory &width_change_tolerance(coord_t value) {
+        m_params.width_change_tolerance = value;
+        return *this;
+    }
+
+    MedialAxisExtrusionFactory &min_extrusion_length(coord_t value) {
+        m_params.min_extrusion_length = value;
+        return *this;
+    }
+
+    MedialAxisExtrusionFactory &trim_thin_endpoints(bool enabled = true) {
+        set_flag(MEDIAL_AXIS_EXTRUSION_TRIM_THIN_ENDPOINTS, enabled);
+        return *this;
+    }
+
+    MedialAxisExtrusionFactory &can_reverse(bool enabled = true) {
+        set_flag(MEDIAL_AXIS_EXTRUSION_CAN_REVERSE, enabled);
+        return *this;
+    }
+
+    MedialAxisExtrusionFactory &constant_width(bool enabled = true) {
+        set_flag(MEDIAL_AXIS_EXTRUSION_CONSTANT_WIDTH, enabled);
+        return *this;
+    }
+
+    MedialAxisExtrusionFactory &keep_empty_root(bool enabled = true) {
+        set_flag(MEDIAL_AXIS_EXTRUSION_KEEP_EMPTY_ROOT, enabled);
+        return *this;
+    }
+
+    const c_medial_axis_extrusion_params &params() const { return m_params; }
+
+    // Use try_build() when "no printable centerline" is useful information for
+    // the caller. Degenerate or too-small areas are valid inputs for medial
+    // axis generation, and they may simply produce no extrusion.
+    std::optional<StoredExtrusionEntity> try_build(storage_handle *storage, const ExPolygon &src) const {
+        extrusion_entity_handle *handle = build_handle(storage, src);
+        if (handle == nullptr)
+            return std::nullopt;
+        return StoredExtrusionEntity::adopt(storage, handle);
+    }
+
+    // Use build() when the caller only needs a storage-owned entity container.
+    // If the medial axis cannot produce printable paths, the returned entity is
+    // empty but still valid, so callers can append it or inspect child_count()
+    // without adding an optional branch.
+    StoredExtrusionEntity build(storage_handle *storage, const ExPolygon &src) const {
+        std::optional<StoredExtrusionEntity> out = try_build(storage, src);
+        if (out.has_value())
+            return std::move(*out);
+        return StoredExtrusionEntity(storage);
+    }
+
+private:
+    extrusion_entity_handle *build_handle(storage_handle *storage, const ExPolygon &src) const {
+        return expolygon_medial_axis_extrusion(storage, src.handle(), &m_params);
+    }
+
+    void set_flag(uint32_t flag, bool enabled) {
+        if (enabled)
+            m_params.flags |= flag;
+        else
+            m_params.flags &= ~flag;
+    }
+
+    c_medial_axis_extrusion_params m_params;
+};
+
+inline MedialAxisExtrusionFactory medial_axis_extrusion(raw_extrusion_role role, c_flow flow)
+{
+    return MedialAxisExtrusionFactory(role, flow);
+}
+
+inline MedialAxisExtrusionFactory medial_axis_thin_wall(c_flow flow)
+{
+    return MedialAxisExtrusionFactory(RAW_EXTRUSION_ROLE_THIN_WALL, flow);
+}
+
+inline MedialAxisExtrusionFactory medial_axis_gap_fill(c_flow flow)
+{
+    return MedialAxisExtrusionFactory(RAW_EXTRUSION_ROLE_GAP_FILL, flow);
+}
 
 template<class Derived>
 inline ExtrusionEntity ExtrusionEntityReadApi<Derived>::child(uint32_t idx) const

@@ -127,6 +127,7 @@ CLASS_NAME_OVERRIDES = {
     "raw_config_option_def": "RawConfigOptionDef",
     "c_surface": "CSurface",
     "c_flow": "CFlow",
+    "c_medial_axis_extrusion_params": "CMedialAxisExtrusionParams",
     "c_extrusion_segment": "CExtrusionSegment",
     "c_extrusion_flow": "CExtrusionFlow",
     "c_extrusion_property_attributes": "CExtrusionPropertyAttributes",

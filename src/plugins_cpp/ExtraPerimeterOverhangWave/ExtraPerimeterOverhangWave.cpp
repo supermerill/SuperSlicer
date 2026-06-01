@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -588,6 +589,19 @@ bool residual_area_is_too_small_for_gap_fill(storage_handle *storage,
     return clipper_offset(clipper(area), -double(input.wave_flow.nozzle_diameter)).empty();
 }
 
+c_flow medial_axis_flow_from_wave_flow(const WaveFlow &flow)
+{
+    c_flow out = {};
+    out.width = flow.width;
+    out.spacing = flow.spacing;
+    out.height = flow.height;
+    out.nozzle_diameter = flow.nozzle_diameter;
+    out.is_bridge = 0;
+    out.spacing_ratio = 1.f;
+    out.mm3_per_mm = flow.mm3_per_mm;
+    return out;
+}
+
 void append_residual_gap_fill_paths(storage_handle *storage,
                                     std::vector<StoredExtrusionEntity> &extra_perimeters,
                                     const ExPolygonCollection &residual_overhangs,
@@ -603,32 +617,24 @@ void append_residual_gap_fill_paths(storage_handle *storage,
         if (residual_area_is_too_small_for_gap_fill(storage, residual, input))
             continue;
 
-        StoredPolylineCollection fills =
-            expolygon_medial_axis(storage, residual, 0.75 * input.wave_flow.width, 3.0 * input.overhang_spacing);
-        if (fills.empty())
-            continue;
-
-        // Medial-axis output may slightly overshoot the clipped leftover.
-        // Intersect it back with the residual polygon before turning the lines
-        // into extrusion paths.
-        StoredExPolygonCollection residual_area = collection_from_expolygon(storage, residual);
-        fills = intersection_polylines_expolygons(storage, fills, residual_area);
-        fills = reconnect_polylines(storage, fills, SCALED_EPSILON * 2, coord_t(SCALED_EPSILON));
-        if (fills.empty())
+        std::optional<StoredExtrusionEntity> fills =
+            medial_axis_gap_fill(medial_axis_flow_from_wave_flow(input.wave_flow))
+                .medial_widths(coord_t(0.75 * input.wave_flow.width), coord_t(3.0 * input.overhang_spacing))
+                .constant_width()
+                .min_extrusion_length(input.wave_flow.nozzle_diameter / 10)
+                .try_build(storage, residual);
+        if (!fills.has_value())
             continue;
 
         StoredExtrusionEntity gap_fill_zone(storage);
-        for (const Polyline fill : fills) {
-            if (!fill.is_valid() || fill.length() < input.wave_flow.nozzle_diameter / 10)
-                continue;
-
-            StoredExtrusionEntity path(storage, fill);
+        for (uint32_t idx = 0; idx < fills->child_count(); ++idx) {
+            StoredExtrusionEntity path(storage, fills->child(idx));
             path.get_or_add_property<EPropertyAttributes>() = gap_fill_attributes;
             path.disable_reverse();
             orient_extra_perimeter_from_support(path.mutable_view(), lower_layer_distancer);
-            const uint32_t idx = gap_fill_zone.add_child(path.mutable_view());
-            assert(!is_invalid_index(idx));
-            (void)idx;
+            const uint32_t child_idx = gap_fill_zone.add_child(path.mutable_view());
+            assert(!is_invalid_index(child_idx));
+            (void)child_idx;
         }
 
         if (!gap_fill_zone.empty())

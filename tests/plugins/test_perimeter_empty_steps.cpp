@@ -289,7 +289,8 @@ void mutate_post_infill_outputs(RecordingPluginState &state, const plugin_run_co
                 payload->get_or_create_region_island(
                     island,
                     region_handles.empty() ? nullptr : region_handles.data(),
-                    uint32_t(region_handles.size()));
+                    uint32_t(region_handles.size()),
+                    RAW_EXTRUSION_ROLE_INTERNAL_INFILL);
             if (destination_region_island != nullptr) {
                 state.saw_post_infill_region_island = true;
 

@@ -38,6 +38,7 @@ Extrusion helpers follow the same pattern:
     entity = api.extrusion(entity_handle)
     owned_entity = api.new_extrusion(storage_handle)
     owned_entity.set_points([make_point(0, 0), make_point(1000000, 0)])
+    thin_wall = api.medial_axis_thin_wall(flow).medial_widths(min_w, max_w).build(storage_handle, expolygon)
 
 Clipper helpers wrap temporary Clipper operands bound to a storage_handle:
 
@@ -379,6 +380,15 @@ class Slic3rAPI:
 
     def new_extrusion(self, storage_address: int, src=None) -> StoredExtrusionEntity:
         return StoredExtrusionEntity(self, storage_address, src)
+
+    def medial_axis_extrusion(self, role: int, flow) -> MedialAxisExtrusionFactory:
+        return MedialAxisExtrusionFactory(self, role, flow)
+
+    def medial_axis_thin_wall(self, flow) -> MedialAxisExtrusionFactory:
+        return medial_axis_thin_wall(self, flow)
+
+    def medial_axis_gap_fill(self, flow) -> MedialAxisExtrusionFactory:
+        return medial_axis_gap_fill(self, flow)
 
     def register_extrusion_property_type(self, namespaced_name: str, payload_cls) -> int:
         return register_extrusion_property_type(self, namespaced_name, payload_cls)

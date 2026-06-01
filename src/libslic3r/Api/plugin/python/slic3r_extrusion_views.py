@@ -32,6 +32,13 @@ Create an owned temporary entity:
         entity.set_points([make_point(0, 0), make_point(1000000, 0)])
         entity.property(CExtrusionPropertyAttributes).role = RAW_EXTRUSION_ROLE_PERIMETER
 
+Build medial-axis extrusion from an ExPolygon:
+
+    thin_wall = api.medial_axis_thin_wall(flow) \
+        .medial_widths(min_width_scaled, max_width_scaled) \
+        .can_reverse(False) \
+        .build(storage_handle, expolygon)
+
 Const-correctness model
 -----------------------
 - ExtrusionEntity is a borrowed read-only view. It returns property payloads as
@@ -48,6 +55,8 @@ import ctypes
 from typing import Iterator, Sequence
 
 from slic3r_api_generated import (
+    CFlow,
+    CMedialAxisExtrusionParams,
     CExtrusionPropertyAttributes,
     CExtrusionPropertyCustomGcode,
     CExtrusionPropertyInfill,
@@ -72,9 +81,15 @@ from slic3r_api_generated import (
     EXTRUSION_PROPERTY_TYPE_SPECIAL_COMMAND,
     EXTRUSION_PROPERTY_TYPE_SPEED,
     EXTRUSION_PROPERTY_TYPE_Z_OFFSET,
+    MEDIAL_AXIS_EXTRUSION_CAN_REVERSE,
+    MEDIAL_AXIS_EXTRUSION_CONSTANT_WIDTH,
+    MEDIAL_AXIS_EXTRUSION_KEEP_EMPTY_ROOT,
+    MEDIAL_AXIS_EXTRUSION_TRIM_THIN_ENDPOINTS,
     RAW_EXTRUSION_FLAG_CONTINUOUS,
     RAW_EXTRUSION_FLAG_REVERSIBLE,
     RAW_EXTRUSION_FLAG_SORTABLE,
+    RAW_EXTRUSION_ROLE_GAP_FILL,
+    RAW_EXTRUSION_ROLE_THIN_WALL,
 )
 
 from slic3r_geometry_views import as_point, make_point, point_tuple
@@ -720,6 +735,128 @@ class StoredExtrusionEntity(MutableExtrusionEntity):
             pass
 
 
+class MedialAxisExtrusionFactory:
+    """
+    Fluent builder for expolygon_medial_axis_extrusion().
+
+    The C ABI takes one large struct because medial-axis detection and extrusion
+    conversion share the same physical assumptions. Python plugins should start
+    from this factory, change only the fields they need, then call build() to
+    receive a StoredExtrusionEntity.
+    """
+
+    def __init__(self, api, role: int, flow: CFlow) -> None:
+        self.api = api
+        self.params = CMedialAxisExtrusionParams()
+        self.params.role = int(role)
+        self.params.flow = flow
+        self.params.min_medial_width = int(flow.width)
+        self.params.max_medial_width = max(int(flow.width), int(flow.spacing))
+        self.params.flags = MEDIAL_AXIS_EXTRUSION_TRIM_THIN_ENDPOINTS
+
+    def medial_widths(self, min_width: int, max_width: int):
+        self.params.min_medial_width = int(min_width)
+        self.params.max_medial_width = int(max_width)
+        return self
+
+    def extrusion_widths(self, min_width: int, max_width: int):
+        self.params.min_extrusion_width = int(min_width)
+        self.params.max_extrusion_width = int(max_width)
+        return self
+
+    def min_centerline_length(self, value: int):
+        self.params.min_centerline_length = int(value)
+        return self
+
+    def extension_area(self, expolygon):
+        self.params.extension_area = expolygon.c_handle() if hasattr(expolygon, "c_handle") else _void_p(expolygon)
+        return self
+
+    def endpoint_extension(self, length: int):
+        self.params.endpoint_extension_length = int(length)
+        return self
+
+    def endpoint_taper(self, length: int):
+        self.params.endpoint_taper_length = int(length)
+        return self
+
+    def role(self, value: int):
+        self.params.role = int(value)
+        return self
+
+    def flow(self, value: CFlow):
+        self.params.flow = value
+        return self
+
+    def variable_width_resolution(self, value: int):
+        self.params.variable_width_resolution = int(value)
+        return self
+
+    def width_change_tolerance(self, value: int):
+        self.params.width_change_tolerance = int(value)
+        return self
+
+    def min_extrusion_length(self, value: int):
+        self.params.min_extrusion_length = int(value)
+        return self
+
+    def trim_thin_endpoints(self, enabled: bool = True):
+        return self._set_flag(MEDIAL_AXIS_EXTRUSION_TRIM_THIN_ENDPOINTS, enabled)
+
+    def can_reverse(self, enabled: bool = True):
+        return self._set_flag(MEDIAL_AXIS_EXTRUSION_CAN_REVERSE, enabled)
+
+    def constant_width(self, enabled: bool = True):
+        return self._set_flag(MEDIAL_AXIS_EXTRUSION_CONSTANT_WIDTH, enabled)
+
+    def keep_empty_root(self, enabled: bool = True):
+        return self._set_flag(MEDIAL_AXIS_EXTRUSION_KEEP_EMPTY_ROOT, enabled)
+
+    def _build_handle(self, storage, expolygon) -> int:
+        expolygon_handle = expolygon.c_handle() if hasattr(expolygon, "c_handle") else _void_p(expolygon)
+        return _address(self.api.host.expolygon_medial_axis_extrusion(
+            _void_p(storage), expolygon_handle, ctypes.byref(self.params)
+        ))
+
+    def build(self, storage, expolygon) -> StoredExtrusionEntity:
+        """Return a valid entity, even when the medial axis finds no paths.
+
+        This mirrors the C++ helper: callers that do not care whether the work
+        produced geometry can keep using the returned entity as a normal empty
+        container.
+        """
+        entity = self.try_build(storage, expolygon)
+        if entity is not None:
+            return entity
+        return StoredExtrusionEntity(self.api, storage)
+
+    def try_build(self, storage, expolygon) -> StoredExtrusionEntity | None:
+        """Return None when the input area does not produce printable paths."""
+        handle = self._build_handle(storage, expolygon)
+        if not handle:
+            return None
+        return StoredExtrusionEntity.adopt_owned(self.api, storage, handle)
+
+    def _set_flag(self, flag: int, enabled: bool):
+        if enabled:
+            self.params.flags |= int(flag)
+        else:
+            self.params.flags &= ~int(flag)
+        return self
+
+
+def medial_axis_extrusion(api, role: int, flow: CFlow) -> MedialAxisExtrusionFactory:
+    return MedialAxisExtrusionFactory(api, role, flow)
+
+
+def medial_axis_thin_wall(api, flow: CFlow) -> MedialAxisExtrusionFactory:
+    return MedialAxisExtrusionFactory(api, RAW_EXTRUSION_ROLE_THIN_WALL, flow)
+
+
+def medial_axis_gap_fill(api, flow: CFlow) -> MedialAxisExtrusionFactory:
+    return MedialAxisExtrusionFactory(api, RAW_EXTRUSION_ROLE_GAP_FILL, flow)
+
+
 def register_extrusion_property_type(api, namespaced_name: str, payload_cls) -> int:
     return int(api.host.extrusion_property_register_type(
         api.orchestrator,
@@ -740,6 +877,8 @@ __all__ = [
     "CExtrusionPropertySpeed",
     "CExtrusionPropertyZOffset",
     "CExtrusionSegment",
+    "CFlow",
+    "CMedialAxisExtrusionParams",
     "EPropertyAttributes",
     "EPropertyCustomGcode",
     "EPropertyInfill",
@@ -762,11 +901,19 @@ __all__ = [
     "EXTRUSION_PROPERTY_TYPE_SPEED",
     "EXTRUSION_PROPERTY_TYPE_Z_OFFSET",
     "ExtrusionEntity",
+    "MEDIAL_AXIS_EXTRUSION_CAN_REVERSE",
+    "MEDIAL_AXIS_EXTRUSION_CONSTANT_WIDTH",
+    "MEDIAL_AXIS_EXTRUSION_KEEP_EMPTY_ROOT",
+    "MEDIAL_AXIS_EXTRUSION_TRIM_THIN_ENDPOINTS",
+    "MedialAxisExtrusionFactory",
     "MutableExtrusionEntity",
     "RAW_EXTRUSION_FLAG_CONTINUOUS",
     "RAW_EXTRUSION_FLAG_REVERSIBLE",
     "RAW_EXTRUSION_FLAG_SORTABLE",
     "StoredExtrusionEntity",
+    "medial_axis_extrusion",
+    "medial_axis_gap_fill",
+    "medial_axis_thin_wall",
     "point_tuple",
     "register_extrusion_property_type",
 ]

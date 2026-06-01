@@ -4,11 +4,16 @@
 ///|/
 #include <algorithm>
 #include <cstdint>
+#include <memory>
 #include <utility>
 
+#include "libslic3r/Api/plugin/c/slic3r_extrusions.h"
 #include "libslic3r/Api/plugin/c/slic3r_geometry.h"
 #include "libslic3r/BoundingBox.hpp"
 #include "libslic3r/ExPolygon.hpp"
+#include "libslic3r/ExtrusionEntity.hpp"
+#include "libslic3r/Flow.hpp"
+#include "libslic3r/Geometry/MedialAxis.hpp"
 #include "libslic3r/MultiPoint.hpp"
 #include "libslic3r/Point.hpp"
 #include "libslic3r/Polygon.hpp"
@@ -18,6 +23,13 @@
 #include "Orchestrator.hpp"
 
 namespace Slic3r {
+static PluginStorage *to_storage(storage_handle *storage) { return reinterpret_cast<PluginStorage *>(storage); }
+
+static extrusion_entity_handle *to_handle(ExtrusionEntity *entity)
+{
+    return reinterpret_cast<extrusion_entity_handle *>(entity);
+}
+
 static Slic3r::Point to_point(c_point point) { return Slic3r::Point(point.x, point.y); }
 
 static Slic3r::Point &as_point(c_point &point) { return reinterpret_cast<Slic3r::Point &>(point); }
@@ -108,6 +120,151 @@ static Slic3r::ExPolygon *to_expolygon(expolygon_handle *me) { return reinterpre
 
 static const Slic3r::ExPolygon *to_expolygon(const expolygon_handle *me) {
     return reinterpret_cast<const Slic3r::ExPolygon *>(me);
+}
+
+static Slic3r::ExtrusionRole to_extrusion_role(raw_extrusion_role role)
+{
+    return Slic3r::ExtrusionRole(static_cast<Slic3r::ExtrusionRoleModifier>(role));
+}
+
+static Slic3r::Flow to_flow(c_flow flow)
+{
+    const float width = float(Slic3r::unscaled(flow.width));
+    const float height = float(Slic3r::unscaled(flow.height));
+    const float nozzle_diameter = float(Slic3r::unscaled(flow.nozzle_diameter));
+    if (flow.is_bridge != 0)
+        return Slic3r::Flow::bridging_flow(width, nozzle_diameter);
+    return Slic3r::Flow::new_from_width(width, nozzle_diameter, height, flow.spacing_ratio);
+}
+
+static Slic3r::ExtrusionAttributes to_attributes(raw_extrusion_role role, c_flow flow)
+{
+    Slic3r::ExtrusionAttributes out;
+    out.role = uint16_t(role);
+    out.mm3_per_mm = flow.mm3_per_mm;
+    out.width = float(Slic3r::unscaled(flow.width));
+    out.height = float(Slic3r::unscaled(flow.height));
+    out.no_seam = 0;
+    return out;
+}
+
+static coord_t effective_or(coord_t value, coord_t fallback)
+{
+    return value > 0 ? value : fallback;
+}
+
+static bool medial_axis_input_is_valid(const ExPolygon &src, const c_medial_axis_extrusion_params &params)
+{
+    return !src.empty() &&
+           params.min_medial_width > 0 &&
+           params.max_medial_width >= params.min_medial_width &&
+           params.flow.width > 0 &&
+           params.flow.height > 0 &&
+           params.flow.nozzle_diameter > 0;
+}
+
+static coord_t medial_axis_resolution(const c_medial_axis_extrusion_params &params)
+{
+    if (params.variable_width_resolution > SCALED_EPSILON)
+        return params.variable_width_resolution;
+    return std::max<coord_t>(params.flow.width / 4, SCALED_EPSILON * 2);
+}
+
+static void configure_medial_axis(Geometry::MedialAxis &medial_axis, const c_medial_axis_extrusion_params &params)
+{
+    /*
+    The ABI exposes all optional medial-axis behaviors explicitly. The native
+    MedialAxis object still has historical defaults, so the host wrapper applies
+    every option here instead of relying on constructor defaults that are hard to
+    discover from plugin code.
+    */
+    medial_axis.use_min_real_width(effective_or(params.min_extrusion_width, params.min_medial_width));
+    medial_axis.set_biggest_width(effective_or(params.max_extrusion_width, params.max_medial_width));
+    medial_axis.set_stop_at_min_width((params.flags & MEDIAL_AXIS_EXTRUSION_TRIM_THIN_ENDPOINTS) != 0);
+
+    if (params.min_centerline_length > 0)
+        medial_axis.set_min_length(params.min_centerline_length);
+    if (params.endpoint_extension_length > 0)
+        medial_axis.set_extension_length(params.endpoint_extension_length);
+    if (params.endpoint_taper_length > 0)
+        medial_axis.use_tapers(params.endpoint_taper_length);
+    if (params.extension_area != nullptr)
+        medial_axis.use_bounds(*to_expolygon(params.extension_area));
+}
+
+static bool entity_is_long_enough(const ExtrusionEntity &entity, coord_t min_extrusion_length)
+{
+    return min_extrusion_length <= 0 || entity.length() >= min_extrusion_length;
+}
+
+static std::unique_ptr<ExtrusionEntity> constant_width_entity_from_medial_axis(
+    const ThickPolyline &polyline,
+    const ExtrusionAttributes &attributes,
+    bool can_reverse)
+{
+    /*
+    Constant-width mode still uses the medial-axis centerline, but it discards
+    the per-point width profile. This is useful for gap-fill-like plugins that
+    want the skeleton topology without letting the output flow vary along a
+    single line.
+    */
+    if (polyline.size() < 2)
+        return nullptr;
+
+    ArcPolyline centerline(polyline.points);
+    return std::make_unique<ExtrusionPath>(std::move(centerline), attributes, ExtrusionPropertyUPtr{}, can_reverse);
+}
+
+static std::unique_ptr<ExtrusionEntity> build_medial_axis_tree(
+    const ExPolygon &src,
+    const c_medial_axis_extrusion_params &params)
+{
+    const bool can_reverse = (params.flags & MEDIAL_AXIS_EXTRUSION_CAN_REVERSE) != 0;
+    Geometry::MedialAxis medial_axis(src, params.max_medial_width, params.min_medial_width, params.flow.height);
+    configure_medial_axis(medial_axis, params);
+
+    ThickPolylines centerlines;
+    medial_axis.build(centerlines);
+
+    std::unique_ptr<ExtrusionEntity> root = std::make_unique<ExtrusionEntity>(true);
+    root->set_can_sort_reverse(true, true);
+
+    if ((params.flags & MEDIAL_AXIS_EXTRUSION_CONSTANT_WIDTH) != 0) {
+        const ExtrusionAttributes attributes = to_attributes(params.role, params.flow);
+        for (const ThickPolyline &centerline : centerlines) {
+            std::unique_ptr<ExtrusionEntity> child =
+                constant_width_entity_from_medial_axis(centerline, attributes, can_reverse);
+            if (child != nullptr && entity_is_long_enough(*child, params.min_extrusion_length))
+                root->append_child(std::move(child));
+        }
+    } else {
+        const Flow flow = to_flow(params.flow);
+        const coord_t resolution = medial_axis_resolution(params);
+        ExtrusionEntitiesPtr children = params.width_change_tolerance > 0 ?
+            Geometry::thin_variable_width(centerlines, to_extrusion_role(params.role), flow, resolution, params.width_change_tolerance, can_reverse) :
+            Geometry::thin_variable_width(centerlines, to_extrusion_role(params.role), flow, resolution, can_reverse);
+
+        for (ExtrusionEntity *child : children) {
+            std::unique_ptr<ExtrusionEntity> owned_child(child);
+            if (owned_child != nullptr && entity_is_long_enough(*owned_child, params.min_extrusion_length))
+                root->append_child(std::move(owned_child));
+        }
+        children.clear();
+    }
+
+    return root;
+}
+
+static extrusion_entity_handle *store_extrusion_entity(storage_handle *storage,
+                                                       std::unique_ptr<ExtrusionEntity> entity)
+{
+    if (storage == nullptr || entity == nullptr)
+        return nullptr;
+
+    PluginStorage *plugin_storage = to_storage(storage);
+    ExtrusionEntity &stored = plugin_storage->extrusions.push_back(std::move(entity));
+    plugin_storage->generic_storage.insert(&stored);
+    return to_handle(&stored);
 }
 
 static Slic3r::ExPolygons *to_expolygons(expolygon_collection_handle *me) {
@@ -1173,17 +1330,26 @@ expolygon_status polygons_to_expolygons(const polygon_collection_handle *src, ex
     return expolygons_valid(dst);
 }
 
-polyline_collection_handle *expolygon_medial_axis(storage_handle *storage,
-                                                  const expolygon_handle *src,
-                                                  double min_width,
-                                                  double max_width)
+extrusion_entity_handle *expolygon_medial_axis_extrusion(
+    storage_handle *storage,
+    const expolygon_handle *src,
+    const c_medial_axis_extrusion_params *params)
 {
-    if (storage == nullptr || src == nullptr)
+    if (storage == nullptr || src == nullptr || params == nullptr)
         return nullptr;
 
-    polyline_collection_handle *out_handle = storage_new_polylines(storage);
-    Slic3r::to_expolygon(src)->medial_axis(min_width, max_width, *Slic3r::to_polylines(out_handle));
-    return out_handle;
+    const Slic3r::ExPolygon &source = *Slic3r::to_expolygon(src);
+    if (!Slic3r::medial_axis_input_is_valid(source, *params))
+        return nullptr;
+
+    std::unique_ptr<Slic3r::ExtrusionEntity> root = Slic3r::build_medial_axis_tree(source, *params);
+    if (root == nullptr)
+        return nullptr;
+
+    if (root->child_count() == 0 && (params->flags & MEDIAL_AXIS_EXTRUSION_KEEP_EMPTY_ROOT) == 0)
+        return nullptr;
+
+    return Slic3r::store_extrusion_entity(storage, std::move(root));
 }
 
 } // extern "C"

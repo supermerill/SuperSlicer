@@ -45,7 +45,7 @@ typedef struct c_extrusion_segment {
 
     /*
     Radius of the arc from point_a to point_b.
-    radius == 0 means a straight segment and orientation must be UNKNOWN.
+    radius == 0 means a straight segment and orientation must be UNKNOWN.arcpolyline
     A non-zero radius means an arc and orientation must be CCW or CW.
     Positive radius selects the shorter arc, negative radius selects the longer arc.
     */

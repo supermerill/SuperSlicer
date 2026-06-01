@@ -182,6 +182,9 @@ private:
 
 /// create a ExtrusionEntitiesPtr from ThickPolylines, discretizing the variable width into little sections (of 4*SCALED_RESOLUTION length) where needed. Please delete all ptr if not used.
 ExtrusionEntitiesPtr thin_variable_width(const ThickPolylines& polylines, const ExtrusionRole role, const Flow &flow, const coord_t resolution_internal, bool can_reverse);
+/// Same as thin_variable_width(), but lets callers choose the width variation
+/// that starts a new constant-flow segment.
+ExtrusionEntitiesPtr thin_variable_width(const ThickPolylines& polylines, const ExtrusionRole role, const Flow &flow, const coord_t resolution_internal, coord_t tolerance, bool can_reverse);
 // used by thin_variable_width. Only does the work for a single polyline.
 ExtrusionMultiPath variable_width(const ThickPolyline& polyline, const ExtrusionRole role, const Flow& flow, const coord_t resolution_internal, const coord_t tolerance, bool can_reverse);
 //prefer using multi_variable_width
