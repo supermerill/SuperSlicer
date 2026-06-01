@@ -3,6 +3,7 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 #include <cmath>
+#include <cstdint>
 #include <iterator>
 #include <memory>
 
@@ -61,6 +62,20 @@ static const ExPolygons *to_expolygons(const expolygon_collection_handle *handle
 
 static BoundingBox to_bounding_box(c_bounding_box bbox) {
     return BoundingBox(Point(bbox.min.x, bbox.min.y), Point(bbox.max.x, bbox.max.y));
+}
+
+static c_point to_c_point(const Point &point) {
+    c_point out = {};
+    out.x = point.x();
+    out.y = point.y();
+    return out;
+}
+
+static c_bounding_box to_c_bounding_box(const BoundingBox &bbox) {
+    c_bounding_box out = {};
+    out.min = to_c_point(bbox.min);
+    out.max = to_c_point(bbox.max);
+    return out;
 }
 
 static ApiClipper::ClipperShapes *to_shapes(clipper_shapes_handle *handle) {
@@ -174,6 +189,16 @@ clipper_shapes_handle *clipper_shapes_from_expolygons(storage_handle *storage, c
 int32_t clipper_shapes_empty(const clipper_shapes_handle *shapes) {
     const Slic3r::ApiClipper::ClipperShapes *source = Slic3r::to_shapes(shapes);
     return source == nullptr || source->empty() ? 1 : 0;
+}
+
+uint32_t clipper_shapes_path_count(const clipper_shapes_handle *shapes) {
+    const Slic3r::ApiClipper::ClipperShapes *source = Slic3r::to_shapes(shapes);
+    return source == nullptr ? 0 : source->path_count();
+}
+
+c_bounding_box clipper_shapes_bounding_box(const clipper_shapes_handle *shapes) {
+    const Slic3r::ApiClipper::ClipperShapes *source = Slic3r::to_shapes(shapes);
+    return source == nullptr ? c_bounding_box{} : Slic3r::to_c_bounding_box(source->bounding_box());
 }
 
 /* ---- Boolean operations ----------------------------------------------

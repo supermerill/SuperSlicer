@@ -70,6 +70,12 @@ SLIC3R_HOST_API clipper_shapes_handle *clipper_shapes_from_expolygons(storage_ha
 /* Return non-zero when shapes is NULL or contains no usable paths/geometry. */
 SLIC3R_HOST_API int32_t clipper_shapes_empty(const clipper_shapes_handle *shapes);
 
+/* Count non-empty raw Clipper paths. Holes are paths too. */
+SLIC3R_HOST_API uint32_t clipper_shapes_path_count(const clipper_shapes_handle *shapes);
+
+/* Return the bounding box of all points represented by shapes, or a zero box if shapes is NULL or empty. */
+SLIC3R_HOST_API c_bounding_box clipper_shapes_bounding_box(const clipper_shapes_handle *shapes);
+
 /* ---- Boolean operations ---------------------------------------------
 Run a Clipper boolean operation and return a new clipper_shapes_handle.
 

@@ -202,6 +202,12 @@ public:
     storage_handle *storage() const { return m_storage; }
 
     bool empty() const { return clipper_shapes_empty(raw_handle()) != 0; }
+    // Count non-empty raw Clipper paths. This is not an ExPolygon count: a
+    // contour and each non-empty hole are counted separately.
+    uint32_t path_count() const { return clipper_shapes_path_count(raw_handle()); }
+    // Return the bounding box of the raw Clipper points represented by this
+    // operand. This avoids materializing polygons when only extents are needed.
+    c_bounding_box bounding_box() const { return clipper_shapes_bounding_box(raw_handle()); }
 
     // Constructors create a storage-owned Clipper adapter over an existing view.
     // They do not copy the source geometry, so the source view must stay valid

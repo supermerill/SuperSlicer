@@ -4,10 +4,13 @@
 ///|/
 #include "ClipperShapes.hpp"
 
+#include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <memory>
 #include <utility>
 
+#include "libslic3r/BoundingBox.hpp"
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/Polyline.hpp"
 
@@ -65,6 +68,58 @@ static ClipperLib::PolyTree polytree_from_paths(const ClipperLib::Paths &paths, 
     return tree;
 }
 
+static Point point_from_clipper(const ClipperLib::IntPoint &point)
+{
+    return Point(point.x(), point.y());
+}
+
+static void merge_path_bounding_box(BoundingBox &out, const ClipperLib::Path &path)
+{
+    for (const ClipperLib::IntPoint &point : path)
+        out.merge(point_from_clipper(point));
+}
+
+/*
+Count concrete PolyTree contours without materializing them as Paths.
+
+Clipper's PolyTree root is a container node with an empty contour, so the root
+does not contribute to the result. Every real child contour, including hole
+contours, is counted when it stores at least one point.
+*/
+template<e_ordering ordering = e_ordering::OFF>
+void traverse_pt_path_count(const ClipperLib::PolyNode *tree, size_t *size_out)
+{
+    if (tree == nullptr || size_out == nullptr)
+        return;
+
+    if (!tree->Contour.empty())
+        ++*size_out;
+
+    foreach_node<ordering>(tree->Childs, [size_out](const ClipperLib::PolyNode *child) {
+        traverse_pt_path_count<ordering>(child, size_out);
+    });
+}
+
+/*
+Accumulate a PolyTree bounding box by visiting each node contour directly.
+
+The PolyTree root only owns children and usually has no contour. That is fine:
+empty contours add nothing, while all real child contours, including holes and
+nested islands, contribute their points to the final box.
+*/
+template<e_ordering ordering = e_ordering::OFF>
+void traverse_pt_bounding_box(const ClipperLib::PolyNode *tree, BoundingBox *out)
+{
+    if (tree == nullptr || out == nullptr)
+        return;
+
+    merge_path_bounding_box(*out, tree->Contour);
+
+    foreach_node<ordering>(tree->Childs, [out](const ClipperLib::PolyNode *child) {
+        traverse_pt_bounding_box<ordering>(child, out);
+    });
+}
+
 class PathListShapes final : public ClipperShapes
 {
 public:
@@ -84,6 +139,21 @@ public:
             if (!path.empty())
                 return false;
         return true;
+    }
+    uint32_t path_count() const override
+    {
+        uint32_t out = 0;
+        for (const ClipperLib::Path &path : m_paths)
+            if (!path.empty())
+                ++out;
+        return out;
+    }
+    BoundingBox bounding_box() const override
+    {
+        BoundingBox out;
+        for (const ClipperLib::Path &path : m_paths)
+            merge_path_bounding_box(out, path);
+        return out;
     }
 
     ClipperShapes *concat(const ClipperShapes &other, Slic3r::PluginStorage &) override
@@ -141,6 +211,18 @@ public:
     }
 
     bool empty() const override { return m_tree.ChildCount() == 0; }
+    uint32_t path_count() const override
+    {
+        size_t out = 0;
+        traverse_pt_path_count(&m_tree, &out);
+        return static_cast<uint32_t>(out);
+    }
+    BoundingBox bounding_box() const override
+    {
+        BoundingBox out;
+        traverse_pt_bounding_box(&m_tree, &out);
+        return out;
+    }
 
 private:
     ClipperLib::PolyTree m_tree;
@@ -173,6 +255,11 @@ public:
     }
 
     bool empty() const override { return m_polygon == nullptr || m_polygon->points.empty(); }
+    uint32_t path_count() const override { return empty() ? 0 : 1; }
+    BoundingBox bounding_box() const override
+    {
+        return m_polygon == nullptr ? BoundingBox{} : BoundingBox(m_polygon->points);
+    }
 
 private:
     const Polygon *m_polygon;
@@ -197,6 +284,11 @@ public:
     Polygons to_polygons() const override { return polygons_from_paths(to_paths()); }
     ExPolygons to_expolygons() const override { return make_path_list_shapes(to_paths())->to_expolygons(); }
     bool empty() const override { return m_polyline == nullptr || m_polyline->points.empty(); }
+    uint32_t path_count() const override { return empty() ? 0 : 1; }
+    BoundingBox bounding_box() const override
+    {
+        return m_polyline == nullptr ? BoundingBox{} : BoundingBox(m_polyline->points);
+    }
 
 private:
     const Polyline *m_polyline;
@@ -237,6 +329,26 @@ public:
                 return false;
         return true;
     }
+    uint32_t path_count() const override
+    {
+        if (m_multipoints == nullptr)
+            return 0;
+
+        uint32_t out = 0;
+        for (const MultiPoint &multipoint : *m_multipoints)
+            if (!multipoint.points.empty())
+                ++out;
+        return out;
+    }
+    BoundingBox bounding_box() const override
+    {
+        BoundingBox out;
+        if (m_multipoints != nullptr) {
+            for (const MultiPoint &multipoint : *m_multipoints)
+                out.merge(multipoint.points);
+        }
+        return out;
+    }
 
 private:
     const std::vector<MultiPoint> *m_multipoints;
@@ -275,6 +387,27 @@ public:
     }
 
     bool empty() const override { return m_expolygon == nullptr || m_expolygon->contour.points.empty(); }
+    uint32_t path_count() const override
+    {
+        if (m_expolygon == nullptr)
+            return 0;
+
+        uint32_t out = m_expolygon->contour.points.empty() ? 0 : 1;
+        for (const Polygon &hole : m_expolygon->holes)
+            if (!hole.points.empty())
+                ++out;
+        return out;
+    }
+    BoundingBox bounding_box() const override
+    {
+        BoundingBox out;
+        if (m_expolygon != nullptr) {
+            out.merge(m_expolygon->contour.points);
+            for (const Polygon &hole : m_expolygon->holes)
+                out.merge(hole.points);
+        }
+        return out;
+    }
 
 private:
     const ExPolygon *m_expolygon;
@@ -323,6 +456,33 @@ public:
             if (!expolygon.contour.points.empty())
                 return false;
         return true;
+    }
+    uint32_t path_count() const override
+    {
+        if (m_expolygons == nullptr)
+            return 0;
+
+        uint32_t out = 0;
+        for (const ExPolygon &expolygon : *m_expolygons) {
+            if (!expolygon.contour.points.empty())
+                ++out;
+            for (const Polygon &hole : expolygon.holes)
+                if (!hole.points.empty())
+                    ++out;
+        }
+        return out;
+    }
+    BoundingBox bounding_box() const override
+    {
+        BoundingBox out;
+        if (m_expolygons != nullptr) {
+            for (const ExPolygon &expolygon : *m_expolygons) {
+                out.merge(expolygon.contour.points);
+                for (const Polygon &hole : expolygon.holes)
+                    out.merge(hole.points);
+            }
+        }
+        return out;
     }
 
 private:

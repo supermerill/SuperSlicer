@@ -5,6 +5,7 @@
 #ifndef slic3r_Api_ClipperShapes_hpp_
 #define slic3r_Api_ClipperShapes_hpp_
 
+#include <cstdint>
 #include <memory>
 
 #include "libslic3r/ExPolygon.hpp"
@@ -13,6 +14,7 @@
 #include <clipper/clipper.hpp>
 
 namespace Slic3r {
+class BoundingBox;
 class MultiPoint;
 class PluginStorage;
 class Polyline;
@@ -70,6 +72,20 @@ public:
     representation when possible instead of materializing Polygons/ExPolygons.
     */
     virtual bool empty() const = 0;
+
+    /*
+    Count non-empty raw Clipper paths represented by this shape. This is not an
+    ExPolygon count: a contour counts as one path and each non-empty hole counts
+    as one path too.
+    */
+    virtual uint32_t path_count() const = 0;
+
+    /*
+    Return the axis-aligned box of every point represented by this shape. This
+    is intentionally a raw point extent, not an ExPolygon extent: holes and open
+    paths contribute points exactly like contours.
+    */
+    virtual BoundingBox bounding_box() const = 0;
 
     /*
     Concatenate with another shape for the "append then maybe union later" use
