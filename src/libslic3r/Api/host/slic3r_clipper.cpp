@@ -468,6 +468,43 @@ expolygon_collection_handle *clipper_clip_expolygons_with_subject_bbox(storage_h
     return out_handle;
 }
 
+clipper_shapes_handle *clipper_clip_shapes_with_subject_bbox(storage_handle *storage,
+                                                             const clipper_shapes_handle *src,
+                                                             c_bounding_box bbox)
+{
+    const Slic3r::ApiClipper::ClipperShapes *source = Slic3r::to_shapes(src);
+    if (storage == nullptr || source == nullptr)
+        return nullptr;
+
+    // This is a pre-filter for later Clipper operations. It deliberately keeps a
+    // flat path list instead of rebuilding ExPolygon topology, because the next
+    // boolean operation will rebuild the final contour/hole tree if needed.
+    Slic3r::Polygons polygons;
+    for (const Slic3r::ClipperLib::Path &path : source->to_paths()) {
+        Slic3r::Polygon polygon;
+        polygon.points.reserve(path.size());
+        for (const Slic3r::ClipperLib::IntPoint &point : path)
+            polygon.points.emplace_back(point.x(), point.y());
+        polygons.emplace_back(std::move(polygon));
+    }
+
+    Slic3r::Polygons clipped =
+        Slic3r::ClipperUtils::clip_clipper_polygons_with_subject_bbox(polygons,
+                                                                      Slic3r::to_bounding_box(bbox));
+
+    Slic3r::ClipperLib::Paths paths;
+    paths.reserve(clipped.size());
+    for (const Slic3r::Polygon &polygon : clipped) {
+        Slic3r::ClipperLib::Path path;
+        path.reserve(polygon.points.size());
+        for (const Slic3r::Point &point : polygon.points)
+            path.emplace_back(point.x(), point.y());
+        paths.emplace_back(std::move(path));
+    }
+
+    return Slic3r::store_shape(storage, Slic3r::ApiClipper::make_path_list_shapes(std::move(paths)));
+}
+
 polyline_collection_handle *clipper_diff_polyline_expolygons(storage_handle *storage,
                                                              const polyline_handle *subject,
                                                              const expolygon_collection_handle *clip)

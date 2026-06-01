@@ -565,6 +565,25 @@ inline StoredExPolygonCollection clipper_clip_expolygons_with_subject_bbox(stora
     return StoredExPolygonCollection::adopt(storage, ::clipper_clip_expolygons_with_subject_bbox(storage, src.handle(), bbox));
 }
 
+// Keep a large Clipper operand in the Clipper pipeline while discarding paths
+// that cannot touch a small subject bbox. The result is a flat path list meant
+// for the next boolean operation, not a final ExPolygon hierarchy.
+inline ClipperOperand clipper_clip_shapes_with_subject_bbox(storage_handle *storage,
+                                                            const ClipperOperand &src,
+                                                            c_bounding_box bbox)
+{
+    if (src.empty())
+        return ClipperOperand::create_empty(storage);
+    return ClipperOperand::adopt(storage, ::clipper_clip_shapes_with_subject_bbox(storage, src.handle(), bbox));
+}
+
+inline ClipperOperand clipper_clip_shapes_with_subject_bbox(const ClipperOperand &src,
+                                                            c_bounding_box bbox)
+{
+    assert(src.storage() != nullptr);
+    return clipper_clip_shapes_with_subject_bbox(src.storage(), src, bbox);
+}
+
 // context utility method to shorten 'ClipperOperand(storage_handler, bridged_other_layers_area))' to a
 // 'clipper(bridged_other_layers_area)' if you define ClipperContext clipper(my_storage_handler)
 class ClipperContext

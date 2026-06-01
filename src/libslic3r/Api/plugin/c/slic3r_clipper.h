@@ -221,6 +221,25 @@ SLIC3R_HOST_API expolygon_collection_handle *clipper_clip_expolygons_with_subjec
                                                                                        c_bounding_box bbox);
 
 /*
+Clip a generic Clipper shape to a subject bounding box and return a new
+storage-owned shape handle.
+
+Use this before an expensive boolean operation when the clip side is much larger
+than the subject. Unlike clipper_clip_expolygons_with_subject_bbox(), this keeps
+the result in the Clipper shape pipeline, so callers can continue with
+clipper_intersection(), clipper_diff(), clipper_union(), or offsets without first
+materializing an ExPolygon collection.
+
+The returned shape is a flat path-list shape. It is intended as an optimization
+for subsequent Clipper operations, not as a topology-preserving ExPolygon
+materialization. Convert to ExPolygons only after the final boolean operation
+when contour/hole hierarchy is required.
+*/
+SLIC3R_HOST_API clipper_shapes_handle *clipper_clip_shapes_with_subject_bbox(storage_handle *storage,
+                                                                             const clipper_shapes_handle *src,
+                                                                             c_bounding_box bbox);
+
+/*
 Clip an open polyline by polygonal areas and return the remaining open pieces.
 
 This is the polyline equivalent of subject - clip. It is intentionally exposed

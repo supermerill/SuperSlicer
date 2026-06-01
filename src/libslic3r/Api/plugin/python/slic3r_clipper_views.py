@@ -434,6 +434,35 @@ def clipper_offset2(storage_or_subject,
     return ClipperOperand.adopt_owned(api, storage, handle)
 
 
+def clipper_clip_shapes_with_subject_bbox(storage_or_subject, subject_or_bbox=None, bbox=None) -> ClipperOperand:
+    """
+    Clip a ClipperOperand to a local subject bounding box without materializing ExPolygons.
+
+    This is a pre-filter for later boolean operations. The returned operand is a
+    flat path-list shape, so use it to reduce the amount of geometry passed to
+    ``clipper_intersection``/``clipper_diff`` and materialize only after the final
+    operation that rebuilds contour/hole topology.
+    """
+    if isinstance(storage_or_subject, ClipperOperand):
+        subject = storage_or_subject
+        storage = subject.storage()
+        api = subject.api
+        subject_bbox = subject_or_bbox
+    else:
+        storage = _require_handle(storage_or_subject, "storage")
+        subject = subject_or_bbox
+        api = subject.api
+        if subject.storage() != storage:
+            raise ValueError("explicit storage must match the clipper operand")
+        subject_bbox = bbox
+    if subject.empty():
+        return ClipperOperand.create_empty(api, storage)
+    handle = api.host.clipper_clip_shapes_with_subject_bbox(
+        _void_p(storage), subject.c_handle(), subject_bbox
+    )
+    return ClipperOperand.adopt_owned(api, storage, handle)
+
+
 class ClipperContext:
     """
     Convenience object bound to one storage_handle.
@@ -505,6 +534,9 @@ class ClipperContext:
                 end_type: int = CLIPPER_END_CLOSED_POLYGON) -> ClipperOperand:
         return clipper_offset2(self.storage(), subject, delta1, delta2, join_type, miter_limit, end_type)
 
+    def clip_shapes_with_subject_bbox(self, subject: ClipperOperand, bbox) -> ClipperOperand:
+        return clipper_clip_shapes_with_subject_bbox(self.storage(), subject, bbox)
+
 
 __all__ = [
     "CLIPPER_END_CLOSED_POLYGON",
@@ -522,6 +554,7 @@ __all__ = [
     "ClipperContext",
     "ClipperOperand",
     "clipper_concat",
+    "clipper_clip_shapes_with_subject_bbox",
     "clipper_diff",
     "clipper_diff_with_safety_offset",
     "clipper_execute",
