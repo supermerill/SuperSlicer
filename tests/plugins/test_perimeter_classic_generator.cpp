@@ -36,5 +36,11 @@ TEST_CASE("ClassicPerimeterGenerator is registered and selectable skeleton", "[p
     REQUIRE(external_perimeter_count(generated) > 0);
     REQUIRE_FALSE(generated.fill_surfaces.empty());
     REQUIRE_FALSE(generated.fill_no_overlap_surfaces.empty());
-    require_simple_generator_first_child_area_partition(generated, surface);
+
+    // The classic skeleton is no longer expected to match the deliberately
+    // simple child-area formula. It already follows the first pieces of the
+    // classic "next onion" logic, so this test only protects the shared
+    // perimeter-step contract: remaining no-overlap areas and fill/anchor areas
+    // must form valid leaf domains for the later infill steps.
+    require_leaf_fill_area_consistency(generated);
 }
