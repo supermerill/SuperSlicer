@@ -741,12 +741,12 @@ bool extract_dense_children_from_root(storage_handle *storage,
         // vector empty without creating fake printable output.
         root.clear_content();
         StoredExtrusionEntity placeholder(storage);
-        root.add_child(placeholder.mutable_view());
+        root.append_child_move(placeholder.mutable_view());
         root.remove_child(0);
     } else {
         root.clear_content();
         for (uint32_t child_idx : normal_children)
-            root.add_child(original.child(child_idx));
+            root.append_child_copy(original.child(child_idx));
     }
 
     return true;
@@ -789,10 +789,10 @@ void publish_dense_children_by_priority(const run_ctx_post_infill_generation &ct
         (void)priority;
         StoredExtrusionEntity group(storage);
         for (const StoredExtrusionEntity &child : dense_children)
-            group.add_child(child.readonly());
+            group.append_child_copy(child.readonly());
         group.disable_sort();
         group.disable_reverse();
-        destination_root.add_child(group.mutable_view());
+        destination_root.append_child_move(group.mutable_view());
     }
 }
 

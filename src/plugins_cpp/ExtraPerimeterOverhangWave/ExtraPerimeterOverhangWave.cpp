@@ -518,14 +518,14 @@ bool append_wave_polyline(storage_handle *storage,
         // Distant waves stay separate leaves inside the same locked zone. The
         // wrapper preserves the support-to-air order while allowing a travel
         // move between leaves that are too far apart to merge cleanly.
-        const uint32_t idx = zone_paths.add_child(path.mutable_view());
+        const uint32_t idx = zone_paths.append_child_move(path.mutable_view());
         assert(!is_invalid_index(idx));
         (void)idx;
         return true;
     }
 
     orient_extra_perimeter_from_support(path.mutable_view(), lower_layer_distancer);
-    const uint32_t idx = zone_paths.add_child(path.mutable_view());
+    const uint32_t idx = zone_paths.append_child_move(path.mutable_view());
     assert(!is_invalid_index(idx));
     (void)idx;
     return true;
@@ -632,7 +632,7 @@ void append_residual_gap_fill_paths(storage_handle *storage,
             path.get_or_add_property<EPropertyAttributes>() = gap_fill_attributes;
             path.disable_reverse();
             orient_extra_perimeter_from_support(path.mutable_view(), lower_layer_distancer);
-            const uint32_t child_idx = gap_fill_zone.add_child(path.mutable_view());
+            const uint32_t child_idx = gap_fill_zone.append_child_move(path.mutable_view());
             assert(!is_invalid_index(child_idx));
             (void)child_idx;
         }
@@ -823,7 +823,7 @@ void prepend_extra_perimeter_zone_groups_to_root(storage_handle *storage,
         if (zone_paths.empty())
             continue;
 
-        const uint32_t idx = extra_zones.add_child(zone_paths.mutable_view());
+        const uint32_t idx = extra_zones.append_child_move(zone_paths.mutable_view());
         assert(!is_invalid_index(idx));
         (void)idx;
     }
@@ -833,7 +833,7 @@ void prepend_extra_perimeter_zone_groups_to_root(storage_handle *storage,
 
     root.clear_content();
     if (!extra_zones.empty()) {
-        const uint32_t idx = root.add_child(extra_zones.mutable_view());
+        const uint32_t idx = root.append_child_move(extra_zones.mutable_view());
         assert(!is_invalid_index(idx));
         (void)idx;
     }
@@ -842,7 +842,7 @@ void prepend_extra_perimeter_zone_groups_to_root(storage_handle *storage,
         while (original.child_count() > 0)
             root.move_child_from(root.child_count(), original.mutable_view(), 0);
     } else if (!original.empty()) {
-        root.add_child(original.mutable_view());
+        root.append_child_move(original.mutable_view());
     }
 
     root.disable_sort();

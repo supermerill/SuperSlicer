@@ -65,9 +65,9 @@ void append_perimeter_loop(StoredExtrusionEntity &dst,
 
     StoredExtrusionEntity loop(dst.storage());
     get_or_add_property<EPropertyPerimeter>(loop).shell_count(perimeter_idx).perimeter_flags(perimeter_flags);
-    loop.add_child(path.mutable_view());
+    loop.append_child_move(path.mutable_view());
     loop.set_flags(RAW_EXTRUSION_FLAG_CONTINUOUS | RAW_EXTRUSION_FLAG_REVERSIBLE);
-    dst.add_child(loop.mutable_view());
+    dst.append_child_move(loop.mutable_view());
 }
 
 StoredExtrusionEntity make_perimeter_extrusion(storage_handle *storage,

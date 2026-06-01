@@ -177,7 +177,7 @@ void append_entity_without_overhang_gap_fill(storage_handle *storage,
     // local strokes, which are the gap-fill candidates produced in this part of
     // the perimeter pipeline.
     if (!entity.has_polyline() || entity.local_is_closed() || entity.point_count() < 2) {
-        dst.add_child(entity);
+        dst.append_child_copy(entity);
         return;
     }
 
@@ -199,7 +199,7 @@ void append_entity_without_overhang_gap_fill(storage_handle *storage,
         StoredExtrusionEntity clipped_entity(storage, entity);
         clipped_entity.set(fragment);
         if (!clipped_entity.empty())
-            dst.add_child(clipped_entity.mutable_view());
+            dst.append_child_move(clipped_entity.mutable_view());
     }
 }
 

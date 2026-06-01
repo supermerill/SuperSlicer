@@ -428,7 +428,7 @@ uint32_t replace_child_with_fragments(MutableExtrusionEntity parent,
         child.clear_content();
         child.set_flags(was_reversible ? RAW_EXTRUSION_FLAG_REVERSIBLE : 0);
         for (SplitFragment &fragment : fragments)
-            child.add_child(fragment.entity.mutable_view());
+            child.append_child_move(fragment.entity.mutable_view());
         collect_fuzzy_targets_from_fragments(child, fragments, targets);
         return child_idx + 1;
     }
@@ -469,7 +469,7 @@ void replace_root_leaf_with_fragments(MutableExtrusionEntity root,
     root.clear_content();
     root.set_flags(was_reversible ? RAW_EXTRUSION_FLAG_REVERSIBLE : 0);
     for (SplitFragment &fragment : fragments)
-        root.add_child(fragment.entity.mutable_view());
+        root.append_child_move(fragment.entity.mutable_view());
     collect_fuzzy_targets_from_fragments(root, fragments, targets);
 }
 

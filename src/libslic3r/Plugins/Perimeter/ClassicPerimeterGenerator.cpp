@@ -139,14 +139,14 @@ void append_classic_loop(StoredExtrusionEntity &dst,
     // It will make things a bit more difficult for algorithms taht want to split it, but we just need to add good helper function.
     //StoredExtrusionEntity loop(dst.storage());
     //get_or_add_property<EPropertyPerimeter>(loop).shell_count(perimeter_idx).perimeter_role(loop_role);
-    //loop.add_child(path.mutable_view());
+    //loop.append_child_move(path.mutable_view());
     //loop.set_flags(RAW_EXTRUSION_FLAG_CONTINUOUS | RAW_EXTRUSION_FLAG_REVERSIBLE);
 
     path.set_flags(RAW_EXTRUSION_FLAG_CONTINUOUS | RAW_EXTRUSION_FLAG_REVERSIBLE);
 
     get_or_add_property<EPropertyPerimeter>(path).shell_count(perimeter_idx).perimeter_flags(perimeter_flags);
 
-    dst.add_child(path.mutable_view());
+    dst.append_child_move(path.mutable_view());
 }
 
 bool scaled_values_differ(coord_t lhs, coord_t rhs)
@@ -580,7 +580,7 @@ void generate_external_perimeter(const PerimeterGenerationContextView &params,
         thin_wall_extrusion_root.move_from(thin_wall_extrusions.front().mutable_view());
     } else if (thin_wall_extrusions.size() > 1) {
         for (StoredExtrusionEntity &child : thin_wall_extrusions)
-            thin_wall_extrusion_root.add_child(child.mutable_view());
+            thin_wall_extrusion_root.append_child_move(child.mutable_view());
     }
 
     // create perimeter extrusions
@@ -604,8 +604,8 @@ void generate_external_perimeter(const PerimeterGenerationContextView &params,
     } else if (perimeter_extrusion_root.empty()) {
         final_extrusion_root = std::move(thin_wall_extrusion_root);
     } else {
-        final_extrusion_root.add_child(perimeter_extrusion_root.mutable_view());
-        final_extrusion_root.add_child(thin_wall_extrusion_root.mutable_view());
+        final_extrusion_root.append_child_move(perimeter_extrusion_root.mutable_view());
+        final_extrusion_root.append_child_move(thin_wall_extrusion_root.mutable_view());
         // this collection should not be sortable nor reversible
         final_extrusion_root.disable_sort().disable_reverse();
     }
@@ -774,7 +774,7 @@ void generate_internal_perimeter(const PerimeterGenerationContextView &params,
         gaps_extrusions_root.move_from(gaps_extrusions.front().mutable_view());
     } else if (gaps_extrusions.size() > 1) {
         for (StoredExtrusionEntity &child : gaps_extrusions)
-            gaps_extrusions_root.add_child(child.mutable_view());
+            gaps_extrusions_root.append_child_move(child.mutable_view());
     }
 
     // create perimeter extrusions
@@ -800,8 +800,8 @@ void generate_internal_perimeter(const PerimeterGenerationContextView &params,
     } else if (perimeter_extrusion_root.empty()) {
         final_extrusion_root = std::move(gaps_extrusions_root);
     } else {
-        final_extrusion_root.add_child(perimeter_extrusion_root.mutable_view());
-        final_extrusion_root.add_child(gaps_extrusions_root.mutable_view());
+        final_extrusion_root.append_child_move(perimeter_extrusion_root.mutable_view());
+        final_extrusion_root.append_child_move(gaps_extrusions_root.mutable_view());
         // this collection should not be sortable nor reversible
         final_extrusion_root.disable_sort().disable_reverse();
     }

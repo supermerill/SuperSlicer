@@ -1048,13 +1048,13 @@ void prepend_extra_perimeters_to_root(storage_handle *storage,
 
     for (std::vector<GeneratedPath> &paths : extra_perimeters)
         for (GeneratedPath &path : paths)
-            root.add_child(path.entity.mutable_view());
+            root.append_child_move(path.entity.mutable_view());
 
     if (original.child_count() > 0) {
         while (original.child_count() > 0)
             root.move_child_from(root.child_count(), original.mutable_view(), 0);
     } else if (!original.empty()) {
-        root.add_child(original.mutable_view());
+        root.append_child_move(original.mutable_view());
     }
 
     // Adding the first child turns an empty entity into a regular collection,

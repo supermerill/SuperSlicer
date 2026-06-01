@@ -880,8 +880,10 @@ public:
     empty entity after the move succeeds.
     */
     uint32_t insert_child_move(uint32_t idx, MutableExtrusionEntity child);
-    uint32_t add_child(const ExtrusionEntity &child);
-    uint32_t add_child(MutableExtrusionEntity child);
+
+    /* Append at the end of the child list while making the ownership behavior explicit. */
+    uint32_t append_child_copy(const ExtrusionEntity &child);
+    uint32_t append_child_move(MutableExtrusionEntity child);
     bool remove_child(uint32_t idx) { return extrusion_remove_child(self().mutable_handle(), idx) != 0; }
 
     /*
@@ -1052,7 +1054,7 @@ public:
     */
     MutableExtrusionEntity emplace_child() {
         StoredExtrusionEntity child(storage());
-        const uint32_t idx = add_child(child.mutable_view());
+        const uint32_t idx = append_child_move(child.mutable_view());
         assert(!is_invalid_index(idx));
         return child_mutable(idx);
     }
@@ -1272,13 +1274,13 @@ inline uint32_t ExtrusionEntityMutableApi<Derived>::insert_child_copy(uint32_t i
 }
 
 template<class Derived>
-inline uint32_t ExtrusionEntityMutableApi<Derived>::add_child(const ExtrusionEntity &child)
+inline uint32_t ExtrusionEntityMutableApi<Derived>::append_child_copy(const ExtrusionEntity &child)
 {
     return insert_child_copy(self().child_count(), child);
 }
 
 template<class Derived>
-inline uint32_t ExtrusionEntityMutableApi<Derived>::add_child(MutableExtrusionEntity child)
+inline uint32_t ExtrusionEntityMutableApi<Derived>::append_child_move(MutableExtrusionEntity child)
 {
     return insert_child_move(self().child_count(), child);
 }

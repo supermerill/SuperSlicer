@@ -737,7 +737,7 @@ void replace_root_leaf_with_fragments(MutableExtrusionEntity root, std::vector<F
     root.clear_content();
     root.set_flags((was_reversible ? RAW_EXTRUSION_FLAG_REVERSIBLE : 0) | RAW_EXTRUSION_FLAG_CONTINUOUS);
     for (Fragment &fragment : fragments)
-        root.add_child(fragment.entity.mutable_view());
+        root.append_child_move(fragment.entity.mutable_view());
 }
 
 class DetectOverhangVisitor : public ExtrusionTreeVisitor<>
