@@ -554,6 +554,37 @@ Polygon ExtrusionLoop::polygon() const
     return polygon;
 }
 
+Polygon polygon(const ExtrusionEntity &entity)
+{
+    assert(entity.is_loop());
+
+    struct PolygonVisitor : ExtrusionTreeConstVisitor<false> {
+        Polygon polygon;
+
+        void visit_leaf(const ExtrusionEntity &leaf) override
+        {
+            const ArcPolyline *arc_polyline = leaf.polyline_or_null();
+            if (arc_polyline == nullptr || arc_polyline->empty())
+                return;
+
+            // The tree represents one continuous loop. Adjacent leaf polylines
+            // share an endpoint, so skip the first point of a leaf when it is
+            // already the last point copied from the previous leaf.
+            Polyline polyline = arc_polyline->to_polyline();
+            size_t first_point_idx = 0;
+            if (!polygon.points.empty() && !polyline.points.empty() && polygon.points.back() == polyline.points.front())
+                first_point_idx = 1;
+            if (first_point_idx < polyline.points.size())
+                polygon.points.insert(polygon.points.end(), polyline.points.begin() + first_point_idx, polyline.points.end());
+        }
+    } visitor;
+
+    visitor.traverse(entity);
+    if (!visitor.polygon.points.empty() && visitor.polygon.points.front() == visitor.polygon.points.back())
+        visitor.polygon.points.pop_back();
+    return visitor.polygon;
+}
+
 ArcPolyline ExtrusionLoop::as_polyline() const
 {
     ArcPolyline polyline;

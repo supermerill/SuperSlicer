@@ -322,6 +322,8 @@ enum ExtrusionLoopRole : uint16_t {
     elrVase = 1 << 4, // 16
     // it's a modifier that indicate that the loop does not contains an inner loop, used for random seam
     elrFirstLoop = 1 << 5, // 32
+    // don't put the seam here
+    elrNoSeam = 1 << 6, // 64
 };
 
 // Be careful when editing this list, you also have to add values to other lists like

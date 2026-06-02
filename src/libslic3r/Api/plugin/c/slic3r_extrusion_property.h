@@ -332,7 +332,9 @@ typedef enum c_extrusion_perimeter_flag {
     /* The loop should be emitted as a vase/spiralized loop. */
     C_EXTRUSION_PERIMETER_FLAG_VASE = 1u << 4,
     /* The loop has no inner loop, used by seam placement logic. */
-    C_EXTRUSION_PERIMETER_FLAG_FIRST_LOOP = 1u << 5
+    C_EXTRUSION_PERIMETER_FLAG_FIRST_LOOP = 1u << 5,
+    /* The loop shouldn't have any seam from here. */
+    C_EXTRUSION_PERIMETER_FLAG_NO_SEAM = 1u << 6
 } c_extrusion_perimeter_flag;
 
 /* Property type: EXTRUSION_PROPERTY_TYPE_PERIMETER. */

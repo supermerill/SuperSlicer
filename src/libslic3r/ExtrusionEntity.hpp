@@ -63,7 +63,7 @@ protected:
     bool    m_can_sort = false;
 
 public:
-    ExtrusionEntity(bool can_reverse)
+    explicit ExtrusionEntity(bool can_reverse)
         : m_id(++id_generator), m_can_reverse(can_reverse), m_content(std::monostate{}) {}
     ExtrusionEntity(bool can_reverse, const ArcPolyline &polyline)
         : m_id(++id_generator), m_can_reverse(can_reverse), m_content(polyline) {}
@@ -816,6 +816,8 @@ private:
             this->get_or_add_property<ExtrusionPropertyLoopRole>().set_perimeter_role(role);
     }
 };
+
+Polygon polygon(const ExtrusionEntity &entity);
 
 inline void extrusion_paths_append(ExtrusionPaths &dst, Polylines &polylines, const ExtrusionAttributes &attributes, bool can_reverse = true)
 {
