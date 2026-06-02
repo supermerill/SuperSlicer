@@ -387,28 +387,10 @@ std::vector<VolumeSlices> slice_volumes_inner(const run_ctx_slicing &ctx,
             if (layer_range == nullptr || !layer_range_has_volume(ctx, layer_range, volume.id()))
                 continue;
 
-            if (volume.is_model_part() && print_config.get("spiral_vase").get_bool()) {
-                const uint32_t volume_region_count = ctx.layer_range_volume_region_count(layer_range);
-                for (uint32_t idx = 0; idx < volume_region_count; ++idx) {
-                    const slicing_volume_region_handle *volume_region = ctx.layer_range_volume_region_at(layer_range, idx);
-                    const volume_handle *volume_h = ctx.volume_region_volume(volume_region);
-                    if (volume_h == nullptr || Volume(volume_h).id() != volume.id())
-                        continue;
-
-                    const int32_t region_idx = ctx.volume_region_layer_region_idx(volume_region);
-                    if (region_idx < 0 || uint32_t(region_idx) >= object.print_region_count())
-                        continue;
-
-                    const Config region_config = object.print_region(uint32_t(region_idx)).config();
-                    params.mode = RAW_MESH_SLICING_MODE_POSITIVE_LARGEST_CONTOUR;
-                    params.slicing_mode_normal_below_layer = uint32_t(region_config.get("bottom_solid_layers").get_int());
-                    const double bottom_solid_min_thickness = region_config.get("bottom_solid_min_thickness").get_float();
-                    for (; params.slicing_mode_normal_below_layer < slice_zs.size() &&
-                           slice_zs[params.slicing_mode_normal_below_layer] < bottom_solid_min_thickness - EPSILON;
-                         ++params.slicing_mode_normal_below_layer) {}
-                    break;
-                }
-            }
+            // Keep all model contours during slicing. Vase-mode cleanup is now
+            // a post-slicing plugin, where it can connect close islands with
+            // real bridge material before choosing which disconnected
+            // component must survive.
 
             by_layer = slice_volume(volume, slice_zs, params, storage);
         } else {

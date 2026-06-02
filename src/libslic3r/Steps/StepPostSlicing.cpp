@@ -53,11 +53,7 @@ bool has_significant_overlap(const ExPolygons &lhs, const ExPolygons &rhs, doubl
     return area_overlap > max_tolerated_overlap_area;
 }
 
-} // namespace
-
-void clean_and_prepare(Print &) {}
-
-bool validate_pre(const Print &print, std::string &out_error)
+bool validate_layers(const Print &print, std::string &out_error, const bool require_non_empty_region_slices)
 {
     bool ok = true;
 
@@ -108,7 +104,7 @@ bool validate_pre(const Print &print, std::string &out_error)
                 std::ostringstream region_prefix;
                 region_prefix << layer_prefix.str() << "region " << region_idx << ": ";
 
-                if (!has_non_empty_expolygon(region.get_raw_slices())) {
+                if (require_non_empty_region_slices && !has_non_empty_expolygon(region.get_raw_slices())) {
                     ok = false;
                     out_error += region_prefix.str() + "raw slices do not contain any non-empty ExPolygon";
                 }
@@ -144,10 +140,29 @@ bool validate_pre(const Print &print, std::string &out_error)
     return ok;
 }
 
+} // namespace
+
+void clean_and_prepare(Print &) {}
+
+bool validate_pre(const Print &print, std::string &out_error)
+{
+    // Before post-slicing plugins run, every LayerRegion created by slicing is
+    // expected to still carry raw geometry. An empty region at this point often
+    // means slicing failed to distribute model material correctly.
+    return validate_layers(print, out_error, true);
+}
+
 bool validate_post(const Print &print, std::string &error)
 {
-    return validate_pre(print, error);
+    // Post-slicing plugins may remove a whole region from a layer while keeping
+    // the layer itself valid. For example, a vase-mode cleanup plugin can keep
+    // only one disconnected component and leave the dropped component's region
+    // empty. Later steps rebuild LayerRegionIsland membership from the final
+    // raw slices, so this is valid after the plugins have run.
+    return validate_layers(print, error, false);
 }
+
+namespace {
 
 void attach_regions_to_islands(Print &print)
 {
@@ -179,6 +194,8 @@ void rebuild_island_overlap_graph(Print &print)
             Layer::build_up_down_graph(object.layer(layer_idx - 1), object.layer(layer_idx));
     }
 }
+
+} // namespace
 
 void run_step(Orchestrator &orchestrator, Print &print)
 {

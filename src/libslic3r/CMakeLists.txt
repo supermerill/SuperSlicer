@@ -154,6 +154,8 @@ set(SLIC3R_SOURCES
 	Plugins/Infill/PostInfillGapFill.hpp
 	Plugins/MaxOverhangThreshold.cpp
 	Plugins/MaxOverhangThreshold.hpp
+	Plugins/VaseMultiIslandConnector.cpp
+	Plugins/VaseMultiIslandConnector.hpp
 	Plugins/Perimeter/ArachnePerimeterGenerator.cpp
 	Plugins/Perimeter/ArachnePerimeterGenerator.hpp
 	Plugins/Perimeter/ClassicPerimeterGenerator.cpp

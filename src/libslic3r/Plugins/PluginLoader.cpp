@@ -63,6 +63,7 @@
 #include "libslic3r/Plugins/Surface/SolidShells.hpp"
 #include "libslic3r/Plugins/Surface/TopSurfaceExpansion.hpp"
 #include "libslic3r/Plugins/Support/SupportDemandBridgeRemoval.hpp"
+#include "libslic3r/Plugins/VaseMultiIslandConnector.hpp"
 #include "libslic3r/Steps/StepPipeline.hpp"
 #include "libslic3r/Utils.hpp"
 
@@ -355,6 +356,8 @@ void register_builtin_plugins(orchestrator_handle *orchestrator)
         slic3r_api::SliceVolumePlugin::register_slice_volume_plugin);
     register_builtin_plugin(orchestrator, "max_overhang_threshold",
         slic3r_api::MaxOverhangThresholdPlugin::register_max_overhang_threshold_plugin);
+    register_builtin_plugin(orchestrator, "vase.multi_island_connector",
+        slic3r_api::VaseMultiIslandConnectorPlugin::register_vase_multi_island_connector_plugin);
     register_builtin_plugin(orchestrator, "infill.generator.default",
         slic3r_api::Infill::DefaultInfillGeneratorPlugin::register_default_infill_generator_plugin);
     register_builtin_plugin(orchestrator, "legacy_infill_patterns",
