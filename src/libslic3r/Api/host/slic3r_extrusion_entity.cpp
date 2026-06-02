@@ -107,8 +107,6 @@ uint32_t extrusion_flags(const extrusion_entity_handle *entity)
         flags |= RAW_EXTRUSION_FLAG_REVERSIBLE;
     if (extrusion.can_sort())
         flags |= RAW_EXTRUSION_FLAG_SORTABLE;
-    if (extrusion.is_continuous())
-        flags |= RAW_EXTRUSION_FLAG_CONTINUOUS;
     return flags;
 }
 
@@ -119,17 +117,18 @@ int32_t extrusion_set_flags(extrusion_entity_handle *entity, uint32_t flags)
 
     const bool reversible = (flags & RAW_EXTRUSION_FLAG_REVERSIBLE) != 0;
     const bool sortable = (flags & RAW_EXTRUSION_FLAG_SORTABLE) != 0;
-    const bool continuous = (flags & RAW_EXTRUSION_FLAG_CONTINUOUS) != 0;
-    if (sortable && continuous)
-        return 0;
 
     Slic3r::ExtrusionEntity *extrusion = Slic3r::to_extrusion(entity);
     if (sortable && extrusion->has_polyline())
         return 0;
 
-    extrusion->set_continuous(continuous);
     extrusion->set_can_sort_reverse(sortable, reversible);
     return 1;
+}
+
+int32_t extrusion_is_continuous(const extrusion_entity_handle *entity)
+{
+    return entity != nullptr && Slic3r::to_extrusion(entity)->is_continuous();
 }
 
 int32_t extrusion_has_polyline(const extrusion_entity_handle *entity)

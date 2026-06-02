@@ -9,6 +9,7 @@ add_executable(${_TEST_NAME}_tests
     perimeter_test_helpers.cpp
     plugin_test_helpers.cpp
     test_clipper_views.cpp
+    test_extrusion_continuity.cpp
     test_plugin_property.cpp
     test_flat_area_layer_height.cpp
     test_perimeter_empty_steps.cpp
@@ -63,6 +64,8 @@ if (TARGET python_plugin_loader)
             "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python"
         COMMAND "${CMAKE_COMMAND}" -E rm -f
             "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python/plugins/default_surface_generator.py"
+        COMMAND "${CMAKE_COMMAND}" -E rm -f
+            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python/plugins/simple_perimeter_generator2.py"
         COMMAND "${CMAKE_COMMAND}" -E rm -f
             "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/Slic3r.dll"
         COMMENT "Copy Python plugin runtime to plugin tests"

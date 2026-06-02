@@ -298,7 +298,7 @@ void mutate_post_infill_outputs(RecordingPluginState &state, const plugin_run_co
                     payload->get_region_island_mutable_extrusion(
                         destination_region_island, RAW_EXTRUSION_ROLE_INTERNAL_INFILL);
                 if (root != nullptr &&
-                    extrusion_set_flags(root, RAW_EXTRUSION_FLAG_CONTINUOUS) != 0)
+                    extrusion_set_flags(root, RAW_EXTRUSION_FLAG_REVERSIBLE) != 0)
                     state.saw_mutable_extrusion = true;
 
                 // Valid post-infill roles create an empty root when missing.

@@ -144,7 +144,7 @@ const ExtrusionEntity *single_child_group(const ExtrusionEntity &entity)
     const ExtrusionEntity *out = nullptr;
     for (size_t child_idx = 0; child_idx < entity.child_count(); ++child_idx) {
         const ExtrusionEntity &child = entity.child(child_idx);
-        if (child.is_collection() && child.get_property<ExtrusionPropertyLoopRole>() == nullptr) {
+        if (!child.is_leaf() && child.get_property<ExtrusionPropertyLoopRole>() == nullptr) {
             CHECK(out == nullptr);
             out = &child;
         }
@@ -167,7 +167,7 @@ void require_nested_node_structure(const ExtrusionEntity &node,
                                    const size_t loops_per_node)
 {
     INFO("checking published node level " << perimeter_idx);
-    REQUIRE(node.is_collection());
+    REQUIRE_FALSE(node.is_leaf());
     CHECK(direct_loop_child_count(node) == loops_per_node);
 
     const ExtrusionEntity *next_node = single_child_group(node);

@@ -735,7 +735,7 @@ void replace_root_leaf_with_fragments(MutableExtrusionEntity root, std::vector<F
     // does not revisit these freshly inserted children during the same pass.
     const bool was_reversible = (root.flags() & RAW_EXTRUSION_FLAG_REVERSIBLE) != 0;
     root.clear_content();
-    root.set_flags((was_reversible ? RAW_EXTRUSION_FLAG_REVERSIBLE : 0) | RAW_EXTRUSION_FLAG_CONTINUOUS);
+    root.set_flags(was_reversible ? RAW_EXTRUSION_FLAG_REVERSIBLE : 0);
     for (Fragment &fragment : fragments)
         root.append_child_move(fragment.entity.mutable_view());
 }

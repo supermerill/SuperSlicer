@@ -90,7 +90,6 @@ void ExtrusionEntity::set_polyline(const ArcPolyline &polyline)
 
     m_content = polyline;
     m_can_sort = false;
-    m_continuous = false;
 }
 
 void ExtrusionEntity::set_polyline(ArcPolyline &&polyline)
@@ -103,7 +102,6 @@ void ExtrusionEntity::set_polyline(ArcPolyline &&polyline)
 
     m_content = std::move(polyline);
     m_can_sort = false;
-    m_continuous = false;
 }
 
 const ExtrusionEntity::Children& ExtrusionEntity::children() const
@@ -156,7 +154,6 @@ ExtrusionEntity::Children& ExtrusionEntity::ensure_children()
 
     m_content = std::move(children);
     m_can_sort = true;
-    m_continuous = false;
     return std::get<Children>(m_content);
 }
 
@@ -198,19 +195,43 @@ void ExtrusionEntity::clear_content()
 {
     m_content = std::monostate();
     m_can_sort = false;
-    m_continuous = false;
+}
+
+bool ExtrusionEntity::is_continuous() const
+{
+    // A sortable node explicitly gives path planners permission to reorder its
+    // children. Such a node cannot be treated as a forced continuous sequence,
+    // even if the current child order happens to touch end-to-start.
+    if (m_can_sort)
+        return false;
+
+    if (this->is_leaf())
+        return true;
+
+    const ExtrusionEntity *previous_non_empty = nullptr;
+    for (const ExtrusionEntityUPtr &child : this->children()) {
+        assert(child);
+        if (child == nullptr || child->empty())
+            continue;
+        if (!child->is_continuous())
+            return false;
+        if (previous_non_empty != nullptr && previous_non_empty->last_point() != child->first_point())
+            return false;
+        previous_non_empty = child.get();
+    }
+    return true;
 }
 
 bool ExtrusionEntity::is_collection() const
 {
-    return !this->is_leaf() && !m_continuous && !this->is_loop();
+    return !this->is_leaf() && !this->is_continuous() && !this->is_loop();
 }
 
 bool ExtrusionEntity::is_loop() const
 {
     if (this->empty())
         return false;
-    return m_continuous && this->first_point() == this->last_point();
+    return this->is_continuous() && this->first_point() == this->last_point();
 }
 
 void ExtrusionEntity::set_can_sort_reverse(bool can_sort, bool can_reverse)

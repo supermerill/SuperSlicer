@@ -23,9 +23,9 @@ An extrusion entity is a tree node. It may contain:
     - one local polyline and no children;
     - children and no local polyline.
 
-Children are ordered. If an entity is marked continuous, the children are
-expected to form one continuous path. If an entity is marked sortable, the host
-may reorder its children during path planning.
+Children are ordered. If an entity is marked sortable, the host may reorder its
+children during path planning. Continuity is not a mutable flag: it is computed
+from the current tree order, the current child points, and the sortable flag.
 
 Use the polyline API to edit local points/segments. Use the property API to
 describe how an entity or its descendants should be interpreted.
@@ -42,12 +42,10 @@ Entity flags.
 
 REVERSIBLE means the entity may be reversed by algorithms that optimize travel.
 SORTABLE means the entity's children may be reordered. It is meaningful only for
-non-continuous child collections.
-CONTINUOUS means child order forms a single continuous extrusion path.
+child collections. A sortable entity is never reported as continuous.
 */
 #define RAW_EXTRUSION_FLAG_REVERSIBLE ((uint32_t)(1u << 0))
 #define RAW_EXTRUSION_FLAG_SORTABLE   ((uint32_t)(1u << 1))
-#define RAW_EXTRUSION_FLAG_CONTINUOUS ((uint32_t)(1u << 2))
 
 /* Create an empty extrusion entity owned by storage. Release it with storage_free(). */
 SLIC3R_HOST_API extrusion_entity_handle *extrusion_create_empty(storage_handle *storage);
@@ -79,10 +77,21 @@ SLIC3R_HOST_API uint32_t extrusion_flags(const extrusion_entity_handle *entity);
 /*
 Set mutable entity flags.
 
-The host may reject incoherent combinations, for example SORTABLE on a
-continuous entity. Returns non-zero on success.
+Only REVERSIBLE and SORTABLE are mutable. Continuity is computed by
+extrusion_is_continuous() and cannot be forced through flags. Returns non-zero
+on success.
 */
 SLIC3R_HOST_API int32_t extrusion_set_flags(extrusion_entity_handle *entity, uint32_t flags);
+
+/*
+Return non-zero if the entity is currently one continuous ordered path.
+
+An entity with SORTABLE set is never continuous, because path planners may
+reorder its children. Empty entities and leaf polylines are continuous by
+nature. Child collections are continuous only when every non-empty child is
+continuous and adjacent children touch end-to-start.
+*/
+SLIC3R_HOST_API int32_t extrusion_is_continuous(const extrusion_entity_handle *entity);
 
 /* Return non-zero if the entity has a local polyline. */
 SLIC3R_HOST_API int32_t extrusion_has_polyline(const extrusion_entity_handle *entity);

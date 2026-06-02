@@ -85,7 +85,6 @@ from slic3r_api_generated import (
     MEDIAL_AXIS_EXTRUSION_CONSTANT_WIDTH,
     MEDIAL_AXIS_EXTRUSION_KEEP_EMPTY_ROOT,
     MEDIAL_AXIS_EXTRUSION_TRIM_THIN_ENDPOINTS,
-    RAW_EXTRUSION_FLAG_CONTINUOUS,
     RAW_EXTRUSION_FLAG_REVERSIBLE,
     RAW_EXTRUSION_FLAG_SORTABLE,
     RAW_EXTRUSION_ROLE_GAP_FILL,
@@ -485,7 +484,12 @@ class ExtrusionEntityReadMixin:
         return (self.flags() & RAW_EXTRUSION_FLAG_SORTABLE) != 0
 
     def continuous(self) -> bool:
-        return (self.flags() & RAW_EXTRUSION_FLAG_CONTINUOUS) != 0
+        """Return True when current children form one ordered path.
+
+        Continuity is computed by the host. Python plugins cannot force it with
+        a flag; build children in order and disable sorting instead.
+        """
+        return bool(self.api.host.extrusion_is_continuous(self.c_handle()))
 
     def is_leaf(self) -> bool:
         return not bool(self.api.host.extrusion_has_children(self.c_handle()))
@@ -583,12 +587,6 @@ class ExtrusionEntityMutableMixin:
 
     def disable_sort(self):
         return self.set_sortable(False)
-
-    def set_continuous(self, enabled: bool = True):
-        flags = self.flags()
-        flags = (flags | RAW_EXTRUSION_FLAG_CONTINUOUS) & ~RAW_EXTRUSION_FLAG_SORTABLE if enabled else flags & ~RAW_EXTRUSION_FLAG_CONTINUOUS
-        self.set_flags(flags)
-        return self
 
     def clear_content(self) -> bool:
         return bool(self.api.host.extrusion_clear_content(self.mutable_c_handle()))
@@ -907,7 +905,6 @@ __all__ = [
     "MEDIAL_AXIS_EXTRUSION_TRIM_THIN_ENDPOINTS",
     "MedialAxisExtrusionFactory",
     "MutableExtrusionEntity",
-    "RAW_EXTRUSION_FLAG_CONTINUOUS",
     "RAW_EXTRUSION_FLAG_REVERSIBLE",
     "RAW_EXTRUSION_FLAG_SORTABLE",
     "StoredExtrusionEntity",

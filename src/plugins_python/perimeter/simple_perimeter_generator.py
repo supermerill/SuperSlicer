@@ -20,7 +20,6 @@ from slic3r_api import (
     EPropertyAttributes,
     EPropertyPerimeter,
     PluginBase,
-    RAW_EXTRUSION_FLAG_CONTINUOUS,
     RAW_EXTRUSION_FLAG_REVERSIBLE,
     RAW_EXTRUSION_ROLE_EXTERNAL_PERIMETER,
     STEP_PERIMETER,
@@ -64,7 +63,7 @@ def _append_perimeter_loop(dst: StoredExtrusionEntity, polygon, flow: CFlow, per
     attributes.height = float(unscaled(flow.height))
 
     loop = StoredExtrusionEntity(dst.api, dst.storage())
-    loop.set_flags(RAW_EXTRUSION_FLAG_CONTINUOUS | RAW_EXTRUSION_FLAG_REVERSIBLE)
+    loop.set_flags(RAW_EXTRUSION_FLAG_REVERSIBLE)
     perimeter = loop.property(EPropertyPerimeter)
     perimeter.perimeter_idx = int(min(max(perimeter_idx, 0), 0xFFFF))
     perimeter.loop_role = int(loop_role)

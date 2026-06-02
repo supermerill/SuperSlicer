@@ -274,7 +274,6 @@ def _build_hair_group(api, storage: int, hairs, settings: HairSettings):
 def _make_root_append_only(api, storage: int, root) -> None:
     if root.empty():
         root.disable_sort()
-        root.set_continuous(False)
         return
 
     must_wrap_existing_content = root.has_polyline() or root.sortable() or root.continuous()
@@ -283,13 +282,11 @@ def _make_root_append_only(api, storage: int, root) -> None:
         try:
             root.clear_content()
             root.disable_sort()
-            root.set_continuous(False)
             root.add_child_move(existing)
         finally:
             existing.free_from_storage()
     else:
         root.disable_sort()
-        root.set_continuous(False)
 
 
 class HairyObjectPlugin(PluginBase):

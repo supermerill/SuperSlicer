@@ -61,7 +61,6 @@ protected:
     bool m_can_reverse; //TODO: use (int64_t) m_id sign to embed this property, currently not an issue as 32+8 <= 64
     Content m_content;
     bool    m_can_sort = false;
-    bool    m_continuous = false;
 
 public:
     ExtrusionEntity(bool can_reverse)
@@ -71,7 +70,7 @@ public:
     ExtrusionEntity(bool can_reverse, ArcPolyline &&polyline)
         : m_id(++id_generator), m_can_reverse(can_reverse), m_content(std::move(polyline)) {}
     ExtrusionEntity(Children &&children, bool can_sort, bool can_reverse, bool continuous)
-        : m_id(++id_generator), m_can_reverse(can_reverse), m_content(std::move(children)), m_can_sort(can_sort), m_continuous(continuous) {}
+        : m_id(++id_generator), m_can_reverse(can_reverse), m_content(std::move(children)), m_can_sort(can_sort) { (void) continuous; }
     ExtrusionEntity(ExtrusionPropertyUPtr &&eprop, bool can_reverse)
         : ExtrusionPropertyContainer(std::move(eprop)), m_id(++id_generator), m_can_reverse(can_reverse) {}
     ExtrusionEntity(ExtrusionPropertyUPtrs &&eprops, bool can_reverse)
@@ -81,22 +80,19 @@ public:
         , m_id(rhs.m_id)
         , m_can_reverse(rhs.m_can_reverse)
         , m_content(clone_content(rhs.m_content))
-        , m_can_sort(rhs.m_can_sort)
-        , m_continuous(rhs.m_continuous) {}
+        , m_can_sort(rhs.m_can_sort) {}
     ExtrusionEntity(ExtrusionEntity &&rhs)
         : ExtrusionPropertyContainer(std::move(rhs))
         , m_id(rhs.m_id)
         , m_can_reverse(rhs.m_can_reverse)
         , m_content(std::move(rhs.m_content))
-        , m_can_sort(rhs.m_can_sort)
-        , m_continuous(rhs.m_continuous) {}
+        , m_can_sort(rhs.m_can_sort) {}
     
     ExtrusionEntity &operator=(const ExtrusionEntity &rhs) {
         this->m_id = rhs.m_id;
         this->m_can_reverse = rhs.m_can_reverse;
         this->m_content = clone_content(rhs.m_content);
         this->m_can_sort = rhs.m_can_sort;
-        this->m_continuous = rhs.m_continuous;
         ExtrusionPropertyContainer::operator=(rhs);
         return *this;
     }
@@ -105,7 +101,6 @@ public:
         this->m_can_reverse = rhs.m_can_reverse;
         this->m_content = std::move(rhs.m_content);
         this->m_can_sort = rhs.m_can_sort;
-        this->m_continuous = rhs.m_continuous;
         ExtrusionPropertyContainer::operator=(std::move(rhs));
         return *this;
     }
@@ -119,8 +114,7 @@ public:
     bool has_polyline() const;
     bool is_leaf() const;
     bool is_nop() const;
-    bool is_continuous() const { return m_continuous; }
-    void set_continuous(bool continuous) { m_continuous = continuous; if (continuous) m_can_sort = false; }
+    bool is_continuous() const;
 
     const ArcPolyline* polyline_or_null() const;
     ArcPolyline* polyline_or_null();

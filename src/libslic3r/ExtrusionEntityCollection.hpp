@@ -69,7 +69,7 @@ public:
     //ExtrusionEntitiesPtr::iterator          begin()        { return this->entities.begin(); }
     //ExtrusionEntitiesPtr::iterator          end()          { return this->entities.end(); }
 
-    bool is_collection() const override { return true; }
+    bool is_collection() const override { return ExtrusionEntity::is_collection(); }
     ExtrusionRole role() const override;
     bool has_role(ExtrusionRole test_role) const override;
     void set_can_sort_reverse(bool can_sort, bool can_reverse) { ExtrusionEntity::set_can_sort_reverse(can_sort, can_reverse); }

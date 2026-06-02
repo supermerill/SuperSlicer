@@ -679,11 +679,11 @@ public:
     Flags describe how path-planning code may transform this node:
         reversible: the whole entity may be reversed;
         sortable: children may be reordered;
-        continuous: children are already one ordered continuous path.
+        continuous: computed from the current child order and points.
     */
     bool reversible() const { return (flags() & RAW_EXTRUSION_FLAG_REVERSIBLE) != 0; }
     bool sortable() const { return (flags() & RAW_EXTRUSION_FLAG_SORTABLE) != 0; }
-    bool continuous() const { return (flags() & RAW_EXTRUSION_FLAG_CONTINUOUS) != 0; }
+    bool continuous() const { return extrusion_is_continuous(self().handle()) != 0; }
     bool is_leaf() const { return extrusion_has_children(self().handle()) == 0; }
     uint32_t child_count() const { return extrusion_child_count(self().handle()); }
 
@@ -854,20 +854,6 @@ public:
         return self();
     }
     Derived &disable_sort() { return sortable(false); }
-
-    /*
-    Mark children as one forced continuous path. A continuous entity is not
-    sortable because reordering would break the intended path sequence.
-    */
-    Derived &continuous(bool enabled = true) {
-        const uint32_t new_flags = enabled ?
-            ((self().flags() | RAW_EXTRUSION_FLAG_CONTINUOUS) & ~RAW_EXTRUSION_FLAG_SORTABLE) :
-            (self().flags() & ~RAW_EXTRUSION_FLAG_CONTINUOUS);
-        const bool ok = set_flags(new_flags);
-        assert(ok);
-        (void) ok;
-        return self();
-    }
 
     /* Remove local polyline and children. Properties and flags stay attached. */
     bool clear_content() { return extrusion_clear_content(self().mutable_handle()) != 0; }
