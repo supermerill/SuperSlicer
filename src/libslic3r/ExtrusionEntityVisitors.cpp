@@ -57,6 +57,217 @@ void ExtrusionPrinter::begin_entity()
     }
 }
 
+void ExtrusionPrinter::begin_property(bool &first_property, const char *name)
+{
+    if (!first_property)
+        ss << ",";
+    first_property = false;
+    ss << (json ? "\"" : "") << name << (json ? "\":{" : "={");
+}
+
+void ExtrusionPrinter::begin_property_field(bool &first_field, const char *name)
+{
+    if (!first_field)
+        ss << ",";
+    first_field = false;
+    ss << (json ? "\"" : "") << name << (json ? "\":" : "=");
+}
+
+void ExtrusionPrinter::print_bool_value(bool value)
+{
+    ss << (value ? "true" : "false");
+}
+
+void ExtrusionPrinter::print_string_value(const std::string &value)
+{
+    if (!json) {
+        ss << value;
+        return;
+    }
+
+    ss << "\"";
+    for (const char c : value) {
+        if (c == '\\' || c == '"')
+            ss << "\\" << c;
+        else if (c == '\n')
+            ss << "\\n";
+        else if (c == '\r')
+            ss << "\\r";
+        else if (c == '\t')
+            ss << "\\t";
+        else
+            ss << c;
+    }
+    ss << "\"";
+}
+
+bool ExtrusionPrinter::print_properties(const ExtrusionEntity &entity, const char *prefix, const char *suffix)
+{
+    const bool has_known_property =
+        entity.get_property<ExtrusionAttributes>() != nullptr ||
+        entity.get_property<ExtrusionPropertySpeed>() != nullptr ||
+        entity.get_property<ExtrusionPropertyModifier>() != nullptr ||
+        entity.get_property<ExtrusionPropertyCustomGcode>() != nullptr ||
+        entity.get_property<ExtrusionPropertySpecialCommand>() != nullptr ||
+        entity.get_property<ExtrusionPropertyOverhang>() != nullptr ||
+        entity.get_property<ExtrusionPropertyZOffset>() != nullptr ||
+        entity.get_property<ExtrusionPropertyLoopRole>() != nullptr ||
+        entity.get_property<ExtrusionPropertyInfill>() != nullptr;
+    if (!has_known_property)
+        return false;
+
+    // The debug printer can only decode built-in property payloads. Plugin
+    // properties may use arbitrary byte layouts, so they stay hidden here unless
+    // a dedicated decoder is added for their type.
+    //ss << prefix << (json ? "\"properties\":{" : "properties={");
+    bool first_property = false;
+
+    if (const ExtrusionAttributes *property = entity.get_property<ExtrusionAttributes>()) {
+        bool first_field = true;
+        this->begin_property(first_property, "attributes");
+        this->begin_property_field(first_field, "role");
+        this->print_string_value(role_to_code(property->extrusion_role()));
+        this->begin_property_field(first_field, "mm3_per_mm");
+        ss << property->mm3_per_mm;
+        this->begin_property_field(first_field, "width");
+        ss << property->width;
+        this->begin_property_field(first_field, "height");
+        ss << property->height;
+        this->begin_property_field(first_field, "no_seam");
+        this->print_bool_value(property->no_seam != 0);
+        ss << "}";
+    }
+
+    if (const ExtrusionPropertySpeed *property = entity.get_property<ExtrusionPropertySpeed>()) {
+        bool first_field = true;
+        this->begin_property(first_property, "speed");
+        this->begin_property_field(first_field, "speed_mm_per_s");
+        ss << property->speed_mm_per_s;
+        this->begin_property_field(first_field, "accel_mm_per_s2");
+        ss << property->accel_mm_per_s2;
+        this->begin_property_field(first_field, "pressure_adv");
+        ss << property->pressure_adv;
+        this->begin_property_field(first_field, "fan_speed_percent");
+        ss << property->fan_speed_percent;
+        this->begin_property_field(first_field, "temperature_C");
+        ss << property->temperature_C;
+        ss << "}";
+    }
+
+    if (const ExtrusionPropertyModifier *property = entity.get_property<ExtrusionPropertyModifier>()) {
+        bool first_field = true;
+        this->begin_property(first_property, "modifier");
+        this->begin_property_field(first_field, "enforce_travel");
+        this->print_bool_value(property->enforce_travel != 0);
+        this->begin_property_field(first_field, "enforce_retraction");
+        this->print_bool_value(property->enforce_retraction != 0);
+        this->begin_property_field(first_field, "enforce_unlift");
+        this->print_bool_value(property->enforce_unlift != 0);
+        this->begin_property_field(first_field, "disable_retraction");
+        this->print_bool_value(property->disable_retraction != 0);
+        this->begin_property_field(first_field, "disable_lift");
+        this->print_bool_value(property->disable_lift != 0);
+        this->begin_property_field(first_field, "toolchange_retraction");
+        this->print_bool_value(property->toolchange_retraction != 0);
+        ss << "}";
+    }
+
+    if (const ExtrusionPropertyCustomGcode *property = entity.get_property<ExtrusionPropertyCustomGcode>()) {
+        bool first_field = true;
+        this->begin_property(first_property, "custom_gcode");
+        this->begin_property_field(first_field, "kind");
+        this->print_string_value(property->kind == C_EXTRUSION_CUSTOM_GCODE_COMMENT ? "comment" : "gcode");
+        this->begin_property_field(first_field, "text_id");
+        ss << property->text_id;
+        const std::string text = entity.custom_gcode_string(*property);
+        if (!text.empty()) {
+            this->begin_property_field(first_field, "text");
+            this->print_string_value(text);
+        }
+        ss << "}";
+    }
+
+    if (const ExtrusionPropertySpecialCommand *property = entity.get_property<ExtrusionPropertySpecialCommand>()) {
+        const char *command_name = "unknown";
+        switch (property->command_code()) {
+        case ExtrusionPropertySpecialCommand::Code::TOOLCHANGE: command_name = "toolchange"; break;
+        case ExtrusionPropertySpecialCommand::Code::SAVE_AND_RESET_SPEED_RATIO: command_name = "save_and_reset_speed_ratio"; break;
+        case ExtrusionPropertySpecialCommand::Code::RESTORE_SPEED_RATIO: command_name = "restore_speed_ratio"; break;
+        case ExtrusionPropertySpecialCommand::Code::FLUSH_PLANNER_QUEUE: command_name = "flush_planner_queue"; break;
+        case ExtrusionPropertySpecialCommand::Code::EXTRUSION: command_name = "extrusion"; break;
+        case ExtrusionPropertySpecialCommand::Code::RETRACT: command_name = "retract"; break;
+        case ExtrusionPropertySpecialCommand::Code::PAUSE: command_name = "pause"; break;
+        case ExtrusionPropertySpecialCommand::Code::WAIT_FOR_TEMP: command_name = "wait_for_temp"; break;
+        case ExtrusionPropertySpecialCommand::Code::DISABLE_PREVIEW: command_name = "disable_preview"; break;
+        case ExtrusionPropertySpecialCommand::Code::ENABLE_PREVIEW: command_name = "enable_preview"; break;
+        case ExtrusionPropertySpecialCommand::Code::EXTRUDER_CURRENT: command_name = "extruder_current"; break;
+        }
+
+        bool first_field = true;
+        this->begin_property(first_property, "special_command");
+        this->begin_property_field(first_field, "code");
+        this->print_string_value(command_name);
+        this->begin_property_field(first_field, "extra_data");
+        ss << property->extra_data;
+        ss << "}";
+    }
+
+    if (const ExtrusionPropertyOverhang *property = entity.get_property<ExtrusionPropertyOverhang>()) {
+        bool first_field = true;
+        this->begin_property(first_property, "overhang");
+        this->begin_property_field(first_field, "start_distance_from_prev_layer");
+        ss << property->start_distance_from_prev_layer;
+        this->begin_property_field(first_field, "end_distance_from_prev_layer");
+        ss << property->end_distance_from_prev_layer;
+        this->begin_property_field(first_field, "proximity_to_curled_lines");
+        ss << property->proximity_to_curled_lines;
+        this->begin_property_field(first_field, "has_full_overhangs_flow");
+        this->print_bool_value(property->has_full_overhangs_flow != 0);
+        this->begin_property_field(first_field, "has_full_overhangs_speed");
+        this->print_bool_value(property->has_full_overhangs_speed != 0);
+        this->begin_property_field(first_field, "has_dynamic_overhangs_flow");
+        this->print_bool_value(property->has_dynamic_overhangs_flow != 0);
+        this->begin_property_field(first_field, "has_dynamic_overhangs_speed");
+        this->print_bool_value(property->has_dynamic_overhangs_speed != 0);
+        ss << "}";
+    }
+
+    if (const ExtrusionPropertyZOffset *property = entity.get_property<ExtrusionPropertyZOffset>()) {
+        bool first_field = true;
+        this->begin_property(first_property, "z_offset");
+        this->begin_property_field(first_field, "z_offset");
+        ss << property->z_offset;
+        ss << "}";
+    }
+
+    if (const ExtrusionPropertyLoopRole *property = entity.get_property<ExtrusionPropertyLoopRole>()) {
+        bool first_field = true;
+        this->begin_property(first_property, "perimeter");
+        this->begin_property_field(first_field, "perimeter_idx");
+        ss << property->perimeter_idx;
+        this->begin_property_field(first_field, "flags");
+        ss << property->perimeter_flags;
+        this->begin_property_field(first_field, "flags_text");
+        this->print_string_value(looprole_to_code(ExtrusionLoopRole(property->perimeter_flags)));
+        ss << "}";
+    }
+
+    if (const ExtrusionPropertyInfill *property = entity.get_property<ExtrusionPropertyInfill>()) {
+        bool first_field = true;
+        this->begin_property(first_property, "infill");
+        this->begin_property_field(first_field, "source_surface_id");
+        ss << property->source_surface_id;
+        ss << "}";
+    }
+
+    ss << suffix;
+    return true;
+}
+
+void ExtrusionPrinter::print_equals() {
+    ss << (json ? ":" : "=");
+}
+
 void ExtrusionPrinter::print_leaf(const ExtrusionEntity &entity)
 {
     const ArcPolyline *polyline = entity.polyline_or_null();
@@ -65,7 +276,20 @@ void ExtrusionPrinter::print_leaf(const ExtrusionEntity &entity)
 
     this->begin_entity();
     const bool has_z_profile = polyline->has_z_offset();
-    ss << (json?"\"":"") << "ExtrusionPath" << (has_z_profile ? "3D" : "") << (entity.can_reverse()?"":"Oriented") << (json?"_":":") << role_to_code(entity.role()) << (json?"\":":"") << "[";
+    if (has_z_profile) {
+        ss << ",";
+        print_string_value("is_3D");
+        print_equals();
+        print_bool_value(true);
+    }
+    if (json) {
+        ss << ",";
+        print_string_value("points");
+        print_equals();
+        ss << "[";
+    } else {
+        ss << "[";
+    }
     for (int i = 0; i < polyline->size(); i++) {
         if (i != 0)
             ss << ",";
@@ -83,18 +307,52 @@ void ExtrusionPrinter::print_leaf(const ExtrusionEntity &entity)
 
 void ExtrusionPrinter::enter_node(const ExtrusionEntity &entity)
 {
-    this->begin_entity();
-    if (entity.is_loop()) {
-        const ExtrusionPropertyLoopRole *loop_role_property = entity.get_property<ExtrusionPropertyLoopRole>();
-        ExtrusionLoopRole loop_role = loop_role_property == nullptr ? elrDefault : loop_role_property->perimeter_role();
-        ss << (json?"\"":"") << "ExtrusionLoop" << (json?"_":":") << role_to_code(entity.role())<<"_" << looprole_to_code(loop_role) << (json?"\":":"") << "{";
-        if(!entity.can_reverse()) ss << (json?"\"":"") << "oriented" << (json?"\":":"=") << "true,";
-    } else if (entity.is_continuous()) {
-        ss << (json?"\"":"") << "ExtrusionMultiPath" << (entity.can_reverse()?"":"Oriented") << (json?"_":":") << role_to_code(entity.role()) << (json?"\":":"") << "{";
+    if (!m_first_child_stack.empty()) {
+        if (m_first_child_stack.back()) {
+            m_first_child_stack.back() = false;
+        } else {
+            ss << ",";
+        }
+    }
+    ss << "{";
+    print_string_value("type");
+    print_equals();
+    //this->begin_entity();
+    if (entity.child_count() > 0 && entity.is_loop()) {
+        print_string_value("loop");
+    } else if (entity.child_count() > 0 && entity.is_continuous()) {
+        print_string_value("multipath");
+    } else if (entity.child_count() > 0) {
+        print_string_value("collection");
+    } else if (entity.is_nop()) {
+        print_string_value("nop");
+    } else if (entity.is_leaf()) {
+        print_string_value("path");
     } else {
-        ss << (json?"\"":"") << "ExtrusionEntityCollection" << (json?"_":":") << role_to_code(entity.role()) << (json?"\":":"") << "{";
-        if(!entity.can_sort()) ss << (json?"\"":"") << "no_sort" << (json?"\":":"=") << "true,";
-        if(!entity.can_reverse()) ss << (json?"\"":"") << "oriented" << (json?"\":":"=") << "true,";
+        print_string_value("error");
+    }
+    if (!entity.can_sort()) {
+        ss << ",";
+        print_string_value("no_sort");
+        print_equals();
+        print_bool_value(true);
+    }
+    if (!entity.can_reverse()) {
+        ss << ",";
+        print_string_value("oriented");
+        print_equals();
+        print_bool_value(true);
+    }
+    if (json) {
+        this->print_properties(entity, "", "");
+    } else {
+        this->print_properties(entity, " ");
+    }
+    if (entity.child_count() > 0) {
+        ss << ",";
+        print_string_value("childs");
+        print_equals();
+        ss << "[";
     }
     m_first_child_stack.push_back(true);
 }
@@ -104,12 +362,32 @@ void ExtrusionPrinter::visit_leaf(const ExtrusionEntity &entity)
     this->print_leaf(entity);
 }
 
-void ExtrusionPrinter::leave_node(const ExtrusionEntity&)
+void ExtrusionPrinter::leave_node(const ExtrusionEntity& entity)
 {
+    if (entity.child_count() > 0) {
+        ss << "]";
+    }
     ss << "}";
     assert(!m_first_child_stack.empty());
     m_first_child_stack.pop_back();
 }
+
+#ifdef _DEBUG
+const char *debug_print(const ExtrusionEntity *entity)
+{
+    static std::string out;
+    if (entity != nullptr) {
+        ExtrusionPrinter printer(0.000001, 0, true);
+        printer.traverse(*entity);
+        out = "";
+        out += printer.str();
+        out+="";
+        return out.c_str();
+    } else {
+        return "";
+    }
+}
+#endif
 
 void ExtrusionLength::visit_leaf(const ExtrusionEntity &entity)
 {

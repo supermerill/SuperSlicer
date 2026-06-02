@@ -160,7 +160,7 @@ template<bool LeafIsNode = true>
 class ExtrusionTreeConstVisitor : public ExtrusionTreeVisitorBase<const ExtrusionEntity, LeafIsNode>
 {};
 
-class ExtrusionPrinter : public ExtrusionTreeConstVisitor<false> {
+class ExtrusionPrinter : public ExtrusionTreeConstVisitor<true> {
     std::stringstream ss;
     std::vector<bool> m_first_child_stack;
     double mult;
@@ -168,6 +168,15 @@ class ExtrusionPrinter : public ExtrusionTreeConstVisitor<false> {
     bool json;
     void begin_entity();
     void print_leaf(const ExtrusionEntity& entity);
+    // Print built-in properties stored directly on one entity. Custom plugin
+    // properties are skipped because this debug printer does not know their
+    // payload layout.
+    bool print_properties(const ExtrusionEntity& entity, const char *prefix = "", const char *suffix = "");
+    void begin_property(bool &first_property, const char *name);
+    void begin_property_field(bool &first_field, const char *name);
+    void print_bool_value(bool value);
+    void print_string_value(const std::string &value);
+    void print_equals();
 public:
     ExtrusionPrinter(double mult = 0.000001, int trunc = 0, bool json = false) : mult(mult), trunc(trunc), json(json) { }
     void enter_node(const ExtrusionEntity& entity) override;
