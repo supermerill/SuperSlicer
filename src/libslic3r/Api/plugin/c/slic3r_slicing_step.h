@@ -41,7 +41,7 @@ typedef enum slicing_step_t : uint16_t
     STEP_PERIMETER                 = 600,
     STEP_POST_PERIMETER            = 700,
     STEP_SURFACE_GENERATION        = 750,
-    STEP_SURFACE_TYPE              = 800,
+    STEP_SKIRT_BRIM                = 800,
     STEP_PRE_INFILL                = 900,
     STEP_INFILL_GROUP              = 950,
     STEP_INFILL                    = 1000,

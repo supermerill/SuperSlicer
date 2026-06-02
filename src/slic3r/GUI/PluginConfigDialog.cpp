@@ -100,7 +100,7 @@ wxString step_name(slicing_step_t step)
     case STEP_PERIMETER:            return "Perimeter generation";
     case STEP_POST_PERIMETER:       return "Post-process perimeters";
     case STEP_SURFACE_GENERATION:   return "Generate surfaces";
-    case STEP_SURFACE_TYPE:         return "Detect solid surfaces";
+    case STEP_SKIRT_BRIM:           return "Skirt and brim";
     case STEP_PRE_INFILL:           return "Prepare filling";
     case STEP_INFILL:               return "Fill surfaces";
     case STEP_POST_INFILL:          return "Post-process infill";

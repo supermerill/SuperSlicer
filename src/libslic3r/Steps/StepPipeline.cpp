@@ -15,7 +15,6 @@
 #include "libslic3r/PrintObject.hpp"
 #include "libslic3r/Slicing.hpp"
 #include "libslic3r/Steps/StepDetectSupportSpots.hpp"
-#include "libslic3r/Steps/StepDetectSurfaceType.hpp"
 #include "libslic3r/Steps/StepExtrusionEdition.hpp"
 #include "libslic3r/Steps/StepExtrusionOrdering.hpp"
 #include "libslic3r/Steps/StepExtrusionSimplification.hpp"
@@ -35,6 +34,7 @@
 #include "libslic3r/Steps/StepPrepareInfill.hpp"
 #include "libslic3r/Steps/StepSlicing.hpp"
 #include "libslic3r/Steps/StepRunner.hpp"
+#include "libslic3r/Steps/StepSkirtBrim.hpp"
 #include "libslic3r/Steps/StepSupportDemand.hpp"
 #include "libslic3r/Steps/StepSurfaceGeneration.hpp"
 #include "libslic3r/SurfaceCollection.hpp"
@@ -226,11 +226,11 @@ inline std::map<slicing_step_t, int> slicingstep_2_percent = {
     {STEP_PRE_PERIMETER, 20},
     {STEP_PERIMETER, 25},
     {STEP_POST_PERIMETER, 30},
-    {STEP_SURFACE_TYPE, 35},
     {STEP_PRE_INFILL, 40},
     {STEP_INFILL_GROUP, 45},
     {STEP_INFILL, 50},
     {STEP_POST_INFILL, 55},
+    {STEP_SKIRT_BRIM, 58},
     {STEP_SUPPORT_DEMAND, 60},
     {STEP_SUPPORT, 65},
     {STEP_PRE_GCODE, 70},
@@ -290,7 +290,7 @@ const std::map<slicing_step_t, StepExclusiveGroup> &get_exclusive_steps()
         {STEP_LAYER_HEIGHT,       make_exclusive_step_group(STEP_LAYER_HEIGHT,       "step_layer_height_plugin",       "Layer height plugin",       RAW_OPTION_CATEGORY_SLICING,   "Layer height step plugin")},
         {STEP_SLICING,            make_exclusive_step_group(STEP_SLICING,            "step_slicing_plugin",            "Slicing plugin",            RAW_OPTION_CATEGORY_SLICING,   "Slicing step plugin")},
         {STEP_PERIMETER,          make_exclusive_step_group(STEP_PERIMETER,          "step_perimeter_plugin",          "Perimeter plugin",          RAW_OPTION_CATEGORY_PERIMETER, "Perimeter step plugin")},
-        {STEP_SURFACE_TYPE,       make_exclusive_step_group(STEP_SURFACE_TYPE,       "step_surface_type_plugin",       "Surface type plugin",       RAW_OPTION_CATEGORY_SLICING,   "Surface type step plugin")},
+        {STEP_SKIRT_BRIM,         make_exclusive_step_group(STEP_SKIRT_BRIM,         "step_skirt_brim_plugin",         "Skirt and brim plugin",     RAW_OPTION_CATEGORY_OUTPUT,    "Skirt and brim step plugin")},
         {STEP_INFILL_GROUP,       make_exclusive_step_group(STEP_INFILL_GROUP,       "step_infill_group_plugin",       "Infill grouping plugin",    RAW_OPTION_CATEGORY_INFILL,    "Infill grouping step plugin")},
         {STEP_INFILL,             make_exclusive_step_group(STEP_INFILL,             "step_infill_plugin",             "Infill plugin",             RAW_OPTION_CATEGORY_INFILL,    "Infill step plugin")},
         {STEP_SUPPORT,            make_exclusive_step_group(STEP_SUPPORT,            "step_support_plugin",            "Support plugin",            RAW_OPTION_CATEGORY_SUPPORT,   "Support step plugin")},
@@ -518,11 +518,6 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
 #endif
     if (stop_after(STEP_SURFACE_GENERATION, until)) return;
 
-    begin_step(print, STEP_SURFACE_TYPE, L("Detecting surface types"), path);
-    StepDetectSurfaceType::clean_and_prepare(print);
-    StepDetectSurfaceType::run_step(orchestrator, print);
-    if (stop_after(STEP_SURFACE_TYPE, until)) return;
-
     begin_step(print, STEP_PRE_INFILL, L("Preparing infill"), path);
     StepPrepareInfill::clean_and_prepare(print);
     StepPrepareInfill::run_step(orchestrator, print);
@@ -545,6 +540,11 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
     StepPostInfillGeneration::run_step(orchestrator, print);
     mark_legacy_step_done(print, posIroning);
     if (stop_after(STEP_POST_INFILL, until)) return;
+
+    begin_step(print, STEP_SKIRT_BRIM, L("Generating skirt and brim"), path);
+    StepSkirtBrim::clean_and_prepare(print);
+    StepSkirtBrim::run_step(orchestrator, print);
+    if (stop_after(STEP_SKIRT_BRIM, until)) return;
 
     begin_step(print, STEP_SUPPORT_DEMAND, L("Detecting support demand"), path);
     StepSupportDemand::clean_and_prepare(print);

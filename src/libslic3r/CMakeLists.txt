@@ -123,7 +123,7 @@ set(SLIC3R_SOURCES
 	Api/plugin/c/steps/slic3r_step_support_demand.h
 	Api/plugin/c/steps/slic3r_step_support_spot.h
 	Api/plugin/c/steps/slic3r_step_surface_generation.h
-	Api/plugin/c/steps/slic3r_step_surface_type.h
+	Api/plugin/c/steps/slic3r_step_skirt_brim.h
 	Api/plugin/c/steps/slic3r_step_wipetower.h
 	Api/plugin/cpp/BridgeDetectorViews.hpp
 	Api/plugin/cpp/ClipperViews.hpp
@@ -212,8 +212,8 @@ set(SLIC3R_SOURCES
 	Steps/DebugPrintProcessComparator.hpp
 	Steps/StepDetectSupportSpots.cpp
 	Steps/StepDetectSupportSpots.hpp
-	Steps/StepDetectSurfaceType.cpp
-	Steps/StepDetectSurfaceType.hpp
+	Steps/StepSkirtBrim.cpp
+	Steps/StepSkirtBrim.hpp
 	Steps/StepExtrusionEdition.cpp
 	Steps/StepExtrusionEdition.hpp
 	Steps/StepExtrusionOrdering.cpp

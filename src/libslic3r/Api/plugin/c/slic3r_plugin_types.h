@@ -33,7 +33,7 @@
 #include "steps/slic3r_step_support_demand.h"
 #include "steps/slic3r_step_support_spot.h"
 #include "steps/slic3r_step_surface_generation.h"
-#include "steps/slic3r_step_surface_type.h"
+#include "steps/slic3r_step_skirt_brim.h"
 #include "steps/slic3r_step_wipetower.h"
 
 #define SLIC3R_PLUGIN_ABI_VERSION 20u
