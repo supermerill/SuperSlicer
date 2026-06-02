@@ -51,6 +51,7 @@
 #include <cassert>
 #include <cctype>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -59,6 +60,121 @@ LayerUPtrs new_layers(PrintObject *print_object, const std::vector<double> &obje
 }
 
 namespace Slic3r::Steps {
+
+const std::vector<slicing_step_t> &execution_order()
+{
+    static const std::vector<slicing_step_t> steps {
+        STEP_LAYER_HEIGHT,
+        STEP_SLICING,
+        STEP_POST_SLICING,
+        STEP_PRE_PERIMETER,
+        STEP_PERIMETER,
+        STEP_POST_PERIMETER,
+        STEP_SURFACE_GENERATION,
+        STEP_PRE_INFILL,
+        STEP_INFILL_GROUP,
+        STEP_INFILL,
+        STEP_POST_INFILL,
+        STEP_SKIRT_BRIM,
+        STEP_SUPPORT_DEMAND,
+        STEP_SUPPORT,
+        STEP_PRE_GCODE,
+        STEP_ORDERING,
+        STEP_WIPETOWER,
+        STEP_SUPPORT_SPOT,
+        STEP_LAYER_EXTRUSION_EDIT,
+        STEP_LAYER_STICHING,
+        STEP_EXTRUSION_EDIT,
+        STEP_EXTRUSION_SIMPLIFICATION,
+        STEP_GCODE,
+    };
+    return steps;
+}
+
+const std::map<slicing_step_t, std::vector<slicing_step_t>> &step_dependents()
+{
+    static const std::map<slicing_step_t, std::vector<slicing_step_t>> dependents {
+        {STEP_LAYER_HEIGHT, {STEP_SLICING}},
+        {STEP_SLICING, {STEP_POST_SLICING}},
+        {STEP_POST_SLICING, {STEP_PRE_PERIMETER, STEP_SKIRT_BRIM}},
+        {STEP_PRE_PERIMETER, {STEP_PERIMETER}},
+        {STEP_PERIMETER, {STEP_POST_PERIMETER}},
+        {STEP_POST_PERIMETER, {STEP_SURFACE_GENERATION}},
+        {STEP_SURFACE_GENERATION, {STEP_PRE_INFILL}},
+        {STEP_PRE_INFILL, {STEP_INFILL_GROUP}},
+        {STEP_INFILL_GROUP, {STEP_INFILL}},
+        {STEP_INFILL, {STEP_POST_INFILL}},
+        {STEP_POST_INFILL, {STEP_PRE_GCODE}},
+        {STEP_SKIRT_BRIM, {STEP_SUPPORT_DEMAND, STEP_PRE_GCODE}},
+        {STEP_SUPPORT_DEMAND, {STEP_SUPPORT}},
+        {STEP_SUPPORT, {STEP_PRE_GCODE}},
+        {STEP_PRE_GCODE, {STEP_ORDERING}},
+        {STEP_ORDERING, {STEP_WIPETOWER}},
+        {STEP_WIPETOWER, {STEP_SUPPORT_SPOT}},
+        {STEP_SUPPORT_SPOT, {STEP_LAYER_EXTRUSION_EDIT}},
+        {STEP_LAYER_EXTRUSION_EDIT, {STEP_LAYER_STICHING}},
+        {STEP_LAYER_STICHING, {STEP_EXTRUSION_EDIT}},
+        {STEP_EXTRUSION_EDIT, {STEP_EXTRUSION_SIMPLIFICATION}},
+        {STEP_EXTRUSION_SIMPLIFICATION, {STEP_GCODE}},
+    };
+    return dependents;
+}
+
+std::vector<slicing_step_t> dependent_steps_closure(slicing_step_t step)
+{
+    const std::map<slicing_step_t, std::vector<slicing_step_t>> &dependents = step_dependents();
+    std::set<slicing_step_t> visited;
+    std::vector<slicing_step_t> stack;
+
+    if (auto it = dependents.find(step); it != dependents.end())
+        stack.insert(stack.end(), it->second.begin(), it->second.end());
+
+    while (!stack.empty()) {
+        const slicing_step_t current = stack.back();
+        stack.pop_back();
+        if (!visited.insert(current).second)
+            continue;
+
+        if (auto it = dependents.find(current); it != dependents.end())
+            stack.insert(stack.end(), it->second.begin(), it->second.end());
+    }
+
+    std::vector<slicing_step_t> out;
+    out.reserve(visited.size());
+    for (slicing_step_t ordered_step : execution_order())
+        if (visited.find(ordered_step) != visited.end())
+            out.push_back(ordered_step);
+    return out;
+}
+
+#ifdef _DEBUG
+bool validate_execution_order_against_dependencies()
+{
+    std::map<slicing_step_t, size_t> order_index;
+    const std::vector<slicing_step_t> &order = execution_order();
+    for (size_t idx = 0; idx < order.size(); ++idx)
+        order_index.emplace(order[idx], idx);
+
+    for (const auto &[producer, consumers] : step_dependents()) {
+        const auto producer_it = order_index.find(producer);
+        assert(producer_it != order_index.end());
+        if (producer_it == order_index.end())
+            return false;
+
+        for (slicing_step_t consumer : consumers) {
+            const auto consumer_it = order_index.find(consumer);
+            assert(consumer_it != order_index.end());
+            if (consumer_it == order_index.end())
+                return false;
+            assert(producer_it->second < consumer_it->second);
+            if (producer_it->second >= consumer_it->second)
+                return false;
+        }
+    }
+    return true;
+}
+#endif
+
 namespace {
 
 std::string exclusive_group_ui_fragment(const std::string &key,
@@ -450,6 +566,16 @@ bool stop_after(slicing_step_t current, slicing_step_t until)
     return current == until;
 }
 
+template<class RunFn>
+void run_step_if_requested(Print &print, slicing_step_t step, RunFn &&run_fn)
+{
+    if (!print.should_execute_step(step))
+        return;
+
+    run_fn();
+    print.mark_step_executed(step);
+}
+
 void mark_legacy_step_done(Print &print, slicing_step_t step)
 {
     // The new plugin pipeline writes the same data that the legacy GUI expects,
@@ -463,23 +589,29 @@ void mark_legacy_step_done(Print &print, slicing_step_t step)
 
 void run_layer_height_generation(Orchestrator &orchestrator, Print &print, const std::string &path)
 {
-    begin_step(print, STEP_LAYER_HEIGHT, L("Creating the layer height"), path);
-    StepLayerHeightGeneration::clean_and_prepare(print);
-    StepLayerHeightGeneration::run_step(orchestrator, print);
+    run_step_if_requested(print, STEP_LAYER_HEIGHT, [&] {
+        begin_step(print, STEP_LAYER_HEIGHT, L("Creating the layer height"), path);
+        StepLayerHeightGeneration::clean_and_prepare(print);
+        StepLayerHeightGeneration::run_step(orchestrator, print);
+    });
 }
 
 void run_slicing(Orchestrator &orchestrator, Print &print, const std::string &path)
 {
-    begin_step(print, STEP_SLICING, L("StepSlicing"), path);
-    StepSlicing::run_step(orchestrator, print);
-    mark_legacy_step_done(print, posSlice);
+    run_step_if_requested(print, STEP_SLICING, [&] {
+        begin_step(print, STEP_SLICING, L("StepSlicing"), path);
+        StepSlicing::run_step(orchestrator, print);
+        mark_legacy_step_done(print, posSlice);
+    });
 }
 
 void run_post_slicing(Orchestrator &orchestrator, Print &print, const std::string &path)
 {
-    begin_step(print, STEP_POST_SLICING, L("Post-processing slices"), path);
-    StepPostSlicing::clean_and_prepare(print);
-    StepPostSlicing::run_step(orchestrator, print);
+    run_step_if_requested(print, STEP_POST_SLICING, [&] {
+        begin_step(print, STEP_POST_SLICING, L("Post-processing slices"), path);
+        StepPostSlicing::clean_and_prepare(print);
+        StepPostSlicing::run_step(orchestrator, print);
+    });
 }
 
 void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::string &path, slicing_step_t until = STEP_GCODE)
@@ -491,114 +623,152 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
     // G-code in the usual place.
     StepSupportDemand::State support_demand;
 
-    begin_step(print, STEP_PRE_PERIMETER, L("Preparing perimeters"), path);
-    StepPrepareForPeriemters::clean_and_prepare(print);
-    StepPrepareForPeriemters::run_step(orchestrator, print);
+    run_step_if_requested(print, STEP_PRE_PERIMETER, [&] {
+        begin_step(print, STEP_PRE_PERIMETER, L("Preparing perimeters"), path);
+        StepPrepareForPeriemters::clean_and_prepare(print);
+        StepPrepareForPeriemters::run_step(orchestrator, print);
+    });
     if (stop_after(STEP_PRE_PERIMETER, until)) return;
     
-    begin_step(print, STEP_PERIMETER, L("Generating perimeters"), path);
-    StepGeneratePerimeter::clean_and_prepare(print);
-    StepGeneratePerimeter::run_step(orchestrator, print);
-    mark_legacy_step_done(print, posPerimeters);
+    run_step_if_requested(print, STEP_PERIMETER, [&] {
+        begin_step(print, STEP_PERIMETER, L("Generating perimeters"), path);
+        StepGeneratePerimeter::clean_and_prepare(print);
+        StepGeneratePerimeter::run_step(orchestrator, print);
+        mark_legacy_step_done(print, posPerimeters);
+    });
     if (stop_after(STEP_PERIMETER, until)) return;
     
-    begin_step(print, STEP_POST_PERIMETER, L("Post-processing perimeters"), path);
-    StepPostPerimeterGeneration::clean_and_prepare(print);
-    StepPostPerimeterGeneration::run_step(orchestrator, print);
+    run_step_if_requested(print, STEP_POST_PERIMETER, [&] {
+        begin_step(print, STEP_POST_PERIMETER, L("Post-processing perimeters"), path);
+        StepPostPerimeterGeneration::clean_and_prepare(print);
+        StepPostPerimeterGeneration::run_step(orchestrator, print);
+    });
     if (stop_after(STEP_POST_PERIMETER, until)) return;
 
-    begin_step(print, STEP_SURFACE_GENERATION, L("Generating surfaces"), path);
-    StepSurfaceGeneration::clean_and_prepare(print);
+    run_step_if_requested(print, STEP_SURFACE_GENERATION, [&] {
+        begin_step(print, STEP_SURFACE_GENERATION, L("Generating surfaces"), path);
+        StepSurfaceGeneration::clean_and_prepare(print);
 #ifdef _DEBUG
-    Detail::validate_or_report(StepSurfaceGeneration::validate_pre, print, "Surface-generation pre-step validation");
+        Detail::validate_or_report(StepSurfaceGeneration::validate_pre, print, "Surface-generation pre-step validation");
 #endif
-    StepSurfaceGeneration::run_step(orchestrator, print);
+        StepSurfaceGeneration::run_step(orchestrator, print);
 #ifdef _DEBUG
-    Detail::validate_or_report(StepSurfaceGeneration::validate_post, print, "Surface-generation post-step validation");
+        Detail::validate_or_report(StepSurfaceGeneration::validate_post, print, "Surface-generation post-step validation");
 #endif
+    });
     if (stop_after(STEP_SURFACE_GENERATION, until)) return;
 
-    begin_step(print, STEP_PRE_INFILL, L("Preparing infill"), path);
-    StepPrepareInfill::clean_and_prepare(print);
-    StepPrepareInfill::run_step(orchestrator, print);
-    mark_legacy_step_done(print, posPrepareInfill);
+    run_step_if_requested(print, STEP_PRE_INFILL, [&] {
+        begin_step(print, STEP_PRE_INFILL, L("Preparing infill"), path);
+        StepPrepareInfill::clean_and_prepare(print);
+        StepPrepareInfill::run_step(orchestrator, print);
+        mark_legacy_step_done(print, posPrepareInfill);
+    });
     if (stop_after(STEP_PRE_INFILL, until)) return;
 
-    begin_step(print, STEP_INFILL_GROUP, L("Grouping infill regions"), path);
-    StepGroupInfillRegions::clean_and_prepare(print);
-    StepGroupInfillRegions::run_step(orchestrator, print);
+    run_step_if_requested(print, STEP_INFILL_GROUP, [&] {
+        begin_step(print, STEP_INFILL_GROUP, L("Grouping infill regions"), path);
+        StepGroupInfillRegions::clean_and_prepare(print);
+        StepGroupInfillRegions::run_step(orchestrator, print);
+    });
     if (stop_after(STEP_INFILL_GROUP, until)) return;
 
-    begin_step(print, STEP_INFILL, L("Generating infill"), path);
-    StepGenerateInfill::clean_and_prepare(print);
-    StepGenerateInfill::run_step(orchestrator, print);
-    mark_legacy_step_done(print, posInfill);
+    run_step_if_requested(print, STEP_INFILL, [&] {
+        begin_step(print, STEP_INFILL, L("Generating infill"), path);
+        StepGenerateInfill::clean_and_prepare(print);
+        StepGenerateInfill::run_step(orchestrator, print);
+        mark_legacy_step_done(print, posInfill);
+    });
     if (stop_after(STEP_INFILL, until)) return;
 
-    begin_step(print, STEP_POST_INFILL, L("Post-processing infill"), path);
-    StepPostInfillGeneration::clean_and_prepare(print);
-    StepPostInfillGeneration::run_step(orchestrator, print);
-    mark_legacy_step_done(print, posIroning);
+    run_step_if_requested(print, STEP_POST_INFILL, [&] {
+        begin_step(print, STEP_POST_INFILL, L("Post-processing infill"), path);
+        StepPostInfillGeneration::clean_and_prepare(print);
+        StepPostInfillGeneration::run_step(orchestrator, print);
+        mark_legacy_step_done(print, posIroning);
+    });
     if (stop_after(STEP_POST_INFILL, until)) return;
 
-    begin_step(print, STEP_SKIRT_BRIM, L("Generating skirt and brim"), path);
-    StepSkirtBrim::clean_and_prepare(print);
-    StepSkirtBrim::run_step(orchestrator, print);
+    run_step_if_requested(print, STEP_SKIRT_BRIM, [&] {
+        begin_step(print, STEP_SKIRT_BRIM, L("Generating skirt and brim"), path);
+        StepSkirtBrim::clean_and_prepare(print);
+        StepSkirtBrim::run_step(orchestrator, print);
+    });
     if (stop_after(STEP_SKIRT_BRIM, until)) return;
 
-    begin_step(print, STEP_SUPPORT_DEMAND, L("Detecting support demand"), path);
-    StepSupportDemand::clean_and_prepare(print);
-    StepSupportDemand::run_step(orchestrator, print, support_demand);
+    run_step_if_requested(print, STEP_SUPPORT_DEMAND, [&] {
+        begin_step(print, STEP_SUPPORT_DEMAND, L("Detecting support demand"), path);
+        StepSupportDemand::clean_and_prepare(print);
+        StepSupportDemand::run_step(orchestrator, print, support_demand);
+    });
     if (stop_after(STEP_SUPPORT_DEMAND, until)) return;
 
-    begin_step(print, STEP_SUPPORT, L("Generating support material"), path);
-    StepGenerateSupport::clean_and_prepare(print);
-    StepGenerateSupport::run_step(orchestrator, print, support_demand);
-    mark_legacy_step_done(print, posSupportMaterial);
+    run_step_if_requested(print, STEP_SUPPORT, [&] {
+        begin_step(print, STEP_SUPPORT, L("Generating support material"), path);
+        StepGenerateSupport::clean_and_prepare(print);
+        StepGenerateSupport::run_step(orchestrator, print, support_demand);
+        mark_legacy_step_done(print, posSupportMaterial);
+    });
     if (stop_after(STEP_SUPPORT, until)) return;
 
-    begin_step(print, STEP_PRE_GCODE, L("Preparing G-code"), path);
-    StepPrepareGcode::clean_and_prepare(print);
-    StepPrepareGcode::run_step(orchestrator, print);
+    run_step_if_requested(print, STEP_PRE_GCODE, [&] {
+        begin_step(print, STEP_PRE_GCODE, L("Preparing G-code"), path);
+        StepPrepareGcode::clean_and_prepare(print);
+        StepPrepareGcode::run_step(orchestrator, print);
+    });
     if (stop_after(STEP_PRE_GCODE, until)) return;
 
-    begin_step(print, STEP_ORDERING, L("Ordering extrusions"), path);
-    StepExtrusionOrdering::clean_and_prepare(print);
-    StepExtrusionOrdering::run_step(orchestrator, print);
+    run_step_if_requested(print, STEP_ORDERING, [&] {
+        begin_step(print, STEP_ORDERING, L("Ordering extrusions"), path);
+        StepExtrusionOrdering::clean_and_prepare(print);
+        StepExtrusionOrdering::run_step(orchestrator, print);
+    });
     if (stop_after(STEP_ORDERING, until)) return;
 
-    begin_step(print, STEP_WIPETOWER, L("Generating wipe tower"), path);
-    StepGenerateWipeTower::clean_and_prepare(print);
-    StepGenerateWipeTower::run_step(orchestrator, print);
+    run_step_if_requested(print, STEP_WIPETOWER, [&] {
+        begin_step(print, STEP_WIPETOWER, L("Generating wipe tower"), path);
+        StepGenerateWipeTower::clean_and_prepare(print);
+        StepGenerateWipeTower::run_step(orchestrator, print);
+    });
     if (stop_after(STEP_WIPETOWER, until)) return;
 
-    begin_step(print, STEP_SUPPORT_SPOT, L("Detecting support spots"), path);
-    StepDetectSupportSpots::clean_and_prepare(print);
-    StepDetectSupportSpots::run_step(orchestrator, print);
-    mark_legacy_step_done(print, posSupportSpotsSearch);
+    run_step_if_requested(print, STEP_SUPPORT_SPOT, [&] {
+        begin_step(print, STEP_SUPPORT_SPOT, L("Detecting support spots"), path);
+        StepDetectSupportSpots::clean_and_prepare(print);
+        StepDetectSupportSpots::run_step(orchestrator, print);
+        mark_legacy_step_done(print, posSupportSpotsSearch);
+    });
     if (stop_after(STEP_SUPPORT_SPOT, until)) return;
 
-    begin_step(print, STEP_LAYER_EXTRUSION_EDIT, L("Editing layers extrusions"), path);
-    StepLayerExtrusionEdition::clean_and_prepare(print);
-    StepLayerExtrusionEdition::run_step(orchestrator, print);
-    mark_legacy_step_done(print, posEstimateCurledExtrusions);
+    run_step_if_requested(print, STEP_LAYER_EXTRUSION_EDIT, [&] {
+        begin_step(print, STEP_LAYER_EXTRUSION_EDIT, L("Editing layers extrusions"), path);
+        StepLayerExtrusionEdition::clean_and_prepare(print);
+        StepLayerExtrusionEdition::run_step(orchestrator, print);
+        mark_legacy_step_done(print, posEstimateCurledExtrusions);
+    });
     if (stop_after(STEP_LAYER_EXTRUSION_EDIT, until)) return;
 
-    begin_step(print, STEP_LAYER_STICHING, L("Stitching layers"), path);
-    StepLayerStiching::clean_and_prepare(print);
-    StepLayerStiching::run_step(orchestrator, print);
+    run_step_if_requested(print, STEP_LAYER_STICHING, [&] {
+        begin_step(print, STEP_LAYER_STICHING, L("Stitching layers"), path);
+        StepLayerStiching::clean_and_prepare(print);
+        StepLayerStiching::run_step(orchestrator, print);
+    });
     if (stop_after(STEP_LAYER_STICHING, until)) return;
 
-    begin_step(print, STEP_EXTRUSION_EDIT, L("Editing extrusions"), path);
-    StepExtrusionEdition::clean_and_prepare(print);
-    StepExtrusionEdition::run_step(orchestrator, print);
-    mark_legacy_step_done(print, posCalculateOverhangingPerimeters);
+    run_step_if_requested(print, STEP_EXTRUSION_EDIT, [&] {
+        begin_step(print, STEP_EXTRUSION_EDIT, L("Editing extrusions"), path);
+        StepExtrusionEdition::clean_and_prepare(print);
+        StepExtrusionEdition::run_step(orchestrator, print);
+        mark_legacy_step_done(print, posCalculateOverhangingPerimeters);
+    });
     if (stop_after(STEP_EXTRUSION_EDIT, until)) return;
 
-    begin_step(print, STEP_EXTRUSION_SIMPLIFICATION, L("Simplifying extrusions"), path);
-    StepExtrusionSimplification::clean_and_prepare(print);
-    StepExtrusionSimplification::run_step(orchestrator, print);
-    mark_legacy_step_done(print, posSimplifyPath);
+    run_step_if_requested(print, STEP_EXTRUSION_SIMPLIFICATION, [&] {
+        begin_step(print, STEP_EXTRUSION_SIMPLIFICATION, L("Simplifying extrusions"), path);
+        StepExtrusionSimplification::clean_and_prepare(print);
+        StepExtrusionSimplification::run_step(orchestrator, print);
+        mark_legacy_step_done(print, posSimplifyPath);
+    });
     if (stop_after(STEP_EXTRUSION_SIMPLIFICATION, until)) return;
 }
 
@@ -686,6 +856,10 @@ void clear_debug_surfaces(Print &print)
 
 void StepPipeline::run(Orchestrator &orchestrator, Print &print)
 {
+#ifdef _DEBUG
+    assert(validate_execution_order_against_dependencies());
+#endif
+
     const std::string path;
     orchestrator.reset_plugin_cancel();
 

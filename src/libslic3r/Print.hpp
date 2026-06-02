@@ -310,8 +310,19 @@ public:
     //put this in public to be accessible for tests, it was in private before.
     bool                invalidate_state_by_config_options(const ConfigOptionResolver& new_config, const std::vector<t_config_option_key> &opt_keys);
 
-    // Invalidates the step, and its depending steps in Print.
-    //in public to invalidate gcode when the physical printer change. It's needed if we allow the gcode macro to read these values.
+    // New plugin pipeline execution plan. mark_step_and_dependents_for_execution()
+    // asks the next process() call to re-run one producer step and every
+    // downstream step listed in Steps::step_dependents().
+    void                mark_step_for_execution(slicing_step_t step);
+    void                mark_step_and_dependents_for_execution(slicing_step_t step);
+    bool                should_execute_step(slicing_step_t step) const;
+    void                mark_step_executed(slicing_step_t step);
+    void                reset_step_execution_plan_all();
+
+    // Deprecated: legacy PrintState invalidation used by the historical object
+    // and print steps. New plugin-pipeline options should mark execution with
+    // invalidates_step and the methods above instead of extending this linear
+    // propagation model.
     bool                invalidate_step(slicing_step_t step);
     bool                invalidate_steps(std::initializer_list<slicing_step_t> steps);
     bool                invalidate_all_steps();
@@ -392,6 +403,11 @@ private:
 
     // Cache to store sequential print clearance contours
     Polygons m_sequential_print_clearance_contours;
+
+    // Steps that the next StepPipeline::run() should execute. The set is owned
+    // by Print because config changes arrive here, while StepPipeline only
+    // knows how to consume the plan in its fixed written order.
+    std::set<slicing_step_t> m_steps_to_execute;
 
     // To allow GCode to set the Print's GCodeExport step status.
     //friend class GCodeGenerator;

@@ -61,6 +61,27 @@ Plugin *selected_or_active_plugin_for_step(Orchestrator &orchestrator,
                                            slicing_step_t step,
                                            const ConfigBase *config);
 
+// Written execution order for the migrated pipeline. The order is intentionally
+// not inferred from the dependency graph: a missing step in this list is a
+// pipeline definition error, not something the graph should silently repair.
+const std::vector<slicing_step_t> &execution_order();
+
+// Direct dependency graph used by Print's new invalidation plan. If A maps to
+// B, invalidating A also asks B to run on the next process().
+const std::map<slicing_step_t, std::vector<slicing_step_t>> &step_dependents();
+
+// Stable transitive closure of step_dependents(). The returned vector follows
+// execution_order(), so callers may insert it into sets or display it without
+// depending on std::map iteration details.
+std::vector<slicing_step_t> dependent_steps_closure(slicing_step_t step);
+
+#ifdef _DEBUG
+// Debug guard for the central graph definition. Each edge A -> B must respect
+// execution_order(); otherwise the pipeline would need to run B before A has
+// produced its new data.
+bool validate_execution_order_against_dependencies();
+#endif
+
 // Central entry point for the step-based slicing pipeline.
 //
 // Orchestrator owns plugin registration and host callbacks; StepPipeline owns

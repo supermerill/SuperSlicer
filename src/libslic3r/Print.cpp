@@ -61,6 +61,7 @@
 #include "PrintObjectRegion.hpp"
 #include "PrintRegion.hpp"
 #include "ShortestPath.hpp"
+#include "Steps/StepPipeline.hpp"
 #include "Thread.hpp"
 #include "Utils.hpp"
 
@@ -175,6 +176,7 @@ Print::Print()
     // Create config hierarchy.
     m_default_object_config.parent = &m_config;
     m_default_region_config.parent = &m_default_object_config;
+    this->reset_step_execution_plan_all();
 }
 
 Print::~Print()
@@ -275,6 +277,44 @@ void Print::clear() {
     m_objects.clear();
     m_print_regions.clear();
     m_model.clear_objects();
+    this->reset_step_execution_plan_all();
+}
+
+void Print::mark_step_for_execution(slicing_step_t step)
+{
+    if (step != STEP_NONE)
+        m_steps_to_execute.insert(step);
+}
+
+void Print::mark_step_and_dependents_for_execution(slicing_step_t step)
+{
+    if (step == STEP_NONE)
+        return;
+    if (step == STEP_ANY) {
+        this->reset_step_execution_plan_all();
+        return;
+    }
+
+    this->mark_step_for_execution(step);
+    for (slicing_step_t dependent : Steps::dependent_steps_closure(step))
+        this->mark_step_for_execution(dependent);
+}
+
+bool Print::should_execute_step(slicing_step_t step) const
+{
+    return m_steps_to_execute.find(step) != m_steps_to_execute.end();
+}
+
+void Print::mark_step_executed(slicing_step_t step)
+{
+    m_steps_to_execute.erase(step);
+}
+
+void Print::reset_step_execution_plan_all()
+{
+    m_steps_to_execute.clear();
+    for (slicing_step_t step : Steps::execution_order())
+        m_steps_to_execute.insert(step);
 }
 
 const PrintObject *Print::get_print_object_by_model_object_id(ObjectID object_id) const {
@@ -297,24 +337,22 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
     if (opt_keys.empty())
         return false;
 
-    // Temporary during the step-pipeline migration: plugin steps and legacy
-    // caches still overlap, so any print-level configuration change invalidates
-    // the whole slicing pipeline until step ownership is precise again.
-    const bool invalidated = this->invalidate_all_steps();
-#if 0
     bool invalidated = false;
     for (const t_config_option_key &opt_key : opt_keys) {
         const ConfigOptionDef *def = PrintConfigDef::instance().get(opt_key);
         if (def == nullptr) {
-            invalidated |= this->invalidate_all_steps();
+            this->reset_step_execution_plan_all();
+            invalidated = true;
             continue;
         }
         if (def->invalidates_step == STEP_NONE)
             continue;
-        invalidated |= def->invalidates_step == STEP_ANY ? this->invalidate_all_steps() :
-                                                           this->invalidate_step(def->invalidates_step);
+        if (def->invalidates_step == STEP_ANY)
+            this->reset_step_execution_plan_all();
+        else
+            this->mark_step_and_dependents_for_execution(def->invalidates_step);
+        invalidated = true;
     }
-#endif
     if (invalidated)
         m_timestamp_last_change = std::time(0);
     return invalidated;
@@ -322,6 +360,11 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
 
 bool Print::invalidate_step(slicing_step_t step)
 {
+    // Deprecated legacy invalidation. Keep it wired to the new execution plan
+    // while old callers still invalidate historical PrintObject/PrintState
+    // milestones directly.
+    this->mark_step_and_dependents_for_execution(step);
+
     bool invalidated = false;
     if (is_print_object_step(step)) {
         for (PrintObjectUPtr &object : m_objects)
@@ -352,6 +395,10 @@ bool Print::invalidate_steps(std::initializer_list<slicing_step_t> steps)
 
 bool Print::invalidate_all_steps()
 {
+    // Deprecated legacy invalidation. It remains the compatibility entry point
+    // for old code paths, but the new pipeline consumes m_steps_to_execute.
+    this->reset_step_execution_plan_all();
+
     bool invalidated = false;
     for (PrintObjectUPtr &object : m_objects)
         invalidated |= object->invalidate_all_steps_direct();

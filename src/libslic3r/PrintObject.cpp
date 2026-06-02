@@ -1495,15 +1495,18 @@ bool PrintObject::invalidate_state_by_config_options(
     if (opt_keys.empty())
         return false;
 
-    // Temporary during the step-pipeline migration: object, region and plugin
-    // settings may feed several migrated steps at once. Full invalidation avoids
-    // reusing stale layer/perimeter/surface data until each option has one clear
-    // pipeline owner.
+    // Deprecated: this is the historical PrintObject invalidation path. Object
+    // and region option ownership is still being migrated to plugin
+    // invalidates_step metadata, so this compatibility path conservatively asks
+    // the new Print execution plan for a full run.
     return m_print->invalidate_all_steps();
 }
 
 bool PrintObject::invalidate_step(slicing_step_t step)
 {
+    // Deprecated: this linear propagation belongs to the old PrintObject step
+    // graph. Keep it for legacy callers, but do not extend it for new plugin
+    // steps; use Print::mark_step_and_dependents_for_execution() instead.
 	bool invalidated = Inherited::invalidate_step(step);
     
     // propagate to dependent steps
