@@ -52,6 +52,7 @@ if (Python3_FOUND)
             "$<TARGET_FILE_DIR:python_plugin_loader>/python/plugins/polyholes_python.py"
             "$<TARGET_FILE_DIR:python_plugin_loader>/python/plugins/polyholes_views.py"
             "$<TARGET_FILE_DIR:python_plugin_loader>/python/plugins/default_surface_generator.py"
+            "$<TARGET_FILE_DIR:python_plugin_loader>/python/plugins/simple_perimeter_generator2.py"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${CMAKE_CURRENT_SOURCE_DIR}/../libslic3r/Api/plugin/python/slic3r_api.py"
             "$<TARGET_FILE_DIR:python_plugin_loader>/python/slic3r_api.py"

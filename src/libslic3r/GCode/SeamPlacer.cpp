@@ -489,6 +489,34 @@ PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosit
                     m_corresponding_regions_out.push_back(current_layer_region);
                     return;
                 }else {
+                    if (entity.is_leaf()) {
+                        const ExtrusionAttributes *attributes = entity.get_property<ExtrusionAttributes>();
+                        const ExtrusionPropertyLoopRole *loop_role = entity.get_property<ExtrusionPropertyLoopRole>();
+                        const ArcPolyline *polyline = entity.polyline_or_null();
+                        const bool is_internal_loop = loop_role != nullptr &&
+                            (loop_role->perimeter_role() & ExtrusionLoopRole::elrInternal) != 0;
+
+                        // New perimeter plugins may publish a whole closed loop
+                        // as one leaf entity. The legacy shape below stores the
+                        // loop as a collection and keeps the printable external
+                        // path in one of its children; both shapes describe the
+                        // same seam candidate.
+                        if (attributes != nullptr && polyline != nullptr && !attributes->no_seam &&
+                            !is_internal_loop && attributes->extrusion_role().is_external_perimeter() &&
+                            (!attributes->extrusion_role().is_overhang() || also_overhangs)) {
+                            Points pts = polyline->to_polyline().points;
+                            if (!pts.empty() && pts.front() != pts.back())
+                                pts.push_back(pts.front());
+                            if (pts.size() > 1) {
+                                assert(m_corresponding_regions_out.size() == polylines->size());
+                                polylines->emplace_back(std::move(pts), false, false,
+                                    is_ccw ? PolylineWithEnd::PolyDir::CCW : PolylineWithEnd::PolyDir::CW);
+                                m_corresponding_regions_out.push_back(current_layer_region);
+                            }
+                        }
+                        return;
+                    }
+
                     PolylineWithEnds polys;
                     size_t count_paths_collected = 0;
                     bool previous_collected = false;
@@ -622,16 +650,19 @@ PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosit
                     // entity accepted by the regular filters above. The points
                     // are used only as candidates; the G-code extrusion tree is
                     // not modified here.
-                    assert(perimeters.role() == ExtrusionRole::ThinWall ||
-                           lregion->region().config().perimeter_generator == PerimeterGeneratorType::Arachne);
-                    Points pts;
-                    perimeters.collect_points(pts);
-                    assert(!pts.empty());
-                    if (!pts.empty()) {
-                        bool is_loop = pts.front() == pts.back();
-                        assert(!is_loop);
-                        polylines.emplace_back(std::move(pts), true, !is_loop, PolylineWithEnd::PolyDir::BOTH);
-                        corresponding_regions_for_flow_out.push_back(lregion);
+                    const bool can_use_raw_point_fallback =
+                        perimeters.role() == ExtrusionRole::ThinWall ||
+                        lregion->region().config().perimeter_generator == PerimeterGeneratorType::Arachne;
+                    if (can_use_raw_point_fallback) {
+                        Points pts;
+                        perimeters.collect_points(pts);
+                        assert(!pts.empty());
+                        if (!pts.empty()) {
+                            bool is_loop = pts.front() == pts.back();
+                            assert(!is_loop);
+                            polylines.emplace_back(std::move(pts), true, !is_loop, PolylineWithEnd::PolyDir::BOTH);
+                            corresponding_regions_for_flow_out.push_back(lregion);
+                        }
                     }
                 }
                 visitor.also_thin_walls = false;
@@ -2049,6 +2080,13 @@ Point SeamPlacer::place_seam(const Layer *layer, const ExtrusionLoop &loop, cons
 
     const PrintObjectSeamData::LayerSeams &layer_perimeters =
             m_seam_per_object.find(layer->object())->second.layers[layer_index];
+
+    // Some generated perimeter trees can contain printable loops while the
+    // seam candidate extractor has no external perimeter candidate for this
+    // layer. In that case there is no global seam to align against, so choose a
+    // local seam on the loop itself instead of querying an empty KD-tree.
+    if (layer_perimeters.points.empty() || layer_perimeters.points_tree == nullptr || layer_perimeters.points_tree->empty())
+        return loop.get_closest_path_and_point(last_pos, false).foot_pt;
 
     // Find the closest perimeter in the SeamPlacer to this loop.
     // Repeat search until two consecutive points of the loop are found, that result in the same closest_perimeter
