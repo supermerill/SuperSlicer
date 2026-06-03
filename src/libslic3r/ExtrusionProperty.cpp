@@ -372,6 +372,15 @@ bool ExtrusionPropertyAccess::has_property(const ExtrusionPropertyContainer &con
     return container.has_property(type);
 }
 
+bool ExtrusionPropertyAccess::same_property_payload(const ExtrusionPropertyContainer &lhs,
+                                                    extrusion_property_type type,
+                                                    const ExtrusionPropertyContainer &rhs)
+{
+    const PropertySlot *lhs_slot = lhs.find_slot(type);
+    const PropertySlot *rhs_slot = rhs.find_slot(type);
+    return lhs_slot != nullptr && rhs_slot != nullptr && lhs_slot->same_payload(*rhs_slot);
+}
+
 const void *ExtrusionPropertyAccess::property_data(const ExtrusionPropertyContainer &container,
                                                    extrusion_property_type type)
 {

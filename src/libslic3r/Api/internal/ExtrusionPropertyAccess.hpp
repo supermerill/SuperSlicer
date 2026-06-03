@@ -21,6 +21,9 @@ struct ExtrusionPropertyAccess
     static size_t property_count(const ExtrusionPropertyContainer &container);
     static extrusion_property_type property_type_at(const ExtrusionPropertyContainer &container, size_t idx);
     static bool has_property(const ExtrusionPropertyContainer &container, extrusion_property_type type);
+    static bool same_property_payload(const ExtrusionPropertyContainer &lhs,
+                                      extrusion_property_type type,
+                                      const ExtrusionPropertyContainer &rhs);
     static const void *property_data(const ExtrusionPropertyContainer &container, extrusion_property_type type);
     static void *property_data_mutable(ExtrusionPropertyContainer &container, extrusion_property_type type);
     static void *get_or_add_property_data_mutable(ExtrusionPropertyContainer &container,

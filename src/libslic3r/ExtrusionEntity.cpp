@@ -9,8 +9,10 @@
 #include "ExtrusionEntity.hpp"
 
 #include <cmath>
+#include <iterator>
 #include <limits>
 
+#include "Api/internal/ExtrusionPropertyAccess.hpp"
 #include "ClipperUtils.hpp"
 #include "Exception.hpp"
 #include "ExPolygon.hpp"
@@ -20,6 +22,158 @@
 #include "Flow.hpp"
 
 namespace Slic3r {
+
+namespace {
+
+struct EffectiveExtrusionProperty
+{
+    extrusion_property_type type = extrusion_property_type_invalid;
+    const ExtrusionPropertyContainer *owner = nullptr;
+};
+
+using EffectiveExtrusionProperties = std::vector<EffectiveExtrusionProperty>;
+
+// Return the currently visible property for a type, after parent properties and
+// child overrides have been applied in traversal order.
+const EffectiveExtrusionProperty *find_effective_property(const EffectiveExtrusionProperties &properties,
+                                                          extrusion_property_type type);
+
+// Add or replace one visible property in the inheritance stack used by the
+// simplifier. Extrusion trees usually carry very few properties, so a compact
+// vector is simpler and cheaper than a map here.
+void set_effective_property(EffectiveExtrusionProperties &properties,
+                            extrusion_property_type type,
+                            const ExtrusionPropertyContainer &owner);
+
+// Build the property state seen by this entity's children.
+EffectiveExtrusionProperties effective_properties_for_children(const EffectiveExtrusionProperties &parent_properties,
+                                                               const ExtrusionEntity &entity);
+
+// Check whether a wrapper collection changes the inherited print state. A
+// wrapper is transparent only when every explicit property it carries is
+// already present on the parent with the same binary payload.
+bool explicit_properties_match_parent(const ExtrusionEntity &child,
+                                      const EffectiveExtrusionProperties &parent_properties);
+
+// Decide whether a direct child collection may be removed and replaced by its
+// children without changing ordering, reversing or inherited property state.
+bool is_transparent_collection_child(const ExtrusionEntity &parent,
+                                     const ExtrusionEntity &child,
+                                     const EffectiveExtrusionProperties &parent_properties);
+
+// Simplify descendants first, then try to remove transparent direct children of
+// the current node. The current node itself is never replaced.
+bool simplify_extrusion_tree_recursive(ExtrusionEntity &root,
+                                       const EffectiveExtrusionProperties &parent_properties);
+
+const EffectiveExtrusionProperty *find_effective_property(const EffectiveExtrusionProperties &properties,
+                                                          extrusion_property_type type)
+{
+    for (const EffectiveExtrusionProperty &property : properties)
+        if (property.type == type)
+            return &property;
+    return nullptr;
+}
+
+void set_effective_property(EffectiveExtrusionProperties &properties,
+                            extrusion_property_type type,
+                            const ExtrusionPropertyContainer &owner)
+{
+    for (EffectiveExtrusionProperty &property : properties)
+        if (property.type == type) {
+            property.owner = &owner;
+            return;
+        }
+
+    properties.push_back(EffectiveExtrusionProperty{ type, &owner });
+}
+
+EffectiveExtrusionProperties effective_properties_for_children(const EffectiveExtrusionProperties &parent_properties,
+                                                               const ExtrusionEntity &entity)
+{
+    EffectiveExtrusionProperties out = parent_properties;
+    const size_t property_count = ApiInternal::ExtrusionPropertyAccess::property_count(entity);
+    for (size_t property_idx = 0; property_idx < property_count; ++property_idx) {
+        const extrusion_property_type type =
+            ApiInternal::ExtrusionPropertyAccess::property_type_at(entity, property_idx);
+        if (type != extrusion_property_type_invalid)
+            set_effective_property(out, type, entity);
+    }
+    return out;
+}
+
+bool explicit_properties_match_parent(const ExtrusionEntity &child,
+                                      const EffectiveExtrusionProperties &parent_properties)
+{
+    const size_t property_count = ApiInternal::ExtrusionPropertyAccess::property_count(child);
+    for (size_t property_idx = 0; property_idx < property_count; ++property_idx) {
+        const extrusion_property_type type =
+            ApiInternal::ExtrusionPropertyAccess::property_type_at(child, property_idx);
+        const EffectiveExtrusionProperty *parent_property = find_effective_property(parent_properties, type);
+        if (parent_property == nullptr || parent_property->owner == nullptr)
+            return false;
+        if (!ApiInternal::ExtrusionPropertyAccess::same_property_payload(
+                child, type, *parent_property->owner))
+            return false;
+    }
+    return true;
+}
+
+bool is_transparent_collection_child(const ExtrusionEntity &parent,
+                                     const ExtrusionEntity &child,
+                                     const EffectiveExtrusionProperties &parent_properties)
+{
+    if (!child.is_collection())
+        return false;
+    if (child.can_sort() != parent.can_sort())
+        return false;
+    if (child.can_reverse() != parent.can_reverse())
+        return false;
+    return explicit_properties_match_parent(child, parent_properties);
+}
+
+bool simplify_extrusion_tree_recursive(ExtrusionEntity &root,
+                                       const EffectiveExtrusionProperties &parent_properties)
+{
+    bool changed = false;
+    const EffectiveExtrusionProperties child_properties =
+        effective_properties_for_children(parent_properties, root);
+
+    if (root.is_leaf())
+        return false;
+
+    ExtrusionEntity::Children &children = root.children();
+    for (ExtrusionEntityUPtr &child : children)
+        if (child)
+            changed = simplify_extrusion_tree_recursive(*child, child_properties) || changed;
+
+    /*
+    Splice only after children have been simplified. If a grandchild becomes a
+    direct child, the loop checks the same index again so that a wrapper that is
+    transparent relative to this parent can also be removed.
+    */
+    for (size_t child_idx = 0; child_idx < children.size();) {
+        ExtrusionEntityUPtr &child = children[child_idx];
+        if (!child || !is_transparent_collection_child(root, *child, child_properties)) {
+            ++child_idx;
+            continue;
+        }
+
+        ExtrusionEntityUPtr wrapper = std::move(child);
+        ExtrusionEntity::Children grandchildren = std::move(wrapper->children());
+        children.erase(children.begin() + child_idx);
+        if (!grandchildren.empty()) {
+            children.insert(children.begin() + child_idx,
+                            std::make_move_iterator(grandchildren.begin()),
+                            std::make_move_iterator(grandchildren.end()));
+        }
+        changed = true;
+    }
+
+    return changed;
+}
+
+} // namespace
 
 Point ExtrusionNop::NOT_A_POINT = Point((std::numeric_limits<coord_t>::max)(), (std::numeric_limits<coord_t>::max)());
 
@@ -195,6 +349,16 @@ void ExtrusionEntity::clear_content()
 {
     m_content = std::monostate();
     m_can_sort = false;
+}
+
+bool simplify_extrusion_tree(ExtrusionEntity &root)
+{
+    /*
+    The root is kept even if it looks redundant. Callers often hold references
+    to that object, while wrapper children are only structural grouping nodes
+    created during intermediate processing.
+    */
+    return simplify_extrusion_tree_recursive(root, EffectiveExtrusionProperties());
 }
 
 bool ExtrusionEntity::is_continuous() const

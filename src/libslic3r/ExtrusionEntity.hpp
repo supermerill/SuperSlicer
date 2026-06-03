@@ -177,6 +177,18 @@ public:
 
 };
 
+/*
+Remove transparent structural collection children from an extrusion tree.
+
+The function keeps the current node in place and only deletes direct children
+that are plain collections carrying no state different from their parent. This
+is useful after plugin processing, where small wrapper collections are often
+created to group temporary output. Loops, continuous multipaths and leaf
+extrusions are intentionally left untouched because their structure carries
+printing semantics.
+*/
+bool simplify_extrusion_tree(ExtrusionEntity &root);
+
 // only cary an ExtrusionProperty
 class ExtrusionNop : public ExtrusionEntity
 {
