@@ -9,35 +9,13 @@
 #define slic3r_ExtrusionEntityVisitors_hpp_
 
 #include <cassert>
+#include <memory>
 #include <sstream>
 #include <vector>
 
 #include "ExtrusionEntityCollection.hpp"
 
 namespace Slic3r {
-
-/// Visitor helpers for ExtrusionEntity live outside ExtrusionEntity.hpp so most
-/// extrusion users don't need to rebuild when a traversal helper is added or
-/// changed. Include this header only in code that defines or uses visitors.
-
-class ExtrusionVisitor {
-public:
-    virtual void default_use(ExtrusionEntity &entity) { assert(false); };
-    virtual void use(ExtrusionPath &path);
-    virtual void use(ExtrusionMultiPath &multipath);
-    virtual void use(ExtrusionLoop &loop);
-    virtual void use(ExtrusionEntityCollection &collection);
-    virtual void use(ExtrusionNop &nop);
-};
-class ExtrusionVisitorConst {
-public:
-    virtual void default_use(const ExtrusionEntity &entity) { assert(false); };
-    virtual void use(const ExtrusionPath &path);
-    virtual void use(const ExtrusionMultiPath &multipath);
-    virtual void use(const ExtrusionLoop &loop);
-    virtual void use(const ExtrusionEntityCollection &collection);
-    virtual void use(const ExtrusionNop &nop);
-};
 
 /// Depth-first helper for walking an ExtrusionEntity tree while keeping the
 /// inherited property context easy to query.
@@ -201,16 +179,6 @@ public:
     }
 };
 
-class ExtrusionVisitorRecursiveConst : public ExtrusionVisitorConst {
-public:
-    virtual void default_use(const ExtrusionEntity& entity) override;
-};
-
-class ExtrusionVisitorRecursive : public ExtrusionVisitor {
-public:
-    virtual void default_use(ExtrusionEntity& entity) override;
-};
-
 class HasRoleVisitor : public ExtrusionTreeConstVisitor<false> {
 protected:
     virtual bool matches(const ExtrusionEntity &entity, ExtrusionRole role) const = 0;
@@ -293,39 +261,51 @@ public:
     }
 };
 
-class CountEntities : public ExtrusionVisitorConst {
+class CountEntities : public ExtrusionTreeConstVisitor<false> {
 public:
-    size_t count(const ExtrusionEntity &coll) { coll.visit(*this); return leaf_number; }
+    size_t count(const ExtrusionEntity &coll) { this->traverse(coll); return leaf_number; }
     size_t leaf_number = 0;
-    virtual void default_use(const ExtrusionEntity &entity) override;
+    virtual void visit_leaf(const ExtrusionEntity &entity) override;
 };
 
-class FlatenEntities : public ExtrusionVisitorConst {
-    ExtrusionEntityCollection to_fill;
+class [[deprecated("FlatenEntities rebuilds extrusion hierarchy and may lose inherited node properties; use a tree visitor for ordering instead.")]]
+FlatenEntities : public ExtrusionTreeConstVisitor<true> {
+    ExtrusionEntity to_fill;
     bool preserve_ordering;
+    size_t m_skip_depth = 0;
+    std::vector<bool> m_publish_group_stack;
+    std::vector<ExtrusionEntity*> m_output_stack;
+    std::vector<std::unique_ptr<ExtrusionEntity>> m_group_stack;
+
 public:
-    using ExtrusionVisitorConst::use;
-    FlatenEntities(bool preserve_ordering) : preserve_ordering(preserve_ordering) {}
-    FlatenEntities(ExtrusionEntityCollection pattern, bool preserve_ordering) : preserve_ordering(preserve_ordering) {
-        to_fill.set_can_sort_reverse(pattern.can_sort(), pattern.can_reverse());
+    FlatenEntities(bool preserve_ordering) : preserve_ordering(preserve_ordering), to_fill(true) {
+        m_output_stack.push_back(&to_fill);
     }
-    FlatenEntities(const ExtrusionEntity &pattern, bool preserve_ordering) : preserve_ordering(preserve_ordering) {
+    FlatenEntities(ExtrusionEntity pattern, bool preserve_ordering)
+        : preserve_ordering(preserve_ordering), to_fill(pattern.can_reverse()) {
         to_fill.set_can_sort_reverse(pattern.can_sort(), pattern.can_reverse());
+        m_output_stack.push_back(&to_fill);
     }
-    const ExtrusionEntityCollection& get() {
+    FlatenEntities(const ExtrusionEntity &pattern, bool preserve_ordering)
+        : preserve_ordering(preserve_ordering), to_fill(pattern.can_reverse()) {
+        to_fill.set_can_sort_reverse(pattern.can_sort(), pattern.can_reverse());
+        m_output_stack.push_back(&to_fill);
+    }
+    const ExtrusionEntity &get() { return to_fill; };
+    ExtrusionEntity& set() {
         return to_fill;
     };
-    ExtrusionEntityCollection& set() {
-        return to_fill;
-    };
-    ExtrusionEntityCollection&& flatten(const ExtrusionEntityCollection &to_flatten) &&;
-    void default_use(const ExtrusionEntity &entity) override;
+    ExtrusionEntity&& flatten(const ExtrusionEntity &to_flatten) &&;
+    void enter_node(const ExtrusionEntity &entity) override;
+    void visit_leaf(const ExtrusionEntity &entity) override;
+    void leave_node(const ExtrusionEntity &entity) override;
 };
 
 #ifdef _DEBUG
-class TestCollection : public ExtrusionVisitorRecursiveConst {
+class TestCollection : public ExtrusionTreeConstVisitor<true> {
 public:
-    virtual void default_use(const ExtrusionEntity& entity) override;
+    virtual void enter_node(const ExtrusionEntity& entity) override;
+    virtual void visit_leaf(const ExtrusionEntity& entity) override;
 };
 #endif
 

@@ -146,10 +146,13 @@ public:
     // Recursively count paths and loops contained in this collection. 
     // this->items_count() >= this->size()
     size_t items_count() const;
-    /// Returns a flattened copy of this ExtrusionEntityCollection. That is, all of the items in its entities() vector are not collections.
-    /// You should be iterating over flatten().entities() if you are interested in the underlying ExtrusionEntities (and don't care about hierarchy).
-    /// \param preserve_ordering Flag to method that will flatten if and only if the underlying collection is sortable when True (default: False).
+    /// Deprecated compatibility helper. Flattening clones/rebuilds the
+    /// extrusion tree, so properties carried by intermediate nodes may stop
+    /// being visible to the flattened children. New ordering code should walk
+    /// the original tree and choose candidates without destroying hierarchy.
+    [[deprecated("flatten() rebuilds extrusion hierarchy and may lose inherited node properties; use a tree visitor for ordering instead.")]]
     ExtrusionEntityCollection flatten(bool preserve_ordering) const;
+    [[deprecated("flatten() rebuilds extrusion hierarchy and may lose inherited node properties; use a tree visitor for ordering instead.")]]
     void flatten(bool preserve_ordering, ExtrusionEntityCollection& out) const;
     double total_volume() const override { double volume=0.; for (const auto& ent : entities()) volume+=ent->total_volume(); return volume; }
 

@@ -16,38 +16,6 @@
 
 namespace Slic3r {
 
-void ExtrusionVisitor::use(ExtrusionPath &path) { default_use(path); };
-void ExtrusionVisitor::use(ExtrusionMultiPath &multipath) { default_use(multipath); }
-void ExtrusionVisitor::use(ExtrusionLoop &loop) { default_use(loop); }
-void ExtrusionVisitor::use(ExtrusionEntityCollection &collection) { default_use(collection); }
-void ExtrusionVisitor::use(ExtrusionNop &nop) { default_use(nop); }
-
-void ExtrusionVisitorConst::use(const ExtrusionPath &path) { default_use(path); }
-void ExtrusionVisitorConst::use(const ExtrusionMultiPath &multipath) { default_use(multipath); }
-void ExtrusionVisitorConst::use(const ExtrusionLoop &loop) { default_use(loop); }
-void ExtrusionVisitorConst::use(const ExtrusionEntityCollection &collection) { default_use(collection); }
-void ExtrusionVisitorConst::use(const ExtrusionNop &nop) { default_use(nop); }
-
-void ExtrusionEntity::visit(ExtrusionVisitor &visitor) { visitor.default_use(*this); }
-void ExtrusionEntity::visit(ExtrusionVisitorConst &visitor) const { visitor.default_use(*this); }
-void ExtrusionEntity::visit(ExtrusionVisitor &&visitor) { this->visit(visitor); }
-void ExtrusionEntity::visit(ExtrusionVisitorConst &&visitor) const { this->visit(visitor); }
-
-void ExtrusionNop::visit(ExtrusionVisitor &visitor) { visitor.use(*this); }
-void ExtrusionNop::visit(ExtrusionVisitorConst &visitor) const { visitor.use(*this); }
-
-void ExtrusionPath::visit(ExtrusionVisitor &visitor) { visitor.use(*this); }
-void ExtrusionPath::visit(ExtrusionVisitorConst &visitor) const { visitor.use(*this); }
-
-void ExtrusionMultiPath::visit(ExtrusionVisitor &visitor) { visitor.use(*this); }
-void ExtrusionMultiPath::visit(ExtrusionVisitorConst &visitor) const { visitor.use(*this); }
-
-void ExtrusionLoop::visit(ExtrusionVisitor &visitor) { visitor.use(*this); }
-void ExtrusionLoop::visit(ExtrusionVisitorConst &visitor) const { visitor.use(*this); }
-
-void ExtrusionEntityCollection::visit(ExtrusionVisitor &visitor) { visitor.use(*this); }
-void ExtrusionEntityCollection::visit(ExtrusionVisitorConst &visitor) const { visitor.use(*this); }
-
 void ExtrusionPrinter::begin_entity()
 {
     if (!m_first_child_stack.empty()) {
@@ -403,22 +371,6 @@ void ExtrusionModifyFlow::set(ExtrusionEntityCollection &coll) {
     this->traverse(coll);
 }
 
-void ExtrusionVisitorRecursiveConst::default_use(const ExtrusionEntity &entity)
-{
-    if (!entity.is_leaf())
-        for (const ExtrusionEntityUPtr &child : entity.children())
-            if (child)
-                child->visit(*this);
-}
-void ExtrusionVisitorRecursive::default_use(ExtrusionEntity &entity)
-{
-    if (entity.is_leaf())
-        return;
-    for (ExtrusionEntityUPtr &child : entity.children())
-        if (child)
-            child->visit(*this);
-}
-
 void HasRoleVisitor::visit_leaf(const ExtrusionEntity& entity)
 {
     if (found)
@@ -617,58 +569,92 @@ void CreateBoundingBoxVisitor::visit_leaf(const ExtrusionEntity &entity)
         bb.merge(pt.point);
 }
 
-void CountEntities::default_use(const ExtrusionEntity &entity)
+void CountEntities::visit_leaf(const ExtrusionEntity &entity)
 {
-    if (!entity.is_leaf()) {
-        for (const ExtrusionEntityUPtr &child : entity.children())
-            if (child)
-                child->visit(*this);
-    } else {
-        ++leaf_number;
-    }
+    ++leaf_number;
 }
 
-void FlatenEntities::default_use(const ExtrusionEntity &entity) {
+void FlatenEntities::enter_node(const ExtrusionEntity &entity)
+{
+    if (m_skip_depth > 0) {
+        ++m_skip_depth;
+        return;
+    }
+
     if (!entity.is_collection()) {
-        to_fill.append(entity);
+        assert(!m_output_stack.empty());
+        m_output_stack.back()->append_child(entity);
+        m_skip_depth = 1;
         return;
     }
 
     assert(!entity.is_leaf());
     const ExtrusionEntity::Children &children = entity.children();
-    if (children.size() == 1) {
-        // only one element, sort or reverse are meaningless.
-        children.front()->visit(*this);
-    } else if ((!entity.can_sort() || !this->to_fill.can_sort()) && preserve_ordering) {
-        FlatenEntities unsortable(entity, preserve_ordering);
-        for (const ExtrusionEntityUPtr &child : children)
-            if (child)
-                child->visit(unsortable);
-        to_fill.append(std::move(unsortable.to_fill));
-    } else {
-        for (const ExtrusionEntityUPtr &child : children)
-            if (child)
-                child->visit(*this);
+    const bool publish_group = children.size() > 1 &&
+        ((!entity.can_sort() || !m_output_stack.back()->can_sort()) && preserve_ordering);
+    m_publish_group_stack.push_back(publish_group);
+    if (publish_group) {
+        // A non-sortable collection encodes a required print order. Flatten its
+        // children into a temporary collection and publish that collection as a
+        // single child so later path planning cannot reorder it accidentally.
+        m_group_stack.push_back(std::make_unique<ExtrusionEntity>());
+        m_group_stack.back()->set_can_sort_reverse(entity.can_sort(), entity.can_reverse());
+        m_output_stack.push_back(m_group_stack.back().get());
     }
 }
 
-ExtrusionEntityCollection&& FlatenEntities::flatten(const ExtrusionEntityCollection &to_flatten) && {
-    to_flatten.visit(*this);
+void FlatenEntities::visit_leaf(const ExtrusionEntity&)
+{
+    // Leaves are appended by enter_node(). Keeping the work in one callback lets
+    // the same logic preserve whole loops/multipaths without visiting their
+    // child paths.
+}
+
+void FlatenEntities::leave_node(const ExtrusionEntity&)
+{
+    if (m_skip_depth > 0) {
+        --m_skip_depth;
+        return;
+    }
+
+    assert(!m_publish_group_stack.empty());
+    const bool publish_group = m_publish_group_stack.back();
+    m_publish_group_stack.pop_back();
+    if (publish_group) {
+        assert(m_output_stack.size() > 1);
+        assert(!m_group_stack.empty());
+        std::unique_ptr<ExtrusionEntity> group = std::move(m_group_stack.back());
+        m_group_stack.pop_back();
+        m_output_stack.pop_back();
+        m_output_stack.back()->append_child(std::move(*group));
+    }
+}
+
+ExtrusionEntity&& FlatenEntities::flatten(const ExtrusionEntity &to_flatten) && {
+    m_output_stack.clear();
+    m_group_stack.clear();
+    m_publish_group_stack.clear();
+    m_skip_depth = 0;
+    m_output_stack.push_back(&to_fill);
+    this->traverse(to_flatten);
+    m_output_stack.clear();
     return std::move(to_fill);
 }
 
 #ifdef _DEBUG
-void TestCollection::default_use(const ExtrusionEntity& entity)
+void TestCollection::enter_node(const ExtrusionEntity& entity)
 {
-    if (!entity.is_leaf()) {
-        for (const ExtrusionEntityUPtr &child : entity.children()) {
-            assert(child);
-            std::cout << "entity at " << ((uint64_t)(void*)child.get()) << "\n";
-            child->visit(*this);
-        }
-    } else {
-        assert(entity.as_polyline().size() > 0);
+    if (entity.is_leaf())
+        return;
+    for (const ExtrusionEntityUPtr &child : entity.children()) {
+        assert(child);
+        std::cout << "entity at " << ((uint64_t)(void*)child.get()) << "\n";
     }
+}
+
+void TestCollection::visit_leaf(const ExtrusionEntity& entity)
+{
+    assert(entity.as_polyline().size() > 0);
 }
 #endif
 
