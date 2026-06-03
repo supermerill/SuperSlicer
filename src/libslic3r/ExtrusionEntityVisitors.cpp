@@ -16,6 +16,26 @@
 
 namespace Slic3r {
 
+void ExtrusionVisitorRecursive::default_use(ExtrusionEntity &entity)
+{
+    if (entity.is_leaf())
+        return;
+
+    for (ExtrusionEntityUPtr &child : entity.children())
+        if (child)
+            child->visit(*this);
+}
+
+void ExtrusionVisitorRecursiveConst::default_use(const ExtrusionEntity &entity)
+{
+    if (entity.is_leaf())
+        return;
+
+    for (const ExtrusionEntityUPtr &child : entity.children())
+        if (child)
+            child->visit(*this);
+}
+
 void ExtrusionPrinter::begin_entity()
 {
     if (!m_first_child_stack.empty()) {
@@ -597,7 +617,7 @@ void FlatenEntities::enter_node(const ExtrusionEntity &entity)
         // A non-sortable collection encodes a required print order. Flatten its
         // children into a temporary collection and publish that collection as a
         // single child so later path planning cannot reorder it accidentally.
-        m_group_stack.push_back(std::make_unique<ExtrusionEntity>());
+        m_group_stack.push_back(std::make_unique<ExtrusionEntityCollection>());
         m_group_stack.back()->set_can_sort_reverse(entity.can_sort(), entity.can_reverse());
         m_output_stack.push_back(m_group_stack.back().get());
     }
@@ -623,14 +643,14 @@ void FlatenEntities::leave_node(const ExtrusionEntity&)
     if (publish_group) {
         assert(m_output_stack.size() > 1);
         assert(!m_group_stack.empty());
-        std::unique_ptr<ExtrusionEntity> group = std::move(m_group_stack.back());
+        std::unique_ptr<ExtrusionEntityCollection> group = std::move(m_group_stack.back());
         m_group_stack.pop_back();
         m_output_stack.pop_back();
-        m_output_stack.back()->append_child(std::move(*group));
+        m_output_stack.back()->append(std::move(group));
     }
 }
 
-ExtrusionEntity&& FlatenEntities::flatten(const ExtrusionEntity &to_flatten) && {
+ExtrusionEntityCollection&& FlatenEntities::flatten(const ExtrusionEntity &to_flatten) && {
     m_output_stack.clear();
     m_group_stack.clear();
     m_publish_group_stack.clear();

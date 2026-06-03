@@ -267,6 +267,16 @@ void ExtrusionEntityCollection::polygons_covered_by_spacing(Polygons &out, const
         entity->polygons_covered_by_spacing(out, spacing_ratio, scaled_epsilon);
 }
 
+void ExtrusionEntityCollection::visit(ExtrusionVisitor &visitor)
+{
+    visitor.use(*this);
+}
+
+void ExtrusionEntityCollection::visit(ExtrusionVisitorConst &visitor) const
+{
+    visitor.use(*this);
+}
+
 // Recursively count paths and loops contained in this collection.
 size_t ExtrusionEntityCollection::items_count() const
 {
@@ -289,7 +299,7 @@ void ExtrusionEntityCollection::flatten(bool preserve_ordering, ExtrusionEntityC
         out.append(this->flatten(preserve_ordering));
     } else {
         FlatenEntities flattener(preserve_ordering);
-        this->visit(flattener);
+        flattener.traverse(*this);
         //tranfert owner of entities.
         ExtrusionEntityCollection &flat = flattener.set();
         Children &out_children = out.children();

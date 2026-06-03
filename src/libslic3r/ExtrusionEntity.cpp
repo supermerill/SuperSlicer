@@ -406,6 +406,66 @@ void ExtrusionEntity::collect_points(Points &dst) const
                 child->collect_points(dst);
 }
 
+void ExtrusionEntity::visit(ExtrusionVisitor &visitor)
+{
+    visitor.use(*this);
+}
+
+void ExtrusionEntity::visit(ExtrusionVisitorConst &visitor) const
+{
+    visitor.use(*this);
+}
+
+void ExtrusionEntity::visit(ExtrusionVisitor &&visitor)
+{
+    this->visit(visitor);
+}
+
+void ExtrusionEntity::visit(ExtrusionVisitorConst &&visitor) const
+{
+    this->visit(visitor);
+}
+
+void ExtrusionNop::visit(ExtrusionVisitor &visitor)
+{
+    visitor.use(*this);
+}
+
+void ExtrusionNop::visit(ExtrusionVisitorConst &visitor) const
+{
+    visitor.use(*this);
+}
+
+void ExtrusionPath::visit(ExtrusionVisitor &visitor)
+{
+    visitor.use(*this);
+}
+
+void ExtrusionPath::visit(ExtrusionVisitorConst &visitor) const
+{
+    visitor.use(*this);
+}
+
+void ExtrusionMultiPath::visit(ExtrusionVisitor &visitor)
+{
+    visitor.use(*this);
+}
+
+void ExtrusionMultiPath::visit(ExtrusionVisitorConst &visitor) const
+{
+    visitor.use(*this);
+}
+
+void ExtrusionLoop::visit(ExtrusionVisitor &visitor)
+{
+    visitor.use(*this);
+}
+
+void ExtrusionLoop::visit(ExtrusionVisitorConst &visitor) const
+{
+    visitor.use(*this);
+}
+
 coordf_t ExtrusionEntity::length() const
 {
     if (const ArcPolyline *polyline = this->polyline_or_null())
