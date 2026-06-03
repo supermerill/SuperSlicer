@@ -26,6 +26,7 @@
 #include <ctime>
 #include <functional>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <set>
@@ -51,6 +52,9 @@ class GCodeGenerator;
 struct GCodeProcessorResult;
 class WipeTower2;
 struct ConflictResult;
+namespace Printing {
+struct PrintingPlan;
+}
 
 struct WipeTowerData
 {
@@ -296,6 +300,9 @@ public:
     const WipeTowerData&        wipe_tower_data() const { return wipe_tower_data(&this->m_config,0); }
     const WipeTower2*           wipe_tower2() const { return m_wipe_tower2.get(); }
     const std::vector<ToolOrdering> &tool_orderings() const { return m_tool_orderings; }
+    const Printing::PrintingPlan *printing_plan() const { return m_printing_plan.get(); }
+    Printing::PrintingPlan &mutable_printing_plan();
+    void reset_printing_plan();
 
     std::string                 output_filename(const std::string &filename_base = std::string()) const override;
 
@@ -392,6 +399,7 @@ private:
 
     // Following section will be consumed by the GCodeGenerator.
     std::vector<ToolOrdering>               m_tool_orderings;
+    std::unique_ptr<Printing::PrintingPlan> m_printing_plan;
     mutable std::mutex                      m_wipe_tower_data_mutex;
     WipeTowerData                           m_wipe_tower_data {this};
     std::unique_ptr<WipeTower2>             m_wipe_tower2;

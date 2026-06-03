@@ -28,6 +28,7 @@
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/FFFPrintConfig.hpp"
+#include "libslic3r/Plugins/Ordering/DefaultOrdering.hpp"
 #include "libslic3r/Plugins/PluginLoader.hpp"
 #include "libslic3r/Plugins/Perimeter/ArachnePerimeterGenerator.hpp"
 #include "libslic3r/Plugins/Perimeter/ClassicPerimeterGenerator.hpp"
@@ -179,6 +180,7 @@ void ensure_plugin_test_runtime_initialized()
             orchestrator_handle_value);
         slic3r_api::FlatAreaLayerHeightPlugin::register_flat_area_layer_height_plugin(orchestrator_handle_value);
         slic3r_api::DenseInfillPlugin::register_dense_infill_plugins(orchestrator_handle_value);
+        slic3r_api::Ordering::DefaultOrderingPlugin::register_default_ordering_plugins(orchestrator_handle_value);
         slic3r_api::PolyholesPlugin::register_polyholes_plugin(orchestrator_handle_value);
         slic3r_api::Support::SupportDemandOverhangsPlugin::register_support_demand_overhangs_plugin(
             orchestrator_handle_value);
@@ -241,6 +243,9 @@ void ensure_plugin_test_runtime_initialized()
         activate_plugin_or_fail(orchestrator, "dense_infill.surface_marker");
         activate_plugin_or_fail(orchestrator, "dense_infill.recipe_modifier");
         activate_plugin_or_fail(orchestrator, "dense_infill.post_infill_order");
+        activate_plugin_or_fail(orchestrator, "ordering.plan_builder.default");
+        activate_plugin_or_fail(orchestrator, "ordering.tool_groups.default");
+        activate_plugin_or_fail(orchestrator, "ordering.extrusion_tree.default");
         activate_plugin_or_fail(orchestrator, "polyholes");
         activate_plugin_or_fail(orchestrator, "support.demand.overhangs");
         activate_plugin_or_fail(orchestrator, "support.demand.painting");

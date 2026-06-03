@@ -381,6 +381,17 @@ c_point. Convert with unscaled() before composing it with c_matrix4d.
 */
 SLIC3R_HOST_API c_point object_get_center_offset(const object_handle *me);
 
+/*
+Object instances.
+
+Extrusion trees stored on Layers are in object-local coordinates. A plan or
+G-code builder that duplicates those trees for each physical copy must translate
+the clone by object_get_instance_shift(). The instance index is stable only for
+the current Print object; it is context, not a persistent object identifier.
+*/
+SLIC3R_HOST_API uint32_t object_count_instance(const object_handle *me);
+SLIC3R_HOST_API c_point object_get_instance_shift(const object_handle *me, uint32_t idx);
+
 SLIC3R_HOST_API uint32_t object_count_layer(const object_handle *me);
 SLIC3R_HOST_API layer_handle *object_get_layer_mutable(object_handle *me, uint32_t idx);
 SLIC3R_HOST_API const layer_handle *object_get_layer(const object_handle *me, uint32_t idx);

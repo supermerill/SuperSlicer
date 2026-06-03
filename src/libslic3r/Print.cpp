@@ -60,6 +60,7 @@
 #include "PrintObject.hpp"
 #include "PrintObjectRegion.hpp"
 #include "PrintRegion.hpp"
+#include "Printing/PrintingPlan.hpp"
 #include "ShortestPath.hpp"
 #include "Steps/StepPipeline.hpp"
 #include "Thread.hpp"
@@ -184,6 +185,21 @@ Print::~Print()
     this->clear();
 }
 
+Printing::PrintingPlan &Print::mutable_printing_plan()
+{
+    // STEP_ORDERING owns this work copy for the current process() run. Create
+    // it lazily so tests and legacy code that do not run ordering do not pay
+    // for an empty plan allocation.
+    if (!m_printing_plan)
+        m_printing_plan = std::make_unique<Printing::PrintingPlan>();
+    return *m_printing_plan;
+}
+
+void Print::reset_printing_plan()
+{
+    m_printing_plan.reset();
+}
+
 void Print::set_task(const TaskParams &params)
 {
     const SlicingStepArray &object_steps = ordered_object_steps();
@@ -277,6 +293,7 @@ void Print::clear() {
     m_objects.clear();
     m_print_regions.clear();
     m_model.clear_objects();
+    this->reset_printing_plan();
     this->reset_step_execution_plan_all();
 }
 

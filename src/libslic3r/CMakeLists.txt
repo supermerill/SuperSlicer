@@ -63,6 +63,7 @@ set(SLIC3R_SOURCES
 	Api/host/slic3r_geometry.cpp
 	Api/host/slic3r_orchestrator.cpp
 	Api/host/slic3r_plugin.cpp
+	Api/host/slic3r_printing_plan.cpp
 	Api/host/slic3r_utils.cpp
 	Api/host/slic3r_volume.cpp
 	Api/host/steps/BridgeDetectorStep.cpp
@@ -97,6 +98,7 @@ set(SLIC3R_SOURCES
 	Api/plugin/c/slic3r_plugin.h
 	Api/plugin/c/slic3r_plugin_run_context.h
 	Api/plugin/c/slic3r_plugin_types.h
+	Api/plugin/c/slic3r_printing_plan.h
 	Api/plugin/c/slic3r_slicing_step.h
 	Api/plugin/c/slic3r_utils.h
 	Api/plugin/c/slic3r_volume.h
@@ -136,6 +138,7 @@ set(SLIC3R_SOURCES
 	Api/plugin/cpp/PerimeterStepViews.hpp
 	Api/plugin/cpp/PluginBase.hpp
 	Api/plugin/cpp/PluginContext.hpp
+	Api/plugin/cpp/PrintingPlanViews.hpp
 	Api/plugin/cpp/PrintHelpers.cpp
 	Api/plugin/cpp/PrintHelpers.hpp
 	Api/plugin/cpp/RegionSettingsViews.hpp
@@ -154,6 +157,11 @@ set(SLIC3R_SOURCES
 	Plugins/Infill/PostInfillGapFill.hpp
 	Plugins/MaxOverhangThreshold.cpp
 	Plugins/MaxOverhangThreshold.hpp
+	Plugins/Ordering/DefaultExtrusionTreeOrdering.cpp
+	Plugins/Ordering/DefaultOrdering.cpp
+	Plugins/Ordering/DefaultOrdering.hpp
+	Plugins/Ordering/DefaultPlanBuilder.cpp
+	Plugins/Ordering/DefaultToolGroupOrdering.cpp
 	Plugins/VaseMultiIslandConnector.cpp
 	Plugins/VaseMultiIslandConnector.hpp
 	Plugins/Perimeter/ArachnePerimeterGenerator.cpp

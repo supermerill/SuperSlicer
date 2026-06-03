@@ -7,8 +7,16 @@
 #include <utility>
 #include <vector>
 
+#include "plugin_test_helpers.hpp"
+
+#include "libslic3r/Api/host/Orchestrator.hpp"
+#include "libslic3r/Api/host/Plugin.hpp"
+#include "libslic3r/Api/plugin/c/slic3r_printing_plan.h"
 #include "libslic3r/ExtrusionEntityCollection.hpp"
+#include "libslic3r/Print.hpp"
 #include "libslic3r/Printing/PrintingPlan.hpp"
+#include "libslic3r/Steps/StepExtrusionOrdering.hpp"
+#include "libslic3r/Steps/StepPipeline.hpp"
 
 namespace {
 using namespace Slic3r;
@@ -481,4 +489,105 @@ TEST_CASE("PrintingPlan group extrusion ordering passes source context to loop p
     REQUIRE_FALSE(tool_group.extrusions.empty());
     CHECK(policy.seen_context_root == tool_group.extrusions.front().root.get());
     CHECK(policy.seen_loop_root == &tool_group.extrusions.front().root->child(0));
+}
+
+TEST_CASE("PrintingPlan C API builds and mutates plan objects", "[printing][plan][api]")
+{
+    // Ordering plugins see only opaque C handles. This test exercises that ABI
+    // directly on a local PrintingPlan so a future external plugin can rely on
+    // the same append/read/move primitives without including native plan types.
+    PrintingPlan plan;
+    printing_plan_handle *plan_handle = reinterpret_cast<printing_plan_handle *>(&plan);
+    printing_group_handle *group_handle = printing_plan_append_group(plan_handle);
+    REQUIRE(group_handle != nullptr);
+
+    printing_group_append_object_instance(group_handle, reinterpret_cast<const object_handle *>(uintptr_t(0x1234)), 2);
+    CHECK(printing_group_count_object_instance(group_handle) == 1);
+    CHECK(printing_group_get_object_instance(group_handle, 0).instance_idx == 2);
+
+    printing_layer_group_handle *layer_handle = printing_group_append_layer_group(group_handle, 42);
+    REQUIRE(layer_handle != nullptr);
+    CHECK(printing_layer_group_get_print_z(layer_handle) == 42);
+
+    printing_tool_group_handle *tool_handle = printing_layer_group_append_tool_group(layer_handle, 3);
+    REQUIRE(tool_handle != nullptr);
+    CHECK(printing_tool_group_get_extruder_id(tool_handle) == 3);
+
+    const layer_region_island_handle *fake_region_island =
+        reinterpret_cast<const layer_region_island_handle *>(uintptr_t(0x2345));
+    printing_tool_group_append_region_island(tool_handle, fake_region_island);
+    CHECK(printing_tool_group_get_region_island(tool_handle, 0) == fake_region_island);
+
+    ExtrusionEntity source(true);
+    source.append_child(test_path({Point(0, 0), Point(10, 0)}));
+    const extrusion_entity_handle *source_handle = reinterpret_cast<const extrusion_entity_handle *>(&source);
+    printing_extrusion_handle *extrusion_handle = printing_tool_group_append_extrusion_clone(
+        tool_handle,
+        fake_region_island,
+        RAW_EXTRUSION_ROLE_PERIMETER,
+        source_handle,
+        7);
+    REQUIRE(extrusion_handle != nullptr);
+
+    CHECK(printing_tool_group_count_extrusion(tool_handle) == 1);
+    CHECK(printing_extrusion_get_region_island(extrusion_handle) == fake_region_island);
+    CHECK(printing_extrusion_get_role(extrusion_handle) == RAW_EXTRUSION_ROLE_PERIMETER);
+    CHECK(printing_extrusion_get_object_instance_idx(extrusion_handle) == 7);
+
+    extrusion_entity_handle *clone_root = printing_extrusion_get_root_mutable(extrusion_handle);
+    REQUIRE(clone_root != nullptr);
+    CHECK(clone_root != source_handle);
+    CHECK(extrusion_child_count(clone_root) == 1);
+    CHECK(source.child_count() == 1);
+}
+
+TEST_CASE("PrintingPlan C API moves extrusion content into the plan", "[printing][plan][api]")
+{
+    // The move API transfers the content of a plugin-owned extrusion handle
+    // into the plan clone. The handle itself is still owned by plugin storage,
+    // so the host leaves it valid but empty after the move.
+    PrintingPlan plan;
+    printing_plan_handle *plan_handle = reinterpret_cast<printing_plan_handle *>(&plan);
+    printing_group_handle *group_handle = printing_plan_append_group(plan_handle);
+    printing_layer_group_handle *layer_handle = printing_group_append_layer_group(group_handle, 0);
+    printing_tool_group_handle *tool_handle = printing_layer_group_append_tool_group(layer_handle, 0);
+
+    ExtrusionEntity source(true);
+    source.append_child(test_path({Point(0, 0), Point(10, 0)}));
+    extrusion_entity_handle *source_handle = reinterpret_cast<extrusion_entity_handle *>(&source);
+
+    printing_extrusion_handle *extrusion_handle = printing_tool_group_append_extrusion_move(
+        tool_handle,
+        nullptr,
+        RAW_EXTRUSION_ROLE_INFILL,
+        source_handle,
+        0);
+    REQUIRE(extrusion_handle != nullptr);
+
+    CHECK(source.empty());
+    REQUIRE(printing_extrusion_get_root(extrusion_handle) != nullptr);
+    CHECK(extrusion_child_count(printing_extrusion_get_root(extrusion_handle)) == 1);
+}
+
+TEST_CASE("STEP_ORDERING runs default plugin chain on a shared PrintingPlan", "[printing][plan][step-ordering]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Orchestrator &orchestrator = Orchestrator::instance();
+    Print print;
+    Steps::StepExtrusionOrdering::clean_and_prepare(print);
+    REQUIRE(print.printing_plan() == nullptr);
+
+    const std::vector<Plugin *> plugins =
+        Steps::selected_or_active_plugins_for_step(orchestrator, STEP_ORDERING, &print.full_print_config());
+    REQUIRE(plugins.size() >= 3);
+    CHECK(plugins[0]->get_id() == "ordering.plan_builder.default");
+    CHECK(plugins[1]->get_id() == "ordering.tool_groups.default");
+    CHECK(plugins[2]->get_id() == "ordering.extrusion_tree.default");
+    CHECK(Steps::get_exclusive_steps().find(STEP_ORDERING) == Steps::get_exclusive_steps().end());
+
+    Steps::StepExtrusionOrdering::run_step(orchestrator, print);
+
+    REQUIRE(print.printing_plan() != nullptr);
+    CHECK(print.printing_plan()->groups.size() == 1);
 }

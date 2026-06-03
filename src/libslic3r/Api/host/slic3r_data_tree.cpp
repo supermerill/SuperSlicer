@@ -721,6 +721,18 @@ c_point object_get_center_offset(const object_handle *me)
     return me == nullptr ? c_point{} : Slic3r::to_c_point(Slic3r::to_object(me)->center_offset());
 }
 
+uint32_t object_count_instance(const object_handle *me)
+{
+    return me == nullptr ? 0u : uint32_t(Slic3r::to_object(me)->instances().size());
+}
+
+c_point object_get_instance_shift(const object_handle *me, uint32_t idx)
+{
+    if (me == nullptr || idx >= Slic3r::to_object(me)->instances().size())
+        return c_point{};
+    return Slic3r::to_c_point(Slic3r::to_object(me)->instances()[idx].shift);
+}
+
 uint32_t object_count_layer(const object_handle *me)
 {
     return me == nullptr ? 0 : Slic3r::to_object(me)->layer_count();

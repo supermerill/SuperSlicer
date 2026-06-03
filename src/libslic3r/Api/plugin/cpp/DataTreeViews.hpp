@@ -963,6 +963,9 @@ public:
         return matrix4d_mul(matrix4d_translation(-unscaled(offset.x), -unscaled(offset.y), 0.0), transform());
     }
 
+    uint32_t instance_count() const { return object_count_instance(handle()); }
+    c_point instance_shift(uint32_t idx) const { return object_get_instance_shift(handle(), idx); }
+
     uint32_t layer_count() const { return object_count_layer(handle()); }
     Layer layer(uint32_t idx) const {
         return Layer(object_get_layer(handle(), idx));
