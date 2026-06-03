@@ -9,6 +9,7 @@
 #include <cassert>
 #include <limits>
 #include <map>
+#include <memory>
 #include <utility>
 
 #include "libslic3r/ExtrusionEntityCollection.hpp"
@@ -37,10 +38,32 @@ struct ToolOrderScore
 struct ExtrusionEntryCandidate
 {
     Point point;
-    distsqrf_t distance_to_current = (std::numeric_limits<distsqrf_t>::max)();
+    double score = (std::numeric_limits<double>::max)();
+    std::shared_ptr<const LoopEntryAnalysis> loop_analysis;
+    size_t loop_candidate_idx = size_t(-1);
     bool reverse_before_printing = false;
-    bool rotate_loop_before_printing = false;
     bool valid = false;
+};
+
+/*
+Default analysis used when no advanced loop-entry policy is supplied.
+
+It stores only the candidate points because the default behavior needs no richer
+state. More advanced policies can implement their own LoopEntryAnalysis with a
+different internal representation while keeping the same ordering contract.
+*/
+class DefaultLoopEntryAnalysis final : public LoopEntryAnalysis
+{
+public:
+    explicit DefaultLoopEntryAnalysis(const ExtrusionEntity &loop_root);
+
+    size_t candidate_count() const override { return m_points.size(); }
+    Point candidate_point(size_t candidate_idx) const override;
+    double score_candidate(size_t candidate_idx, const Point &start_near) const override;
+    void rotate_loop_to_candidate(ExtrusionEntity &loop_root, size_t candidate_idx) const override;
+
+private:
+    Points m_points;
 };
 
 /*
@@ -130,7 +153,10 @@ really starts at the chosen entry, and appends the children back in fixed order.
 Only this node's direct children are permuted; non-sortable children remain
 atomic.
 */
-void order_sortable_extrusion_children(ExtrusionEntity &entity, const Point &start_near);
+void order_sortable_extrusion_children(ExtrusionEntity &entity,
+                                       const Point &start_near,
+                                       const LoopEntryPolicy &loop_policy,
+                                       const LoopEntryContext &context);
 
 /*
 Find the best entry point that entity could present to its parent.
@@ -140,7 +166,10 @@ can be reversed. Loops expose every existing vertex because a loop can be
 rotated without changing its geometry. Sortable children expose the best entry
 of their own children, since they will be ordered recursively when selected.
 */
-ExtrusionEntryCandidate best_entry_candidate(const ExtrusionEntity &entity, const Point &current_point);
+ExtrusionEntryCandidate best_entry_candidate(const ExtrusionEntity &entity,
+                                             const Point &current_point,
+                                             const LoopEntryPolicy &loop_policy,
+                                             const LoopEntryContext &context);
 
 /*
 Add all existing vertices of a loop-like subtree to points.
@@ -157,7 +186,10 @@ Prepare a selected child so its first printable point matches candidate.
 This may reverse an open reversible path, rotate a loop to the selected vertex,
 or recursively order a sortable child from the selected point.
 */
-void prepare_child_for_entry(ExtrusionEntity &child, const ExtrusionEntryCandidate &candidate);
+void prepare_child_for_entry(ExtrusionEntity &child,
+                             const ExtrusionEntryCandidate &candidate,
+                             const LoopEntryPolicy &loop_policy,
+                             const LoopEntryContext &context);
 
 /*
 Rotate a loop-like entity to start at entry_point.
@@ -317,15 +349,48 @@ void order_printing_tool_groups(PrintingGroup &printing_group, const uint16_t fi
         apply_tool_order_candidate(printing_group.layers[layer_idx], selected_candidates[layer_idx]);
 }
 
+std::unique_ptr<LoopEntryAnalysis> DefaultLoopEntryPolicy::analyze_loop(const ExtrusionEntity &loop_root,
+                                                                        const LoopEntryContext &context) const
+{
+    (void)context;
+    return std::make_unique<DefaultLoopEntryAnalysis>(loop_root);
+}
+
 void order_extrusion_tree(ExtrusionEntity &entity, const Point start_near)
+{
+    const DefaultLoopEntryPolicy default_policy;
+    LoopEntryContext context;
+    context.root = &entity;
+    context.role = entity.role();
+    order_extrusion_tree(entity, start_near, default_policy, context);
+}
+
+void order_extrusion_tree(ExtrusionEntity &entity,
+                          const Point start_near,
+                          const LoopEntryPolicy &loop_policy,
+                          const LoopEntryContext &context)
 {
     if (!entity.can_sort())
         return;
 
-    order_sortable_extrusion_children(entity, start_near);
+    LoopEntryContext effective_context = context;
+    if (effective_context.root == nullptr)
+        effective_context.root = &entity;
+    if (effective_context.role == ExtrusionRole::None)
+        effective_context.role = entity.role();
+
+    order_sortable_extrusion_children(entity, start_near, loop_policy, effective_context);
 }
 
 void order_extrusion_tree(PrintingGroup &printing_group, const Point start_near)
+{
+    const DefaultLoopEntryPolicy default_policy;
+    order_extrusion_tree(printing_group, start_near, default_policy);
+}
+
+void order_extrusion_tree(PrintingGroup &printing_group,
+                          const Point start_near,
+                          const LoopEntryPolicy &loop_policy)
 {
     Point current_point = start_near;
 
@@ -341,7 +406,12 @@ void order_extrusion_tree(PrintingGroup &printing_group, const Point start_near)
                 if (!extrusion.root)
                     continue;
 
-                order_extrusion_tree(*extrusion.root, current_point);
+                LoopEntryContext context;
+                context.root = extrusion.root.get();
+                context.region_island = extrusion.region_island;
+                context.role = extrusion.sregion_island_role;
+
+                order_extrusion_tree(*extrusion.root, current_point, loop_policy, context);
                 if (!extrusion.root->empty())
                     current_point = extrusion.root->last_point();
             }
@@ -464,6 +534,34 @@ PrintingPlan build_printing_plan_by_layer(const Print &print)
 }
 
 namespace {
+
+DefaultLoopEntryAnalysis::DefaultLoopEntryAnalysis(const ExtrusionEntity &loop_root)
+{
+    collect_loop_entry_points(loop_root, m_points);
+    if (m_points.empty() && !loop_root.empty())
+        m_points.push_back(loop_root.first_point());
+}
+
+Point DefaultLoopEntryAnalysis::candidate_point(const size_t candidate_idx) const
+{
+    assert(candidate_idx < m_points.size());
+    return candidate_idx < m_points.size() ? m_points[candidate_idx] : Point();
+}
+
+double DefaultLoopEntryAnalysis::score_candidate(const size_t candidate_idx, const Point &start_near) const
+{
+    assert(candidate_idx < m_points.size());
+    return candidate_idx < m_points.size() ? start_near.distance_to_square(m_points[candidate_idx]) :
+                                             (std::numeric_limits<double>::max)();
+}
+
+void DefaultLoopEntryAnalysis::rotate_loop_to_candidate(ExtrusionEntity &loop_root,
+                                                        const size_t candidate_idx) const
+{
+    assert(candidate_idx < m_points.size());
+    if (candidate_idx < m_points.size())
+        rotate_loop_to_point(loop_root, m_points[candidate_idx]);
+}
 
 std::vector<ExtrusionRole> layer_region_island_roles()
 {
@@ -642,7 +740,10 @@ void apply_tool_order_candidate(PrintingLayerGroup &layer_group, const ToolOrder
     layer_group.tool_groups = std::move(reordered);
 }
 
-void order_sortable_extrusion_children(ExtrusionEntity &entity, const Point &start_near)
+void order_sortable_extrusion_children(ExtrusionEntity &entity,
+                                       const Point &start_near,
+                                       const LoopEntryPolicy &loop_policy,
+                                       const LoopEntryContext &context)
 {
     assert(entity.can_sort());
 
@@ -665,12 +766,12 @@ void order_sortable_extrusion_children(ExtrusionEntity &entity, const Point &sta
                 continue;
 
             const ExtrusionEntryCandidate candidate =
-                best_entry_candidate(*remaining_children[child_idx], current_point);
+                best_entry_candidate(*remaining_children[child_idx], current_point, loop_policy, context);
             if (!candidate.valid)
                 continue;
 
             if (selected_idx == size_t(-1) ||
-                candidate.distance_to_current < selected_candidate.distance_to_current) {
+                candidate.score < selected_candidate.score) {
                 selected_idx = child_idx;
                 selected_candidate = candidate;
             }
@@ -691,7 +792,7 @@ void order_sortable_extrusion_children(ExtrusionEntity &entity, const Point &sta
         ExtrusionEntityUPtr child = std::move(remaining_children[selected_idx]);
         remaining_children.erase(remaining_children.begin() + selected_idx);
 
-        prepare_child_for_entry(*child, selected_candidate);
+        prepare_child_for_entry(*child, selected_candidate, loop_policy, context);
         if (!child->empty())
             current_point = child->last_point();
         append_owned_child(entity, std::move(child));
@@ -704,7 +805,10 @@ void order_sortable_extrusion_children(ExtrusionEntity &entity, const Point &sta
     entity.set_can_sort_reverse(false, false);
 }
 
-ExtrusionEntryCandidate best_entry_candidate(const ExtrusionEntity &entity, const Point &current_point)
+ExtrusionEntryCandidate best_entry_candidate(const ExtrusionEntity &entity,
+                                             const Point &current_point,
+                                             const LoopEntryPolicy &loop_policy,
+                                             const LoopEntryContext &context)
 {
     ExtrusionEntryCandidate best;
     if (entity.empty())
@@ -721,11 +825,13 @@ ExtrusionEntryCandidate best_entry_candidate(const ExtrusionEntity &entity, cons
             if (!child)
                 continue;
 
-            ExtrusionEntryCandidate candidate = best_entry_candidate(*child, current_point);
+            ExtrusionEntryCandidate candidate =
+                best_entry_candidate(*child, current_point, loop_policy, context);
             if (candidate.valid &&
-                (!best.valid || candidate.distance_to_current < best.distance_to_current)) {
+                (!best.valid || candidate.score < best.score)) {
                 candidate.reverse_before_printing = false;
-                candidate.rotate_loop_before_printing = false;
+                candidate.loop_analysis.reset();
+                candidate.loop_candidate_idx = size_t(-1);
                 best = candidate;
             }
         }
@@ -733,34 +839,37 @@ ExtrusionEntryCandidate best_entry_candidate(const ExtrusionEntity &entity, cons
     }
 
     if (entity.is_loop()) {
-        Points points;
-        collect_loop_entry_points(entity, points);
-        if (points.empty())
-            points.push_back(entity.first_point());
+        std::unique_ptr<LoopEntryAnalysis> analysis = loop_policy.analyze_loop(entity, context);
+        if (!analysis || analysis->candidate_count() == 0)
+            return best;
 
-        for (const Point &point : points) {
+        std::shared_ptr<const LoopEntryAnalysis> shared_analysis(std::move(analysis));
+        const size_t candidate_count = shared_analysis->candidate_count();
+
+        for (size_t candidate_idx = 0; candidate_idx < candidate_count; ++candidate_idx) {
             ExtrusionEntryCandidate candidate;
-            candidate.point = point;
-            candidate.distance_to_current = current_point.distance_to_square(point);
-            candidate.rotate_loop_before_printing = true;
+            candidate.point = shared_analysis->candidate_point(candidate_idx);
+            candidate.score = shared_analysis->score_candidate(candidate_idx, current_point);
+            candidate.loop_analysis = shared_analysis;
+            candidate.loop_candidate_idx = candidate_idx;
             candidate.valid = true;
-            if (!best.valid || candidate.distance_to_current < best.distance_to_current)
+            if (!best.valid || candidate.score < best.score)
                 best = candidate;
         }
         return best;
     }
 
     best.point = entity.first_point();
-    best.distance_to_current = current_point.distance_to_square(best.point);
+    best.score = current_point.distance_to_square(best.point);
     best.valid = true;
 
     if (entity.can_reverse()) {
         ExtrusionEntryCandidate reversed;
         reversed.point = entity.last_point();
-        reversed.distance_to_current = current_point.distance_to_square(reversed.point);
+        reversed.score = current_point.distance_to_square(reversed.point);
         reversed.reverse_before_printing = true;
         reversed.valid = true;
-        if (reversed.distance_to_current < best.distance_to_current)
+        if (reversed.score < best.score)
             best = reversed;
     }
 
@@ -791,17 +900,20 @@ void collect_loop_entry_points(const ExtrusionEntity &entity, Points &points)
                 collect_loop_entry_points(*child, points);
 }
 
-void prepare_child_for_entry(ExtrusionEntity &child, const ExtrusionEntryCandidate &candidate)
+void prepare_child_for_entry(ExtrusionEntity &child,
+                             const ExtrusionEntryCandidate &candidate,
+                             const LoopEntryPolicy &loop_policy,
+                             const LoopEntryContext &context)
 {
     assert(candidate.valid);
 
-    if (candidate.rotate_loop_before_printing)
-        rotate_loop_to_point(child, candidate.point);
+    if (candidate.loop_analysis)
+        candidate.loop_analysis->rotate_loop_to_candidate(child, candidate.loop_candidate_idx);
     else if (candidate.reverse_before_printing)
         child.reverse();
 
     if (child.can_sort())
-        order_sortable_extrusion_children(child, candidate.point);
+        order_sortable_extrusion_children(child, candidate.point, loop_policy, context);
 }
 
 void rotate_loop_to_point(ExtrusionEntity &entity, const Point &entry_point)

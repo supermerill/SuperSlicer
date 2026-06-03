@@ -1,7 +1,9 @@
 #include <catch2/catch.hpp>
 
+#include <algorithm>
 #include <cstdint>
 #include <initializer_list>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -67,6 +69,98 @@ std::unique_ptr<ExtrusionEntityCollection> test_root(const bool can_sort = true,
 {
     return std::make_unique<ExtrusionEntityCollection>(can_sort, can_reverse);
 }
+
+class TestLoopEntryAnalysis final : public LoopEntryAnalysis
+{
+public:
+    TestLoopEntryAnalysis(const ExtrusionEntity &loop_root,
+                          const Point preferred_point,
+                          const bool has_preferred_point,
+                          const Point omitted_point,
+                          const bool has_omitted_point)
+        : m_preferred_point(preferred_point)
+        , m_has_preferred_point(has_preferred_point)
+    {
+        loop_root.collect_points(m_points);
+        if (has_omitted_point)
+            m_points.erase(std::remove(m_points.begin(), m_points.end(), omitted_point), m_points.end());
+    }
+
+    size_t candidate_count() const override { return m_points.size(); }
+
+    Point candidate_point(const size_t candidate_idx) const override
+    {
+        assert(candidate_idx < m_points.size());
+        return candidate_idx < m_points.size() ? m_points[candidate_idx] : Point();
+    }
+
+    double score_candidate(const size_t candidate_idx, const Point &start_near) const override
+    {
+        assert(candidate_idx < m_points.size());
+        if (candidate_idx >= m_points.size())
+            return (std::numeric_limits<double>::max)();
+        if (m_has_preferred_point && m_points[candidate_idx] == m_preferred_point)
+            return -1.0;
+        return start_near.distance_to_square(m_points[candidate_idx]);
+    }
+
+    void rotate_loop_to_candidate(ExtrusionEntity &loop_root, const size_t candidate_idx) const override
+    {
+        REQUIRE(candidate_idx < m_points.size());
+        ArcPolyline *polyline = loop_root.polyline_or_null();
+        REQUIRE(polyline != nullptr);
+
+        size_t point_idx = size_t(-1);
+        for (size_t idx = 0; idx < polyline->size(); ++idx)
+            if (polyline->get_point(idx) == m_points[candidate_idx]) {
+                point_idx = idx;
+                break;
+            }
+
+        REQUIRE(point_idx != size_t(-1));
+        if (point_idx == 0 || (point_idx == polyline->size() - 1 && polyline->front() == polyline->back()))
+            return;
+
+        ArcPolyline before_entry;
+        ArcPolyline after_entry;
+        REQUIRE(polyline->split_at_index(point_idx, before_entry, after_entry));
+        after_entry.append(std::move(before_entry));
+        polyline->swap(after_entry);
+    }
+
+private:
+    Points m_points;
+    Point m_preferred_point;
+    bool m_has_preferred_point = false;
+};
+
+class TestLoopEntryPolicy final : public LoopEntryPolicy
+{
+public:
+    Point preferred_point;
+    bool has_preferred_point = false;
+    Point omitted_point;
+    bool has_omitted_point = false;
+
+    mutable const ExtrusionEntity *seen_loop_root = nullptr;
+    mutable const ExtrusionEntity *seen_context_root = nullptr;
+    mutable const LayerRegionIsland *seen_region_island = nullptr;
+    mutable ExtrusionRole seen_role = ExtrusionRole::None;
+
+    std::unique_ptr<LoopEntryAnalysis> analyze_loop(const ExtrusionEntity &loop_root,
+                                                    const LoopEntryContext &context) const override
+    {
+        seen_loop_root = &loop_root;
+        seen_context_root = context.root;
+        seen_region_island = context.region_island;
+        seen_role = context.role;
+        return std::make_unique<TestLoopEntryAnalysis>(loop_root,
+                                                       preferred_point,
+                                                       has_preferred_point,
+                                                       omitted_point,
+                                                       has_omitted_point);
+    }
+};
 
 } // namespace
 
@@ -242,6 +336,45 @@ TEST_CASE("PrintingPlan extrusion ordering rotates leaf loops to nearest vertex"
     CHECK(root->child(0).last_point() == Point(100, 100));
 }
 
+TEST_CASE("PrintingPlan extrusion ordering lets a policy prefer a farther loop point", "[printing][plan]")
+{
+    // The loop policy owns the loop-entry decision. This policy gives one
+    // distant vertex the best score, so ordering must use it even though the
+    // default distance-only policy would start at Point(0, 0).
+    TestLoopEntryPolicy policy;
+    policy.preferred_point = Point(100, 100);
+    policy.has_preferred_point = true;
+
+    std::unique_ptr<ExtrusionEntityCollection> root = test_root();
+    root->append(test_path({Point(0, 0), Point(100, 0), Point(100, 100), Point(0, 0)}));
+
+    LoopEntryContext context;
+    order_extrusion_tree(*root, Point(0, 0), policy, context);
+
+    CHECK(root->child(0).is_loop());
+    CHECK(root->child(0).first_point() == Point(100, 100));
+    CHECK(policy.seen_context_root == root.get());
+}
+
+TEST_CASE("PrintingPlan extrusion ordering lets a policy remove a loop candidate", "[printing][plan]")
+{
+    // A future plugin may forbid a seam candidate because of painting, angle or
+    // extrusion properties. This test models that by omitting the normally best
+    // vertex; the next best available vertex must be selected instead.
+    TestLoopEntryPolicy policy;
+    policy.omitted_point = Point(0, 0);
+    policy.has_omitted_point = true;
+
+    std::unique_ptr<ExtrusionEntityCollection> root = test_root();
+    root->append(test_path({Point(0, 0), Point(100, 0), Point(100, 100), Point(0, 0)}));
+
+    LoopEntryContext context;
+    order_extrusion_tree(*root, Point(0, 0), policy, context);
+
+    CHECK(root->child(0).is_loop());
+    CHECK(root->child(0).first_point() == Point(100, 0));
+}
+
 TEST_CASE("PrintingPlan extrusion ordering rotates composed loops without flattening", "[printing][plan]")
 {
     // A loop may be represented as a non-sortable collection of several open
@@ -316,4 +449,36 @@ TEST_CASE("PrintingPlan group extrusion ordering propagates current position", "
     REQUIRE(tool_group.extrusions.size() == 2);
     REQUIRE(tool_group.extrusions[1].root != nullptr);
     CHECK(tool_group.extrusions[1].root->child(0).first_point() == Point(101, 0));
+}
+
+TEST_CASE("PrintingPlan group extrusion ordering passes source context to loop policy", "[printing][plan]")
+{
+    // The group overload is the bridge between a PrintingPlan and loop-entry
+    // scoring. It must pass the source LayerRegionIsland and role bucket so a
+    // later plugin-backed policy can read region settings or source properties.
+    const LayerRegionIsland *region_island =
+        reinterpret_cast<const LayerRegionIsland *>(uintptr_t(0x1234));
+    TestLoopEntryPolicy policy;
+
+    PrintingGroup group;
+    group.layers.emplace_back();
+    group.layers.front().tool_groups.push_back(test_tool_group(1, 1));
+    PrintingToolGroup &tool_group = group.layers.front().tool_groups.front();
+    tool_group.extrusions.clear();
+
+    PrintingExtrusion extrusion;
+    extrusion.region_island = region_island;
+    extrusion.sregion_island_role = ExtrusionRole::Perimeter;
+    extrusion.root = test_root();
+    static_cast<ExtrusionEntityCollection *>(extrusion.root.get())->append(
+        test_path({Point(0, 0), Point(100, 0), Point(100, 100), Point(0, 0)}));
+    tool_group.extrusions.push_back(std::move(extrusion));
+
+    order_extrusion_tree(group, Point(10, 0), policy);
+
+    CHECK(policy.seen_region_island == region_island);
+    CHECK(policy.seen_role == ExtrusionRole::Perimeter);
+    REQUIRE_FALSE(tool_group.extrusions.empty());
+    CHECK(policy.seen_context_root == tool_group.extrusions.front().root.get());
+    CHECK(policy.seen_loop_root == &tool_group.extrusions.front().root->child(0));
 }

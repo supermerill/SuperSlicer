@@ -160,6 +160,73 @@ struct PrintingPlan
 };
 
 /*
+Context available while choosing where a loop should start.
+
+The loop scorer gets the loop itself as a function argument. This context adds
+the source information that is not carried by every ExtrusionEntity: the copied
+root currently being ordered, the source LayerRegionIsland when the tree comes
+from a PrintingPlan, and the role bucket copied from that island. Unit tests and
+standalone callers may leave those pointers empty.
+*/
+struct LoopEntryContext
+{
+    const ExtrusionEntity *root = nullptr;
+    const LayerRegionIsland *region_island = nullptr;
+    ExtrusionRole role = ExtrusionRole::None;
+};
+
+/*
+Analysis object created for one loop candidate search.
+
+The ordering algorithm deliberately does not know how loop candidates are
+represented. A simple analysis may expose stored vertices, while a future one
+may keep a rich map of tree leaves, inherited properties, angles or plugin
+weights. The analysis is short-lived and is valid only while the loop tree has
+not been mutated.
+*/
+class LoopEntryAnalysis
+{
+public:
+    virtual ~LoopEntryAnalysis() = default;
+
+    virtual size_t candidate_count() const = 0;
+    virtual Point candidate_point(size_t candidate_idx) const = 0;
+    virtual double score_candidate(size_t candidate_idx, const Point &start_near) const = 0;
+    virtual void rotate_loop_to_candidate(ExtrusionEntity &loop_root, size_t candidate_idx) const = 0;
+};
+
+/*
+Policy used by local extrusion ordering when it needs to choose a loop entry.
+
+The policy receives the whole loop root, not a flattened list of points. This is
+important for future scorers: they can inspect the tree shape and properties
+before deciding which candidate representation they want to expose through the
+returned LoopEntryAnalysis.
+*/
+class LoopEntryPolicy
+{
+public:
+    virtual ~LoopEntryPolicy() = default;
+
+    virtual std::unique_ptr<LoopEntryAnalysis> analyze_loop(const ExtrusionEntity &loop_root,
+                                                            const LoopEntryContext &context) const = 0;
+};
+
+/*
+Default loop-entry policy.
+
+It reproduces the current conservative behavior: every existing loop vertex is a
+candidate, the score is the squared distance to start_near, and rotation is done
+on the selected stored vertex.
+*/
+class DefaultLoopEntryPolicy final : public LoopEntryPolicy
+{
+public:
+    std::unique_ptr<LoopEntryAnalysis> analyze_loop(const ExtrusionEntity &loop_root,
+                                                    const LoopEntryContext &context) const override;
+};
+
+/*
 Order all PrintingToolGroups in place.
 
 This function orders the PrintingToolGroup vector inside each PrintingLayerGroup
@@ -232,6 +299,19 @@ meaning for perimeter and infill consumers.
 void order_extrusion_tree(ExtrusionEntity &entity, const Point start_near);
 
 /*
+Reorder one copied extrusion tree using a caller-provided loop policy.
+
+This is the extension point for advanced loop-entry selection. The policy may
+choose candidates using richer information than a point list; the ordering
+algorithm only consumes candidate scores and asks the selected analysis to apply
+the matching rotation.
+*/
+void order_extrusion_tree(ExtrusionEntity &entity,
+                          const Point start_near,
+                          const LoopEntryPolicy &loop_policy,
+                          const LoopEntryContext &context);
+
+/*
 Order all copied extrusion trees in a PrintingGroup.
 
 This is the group-level entry point for local extrusion ordering. It uses
@@ -239,6 +319,15 @@ start_near as the current nozzle position for the first tree, then passes each
 tree's final position to the next tree in the already selected printing order.
 */
 void order_extrusion_tree(PrintingGroup &printing_group, const Point start_near);
+
+/*
+Order all copied extrusion trees in a PrintingGroup using a caller-provided loop
+policy. Each PrintingExtrusion contributes its source LayerRegionIsland and role
+to the LoopEntryContext passed to the policy.
+*/
+void order_extrusion_tree(PrintingGroup &printing_group,
+                          const Point start_near,
+                          const LoopEntryPolicy &loop_policy);
 
 } // namespace Slic3r::Printing
 
