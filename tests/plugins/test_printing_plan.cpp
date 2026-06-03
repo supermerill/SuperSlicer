@@ -1,0 +1,319 @@
+#include <catch2/catch.hpp>
+
+#include <cstdint>
+#include <initializer_list>
+#include <utility>
+#include <vector>
+
+#include "libslic3r/ExtrusionEntityCollection.hpp"
+#include "libslic3r/Printing/PrintingPlan.hpp"
+
+namespace {
+using namespace Slic3r;
+using namespace Slic3r::Printing;
+
+PrintingToolGroup test_tool_group(const uint16_t extruder_id, const uint16_t marker)
+{
+    PrintingToolGroup group;
+    group.extruder_id = extruder_id;
+
+    /*
+    PrintingToolGroup has no standalone debug id. Store a default
+    PrintingExtrusion with a marker in object_instance_idx so the tests can
+    verify that groups with the same extruder keep their relative order after
+    being moved.
+    */
+    PrintingExtrusion extrusion;
+    extrusion.object_instance_idx = marker;
+    group.extrusions.push_back(std::move(extrusion));
+    return group;
+}
+
+PrintingLayerGroup test_layer(std::initializer_list<uint16_t> extruders)
+{
+    PrintingLayerGroup layer;
+    uint16_t marker = 1;
+    for (const uint16_t extruder_id : extruders)
+        layer.tool_groups.push_back(test_tool_group(extruder_id, marker++));
+    return layer;
+}
+
+std::vector<uint16_t> extruder_order(const PrintingLayerGroup &layer)
+{
+    std::vector<uint16_t> out;
+    out.reserve(layer.tool_groups.size());
+    for (const PrintingToolGroup &tool_group : layer.tool_groups)
+        out.push_back(tool_group.extruder_id);
+    return out;
+}
+
+std::vector<uint16_t> marker_order(const PrintingLayerGroup &layer)
+{
+    std::vector<uint16_t> out;
+    out.reserve(layer.tool_groups.size());
+    for (const PrintingToolGroup &tool_group : layer.tool_groups) {
+        REQUIRE_FALSE(tool_group.extrusions.empty());
+        out.push_back(tool_group.extrusions.front().object_instance_idx);
+    }
+    return out;
+}
+
+ExtrusionEntityUPtr test_path(std::initializer_list<Point> points, const bool can_reverse = true)
+{
+    return std::make_unique<ExtrusionEntity>(can_reverse, ArcPolyline(Points(points)));
+}
+
+std::unique_ptr<ExtrusionEntityCollection> test_root(const bool can_sort = true, const bool can_reverse = true)
+{
+    return std::make_unique<ExtrusionEntityCollection>(can_sort, can_reverse);
+}
+
+} // namespace
+
+TEST_CASE("PrintingPlan tool ordering keeps one-extruder layers stable", "[printing][plan]")
+{
+    // A layer using only one extruder cannot reduce tool changes by moving its
+    // groups. The function may still rebuild the vector internally, but it must
+    // keep duplicate tool groups in their original relative order.
+    PrintingGroup group;
+    group.layers.push_back(test_layer({2, 2}));
+
+    order_printing_tool_groups(group);
+
+    CHECK(extruder_order(group.layers.front()) == std::vector<uint16_t>({2, 2}));
+    CHECK(marker_order(group.layers.front()) == std::vector<uint16_t>({1, 2}));
+}
+
+TEST_CASE("PrintingPlan tool ordering starts with requested first extruder", "[printing][plan]")
+{
+    // When the caller knows the active tool before this PrintingGroup, the first
+    // printable layer should start with that tool if it is available. The rest
+    // of the layer stays as close as possible to the original order.
+    PrintingGroup group;
+    group.layers.push_back(test_layer({2, 1, 3}));
+
+    order_printing_tool_groups(group, 1);
+
+    CHECK(extruder_order(group.layers.front()) == std::vector<uint16_t>({1, 2, 3}));
+}
+
+TEST_CASE("PrintingPlan tool ordering uses smallest extruder as default start", "[printing][plan]")
+{
+    // If no first tool is known, the smallest extruder id is only a deterministic
+    // tie-break. This prevents the first layer from depending on incidental
+    // source traversal order when several orders have the same tool-change cost.
+    PrintingGroup group;
+    group.layers.push_back(test_layer({2, 3, 1}));
+
+    order_printing_tool_groups(group, uint16_t(-1));
+
+    CHECK(extruder_order(group.layers.front()) == std::vector<uint16_t>({1, 2, 3}));
+}
+
+TEST_CASE("PrintingPlan tool ordering connects consecutive layers through shared tools", "[printing][plan]")
+{
+    // The last tool of one layer is chosen with the next layer in mind. Here the
+    // first layer can end with extruder 2, allowing the second layer to start
+    // with extruder 2 and avoid one tool change.
+    PrintingGroup group;
+    group.layers.push_back(test_layer({1, 2}));
+    group.layers.push_back(test_layer({2, 3}));
+
+    order_printing_tool_groups(group, uint16_t(-1));
+
+    CHECK(extruder_order(group.layers[0]) == std::vector<uint16_t>({1, 2}));
+    CHECK(extruder_order(group.layers[1]) == std::vector<uint16_t>({2, 3}));
+}
+
+TEST_CASE("PrintingPlan tool ordering minimizes transitions over several layers", "[printing][plan]")
+{
+    // This case needs a global choice, not a local per-layer shuffle. The best
+    // sequence is 1->2, 2->3, then 3->1, which gives zero inter-layer tool
+    // changes across all three printable layers.
+    PrintingGroup group;
+    group.layers.push_back(test_layer({1, 2}));
+    group.layers.push_back(test_layer({2, 3}));
+    group.layers.push_back(test_layer({1, 3}));
+
+    order_printing_tool_groups(group, uint16_t(-1));
+
+    CHECK(extruder_order(group.layers[0]) == std::vector<uint16_t>({1, 2}));
+    CHECK(extruder_order(group.layers[1]) == std::vector<uint16_t>({2, 3}));
+    CHECK(extruder_order(group.layers[2]) == std::vector<uint16_t>({3, 1}));
+}
+
+TEST_CASE("PrintingPlan tool ordering preserves duplicate tool group order", "[printing][plan]")
+{
+    // A layer may contain several groups with the same extruder. Ordering may
+    // move all groups of an extruder together, but it must not reverse or sort
+    // the groups inside that extruder bucket because they may already encode a
+    // meaningful upstream sequence.
+    PrintingGroup group;
+    group.layers.push_back(test_layer({2, 1, 2, 3, 1}));
+
+    order_printing_tool_groups(group, 1);
+
+    CHECK(extruder_order(group.layers.front()) == std::vector<uint16_t>({1, 1, 2, 2, 3}));
+    CHECK(marker_order(group.layers.front()) == std::vector<uint16_t>({2, 5, 1, 3, 4}));
+}
+
+TEST_CASE("PrintingPlan tool ordering skips empty layers in transition search", "[printing][plan]")
+{
+    // Empty layer groups are placeholders, not tool-change events. They should
+    // remain empty and should not prevent the next printable layer from using
+    // the requested first extruder.
+    PrintingGroup group;
+    group.layers.emplace_back();
+    group.layers.push_back(test_layer({2, 1}));
+
+    order_printing_tool_groups(group, 1);
+
+    CHECK(group.layers.front().tool_groups.empty());
+    CHECK(extruder_order(group.layers[1]) == std::vector<uint16_t>({1, 2}));
+}
+
+TEST_CASE("PrintingPlan extrusion ordering leaves non-sortable nodes unchanged", "[printing][plan]")
+{
+    // A non-sortable collection is an upstream contract: its child order may
+    // encode a continuous multipath or a required process order. Ordering must
+    // therefore treat it as one atomic sequence and leave its children alone.
+    std::unique_ptr<ExtrusionEntityCollection> root = test_root(false, false);
+    root->append(test_path({Point(100, 0), Point(110, 0)}));
+    root->append(test_path({Point(0, 0), Point(10, 0)}));
+
+    order_extrusion_tree(*root, Point(0, 0));
+
+    CHECK(root->child(0).first_point() == Point(100, 0));
+    CHECK(root->child(1).first_point() == Point(0, 0));
+    CHECK_FALSE(root->can_sort());
+}
+
+TEST_CASE("PrintingPlan extrusion ordering chooses nearest sortable child", "[printing][plan]")
+{
+    // Sortable children are selected by their closest legal entry point. Once a
+    // concrete order is chosen, the parent becomes non-sortable so later code
+    // sees a fixed print sequence instead of an optimization request.
+    std::unique_ptr<ExtrusionEntityCollection> root = test_root();
+    root->append(test_path({Point(100, 0), Point(110, 0)}));
+    root->append(test_path({Point(5, 0), Point(15, 0)}));
+
+    order_extrusion_tree(*root, Point(0, 0));
+
+    CHECK(root->child(0).first_point() == Point(5, 0));
+    CHECK(root->child(1).first_point() == Point(100, 0));
+    CHECK_FALSE(root->can_sort());
+    CHECK_FALSE(root->can_reverse());
+}
+
+TEST_CASE("PrintingPlan extrusion ordering reverses only reversible open paths", "[printing][plan]")
+{
+    // A reversible child may be flipped when its end is closer to the current
+    // position. A non-reversible child must keep its original direction even if
+    // that forces a longer travel.
+    std::unique_ptr<ExtrusionEntityCollection> reversible_root = test_root();
+    reversible_root->append(test_path({Point(100, 0), Point(10, 0)}, true));
+
+    order_extrusion_tree(*reversible_root, Point(0, 0));
+
+    CHECK(reversible_root->child(0).first_point() == Point(10, 0));
+    CHECK(reversible_root->child(0).last_point() == Point(100, 0));
+
+    std::unique_ptr<ExtrusionEntityCollection> fixed_root = test_root();
+    fixed_root->append(test_path({Point(100, 0), Point(10, 0)}, false));
+
+    order_extrusion_tree(*fixed_root, Point(0, 0));
+
+    CHECK(fixed_root->child(0).first_point() == Point(100, 0));
+    CHECK(fixed_root->child(0).last_point() == Point(10, 0));
+}
+
+TEST_CASE("PrintingPlan extrusion ordering rotates leaf loops to nearest vertex", "[printing][plan]")
+{
+    // Loops are not reversed, but they may be rotated. The selected vertex
+    // becomes both the first and last point, preserving the closed geometry
+    // while avoiding a needless travel to the old arbitrary start point.
+    std::unique_ptr<ExtrusionEntityCollection> root = test_root();
+    root->append(test_path({Point(0, 0), Point(100, 0), Point(100, 100), Point(0, 0)}));
+
+    order_extrusion_tree(*root, Point(100, 95));
+
+    CHECK(root->child(0).is_loop());
+    CHECK(root->child(0).first_point() == Point(100, 100));
+    CHECK(root->child(0).last_point() == Point(100, 100));
+}
+
+TEST_CASE("PrintingPlan extrusion ordering rotates composed loops without flattening", "[printing][plan]")
+{
+    // A loop may be represented as a non-sortable collection of several open
+    // leaf paths. When the best entry point lies inside one leaf, ordering
+    // splits only that leaf and rotates the child list; it must not flatten the
+    // collection or lose the loop continuity.
+    std::unique_ptr<ExtrusionEntityCollection> loop = test_root(false, false);
+    loop->append(test_path({Point(0, 0), Point(100, 0)}));
+    loop->append(test_path({Point(100, 0), Point(100, 100), Point(0, 0)}));
+    REQUIRE(loop->is_loop());
+
+    std::unique_ptr<ExtrusionEntityCollection> root = test_root();
+    root->append(std::move(loop));
+
+    order_extrusion_tree(*root, Point(100, 95));
+
+    REQUIRE(root->child_count() == 1);
+    const ExtrusionEntity &rotated_loop = root->child(0);
+    CHECK(rotated_loop.is_loop());
+    CHECK(rotated_loop.first_point() == Point(100, 100));
+    CHECK(rotated_loop.last_point() == Point(100, 100));
+    CHECK(rotated_loop.child_count() == 3);
+}
+
+TEST_CASE("PrintingPlan extrusion ordering preserves intermediate node properties", "[printing][plan]")
+{
+    // Ordering moves owned subtrees; it must not clone children into a flatter
+    // shape or drop properties carried by intermediate collection nodes. Those
+    // properties are how later processing stages inherit print state.
+    std::unique_ptr<ExtrusionEntityCollection> nested = test_root(false, false);
+    nested->add_property(ExtrusionPropertySpeed(42.f));
+    nested->append(test_path({Point(20, 0), Point(30, 0)}));
+
+    std::unique_ptr<ExtrusionEntityCollection> root = test_root();
+    root->append(test_path({Point(100, 0), Point(110, 0)}));
+    root->append(std::move(nested));
+
+    order_extrusion_tree(*root, Point(0, 0));
+
+    REQUIRE(root->child_count() == 2);
+    CHECK(root->child(0).get_property<ExtrusionPropertySpeed>() != nullptr);
+    CHECK(root->child(0).first_point() == Point(20, 0));
+}
+
+TEST_CASE("PrintingPlan group extrusion ordering propagates current position", "[printing][plan]")
+{
+    // The group overload keeps the higher-level print order unchanged, but the
+    // end of one root becomes the start hint for the next root. This lets the
+    // second root prefer work near the first root's final point.
+    PrintingGroup group;
+    group.layers.emplace_back();
+    group.layers.front().tool_groups.push_back(test_tool_group(1, 1));
+    PrintingToolGroup &tool_group = group.layers.front().tool_groups.front();
+    tool_group.extrusions.clear();
+
+    PrintingExtrusion first_extrusion;
+    first_extrusion.root = test_root();
+    static_cast<ExtrusionEntityCollection *>(first_extrusion.root.get())->append(
+        test_path({Point(0, 0), Point(100, 0)}, false));
+    tool_group.extrusions.push_back(std::move(first_extrusion));
+
+    PrintingExtrusion second_extrusion;
+    second_extrusion.root = test_root();
+    static_cast<ExtrusionEntityCollection *>(second_extrusion.root.get())->append(
+        test_path({Point(1, 0), Point(2, 0)}, false));
+    static_cast<ExtrusionEntityCollection *>(second_extrusion.root.get())->append(
+        test_path({Point(101, 0), Point(102, 0)}, false));
+    tool_group.extrusions.push_back(std::move(second_extrusion));
+
+    order_extrusion_tree(group, Point(0, 0));
+
+    REQUIRE(tool_group.extrusions.size() == 2);
+    REQUIRE(tool_group.extrusions[1].root != nullptr);
+    CHECK(tool_group.extrusions[1].root->child(0).first_point() == Point(101, 0));
+}

@@ -208,6 +208,8 @@ set(SLIC3R_SOURCES
 	Plugins/Support/SupportDemandOverhangs.hpp
 	Plugins/Support/SupportDemandPainting.cpp
 	Plugins/Support/SupportDemandPainting.hpp
+	Printing/PrintingPlan.cpp
+	Printing/PrintingPlan.hpp
 	Steps/DebugPrintProcessComparator.cpp
 	Steps/DebugPrintProcessComparator.hpp
 	Steps/StepDetectSupportSpots.cpp
