@@ -63,7 +63,6 @@ const raw_extrusion_role k_region_island_roles[] = {
     RAW_EXTRUSION_ROLE_PERIMETER,
     // LayerRegionIsland stores the gap-fill bucket as the legacy Thin role.
     // RAW_EXTRUSION_ROLE_GAP_FILL includes Mixed and would miss this bucket.
-    RAW_EXTRUSION_ROLE_THIN,
     RAW_EXTRUSION_ROLE_INTERNAL_INFILL,
     RAW_EXTRUSION_ROLE_IRONING_INFILL,
     RAW_EXTRUSION_ROLE_MILLING,
