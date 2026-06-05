@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <string>
+#include <vector>
 
 #include <boost/filesystem.hpp>
 
@@ -10,6 +11,7 @@
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/ExtrusionEntity.hpp"
 #include "libslic3r/GCode/GCodeProcessor.hpp"
+#include "libslic3r/Api/host/Plugin.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/Printing/PrintingPlan.hpp"
 #include "libslic3r/Steps/StepGenerateGcode.hpp"
@@ -62,13 +64,99 @@ void append_empty_extrusion(PrintingToolGroup &tool_group)
     tool_group.extrusions.push_back(std::move(extrusion));
 }
 
+void select_printing_plan_writer(Print &print)
+{
+    /*
+    Legacy is the default STEP_GCODE choice. These tests exercise the prototype
+    writer, so they select it exactly like a preset/UI value would: by writing
+    the serialized plugin id into the generated exclusive-group option.
+    */
+    DynamicPrintConfig &config = const_cast<DynamicPrintConfig &>(print.full_print_config());
+    config.set_deserialize("step_gcode_plugin", "gcode.printing_plan_file_writer");
+}
+
 } // namespace
+
+TEST_CASE("STEP_GCODE legacy selector is the default and owns the printer UI slot", "[plugins][gcode]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Orchestrator &orchestrator = Orchestrator::instance();
+    Print print;
+
+    const std::vector<Plugin *> gcode_plugins = orchestrator.get_active_plugins_for_step(STEP_GCODE);
+    REQUIRE(gcode_plugins.size() >= 2);
+    CHECK(gcode_plugins.front()->get_id() == "gcode.legacy");
+
+    Plugin *selected = Steps::selected_or_active_plugin_for_step(orchestrator, STEP_GCODE, &print.full_print_config());
+    REQUIRE(selected != nullptr);
+    CHECK(selected->get_id() == "gcode.legacy");
+
+    const std::vector<Orchestrator::PluginUiFragment> printer_fragments =
+        orchestrator.ui_fragments_for_file("printer_fff.ui");
+    bool found_printer_fragment = false;
+    for (const Orchestrator::PluginUiFragment &fragment : printer_fragments) {
+        if (fragment.fragment_id != "step_gcode_plugin")
+            continue;
+        found_printer_fragment = true;
+        CHECK(fragment.content.find("setting:insert$beforesetting$gcode_flavor:step_gcode_plugin") !=
+              std::string::npos);
+    }
+    CHECK(found_printer_fragment);
+
+    /*
+    The registered fragment is an insertion rule. Merge it against a tiny
+    printer layout to make sure the selector really lands before gcode_flavor,
+    which is where users expect output-backend choices to live.
+    */
+    const std::string merged_printer_layout = orchestrator.merged_ui_layout(
+        "printer_fff.ui",
+        "page:General:printer\n"
+        "group:Firmware\n"
+        "\tsetting:gcode_flavor\n");
+    const size_t gcode_selector_pos = merged_printer_layout.find("setting:step_gcode_plugin");
+    const size_t flavor_pos = merged_printer_layout.find("setting:gcode_flavor");
+    REQUIRE(gcode_selector_pos != std::string::npos);
+    REQUIRE(flavor_pos != std::string::npos);
+    CHECK(gcode_selector_pos < flavor_pos);
+
+    const std::vector<Orchestrator::PluginUiFragment> print_fragments =
+        orchestrator.ui_fragments_for_file("print.ui");
+    for (const Orchestrator::PluginUiFragment &fragment : print_fragments)
+        CHECK(fragment.fragment_id != "step_gcode_plugin");
+}
+
+TEST_CASE("STEP_GCODE legacy selector is not a direct plugin writer", "[plugins][gcode]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Orchestrator &orchestrator = Orchestrator::instance();
+    orchestrator.reset_plugin_cancel();
+
+    Print print;
+    print.mutable_printing_plan();
+    const boost::filesystem::path output_path = temporary_gcode_path();
+    remove_output_pair(output_path);
+
+    /*
+    The legacy entry is consumed by Orchestrator::export_gcode(), not by the
+    STEP_GCODE plugin runner. A direct run should fail before creating a file,
+    which catches accidental bypasses of the host legacy branch.
+    */
+    CHECK_THROWS_AS(Steps::StepGenerateGcode::run_step(orchestrator, print, output_path.string()),
+                    RuntimeError);
+
+    orchestrator.reset_plugin_cancel();
+    CHECK_FALSE(boost::filesystem::exists(output_path));
+    CHECK_FALSE(boost::filesystem::exists(output_path.string() + ".tmp"));
+}
 
 TEST_CASE("STEP_GCODE PrintingPlan writer creates an empty file for an empty plan", "[plugins][gcode]")
 {
     Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
 
     Print print;
+    select_printing_plan_writer(print);
     print.mutable_printing_plan();
     const boost::filesystem::path output_path = temporary_gcode_path();
     remove_output_pair(output_path);
@@ -95,6 +183,7 @@ TEST_CASE("STEP_GCODE fails when the writer reports an output error", "[plugins]
     orchestrator.reset_plugin_cancel();
 
     Print print;
+    select_printing_plan_writer(print);
     print.mutable_printing_plan();
     const boost::filesystem::path missing_directory =
         boost::filesystem::temp_directory_path() /
@@ -120,6 +209,7 @@ TEST_CASE("Orchestrator export_gcode routes through ordering and STEP_GCODE", "[
     Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
 
     Print print;
+    select_printing_plan_writer(print);
     for (slicing_step_t step : Steps::execution_order())
         print.mark_step_executed(step);
 
@@ -156,6 +246,7 @@ TEST_CASE("STEP_GCODE PrintingPlan writer preserves deterministic plan order", "
     Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
 
     Print print;
+    select_printing_plan_writer(print);
     PrintingPlan &plan = print.mutable_printing_plan();
 
     /*

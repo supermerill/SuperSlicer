@@ -604,7 +604,6 @@ group:Sequential printing
 		setting:width$6:extruder_clearance_height
 	end_line
 group:Output file
-	setting:step_gcode_plugin
 	setting:gcode_comments
 	setting:gcode_label_objects
 	setting:full_width:output_filename_format

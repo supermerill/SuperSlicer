@@ -21,6 +21,7 @@
 #include "libslic3r/Api/plugin/c/slic3r_plugin_types.h"
 #include "libslic3r/ExPolygon.hpp"
 #include "libslic3r/ExtrusionEntity.hpp"
+#include "libslic3r/GCode.hpp"
 #include "libslic3r/GCode/GCodeProcessor.hpp"
 #include "libslic3r/Plugins/BridgeDetector.hpp"
 #include "libslic3r/Polygon.hpp"
@@ -1069,8 +1070,6 @@ std::string Orchestrator::export_gcode(Print &print,
                                        GCodeProcessorResult *result,
                                        ThumbnailsGeneratorCallback thumbnail_cb)
 {
-    (void)thumbnail_cb;
-
     // output everything to a G-code file
     // The following call may die if the output_filename_format template substitution fails.
     const std::string path = print.output_filepath(path_template);
@@ -1079,6 +1078,20 @@ std::string Orchestrator::export_gcode(Print &print,
         print.set_status(printstep_percent(psGCodeExport), L("Exporting G-code to %s"), {path});
     } else {
         print.set_status(printstep_percent(psGCodeExport), L("Generating G-code"));
+    }
+
+    Plugin *gcode_plugin = Steps::selected_or_active_plugin_for_step(*this, STEP_GCODE, &print.full_print_config());
+    if (gcode_plugin != nullptr && gcode_plugin->get_id() == "gcode.legacy") {
+        /*
+        The legacy selector is not a normal STEP_GCODE plugin. It asks the host
+        to keep using the original GCodeGenerator, which still owns real G-code
+        emission and thumbnail generation while the plugin writer is a prototype.
+        */
+        std::unique_ptr<GCodeGenerator> gcode(new GCodeGenerator());
+        gcode->do_export(&print, path.c_str(), result, thumbnail_cb);
+        if (result != nullptr && print.conflict_result())
+            result->conflict_result = *print.conflict_result();
+        return path;
     }
 
     // Export can be requested multiple times after one slice. Force the

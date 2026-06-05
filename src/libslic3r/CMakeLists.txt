@@ -147,6 +147,8 @@ set(SLIC3R_SOURCES
 	Api/plugin/cpp/Views.hpp
 	Plugins/BridgeDetector.cpp
 	Plugins/BridgeDetector.hpp
+	Plugins/GCode/LegacyGCodeGenerator.cpp
+	Plugins/GCode/LegacyGCodeGenerator.hpp
 	Plugins/GCode/PrintingPlanFileWriter.cpp
 	Plugins/GCode/PrintingPlanFileWriter.hpp
 	Plugins/GuiRulesExample.cpp

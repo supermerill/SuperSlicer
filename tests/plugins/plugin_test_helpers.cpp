@@ -28,6 +28,7 @@
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/FFFPrintConfig.hpp"
+#include "libslic3r/Plugins/GCode/LegacyGCodeGenerator.hpp"
 #include "libslic3r/Plugins/GCode/PrintingPlanFileWriter.hpp"
 #include "libslic3r/Plugins/Ordering/DefaultOrdering.hpp"
 #include "libslic3r/Plugins/PluginLoader.hpp"
@@ -179,6 +180,8 @@ void ensure_plugin_test_runtime_initialized()
         slic3r_api::SliceVolumePlugin::register_slice_volume_plugin(orchestrator_handle_value);
         slic3r_api::VaseMultiIslandConnectorPlugin::register_vase_multi_island_connector_plugin(
             orchestrator_handle_value);
+        slic3r_api::GCodeGeneration::LegacyGCodeGeneratorPlugin::register_legacy_gcode_generator_plugin(
+            orchestrator_handle_value);
         slic3r_api::GCodeGeneration::PrintingPlanFileWriterPlugin::register_printing_plan_file_writer_plugin(
             orchestrator_handle_value);
         slic3r_api::FlatAreaLayerHeightPlugin::register_flat_area_layer_height_plugin(orchestrator_handle_value);
@@ -242,6 +245,7 @@ void ensure_plugin_test_runtime_initialized()
         activate_plugin_or_fail(orchestrator, "standard_layer_height_generator");
         activate_plugin_or_fail(orchestrator, "slice_volume");
         activate_plugin_or_fail(orchestrator, "vase.multi_island_connector");
+        activate_plugin_or_fail(orchestrator, "gcode.legacy");
         activate_plugin_or_fail(orchestrator, "gcode.printing_plan_file_writer");
         activate_plugin_or_fail(orchestrator, "flat_area_layer_height");
         activate_plugin_or_fail(orchestrator, "dense_infill.surface_marker");

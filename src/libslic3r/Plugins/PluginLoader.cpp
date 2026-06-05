@@ -37,6 +37,7 @@
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/FFFPrintConfig.hpp"
 #include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Plugins/GCode/LegacyGCodeGenerator.hpp"
 #include "libslic3r/Plugins/GCode/PrintingPlanFileWriter.hpp"
 #include "libslic3r/Plugins/Infill/DefaultInfillGenerator.hpp"
 #include "libslic3r/Plugins/Infill/LegacyInfillPatterns.hpp"
@@ -360,6 +361,8 @@ void register_builtin_plugins(orchestrator_handle *orchestrator)
         slic3r_api::MaxOverhangThresholdPlugin::register_max_overhang_threshold_plugin);
     register_builtin_plugin(orchestrator, "vase.multi_island_connector",
         slic3r_api::VaseMultiIslandConnectorPlugin::register_vase_multi_island_connector_plugin);
+    register_builtin_plugin(orchestrator, "gcode.legacy",
+        slic3r_api::GCodeGeneration::LegacyGCodeGeneratorPlugin::register_legacy_gcode_generator_plugin);
     register_builtin_plugin(orchestrator, "gcode.printing_plan_file_writer",
         slic3r_api::GCodeGeneration::PrintingPlanFileWriterPlugin::register_printing_plan_file_writer_plugin);
     register_builtin_plugin(orchestrator, "infill.generator.default",
@@ -528,6 +531,28 @@ bool has_ui_fragment(Orchestrator &orchestrator,
     return false;
 }
 
+bool has_ui_fragment_in_layout(Orchestrator &orchestrator, const std::string &fragment_id)
+{
+    /*
+    Exclusive group selectors have one logical fragment id. A plugin may place
+    that selector in a file that better matches the setting category, for
+    example printer_fff.ui for firmware/G-code choices. The generic print.ui
+    fallback must then stay silent, otherwise the same setting appears twice in
+    the GUI.
+    */
+    static const char *const k_layout_files[] = {
+        "print.ui",
+        "printer_fff.ui",
+        "filament.ui",
+        "printer_sla.ui"
+    };
+
+    for (const char *target_file : k_layout_files)
+        if (has_ui_fragment(orchestrator, target_file, fragment_id))
+            return true;
+    return false;
+}
+
 void register_exclusive_step_group_ui_fragments_impl(Orchestrator &orchestrator)
 {
     for (Steps::StepExclusivePluginGroup plugin_group : Steps::active_exclusive_plugin_groups(orchestrator)) {
@@ -539,7 +564,7 @@ void register_exclusive_step_group_ui_fragments_impl(Orchestrator &orchestrator)
         // A feature plugin may place the selector next to its own controls.
         // The generic Notes-page selector is only a fallback for groups that
         // did not already publish an explicit placement fragment.
-        if (has_ui_fragment(orchestrator, "print.ui", group.group_id))
+        if (has_ui_fragment_in_layout(orchestrator, group.group_id))
             continue;
         orchestrator.add_ui_fragment("print.ui", group.group_id.c_str(), group.ui_fragment.c_str(), 0);
     }
