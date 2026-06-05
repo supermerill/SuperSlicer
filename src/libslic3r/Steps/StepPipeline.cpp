@@ -18,6 +18,7 @@
 #include "libslic3r/Steps/StepExtrusionEdition.hpp"
 #include "libslic3r/Steps/StepExtrusionOrdering.hpp"
 #include "libslic3r/Steps/StepExtrusionSimplification.hpp"
+#include "libslic3r/Steps/StepGenerateGcode.hpp"
 #include "libslic3r/Steps/StepGenerateInfill.hpp"
 #include "libslic3r/Steps/StepGeneratePerimeter.hpp"
 #include "libslic3r/Steps/StepGenerateSupport.hpp"
@@ -615,11 +616,9 @@ void run_post_slicing(Orchestrator &orchestrator, Print &print, const std::strin
 
 void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::string &path, slicing_step_t until = STEP_GCODE)
 {
-    // The pipeline currently builds the complete print tree used by G-code export,
-    // but the actual G-code generation still runs through the legacy
-    // Print::export_gcode() entry point. Keeping that boundary explicit makes the
-    // migration easier to reason about while GUI and CLI callers still export
-    // G-code in the usual place.
+    // This helper is shared by slice preparation and export. Print::process()
+    // stops it at STEP_PRE_GCODE, while Orchestrator::export_gcode() calls it
+    // again with only the export-side steps marked for execution.
     StepSupportDemand::State support_demand;
 
     run_step_if_requested(print, STEP_PRE_PERIMETER, [&] {
@@ -769,6 +768,14 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
         mark_legacy_step_done(print, posSimplifyPath);
     });
     if (stop_after(STEP_EXTRUSION_SIMPLIFICATION, until)) return;
+
+    run_step_if_requested(print, STEP_GCODE, [&] {
+        begin_step(print, STEP_GCODE, L("Generating G-code"), path);
+        StepGenerateGcode::clean_and_prepare(print);
+        StepGenerateGcode::run_step(orchestrator, print, path);
+        mark_legacy_step_done(print, psGCodeExport);
+    });
+    if (stop_after(STEP_GCODE, until)) return;
 }
 
 #ifdef _DEBUG
@@ -853,7 +860,7 @@ void clear_debug_surfaces(Print &print)
 
 } // namespace
 
-void StepPipeline::run(Orchestrator &orchestrator, Print &print)
+void StepPipeline::run_slice(Orchestrator &orchestrator, Print &print)
 {
 #ifdef _DEBUG
     assert(validate_execution_order_against_dependencies());
@@ -865,7 +872,24 @@ void StepPipeline::run(Orchestrator &orchestrator, Print &print)
     run_layer_height_generation(orchestrator, print, path);
     run_slicing(orchestrator, print, path);
     run_post_slicing(orchestrator, print, path);
-    run_remaining_steps(orchestrator, print, path);
+    run_remaining_steps(orchestrator, print, path, STEP_PRE_GCODE);
+}
+
+void StepPipeline::run_gcode(Orchestrator &orchestrator, Print &print, const std::string &path)
+{
+#ifdef _DEBUG
+    assert(validate_execution_order_against_dependencies());
+#endif
+
+    orchestrator.reset_plugin_cancel();
+    run_remaining_steps(orchestrator, print, path, STEP_GCODE);
+}
+
+void StepPipeline::run(Orchestrator &orchestrator, Print &print, const std::string &path)
+{
+    StepPipeline::run_slice(orchestrator, print);
+    if (!path.empty())
+        StepPipeline::run_gcode(orchestrator, print, path);
 }
 
 #ifdef _DEBUG

@@ -1,6 +1,7 @@
 #include "test_data.hpp"
 
 #include "libslic3r/TriangleMesh.hpp"
+#include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/GCodeReader.hpp"
 #include "libslic3r/ConfigDef.hpp"
 #include "libslic3r/Print.hpp"
@@ -339,7 +340,7 @@ std::string gcode(Print & print)
 	boost::filesystem::path temp = boost::filesystem::unique_path();
     print.set_status_silent();
     print.process();
-    print.export_gcode(temp.string(), nullptr, nullptr);
+    Orchestrator::instance().export_gcode(print, temp.string(), nullptr, nullptr);
     boost::nowide::ifstream t(temp.string());
 	std::string str((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
 	boost::nowide::remove(temp.string().c_str());

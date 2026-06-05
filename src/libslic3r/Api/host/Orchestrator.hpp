@@ -21,6 +21,7 @@
 #include "libslic3r/Api/plugin/c/slic3r_config_def.h"
 #include "libslic3r/Api/plugin/c/slic3r_extrusion_property.h"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
+#include "libslic3r/GCode/ThumbnailData.hpp"
 #include "libslic3r/MultiPoint.hpp"
 #include "libslic3r/Polygon.hpp"
 
@@ -30,6 +31,7 @@ namespace Slic3r {
 
 class Orchestrator;
 class Print;
+struct GCodeProcessorResult;
 class MultiPoint;
 class Polyline;
 class Polygon;
@@ -211,6 +213,15 @@ public:
 
     bridge_detector_instance create_bridge_detector(const bridge_detector_create_input &input);
     void slice(Print &print_to_slice);
+
+    // Export the already-sliced print through the G-code side of the step
+    // pipeline. The path_template is resolved with Print::output_filepath()
+    // before STEP_GCODE runs, so the selected G-code plugin receives the exact
+    // file path it must create.
+    std::string export_gcode(Print &print_to_export,
+                             const std::string &path_template,
+                             GCodeProcessorResult *result,
+                             ThumbnailsGeneratorCallback thumbnail_cb = nullptr);
 
     Orchestrator(const Orchestrator&) = delete;
     Orchestrator& operator=(const Orchestrator&) = delete;

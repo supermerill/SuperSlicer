@@ -37,6 +37,7 @@
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/FFFPrintConfig.hpp"
 #include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Plugins/GCode/PrintingPlanFileWriter.hpp"
 #include "libslic3r/Plugins/Infill/DefaultInfillGenerator.hpp"
 #include "libslic3r/Plugins/Infill/LegacyInfillPatterns.hpp"
 #include "libslic3r/Plugins/Infill/PostInfillGapFill.hpp"
@@ -359,6 +360,8 @@ void register_builtin_plugins(orchestrator_handle *orchestrator)
         slic3r_api::MaxOverhangThresholdPlugin::register_max_overhang_threshold_plugin);
     register_builtin_plugin(orchestrator, "vase.multi_island_connector",
         slic3r_api::VaseMultiIslandConnectorPlugin::register_vase_multi_island_connector_plugin);
+    register_builtin_plugin(orchestrator, "gcode.printing_plan_file_writer",
+        slic3r_api::GCodeGeneration::PrintingPlanFileWriterPlugin::register_printing_plan_file_writer_plugin);
     register_builtin_plugin(orchestrator, "infill.generator.default",
         slic3r_api::Infill::DefaultInfillGeneratorPlugin::register_default_infill_generator_plugin);
     register_builtin_plugin(orchestrator, "legacy_infill_patterns",

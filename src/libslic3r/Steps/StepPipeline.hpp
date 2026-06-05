@@ -90,7 +90,20 @@ bool validate_execution_order_against_dependencies();
 class StepPipeline
 {
 public:
-    static void run(Orchestrator &orchestrator, Print &print);
+    // Prepare the sliced print tree up to the point where G-code ordering can
+    // start. Export callers run this first through Print::process(), then call
+    // run_gcode() later with the concrete output path.
+    static void run_slice(Orchestrator &orchestrator, Print &print);
+
+    // Finish the export-side pipeline. This starts at STEP_ORDERING because the
+    // G-code writer consumes the ordered PrintingPlan, then runs every
+    // post-ordering step and finally STEP_GCODE with the destination path.
+    static void run_gcode(Orchestrator &orchestrator, Print &print, const std::string &path);
+
+    // Compatibility wrapper for code that still wants the whole migrated
+    // pipeline in one call. Normal GUI/CLI flow uses run_slice() and run_gcode()
+    // separately so the final output path is available only during export.
+    static void run(Orchestrator &orchestrator, Print &print, const std::string &path = std::string());
 
 #ifdef _DEBUG
     // Run the native/original process and the step/plugin process on two cloned

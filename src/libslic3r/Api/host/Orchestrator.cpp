@@ -21,6 +21,7 @@
 #include "libslic3r/Api/plugin/c/slic3r_plugin_types.h"
 #include "libslic3r/ExPolygon.hpp"
 #include "libslic3r/ExtrusionEntity.hpp"
+#include "libslic3r/GCode/GCodeProcessor.hpp"
 #include "libslic3r/Plugins/BridgeDetector.hpp"
 #include "libslic3r/Polygon.hpp"
 #include "libslic3r/Print.hpp"
@@ -1060,7 +1061,42 @@ void Orchestrator::add_plugin_to_step(Plugin *plugin, slicing_step_t step) {
 }
 
 void Orchestrator::slice(Print &print) {
-    Steps::StepPipeline::run(*this, print);
+    Steps::StepPipeline::run_slice(*this, print);
+}
+
+std::string Orchestrator::export_gcode(Print &print,
+                                       const std::string &path_template,
+                                       GCodeProcessorResult *result,
+                                       ThumbnailsGeneratorCallback thumbnail_cb)
+{
+    (void)thumbnail_cb;
+
+    // output everything to a G-code file
+    // The following call may die if the output_filename_format template substitution fails.
+    const std::string path = print.output_filepath(path_template);
+    if (!path.empty() && result == nullptr) {
+        // Only show the path if preview_data is not set -> running from command line.
+        print.set_status(printstep_percent(psGCodeExport), L("Exporting G-code to %s"), {path});
+    } else {
+        print.set_status(printstep_percent(psGCodeExport), L("Generating G-code"));
+    }
+
+    // Export can be requested multiple times after one slice. Force the
+    // export-side sub-pipeline to rebuild the PrintingPlan and rewrite the
+    // destination file, while leaving the expensive slicing data intact.
+    print.mark_step_and_dependents_for_execution(STEP_ORDERING);
+    Steps::StepPipeline::run_gcode(*this, print, path);
+
+    if (result != nullptr) {
+        result->reset();
+        result->filename = path;
+        if (print.conflict_result())
+            result->conflict_result = *print.conflict_result();
+    }
+
+    print.set_status(100, "", PrintBase::SlicingStatus::DEFAULT | PrintBase::SlicingStatus::SECONDARY_STATE);
+    print.set_status(100, L("Gcode done"), PrintBase::SlicingStatus::FlagBits::GCODE_ENDED);
+    return path;
 }
 
 void Orchestrator::initialize_plugins() {

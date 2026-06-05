@@ -1,6 +1,7 @@
 #include "test_data.hpp"
 #include <test_utils.hpp>
 #include <libslic3r/TriangleMesh.hpp>
+#include <libslic3r/Api/host/Orchestrator.hpp>
 #include <libslic3r/GCodeReader.hpp>
 #include <libslic3r/ConfigOption.hpp>
 #include <libslic3r/ModelArrange.hpp>
@@ -341,7 +342,7 @@ void init_print(Print& print, std::vector<TriangleMesh> meshes, Slic3r::Model& m
 
 void gcode(std::string& gcode_path, Print& _print) {
     _print.process();
-    gcode_path = _print.export_gcode(gcode_path, nullptr);
+    gcode_path = Orchestrator::instance().export_gcode(_print, gcode_path, nullptr);
 }
 
 std::string read_to_string(const std::string& name) {

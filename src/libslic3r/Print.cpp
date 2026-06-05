@@ -1289,9 +1289,8 @@ void Print::process() {
     secondary_status_counter_reset();
 
     // Print::process() is the GUI and CLI entry point for preparing all slicing
-    // data. G-code export is intentionally left to Print::export_gcode(), which
-    // still uses the legacy generator and is called separately by the existing
-    // GUI/background process.
+    // data. G-code export is now a separate Orchestrator pipeline phase because
+    // it needs the final output path and should only run when the user exports.
     Orchestrator::instance().slice(*this);
 
     // bits not already moved by the new pipeline
@@ -1665,34 +1664,6 @@ void Print::process()
                          SlicingStatus::FlagBits::SLICING_ENDED);
 }
 #endif
-
-// G-code export process, running at a background thread.
-// The export_gcode may die for various reasons (fails to process output_filename_format,
-// write error into the G-code, cannot execute post-processing scripts).
-// It is up to the caller to show an error message.
-std::string Print::export_gcode(const std::string& path_template, GCodeProcessorResult* result, ThumbnailsGeneratorCallback thumbnail_cb)
-{
-    // output everything to a G-code file
-    // The following call may die if the output_filename_format template substitution fails.
-    std::string path = this->output_filepath(path_template);
-    if (!path.empty() && result == nullptr) {
-        // Only show the path if preview_data is not set -> running from command line.
-        this->set_status(printstep_percent(psGCodeExport), L("Exporting G-code to %s"), {path});
-    } else {
-        this->set_status(printstep_percent(psGCodeExport), L("Generating G-code"));
-    }
-
-    // order tools
-
-    // Create GCode on heap, it has quite a lot of data.
-    std::unique_ptr<GCodeGenerator> gcode(new GCodeGenerator());
-    gcode->do_export(this, path.c_str(), result, thumbnail_cb);
-
-    if (m_conflict_result)
-        result->conflict_result = *m_conflict_result;
-
-    return path.c_str();
-}
 
 bool has_brim_patch(const PrintObject &obj, ModelVolumeType brim_type)
 {

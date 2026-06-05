@@ -6,6 +6,7 @@
 #define slic3r_step_gcode_h_
 
 #include "slic3r_step_common.h"
+#include "../slic3r_printing_plan.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,12 +15,20 @@ extern "C" {
 /*
 Payload for STEP_GCODE.
 
-Plugins may participate in final G-code generation for one object/print
-context.
+STEP_GCODE plugins are responsible for turning the already ordered
+PrintingPlan into an output file. The host computes the final path from the
+print settings before the plugin runs, then passes it here as a borrowed UTF-8
+string. The string is valid only during the current plugin run.
+
+The plan is mutable so a writer may attach late annotations or consume cloned
+extrusion roots in future implementations. The source Print remains the context
+for settings, statistics and status; plugins should not mutate unrelated Print
+state directly.
 */
 typedef struct run_ctx_generate_gcode {
     const print_handle *print;
-    const object_handle *object;
+    printing_plan_handle *plan;
+    const char *output_path;
 } run_ctx_generate_gcode;
 
 static inline const run_ctx_generate_gcode *

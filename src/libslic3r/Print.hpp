@@ -207,9 +207,9 @@ public:
     PrinterTechnology	technology() const noexcept override { return ptFFF; }
 
     // Methods, which change the state of Print / PrintObject / PrintRegion.
-    // The following methods are synchronized with process() and export_gcode(),
-    // so that process() and export_gcode() may be called from a background thread.
-    // In case the following methods need to modify data processed by process() or export_gcode(),
+    // The following methods are synchronized with process() and Orchestrator::export_gcode(),
+    // so that slicing and exporting may be called from a background thread.
+    // In case the following methods need to modify data processed by slicing or exporting,
     // a cancellation callback is executed to stop the background processing before the operation.
     void                clear() override;
     bool                empty() const override { return m_objects.empty(); }
@@ -221,10 +221,6 @@ public:
     void process() override;
     void finalize() override;
     void                cleanup() override;
-
-    // Exports G-code into a file name based on the path_template, returns the file path of the generated G-code file.
-    // If preview_data is not null, the preview_data is filled in for the G-code visualization (not used by the command line Slic3r).
-    std::string         export_gcode(const std::string& path_template, GCodeProcessorResult* result, ThumbnailsGeneratorCallback thumbnail_cb = nullptr);
 
     // methods for handling state
     // Returns true if a print step is done, or if an object step is done on all objects.
@@ -292,6 +288,7 @@ public:
 
     const PrintStatistics&      print_statistics() const { return m_print_statistics; }
     PrintStatistics&            print_statistics() { return m_print_statistics; }
+    const std::optional<ConflictResult>& conflict_result() const { return m_conflict_result; }
     std::time_t                 timestamp_last_change() const { return m_timestamp_last_change; }
 
     // Wipe tower support.

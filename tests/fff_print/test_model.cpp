@@ -1,6 +1,7 @@
 #include <catch2/catch.hpp>
 
 #include "libslic3r/libslic3r.h"
+#include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/ModelArrange.hpp"
 
@@ -55,7 +56,7 @@ SCENARIO("Model construction", "[Model]") {
 				print.apply(model, config);
 				print.process();
 				boost::filesystem::path temp = boost::filesystem::unique_path();
-                print.export_gcode(temp.string(), nullptr, nullptr);
+                Orchestrator::instance().export_gcode(print, temp.string(), nullptr, nullptr);
                 REQUIRE(boost::filesystem::exists(temp));
 				REQUIRE(boost::filesystem::is_regular_file(temp));
 				REQUIRE(boost::filesystem::file_size(temp) > 0);

@@ -40,6 +40,7 @@
 #include <boost/algorithm/string/split.hpp>
 #endif // ENABLE_GL_CORE_PROFILE
 #include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/ConfigOption.hpp"
 #include "libslic3r/Geometry.hpp"
 #include "libslic3r/GCode/PostProcessor.hpp"
@@ -700,7 +701,7 @@ int CLI::run(int argc, char **argv)
                         print->process();
                         if (printer_technology == ptFFF) {
                             // The outfile is processed by a PlaceholderParser.
-                            outfile = fff_print.export_gcode(outfile, nullptr, nullptr);
+                            outfile = Orchestrator::instance().export_gcode(fff_print, outfile, nullptr, nullptr);
                             outfile_final = fff_print.print_statistics().finalize_output_path(outfile);
                         } else if (printer_technology == ptSLA) {
                             outfile = sla_print.output_filepath(outfile);
@@ -735,7 +736,7 @@ int CLI::run(int argc, char **argv)
 
                 const std::string outfile = this->output_filepath(model, IO::Gcode);
                 try {
-                    print.export_gcode(outfile);
+                    Orchestrator::instance().export_gcode(print, outfile, nullptr, nullptr);
                 } catch (std::runtime_error &e) {
                     boost::nowide::cerr << e.what() << std::endl;
                     return 1;
