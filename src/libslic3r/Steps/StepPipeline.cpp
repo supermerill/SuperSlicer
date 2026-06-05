@@ -569,15 +569,15 @@ Plugin *selected_or_active_plugin_for_step(Orchestrator &orchestrator,
 
 namespace {
 
-void begin_step(Print &print, slicing_step_t step, const std::string &message, const std::string &path)
+void begin_step(Print &print, slicing_step_t step, const std::string &message)
 {
-    // Status arguments are consumed through boost::format by the GUI. Passing
-    // even one unused argument to a message without a placeholder throws, so the
-    // optional path is forwarded only when there is real text to display.
-    if (path.empty())
-        print.set_status(slicingstep_2_percent[step], message);
-    else
-        print.set_status(slicingstep_2_percent[step], message, {path});
+    /*
+    Step labels are plain status messages, not format strings. The export path
+    is reported by Orchestrator::export_gcode() before the export pipeline
+    starts; forwarding it here would give boost::format an argument for labels
+    such as "Ordering extrusions", which have no placeholder and crash the GUI.
+    */
+    print.set_status(slicingstep_2_percent[step], message);
     print.secondary_status_counter_reset();
 }
 
@@ -610,7 +610,7 @@ void mark_legacy_step_done(Print &print, slicing_step_t step)
 void run_layer_height_generation(Orchestrator &orchestrator, Print &print, const std::string &path)
 {
     run_step_if_requested(print, STEP_LAYER_HEIGHT, [&] {
-        begin_step(print, STEP_LAYER_HEIGHT, L("Creating the layer height"), path);
+        begin_step(print, STEP_LAYER_HEIGHT, L("Creating the layer height"));
         StepLayerHeightGeneration::clean_and_prepare(print);
         StepLayerHeightGeneration::run_step(orchestrator, print);
     });
@@ -619,7 +619,7 @@ void run_layer_height_generation(Orchestrator &orchestrator, Print &print, const
 void run_slicing(Orchestrator &orchestrator, Print &print, const std::string &path)
 {
     run_step_if_requested(print, STEP_SLICING, [&] {
-        begin_step(print, STEP_SLICING, L("StepSlicing"), path);
+        begin_step(print, STEP_SLICING, L("StepSlicing"));
         StepSlicing::run_step(orchestrator, print);
         mark_legacy_step_done(print, posSlice);
     });
@@ -628,7 +628,7 @@ void run_slicing(Orchestrator &orchestrator, Print &print, const std::string &pa
 void run_post_slicing(Orchestrator &orchestrator, Print &print, const std::string &path)
 {
     run_step_if_requested(print, STEP_POST_SLICING, [&] {
-        begin_step(print, STEP_POST_SLICING, L("Post-processing slices"), path);
+        begin_step(print, STEP_POST_SLICING, L("Post-processing slices"));
         StepPostSlicing::clean_and_prepare(print);
         StepPostSlicing::run_step(orchestrator, print);
     });
@@ -642,14 +642,14 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
     StepSupportDemand::State support_demand;
 
     run_step_if_requested(print, STEP_PRE_PERIMETER, [&] {
-        begin_step(print, STEP_PRE_PERIMETER, L("Preparing perimeters"), path);
+        begin_step(print, STEP_PRE_PERIMETER, L("Preparing perimeters"));
         StepPrepareForPeriemters::clean_and_prepare(print);
         StepPrepareForPeriemters::run_step(orchestrator, print);
     });
     if (stop_after(STEP_PRE_PERIMETER, until)) return;
     
     run_step_if_requested(print, STEP_PERIMETER, [&] {
-        begin_step(print, STEP_PERIMETER, L("Generating perimeters"), path);
+        begin_step(print, STEP_PERIMETER, L("Generating perimeters"));
         StepGeneratePerimeter::clean_and_prepare(print);
         StepGeneratePerimeter::run_step(orchestrator, print);
         mark_legacy_step_done(print, posPerimeters);
@@ -657,14 +657,14 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
     if (stop_after(STEP_PERIMETER, until)) return;
     
     run_step_if_requested(print, STEP_POST_PERIMETER, [&] {
-        begin_step(print, STEP_POST_PERIMETER, L("Post-processing perimeters"), path);
+        begin_step(print, STEP_POST_PERIMETER, L("Post-processing perimeters"));
         StepPostPerimeterGeneration::clean_and_prepare(print);
         StepPostPerimeterGeneration::run_step(orchestrator, print);
     });
     if (stop_after(STEP_POST_PERIMETER, until)) return;
 
     run_step_if_requested(print, STEP_SURFACE_GENERATION, [&] {
-        begin_step(print, STEP_SURFACE_GENERATION, L("Generating surfaces"), path);
+        begin_step(print, STEP_SURFACE_GENERATION, L("Generating surfaces"));
         StepSurfaceGeneration::clean_and_prepare(print);
 #ifdef _DEBUG
         Detail::validate_or_report(StepSurfaceGeneration::validate_pre, print, "Surface-generation pre-step validation");
@@ -677,7 +677,7 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
     if (stop_after(STEP_SURFACE_GENERATION, until)) return;
 
     run_step_if_requested(print, STEP_PRE_INFILL, [&] {
-        begin_step(print, STEP_PRE_INFILL, L("Preparing infill"), path);
+        begin_step(print, STEP_PRE_INFILL, L("Preparing infill"));
         StepPrepareInfill::clean_and_prepare(print);
         StepPrepareInfill::run_step(orchestrator, print);
         mark_legacy_step_done(print, posPrepareInfill);
@@ -685,14 +685,14 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
     if (stop_after(STEP_PRE_INFILL, until)) return;
 
     run_step_if_requested(print, STEP_INFILL_GROUP, [&] {
-        begin_step(print, STEP_INFILL_GROUP, L("Grouping infill regions"), path);
+        begin_step(print, STEP_INFILL_GROUP, L("Grouping infill regions"));
         StepGroupInfillRegions::clean_and_prepare(print);
         StepGroupInfillRegions::run_step(orchestrator, print);
     });
     if (stop_after(STEP_INFILL_GROUP, until)) return;
 
     run_step_if_requested(print, STEP_INFILL, [&] {
-        begin_step(print, STEP_INFILL, L("Generating infill"), path);
+        begin_step(print, STEP_INFILL, L("Generating infill"));
         StepGenerateInfill::clean_and_prepare(print);
         StepGenerateInfill::run_step(orchestrator, print);
         mark_legacy_step_done(print, posInfill);
@@ -700,7 +700,7 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
     if (stop_after(STEP_INFILL, until)) return;
 
     run_step_if_requested(print, STEP_POST_INFILL, [&] {
-        begin_step(print, STEP_POST_INFILL, L("Post-processing infill"), path);
+        begin_step(print, STEP_POST_INFILL, L("Post-processing infill"));
         StepPostInfillGeneration::clean_and_prepare(print);
         StepPostInfillGeneration::run_step(orchestrator, print);
         mark_legacy_step_done(print, posIroning);
@@ -708,21 +708,21 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
     if (stop_after(STEP_POST_INFILL, until)) return;
 
     run_step_if_requested(print, STEP_SKIRT_BRIM, [&] {
-        begin_step(print, STEP_SKIRT_BRIM, L("Generating skirt and brim"), path);
+        begin_step(print, STEP_SKIRT_BRIM, L("Generating skirt and brim"));
         StepSkirtBrim::clean_and_prepare(print);
         StepSkirtBrim::run_step(orchestrator, print);
     });
     if (stop_after(STEP_SKIRT_BRIM, until)) return;
 
     run_step_if_requested(print, STEP_SUPPORT_DEMAND, [&] {
-        begin_step(print, STEP_SUPPORT_DEMAND, L("Detecting support demand"), path);
+        begin_step(print, STEP_SUPPORT_DEMAND, L("Detecting support demand"));
         StepSupportDemand::clean_and_prepare(print);
         StepSupportDemand::run_step(orchestrator, print, support_demand);
     });
     if (stop_after(STEP_SUPPORT_DEMAND, until)) return;
 
     run_step_if_requested(print, STEP_SUPPORT, [&] {
-        begin_step(print, STEP_SUPPORT, L("Generating support material"), path);
+        begin_step(print, STEP_SUPPORT, L("Generating support material"));
         StepGenerateSupport::clean_and_prepare(print);
         StepGenerateSupport::run_step(orchestrator, print, support_demand);
         mark_legacy_step_done(print, posSupportMaterial);
@@ -730,28 +730,28 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
     if (stop_after(STEP_SUPPORT, until)) return;
 
     run_step_if_requested(print, STEP_PRE_GCODE, [&] {
-        begin_step(print, STEP_PRE_GCODE, L("Preparing G-code"), path);
+        begin_step(print, STEP_PRE_GCODE, L("Preparing G-code"));
         StepPrepareGcode::clean_and_prepare(print);
         StepPrepareGcode::run_step(orchestrator, print);
     });
     if (stop_after(STEP_PRE_GCODE, until)) return;
 
     run_step_if_requested(print, STEP_ORDERING, [&] {
-        begin_step(print, STEP_ORDERING, L("Ordering extrusions"), path);
+        begin_step(print, STEP_ORDERING, L("Ordering extrusions"));
         StepExtrusionOrdering::clean_and_prepare(print);
         StepExtrusionOrdering::run_step(orchestrator, print);
     });
     if (stop_after(STEP_ORDERING, until)) return;
 
     run_step_if_requested(print, STEP_WIPETOWER, [&] {
-        begin_step(print, STEP_WIPETOWER, L("Generating wipe tower"), path);
+        begin_step(print, STEP_WIPETOWER, L("Generating wipe tower"));
         StepGenerateWipeTower::clean_and_prepare(print);
         StepGenerateWipeTower::run_step(orchestrator, print);
     });
     if (stop_after(STEP_WIPETOWER, until)) return;
 
     run_step_if_requested(print, STEP_SUPPORT_SPOT, [&] {
-        begin_step(print, STEP_SUPPORT_SPOT, L("Detecting support spots"), path);
+        begin_step(print, STEP_SUPPORT_SPOT, L("Detecting support spots"));
         StepDetectSupportSpots::clean_and_prepare(print);
         StepDetectSupportSpots::run_step(orchestrator, print);
         mark_legacy_step_done(print, posSupportSpotsSearch);
@@ -759,7 +759,7 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
     if (stop_after(STEP_SUPPORT_SPOT, until)) return;
 
     run_step_if_requested(print, STEP_LAYER_EXTRUSION_EDIT, [&] {
-        begin_step(print, STEP_LAYER_EXTRUSION_EDIT, L("Editing layers extrusions"), path);
+        begin_step(print, STEP_LAYER_EXTRUSION_EDIT, L("Editing layers extrusions"));
         StepLayerExtrusionEdition::clean_and_prepare(print);
         StepLayerExtrusionEdition::run_step(orchestrator, print);
         mark_legacy_step_done(print, posEstimateCurledExtrusions);
@@ -767,14 +767,14 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
     if (stop_after(STEP_LAYER_EXTRUSION_EDIT, until)) return;
 
     run_step_if_requested(print, STEP_LAYER_STICHING, [&] {
-        begin_step(print, STEP_LAYER_STICHING, L("Stitching layers"), path);
+        begin_step(print, STEP_LAYER_STICHING, L("Stitching layers"));
         StepLayerStiching::clean_and_prepare(print);
         StepLayerStiching::run_step(orchestrator, print);
     });
     if (stop_after(STEP_LAYER_STICHING, until)) return;
 
     run_step_if_requested(print, STEP_EXTRUSION_EDIT, [&] {
-        begin_step(print, STEP_EXTRUSION_EDIT, L("Editing extrusions"), path);
+        begin_step(print, STEP_EXTRUSION_EDIT, L("Editing extrusions"));
         StepExtrusionEdition::clean_and_prepare(print);
         StepExtrusionEdition::run_step(orchestrator, print);
         mark_legacy_step_done(print, posCalculateOverhangingPerimeters);
@@ -782,7 +782,7 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
     if (stop_after(STEP_EXTRUSION_EDIT, until)) return;
 
     run_step_if_requested(print, STEP_EXTRUSION_SIMPLIFICATION, [&] {
-        begin_step(print, STEP_EXTRUSION_SIMPLIFICATION, L("Simplifying extrusions"), path);
+        begin_step(print, STEP_EXTRUSION_SIMPLIFICATION, L("Simplifying extrusions"));
         StepExtrusionSimplification::clean_and_prepare(print);
         StepExtrusionSimplification::run_step(orchestrator, print);
         mark_legacy_step_done(print, posSimplifyPath);
@@ -790,7 +790,7 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
     if (stop_after(STEP_EXTRUSION_SIMPLIFICATION, until)) return;
 
     run_step_if_requested(print, STEP_GCODE, [&] {
-        begin_step(print, STEP_GCODE, L("Generating G-code"), path);
+        begin_step(print, STEP_GCODE, L("Generating G-code"));
         StepGenerateGcode::clean_and_prepare(print);
         StepGenerateGcode::run_step(orchestrator, print, path);
         mark_legacy_step_done(print, psGCodeExport);

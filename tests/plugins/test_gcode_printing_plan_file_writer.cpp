@@ -220,6 +220,11 @@ TEST_CASE("Orchestrator export_gcode routes through ordering and STEP_GCODE", "[
     const boost::filesystem::path output_path = temporary_gcode_path();
     remove_output_pair(output_path);
 
+    std::vector<PrintBase::SlicingStatus> statuses;
+    print.set_status_callback([&statuses](const PrintBase::SlicingStatus &status) {
+        statuses.push_back(status);
+    });
+
     try {
         /*
         The print is marked as already prepared, like it would be after
@@ -236,6 +241,20 @@ TEST_CASE("Orchestrator export_gcode routes through ordering and STEP_GCODE", "[
         CHECK(read_text_file(output_path).empty());
         REQUIRE(print.printing_plan() != nullptr);
         CHECK(print.printing_plan()->groups.size() == 1);
+
+        /*
+        The GUI formats status messages with boost::format. Step labels are not
+        format strings, so they must not receive the output path as a leftover
+        argument; otherwise the plater crashes with boost::io::too_many_args.
+        */
+        bool saw_ordering_status = false;
+        for (const PrintBase::SlicingStatus &status : statuses) {
+            if (status.main_text != "Ordering extrusions")
+                continue;
+            saw_ordering_status = true;
+            CHECK(status.args.empty());
+        }
+        CHECK(saw_ordering_status);
     } catch (...) {
         remove_output_pair(output_path);
         throw;
