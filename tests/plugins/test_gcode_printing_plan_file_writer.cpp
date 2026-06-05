@@ -13,6 +13,7 @@
 #include "libslic3r/GCode/GCodeProcessor.hpp"
 #include "libslic3r/Api/host/Plugin.hpp"
 #include "libslic3r/Print.hpp"
+#include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/Printing/PrintingPlan.hpp"
 #include "libslic3r/Steps/StepGenerateGcode.hpp"
 #include "libslic3r/Steps/StepPipeline.hpp"
@@ -91,6 +92,8 @@ TEST_CASE("STEP_GCODE legacy selector is the default and owns the printer UI slo
     Plugin *selected = Steps::selected_or_active_plugin_for_step(orchestrator, STEP_GCODE, &print.full_print_config());
     REQUIRE(selected != nullptr);
     CHECK(selected->get_id() == "gcode.legacy");
+    CHECK(PrintConfigDef::instance().get("step_gcode_plugin")->option_preset_type == RAW_PRESET_TYPE_FFF_PRINTER);
+    CHECK(PrintConfigDef::instance().option_keys(RAW_PRESET_TYPE_FFF_PRINTER).count("step_gcode_plugin") == 1);
 
     const std::vector<Orchestrator::PluginUiFragment> printer_fragments =
         orchestrator.ui_fragments_for_file("printer_fff.ui");

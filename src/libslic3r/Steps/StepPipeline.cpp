@@ -246,13 +246,31 @@ raw_option_category option_category_for_step(slicing_step_t step)
     }
 }
 
+raw_option_preset_type option_preset_type_for_step(slicing_step_t step)
+{
+    /*
+    Exclusive selectors are normal config options, so their preset family must
+    match the GUI file that displays them. Most step selectors are print-profile
+    choices, but G-code backend selection belongs next to printer firmware
+    settings and therefore has to be stored in the printer preset.
+    */
+    static const std::map<slicing_step_t, raw_option_preset_type> s_step_preset_types = {
+        { STEP_GCODE, RAW_PRESET_TYPE_FFF_PRINTER }
+    };
+
+    const std::map<slicing_step_t, raw_option_preset_type>::const_iterator found =
+        s_step_preset_types.find(step);
+    return found == s_step_preset_types.end() ? RAW_PRESET_TYPE_FFF_PRINT : found->second;
+}
+
 StepExclusiveGroup make_exclusive_group(slicing_step_t step,
                                         const std::string &group_id,
                                         const std::string &key,
                                         const std::string &label,
                                         raw_option_category category,
                                         const std::string &line_label,
-                                        const std::string &tooltip)
+                                        const std::string &tooltip,
+                                        raw_option_preset_type option_preset_type)
 {
     StepExclusiveGroup group = {};
     group.group_id = group_id;
@@ -265,7 +283,7 @@ StepExclusiveGroup make_exclusive_group(slicing_step_t step,
     def.type = RAW_CO_ENUM;
     def.gui_type = RAW_GUI_TYPE_SELECT_CLOSE;
     def.container_type = RAW_CONTAINER_TYPE_PROJECT;
-    def.option_preset_type = RAW_PRESET_TYPE_FFF_PRINT;
+    def.option_preset_type = option_preset_type;
     def.printer_technology = RAW_PT_FFF;
     def.category = category;
     def.invalidates_step = step;
@@ -289,7 +307,8 @@ StepExclusiveGroup make_exclusive_step_group(slicing_step_t step,
                                 label,
                                 category,
                                 line_label,
-                                "Choose which active plugin owns this exclusive slicing step.");
+                                "Choose which active plugin owns this exclusive slicing step.",
+                                option_preset_type_for_step(step));
 }
 
 StepExclusiveGroup make_plugin_exclusive_group(slicing_step_t step,
@@ -310,7 +329,8 @@ StepExclusiveGroup make_plugin_exclusive_group(slicing_step_t step,
                                 label,
                                 option_category_for_step(step),
                                 label,
-                                tooltip);
+                                tooltip,
+                                option_preset_type_for_step(step));
 }
 
 void apply_plugin_group_text(StepExclusiveGroup &group, const std::vector<Plugin *> &plugins)
