@@ -71,6 +71,7 @@ SLIC3R_HOST_API int32_t            config_option_get_int(const config_option_han
 SLIC3R_HOST_API double             config_option_get_float(const config_option_handle *me, uint32_t idx);
 SLIC3R_HOST_API c_float_or_percent config_option_get_float_or_percent(const config_option_handle *me, uint32_t idx);
 SLIC3R_HOST_API int32_t            config_option_get_bool(const config_option_handle *me, uint32_t idx);
+SLIC3R_HOST_API uint32_t           config_option_get_string(const config_option_handle *me, uint32_t idx, char *out, uint32_t max_size);
 /*
 Borrow one GraphData payload from a graph option.
 

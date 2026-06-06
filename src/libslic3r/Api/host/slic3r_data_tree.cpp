@@ -752,6 +752,18 @@ const layer_handle *object_get_layer(const object_handle *me, uint32_t idx)
     return reinterpret_cast<const layer_handle*>(&Slic3r::to_object(me)->layer(static_cast<size_t>(idx)));
 }
 
+uint32_t object_count_support_layer(const object_handle *me)
+{
+    return me == nullptr ? 0 : static_cast<uint32_t>(Slic3r::to_object(me)->support_layers().size());
+}
+
+const layer_handle *object_get_support_layer(const object_handle *me, uint32_t idx)
+{
+    if (me == nullptr || idx >= Slic3r::to_object(me)->support_layers().size())
+        return nullptr;
+    return reinterpret_cast<const layer_handle*>(&Slic3r::to_object(me)->support_layers()[static_cast<size_t>(idx)]);
+}
+
 uint32_t object_count_region(const object_handle *me)
 {
     return me == nullptr ? 0 : Slic3r::to_object(me)->num_printing_regions();

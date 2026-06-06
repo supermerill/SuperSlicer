@@ -395,6 +395,16 @@ SLIC3R_HOST_API c_point object_get_instance_shift(const object_handle *me, uint3
 SLIC3R_HOST_API uint32_t object_count_layer(const object_handle *me);
 SLIC3R_HOST_API layer_handle *object_get_layer_mutable(object_handle *me, uint32_t idx);
 SLIC3R_HOST_API const layer_handle *object_get_layer(const object_handle *me, uint32_t idx);
+/*
+Support layers are exposed as read-only Layer views.
+
+They share the Layer shape used by normal object layers: print_z, height,
+slices(), islands(), and support_id() work the same way. A plugin should treat
+them as geometry already produced by the support step and must not assume that
+their indices match normal object layer indices.
+*/
+SLIC3R_HOST_API uint32_t object_count_support_layer(const object_handle *me);
+SLIC3R_HOST_API const layer_handle *object_get_support_layer(const object_handle *me, uint32_t idx);
 
 SLIC3R_HOST_API uint32_t object_count_region(const object_handle *me);
 SLIC3R_HOST_API print_region_handle *object_get_print_region_mutable(object_handle *me, uint32_t idx);

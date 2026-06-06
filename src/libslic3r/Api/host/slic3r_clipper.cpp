@@ -40,12 +40,12 @@ static Polylines *to_polylines(polyline_collection_handle *handle) {
     return reinterpret_cast<Polylines *>(handle);
 }
 
-static const std::vector<MultiPoint> *to_multipoints(const polygon_collection_handle *handle) {
-    return reinterpret_cast<const std::vector<MultiPoint> *>(handle);
+static const Polygons *to_polygons(const polygon_collection_handle *handle) {
+    return reinterpret_cast<const Polygons *>(handle);
 }
 
-static std::vector<MultiPoint> *to_multipoints(polygon_collection_handle *handle) {
-    return reinterpret_cast<std::vector<MultiPoint> *>(handle);
+static Polygons *to_polygons(polygon_collection_handle *handle) {
+    return reinterpret_cast<Polygons *>(handle);
 }
 
 static const ExPolygon *to_expolygon(const expolygon_handle *handle) {
@@ -175,7 +175,7 @@ clipper_shapes_handle *clipper_shapes_from_polyline(storage_handle *storage, con
 }
 
 clipper_shapes_handle *clipper_shapes_from_polygons(storage_handle *storage, const polygon_collection_handle *polygons) {
-    return Slic3r::store_shape(storage, Slic3r::ApiClipper::make_multipoint_collection_shapes(Slic3r::to_multipoints(polygons)));
+    return Slic3r::store_shape(storage, Slic3r::ApiClipper::make_polygons_shapes(Slic3r::to_polygons(polygons)));
 }
 
 clipper_shapes_handle *clipper_shapes_from_expolygon(storage_handle *storage, const expolygon_handle *expolygon) {
@@ -415,10 +415,10 @@ polygon_collection_handle *clipper_shapes_to_polygons(storage_handle *storage, c
         return nullptr;
 
     polygon_collection_handle *out_handle = storage_new_polygons(storage);
-    std::vector<Slic3r::MultiPoint> *out = reinterpret_cast<std::vector<Slic3r::MultiPoint> *>(out_handle);
+    Slic3r::Polygons *out = Slic3r::to_polygons(out_handle);
     out->clear();
     for (const Slic3r::Polygon &polygon : source->to_polygons())
-        out->emplace_back(polygon.points);
+        out->emplace_back(polygon);
     return out_handle;
 }
 
@@ -437,13 +437,13 @@ void clipper_shapes_replace_polygons(polygon_collection_handle *dst, const clipp
     if (dst == nullptr || source == nullptr)
         return;
 
-    std::vector<Slic3r::MultiPoint> &out = *Slic3r::to_multipoints(dst);
+    Slic3r::Polygons &out = *Slic3r::to_polygons(dst);
     // TODO: optimiser, en réutilisant les objets MultiPoint déjà alloués dans la collection de destination, plutôt
     // que de tout clear() et ré-emplace_back() à chaque fois. Mais cela demande de faire de nouvelles méthodes dans source
     // pour remplir directement un object déjà crée.
     out.clear();
     for (const Slic3r::Polygon &polygon : source->to_polygons())
-        out.emplace_back(polygon.points);
+        out.emplace_back(polygon);
 }
 
 void clipper_shapes_replace_expolygons(expolygon_collection_handle *dst, const clipper_shapes_handle *shapes) {

@@ -294,64 +294,71 @@ private:
     const Polyline *m_polyline;
 };
 
-class MultiPointCollectionShapes final : public ClipperShapes
+class PolygonsShapes final : public ClipperShapes
 {
 public:
-    explicit MultiPointCollectionShapes(const std::vector<MultiPoint> *multipoints) : m_multipoints(multipoints) {}
+    explicit PolygonsShapes(const Polygons *polygons) : m_polygons(polygons) {}
 
     void add_to_clipper(ClipperLib::Clipper &clipper, ClipperLib::PolyType type, bool closed) const override
     {
-        if (m_multipoints == nullptr)
+        if (m_polygons == nullptr)
             return;
-        for (const MultiPoint &multipoint : *m_multipoints)
-            clipper.AddPath(multipoint.points, type, closed);
+        for (const Polygon &polygon : *m_polygons)
+            clipper.AddPath(polygon.points, type, closed);
     }
 
     ClipperLib::Paths to_paths() const override
     {
         ClipperLib::Paths out;
-        if (m_multipoints != nullptr) {
-            out.reserve(m_multipoints->size());
-            for (const MultiPoint &multipoint : *m_multipoints)
-                out.emplace_back(multipoint.points);
+        if (m_polygons != nullptr) {
+            out.reserve(m_polygons->size());
+            for (const Polygon &polygon : *m_polygons)
+                out.emplace_back(polygon.points);
         }
         return out;
     }
 
-    Polygons to_polygons() const override { return polygons_from_paths(to_paths()); }
+    Polygons to_polygons() const override
+    {
+        return m_polygons == nullptr ? Polygons{} : *m_polygons;
+    }
+
     ExPolygons to_expolygons() const override { return make_path_list_shapes(to_paths())->to_expolygons(); }
+
     bool empty() const override
     {
-        if (m_multipoints == nullptr)
+        if (m_polygons == nullptr)
             return true;
-        for (const MultiPoint &multipoint : *m_multipoints)
-            if (!multipoint.points.empty())
+        for (const Polygon &polygon : *m_polygons)
+            if (!polygon.points.empty())
                 return false;
         return true;
     }
+
     uint32_t path_count() const override
     {
-        if (m_multipoints == nullptr)
+        if (m_polygons == nullptr)
             return 0;
 
         uint32_t out = 0;
-        for (const MultiPoint &multipoint : *m_multipoints)
-            if (!multipoint.points.empty())
+        for (const Polygon &polygon : *m_polygons)
+            if (!polygon.points.empty())
                 ++out;
         return out;
     }
+
     BoundingBox bounding_box() const override
     {
         BoundingBox out;
-        if (m_multipoints != nullptr) {
-            for (const MultiPoint &multipoint : *m_multipoints)
-                out.merge(multipoint.points);
+        if (m_polygons != nullptr) {
+            for (const Polygon &polygon : *m_polygons)
+                out.merge(polygon.points);
         }
         return out;
     }
 
 private:
-    const std::vector<MultiPoint> *m_multipoints;
+    const Polygons *m_polygons;
 };
 
 class ExPolygonShapes final : public ClipperShapes
@@ -499,19 +506,19 @@ std::unique_ptr<ClipperShapes> make_polytree_shapes(ClipperLib::PolyTree tree)
     return std::make_unique<PolyTreeShapes>(std::move(tree));
 }
 
-std::unique_ptr<ClipperShapes> make_polygon_shapes(const Polygon *polygon)
-{
-    return std::make_unique<PolygonShapes>(polygon);
-}
-
 std::unique_ptr<ClipperShapes> make_polyline_shapes(const Polyline *polyline)
 {
     return std::make_unique<PolylineShapes>(polyline);
 }
 
-std::unique_ptr<ClipperShapes> make_multipoint_collection_shapes(const std::vector<MultiPoint> *multipoints)
+std::unique_ptr<ClipperShapes> make_polygon_shapes(const Polygon *polygon)
 {
-    return std::make_unique<MultiPointCollectionShapes>(multipoints);
+    return std::make_unique<PolygonShapes>(polygon);
+}
+
+std::unique_ptr<ClipperShapes> make_polygons_shapes(const Polygons *polygons)
+{
+    return std::make_unique<PolygonsShapes>(polygons);
 }
 
 std::unique_ptr<ClipperShapes> make_expolygon_shapes(const ExPolygon *expolygon)

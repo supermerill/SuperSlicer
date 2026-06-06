@@ -13,15 +13,13 @@
 #include <utility>
 #include <vector>
 
-#include "libslic3r/Api/plugin/c/slic3r_config_option.h"
 #include "libslic3r/Api/plugin/c/slic3r_data_tree.h"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
+#include "libslic3r/Api/plugin/cpp/ConfigViews.hpp"
 #include "libslic3r/Api/plugin/cpp/GeometryViews.hpp"
 
 namespace slic3r_api {
 
-class ConfigOption;
-class Config;
 class Surface;
 class SurfaceCollection;
 class MutableSurface;
@@ -33,102 +31,6 @@ class LayerRegion;
 class LayerRegionIsland;
 class LayerIsland;
 class Layer;
-
-/* ========================= generic read-only / stored views ========================= */
-
-/*
-ConstDataTreeHandleView is the mixed read/write base used by data-tree and Clipper views.
-It stores exactly one handle plus a mutability flag: the object is either a
-borrowed read-only view or a borrowed mutable view, never two pointers at once.
-*/
-template<class Handle> class ConstDataTreeHandleView
-{
-public:
-    ConstDataTreeHandleView() = default;
-    explicit ConstDataTreeHandleView(const Handle *handle) : m_handle(handle) { assert(handle != nullptr); }
-
-    const Handle *handle() const {
-        assert(m_handle != nullptr);
-        return m_handle;
-    }
-
-    bool same_handle(const ConstDataTreeHandleView &other) const { return m_handle == other.m_handle; }
-
-protected:
-    const Handle *m_handle = nullptr;
-};
-
-/* ========================= config views ========================= */
-/*
-Views over config handles and individual config options.
-*/
-
-class ConfigOption : public ConstDataTreeHandleView<config_option_handle>
-{
-public:
-    using ConstDataTreeHandleView<config_option_handle>::ConstDataTreeHandleView;
-
-    config_option_type type() const { return config_option_type_get(handle()); }
-    uint32_t size() const { return config_option_size(handle()); }
-    bool get_bool(uint32_t idx = 0) const { return config_option_get_bool(handle(), idx) != 0; }
-    int32_t get_int(uint32_t idx = 0) const { return config_option_get_int(handle(), idx); }
-    double get_float(uint32_t idx = 0) const { return config_option_get_float(handle(), idx); }
-    c_float_or_percent get_float_or_percent(uint32_t idx = 0) const {
-        return config_option_get_float_or_percent(handle(), idx);
-    }
-    bool is_percent(uint32_t idx = 0) const {
-        return config_option_get_float_or_percent(handle(), idx).percent != 0;
-    }
-    double get_effective_value(double ratio, uint32_t idx = 0) const {
-        c_float_or_percent value = config_option_get_float_or_percent(handle(), idx);
-        return c_float_or_percent_get_effective_value(&value, ratio);
-    }
-    const graph_data_handle *graph(uint32_t idx = 0) const {
-        return config_option_get_graph(handle(), idx);
-    }
-    bool is_enabled(uint32_t idx = 0) const { return config_option_is_enabled(handle(), idx) != 0; }
-    bool is_vector() const { return config_option_is_vector(handle()) != 0; }
-
-    // Serialized values are the stable comparison form used by config diffs
-    // and by plugin selectors. They are useful when the C++ enum type is not
-    // available on the plugin side.
-    std::string serialize() const {
-        const uint32_t needed = config_option_serialize(handle(), nullptr, 0);
-        std::string out(needed + 1, '\0');
-        if (needed > 0)
-            config_option_serialize(handle(), &out[0], needed + 1);
-        out.resize(needed);
-        return out;
-    }
-};
-
-class Config : public ConstDataTreeHandleView<config_handle>
-{
-public:
-    using ConstDataTreeHandleView<config_handle>::ConstDataTreeHandleView;
-
-    std::vector<std::string> keys() const {
-        std::vector<std::string> out;
-        const_strings_t c_keys = config_keys(handle());
-        out.reserve(c_keys.size);
-        for (uint32_t idx = 0; idx < c_keys.size; ++idx) {
-            if (c_keys.items[idx] != nullptr)
-                out.emplace_back(c_keys.items[idx]);
-        }
-        return out;
-    }
-
-    // Test whether an optional setting exists before reading it. Some plugin
-    // steps can be reused in contexts where a dynamic option or selector was
-    // not generated because only one implementation is active.
-    bool has(const char *key) const {
-        return config_get(handle(), key) != nullptr;
-    }
-
-    ConfigOption get(const char *key) const {
-        return ConfigOption(config_get(handle(), key));
-    }
-};
 
 /* ========================= surface views ========================= */
 
@@ -969,6 +871,11 @@ public:
     uint32_t layer_count() const { return object_count_layer(handle()); }
     Layer layer(uint32_t idx) const {
         return Layer(object_get_layer(handle(), idx));
+    }
+
+    uint32_t support_layer_count() const { return object_count_support_layer(handle()); }
+    Layer support_layer(uint32_t idx) const {
+        return Layer(object_get_support_layer(handle(), idx));
     }
 
     uint32_t print_region_count() const { return object_count_region(handle()); }

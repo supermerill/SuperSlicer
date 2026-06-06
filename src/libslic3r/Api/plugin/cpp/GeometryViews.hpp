@@ -652,6 +652,11 @@ private:
         StoredGeometryHandleView<StoredPolygon, Polygon, polygon_handle>(storage, handle) {}
 };
 
+inline StoredPolygon convex_hull(storage_handle *storage, const Polygon &polygon)
+{
+    return StoredPolygon::adopt(storage, polygon_convex_hull(storage, polygon.handle()));
+}
+
 /* Polyline-specific read helpers layered on top of the shared point-sequence API. */
 template<class Derived> class PolylineReadApi
 {

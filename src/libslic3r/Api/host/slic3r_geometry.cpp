@@ -13,6 +13,7 @@
 #include "libslic3r/ExPolygon.hpp"
 #include "libslic3r/ExtrusionEntity.hpp"
 #include "libslic3r/Flow.hpp"
+#include "libslic3r/Geometry/ConvexHull.hpp"
 #include "libslic3r/Geometry/MedialAxis.hpp"
 #include "libslic3r/MultiPoint.hpp"
 #include "libslic3r/Point.hpp"
@@ -652,6 +653,35 @@ c_point polygon_point_projection(const polygon_handle *me, c_point point, uint32
         *out_idx = projection.second;
     out = Slic3r::to_c_point(projection.first);
     return out;
+}
+
+polygon_handle *polygon_convex_hull(storage_handle *storage_handle_value, const polygon_handle *me)
+{
+    Slic3r::PluginStorage *storage = Slic3r::to_storage(storage_handle_value);
+    if (storage == nullptr || me == nullptr)
+        return nullptr;
+
+    Slic3r::Polygon &out = storage->polygons.emplace_back(
+        Slic3r::Geometry::convex_hull(Slic3r::to_polygon(me)->points));
+    polygon_handle *handle = reinterpret_cast<polygon_handle *>(&out);
+    storage->generic_storage.insert(handle);
+    return handle;
+}
+
+polygon_handle *polygons_convex_hull(storage_handle *storage_handle_value, const polygon_collection_handle *me)
+{
+    Slic3r::PluginStorage *storage = Slic3r::to_storage(storage_handle_value);
+    if (storage == nullptr || me == nullptr)
+        return nullptr;
+
+    Slic3r::Points points;
+    for (const Slic3r::Polygon &polygon : *Slic3r::to_polygons(me))
+        Slic3r::append(points, polygon.points);
+
+    Slic3r::Polygon &out = storage->polygons.emplace_back(Slic3r::Geometry::convex_hull(points));
+    polygon_handle *handle = reinterpret_cast<polygon_handle *>(&out);
+    storage->generic_storage.insert(handle);
+    return handle;
 }
 
 void polygon_move(polygon_handle *dst, polygon_handle *src) {

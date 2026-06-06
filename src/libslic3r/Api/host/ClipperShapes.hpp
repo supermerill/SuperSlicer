@@ -101,9 +101,9 @@ public:
 
 std::unique_ptr<ClipperShapes> make_path_list_shapes(ClipperLib::Paths paths);
 std::unique_ptr<ClipperShapes> make_polytree_shapes(ClipperLib::PolyTree tree);
-std::unique_ptr<ClipperShapes> make_polygon_shapes(const Polygon *polygon);
 std::unique_ptr<ClipperShapes> make_polyline_shapes(const Polyline *polyline);
-std::unique_ptr<ClipperShapes> make_multipoint_collection_shapes(const std::vector<MultiPoint> *multipoints);
+std::unique_ptr<ClipperShapes> make_polygon_shapes(const Polygon *polygon);
+std::unique_ptr<ClipperShapes> make_polygons_shapes(const Polygons *polygons);
 std::unique_ptr<ClipperShapes> make_expolygon_shapes(const ExPolygon *expolygon);
 std::unique_ptr<ClipperShapes> make_expolygons_shapes(const ExPolygons *expolygons);
 

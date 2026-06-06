@@ -142,6 +142,7 @@ static inline multipoint_const_view multipoint_view_as_const(multipoint_view me)
 typedef struct multipoint_handle multipoint_handle;
 typedef struct polygon_handle polygon_handle;
 typedef struct polyline_handle polyline_handle;
+typedef struct polygon_collection_handle polygon_collection_handle;
 
 /* Explicit downcast to the shared MultiPoint ABI when a point-level function is needed. */
 SLIC3R_HOST_API multipoint_handle *polygon_as_multipoint(polygon_handle *me);
@@ -236,6 +237,15 @@ SLIC3R_HOST_API uint32_t polygon_convex_points_idx(
 /* Projection of a point onto the polygon using the shortest distance. */
 SLIC3R_HOST_API c_point polygon_point_projection(const polygon_handle *me, c_point point, uint32_t *out_idx);
 /*
+Build a convex hull from the points of one polygon or a polygon collection.
+
+The result is a new storage-owned polygon. The input orientation and holes are
+ignored: these helpers look only at the point cloud, which is what skirt and
+first-layer-envelope algorithms need.
+*/
+SLIC3R_HOST_API polygon_handle *polygon_convex_hull(storage_handle *storage, const polygon_handle *me);
+SLIC3R_HOST_API polygon_handle *polygons_convex_hull(storage_handle *storage, const polygon_collection_handle *me);
+/*
 Move polygon contents from src into dst, then leave src empty but still valid.
 Both handles must be mutable. This moves the geometry, not ownership of either
 handle. If dst and src are the same handle, the function does nothing.
@@ -276,8 +286,6 @@ Otherwise add a new line from back to front to create the polygon.
 SLIC3R_HOST_API int32_t polyline_close(const polyline_handle *me, polygon_handle *out);
 
 /* ---- Polygon Collection ---- */
-typedef struct polygon_collection_handle polygon_collection_handle;
-
 /* Create a new polygon collection in the storage. */
 SLIC3R_HOST_API polygon_collection_handle *storage_new_polygons(storage_handle *me);
 
