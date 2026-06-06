@@ -146,10 +146,11 @@ void clean_and_prepare(Print &) {}
 
 bool validate_pre(const Print &print, std::string &out_error)
 {
-    // Before post-slicing plugins run, every LayerRegion created by slicing is
-    // expected to still carry raw geometry. An empty region at this point often
-    // means slicing failed to distribute model material correctly.
-    return validate_layers(print, out_error, true);
+    // A PrintObject can expose PrintRegions that are not used on every layer.
+    // The validator therefore checks the merged layer geometry and inter-region
+    // overlaps, but it does not require every possible LayerRegion to contain
+    // raw polygons.
+    return validate_layers(print, out_error, false);
 }
 
 bool validate_post(const Print &print, std::string &error)

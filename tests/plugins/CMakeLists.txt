@@ -8,6 +8,7 @@ add_executable(${_TEST_NAME}_tests
     ../../src/plugins_cpp/Polyholes/Polyholes.cpp
     perimeter_test_helpers.cpp
     plugin_test_helpers.cpp
+    test_auxiliary_layer_helpers.cpp
     test_clipper_views.cpp
     test_extrusion_continuity.cpp
     test_plugin_property.cpp

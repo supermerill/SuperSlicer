@@ -17,6 +17,8 @@ extern "C" {
 
 typedef struct volume_handle volume_handle;
 typedef struct triangle_mesh_handle triangle_mesh_handle;
+typedef struct slicing_layer_range_handle slicing_layer_range_handle;
+typedef struct slicing_volume_region_handle slicing_volume_region_handle;
 
 /* ========================= BASIC VALUE TYPES ========================= */
 
@@ -118,6 +120,35 @@ Returns a borrowed read-only Volume handle.
 The handle stays valid only while the underlying Object stays valid.
 */
 SLIC3R_HOST_API const volume_handle *object_volume_at(const object_handle *object, uint32_t idx);
+
+/*
+Read-only access to the Object's volume-to-region assignment.
+
+These views expose the same table used by STEP_SLICING. They are useful for
+helper geometry that already has a 2D subject and only wants to know which
+model-part or modifier volumes provide alternate PrintRegion settings at a Z
+height. Negative volumes are still visible in this table, but helpers that do
+not build object material should ignore them unless they explicitly want
+negative-volume behavior.
+
+note: this part of the api may change in the future to support more flexible volume-to-region assignment
+*/
+SLIC3R_HOST_API uint32_t object_count_slicing_layer_range(const object_handle *object);
+SLIC3R_HOST_API const slicing_layer_range_handle *object_get_slicing_layer_range(const object_handle *object,
+                                                                                 uint32_t idx);
+SLIC3R_HOST_API coord_t slicing_layer_range_get_z_min(const slicing_layer_range_handle *range);
+SLIC3R_HOST_API coord_t slicing_layer_range_get_z_max(const slicing_layer_range_handle *range);
+SLIC3R_HOST_API const config_handle *slicing_layer_range_get_config(const slicing_layer_range_handle *range);
+
+SLIC3R_HOST_API uint32_t slicing_layer_range_count_volume_region(const slicing_layer_range_handle *range);
+SLIC3R_HOST_API const slicing_volume_region_handle *slicing_layer_range_get_volume_region(
+    const slicing_layer_range_handle *range,
+    uint32_t idx);
+
+SLIC3R_HOST_API const volume_handle *slicing_volume_region_get_volume(const slicing_volume_region_handle *volume_region);
+SLIC3R_HOST_API int32_t slicing_volume_region_get_parent(const slicing_volume_region_handle *volume_region);
+SLIC3R_HOST_API int32_t slicing_volume_region_get_layer_region_idx(const slicing_volume_region_handle *volume_region);
+SLIC3R_HOST_API c_bounding_box3f slicing_volume_region_get_bbox(const slicing_volume_region_handle *volume_region);
 
 /* ========================= VOLUME ========================= */
 

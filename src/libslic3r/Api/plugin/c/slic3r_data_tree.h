@@ -421,7 +421,50 @@ plugin_property_* functions; an auxiliary layer without that property is not a
 support layer.
 */
 SLIC3R_HOST_API uint32_t object_count_auxiliary_layer(const object_handle *me);
-SLIC3R_HOST_API const layer_handle *object_get_auxiliary_layer(const object_handle *me, uint32_t idx);
+/*
+Return a mutable auxiliary Layer.
+
+Auxiliary layers are plugin-owned working layers. They are reachable through a
+const object_handle because plugins often receive read-only Object views while
+still being responsible for generated helper geometry such as support, skirt,
+brim or wipe tower. Mutability is intentionally limited to the returned Layer
+and its plugin/public layer APIs; it does not make normal object layers mutable.
+*/
+SLIC3R_HOST_API layer_handle *object_get_auxiliary_layer(const object_handle *me, uint32_t idx);
+/*
+Create an empty auxiliary Layer and initialize its LayerRegion list from the
+Object's PrintRegions.
+
+height, print_z and slice_z are scaled slicer coordinates. slice_z may equal
+print_z when the helper geometry lives on the print plane. The new layer is not
+automatically filled; callers should write raw LayerRegion slices and then call
+layer_recompute_slices_and_islands_from_layer_regions().
+*/
+SLIC3R_HOST_API layer_handle *object_add_auxiliary_layer(const object_handle *me,
+                                                         coord_t height,
+                                                         coord_t print_z,
+                                                         coord_t slice_z);
+/*
+Remove an auxiliary Layer previously returned by object_get_auxiliary_layer() or
+object_add_auxiliary_layer(). Returns non-zero on success.
+*/
+SLIC3R_HOST_API int32_t object_remove_auxiliary_layer(const object_handle *me, layer_handle *layer);
+
+/*
+Generic raw-slice mutation helpers.
+
+These functions are intentionally not tied to STEP_POST_SLICING. A plugin that
+creates an auxiliary layer in a later step still has to rebuild the Layer's
+cached island list after writing LayerRegion raw slices. If the layer should be
+used by perimeter/surface/infill code immediately, call
+layer_add_regions_to_islands() after recomputing. Do not call it on an empty
+layer.
+*/
+SLIC3R_HOST_API expolygon_collection_handle *layer_borrow_mutable_slices(layer_handle *me);
+SLIC3R_HOST_API expolygon_collection_handle *layer_region_borrow_mutable_slices(const layer_region_handle *me);
+SLIC3R_HOST_API void layer_recompute_slices_from_islands(layer_handle *me);
+SLIC3R_HOST_API void layer_recompute_slices_and_islands_from_layer_regions(layer_handle *me);
+SLIC3R_HOST_API void layer_add_regions_to_islands(layer_handle *me);
 
 SLIC3R_HOST_API uint32_t object_count_region(const object_handle *me);
 SLIC3R_HOST_API print_region_handle *object_get_print_region_mutable(object_handle *me, uint32_t idx);

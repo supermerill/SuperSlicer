@@ -130,6 +130,8 @@ set(SLIC3R_SOURCES
 	Api/plugin/c/steps/slic3r_step_wipetower.h
 	Api/plugin/cpp/BridgeDetectorViews.hpp
 	Api/plugin/cpp/ConfigViews.hpp
+	Api/plugin/cpp/AuxiliaryLayerHelpers.cpp
+	Api/plugin/cpp/AuxiliaryLayerHelpers.hpp
 	Api/plugin/cpp/ClipperViews.hpp
 	Api/plugin/cpp/DataTreeViews.hpp
 	Api/plugin/cpp/ExtrusionTreeVisitors.hpp

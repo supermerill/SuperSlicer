@@ -827,6 +827,34 @@ class Object(DataTreeView):
         for idx in range(self.auxiliary_layer_count()):
             yield self.auxiliary_layer(idx)
 
+    def add_auxiliary_layer(self, height: int, print_z: int, slice_z: int) -> "MutableLayer":
+        """
+        Create an empty plugin-mutable auxiliary layer.
+
+        The returned layer has the object's LayerRegion list but no raw slices.
+        Write region slices, then call the relevant recompute callbacks from
+        the step/helper that owns the geometry.
+        """
+        return MutableLayer(
+            self.api,
+            self.api.host.object_add_auxiliary_layer(
+                self.c_handle(),
+                int(height),
+                int(print_z),
+                int(slice_z),
+            ),
+        )
+
+    def remove_auxiliary_layer(self, layer: Layer) -> bool:
+        """
+        Remove an auxiliary layer previously obtained from this Object.
+
+        Normal object layers are not accepted by the host. The method returns
+        False if the handle is null or does not belong to the auxiliary layer
+        vector.
+        """
+        return bool(self.api.host.object_remove_auxiliary_layer(self.c_handle(), layer.c_handle()))
+
     def volume_count(self) -> int:
         return int(self.api.host.object_volume_count(self.c_handle()))
 

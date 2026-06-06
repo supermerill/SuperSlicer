@@ -31,7 +31,9 @@ STEP_POST_SLICING plugins.
 
 At this point slicing has produced per-layer geometry, but surface generation
 has not run yet. The expected state is:
-- LayerRegion raw slices exist and contain at least one non-empty ExPolygon.
+- LayerRegion raw slices may be empty when their PrintRegion is available but
+  unused on that layer. This is valid for the fallback default region and for
+  modifier regions whose masks do not touch every layer.
 - LayerRegion raw slices are mutually disjoint, except for tiny numeric slivers
   around shared borders.
 - Layer slices exist and contain at least one non-empty ExPolygon.
@@ -49,10 +51,12 @@ bool validate_pre(const Print &print, std::string &error);
 Check that the data tree is still valid after a STEP_POST_SLICING plugin has
 run.
 
-For now this intentionally checks the same invariants as validate_pre(): plugins
-may edit layer slices, layer-region raw slices, and layer-island slices, but they
-must leave those caches mutually consistent and must not create later-step data
-such as LayerRegionIsland or processed surfaces.
+Plugins may edit layer slices, layer-region raw slices, and layer-island slices,
+but they must leave those caches mutually consistent and must not create
+later-step data such as LayerRegionIsland or processed surfaces. Empty
+LayerRegion raw slices remain legal after plugins for the same reason as before
+plugins: a region can exist as a settings choice without being used on every
+layer.
 
 Call this after each post-slicing plugin, and once again at the end of the step.
 This makes it easier to identify the first plugin that broke the expected

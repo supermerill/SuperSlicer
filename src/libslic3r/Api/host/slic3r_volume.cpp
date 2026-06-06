@@ -11,6 +11,7 @@
 #include "libslic3r/Model.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/PrintObject.hpp"
+#include "libslic3r/PrintObjectRegion.hpp"
 #include "libslic3r/TriangleMesh.hpp"
 #include "libslic3r/TriangleMeshSlicer.hpp"
 
@@ -29,6 +30,19 @@ static const ModelVolume *to_volume(const volume_handle *me)
 static const TriangleMesh *to_triangle_mesh(const triangle_mesh_handle *me)
 {
     return reinterpret_cast<const TriangleMesh *>(me);
+}
+
+using SlicingLayerRange = PrintObjectRegions::LayerRangeRegions;
+using SlicingVolumeRegion = PrintObjectRegions::VolumeRegion;
+
+static const SlicingLayerRange *to_layer_range(const slicing_layer_range_handle *me)
+{
+    return reinterpret_cast<const SlicingLayerRange *>(me);
+}
+
+static const SlicingVolumeRegion *to_volume_region(const slicing_volume_region_handle *me)
+{
+    return reinterpret_cast<const SlicingVolumeRegion *>(me);
 }
 
 static Polygons *to_polygons(polygon_collection_handle *me)
@@ -57,6 +71,14 @@ static c_vec3f to_c_vec3f(const Vec3f &point)
     out.x = point.x();
     out.y = point.y();
     out.z = point.z();
+    return out;
+}
+
+static c_bounding_box3f to_c_bounding_box3f(const PrintObjectRegions::BoundingAlignedBox3f &box)
+{
+    c_bounding_box3f out = {};
+    out.min = to_c_vec3f(box.min());
+    out.max = to_c_vec3f(box.max());
     return out;
 }
 
@@ -209,6 +231,77 @@ const volume_handle *object_volume_at(const object_handle *object, uint32_t idx)
     return reinterpret_cast<const volume_handle *>(volumes[idx]);
 }
 
+uint32_t object_count_slicing_layer_range(const object_handle *object)
+{
+    const PrintObject *native = to_object(object);
+    return native == nullptr || native->shared_regions() == nullptr ?
+        0u : uint32_t(native->shared_regions()->layer_ranges.size());
+}
+
+const slicing_layer_range_handle *object_get_slicing_layer_range(const object_handle *object, uint32_t idx)
+{
+    const PrintObject *native = to_object(object);
+    if (native == nullptr || native->shared_regions() == nullptr)
+        return nullptr;
+    const std::vector<SlicingLayerRange> &ranges = native->shared_regions()->layer_ranges;
+    return idx < ranges.size() ? reinterpret_cast<const slicing_layer_range_handle *>(&ranges[idx]) : nullptr;
+}
+
+coord_t slicing_layer_range_get_z_min(const slicing_layer_range_handle *range)
+{
+    return range == nullptr ? 0 : to_layer_range(range)->layer_height_range_.first;
+}
+
+coord_t slicing_layer_range_get_z_max(const slicing_layer_range_handle *range)
+{
+    return range == nullptr ? 0 : to_layer_range(range)->layer_height_range_.second;
+}
+
+const config_handle *slicing_layer_range_get_config(const slicing_layer_range_handle *range)
+{
+    return range == nullptr ? nullptr : ApiHost::to_config_handle(to_layer_range(range)->config);
+}
+
+uint32_t slicing_layer_range_count_volume_region(const slicing_layer_range_handle *range)
+{
+    return range == nullptr ? 0u : uint32_t(to_layer_range(range)->volume_regions.size());
+}
+
+const slicing_volume_region_handle *slicing_layer_range_get_volume_region(
+    const slicing_layer_range_handle *range,
+    uint32_t idx)
+{
+    if (range == nullptr)
+        return nullptr;
+    const std::vector<SlicingVolumeRegion> &volume_regions = to_layer_range(range)->volume_regions;
+    return idx < volume_regions.size() ?
+        reinterpret_cast<const slicing_volume_region_handle *>(&volume_regions[idx]) : nullptr;
+}
+
+const volume_handle *slicing_volume_region_get_volume(const slicing_volume_region_handle *volume_region)
+{
+    const SlicingVolumeRegion *native = to_volume_region(volume_region);
+    return native == nullptr ? nullptr : reinterpret_cast<const volume_handle *>(native->model_volume);
+}
+
+int32_t slicing_volume_region_get_parent(const slicing_volume_region_handle *volume_region)
+{
+    const SlicingVolumeRegion *native = to_volume_region(volume_region);
+    return native == nullptr ? -1 : native->parent;
+}
+
+int32_t slicing_volume_region_get_layer_region_idx(const slicing_volume_region_handle *volume_region)
+{
+    const SlicingVolumeRegion *native = to_volume_region(volume_region);
+    return native == nullptr || native->region == nullptr ? -1 : native->region->print_object_region_id();
+}
+
+c_bounding_box3f slicing_volume_region_get_bbox(const slicing_volume_region_handle *volume_region)
+{
+    const SlicingVolumeRegion *native = to_volume_region(volume_region);
+    return native == nullptr || native->bbox == nullptr ? c_bounding_box3f{} : to_c_bounding_box3f(*native->bbox);
+}
+
 raw_volume_type volume_get_type(const volume_handle *volume)
 {
     const ModelVolume *native = to_volume(volume);
@@ -331,6 +424,63 @@ uint32_t object_volume_count(const object_handle *object)
 const volume_handle *object_volume_at(const object_handle *object, uint32_t idx)
 {
     return Slic3r::object_volume_at(object, idx);
+}
+
+uint32_t object_count_slicing_layer_range(const object_handle *object)
+{
+    return Slic3r::object_count_slicing_layer_range(object);
+}
+
+const slicing_layer_range_handle *object_get_slicing_layer_range(const object_handle *object, uint32_t idx)
+{
+    return Slic3r::object_get_slicing_layer_range(object, idx);
+}
+
+coord_t slicing_layer_range_get_z_min(const slicing_layer_range_handle *range)
+{
+    return Slic3r::slicing_layer_range_get_z_min(range);
+}
+
+coord_t slicing_layer_range_get_z_max(const slicing_layer_range_handle *range)
+{
+    return Slic3r::slicing_layer_range_get_z_max(range);
+}
+
+const config_handle *slicing_layer_range_get_config(const slicing_layer_range_handle *range)
+{
+    return Slic3r::slicing_layer_range_get_config(range);
+}
+
+uint32_t slicing_layer_range_count_volume_region(const slicing_layer_range_handle *range)
+{
+    return Slic3r::slicing_layer_range_count_volume_region(range);
+}
+
+const slicing_volume_region_handle *slicing_layer_range_get_volume_region(
+    const slicing_layer_range_handle *range,
+    uint32_t idx)
+{
+    return Slic3r::slicing_layer_range_get_volume_region(range, idx);
+}
+
+const volume_handle *slicing_volume_region_get_volume(const slicing_volume_region_handle *volume_region)
+{
+    return Slic3r::slicing_volume_region_get_volume(volume_region);
+}
+
+int32_t slicing_volume_region_get_parent(const slicing_volume_region_handle *volume_region)
+{
+    return Slic3r::slicing_volume_region_get_parent(volume_region);
+}
+
+int32_t slicing_volume_region_get_layer_region_idx(const slicing_volume_region_handle *volume_region)
+{
+    return Slic3r::slicing_volume_region_get_layer_region_idx(volume_region);
+}
+
+c_bounding_box3f slicing_volume_region_get_bbox(const slicing_volume_region_handle *volume_region)
+{
+    return Slic3r::slicing_volume_region_get_bbox(volume_region);
 }
 
 raw_volume_type volume_get_type(const volume_handle *volume)

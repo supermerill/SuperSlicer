@@ -881,6 +881,12 @@ public:
     Layer auxiliary_layer(uint32_t idx) const {
         return Layer(object_get_auxiliary_layer(handle(), idx));
     }
+    Layer add_auxiliary_layer(coord_t height, coord_t print_z, coord_t slice_z) const {
+        return Layer(object_add_auxiliary_layer(handle(), height, print_z, slice_z));
+    }
+    bool remove_auxiliary_layer(const Layer &layer) const {
+        return object_remove_auxiliary_layer(handle(), const_cast<layer_handle *>(layer.handle())) != 0;
+    }
 
     uint32_t print_region_count() const { return object_count_region(handle()); }
     PrintRegion print_region(uint32_t idx) const {

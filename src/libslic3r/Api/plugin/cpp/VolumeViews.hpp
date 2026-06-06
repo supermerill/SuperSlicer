@@ -152,6 +152,41 @@ public:
     TriangleMesh mesh() const { return TriangleMesh(volume_get_mesh(handle())); }
 };
 
+/*
+Borrowed views over PrintObjectRegions' layer ranges and volume-region entries.
+
+Use these when helper geometry already has a 2D subject and only needs to ask
+"which PrintRegion settings apply at this Z?". The views expose the same mapping
+that slicing plugins use, but they are not tied to STEP_SLICING. They are
+read-only and remain valid only while the Object and its shared region table are
+valid.
+*/
+class SlicingVolumeRegion : public ConstDataTreeHandleView<slicing_volume_region_handle>
+{
+public:
+    using ConstDataTreeHandleView<slicing_volume_region_handle>::ConstDataTreeHandleView;
+
+    Volume volume() const { return Volume(slicing_volume_region_get_volume(handle())); }
+    int32_t parent() const { return slicing_volume_region_get_parent(handle()); }
+    int32_t layer_region_idx() const { return slicing_volume_region_get_layer_region_idx(handle()); }
+    c_bounding_box3f bbox() const { return slicing_volume_region_get_bbox(handle()); }
+};
+
+class SlicingLayerRange : public ConstDataTreeHandleView<slicing_layer_range_handle>
+{
+public:
+    using ConstDataTreeHandleView<slicing_layer_range_handle>::ConstDataTreeHandleView;
+
+    coord_t z_min() const { return slicing_layer_range_get_z_min(handle()); }
+    coord_t z_max() const { return slicing_layer_range_get_z_max(handle()); }
+    Config config() const { return Config(slicing_layer_range_get_config(handle())); }
+
+    uint32_t volume_region_count() const { return slicing_layer_range_count_volume_region(handle()); }
+    SlicingVolumeRegion volume_region(uint32_t idx) const {
+        return SlicingVolumeRegion(slicing_layer_range_get_volume_region(handle(), idx));
+    }
+};
+
 inline std::vector<StoredPolygonCollection> project_painting_to_polygons(storage_handle *storage,
                                                                          const Object &object,
                                                                          const char *paint_key,
@@ -181,6 +216,17 @@ inline Volume Object::volume(uint32_t idx) const
 {
     assert(idx < volume_count());
     return Volume(object_volume_at(handle(), idx));
+}
+
+inline uint32_t object_slicing_layer_range_count(const Object &object)
+{
+    return object_count_slicing_layer_range(object.handle());
+}
+
+inline SlicingLayerRange object_slicing_layer_range(const Object &object, uint32_t idx)
+{
+    assert(idx < object_slicing_layer_range_count(object));
+    return SlicingLayerRange(object_get_slicing_layer_range(object.handle(), idx));
 }
 
 } // namespace slic3r_api

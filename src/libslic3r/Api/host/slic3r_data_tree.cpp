@@ -2,13 +2,16 @@
 ///|/
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
+#include <algorithm>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "libslic3r/Api/host/ApiHostUtils.hpp"
 #include "libslic3r/Api/host/Orchestrator.hpp"
+#include "libslic3r/Api/internal/LayerAccess.hpp"
 #include "libslic3r/Api/internal/LayerIslandAccess.hpp"
+#include "libslic3r/Api/internal/LayerRegionAccess.hpp"
 #include "libslic3r/Api/plugin/c/slic3r_data_tree.h"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/ConfigDef.hpp"
@@ -749,11 +752,88 @@ uint32_t object_count_auxiliary_layer(const object_handle *me)
     return me == nullptr ? 0 : static_cast<uint32_t>(Slic3r::to_object(me)->auxiliary_layers().size());
 }
 
-const layer_handle *object_get_auxiliary_layer(const object_handle *me, uint32_t idx)
+layer_handle *object_get_auxiliary_layer(const object_handle *me, uint32_t idx)
 {
     if (me == nullptr || idx >= Slic3r::to_object(me)->auxiliary_layers().size())
         return nullptr;
-    return reinterpret_cast<const layer_handle*>(&Slic3r::to_object(me)->auxiliary_layers()[static_cast<size_t>(idx)]);
+    return reinterpret_cast<layer_handle *>(&const_cast<Slic3r::Layer &>(
+        Slic3r::to_object(me)->auxiliary_layers()[static_cast<size_t>(idx)]));
+}
+
+layer_handle *object_add_auxiliary_layer(const object_handle *me,
+                                         coord_t height,
+                                         coord_t print_z,
+                                         coord_t slice_z)
+{
+    if (me == nullptr || height <= 0 || print_z <= 0)
+        return nullptr;
+
+    Slic3r::PrintObject *object = const_cast<Slic3r::PrintObject *>(Slic3r::to_object(me));
+    Slic3r::LayerUPtrs &layers = object->mutable_auxiliary_layers();
+    const size_t id = layers.size();
+    Slic3r::LayerUPtrs::iterator pos = std::lower_bound(
+        layers.begin(),
+        layers.end(),
+        print_z,
+        [](const Slic3r::LayerUPtr &layer, coord_t value) {
+            return layer->scaled_print_z() < value;
+        });
+
+    Slic3r::LayerUPtrs::iterator inserted =
+        object->insert_auxiliary_layer(pos, id, height, print_z, unscaled(slice_z));
+    Slic3r::ApiInternal::LayerAccess::init_regions_from_object(**inserted);
+    return reinterpret_cast<layer_handle *>(inserted->get());
+}
+
+int32_t object_remove_auxiliary_layer(const object_handle *me, layer_handle *layer)
+{
+    if (me == nullptr || layer == nullptr)
+        return 0;
+
+    Slic3r::PrintObject *object = const_cast<Slic3r::PrintObject *>(Slic3r::to_object(me));
+    Slic3r::LayerUPtrs &layers = object->mutable_auxiliary_layers();
+    Slic3r::Layer *target = Slic3r::to_layer(layer);
+    Slic3r::LayerUPtrs::iterator it = std::find_if(layers.begin(), layers.end(), [target](const Slic3r::LayerUPtr &candidate) {
+        return candidate.get() == target;
+    });
+    if (it == layers.end())
+        return 0;
+    layers.erase(it);
+    return 1;
+}
+
+expolygon_collection_handle *layer_borrow_mutable_slices(layer_handle *me)
+{
+    return me == nullptr ?
+        nullptr :
+        reinterpret_cast<expolygon_collection_handle *>(&Slic3r::ApiInternal::LayerAccess::slices_mutable(
+            *reinterpret_cast<Slic3r::Layer *>(me)));
+}
+
+expolygon_collection_handle *layer_region_borrow_mutable_slices(const layer_region_handle *me)
+{
+    return me == nullptr ?
+        nullptr :
+        reinterpret_cast<expolygon_collection_handle *>(&Slic3r::ApiInternal::LayerRegionAccess::slices_mutable(
+            *const_cast<Slic3r::LayerRegion *>(reinterpret_cast<const Slic3r::LayerRegion *>(me))));
+}
+
+void layer_recompute_slices_from_islands(layer_handle *me)
+{
+    if (me != nullptr)
+        Slic3r::ApiInternal::LayerAccess::recompute_slices_from_islands(*reinterpret_cast<Slic3r::Layer *>(me));
+}
+
+void layer_recompute_slices_and_islands_from_layer_regions(layer_handle *me)
+{
+    if (me != nullptr)
+        Slic3r::ApiInternal::LayerAccess::recompute_slices_from_layer_regions(*reinterpret_cast<Slic3r::Layer *>(me));
+}
+
+void layer_add_regions_to_islands(layer_handle *me)
+{
+    if (me != nullptr && !Slic3r::to_layer(me)->islands().empty())
+        Slic3r::to_layer(me)->add_regions_to_islands();
 }
 
 uint32_t object_count_region(const object_handle *me)

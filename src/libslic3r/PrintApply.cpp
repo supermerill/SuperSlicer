@@ -690,6 +690,23 @@ bool verify_update_print_object_regions(
     for (std::unique_ptr<PrintRegion> &region : print_object_regions.all_regions)
         print_region_ref_reset(*region);
 
+    /*
+    Region zero is the object's fallback PrintRegion. It must stay alive even
+    when no model volume currently uses the default settings, because auxiliary
+    geometry starts from this region before part/modifier masks steal area from
+    it. Keep its config synchronized with the current object default, and count
+    it as referenced so later region validation does not treat it as unused.
+    */
+    if (!print_object_regions.all_regions.empty()) {
+        PrintRegion &default_region = *print_object_regions.all_regions.front();
+        if (default_region.config() != default_region_config) {
+            t_config_option_keys diff = default_region.config().diff(default_region_config);
+            callback_invalidate(default_region.config(), default_region_config, diff);
+            default_region.config_apply_only(default_region_config, diff, false);
+        }
+        print_region_ref_inc(default_region);
+    }
+
     // Verify and / or update PrintRegions produced by ModelVolumes, layer range modifiers, modifier volumes.
     for (PrintObjectRegions::LayerRangeRegions &layer_range : print_object_regions.layer_ranges) {
         // Each modifier ModelVolume intersecting this layer_range shall be referenced here at least once if it intersects some
@@ -933,6 +950,16 @@ static std::shared_ptr<PrintObjectRegions> generate_print_object_regions(
         region_set.emplace(it, region);
         return region;
     };
+
+    /*
+    Region zero is the object's fallback PrintRegion. Auxiliary layers use it
+    for helper geometry that is outside every model-part or modifier mask, so it
+    must exist even on objects whose real mesh volumes all override the default
+    settings.
+    */
+    PrintRegion *default_region = get_create_region(PrintRegionConfig(default_region_config));
+    assert(default_region != nullptr);
+    assert(default_region->print_object_region_id() == 0);
 
     // Chain the regions in the order they are stored in the volumes list.
     for (int volume_id = 0; volume_id < int(model_volumes.size()); ++ volume_id) {

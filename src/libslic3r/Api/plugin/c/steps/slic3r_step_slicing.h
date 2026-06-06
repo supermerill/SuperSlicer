@@ -20,16 +20,6 @@ and volume-region callbacks expose the object slicing assignment without
 exposing native C++ containers.
 */
 
-/*
-Opaque borrowed views over the host's PrintObjectRegions::LayerRangeRegions and
-VolumeRegion entries. They are only valid during STEP_SLICING setup_run()/run().
-Plugins use these views to decide by themselves which volume slices overlap and
-which LayerRegion receives the final polygons, without exposing the native C++
-containers as part of the stable public API.
-*/
-typedef struct slicing_layer_range_handle slicing_layer_range_handle;
-typedef struct slicing_volume_region_handle slicing_volume_region_handle;
-
 typedef uint32_t (*slicing_layer_range_count_fn)(const object_handle *object);
 typedef const slicing_layer_range_handle *(*slicing_layer_range_at_fn)(const object_handle *object, uint32_t idx);
 typedef coord_t (*slicing_layer_range_z_min_fn)(const slicing_layer_range_handle *range);
