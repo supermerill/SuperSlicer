@@ -129,6 +129,7 @@ set(SLIC3R_SOURCES
 	Api/plugin/c/steps/slic3r_step_skirt_brim.h
 	Api/plugin/c/steps/slic3r_step_wipetower.h
 	Api/plugin/cpp/BridgeDetectorViews.hpp
+	Api/plugin/cpp/ConfigViews.hpp
 	Api/plugin/cpp/ClipperViews.hpp
 	Api/plugin/cpp/DataTreeViews.hpp
 	Api/plugin/cpp/ExtrusionTreeVisitors.hpp
@@ -170,6 +171,10 @@ set(SLIC3R_SOURCES
 	Plugins/Ordering/DefaultToolGroupOrdering.cpp
 	Plugins/SkirtBrim/DefaultBrimGenerator.cpp
 	Plugins/SkirtBrim/DefaultBrimGenerator.hpp
+	Plugins/SkirtBrim/DefaultBrimSkirtTrim.cpp
+	Plugins/SkirtBrim/DefaultBrimSkirtTrim.hpp
+	Plugins/SkirtBrim/DefaultSkirtGenerator.cpp
+	Plugins/SkirtBrim/DefaultSkirtGenerator.hpp
 	Plugins/VaseMultiIslandConnector.cpp
 	Plugins/VaseMultiIslandConnector.hpp
 	Plugins/Perimeter/ArachnePerimeterGenerator.cpp

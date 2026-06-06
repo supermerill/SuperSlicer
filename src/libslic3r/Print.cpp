@@ -1389,8 +1389,12 @@ void Print::process() {
         }
     }
     
+    /*
+    STEP_SKIRT_BRIM is now part of Orchestrator::slice(). Do not call the
+    legacy _make_skirt_brim() here, otherwise plugin-generated brim/skirt would
+    be cleared or duplicated after the pipeline has already produced it.
+    */
     secondary_status_counter_reset();
-    _make_skirt_brim();
 
     m_timestamp_last_change = std::time(0);
     BOOST_LOG_TRIVIAL(info) << "Step pipeline slicing process finished." << log_memory_info();
@@ -1715,28 +1719,37 @@ void append_extrusion_children_to_collection(ExtrusionEntityCollection &dst, Ext
 
     if (ExtrusionEntityCollection *collection = dynamic_cast<ExtrusionEntityCollection *>(&src)) {
         /*
-        A plain temporary collection is only a transport container: move its
-        children into the real brim root. If the collection has properties, it
-        is a semantic subtree and must stay whole so descendants inherit them.
+        The plugin root is a temporary transport object. Clone its children
+        into the persistent Print tree, then clear the transport root. This is
+        a little more conservative than moving unique_ptrs across the API
+        boundary and keeps all long-lived adhesion extrusion owned by Print.
+        If the collection has properties, it is a semantic subtree and must
+        stay whole so descendants inherit them.
         */
         if (collection->has_properties()) {
-            dst.append(std::move(src));
+            dst.append(src);
+            src.clear_content();
+            src.clear_properties();
             return;
         }
-        dst.append_move_from(*collection);
+        for (const ExtrusionEntity *child : collection->entities())
+            dst.append(*child);
+        collection->clear();
         return;
     }
 
     if (src.is_leaf()) {
-        dst.append(std::move(src));
+        dst.append(src);
+        src.clear_content();
+        src.clear_properties();
         return;
     }
 
     ExtrusionEntity::Children &children = src.children();
-    while (!children.empty()) {
-        dst.append(std::move(children.front()));
-        children.erase(children.begin());
-    }
+    for (const ExtrusionEntityUPtr &child : children)
+        dst.append(*child);
+    src.clear_content();
+    src.clear_properties();
 }
 
 void ApiInternal::PrintAccess::clear_brim(Print &print)
@@ -1746,25 +1759,78 @@ void ApiInternal::PrintAccess::clear_brim(Print &print)
         ApiInternal::PrintObjectAccess::mutable_brim(*object).clear();
 }
 
+void ApiInternal::PrintAccess::clear_skirt(Print &print)
+{
+    print.m_skirt.clear();
+    print.m_skirt_first_layer.reset();
+    print.m_skirt_convex_hull.clear();
+    for (PrintObjectUPtr &object : print.m_objects) {
+        ApiInternal::PrintObjectAccess::mutable_skirt(*object).clear();
+        ApiInternal::PrintObjectAccess::mutable_skirt_first_layer(*object).reset();
+    }
+}
+
 bool ApiInternal::PrintAccess::append_brim_move(Print &print, ExtrusionEntity &extrusion)
 {
     append_extrusion_children_to_collection(print.m_brim, extrusion);
     return true;
 }
 
-void ApiInternal::PrintAccess::normalize_brim_direction(Print &print)
+bool ApiInternal::PrintAccess::append_skirt_move(Print &print, ExtrusionEntity &extrusion)
+{
+    append_extrusion_children_to_collection(print.m_skirt, extrusion);
+    return true;
+}
+
+bool ApiInternal::PrintAccess::append_skirt_first_layer_move(Print &print, ExtrusionEntity &extrusion)
+{
+    if (!print.m_skirt_first_layer)
+        print.m_skirt_first_layer.emplace();
+    append_extrusion_children_to_collection(*print.m_skirt_first_layer, extrusion);
+    return true;
+}
+
+bool ApiInternal::PrintAccess::append_skirt_convex_hull_move(Print &print, Polygons &polygons)
 {
     /*
-    Brim is stored partly on Print and partly on PrintObject. Normalize both
-    places after plugins finish so each generator does not have to duplicate
-    the perimeter-direction rule.
+    The incoming polygons live in plugin storage and the print hull lives until
+    export finishes. Copying the point coordinates is intentionally boring and
+    robust: the hull is small, and no persistent Print data keeps buffers that
+    were allocated for a temporary plugin result.
+    */
+    for (const Polygon &polygon : polygons)
+        append(print.m_skirt_convex_hull, polygon.points);
+    polygons.clear();
+    return true;
+}
+
+const ExtrusionEntity *ApiInternal::PrintAccess::skirt_first_layer(const Print &print)
+{
+    return print.m_skirt_first_layer ? &*print.m_skirt_first_layer : nullptr;
+}
+
+void ApiInternal::PrintAccess::normalize_skirt_brim_direction(Print &print)
+{
+    /*
+    Skirt/brim output is stored partly on Print and partly on PrintObject.
+    Normalize both places after plugins finish so each generator does not have
+    to duplicate the perimeter-direction rule.
     */
     if (print.m_default_region_config.perimeter_direction.value == pdCW_CCW ||
         print.m_default_region_config.perimeter_direction.value == pdCW_CW) {
         ExtrusionDirectionSetter visitor(true);
         print.m_brim.visit(visitor);
-        for (PrintObjectUPtr &object : print.m_objects)
+        print.m_skirt.visit(visitor);
+        if (print.m_skirt_first_layer)
+            print.m_skirt_first_layer->visit(visitor);
+        for (PrintObjectUPtr &object : print.m_objects) {
             ApiInternal::PrintObjectAccess::mutable_brim(*object).visit(visitor);
+            ApiInternal::PrintObjectAccess::mutable_skirt(*object).visit(visitor);
+            std::optional<ExtrusionEntityCollection> &first_layer =
+                ApiInternal::PrintObjectAccess::mutable_skirt_first_layer(*object);
+            if (first_layer)
+                first_layer->visit(visitor);
+        }
     }
 }
 
@@ -1781,8 +1847,17 @@ void ApiInternal::PrintAccess::rebuild_first_layer_convex_hull_after_skirt_brim(
         append(print.m_first_layer_convex_hull.points, std::move(polygon.points));
 
     print.m_brim.collect_points(print.m_first_layer_convex_hull.points);
-    for (PrintObjectUPtr &object : print.m_objects)
+    print.m_skirt.collect_points(print.m_first_layer_convex_hull.points);
+    if (print.m_skirt_first_layer)
+        print.m_skirt_first_layer->collect_points(print.m_first_layer_convex_hull.points);
+    for (PrintObjectUPtr &object : print.m_objects) {
         ApiInternal::PrintObjectAccess::mutable_brim(*object).collect_points(print.m_first_layer_convex_hull.points);
+        ApiInternal::PrintObjectAccess::mutable_skirt(*object).collect_points(print.m_first_layer_convex_hull.points);
+        std::optional<ExtrusionEntityCollection> &first_layer =
+            ApiInternal::PrintObjectAccess::mutable_skirt_first_layer(*object);
+        if (first_layer)
+            first_layer->collect_points(print.m_first_layer_convex_hull.points);
+    }
 
     print.finalize_first_layer_convex_hull();
 }

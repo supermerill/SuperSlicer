@@ -496,7 +496,7 @@ private:
     }
     slicing_step_t step_impl() const noexcept override { return STEP_SKIRT_BRIM; }
     const char *const *dependencies_impl() const noexcept override { return k_no_dependencies; }
-    int32_t priority_impl() const noexcept override { return 100; }
+    int32_t priority_impl() const noexcept override { return 0; }
     const char *progress_message_format_impl() const noexcept override { return "Generating brim"; }
 
     int32_t used_config_keys(raw_used_config_key *keys) const noexcept override

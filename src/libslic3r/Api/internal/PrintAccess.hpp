@@ -6,6 +6,7 @@
 #define slic3r_Api_internal_PrintAccess_hpp_
 
 #include "libslic3r/DataTreeFwd.hpp"
+#include "libslic3r/Polygon.hpp"
 
 namespace Slic3r {
 
@@ -25,8 +26,14 @@ public on Print.
 struct PrintAccess
 {
     static void clear_brim(Print &print);
+    static void clear_skirt(Print &print);
     static bool append_brim_move(Print &print, ExtrusionEntity &extrusion);
-    static void normalize_brim_direction(Print &print);
+    static bool append_skirt_move(Print &print, ExtrusionEntity &extrusion);
+
+    static bool append_skirt_first_layer_move(Print &print, ExtrusionEntity &extrusion);
+    static bool append_skirt_convex_hull_move(Print &print, Polygons &polygons);
+    static const ExtrusionEntity *skirt_first_layer(const Print &print);
+    static void normalize_skirt_brim_direction(Print &print);
     static void rebuild_first_layer_convex_hull_after_skirt_brim(Print &print);
 };
 

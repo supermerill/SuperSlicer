@@ -16,6 +16,7 @@
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_skirt_brim.h"
 #include "libslic3r/Exception.hpp"
 #include "libslic3r/ExtrusionEntity.hpp"
+#include "libslic3r/Polygon.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/PrintObject.hpp"
 #include "libslic3r/Steps/StepPipeline.hpp"
@@ -38,6 +39,16 @@ ExtrusionEntity *to_extrusion(extrusion_entity_handle *handle)
     return reinterpret_cast<ExtrusionEntity *>(handle);
 }
 
+const extrusion_entity_handle *to_handle(const ExtrusionEntity *entity)
+{
+    return reinterpret_cast<const extrusion_entity_handle *>(entity);
+}
+
+Polygons *to_polygons(polygon_collection_handle *handle)
+{
+    return reinterpret_cast<Polygons *>(handle);
+}
+
 int32_t clear_brim_callback(print_handle *print_handle_value)
 {
     Print *print = to_print(print_handle_value);
@@ -55,6 +66,27 @@ int32_t clear_object_brim_callback(object_handle *object_handle_value)
         return 0;
 
     ApiInternal::PrintObjectAccess::mutable_brim(*object).clear();
+    return 1;
+}
+
+int32_t clear_skirt_callback(print_handle *print_handle_value)
+{
+    Print *print = to_print(print_handle_value);
+    if (print == nullptr)
+        return 0;
+
+    ApiInternal::PrintAccess::clear_skirt(*print);
+    return 1;
+}
+
+int32_t clear_object_skirt_callback(object_handle *object_handle_value)
+{
+    PrintObject *object = to_object(object_handle_value);
+    if (object == nullptr)
+        return 0;
+
+    ApiInternal::PrintObjectAccess::mutable_skirt(*object).clear();
+    ApiInternal::PrintObjectAccess::mutable_skirt_first_layer(*object).reset();
     return 1;
 }
 
@@ -80,14 +112,118 @@ int32_t append_object_brim_move_callback(object_handle *object_handle_value,
     return ApiInternal::PrintObjectAccess::append_brim_move(*object, *extrusion) ? 1 : 0;
 }
 
+int32_t append_skirt_move_callback(print_handle *print_handle_value,
+                                   extrusion_entity_handle *extrusion_handle_value)
+{
+    Print *print = to_print(print_handle_value);
+    ExtrusionEntity *extrusion = to_extrusion(extrusion_handle_value);
+    if (print == nullptr || extrusion == nullptr)
+        return 0;
+
+    return ApiInternal::PrintAccess::append_skirt_move(*print, *extrusion) ? 1 : 0;
+}
+
+int32_t append_object_skirt_move_callback(object_handle *object_handle_value,
+                                          extrusion_entity_handle *extrusion_handle_value)
+{
+    PrintObject *object = to_object(object_handle_value);
+    ExtrusionEntity *extrusion = to_extrusion(extrusion_handle_value);
+    if (object == nullptr || extrusion == nullptr)
+        return 0;
+
+    return ApiInternal::PrintObjectAccess::append_skirt_move(*object, *extrusion) ? 1 : 0;
+}
+
+int32_t append_skirt_first_layer_move_callback(print_handle *print_handle_value,
+                                               extrusion_entity_handle *extrusion_handle_value)
+{
+    Print *print = to_print(print_handle_value);
+    ExtrusionEntity *extrusion = to_extrusion(extrusion_handle_value);
+    if (print == nullptr || extrusion == nullptr)
+        return 0;
+
+    return ApiInternal::PrintAccess::append_skirt_first_layer_move(*print, *extrusion) ? 1 : 0;
+}
+
+int32_t append_object_skirt_first_layer_move_callback(object_handle *object_handle_value,
+                                                      extrusion_entity_handle *extrusion_handle_value)
+{
+    PrintObject *object = to_object(object_handle_value);
+    ExtrusionEntity *extrusion = to_extrusion(extrusion_handle_value);
+    if (object == nullptr || extrusion == nullptr)
+        return 0;
+
+    return ApiInternal::PrintObjectAccess::append_skirt_first_layer_move(*object, *extrusion) ? 1 : 0;
+}
+
+int32_t append_skirt_convex_hull_move_callback(print_handle *print_handle_value,
+                                               polygon_collection_handle *polygons_handle_value)
+{
+    Print *print = to_print(print_handle_value);
+    Polygons *polygons = to_polygons(polygons_handle_value);
+    if (print == nullptr || polygons == nullptr)
+        return 0;
+
+    return ApiInternal::PrintAccess::append_skirt_convex_hull_move(*print, *polygons) ? 1 : 0;
+}
+
+const extrusion_entity_handle *get_brim_callback(const print_handle *print_handle_value)
+{
+    const Print *print = reinterpret_cast<const Print *>(print_handle_value);
+    return print == nullptr ? nullptr : reinterpret_cast<const extrusion_entity_handle *>(&print->brim());
+}
+
+const extrusion_entity_handle *get_object_brim_callback(const object_handle *object_handle_value)
+{
+    const PrintObject *object = reinterpret_cast<const PrintObject *>(object_handle_value);
+    return object == nullptr ? nullptr : reinterpret_cast<const extrusion_entity_handle *>(&object->brim());
+}
+
+const extrusion_entity_handle *get_skirt_callback(const print_handle *print_handle_value)
+{
+    const Print *print = reinterpret_cast<const Print *>(print_handle_value);
+    return print == nullptr ? nullptr : reinterpret_cast<const extrusion_entity_handle *>(&print->skirt());
+}
+
+const extrusion_entity_handle *get_object_skirt_callback(const object_handle *object_handle_value)
+{
+    const PrintObject *object = reinterpret_cast<const PrintObject *>(object_handle_value);
+    return object == nullptr ? nullptr : reinterpret_cast<const extrusion_entity_handle *>(&object->skirt());
+}
+
+const extrusion_entity_handle *get_skirt_first_layer_callback(const print_handle *print_handle_value)
+{
+    const Print *print = reinterpret_cast<const Print *>(print_handle_value);
+    return print == nullptr ? nullptr : to_handle(ApiInternal::PrintAccess::skirt_first_layer(*print));
+}
+
+const extrusion_entity_handle *get_object_skirt_first_layer_callback(const object_handle *object_handle_value)
+{
+    const PrintObject *object = reinterpret_cast<const PrintObject *>(object_handle_value);
+    return object == nullptr ? nullptr : to_handle(ApiInternal::PrintObjectAccess::skirt_first_layer(*object));
+}
+
 run_ctx_skirt_brim payload_for_print(Print &print)
 {
     run_ctx_skirt_brim payload = {};
     payload.print = reinterpret_cast<print_handle *>(&print);
     payload.clear_brim = &clear_brim_callback;
     payload.clear_object_brim = &clear_object_brim_callback;
+    payload.clear_skirt = &clear_skirt_callback;
+    payload.clear_object_skirt = &clear_object_skirt_callback;
     payload.append_brim_move = &append_brim_move_callback;
     payload.append_object_brim_move = &append_object_brim_move_callback;
+    payload.append_skirt_move = &append_skirt_move_callback;
+    payload.append_object_skirt_move = &append_object_skirt_move_callback;
+    payload.append_skirt_first_layer_move = &append_skirt_first_layer_move_callback;
+    payload.append_object_skirt_first_layer_move = &append_object_skirt_first_layer_move_callback;
+    payload.append_skirt_convex_hull_move = &append_skirt_convex_hull_move_callback;
+    payload.get_brim = &get_brim_callback;
+    payload.get_object_brim = &get_object_brim_callback;
+    payload.get_skirt = &get_skirt_callback;
+    payload.get_object_skirt = &get_object_skirt_callback;
+    payload.get_skirt_first_layer = &get_skirt_first_layer_callback;
+    payload.get_object_skirt_first_layer = &get_object_skirt_first_layer_callback;
     return payload;
 }
 
@@ -101,6 +237,7 @@ void clean_and_prepare(Print &print)
     disabled plugins cannot leave stale adhesion geometry behind.
     */
     ApiInternal::PrintAccess::clear_brim(print);
+    ApiInternal::PrintAccess::clear_skirt(print);
 }
 
 bool validate_pre(const Print &, std::string *)
@@ -142,7 +279,7 @@ void run_step(Orchestrator &orchestrator, Print &print)
             throw RuntimeError("Skirt/brim plugin failed.");
     }
 
-    ApiInternal::PrintAccess::normalize_brim_direction(print);
+    ApiInternal::PrintAccess::normalize_skirt_brim_direction(print);
     ApiInternal::PrintAccess::rebuild_first_layer_convex_hull_after_skirt_brim(print);
 }
 

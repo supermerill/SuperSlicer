@@ -32,7 +32,9 @@
 #include "libslic3r/Plugins/GCode/PrintingPlanFileWriter.hpp"
 #include "libslic3r/Plugins/Ordering/DefaultOrdering.hpp"
 #include "libslic3r/Plugins/PluginLoader.hpp"
+#include "libslic3r/Plugins/SkirtBrim/DefaultBrimSkirtTrim.hpp"
 #include "libslic3r/Plugins/SkirtBrim/DefaultBrimGenerator.hpp"
+#include "libslic3r/Plugins/SkirtBrim/DefaultSkirtGenerator.hpp"
 #include "libslic3r/Plugins/Perimeter/ArachnePerimeterGenerator.hpp"
 #include "libslic3r/Plugins/Perimeter/ClassicPerimeterGenerator.hpp"
 #include "libslic3r/Plugins/Perimeter/ExtraPerimeterBelowArea.hpp"
@@ -190,6 +192,10 @@ void ensure_plugin_test_runtime_initialized()
         slic3r_api::Ordering::DefaultOrderingPlugin::register_default_ordering_plugins(orchestrator_handle_value);
         slic3r_api::SkirtBrim::DefaultBrimGeneratorPlugin::register_default_brim_generator_plugin(
             orchestrator_handle_value);
+        slic3r_api::SkirtBrim::DefaultSkirtGeneratorPlugin::register_default_skirt_generator_plugin(
+            orchestrator_handle_value);
+        slic3r_api::SkirtBrim::DefaultBrimSkirtTrimPlugin::register_default_brim_skirt_trim_plugin(
+            orchestrator_handle_value);
         slic3r_api::PolyholesPlugin::register_polyholes_plugin(orchestrator_handle_value);
         slic3r_api::Support::SupportDemandOverhangsPlugin::register_support_demand_overhangs_plugin(
             orchestrator_handle_value);
@@ -258,6 +264,8 @@ void ensure_plugin_test_runtime_initialized()
         activate_plugin_or_fail(orchestrator, "ordering.tool_groups.default");
         activate_plugin_or_fail(orchestrator, "ordering.extrusion_tree.default");
         activate_plugin_or_fail(orchestrator, "skirt_brim.brim.default");
+        activate_plugin_or_fail(orchestrator, "skirt_brim.skirt.default");
+        activate_plugin_or_fail(orchestrator, "skirt_brim.brim_skirt_trim.default");
         activate_plugin_or_fail(orchestrator, "polyholes");
         activate_plugin_or_fail(orchestrator, "support.demand.overhangs");
         activate_plugin_or_fail(orchestrator, "support.demand.painting");

@@ -44,7 +44,9 @@
 #include "libslic3r/Plugins/Infill/PostInfillGapFill.hpp"
 #include "libslic3r/Plugins/MaxOverhangThreshold.hpp"
 #include "libslic3r/Plugins/Ordering/DefaultOrdering.hpp"
+#include "libslic3r/Plugins/SkirtBrim/DefaultBrimSkirtTrim.hpp"
 #include "libslic3r/Plugins/SkirtBrim/DefaultBrimGenerator.hpp"
+#include "libslic3r/Plugins/SkirtBrim/DefaultSkirtGenerator.hpp"
 #include "libslic3r/Plugins/Perimeter/ArachnePerimeterGenerator.hpp"
 #include "libslic3r/Plugins/Perimeter/ClassicPerimeterGenerator.hpp"
 #include "libslic3r/Plugins/Perimeter/ExtraPerimeterBelowArea.hpp"
@@ -376,6 +378,10 @@ void register_builtin_plugins(orchestrator_handle *orchestrator)
         slic3r_api::Ordering::DefaultOrderingPlugin::register_default_ordering_plugins);
     register_builtin_plugin(orchestrator, "skirt_brim.brim.default",
         slic3r_api::SkirtBrim::DefaultBrimGeneratorPlugin::register_default_brim_generator_plugin);
+    register_builtin_plugin(orchestrator, "skirt_brim.skirt.default",
+        slic3r_api::SkirtBrim::DefaultSkirtGeneratorPlugin::register_default_skirt_generator_plugin);
+    register_builtin_plugin(orchestrator, "skirt_brim.brim_skirt_trim.default",
+        slic3r_api::SkirtBrim::DefaultBrimSkirtTrimPlugin::register_default_brim_skirt_trim_plugin);
     register_builtin_plugin(orchestrator, "perimeter.module.extra_perimeter_count",
         slic3r_api::Perimeter::ExtraPerimeterCountPlugin::register_extra_perimeter_count_plugin);
     register_builtin_plugin(orchestrator, "perimeter.module.extra_perimeter_below_area",

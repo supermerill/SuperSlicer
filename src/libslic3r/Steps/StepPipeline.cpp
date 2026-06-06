@@ -76,9 +76,9 @@ const std::vector<slicing_step_t> &execution_order()
         STEP_INFILL_GROUP,
         STEP_INFILL,
         STEP_POST_INFILL,
-        STEP_SKIRT_BRIM,
         STEP_SUPPORT_DEMAND,
         STEP_SUPPORT,
+        STEP_SKIRT_BRIM,
         STEP_PRE_GCODE,
         STEP_ORDERING,
         STEP_WIPETOWER,
@@ -97,7 +97,7 @@ const std::map<slicing_step_t, std::vector<slicing_step_t>> &step_dependents()
     static const std::map<slicing_step_t, std::vector<slicing_step_t>> dependents {
         {STEP_LAYER_HEIGHT, {STEP_SLICING}},
         {STEP_SLICING, {STEP_POST_SLICING}},
-        {STEP_POST_SLICING, {STEP_PRE_PERIMETER, STEP_SKIRT_BRIM}},
+        {STEP_POST_SLICING, {STEP_PRE_PERIMETER}},
         {STEP_PRE_PERIMETER, {STEP_PERIMETER}},
         {STEP_PERIMETER, {STEP_POST_PERIMETER}},
         {STEP_POST_PERIMETER, {STEP_SURFACE_GENERATION}},
@@ -105,10 +105,10 @@ const std::map<slicing_step_t, std::vector<slicing_step_t>> &step_dependents()
         {STEP_PRE_INFILL, {STEP_INFILL_GROUP}},
         {STEP_INFILL_GROUP, {STEP_INFILL}},
         {STEP_INFILL, {STEP_POST_INFILL}},
-        {STEP_POST_INFILL, {STEP_PRE_GCODE}},
-        {STEP_SKIRT_BRIM, {STEP_SUPPORT_DEMAND, STEP_PRE_GCODE}},
+        {STEP_POST_INFILL, {STEP_SUPPORT_DEMAND}},
         {STEP_SUPPORT_DEMAND, {STEP_SUPPORT}},
-        {STEP_SUPPORT, {STEP_PRE_GCODE}},
+        {STEP_SUPPORT, {STEP_SKIRT_BRIM}},
+        {STEP_SKIRT_BRIM, {STEP_PRE_GCODE}},
         {STEP_PRE_GCODE, {STEP_ORDERING}},
         {STEP_ORDERING, {STEP_WIPETOWER}},
         {STEP_WIPETOWER, {STEP_SUPPORT_SPOT}},
@@ -367,9 +367,9 @@ inline std::map<slicing_step_t, int> slicingstep_2_percent = {
     {STEP_INFILL_GROUP, 45},
     {STEP_INFILL, 50},
     {STEP_POST_INFILL, 55},
-    {STEP_SKIRT_BRIM, 58},
-    {STEP_SUPPORT_DEMAND, 60},
-    {STEP_SUPPORT, 65},
+    {STEP_SUPPORT_DEMAND, 58},
+    {STEP_SUPPORT, 64},
+    {STEP_SKIRT_BRIM, 68},
     {STEP_PRE_GCODE, 70},
     {STEP_ORDERING, 75},
     {STEP_WIPETOWER, 80},
@@ -542,6 +542,10 @@ std::vector<Plugin *> selected_or_active_plugins_for_step(Orchestrator &orchestr
             continue;
 
         const std::string &group_id = plugin->get_exclusive_group();
+        if (group_id.empty()) {
+            selected_plugins.push_back(plugin);
+            continue;
+        }
         if (group_already_emitted[group_id])
             continue;
         group_already_emitted[group_id] = true;
@@ -706,13 +710,6 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
     });
     if (stop_after(STEP_POST_INFILL, until)) return;
 
-    run_step_if_requested(print, STEP_SKIRT_BRIM, [&] {
-        begin_step(print, STEP_SKIRT_BRIM, L("Generating skirt and brim"));
-        StepSkirtBrim::clean_and_prepare(print);
-        StepSkirtBrim::run_step(orchestrator, print);
-    });
-    if (stop_after(STEP_SKIRT_BRIM, until)) return;
-
     run_step_if_requested(print, STEP_SUPPORT_DEMAND, [&] {
         begin_step(print, STEP_SUPPORT_DEMAND, L("Detecting support demand"));
         StepSupportDemand::clean_and_prepare(print);
@@ -727,6 +724,13 @@ void run_remaining_steps(Orchestrator &orchestrator, Print &print, const std::st
         mark_legacy_step_done(print, posSupportMaterial);
     });
     if (stop_after(STEP_SUPPORT, until)) return;
+
+    run_step_if_requested(print, STEP_SKIRT_BRIM, [&] {
+        begin_step(print, STEP_SKIRT_BRIM, L("Generating skirt and brim"));
+        StepSkirtBrim::clean_and_prepare(print);
+        StepSkirtBrim::run_step(orchestrator, print);
+    });
+    if (stop_after(STEP_SKIRT_BRIM, until)) return;
 
     run_step_if_requested(print, STEP_PRE_GCODE, [&] {
         begin_step(print, STEP_PRE_GCODE, L("Preparing G-code"));

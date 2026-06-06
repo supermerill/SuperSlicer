@@ -175,10 +175,39 @@ ExtrusionEntityCollection &ApiInternal::PrintObjectAccess::mutable_brim(PrintObj
     return object.m_brim;
 }
 
+ExtrusionEntityCollection &ApiInternal::PrintObjectAccess::mutable_skirt(PrintObject &object)
+{
+    return object.m_skirt;
+}
+
+std::optional<ExtrusionEntityCollection> &ApiInternal::PrintObjectAccess::mutable_skirt_first_layer(PrintObject &object)
+{
+    return object.m_skirt_first_layer;
+}
+
 bool ApiInternal::PrintObjectAccess::append_brim_move(PrintObject &object, ExtrusionEntity &extrusion)
 {
     append_extrusion_children_to_object_brim(object.m_brim, extrusion);
     return true;
+}
+
+bool ApiInternal::PrintObjectAccess::append_skirt_move(PrintObject &object, ExtrusionEntity &extrusion)
+{
+    append_extrusion_children_to_object_brim(object.m_skirt, extrusion);
+    return true;
+}
+
+bool ApiInternal::PrintObjectAccess::append_skirt_first_layer_move(PrintObject &object, ExtrusionEntity &extrusion)
+{
+    if (!object.m_skirt_first_layer)
+        object.m_skirt_first_layer.emplace();
+    append_extrusion_children_to_object_brim(*object.m_skirt_first_layer, extrusion);
+    return true;
+}
+
+const ExtrusionEntity *ApiInternal::PrintObjectAccess::skirt_first_layer(const PrintObject &object)
+{
+    return object.m_skirt_first_layer ? &*object.m_skirt_first_layer : nullptr;
 }
 
 #ifdef _DEBUG
