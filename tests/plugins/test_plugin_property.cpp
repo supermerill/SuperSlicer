@@ -1,7 +1,16 @@
 #include <catch2/catch.hpp>
 
+#include "plugin_test_helpers.hpp"
+#include "test_data.hpp"
+
+#include "libslic3r/Api/plugin/c/slic3r_data_tree.h"
+#include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
+#include "libslic3r/Layer.hpp"
+#include "libslic3r/Model.hpp"
 #include "libslic3r/PluginProperty.hpp"
+#include "libslic3r/Print.hpp"
+#include "libslic3r/PrintObject.hpp"
 #include "libslic3r/Surface.hpp"
 
 #include <utility>
@@ -153,4 +162,64 @@ TEST_CASE("Surface runtime ids track logical ownership across copy and move",
     const uint64_t first_id_before_reallocation = collection.front().id();
     collection.emplace_back(stPosInternal | stDensSparse, rectangle_expolygon(120., 0., 130., 10.));
     CHECK(collection.front().id() == first_id_before_reallocation);
+}
+
+TEST_CASE("Support auxiliary layers are recognized through the plugin data tree API",
+          "[plugins][properties][auxiliary-layers]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Model model;
+    Print print;
+    DynamicPrintConfig config = DynamicPrintConfig::full_print_config();
+    config.set_deserialize_strict({
+        { "layer_height", "0.2" },
+        { "first_layer_height", "0.2" },
+        { "support_material", "0" }
+    });
+    Slic3r::Test::init_print({Slic3r::Test::TestMesh::cube_20x20x20}, print, model, config);
+
+    REQUIRE(print.objects().size() == 1);
+    PrintObject &object = print.object(0);
+    object.clear_auxiliary_layers();
+
+    /*
+    Auxiliary layers are generic storage. A newly-created auxiliary layer is
+    just a normal Layer until a support generator marks it with the built-in
+    support property. This distinction matters because skirt, brim or wipe
+    tower layers will use the same container later without becoming support.
+    */
+    Layer &plain_layer = object.add_auxiliary_layer(0, scale_i(0.2), scale_i(0.2));
+    CHECK(plain_layer.get_property<LayerSupportProperty>() == nullptr);
+
+    const object_handle *object_api_handle = reinterpret_cast<const object_handle *>(&object);
+    REQUIRE(object_count_auxiliary_layer(object_api_handle) == 1);
+    const layer_handle *plain_handle = object_get_auxiliary_layer(object_api_handle, 0);
+    REQUIRE(plain_handle != nullptr);
+    plugin_property_container_handle *plain_properties = layer_get_properties(plain_handle);
+    REQUIRE(plain_properties != nullptr);
+    CHECK(plugin_property_has(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT) == 0);
+    CHECK(plugin_property_data_size(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT) == 0);
+    CHECK(plugin_property_data(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT) == nullptr);
+
+    const slic3r_api::Object object_view(object_api_handle);
+    REQUIRE(object_view.auxiliary_layer_count() == 1);
+    CHECK(object_view.auxiliary_layer(0).properties().get<slic3r_api::LayerSupportProperty>() == nullptr);
+
+    LayerSupportProperty &support_property = plain_layer.get_or_add_property<LayerSupportProperty>();
+    support_property.interface_id = 17;
+    support_property.reserved = 0;
+    REQUIRE(plain_layer.get_property<LayerSupportProperty>() != nullptr);
+    CHECK(plain_layer.get_property<LayerSupportProperty>()->interface_id == 17);
+    CHECK(plugin_property_has(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT) != 0);
+    REQUIRE(plugin_property_data_size(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT) == sizeof(c_layer_support_property));
+    const c_layer_support_property *raw_support_property =
+        static_cast<const c_layer_support_property *>(plugin_property_data(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT));
+    REQUIRE(raw_support_property != nullptr);
+    CHECK(raw_support_property->interface_id == 17);
+
+    const slic3r_api::LayerSupportProperty *view_support_property =
+        object_view.auxiliary_layer(0).properties().get<slic3r_api::LayerSupportProperty>();
+    REQUIRE(view_support_property != nullptr);
+    CHECK(view_support_property->interface_id == 17);
 }

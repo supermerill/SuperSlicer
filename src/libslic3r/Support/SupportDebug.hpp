@@ -11,12 +11,12 @@
 namespace Slic3r {
 
 class SupportGeneratorLayer;
-class SupportLayer;
+class Layer;
 
 namespace FFFSupport {
 
 void export_print_z_polygons_to_svg(const char *path, SupportGeneratorLayer ** const layers, size_t n_layers);
-void export_print_z_polygons_and_extrusions_to_svg(const char *path, SupportGeneratorLayer ** const layers, size_t n_layers, SupportLayer& support_layer);
+void export_print_z_polygons_and_extrusions_to_svg(const char *path, SupportGeneratorLayer ** const layers, size_t n_layers, Layer& support_layer);
 
 } // namespace FFFSupport
 

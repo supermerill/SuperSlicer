@@ -1120,7 +1120,7 @@ void PrintObject::generate_support_material()
         } else {
             m_print->set_status(0, "", PrintBase::SlicingStatus::DEFAULT | PrintBase::SlicingStatus::SECONDARY_STATE);
         }
-        this->clear_support_layers();
+        this->clear_auxiliary_layers();
         if ((this->has_support() && m_layers.size() > 1) || (this->has_raft() && ! m_layers.empty())) {
             this->_generate_support_material();
             m_print->throw_if_canceled();
@@ -1152,7 +1152,7 @@ void PrintObject::simplify_extrusion_path()
         const PrintConfig& print_config = this->print()->config();
         const bool spiral_mode = print_config.spiral_vase;
         const bool enable_arc_fitting = print_config.arc_fitting != ArcFittingType::Disabled && !spiral_mode;
-        m_print->secondary_status_counter_add_max(m_layers.size() + m_support_layers.size());
+        m_print->secondary_status_counter_add_max(m_layers.size() + m_auxiliary_layers.size());
         BOOST_LOG_TRIVIAL(debug) << "Simplify extrusion path of object in parallel - start";
         //BBS: infill and walls
         Slic3r::parallel_for(size_t(0), m_layers.size(),
@@ -1195,10 +1195,11 @@ void PrintObject::simplify_extrusion_path()
 
         //BBS: share same progress
         BOOST_LOG_TRIVIAL(debug) << "Simplify extrusion path of support in parallel - start";
-        Slic3r::parallel_for(size_t(0), m_support_layers.size(),
+        Slic3r::parallel_for(size_t(0), m_auxiliary_layers.size(),
             [this](const size_t layer_idx) {
                 m_print->throw_if_canceled();
-                m_support_layers[layer_idx]->simplify_support_extrusion_path();
+                if (m_auxiliary_layers[layer_idx]->get_property<LayerSupportProperty>() != nullptr)
+                    simplify_support_extrusion_path(*m_auxiliary_layers[layer_idx]);
 
                 // updating progress
                 int32_t nb_layers_done = m_print->secondary_status_counter_increment() + 1;
@@ -1242,7 +1243,7 @@ void PrintObject::estimate_curled_extrusions()
                                                  this->config().raft_layers.value,
                                                  float(this->config().brim_width.value),
                                                  float(this->config().brim_width_interior.value)};
-            SupportSpotsGenerator::estimate_supports_malformations(this->mutable_support_layers(), support_flow_width, params);
+            SupportSpotsGenerator::estimate_supports_malformations(this->mutable_auxiliary_layers(), support_flow_width, params);
             SupportSpotsGenerator::estimate_malformations(this->mutable_layers(), params);
             m_print->throw_if_canceled();
             BOOST_LOG_TRIVIAL(debug) << "Estimating areas with curled extrusions - end";
@@ -1544,23 +1545,23 @@ void PrintObject::clear_layers()
 //    return m_layers.back();
 //}
 
-void PrintObject::clear_support_layers()
+void PrintObject::clear_auxiliary_layers()
 {
-    m_support_layers.clear();
+    m_auxiliary_layers.clear();
 }
 
-void PrintObject::add_support_layer(int id, int interface_id, coord_t height, coord_t print_z)
+Layer& PrintObject::add_auxiliary_layer(size_t id, coord_t height, coord_t print_z)
 {
-    m_support_layers.emplace_back(new SupportLayer(id, interface_id, this, height, print_z, -1., true));
+    m_auxiliary_layers.emplace_back(new Layer(id, this, height, print_z, -1., true));
+    return *m_auxiliary_layers.back();
 }
 
-SupportLayerUPtrs::iterator PrintObject::insert_support_layer(SupportLayerUPtrs::const_iterator pos,
-                                                             size_t id,
-                                                             size_t interface_id,
-                                                             coord_t height,
-                                                             coord_t print_z,
-                                                             double slice_z) {
-        return m_support_layers.insert(pos, std::unique_ptr<SupportLayer>(new SupportLayer(id, interface_id, this, height, print_z, slice_z, true)));
+LayerUPtrs::iterator PrintObject::insert_auxiliary_layer(LayerUPtrs::const_iterator pos,
+                                                         size_t id,
+                                                         coord_t height,
+                                                         coord_t print_z,
+                                                         double slice_z) {
+        return m_auxiliary_layers.insert(pos, std::unique_ptr<Layer>(new Layer(id, this, height, print_z, slice_z, true)));
 }
 
 // Called by Print::apply().
@@ -1650,7 +1651,7 @@ void PrintObject::cleanup()
     if (this->query_reset_dirty_step_unguarded(posInfill))
         this->clear_fills();
     if (this->query_reset_dirty_step_unguarded(posSupportMaterial))
-        this->clear_support_layers();
+        this->clear_auxiliary_layers();
 }
 
 //Fit to size helper

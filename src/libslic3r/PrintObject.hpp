@@ -133,20 +133,23 @@ public:
     const Layer*    get_first_layer_below_printz(double print_z_mm, double epsilon) const;
     // For sparse infill, get the max spasing avaialable in this object (avaialable after prepare_infill)
     coord_t         get_sparse_max_spacing() const { return m_max_sparse_spacing; }
-    
-    
-    size_t                  support_layer_count() const { return m_support_layers.size(); }
-    void                    clear_support_layers();
-    const SupportLayer&     support_layer(size_t idx) const { return *m_support_layers[idx]; }
-    SupportLayerCRefs       support_layers() const { return make_ref_view<SupportLayer>(m_support_layers); }
-    SupportLayerUPtrs&      mutable_support_layers()  { return m_support_layers; }
-    void                    add_support_layer(int id, int interface_id, coord_t height, coord_t print_z);
-    SupportLayerUPtrs::iterator insert_support_layer(SupportLayerUPtrs::const_iterator pos, size_t id, size_t interface_id, coord_t height, coord_t print_z, double slice_z);
+
+    // Auxiliary_layer are layers that aren't made by the 3D triangles.
+    // They exist to hold brim, skirt, support, wipetower.
+    size_t                  auxiliary_layer_count() const { return m_auxiliary_layers.size(); }
+    void                    clear_auxiliary_layers();
+    const Layer&            auxiliary_layer(size_t idx) const { return *m_auxiliary_layers[idx]; }
+    Layer&                  auxiliary_layer(size_t idx) { return *m_auxiliary_layers[idx]; }
+    LayerCRefs              auxiliary_layers() const { return make_ref_view<Layer>(m_auxiliary_layers); }
+    LayerRefs               auxiliary_layers() { return make_ref_view<Layer>(m_auxiliary_layers); }
+    LayerUPtrs&             mutable_auxiliary_layers()  { return m_auxiliary_layers; }
+    Layer&                  add_auxiliary_layer(size_t id, coord_t height, coord_t print_z);
+    LayerUPtrs::iterator    insert_auxiliary_layer(LayerUPtrs::const_iterator pos, size_t id, coord_t height, coord_t print_z, double slice_z);
 
     // This is the *total* layer count (including support layers)
     // this value is not supposed to be compared with Layer::id
     // since they have different semantics.
-    size_t          total_layer_count() const { return this->layer_count() + this->support_layer_count(); }
+    size_t          total_layer_count() const { return this->layer_count() + this->auxiliary_layer_count(); }
 
     // Initialize the layer_height_profile from the model_object's layer_height_profile, from model_object's layer height table, or from slicing parameters.
     // Returns true, if the layer_height_profile was changed.
@@ -285,7 +288,7 @@ private:
 
     std::shared_ptr<SlicingParameters>      m_slicing_params;
     LayerUPtrs                               m_layers;
-    SupportLayerUPtrs                        m_support_layers;
+    LayerUPtrs                              m_auxiliary_layers;
 
     // Ordered collections of extrusion paths to build skirt loops and brim.
     // have to be duplicated per copy

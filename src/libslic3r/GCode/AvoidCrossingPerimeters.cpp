@@ -2270,7 +2270,7 @@ static std::vector<std::pair<ExPolygon, ExPolygon>> inner_offset(const ExPolygon
 static ExPolygons get_boundary(const Layer &layer, uint16_t extruder_id, std::vector<std::pair<ExPolygon, ExPolygon>> &slice_2_boundary, ExPolygons &to_avoid)
 {
     const coord_t perimeter_spacing = get_perimeter_spacing(layer);
-    auto const *support_layer     = dynamic_cast<const SupportLayer *>(&layer);
+    const bool support_layer = layer.get_property<LayerSupportProperty>() != nullptr;
     ExPolygons  perimeter_boundary;
     ExPolygons  boundary;
 
@@ -2403,7 +2403,7 @@ static Polygons get_boundary_external(const Layer &layer)
 {
     const coord_t perimeter_spacing = get_perimeter_spacing_external(layer);
     const coord_t perimeter_offset  = perimeter_spacing / 2;
-    auto const *support_layer     = dynamic_cast<const SupportLayer *>(&layer);
+    const bool support_layer = layer.get_property<LayerSupportProperty>() != nullptr;
     Polygons    boundary;
 #ifdef INCLUDE_SUPPORTS_IN_BOUNDARY
     ExPolygons  supports_boundary;
@@ -2537,7 +2537,7 @@ Polyline AvoidCrossingPerimeters::travel_to(const GCodeGenerator &gcodegen, cons
 
     //const ExPolygons &lslices           = gcodegen.layer()->lslices();
     const coord_t     perimeter_spacing = get_perimeter_spacing(*gcodegen.layer());
-    bool              is_support_layer  = dynamic_cast<const SupportLayer *>(gcodegen.layer()) != nullptr;
+    bool              is_support_layer  = gcodegen.layer()->get_property<LayerSupportProperty>() != nullptr;
 
     if (!use_external && (is_support_layer || (!m_lslices_offset.empty() 
          /* already done by the caller && !any_expolygon_contains(m_lslices_offset, m_lslices_offset_bboxes, m_grid_lslices_offset, travel)*/))) {

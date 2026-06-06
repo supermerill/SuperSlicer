@@ -1042,9 +1042,11 @@ void make_brim(const Print& print, const Flow& flow, const PrintObjectPtrs& obje
                 }
             }
         }
-        if (!object->support_layers().empty()) {
+        for (const Layer &support_layer : object->auxiliary_layers()) {
+            if (support_layer.get_property<LayerSupportProperty>() == nullptr)
+                continue;
             ExPolygons polys;
-            for (const LayerSliceIsland &island : object->support_layers().front().islands()) {
+            for (const LayerSliceIsland &island : support_layer.islands()) {
                 for (const LayerRegionIsland &region_island : island.regions_islands()) {
                     if (region_island.has_extrusion(LayerRegionIsland::SUPPORT)) {
                         expolygons_append(polys,
@@ -1066,6 +1068,7 @@ void make_brim(const Print& print, const Flow& flow, const PrintObjectPtrs& obje
                     append(object_islands, offset_ex(ExPolygons{ poly }, brim_offset));
                 }
             }
+            break;
         }
         islands.reserve(islands.size() + object_islands.size() * object->instances().size());
         for (const PrintInstance& pt : object->instances()) {
@@ -1231,9 +1234,11 @@ void make_brim_ears(const Print& print, const Flow& flow, const PrintObjectPtrs&
             }
         }
 
-        if (!object->support_layers().empty()) {
+        for (const Layer &support_layer : object->auxiliary_layers()) {
+            if (support_layer.get_property<LayerSupportProperty>() == nullptr)
+                continue;
             ExPolygons polys;
-            for (const LayerSliceIsland &island : object->support_layers().front().islands()) {
+            for (const LayerSliceIsland &island : support_layer.islands()) {
                 for (const LayerRegionIsland &region_island : island.regions_islands()) {
                     if (region_island.has_extrusion(LayerRegionIsland::SUPPORT)) {
                         expolygons_append(polys,
@@ -1261,6 +1266,7 @@ void make_brim_ears(const Print& print, const Flow& flow, const PrintObjectPtrs&
                 // offset2+- to avoid bits of brim inside the raft
                 append(support_island, closing_ex(polys, flow.scaled_width() * 2));
             }
+            break;
         }
         islands.reserve(islands.size() + object_islands.size() * object->instances().size());
         coord_t ear_detection_length = std::max(scale_i(object->config().brim_ears_detection_length.value), SCALED_EPSILON);
@@ -1469,10 +1475,12 @@ void make_brim_interior(const Print& print, const Flow& flow, const PrintObjectP
                 }
             }
         }
-        if (!object->support_layers().empty()) {
+        for (const Layer &support_layer : object->auxiliary_layers()) {
+            if (support_layer.get_property<LayerSupportProperty>() == nullptr)
+                continue;
             spacing = scale_d(object->config().support_material_interface_spacing.value) + support_material_flow(object, float(print.get_min_first_layer_height())).scaled_width() * 1.5;
             ExPolygons polys;
-            for (const LayerSliceIsland &island : object->support_layers().front().islands()) {
+            for (const LayerSliceIsland &island : support_layer.islands()) {
                 for (const LayerRegionIsland &region_island : island.regions_islands()) {
                     if (region_island.has_extrusion(LayerRegionIsland::SUPPORT)) {
                         expolygons_append(polys,
@@ -1494,6 +1502,7 @@ void make_brim_interior(const Print& print, const Flow& flow, const PrintObjectP
                     append(object_islands, offset_ex(ExPolygons{ poly }, brim_offset));
                 }
             }
+            break;
         }
         islands.reserve(islands.size() + object_islands.size() * object->instances().size());
         for (const PrintInstance& instance : object->instances())

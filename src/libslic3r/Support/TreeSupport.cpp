@@ -955,13 +955,13 @@ public:
         const InterfacePlacer        &interface_placer,
         const TreeModelVolumes       &volumes,
         bool                          force_tip_to_roof,
-        size_t                        num_support_layers,
+        size_t                        num_auxiliary_layers,
         std::vector<SupportElements> &move_bounds)
     :
         InterfacePlacer(interface_placer),
         volumes(volumes), force_tip_to_roof(force_tip_to_roof), move_bounds(move_bounds)
     {
-        m_already_inserted.assign(num_support_layers, {});
+        m_already_inserted.assign(num_auxiliary_layers, {});
         this->min_xy_dist = this->config.xy_distance > this->config.xy_min_distance;
     }
     const TreeModelVolumes                             &volumes;
@@ -1393,7 +1393,7 @@ static void generate_initial_areas(
         }
     }
 
-    size_t                                          num_support_layers;
+    size_t                                          num_auxiliary_layers;
     int                                             raft_contact_layer_idx;
     // Layers with their overhang regions.
     std::vector<std::pair<size_t, const Polygons*>>  raw_overhangs;
@@ -1401,16 +1401,16 @@ static void generate_initial_areas(
     {
         const size_t num_raft_layers     = config.raft_layers.size();
         const size_t first_support_layer = std::max(int(num_raft_layers) - int(z_distance_delta), 1);
-        num_support_layers  = size_t(std::max(0, int(print_object.layer_count()) + int(num_raft_layers) - int(z_distance_delta)));
+        num_auxiliary_layers  = size_t(std::max(0, int(print_object.layer_count()) + int(num_raft_layers) - int(z_distance_delta)));
         raft_contact_layer_idx = generate_raft_contact(print_object, config, interface_placer);
         // Enumerate layers for which the support tips may be generated from overhangs above.
-        raw_overhangs.reserve(num_support_layers - first_support_layer);
-        for (size_t layer_idx = first_support_layer; layer_idx < num_support_layers; ++ layer_idx)
+        raw_overhangs.reserve(num_auxiliary_layers - first_support_layer);
+        for (size_t layer_idx = first_support_layer; layer_idx < num_auxiliary_layers; ++ layer_idx)
             if (const size_t overhang_idx = layer_idx + z_distance_delta; ! overhangs[overhang_idx].empty())
                 raw_overhangs.push_back({ layer_idx, &overhangs[overhang_idx] });
     }
 
-    RichInterfacePlacer rich_interface_placer{ interface_placer, volumes, force_tip_to_roof, num_support_layers, move_bounds };
+    RichInterfacePlacer rich_interface_placer{ interface_placer, volumes, force_tip_to_roof, num_auxiliary_layers, move_bounds };
 
     tbb::parallel_for(tbb::blocked_range<size_t>(0, raw_overhangs.size()),
         [&volumes, &config, &raw_overhangs, &mesh_group_settings,
@@ -3551,9 +3551,9 @@ static void generate_support_areas(Print &print,
         BOOST_LOG_TRIVIAL(info) << "Processing support tree mesh group " << counter + 1 << " of " << grouped_meshes.size() << " containing " << grouped_meshes[counter].second.size() << " meshes.";
         auto t_start = std::chrono::high_resolution_clock::now();
 #if 0
-        std::vector<Polygons> exclude(num_support_layers);
+        std::vector<Polygons> exclude(num_auxiliary_layers);
         // get all already existing support areas and exclude them
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, num_support_layers),
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, num_auxiliary_layers),
             [&](const tbb::blocked_range<size_t> &range) {
             for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++ layer_idx) {
                 Polygons exlude_at_layer;
@@ -3581,10 +3581,10 @@ static void generate_support_areas(Print &print,
         assert(processing.second.size() == 1);
         std::vector<Polygons>      overhangs = generate_overhangs(config, print.object(processing.second.front()), throw_on_cancel);
         // ### Precalculate avoidances, collision etc.
-        size_t num_support_layers = precalculate(print, overhangs, processing.first, processing.second, volumes, throw_on_cancel);
-        bool   has_support = num_support_layers > 0;
+        size_t num_auxiliary_layers = precalculate(print, overhangs, processing.first, processing.second, volumes, throw_on_cancel);
+        bool   has_support = num_auxiliary_layers > 0;
         bool   has_raft    = config.raft_layers.size() > 0;
-        num_support_layers = std::max(num_support_layers, config.raft_layers.size());
+        num_auxiliary_layers = std::max(num_auxiliary_layers, config.raft_layers.size());
 
         SupportParameters            support_params(print_object);
         support_params.with_sheath = true;
@@ -3597,15 +3597,15 @@ static void generate_support_areas(Print &print,
         SupportGeneratorLayersPtr    bottom_contacts;
         SupportGeneratorLayersPtr    interface_layers;
         SupportGeneratorLayersPtr    base_interface_layers;
-        SupportGeneratorLayersPtr    intermediate_layers(num_support_layers, nullptr);
+        SupportGeneratorLayersPtr    intermediate_layers(num_auxiliary_layers, nullptr);
         if (support_params.has_top_contacts || has_raft)
-            top_contacts.assign(num_support_layers, nullptr);
+            top_contacts.assign(num_auxiliary_layers, nullptr);
         if (support_params.has_bottom_contacts)
-            bottom_contacts.assign(num_support_layers, nullptr);
+            bottom_contacts.assign(num_auxiliary_layers, nullptr);
         if (support_params.has_interfaces() || has_raft)
-            interface_layers.assign(num_support_layers, nullptr);
+            interface_layers.assign(num_auxiliary_layers, nullptr);
         if (support_params.has_base_interfaces() || has_raft)
-            base_interface_layers.assign(num_support_layers, nullptr);
+            base_interface_layers.assign(num_auxiliary_layers, nullptr);
 
         auto remove_undefined_layers = [&bottom_contacts, &top_contacts, &interface_layers, &base_interface_layers, &intermediate_layers]() {
             auto doit = [](SupportGeneratorLayersPtr& layers) {
@@ -3627,7 +3627,7 @@ static void generate_support_areas(Print &print,
             auto t_precalc = std::chrono::high_resolution_clock::now();
 
             // value is the area where support may be placed. As this is calculated in CreateLayerPathing it is saved and reused in draw_areas
-            std::vector<SupportElements> move_bounds(num_support_layers);
+            std::vector<SupportElements> move_bounds(num_auxiliary_layers);
 
             // ### Place tips of the support tree
             for (size_t mesh_idx : processing.second)
@@ -3715,7 +3715,7 @@ static void generate_support_areas(Print &print,
 #endif // SLIC3R_DEBUG
         generate_support_layers(print_object, raft_layers, bottom_contacts, top_contacts, intermediate_layers, interface_layers, base_interface_layers);
         // Don't fill in the tree supports, make them hollow with just a single sheath line.
-        generate_support_toolpaths(print_object, print_object.mutable_support_layers(), print_object.config(), support_params, print_object.slicing_parameters(),
+        generate_support_toolpaths(print_object, print_object.mutable_auxiliary_layers(), print_object.config(), support_params, print_object.slicing_parameters(),
             raft_layers, bottom_contacts, top_contacts, intermediate_layers, interface_layers, base_interface_layers);
         
  #if 0
@@ -3740,7 +3740,7 @@ static void generate_support_areas(Print &print,
                     export_print_z_polygons_and_extrusions_to_svg(
                         debug_out_path("support-w-fills-%d-%lf.svg", iRun, layers_sorted[i]->unscaled_print_z()).c_str(),
                         layers_sorted.data() + i, j - i,
-                        print_object.support_layer(layer_id));
+                        print_object.auxiliary_layer(layer_id));
                     ++layer_id;
                 }
                 i = j;

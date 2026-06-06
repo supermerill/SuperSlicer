@@ -349,7 +349,7 @@ void PrintObjectSupportMaterial::generate(PrintObject &object)
     assert_check(intermediate_layers);
     assert_z(intermediate_layers);
 
-    this->trim_support_layers_by_object(object, top_contacts,
+    this->trim_auxiliary_layers_by_object(object, top_contacts,
                                         scale_to_layer_coord(m_slicing_params->gap_support_object),
                                         scale_to_layer_coord(m_slicing_params->gap_object_support),
                                         m_support_params._gap_xy);
@@ -477,7 +477,7 @@ void PrintObjectSupportMaterial::generate(PrintObject &object)
                 export_print_z_polygons_and_extrusions_to_svg(
                     debug_out_path("support-w-fills-%d-%lf-before.svg", iRun, layers_sorted[i]->unscaled_print_z()).c_str(),
                     layers_sorted.data() + i, j - i,
-                    object.support_layer(layer_id));
+                    object.auxiliary_layer(layer_id));
                 ++layer_id;
             }
             i = j;
@@ -498,7 +498,7 @@ void PrintObjectSupportMaterial::generate(PrintObject &object)
     check(base_interface_layers);
 #endif
     // Generate the actual toolpaths and save them into each layer.
-    generate_support_toolpaths(object, object.mutable_support_layers(), *m_object_config, m_support_params, *m_slicing_params,
+    generate_support_toolpaths(object, object.mutable_auxiliary_layers(), *m_object_config, m_support_params, *m_slicing_params,
                                raft_layers, bottom_contacts, top_contacts, intermediate_layers, interface_layers,
                                base_interface_layers);
 
@@ -521,7 +521,7 @@ void PrintObjectSupportMaterial::generate(PrintObject &object)
                 export_print_z_polygons_and_extrusions_to_svg(
                     debug_out_path("support-w-fills-%d-%lf.svg", iRun, layers_sorted[i]->unscaled_print_z()).c_str(),
                     layers_sorted.data() + i, j - i,
-                    object.support_layer(layer_id));
+                    object.auxiliary_layer(layer_id));
                 ++layer_id;
             }
             i = j;
@@ -2280,7 +2280,7 @@ SupportGeneratorLayersPtr PrintObjectSupportMaterial::bottom_contact_layers_and_
 
     for (auto &bot : bottom_contacts) assert_valid(bot->polygons);
     std::reverse(bottom_contacts.begin(), bottom_contacts.end());
-    trim_support_layers_by_object(object, bottom_contacts,
+    trim_auxiliary_layers_by_object(object, bottom_contacts,
                                   scale_to_layer_coord(m_slicing_params->gap_support_object),
                                   scale_to_layer_coord(m_slicing_params->gap_object_support),
                                   m_support_params._gap_xy);
@@ -2849,13 +2849,13 @@ void PrintObjectSupportMaterial::generate_base_layers(
     ++ iRun;
 #endif /* SLIC3R_DEBUG */
 
-    this->trim_support_layers_by_object(object, intermediate_layers,
+    this->trim_auxiliary_layers_by_object(object, intermediate_layers,
                                         scale_to_layer_coord(m_slicing_params->gap_support_object),
                                         scale_to_layer_coord(m_slicing_params->gap_object_support),
                                         m_support_params._gap_xy);
 }
 
-void PrintObjectSupportMaterial::trim_support_layers_by_object(
+void PrintObjectSupportMaterial::trim_auxiliary_layers_by_object(
     const PrintObject   &object,
     SupportGeneratorLayersPtr         &support_layers,
     const coord_t       gap_extra_above,
@@ -2879,14 +2879,14 @@ void PrintObjectSupportMaterial::trim_support_layers_by_object(
     }
 
     // For all intermediate support layers:
-    BOOST_LOG_TRIVIAL(debug) << "PrintObjectSupportMaterial::trim_support_layers_by_object() in parallel - start";
+    BOOST_LOG_TRIVIAL(debug) << "PrintObjectSupportMaterial::trim_auxiliary_layers_by_object() in parallel - start";
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0, nonempty_layers.size()),
         [this, &object, &nonempty_layers, gap_extra_above, gap_extra_below, gap_xy](const tbb::blocked_range<size_t>& range) {
             size_t idx_object_layer_overlapping = size_t(-1);
             for (size_t idx_layer = range.begin(); idx_layer < range.end(); ++ idx_layer) {
                 SupportGeneratorLayer &support_layer = *nonempty_layers[idx_layer];
-                // BOOST_LOG_TRIVIAL(trace) << "Support generator - trim_support_layers_by_object - trimmming non-empty layer " << idx_layer << " of " << nonempty_layers.size();
+                // BOOST_LOG_TRIVIAL(trace) << "Support generator - trim_auxiliary_layers_by_object - trimmming non-empty layer " << idx_layer << " of " << nonempty_layers.size();
                 assert(! support_layer.polygons.empty() && support_layer.scaled_print_z() > scale_to_layer_coord(m_slicing_params->raft_contact_top_z));
                 // Find the overlapping object layers including the extra above / below gap.
                 const coord_t z_threshold = support_layer.scaled_print_z() - support_layer.scaled_height_block() - gap_extra_below;
@@ -2957,7 +2957,7 @@ void PrintObjectSupportMaterial::trim_support_layers_by_object(
                 ensure_valid(support_layer.polygons, this->m_support_params.resolution);
             }
         });
-    BOOST_LOG_TRIVIAL(debug) << "PrintObjectSupportMaterial::trim_support_layers_by_object() in parallel - end";
+    BOOST_LOG_TRIVIAL(debug) << "PrintObjectSupportMaterial::trim_auxiliary_layers_by_object() in parallel - end";
 }
 
 /*

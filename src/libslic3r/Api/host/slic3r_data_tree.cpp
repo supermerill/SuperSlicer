@@ -350,14 +350,6 @@ coord_t layer_get_slice_z(const layer_handle *me)
     return me == nullptr ? 0 : Slic3r::to_layer(me)->scaled_print_z() - Slic3r::to_layer(me)->scaled_height() / 2;
 }
 
-coord_t layer_get_support_id(const layer_handle *me)
-{
-    if (me == nullptr)
-        return -1;
-    const Slic3r::SupportLayer *support = dynamic_cast<const Slic3r::SupportLayer*>(Slic3r::to_layer(me));
-    return support == nullptr ? -1 : static_cast<coord_t>(support->interface_id());
-}
-
 const expolygon_collection_handle *layer_get_slices(const layer_handle *me) {
     return me == nullptr ? nullptr : reinterpret_cast<const expolygon_collection_handle*>(&Slic3r::to_layer(me)->lslices());
 }
@@ -752,16 +744,16 @@ const layer_handle *object_get_layer(const object_handle *me, uint32_t idx)
     return reinterpret_cast<const layer_handle*>(&Slic3r::to_object(me)->layer(static_cast<size_t>(idx)));
 }
 
-uint32_t object_count_support_layer(const object_handle *me)
+uint32_t object_count_auxiliary_layer(const object_handle *me)
 {
-    return me == nullptr ? 0 : static_cast<uint32_t>(Slic3r::to_object(me)->support_layers().size());
+    return me == nullptr ? 0 : static_cast<uint32_t>(Slic3r::to_object(me)->auxiliary_layers().size());
 }
 
-const layer_handle *object_get_support_layer(const object_handle *me, uint32_t idx)
+const layer_handle *object_get_auxiliary_layer(const object_handle *me, uint32_t idx)
 {
-    if (me == nullptr || idx >= Slic3r::to_object(me)->support_layers().size())
+    if (me == nullptr || idx >= Slic3r::to_object(me)->auxiliary_layers().size())
         return nullptr;
-    return reinterpret_cast<const layer_handle*>(&Slic3r::to_object(me)->support_layers()[static_cast<size_t>(idx)]);
+    return reinterpret_cast<const layer_handle*>(&Slic3r::to_object(me)->auxiliary_layers()[static_cast<size_t>(idx)]);
 }
 
 uint32_t object_count_region(const object_handle *me)

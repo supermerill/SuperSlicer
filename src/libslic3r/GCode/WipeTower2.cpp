@@ -140,8 +140,8 @@ void WipeTower2::init(const Print *print, const SpanOfConstPtrs<PrintObject> &ob
                 ordered_layers.push_back(&layer);
             }
         }
-        for (const Layer &layer : obj->support_layers()) {
-            // supportlayer are still layer
+        for (const Layer &layer : obj->auxiliary_layers()) {
+            // Support auxiliary layers are still normal Layer objects.
             if (layer.has_extrusions()) { // layer_tools skip empty layers
                 ordered_layers.push_back(&layer);
             }

@@ -557,8 +557,11 @@ std::set<uint16_t> Print::support_material_extruders(coord_t z /*= -1*/) const
             bool has_support_interface = object->config().support_material_interface_layers > 0;
             if (z >= 0) {
                 has_support = false;
-                for (const SupportLayer &suppl : object->support_layers()) {
-                    if (suppl.scaled_bottom_z() <= z && z <= suppl.scaled_print_z() && suppl.has_extrusions()) {
+                for (const Layer &suppl : object->auxiliary_layers()) {
+                    if (suppl.get_property<LayerSupportProperty>() != nullptr &&
+                        suppl.scaled_bottom_z() <= z &&
+                        z <= suppl.scaled_print_z() &&
+                        suppl.has_extrusions()) {
                         has_support = true;
                     }
                 }
@@ -1980,7 +1983,9 @@ void Print::_make_skirt(const PrintObjectPtrs &objects, ExtrusionEntityCollectio
         // simplify
         object_points = Slic3r::Geometry::convex_hull(object_points).points;
         // Get support layers up to skirt_height_z.
-        for (const SupportLayer &layer : object->support_layers()) {
+        for (const Layer &layer : object->auxiliary_layers()) {
+            if (layer.get_property<LayerSupportProperty>() == nullptr)
+                continue;
             if (layer.scaled_print_z() > skirt_height_z)
                 break;
             for (const LayerSliceIsland &island : layer.islands()) {
@@ -1992,15 +1997,19 @@ void Print::_make_skirt(const PrintObjectPtrs &objects, ExtrusionEntityCollectio
         // if brim, it superseed object & support for first layer
         if (config().skirt_distance_from_brim) {
             // get first layer support
-            if (!object->support_layers().empty() &&
-                object->support_layers().front().scaled_print_z() == object->m_layers[0]->scaled_print_z()) {
+            for (const Layer &support_layer : object->auxiliary_layers()) {
+                if (support_layer.get_property<LayerSupportProperty>() == nullptr)
+                    continue;
+                if (support_layer.scaled_print_z() != object->m_layers[0]->scaled_print_z())
+                    break;
                 Points support_points;
-                for (const LayerSliceIsland &island : object->support_layers().front().islands()) {
+                for (const LayerSliceIsland &island : support_layer.islands()) {
                     append(support_points, island.get_slice().contour.points);
                 }
                 const Polygon hull_support = Slic3r::Geometry::convex_hull(support_points);
                 for (const Polygon& poly : offset(hull_support, scale_d(object->config().brim_width)))
                     append(object_points, poly.points);
+                break;
             }
             // get object
             for (const ExPolygon& expoly : object->m_layers[0]->lslices())
@@ -2174,9 +2183,11 @@ Polygons Print::first_layer_islands() const
         Polygons object_islands;
         for (const ExPolygon &expoly : object->m_layers.front()->lslices())
             object_islands.push_back(expoly.contour);
-        if (!object->support_layers().empty()) {
+        for (const Layer &support_layer : object->auxiliary_layers()) {
+            if (support_layer.get_property<LayerSupportProperty>() == nullptr)
+                continue;
             // was polygons_covered_by_spacing, but is it really important?
-            for (const LayerSliceIsland &island : object->support_layers().front().islands()) {
+            for (const LayerSliceIsland &island : support_layer.islands()) {
                 for (const LayerRegionIsland &region_island : island.regions_islands()) {
                     if (region_island.has_extrusion(LayerRegionIsland::SUPPORT)) {
                                region_island.extrusion(LayerRegionIsland::SUPPORT)
@@ -2188,6 +2199,7 @@ Polygons Print::first_layer_islands() const
                     }
                 }
             }
+            break;
         }
         islands.reserve(islands.size() + object_islands.size() * object->instances().size());
         for (const PrintInstance &instance : object->instances())
@@ -2450,7 +2462,9 @@ bool Print::has_wipe_tower() const {
             }
         }
         for (const PrintObject &obj : this->objects()) {
-            for (const SupportLayer &slayer : obj.support_layers()) {
+            for (const Layer &slayer : obj.auxiliary_layers()) {
+                if (slayer.get_property<LayerSupportProperty>() == nullptr)
+                    continue;
                 if (slayer.scaled_height() > max_z)
                     continue;
                 if (slayer.has_extrusions() &&
@@ -2546,8 +2560,8 @@ const WipeTowerData& Print::wipe_tower_data(const ConfigBase* config, double noz
 //        if (idx_begin != size_t(-1)) {
 //            // Find the position in m_objects.first()->support_layers to insert these new support layers.
 //            coord_t wipe_tower_new_layer_print_z_first = m_tool_orderings.front().layer_tools()[idx_begin]._print_z;
-//            SupportLayerPtrs::const_iterator it_layer = m_objects.front()->edit_support_layers().begin();
-//            for (; it_layer != m_objects.front()->edit_support_layers().end() && (*it_layer)->scaled_print_z() <= wipe_tower_new_layer_print_z_first; ++ it_layer);
+//            LayerUPtrs::const_iterator it_layer = m_objects.front()->mutable_auxiliary_layers().begin();
+//            for (; it_layer != m_objects.front()->mutable_auxiliary_layers().end() && (*it_layer)->scaled_print_z() <= wipe_tower_new_layer_print_z_first; ++ it_layer);
 //            // Find the stopper of the sequence of wipe tower layers, which do not have a counterpart in an object or a support layer.
 //            for (size_t i = idx_begin; i < idx_end; ++ i) {
 //                LayerTools &lt = const_cast<LayerTools&>(m_tool_orderings.front().layer_tools()[i]);
@@ -2557,7 +2571,7 @@ const WipeTowerData& Print::wipe_tower_data(const ConfigBase* config, double noz
 //                // Insert the new support layer.
 //                coord_t height = lt._print_z - (i == 0 ? 0. : m_tool_orderings.front().layer_tools()[i-1]._print_z);
 //                //FIXME the support layer ID is set to -1, as Vojtech hopes it is not being used anyway.
-//                it_layer = m_objects.front()->insert_support_layer(it_layer, -1, 0, height, lt._print_z, unscaled(lt._print_z - height / 2));
+//                it_layer = m_objects.front()->insert_auxiliary_layer(it_layer, -1, height, lt._print_z, unscaled(lt._print_z - height / 2));
 //                ++ it_layer;
 //            }
 //        }

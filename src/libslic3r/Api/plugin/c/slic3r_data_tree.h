@@ -36,6 +36,21 @@ typedef struct config_handle config_handle;
 typedef slic3r_property_type plugin_property_type;
 
 #define PLUGIN_PROPERTY_TYPE_INVALID ((plugin_property_type)SLIC3R_PROPERTY_TYPE_INVALID)
+#define PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT ((plugin_property_type)SLIC3R_PROPERTY_TYPE_LAYER_SUPPORT)
+
+/*
+Built-in payload stored on auxiliary Layers that represent generated support.
+
+Support layers are ordinary Layer objects in the final data tree. The property
+is the part that says "this auxiliary layer is support" and carries the interface_id
+value used to alternate support-interface angles.
+If a Layer does not have this property, plugin code must treat it as a generic
+auxiliary layer, not as support.
+*/
+typedef struct c_layer_support_property {
+    uint32_t interface_id;
+    uint32_t reserved;
+} c_layer_support_property;
 
 typedef struct c_curled_line
 {
@@ -236,9 +251,6 @@ SLIC3R_HOST_API coord_t layer_get_height(const layer_handle *me);
 SLIC3R_HOST_API coord_t layer_get_print_z(const layer_handle *me);
 /* Center Z of the slicing plane. It is exactly print_z - height / 2. */
 SLIC3R_HOST_API coord_t layer_get_slice_z(const layer_handle *me);
-/* is == -1 if this layer isn't a support layer. */
-SLIC3R_HOST_API coord_t layer_get_support_id(const layer_handle *me);
-
 SLIC3R_HOST_API const expolygon_collection_handle *layer_get_slices(const layer_handle *me);
 
 /*
@@ -396,15 +408,20 @@ SLIC3R_HOST_API uint32_t object_count_layer(const object_handle *me);
 SLIC3R_HOST_API layer_handle *object_get_layer_mutable(object_handle *me, uint32_t idx);
 SLIC3R_HOST_API const layer_handle *object_get_layer(const object_handle *me, uint32_t idx);
 /*
-Support layers are exposed as read-only Layer views.
+Auxiliary layers are exposed as read-only Layer views.
 
 They share the Layer shape used by normal object layers: print_z, height,
-slices(), islands(), and support_id() work the same way. A plugin should treat
-them as geometry already produced by the support step and must not assume that
-their indices match normal object layer indices.
+slices(), islands(), and plugin properties work the same way. A plugin should
+treat them as geometry already produced by earlier steps and must not assume
+that their indices match normal object layer indices.
+
+Support is represented by the built-in PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT
+property on the Layer. Read it through layer_get_properties() and the generic
+plugin_property_* functions; an auxiliary layer without that property is not a
+support layer.
 */
-SLIC3R_HOST_API uint32_t object_count_support_layer(const object_handle *me);
-SLIC3R_HOST_API const layer_handle *object_get_support_layer(const object_handle *me, uint32_t idx);
+SLIC3R_HOST_API uint32_t object_count_auxiliary_layer(const object_handle *me);
+SLIC3R_HOST_API const layer_handle *object_get_auxiliary_layer(const object_handle *me, uint32_t idx);
 
 SLIC3R_HOST_API uint32_t object_count_region(const object_handle *me);
 SLIC3R_HOST_API print_region_handle *object_get_print_region_mutable(object_handle *me, uint32_t idx);

@@ -282,11 +282,13 @@ ExtrusionPaths getExtrusionPathsFromLayer(LayerSliceIslandCRefs layer_islands)
     return paths;
 }
 
-ExtrusionPaths getExtrusionPathsFromSupportLayer(const SupportLayer *supportLayer)
+ExtrusionPaths getExtrusionPathsFromSupportLayer(const Layer *layer)
 {
-    assert(supportLayer);
+    assert(layer);
     ExtrusionPaths paths;
-    for (const LayerSliceIsland &island : supportLayer->islands()) {
+    if (layer->get_property<LayerSupportProperty>() == nullptr)
+        return paths;
+    for (const LayerSliceIsland &island : layer->islands()) {
         for (const LayerRegionIsland &region_island : island.regions_islands()) {
             if (region_island.has_extrusion(LayerRegionIsland::SUPPORT)) {
                 getExtrusionPathsFromEntity(&region_island.extrusion(LayerRegionIsland::SUPPORT), paths);
@@ -305,7 +307,10 @@ std::pair<std::vector<ExtrusionPaths>, std::vector<ExtrusionPaths>> getAllLayers
 
     for (const Layer &layerPtr : obj->layers()) { objPaths.push_back(getExtrusionPathsFromLayer(layerPtr.islands())); }
 
-    for (const SupportLayer &supportLayerPtr : obj->support_layers()) { supportPaths.push_back(getExtrusionPathsFromSupportLayer(&supportLayerPtr)); }
+    for (const Layer &supportLayerPtr : obj->auxiliary_layers()) {
+        if (supportLayerPtr.get_property<LayerSupportProperty>() != nullptr)
+            supportPaths.push_back(getExtrusionPathsFromSupportLayer(&supportLayerPtr));
+    }
 
     return {std::move(objPaths), std::move(supportPaths)};
 }

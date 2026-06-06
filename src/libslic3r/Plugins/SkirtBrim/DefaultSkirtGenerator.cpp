@@ -322,8 +322,10 @@ void collect_object_local_hull_points(std::vector<c_point> &object_points,
     are already generated before STEP_SKIRT_BRIM in the new pipeline, so no
     support-specific host shortcut is needed here.
     */
-    for (uint32_t layer_idx = 0; layer_idx < object.support_layer_count(); ++layer_idx) {
-        const Layer support_layer = object.support_layer(layer_idx);
+    for (uint32_t layer_idx = 0; layer_idx < object.auxiliary_layer_count(); ++layer_idx) {
+        const Layer support_layer = object.auxiliary_layer(layer_idx);
+        if (support_layer.properties().get<LayerSupportProperty>() == nullptr)
+            continue;
         if (support_layer.print_z() > skirt_height_z)
             break;
         for (ExPolygon expolygon : support_layer.slices())

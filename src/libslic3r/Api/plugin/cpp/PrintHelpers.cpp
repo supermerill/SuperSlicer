@@ -28,7 +28,13 @@ void append_support_extruders(const Print &print,
     bool support_uses_current_extruder = false;
 
     for (Object object : objects) {
-        if (object.support_layer_count() == 0)
+        bool has_support_auxiliary = false;
+        for (uint32_t layer_idx = 0; layer_idx < object.auxiliary_layer_count(); ++layer_idx)
+            if (object.auxiliary_layer(layer_idx).properties().get<LayerSupportProperty>() != nullptr) {
+                has_support_auxiliary = true;
+                break;
+            }
+        if (!has_support_auxiliary)
             continue;
 
         const Config object_config = object.config();

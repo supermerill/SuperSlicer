@@ -130,7 +130,7 @@ BoundingBoxf get_print_object_extrusions_extents(const PrintObject &print_object
                 if (region_island_ptr.has_extrusion(LayerRegionIsland::INFILLS)) {
                     bbox_this.merge(extrusionentity_extents(region_island_ptr.extrusion(LayerRegionIsland::INFILLS)));
                 }
-                // 2 next take care of the case 'dynamic_cast<const SupportLayer*>(layer);'
+                // 2 next take care of the case 'layer.get_property<LayerSupportProperty>() != nullptr;'
                 if (region_island_ptr.has_extrusion(LayerRegionIsland::SUPPORT)) {
                     bbox_this.merge(extrusionentity_extents(region_island_ptr.extrusion(LayerRegionIsland::SUPPORT)));
                 }

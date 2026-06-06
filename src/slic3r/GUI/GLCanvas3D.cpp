@@ -7410,11 +7410,14 @@ void GLCanvas3D::_load_skirt_brim_preview_toolpaths(const BuildVolume &build_vol
     for (size_t i = 0; i < std::min(skirt_height, highest_object.layers().size()); ++ i)
         print_zs_mm.push_back(float(highest_object.layer(i).unscaled_print_z()));
     // Only add skirt for the raft layers.
-    for (size_t i = 0; i < std::min(skirt_height,
-                                    std::min(highest_object.slicing_parameters().raft_layers(),
-                                             highest_object.support_layers().size()));
-         ++i)
-        print_zs_mm.push_back(float(highest_object.support_layer(i).unscaled_print_z()));
+    size_t raft_support_layers = 0;
+    for (const Layer &layer : highest_object.auxiliary_layers()) {
+        if (layer.get_property<LayerSupportProperty>() == nullptr)
+            continue;
+        if (raft_support_layers++ >= std::min(skirt_height, highest_object.slicing_parameters().raft_layers()))
+            break;
+        print_zs_mm.push_back(float(layer.unscaled_print_z()));
+    }
     sort_remove_duplicates(print_zs_mm);
     skirt_height = std::min(skirt_height, print_zs_mm.size());
     print_zs_mm.erase(print_zs_mm.begin() + skirt_height, print_zs_mm.end());
@@ -7643,15 +7646,16 @@ void GLCanvas3D::_load_print_object_toolpaths(const PrintObject &               
         if (ctxt.has_perimeters || ctxt.has_infill)
             nlayers = print_object.layers().size();
         if (ctxt.has_support)
-            nlayers += print_object.support_layers().size();
+            nlayers += print_object.auxiliary_layers().size();
         ctxt.layers.reserve(nlayers);
     }
     if (ctxt.has_perimeters || ctxt.has_infill)
         for (const Layer &layer : print_object.layers())
             ctxt.layers.push_back(&layer);
     if (ctxt.has_support)
-        for (const Layer &layer : print_object.support_layers())
-            ctxt.layers.push_back(&layer);
+        for (const Layer &layer : print_object.auxiliary_layers())
+            if (layer.get_property<LayerSupportProperty>() != nullptr)
+                ctxt.layers.push_back(&layer);
     std::sort(ctxt.layers.begin(), ctxt.layers.end(), [](const Layer *l1, const Layer *l2) { return l1->scaled_print_z() < l2->scaled_print_z(); });
 
     // Maximum size of an allocation block: 32MB / sizeof(float)

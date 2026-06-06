@@ -1329,7 +1329,7 @@ std::tuple<SupportPoints, PartialObjects> full_search(const PrintObject *po, con
     return results;
 }
 
-void estimate_supports_malformations(SupportLayerUPtrs &layers, float flow_width, const Params &params)
+void estimate_supports_malformations(LayerUPtrs &layers, float flow_width, const Params &params)
 {
 #ifdef DEBUG_FILES
     FILE *debug_file = boost::nowide::fopen(debug_out_path("supports_malformations.obj").c_str(), "w");
@@ -1338,7 +1338,7 @@ void estimate_supports_malformations(SupportLayerUPtrs &layers, float flow_width
 
     AABBTreeLines::LinesDistancer<ExtrusionLine> prev_layer_lines{};
 
-    for (SupportLayerUPtr &l : layers) {
+    for (LayerUPtr &l : layers) {
         l->curled_lines.clear();
         std::vector<ExtrusionLine> current_layer_lines;
         ExtrusionEntitiesPtr coll;

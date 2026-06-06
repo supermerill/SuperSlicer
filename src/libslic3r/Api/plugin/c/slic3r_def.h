@@ -30,6 +30,7 @@ typedef uint32_t slic3r_property_type;
 #define SLIC3R_PROPERTY_TYPE_EXTRUSION_Z_OFFSET        ((slic3r_property_type)7u)
 #define SLIC3R_PROPERTY_TYPE_EXTRUSION_PERIMETER       ((slic3r_property_type)9u)
 #define SLIC3R_PROPERTY_TYPE_EXTRUSION_INFILL          ((slic3r_property_type)10u)
+#define SLIC3R_PROPERTY_TYPE_LAYER_SUPPORT             ((slic3r_property_type)11u)
 
 #ifdef __cplusplus
 #define SLIC3R_CONSTEXPR_INLINE constexpr inline

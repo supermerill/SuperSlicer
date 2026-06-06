@@ -82,7 +82,7 @@ private:
 
 	// Trim support layers by an object to leave a defined gap between
 	// the support volume and the object.
-	void trim_support_layers_by_object(
+	void trim_auxiliary_layers_by_object(
 	    const PrintObject   &object,
 	    SupportGeneratorLayersPtr         &support_layers,
 	    const coord_t       gap_extra_above,

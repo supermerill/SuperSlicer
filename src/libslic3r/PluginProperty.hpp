@@ -12,9 +12,23 @@
 #include <type_traits>
 #include <vector>
 
+#include "Api/plugin/c/slic3r_data_tree.h"
 #include "PropertyStorage.hpp"
 
 namespace Slic3r {
+
+/*
+Built-in support marker for auxiliary layers.
+
+Auxiliary layers are generic Layer objects. Support is not a Layer subclass and
+does not have dedicated helper functions: code recognizes support by checking
+for this property on the Layer's PluginPropertyContainer, then reads the
+interface_id from the payload when it needs support-interface alternation.
+*/
+struct LayerSupportProperty : c_layer_support_property
+{
+    static constexpr plugin_property_type property_type = PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT;
+};
 
 /*
 Typed property payloads for plugin-controlled data-tree objects.

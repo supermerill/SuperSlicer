@@ -1965,8 +1965,8 @@ Point SeamPlacer::place_seam(const Layer *layer, const ExtrusionLoop &loop, cons
         const Point &last_pos) const {
     using namespace SeamPlacerImpl;
     const PrintObject *po = layer->object();
-    // Must not be called with supprot layer.
-    assert(dynamic_cast<const SupportLayer*>(layer) == nullptr);
+    // Must not be called with support auxiliary layers.
+    assert(layer->get_property<LayerSupportProperty>() == nullptr);
     // Object layer IDs are incremented by the number of raft layers.
     assert(layer->id() >= po->slicing_parameters().raft_layers());
     const size_t layer_index = layer->id() - po->slicing_parameters().raft_layers();

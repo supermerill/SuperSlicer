@@ -11,11 +11,16 @@ using namespace Slic3r;
 TEST_CASE("SupportMaterial: Three raft layers created", "[SupportMaterial]")
 {
 	Slic3r::Print print;
-	Slic3r::Test::init_and_process_print({ TestMesh::cube_20x20x20 }, print, {
-		{ "support_material", 1 },
-		{ "raft_layers",      3 }
-		});
-    REQUIRE(print.objects().front()->support_layers().size() == 3);
+    Slic3r::Test::init_and_process_print({ TestMesh::cube_20x20x20 }, print, {
+        { "support_material", 1 },
+        { "raft_layers",      3 }
+        });
+    REQUIRE(print.objects().front()->auxiliary_layers().size() == 3);
+    for (const Layer &layer : print.objects().front()->auxiliary_layers()) {
+        const LayerSupportProperty *support_property = layer.get_property<LayerSupportProperty>();
+        REQUIRE(support_property != nullptr);
+        CHECK(support_property->interface_id != uint32_t(-1));
+    }
 }
 
 SCENARIO("SupportMaterial: support_layers_z and contact_distance", "[SupportMaterial]")
@@ -27,9 +32,9 @@ SCENARIO("SupportMaterial: support_layers_z and contact_distance", "[SupportMate
 
 	auto check = [](Slic3r::Print &print, bool &first_support_layer_height_ok, bool &layer_height_minimum_ok, bool &layer_height_maximum_ok, bool &top_spacing_ok)
 	{
-        SpanOfConstPtrs<SupportLayer> support_layers = print.objects().front()->support_layers();
+        LayerCRefs support_layers = print.objects().front()->auxiliary_layers();
 
-		first_support_layer_height_ok = support_layers.front()->print_z == print.config().first_layer_height.value;
+		first_support_layer_height_ok = support_layers.front().unscaled_print_z() == print.config().first_layer_height.value;
 
 		layer_height_minimum_ok = true;
 		layer_height_maximum_ok = true;
@@ -38,9 +43,9 @@ SCENARIO("SupportMaterial: support_layers_z and contact_distance", "[SupportMate
 		if (print.config().max_layer_height.values.front() > EPSILON)
 			max_layer_height = std::min(max_layer_height, print.config().max_layer_height.values.front());
 		for (size_t i = 1; i < support_layers.size(); ++ i) {
-			if (support_layers[i]->print_z - support_layers[i - 1]->print_z < min_layer_height - EPSILON)
+			if (support_layers[i].unscaled_print_z() - support_layers[i - 1].unscaled_print_z() < min_layer_height - EPSILON)
 				layer_height_minimum_ok = false;
-			if (support_layers[i]->print_z - support_layers[i - 1]->print_z > max_layer_height + EPSILON)
+			if (support_layers[i].unscaled_print_z() - support_layers[i - 1].unscaled_print_z() > max_layer_height + EPSILON)
 				layer_height_maximum_ok = false;
 		}
 

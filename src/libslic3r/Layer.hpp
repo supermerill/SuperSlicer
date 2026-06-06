@@ -243,26 +243,18 @@ private:
     LayerRegionUPtrs     m_regions;
 };
 
-class SupportLayer : public Layer 
-{
-public:
+/*
+Support layers are now ordinary auxiliary Layers.
 
-    // Zero based index of an interface layer, used for alternating direction of interface / contact layers.
-    size_t                      interface_id() const { return m_interface_id; }
-
-    ExtrusionRole role() const;
-
-    void simplify_support_extrusion_path();
-    virtual ~SupportLayer() = default;
-protected:
-    friend class PrintObject;
-
-    // The constructor has been made public to be able to insert additional support layers for the skirt or a wipe tower
-    // between the raft and the object first layer.
-    SupportLayer(size_t id, size_t interface_id, PrintObject *object, coord_t height, coord_t print_z, double slice_z, bool scaledok);
-
-    size_t m_interface_id;
-};
+The final sliced data tree needs room for several kinds of non-object layers:
+support today, later skirt/brim/wipe tower or other plugin-generated helper
+layers. A support auxiliary layer is recognized only by the built-in
+LayerSupportProperty stored in the Layer property container. Callers that need
+support metadata should read that property directly so auxiliary layers remain
+generic.
+*/
+ExtrusionRole support_layer_role(const Layer &layer);
+void          simplify_support_extrusion_path(Layer &layer);
 
 inline const Layer& layer_ref(const Layer &layer) { return layer; }
 inline const Layer& layer_ref(const Layer *layer) { return *layer; }

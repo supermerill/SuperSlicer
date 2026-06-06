@@ -45,11 +45,13 @@ import ctypes
 from typing import Iterator
 
 from slic3r_api_generated import (
+    CLayerSupportProperty,
     CFlow,
     CFloatOrPercent,
     CMatrix4d,
     CSurface,
     CTriangleIndices,
+    PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT,
     RAW_SURFACE_TYPE_DENS_SOLID,
     RAW_SURFACE_TYPE_DENS_SPARSE,
     RAW_SURFACE_TYPE_DENS_VOID,
@@ -100,8 +102,30 @@ def _decode_const_string(ptr) -> str:
     return ctypes.cast(ptr, ctypes.c_char_p).value.decode("utf-8", errors="replace")
 
 
+def _payload_type(payload_cls_or_type) -> int:
+    if isinstance(payload_cls_or_type, int):
+        return int(payload_cls_or_type)
+    return int(payload_cls_or_type.property_type)
+
+
+def _payload_copy(payload_cls, ptr: int):
+    if not ptr:
+        return None
+    return payload_cls.from_buffer_copy(ctypes.string_at(_void_p(ptr), ctypes.sizeof(payload_cls)))
+
+
+def _payload_mutable(payload_cls, ptr: int):
+    if not ptr:
+        return None
+    return ctypes.cast(_void_p(ptr), ctypes.POINTER(payload_cls)).contents
+
+
 def unscaled(value: int | float) -> float:
     return float(value) * SCALING_FACTOR
+
+
+CLayerSupportProperty.property_type = PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT
+LayerSupportProperty = CLayerSupportProperty
 
 
 # Base for borrowed data-tree views. It never owns or frees the handle.
@@ -118,6 +142,80 @@ class DataTreeView:
 
     def __bool__(self) -> bool:
         return self.address != 0
+
+
+class PluginProperties:
+    """
+    Generic plugin-property view for data-tree objects.
+
+    Properties are small C payloads indexed by numeric property ids. A borrowed
+    const Layer or Surface may still return a mutable property container: this
+    only allows metadata annotations and does not make geometry mutable.
+
+    Use has()/get() for read-only code:
+
+        support = layer.properties().get(CLayerSupportProperty)
+        if support is not None:
+            print(support.interface_id)
+
+    Use get_or_add() only when the current step intentionally annotates the
+    object. Custom plugin properties must have been registered with the
+    orchestrator before they are created.
+    """
+
+    def __init__(self, api, handle) -> None:
+        self.api = api
+        self.address = _address(handle)
+
+    def c_handle(self) -> ctypes.c_void_p:
+        return _void_p(self.address)
+
+    def valid(self) -> bool:
+        return self.address != 0
+
+    def count(self) -> int:
+        return int(self.api.host.plugin_property_count(self.c_handle()))
+
+    def type_at(self, idx: int) -> int:
+        return int(self.api.host.plugin_property_type_at(self.c_handle(), int(idx)))
+
+    def types(self) -> list[int]:
+        return [self.type_at(idx) for idx in range(self.count())]
+
+    def has(self, payload_cls_or_type) -> bool:
+        return bool(self.api.host.plugin_property_has(self.c_handle(), _payload_type(payload_cls_or_type)))
+
+    def data_size(self, payload_cls_or_type) -> int:
+        return int(self.api.host.plugin_property_data_size(self.c_handle(), _payload_type(payload_cls_or_type)))
+
+    def data_address(self, payload_cls_or_type) -> int:
+        return _address(self.api.host.plugin_property_data(self.c_handle(), _payload_type(payload_cls_or_type)))
+
+    def data_mutable_address(self, payload_cls_or_type) -> int:
+        return _address(self.api.host.plugin_property_data_mutable(self.c_handle(), _payload_type(payload_cls_or_type)))
+
+    def get(self, payload_cls):
+        if self.data_size(payload_cls) != ctypes.sizeof(payload_cls):
+            return None
+        return _payload_copy(payload_cls, self.data_address(payload_cls))
+
+    def get_mutable(self, payload_cls):
+        if self.data_size(payload_cls) != ctypes.sizeof(payload_cls):
+            return None
+        return _payload_mutable(payload_cls, self.data_mutable_address(payload_cls))
+
+    def get_or_add(self, payload_cls, orchestrator=None):
+        orch = self.api.orchestrator if orchestrator is None else _void_p(orchestrator)
+        ptr = self.api.host.plugin_property_get_or_add_data_mutable(
+            orch, self.c_handle(), _payload_type(payload_cls)
+        )
+        return _payload_mutable(payload_cls, _address(ptr))
+
+    def remove(self, payload_cls_or_type) -> bool:
+        return bool(self.api.host.plugin_property_remove(self.c_handle(), _payload_type(payload_cls_or_type)))
+
+    def clear(self) -> None:
+        self.api.host.plugin_property_clear(self.c_handle())
 
 
 # Read-only view over one ConfigOption. It covers common scalar/vector access
@@ -354,6 +452,11 @@ class Surface:
     def id(self) -> int:
         return int(self.api.host.surface_get_id(self.c_handle())) if self.has_handle() else int(self._surface.id)
 
+    def properties(self) -> PluginProperties:
+        if not self.has_handle():
+            return PluginProperties(self.api, None)
+        return PluginProperties(self.api, self.api.host.surface_get_properties(self.c_handle()))
+
     def has_flag(self, flag: int) -> bool:
         if self.has_handle():
             return bool(self.api.host.surface_get_flag(self.c_handle(), int(flag)))
@@ -470,6 +573,9 @@ class LayerRegion(DataTreeView):
     def flow(self, role: int) -> CFlow:
         return self.api.host.layer_region_get_flow(self.c_handle(), int(role))
 
+    def properties(self) -> PluginProperties:
+        return PluginProperties(self.api, self.api.host.layer_region_get_properties(self.c_handle()))
+
     def slices(self) -> ExPolygonCollection:
         return ExPolygonCollection(self.api, self.api.host.layer_region_get_slices(self.c_handle()))
 
@@ -493,6 +599,9 @@ class MutableLayerRegion(LayerRegion):
 class LayerRegionIsland(DataTreeView):
     def extruder_id(self) -> int:
         return int(self.api.host.layer_region_island_extruder_id(self.c_handle()))
+
+    def properties(self) -> PluginProperties:
+        return PluginProperties(self.api, self.api.host.layer_region_island_get_properties(self.c_handle()))
 
     def has_extrusions(self) -> bool:
         return bool(self.api.host.layer_region_island_has_extrusions(self.c_handle()))
@@ -532,6 +641,9 @@ class MutableLayerRegionIsland(LayerRegionIsland):
 class LayerIsland(DataTreeView):
     def slice(self) -> ExPolygon:
         return ExPolygon(self.api, self.api.host.layer_island_get_slice(self.c_handle()))
+
+    def properties(self) -> PluginProperties:
+        return PluginProperties(self.api, self.api.host.layer_island_get_properties(self.c_handle()))
 
     def bounding_box(self):
         return self.api.host.layer_island_get_bounding_box(self.c_handle())
@@ -623,8 +735,8 @@ class Layer(DataTreeView):
     def slice_z(self) -> int:
         return int(self.api.host.layer_get_slice_z(self.c_handle()))
 
-    def support_id(self) -> int:
-        return int(self.api.host.layer_get_support_id(self.c_handle()))
+    def properties(self) -> PluginProperties:
+        return PluginProperties(self.api, self.api.host.layer_get_properties(self.c_handle()))
 
     def upper_layer(self) -> "Layer | None":
         return _optional(Layer, self.api, self.api.host.layer_get_upper_layer(self.c_handle()))
@@ -675,6 +787,9 @@ class MutableLayer(Layer):
 
 # Borrowed print object view.
 class Object(DataTreeView):
+    def properties(self) -> PluginProperties:
+        return PluginProperties(self.api, self.api.host.object_get_properties(self.c_handle()))
+
     def config(self) -> Config:
         return Config(self.api, self.api.host.object_get_config(self.c_handle()))
 
@@ -701,6 +816,16 @@ class Object(DataTreeView):
     def layers(self) -> Iterator[Layer]:
         for idx in range(self.layer_count()):
             yield self.layer(idx)
+
+    def auxiliary_layer_count(self) -> int:
+        return int(self.api.host.object_count_auxiliary_layer(self.c_handle()))
+
+    def auxiliary_layer(self, idx: int) -> Layer:
+        return Layer(self.api, self.api.host.object_get_auxiliary_layer(self.c_handle(), int(idx)))
+
+    def auxiliary_layers(self) -> Iterator[Layer]:
+        for idx in range(self.auxiliary_layer_count()):
+            yield self.auxiliary_layer(idx)
 
     def volume_count(self) -> int:
         return int(self.api.host.object_volume_count(self.c_handle()))

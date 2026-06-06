@@ -1290,8 +1290,8 @@ void Layer::export_region_fill_surfaces_to_svg_debug(const char *name) const
     this->export_region_fill_surfaces_to_svg(debug_out_path("Layer-fill_surfaces-%s-%d.svg", name, idx ++).c_str());
 }
 
-void SupportLayer::simplify_support_extrusion_path() {
-    const PrintConfig& print_config = this->object()->print()->config();
+void simplify_support_extrusion_path(Layer &layer) {
+    const PrintConfig& print_config = layer.object()->print()->config();
     const bool spiral_mode = print_config.spiral_vase;
     const bool enable_arc_fitting = print_config.arc_fitting != ArcFittingType::Disabled && !spiral_mode;
     coordf_t scaled_resolution = scale_d(print_config.resolution.value);
@@ -1304,8 +1304,8 @@ void SupportLayer::simplify_support_extrusion_path() {
                             false,
                             &print_config.arc_fitting_tolerance,
                             enable_arc_fitting ? SCALED_EPSILON * 2 : SCALED_EPSILON};
-    for (LayerSliceIslandUPtr &island : m_islands) {
-        for (LayerRegionIsland &region_island : island->regions_islands()) {
+    for (LayerSliceIsland &island : layer.islands()) {
+        for (LayerRegionIsland &region_island : island.regions_islands()) {
             if (region_island.has_extrusion(LayerRegionIsland::SUPPORT)) {
                 visitor.traverse(region_island.mutable_extrusion(LayerRegionIsland::SUPPORT));
             }
@@ -1316,9 +1316,9 @@ void SupportLayer::simplify_support_extrusion_path() {
     }
 }
 
-ExtrusionRole SupportLayer::role() const {
+ExtrusionRole support_layer_role(const Layer &layer) {
     ExtrusionRole role = ExtrusionRole::None;
-    for (const LayerSliceIsland &island : islands()) {
+    for (const LayerSliceIsland &island : layer.islands()) {
         for (const LayerRegionIsland &region_island : island.regions_islands()) {
             if (region_island.has_extrusion(LayerRegionIsland::SUPPORT)) {
                 role |= ExtrusionRole::SupportMaterial;
@@ -1330,13 +1330,4 @@ ExtrusionRole SupportLayer::role() const {
     }
     return role;
 }
-
-SupportLayer::SupportLayer(size_t id,
-                           size_t interface_id,
-                           PrintObject *object,
-                           coord_t height,
-                           coord_t print_z,
-                           double slice_z,
-                           bool scaledok)
-    : Layer(id, object, height, print_z, slice_z, scaledok), m_interface_id(interface_id) {}
 }

@@ -114,11 +114,11 @@ ToolOrdering::ToolOrdering(const PrintObject &object, uint16_t first_extruder, b
     // Initialize the print layers for just a single object.
     {
         std::vector<coord_t> zs;
-        zs.reserve(zs.size() + object.layers().size() + object.support_layers().size());
+        zs.reserve(zs.size() + object.layers().size() + object.auxiliary_layers().size());
         for (const Layer &layer : object.layers()) {
             zs.emplace_back(layer.scaled_print_z());
         }
-        for (const SupportLayer &layer : object.support_layers()) {
+        for (const Layer &layer : object.auxiliary_layers()) {
             if (layer.has_extrusions()) {
                 zs.emplace_back(layer.scaled_print_z());
             }
@@ -164,10 +164,10 @@ ToolOrdering::ToolOrdering(const PrintObject &object, const GCode::ObjectsLayerT
                     bottom_z = o_s_layer.object_layer->scaled_bottom_z();
                 }
             }
-            if (o_s_layer.support_layer) {
-                zs.emplace_back(o_s_layer.support_layer->scaled_print_z());
-                if (bottom_z < 0 || bottom_z > o_s_layer.support_layer->scaled_bottom_z()) {
-                    bottom_z = o_s_layer.support_layer->scaled_bottom_z();
+            if (o_s_layer.auxiliary_layer) {
+                zs.emplace_back(o_s_layer.auxiliary_layer->scaled_print_z());
+                if (bottom_z < 0 || bottom_z > o_s_layer.auxiliary_layer->scaled_bottom_z()) {
+                    bottom_z = o_s_layer.auxiliary_layer->scaled_bottom_z();
                 }
             }
         }
@@ -204,13 +204,13 @@ ToolOrdering::ToolOrdering(const Print &print, uint16_t first_extruder, bool pri
         std::vector<coord_t> zs;
         for (const PrintObject &object : print.objects()) {
             m_objects.push_back(&object);
-            zs.reserve(zs.size() + object.layers().size() + object.support_layers().size());
+            zs.reserve(zs.size() + object.layers().size() + object.auxiliary_layers().size());
             for (const Layer &layer : object.layers()) {
                 if (layer.has_extrusions()) {
                     zs.emplace_back(layer.scaled_print_z());
                 }
             }
-            for (const SupportLayer &layer : object.support_layers()) {
+            for (const Layer &layer : object.auxiliary_layers()) {
                 if (layer.has_extrusions()) {
                     zs.emplace_back(layer.scaled_print_z());
                 }
@@ -317,12 +317,12 @@ void ToolOrdering::collect_extruders(
     const std::vector<std::pair<coord_t, uint16_t>> &per_layer_extruder_switches,
     const std::vector<std::pair<coord_t, uint16_t>> &per_layer_color_changes
 ) {
-    // Collect the support extruders.
-    auto collect_support_layer = [&](const SupportLayer* support_layer) {
-        if(!support_layer->has_extrusions())
+    // Collect the support extruders from auxiliary layers that are marked as support.
+    auto collect_auxiliary_layer = [&](const Layer* support_layer) {
+        if(!support_layer->has_extrusions() || support_layer->get_property<LayerSupportProperty>() == nullptr)
             return;
         LayerTools   *layer_tools = this->tools_for_layer(support_layer->scaled_print_z());
-        ExtrusionRole role = support_layer->role();
+        ExtrusionRole role = support_layer_role(*support_layer);
         bool         has_support        = role == ExtrusionRole::Mixed || role == ExtrusionRole::SupportMaterial;
         bool         has_interface      = role == ExtrusionRole::Mixed || role == ExtrusionRole::SupportMaterialInterface;
         uint16_t extruder_support   = object.config().support_material_extruder.value;
@@ -335,13 +335,13 @@ void ToolOrdering::collect_extruders(
             layer_tools->has_support = true;
     };
     if (layers.empty()) {
-        for (const SupportLayer &support_layer : object.support_layers()) {
-            collect_support_layer(&support_layer);
+        for (const Layer &support_layer : object.auxiliary_layers()) {
+            collect_auxiliary_layer(&support_layer);
         }
     } else {
         for (auto object_support_layer : layers) {
-            if (object_support_layer.support_layer) {
-                collect_support_layer(object_support_layer.support_layer);
+            if (object_support_layer.auxiliary_layer) {
+                collect_auxiliary_layer(object_support_layer.auxiliary_layer);
             }
         }
     }

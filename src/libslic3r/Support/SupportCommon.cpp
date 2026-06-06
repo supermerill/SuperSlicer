@@ -1612,7 +1612,7 @@ SupportGeneratorLayersPtr generate_support_layers(
     std::sort(layers_sorted.begin(), layers_sorted.end(), [](auto *l1, auto *l2) { return *l1 < *l2; });
     int layer_id = 0;
     int layer_id_interface = 0;
-    assert(object.support_layers().empty());
+    assert(object.auxiliary_layers().empty());
     for (size_t i = 0; i < layers_sorted.size();) {
         // Find the last layer with roughly the same print_z, find the minimum layer height of all.
         size_t j = i + 1;
@@ -1651,14 +1651,19 @@ SupportGeneratorLayersPtr generate_support_layers(
             size_t this_layer_id_interface  = layer_id_interface;
             if (this_layer_contacts_only) {
                 // Find a supporting layer for its interface ID.
-                for (auto it = object.support_layers().rbegin(); it != object.support_layers().rend(); ++ it)
-                    if (const SupportLayer &other_layer = *it; other_layer.scaled_print_z() == top_contact_bottom_z) {
+                for (auto it = object.auxiliary_layers().rbegin(); it != object.auxiliary_layers().rend(); ++ it)
+                    if (const Layer &other_layer = *it; other_layer.scaled_print_z() == top_contact_bottom_z) {
                         // other_layer supports this top contact layer. Assign a different support interface direction to this layer
                         // from the layer that supports it.
-                        this_layer_id_interface = other_layer.interface_id() + 1;
+                        const LayerSupportProperty *support_property = other_layer.get_property<LayerSupportProperty>();
+                        if (support_property != nullptr)
+                            this_layer_id_interface = support_property->interface_id + 1;
                     }
             }
-            object.add_support_layer(layer_id ++, this_layer_id_interface, min_layer_height, layer_z);
+            Layer &support_layer = object.add_auxiliary_layer(layer_id ++, min_layer_height, layer_z);
+            LayerSupportProperty &support_property = support_layer.get_or_add_property<LayerSupportProperty>();
+            support_property.interface_id = static_cast<uint32_t>(this_layer_id_interface);
+            support_property.reserved = 0;
             if (num_interfaces && ! this_layer_contacts_only)
                 ++ layer_id_interface;
         }
@@ -1681,7 +1686,7 @@ public:
 
 void generate_support_toolpaths(
     PrintObject                         &object,
-    SupportLayerUPtrs                   &support_layers,
+    LayerUPtrs                   &support_layers,
     const PrintObjectConfig             &config,
     const SupportParameters             &support_params,
     const SlicingParameters             &slicing_params,
@@ -1725,7 +1730,7 @@ void generate_support_toolpaths(
         for (size_t support_layer_id = range.begin(); support_layer_id < range.end(); ++ support_layer_id)
         {
             assert(support_layer_id < raft_layers.size());
-            SupportLayer               &support_layer = *support_layers[support_layer_id];
+            Layer               &support_layer = *support_layers[support_layer_id];
             assert(!support_layer.has_extrusions());
             SupportGeneratorLayer      &raft_layer    = *raft_layers[support_layer_id];
 
@@ -1801,7 +1806,9 @@ void generate_support_toolpaths(
                 spacing       = support_params.first_layer_flow.spacing();
                 density       = float(config.raft_first_layer_density.value * 0.01);
             } else if (support_layer_id >= slicing_params.base_raft_layers) {
-                filler->angle = support_params.raft_interface_angle(support_layer.interface_id()) +
+                const LayerSupportProperty *support_property = support_layer.get_property<LayerSupportProperty>();
+                assert(support_property != nullptr);
+                filler->angle = support_params.raft_interface_angle(support_property->interface_id) +
                                 ((support_layer_id - slicing_params.base_raft_layers) * support_params.interface_angle_incr);
                 // We don't use $base_flow->spacing because we need a constant spacing
                 // value that guarantees that all layers are correctly aligned.
@@ -1850,7 +1857,7 @@ void generate_support_toolpaths(
         [&support_layers, &raft_bb, &object, &raft_cache, support_extruder, support_interface_extruder]
             (const tbb::blocked_range<size_t>& range) {
         for (size_t support_layer_id = range.begin(); support_layer_id < range.end(); ++support_layer_id) {
-            SupportLayer &support_layer = *support_layers[support_layer_id];
+            Layer &support_layer = *support_layers[support_layer_id];
             if (!raft_bb.empty()) {
                 //support_layer.set_islands(ExPolygons{ExPolygon(raft_bb.polygon())});
                 ApiInternal::LayerAccess::set_islands(support_layer, ExPolygons{ExPolygon(raft_bb.polygon())});
@@ -1989,15 +1996,17 @@ void generate_support_toolpaths(
             filler_base_interface->set_bounding_box(bbox_object);
         for (size_t support_layer_id = range.begin(); support_layer_id < range.end(); ++ support_layer_id)
         {
-            SupportLayer &support_layer = *support_layers[support_layer_id];
+            Layer &support_layer = *support_layers[support_layer_id];
             LayerCache   &layer_cache   = layer_caches[support_layer_id];
             float         interface_angle_delta = 0;
             //const float   support_interface_angle = config.support_material_style.value == smsGrid ?
-            //    support_params.interface_angle : support_params.raft_interface_angle(support_layer.interface_id());
+            //    support_params.interface_angle : support_params.raft_interface_angle(support_property->interface_id);
+            const LayerSupportProperty *support_property = support_layer.get_property<LayerSupportProperty>();
+            assert(support_property != nullptr);
             if (support_params.interface_angle_incr == 0 && config.support_material_style.value == smsSnug) {
-                interface_angle_delta = support_params.raft_interface_angle(support_layer.interface_id());
+                interface_angle_delta = support_params.raft_interface_angle(support_property->interface_id);
             } else if (support_params.interface_angle_incr > 0) {
-                interface_angle_delta = support_params.interface_angle + support_layer.interface_id() * support_params.interface_angle_incr;
+                interface_angle_delta = support_params.interface_angle + support_property->interface_id * support_params.interface_angle_incr;
             }
 
             // compute if the support has to switch its angle
@@ -2162,7 +2171,7 @@ void generate_support_toolpaths(
                     //        angles[support_layer_id % angles.size()] :
                     //        // Use interface angle for the interface layers.
                     //        raft_contact ? 
-                    //            support_params.raft_interface_angle(support_layer.interface_id()) :
+                    //            support_params.raft_interface_angle(support_property->interface_id) :
                     //            support_interface_angle;
                     //double density = raft_contact ? support_params.raft_interface_density : interface_as_base ? support_params.support_density : support_params.interface_density;
                     //filler->spacing = raft_contact ? support_params.raft_interface_flow.spacing() :
@@ -2335,7 +2344,7 @@ void generate_support_toolpaths(
         [&support_layers, &layer_caches, support_extruder, support_interface_extruder]
             (const tbb::blocked_range<size_t>& range) {
         for (size_t support_layer_id = range.begin(); support_layer_id < range.end(); ++ support_layer_id) {
-            SupportLayer &support_layer = *support_layers[support_layer_id];
+            Layer &support_layer = *support_layers[support_layer_id];
             LayerCache   &layer_cache   = layer_caches[support_layer_id];
             // For all extrusion types at this print_z, ordered by decreasing layer height:
             for (LayerCacheItem &layer_cache_item : layer_cache.nonempty) {
@@ -2403,9 +2412,9 @@ void generate_support_toolpaths(
     );
 
 #ifndef NDEBUG
-    const SupportLayer *support_layer_current = nullptr;
+    const Layer *support_layer_current = nullptr;
     int                 idx                   = 0;
-    for (const SupportLayerUPtr &support_layer : support_layers) {
+    for (const LayerUPtr &support_layer : support_layers) {
         assert(support_layer->object() == &object);
         support_layer_current = support_layer.get();
 

@@ -116,6 +116,11 @@ private:
     plugin_property_container_handle *m_handle = nullptr;
 };
 
+struct LayerSupportProperty : c_layer_support_property
+{
+    static constexpr plugin_property_type property_type = PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT;
+};
+
 /*
 C++ convenience builder for raw_surface_type.
 
@@ -805,7 +810,6 @@ public:
     coord_t print_z() const { return layer_get_print_z(handle()); }
     coord_t slice_z() const { return layer_get_slice_z(handle()); }
     coord_t bottom_z() const { return print_z() - height(); }
-    coord_t support_id() const { return layer_get_support_id(handle()); }
 
     Layer upper_layer() const {
         return Layer(layer_get_upper_layer(handle()));
@@ -873,9 +877,9 @@ public:
         return Layer(object_get_layer(handle(), idx));
     }
 
-    uint32_t support_layer_count() const { return object_count_support_layer(handle()); }
-    Layer support_layer(uint32_t idx) const {
-        return Layer(object_get_support_layer(handle(), idx));
+    uint32_t auxiliary_layer_count() const { return object_count_auxiliary_layer(handle()); }
+    Layer auxiliary_layer(uint32_t idx) const {
+        return Layer(object_get_auxiliary_layer(handle(), idx));
     }
 
     uint32_t print_region_count() const { return object_count_region(handle()); }

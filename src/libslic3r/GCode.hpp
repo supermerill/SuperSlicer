@@ -113,14 +113,14 @@ struct LayerResult {
 };
 
 namespace GCode {
-// Object and support extrusions of the same PrintObject at the same print_z.
+// Object and auxiliary extrusions of the same PrintObject at the same print_z.
 // public, so that it could be accessed by free helper functions from GCode.cpp
 struct ObjectLayerToPrint
 {
-    ObjectLayerToPrint() : object_layer(nullptr), support_layer(nullptr) {}
+    ObjectLayerToPrint() : object_layer(nullptr), auxiliary_layer(nullptr) {}
     const Layer        *object_layer;
-    const SupportLayer *support_layer;
-    // if filled, it restrict the islands needed to be printed (can be in support or/and object)
+    const Layer        *auxiliary_layer;
+    // if filled, it restrict the islands needed to be printed (can be in auxiliary or/and object)
     // used as adress check, so you can store nullptr.
     std::set<const LayerSliceIsland*> islands;
     // if mmu, extruder order override
@@ -128,11 +128,11 @@ struct ObjectLayerToPrint
     // wipetower managment, for parallel object/islands
     bool allow_wipe_tower = true; // allow to print wipetoer & finish wieptower layer
     coord_t finish_wipe_tower_until = 0; // before printing anything, finish all unfinish wp layer until this z (should be <= _print_z())
-    const Layer        *layer() const { return (object_layer != nullptr) ? object_layer : support_layer; }
+    const Layer        *layer() const { return (object_layer != nullptr) ? object_layer : auxiliary_layer; }
     const PrintObject  *object() const { return (this->layer() != nullptr) ? this->layer()->object() : nullptr; }
     coord_t _print_z() const {
-        assert(object_layer == nullptr || support_layer == nullptr ||
-               object_layer->scaled_print_z() == support_layer->scaled_print_z());
+        assert(object_layer == nullptr || auxiliary_layer == nullptr ||
+               object_layer->scaled_print_z() == auxiliary_layer->scaled_print_z());
         return this->layer()->scaled_print_z();
     }
 };

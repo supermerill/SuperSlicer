@@ -11,6 +11,7 @@
 
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/c/slic3r_extrusion_property.h"
+#include "libslic3r/Api/plugin/c/slic3r_data_tree.h"
 #include "libslic3r/Print.hpp"
 
 #include "Orchestrator.hpp"
@@ -38,6 +39,7 @@ const std::vector<GenericPropertyInfo> &builtin_property_infos()
         { SLIC3R_PROPERTY_TYPE_EXTRUSION_Z_OFFSET,        "slic3r.extrusion.z_offset",        sizeof(c_extrusion_property_z_offset),        alignof(c_extrusion_property_z_offset) },
         { SLIC3R_PROPERTY_TYPE_EXTRUSION_PERIMETER,       "slic3r.extrusion.perimeter",       sizeof(c_extrusion_property_perimeter),       alignof(c_extrusion_property_perimeter) },
         { SLIC3R_PROPERTY_TYPE_EXTRUSION_INFILL,          "slic3r.extrusion.infill",          sizeof(c_extrusion_property_infill),          alignof(c_extrusion_property_infill) },
+        { SLIC3R_PROPERTY_TYPE_LAYER_SUPPORT,             "slic3r.layer.support",             sizeof(c_layer_support_property),             alignof(c_layer_support_property) },
     };
     return infos;
 }

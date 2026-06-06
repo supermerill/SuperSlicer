@@ -882,11 +882,15 @@ void Preview::load_print_as_fff(bool keep_z_range)
             }
     }
     if (!has_layers && print->is_step_done(posSupportMaterial)) {
-        for (const PrintObject& print_object : print->objects())
-            if (! print_object.support_layers().empty()) {
-                has_layers = true;
+        for (const PrintObject& print_object : print->objects()) {
+            for (const Layer &layer : print_object.auxiliary_layers())
+                if (layer.get_property<LayerSupportProperty>() != nullptr) {
+                    has_layers = true;
+                    break;
+                }
+            if (has_layers)
                 break;
-            }
+        }
     }
 
     if (wxGetApp().is_editor() && !has_layers) {

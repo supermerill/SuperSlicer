@@ -125,6 +125,7 @@ CLASS_NAME_OVERRIDES = {
     "key_value_string_pair_array_t": "KeyValueStringPairArray",
     "option_enum_def_t": "OptionEnumDef",
     "raw_config_option_def": "RawConfigOptionDef",
+    "c_layer_support_property": "CLayerSupportProperty",
     "c_surface": "CSurface",
     "c_flow": "CFlow",
     "c_medial_axis_extrusion_params": "CMedialAxisExtrusionParams",

@@ -278,15 +278,15 @@ bool same_object(const PrintObject &lhs, const PrintObject &rhs, std::string &ou
             return false;
     }
 
-    if (lhs.support_layer_count() != rhs.support_layer_count()) {
+    if (lhs.auxiliary_layer_count() != rhs.auxiliary_layer_count()) {
         std::ostringstream msg;
-        msg << "support layer count mismatch (lhs=" << lhs.support_layer_count()
-            << ", rhs=" << rhs.support_layer_count() << ")";
+        msg << "auxiliary layer count mismatch (lhs=" << lhs.auxiliary_layer_count()
+            << ", rhs=" << rhs.auxiliary_layer_count() << ")";
         append_path_error(out_error, path, msg.str().c_str());
         return false;
     }
-    for (size_t idx = 0; idx < lhs.support_layer_count(); ++idx) {
-        if (!same_layer(lhs.support_layer(idx), rhs.support_layer(idx), out_error, path + ".support_layer[" + std::to_string(idx) + "]"))
+    for (size_t idx = 0; idx < lhs.auxiliary_layer_count(); ++idx) {
+        if (!same_layer(lhs.auxiliary_layer(idx), rhs.auxiliary_layer(idx), out_error, path + ".auxiliary_layer[" + std::to_string(idx) + "]"))
             return false;
     }
 
