@@ -13,6 +13,8 @@
 namespace Slic3r {
 
 class Layer;
+class ExtrusionEntity;
+class ExtrusionEntityCollection;
 class PrintObject;
 
 namespace ApiInternal {
@@ -21,6 +23,9 @@ struct PrintObjectAccess
 {
     static void set_layer_profile(PrintObject &object, std::vector<coord_t> &&layer_profile);
     static void replace_layers_by_moving_contents(PrintObject &object, LayerUPtrs &&new_layers);
+    static PrintInstances &mutable_instances(PrintObject &object);
+    static ExtrusionEntityCollection &mutable_brim(PrintObject &object);
+    static bool append_brim_move(PrintObject &object, ExtrusionEntity &extrusion);
 #ifdef _DEBUG
     static void make_perimeters(PrintObject &object);
 #endif

@@ -38,6 +38,8 @@
 #include <oneapi/tbb/parallel_for.h>
 
 #include "BoundingBox.hpp"
+#include "Api/internal/PrintAccess.hpp"
+#include "Api/internal/PrintObjectAccess.hpp"
 #include "Api/host/Orchestrator.hpp"
 #include "Brim.hpp"
 #include "BuildVolume.hpp"
@@ -1706,6 +1708,85 @@ struct ExtrusionDirectionSetter : public ExtrusionVisitorRecursive {
     }
 };
 
+void append_extrusion_children_to_collection(ExtrusionEntityCollection &dst, ExtrusionEntity &src)
+{
+    if (src.is_nop())
+        return;
+
+    if (ExtrusionEntityCollection *collection = dynamic_cast<ExtrusionEntityCollection *>(&src)) {
+        /*
+        A plain temporary collection is only a transport container: move its
+        children into the real brim root. If the collection has properties, it
+        is a semantic subtree and must stay whole so descendants inherit them.
+        */
+        if (collection->has_properties()) {
+            dst.append(std::move(src));
+            return;
+        }
+        dst.append_move_from(*collection);
+        return;
+    }
+
+    if (src.is_leaf()) {
+        dst.append(std::move(src));
+        return;
+    }
+
+    ExtrusionEntity::Children &children = src.children();
+    while (!children.empty()) {
+        dst.append(std::move(children.front()));
+        children.erase(children.begin());
+    }
+}
+
+void ApiInternal::PrintAccess::clear_brim(Print &print)
+{
+    print.m_brim.clear();
+    for (PrintObjectUPtr &object : print.m_objects)
+        ApiInternal::PrintObjectAccess::mutable_brim(*object).clear();
+}
+
+bool ApiInternal::PrintAccess::append_brim_move(Print &print, ExtrusionEntity &extrusion)
+{
+    append_extrusion_children_to_collection(print.m_brim, extrusion);
+    return true;
+}
+
+void ApiInternal::PrintAccess::normalize_brim_direction(Print &print)
+{
+    /*
+    Brim is stored partly on Print and partly on PrintObject. Normalize both
+    places after plugins finish so each generator does not have to duplicate
+    the perimeter-direction rule.
+    */
+    if (print.m_default_region_config.perimeter_direction.value == pdCW_CCW ||
+        print.m_default_region_config.perimeter_direction.value == pdCW_CW) {
+        ExtrusionDirectionSetter visitor(true);
+        print.m_brim.visit(visitor);
+        for (PrintObjectUPtr &object : print.m_objects)
+            ApiInternal::PrintObjectAccess::mutable_brim(*object).visit(visitor);
+    }
+}
+
+void ApiInternal::PrintAccess::rebuild_first_layer_convex_hull_after_skirt_brim(Print &print)
+{
+    /*
+    The hull is a print-level safety envelope used by bed-leveling, placeholders
+    and wipe/purge placement. Build it from the stable final geometry: first
+    layer islands plus any brim trees published by plugins. finalize_* then
+    adds skirt and wipe tower corners using the existing host logic.
+    */
+    print.m_first_layer_convex_hull.points.clear();
+    for (Polygon &polygon : print.first_layer_islands())
+        append(print.m_first_layer_convex_hull.points, std::move(polygon.points));
+
+    print.m_brim.collect_points(print.m_first_layer_convex_hull.points);
+    for (PrintObjectUPtr &object : print.m_objects)
+        ApiInternal::PrintObjectAccess::mutable_brim(*object).collect_points(print.m_first_layer_convex_hull.points);
+
+    print.finalize_first_layer_convex_hull();
+}
+
 void Print::_make_skirt_brim() {
 
     if (this->set_started(psSkirtBrim)) {
@@ -1745,148 +1826,13 @@ void Print::_make_skirt_brim() {
             }
         }
 
-        //now brim
-        m_brim.clear();
-        //group object per brim settings
-        m_first_layer_convex_hull.points.clear();
-        std::vector<std::vector<PrintObject*>> obj_groups;
-        bool brim_per_object = false;
-        for (PrintObjectUPtr &object : m_objects) {
-            PrintObject *obj = object.get();
-            obj->m_brim.clear();
-            brim_per_object = brim_per_object || obj->config().brim_per_object.value;
-            bool added = false;
-            for (std::vector<PrintObject*> &obj_group : obj_groups) {
-                bool same_first_layer_extrusion_width = obj_group.front()->config().first_layer_extrusion_width.is_enabled() == obj->config().first_layer_extrusion_width.is_enabled();
-                if (same_first_layer_extrusion_width && obj_group.front()->config().first_layer_extrusion_width.is_enabled()){
-                    same_first_layer_extrusion_width = obj_group.front()->config().first_layer_extrusion_width.value == obj->config().first_layer_extrusion_width.value;
-                }
-                if (obj_group.front()->config().brim_ears.value == obj->config().brim_ears.value
-                    && obj_group.front()->config().brim_ears_max_angle.value == obj->config().brim_ears_max_angle.value
-                    && obj_group.front()->config().brim_ears_pattern.value == obj->config().brim_ears_pattern.value
-                    && obj_group.front()->config().brim_inside_holes.value == obj->config().brim_inside_holes.value
-                    && obj_group.front()->config().brim_per_object.value == obj->config().brim_per_object.value
-                    && obj_group.front()->config().brim_separation.value == obj->config().brim_separation.value
-                    && obj_group.front()->config().brim_width.value == obj->config().brim_width.value
-                    && obj_group.front()->config().brim_width_interior.value == obj->config().brim_width_interior.value
-                    && same_first_layer_extrusion_width) {
-                    added = true;
-                    obj_group.push_back(obj);
-                }
-            }
-            if (!added) {
-                obj_groups.emplace_back();
-                obj_groups.back().push_back(obj);
-            }
-        }
-        ExPolygons brim_area;
-        //get the objects areas, to not print brim on it (if needed)
-        if (obj_groups.size() > 1 || brim_per_object || 
-            (!obj_groups.empty() && (has_brim_patch(obj_groups.front(), ModelVolumeType::BRIM_PATCH) || has_brim_patch(obj_groups.front(), ModelVolumeType::BRIM_NEGATIVE)))) {
-            for (std::vector<PrintObject *> &obj_group : obj_groups) {
-                for (const PrintObject *object : obj_group) {
-                    if (!object->m_layers.empty()) {
-                        for (const PrintInstance &pt : object->m_instances) {
-                            size_t first_idx = brim_area.size();
-                            brim_area.insert(brim_area.end(),
-                                             object->m_layers.front()->lslices().begin(),
-                                             object->m_layers.front()->lslices().end());
-                            for (size_t i = first_idx; i < brim_area.size(); i++) {
-                                brim_area[i].translate(pt.shift.x(), pt.shift.y());
-                            }
-                        }
-                    }
-                    if (has_brim_patch(*object, ModelVolumeType::BRIM_NEGATIVE)) {
-                        for(Polygon &poly : object->get_brim_patch(ModelVolumeType::BRIM_NEGATIVE)){
-                            brim_area.push_back(ExPolygon(std::move(poly)));
-                        }
-                    }
-                }
-            }
-        }
-        //print brim per brim region
-        for (std::vector<PrintObject*> &obj_group : obj_groups) {
-            const PrintObjectConfig &brim_config = obj_group.front()->config();
-            if (brim_config.brim_width > 0 || brim_config.brim_width_interior > 0 || has_brim_patch(obj_group, ModelVolumeType::BRIM_PATCH)) {
-                this->set_status(printstep_percent(psSkirtBrim) + 2, L("Generating brim"));
-                if (brim_config.brim_per_object) {
-                    for (PrintObject *obj : obj_group) {
-                        //get flow
-                        std::set<uint16_t> set_extruders = this->object_extruders(PrintObjectPtrs{obj});
-                        append(set_extruders, this->support_material_extruders());
-                        Flow        flow = this->brim_flow(set_extruders.empty() ? print_region(0).config().perimeter_extruder - 1 : *set_extruders.begin(), obj->config());
-                        //if complete objects
-                        if (config().complete_objects || config().parallel_objects_step.value > 0) {
-                            //don't consider other objects/instances, as they aren't colliding.
-                            brim_area.clear();
-                            const std::vector<PrintInstance> copies = obj->instances();
-                            obj->m_instances.clear();
-                            obj->m_instances.emplace_back();
-                            //create a brim "pattern" (one per object)
-                            if (brim_config.brim_width > 0) {
-                                if (brim_config.brim_ears)
-                                    make_brim_ears(*this, flow, { obj }, brim_area, obj->m_brim);
-                                else
-                                    make_brim(*this, flow, { obj }, brim_area, obj->m_brim);
-                            }
-                            if (brim_config.brim_width_interior > 0) {
-                                make_brim_interior(*this, flow, { obj }, brim_area, obj->m_brim);
-                            }
-                            make_brim_patch(*this, flow, obj->get_brim_patch(ModelVolumeType::BRIM_PATCH), brim_area, obj->m_brim);
-                            obj->m_instances = copies;
-                        } else {
-                            brim_area = union_ex(brim_area);
-                            // create a brim per instance
-                            const std::vector<PrintInstance> copies = obj->instances();
-                            for (const PrintInstance& instance : copies) {
-                                obj->m_instances.clear();
-                                obj->m_instances.push_back(instance);
-                                ExtrusionEntityCollection entity_brim;
-                                if (brim_config.brim_width > 0) {
-                                    if (brim_config.brim_ears)
-                                        make_brim_ears(*this, flow, { obj }, brim_area, entity_brim);
-                                    else
-                                        make_brim(*this, flow, { obj }, brim_area, entity_brim);
-                                }
-                                if (brim_config.brim_width_interior > 0) {
-                                    make_brim_interior(*this, flow, { obj }, brim_area, entity_brim);
-                                }
-                                make_brim_patch(*this, flow, obj->get_brim_patch(ModelVolumeType::BRIM_PATCH), brim_area, entity_brim);
-                                obj->m_brim.append(std::move(entity_brim));
-                            }
-                            obj->m_instances = copies;
-                        }
-                    }
-                } else {
-                    brim_area = union_ex(brim_area);
-                    //get the first extruder in the list for these objects... replicating gcode generation
-                    std::set<uint16_t> set_extruders = this->object_extruders();
-                    append(set_extruders, this->support_material_extruders());
-                    Flow        flow = this->brim_flow(set_extruders.empty() ? print_region(0).config().perimeter_extruder - 1 : *set_extruders.begin(), m_default_object_config);
-                    if (brim_config.brim_ears)
-                        make_brim_ears(*this, flow, obj_group, brim_area, m_brim);
-                    else
-                        make_brim(*this, flow, obj_group, brim_area, m_brim);
-                    DEBUG_TREE_VISIT(m_brim, LoopAssertVisitor())
-                    if (brim_config.brim_width_interior > 0)
-                        make_brim_interior(*this, flow, obj_group, brim_area, m_brim);
-                    // create patch brim per instance
-                    for (PrintObject *obj : obj_group) {
-                        // create a brim per instance
-                        for (const PrintInstance &instance : obj->instances()) {
-                            ExtrusionEntityCollection entity_brim;
-                            make_brim_patch(*this, flow, obj->get_brim_patch(ModelVolumeType::BRIM_PATCH, &instance), brim_area, entity_brim);
-                            obj->m_brim.append(std::move(entity_brim));
-                        }
-                    }
-                    DEBUG_TREE_VISIT(m_brim, LoopAssertVisitor())
-                }
-            }
-        }
-        // store brim hull (used for make_skirt... that is made before)
-        // m_first_layer_convex_hull is used to set the 'first_layer_print_min' placeholder in gcode macros
-        append(m_first_layer_convex_hull.points, to_points(brim_area));
-        this->finalize_first_layer_convex_hull();
+        /*
+        Brim is generated by STEP_SKIRT_BRIM plugins before this legacy skirt
+        pass runs. Rebuild the print hull from the first-layer islands, plugin
+        brim output, skirt and wipe-tower geometry so the old placeholders and
+        placement code keep seeing one complete first-layer envelope.
+        */
+        ApiInternal::PrintAccess::rebuild_first_layer_convex_hull_after_skirt_brim(*this);
 
         // everything should be extruded ccw, so only chajnge dir if cw is requested
         if (this->m_default_region_config.perimeter_direction.value == pdCW_CCW ||
@@ -1909,7 +1855,7 @@ void Print::_make_skirt_brim() {
                     object->m_skirt_first_layer->visit(visitor);
                 }
             }
-                // only global setting is useful for brim
+            // only global setting is useful for brim
             if (this->m_default_region_config.perimeter_direction.value == pdCW_CCW ||
                 this->m_default_region_config.perimeter_direction.value == pdCW_CW) {
                 ExtrusionDirectionSetter visitor(true);

@@ -73,6 +73,7 @@ static ConfigOptionType config_option_type(raw_config_option_type type)
     case RAW_CO_VECTOR_BOOL:             return coBools;
     case RAW_CO_VECTOR_INT:              return coInts;
     case RAW_CO_VECTOR_FLOAT:            return coFloats;
+    case RAW_CO_VECTOR_PERCENT:          return coPercents;
     case RAW_CO_VECTOR_FLOAT_OR_PERCENT: return coFloatsOrPercents;
     case RAW_CO_VECTOR_STRING:           return coStrings;
     case RAW_CO_VECTOR_POINT:            return coPoints;

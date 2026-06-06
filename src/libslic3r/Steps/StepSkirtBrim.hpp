@@ -17,12 +17,13 @@ class Print;
 namespace Steps::StepSkirtBrim {
 
 /*
-STEP_SKIRT_BRIM is the future plugin slot for first-layer adhesion geometry.
+STEP_SKIRT_BRIM runs first-layer adhesion plugins.
 
-The legacy skirt/brim generator still lives outside this step, so the current
-implementation is intentionally empty. Keeping a real step object in the
-pipeline lets config invalidation and future plugins target skirt/brim without
-pretending they depend on perimeter, infill or support generation.
+The step is a plugin chain, not one exclusive generator. A brim plugin and a
+future skirt plugin can both run in the same step, while each sub-feature may
+declare its own exclusive group for alternative implementations. The host owns
+the final Print/Object storage and exposes narrow callbacks so plugins can
+publish extrusion trees without reaching into private Print fields.
 */
 
 void clean_and_prepare(Print &print);

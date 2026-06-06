@@ -117,6 +117,37 @@ using namespace std::literals;
 
 namespace Slic3r {
 
+void append_extrusion_children_to_object_brim(ExtrusionEntityCollection &dst, ExtrusionEntity &src)
+{
+    if (src.is_nop())
+        return;
+
+    if (ExtrusionEntityCollection *collection = dynamic_cast<ExtrusionEntityCollection *>(&src)) {
+        /*
+        Most plugins use a plain collection as a transport box. Move those
+        children directly into the object brim. A collection with properties is
+        kept whole because the properties may describe all descendant paths.
+        */
+        if (collection->has_properties()) {
+            dst.append(std::move(src));
+            return;
+        }
+        dst.append_move_from(*collection);
+        return;
+    }
+
+    if (src.is_leaf()) {
+        dst.append(std::move(src));
+        return;
+    }
+
+    ExtrusionEntity::Children &children = src.children();
+    while (!children.empty()) {
+        dst.append(std::move(children.front()));
+        children.erase(children.begin());
+    }
+}
+
 static bool dont_support_bridges_or_default(const ConfigBase &config)
 {
     const ConfigOption *option = config.optptr("dont_support_bridges");
@@ -132,6 +163,22 @@ void ApiInternal::PrintObjectAccess::replace_layers_by_moving_contents(PrintObje
 {
     object.clear_layers();
     object.m_layers = std::move(new_layers);
+}
+
+PrintInstances &ApiInternal::PrintObjectAccess::mutable_instances(PrintObject &object)
+{
+    return object.m_instances;
+}
+
+ExtrusionEntityCollection &ApiInternal::PrintObjectAccess::mutable_brim(PrintObject &object)
+{
+    return object.m_brim;
+}
+
+bool ApiInternal::PrintObjectAccess::append_brim_move(PrintObject &object, ExtrusionEntity &extrusion)
+{
+    append_extrusion_children_to_object_brim(object.m_brim, extrusion);
+    return true;
 }
 
 #ifdef _DEBUG

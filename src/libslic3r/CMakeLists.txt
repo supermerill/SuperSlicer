@@ -80,6 +80,7 @@ set(SLIC3R_SOURCES
 	Api/internal/LayerAccess.hpp
 	Api/internal/LayerIslandAccess.hpp
 	Api/internal/LayerRegionAccess.hpp
+	Api/internal/PrintAccess.hpp
 	Api/internal/PrintObjectAccess.hpp
 	Api/plugin/c/slic3r_bridge_detector.h
 	Api/plugin/c/slic3r_clipper.h
@@ -142,6 +143,7 @@ set(SLIC3R_SOURCES
 	Api/plugin/cpp/PrintHelpers.cpp
 	Api/plugin/cpp/PrintHelpers.hpp
 	Api/plugin/cpp/RegionSettingsViews.hpp
+	Api/plugin/cpp/SkirtBrimStepViews.hpp
 	Api/plugin/cpp/VolumeViews.hpp
 	Api/plugin/cpp/Views.cpp
 	Api/plugin/cpp/Views.hpp
@@ -166,6 +168,8 @@ set(SLIC3R_SOURCES
 	Plugins/Ordering/DefaultOrdering.hpp
 	Plugins/Ordering/DefaultPlanBuilder.cpp
 	Plugins/Ordering/DefaultToolGroupOrdering.cpp
+	Plugins/SkirtBrim/DefaultBrimGenerator.cpp
+	Plugins/SkirtBrim/DefaultBrimGenerator.hpp
 	Plugins/VaseMultiIslandConnector.cpp
 	Plugins/VaseMultiIslandConnector.hpp
 	Plugins/Perimeter/ArachnePerimeterGenerator.cpp

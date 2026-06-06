@@ -55,6 +55,9 @@ struct ConflictResult;
 namespace Printing {
 struct PrintingPlan;
 }
+namespace ApiInternal {
+struct PrintAccess;
+}
 
 struct WipeTowerData
 {
@@ -420,6 +423,7 @@ private:
     //friend class GCodeProcessor;
     // Allow PrintObject to access m_mutex and m_cancel_callback.
     friend class PrintObject;
+    friend struct ApiInternal::PrintAccess;
 
     std::optional<ConflictResult> m_conflict_result;
 };

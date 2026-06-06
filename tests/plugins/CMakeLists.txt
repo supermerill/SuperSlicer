@@ -32,6 +32,7 @@ add_executable(${_TEST_NAME}_tests
     test_perimeter_simple_generator.cpp
     test_polyholes.cpp
     test_printing_plan.cpp
+    test_skirt_brim_default_generator.cpp
     test_step_pipeline_invalidation.cpp
     test_dense_infill.cpp
     test_support_demand_modifiers.cpp
