@@ -45,12 +45,14 @@ import ctypes
 from typing import Iterator
 
 from slic3r_api_generated import (
+    CLayerBrimProperty,
     CLayerSupportProperty,
     CFlow,
     CFloatOrPercent,
     CMatrix4d,
     CSurface,
     CTriangleIndices,
+    PLUGIN_PROPERTY_TYPE_LAYER_BRIM,
     PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT,
     RAW_SURFACE_TYPE_DENS_SOLID,
     RAW_SURFACE_TYPE_DENS_SPARSE,
@@ -126,6 +128,8 @@ def unscaled(value: int | float) -> float:
 
 CLayerSupportProperty.property_type = PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT
 LayerSupportProperty = CLayerSupportProperty
+CLayerBrimProperty.property_type = PLUGIN_PROPERTY_TYPE_LAYER_BRIM
+LayerBrimProperty = CLayerBrimProperty
 
 
 # Base for borrowed data-tree views. It never owns or frees the handle.

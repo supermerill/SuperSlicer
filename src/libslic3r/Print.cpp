@@ -1758,8 +1758,10 @@ void append_extrusion_children_to_collection(ExtrusionEntityCollection &dst, Ext
 void ApiInternal::PrintAccess::clear_brim(Print &print)
 {
     print.m_brim.clear();
-    for (PrintObjectUPtr &object : print.m_objects)
+    for (PrintObjectUPtr &object : print.m_objects) {
         ApiInternal::PrintObjectAccess::mutable_brim(*object).clear();
+        ApiInternal::PrintObjectAccess::clear_brim_auxiliary_layers(*object);
+    }
 }
 
 void ApiInternal::PrintAccess::clear_skirt(Print &print)

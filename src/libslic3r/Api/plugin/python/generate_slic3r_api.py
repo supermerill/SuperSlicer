@@ -126,6 +126,7 @@ CLASS_NAME_OVERRIDES = {
     "option_enum_def_t": "OptionEnumDef",
     "raw_config_option_def": "RawConfigOptionDef",
     "c_layer_support_property": "CLayerSupportProperty",
+    "c_layer_brim_property": "CLayerBrimProperty",
     "c_surface": "CSurface",
     "c_flow": "CFlow",
     "c_medial_axis_extrusion_params": "CMedialAxisExtrusionParams",

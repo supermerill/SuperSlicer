@@ -31,6 +31,18 @@ struct LayerSupportProperty : c_layer_support_property
 };
 
 /*
+Built-in brim marker for auxiliary layers.
+
+Object brim is stored in generic auxiliary Layers so later pipeline steps can
+read it like normal layer geometry. The property is a marker: the layer is brim
+when the payload exists, and ordinary auxiliary geometry otherwise.
+*/
+struct LayerBrimProperty : c_layer_brim_property
+{
+    static constexpr plugin_property_type property_type = PLUGIN_PROPERTY_TYPE_LAYER_BRIM;
+};
+
+/*
 Typed property payloads for plugin-controlled data-tree objects.
 
 PluginPropertyContainer is the metadata side channel for objects that are not

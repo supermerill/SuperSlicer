@@ -29,6 +29,7 @@ struct PrintObjectAccess
     static ExtrusionEntityCollection &mutable_brim(PrintObject &object);
     static ExtrusionEntityCollection &mutable_skirt(PrintObject &object);
     static std::optional<ExtrusionEntityCollection> &mutable_skirt_first_layer(PrintObject &object);
+    static void clear_brim_auxiliary_layers(PrintObject &object);
     static bool append_brim_move(PrintObject &object, ExtrusionEntity &extrusion);
     static bool append_skirt_move(PrintObject &object, ExtrusionEntity &extrusion);
     static bool append_skirt_first_layer_move(PrintObject &object, ExtrusionEntity &extrusion);

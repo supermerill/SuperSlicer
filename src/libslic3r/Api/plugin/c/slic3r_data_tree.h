@@ -37,6 +37,7 @@ typedef slic3r_property_type plugin_property_type;
 
 #define PLUGIN_PROPERTY_TYPE_INVALID ((plugin_property_type)SLIC3R_PROPERTY_TYPE_INVALID)
 #define PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT ((plugin_property_type)SLIC3R_PROPERTY_TYPE_LAYER_SUPPORT)
+#define PLUGIN_PROPERTY_TYPE_LAYER_BRIM ((plugin_property_type)SLIC3R_PROPERTY_TYPE_LAYER_BRIM)
 
 /*
 Built-in payload stored on auxiliary Layers that represent generated support.
@@ -51,6 +52,18 @@ typedef struct c_layer_support_property {
     uint32_t interface_id;
     uint32_t reserved;
 } c_layer_support_property;
+
+/*
+Built-in marker stored on auxiliary Layers that contain object-owned brim.
+
+The payload deliberately has no behavior fields. Its presence says that this
+auxiliary layer was created to host brim extrusions belonging to one object.
+The reserved field keeps the binary payload non-empty, which is required by the
+generic plugin-property backend.
+*/
+typedef struct c_layer_brim_property {
+    uint32_t reserved;
+} c_layer_brim_property;
 
 typedef struct c_curled_line
 {

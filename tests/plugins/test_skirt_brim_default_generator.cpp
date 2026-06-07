@@ -11,7 +11,9 @@
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/ExtrusionEntityCollection.hpp"
 #include "libslic3r/Layer.hpp"
+#include "libslic3r/LayerRegion.hpp"
 #include "libslic3r/Model.hpp"
+#include "libslic3r/PluginProperty.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/PrintObject.hpp"
@@ -188,6 +190,15 @@ double extrusion_tree_length_mm(const ExtrusionEntity &entity)
     return length;
 }
 
+std::vector<const Layer *> object_brim_auxiliary_layers(const PrintObject &object)
+{
+    std::vector<const Layer *> out;
+    for (const Layer &layer : object.auxiliary_layers())
+        if (layer.get_property<LayerBrimProperty>() != nullptr)
+            out.push_back(&layer);
+    return out;
+}
+
 } // namespace
 
 TEST_CASE("STEP_SKIRT_BRIM exposes a brim exclusive group but is not exclusive itself",
@@ -254,6 +265,7 @@ TEST_CASE("Default brim generator leaves output empty when brim is disabled", "[
     CHECK(prepared.print.brim().empty());
     REQUIRE(prepared.print.objects().size() == 1);
     CHECK(prepared.print.objects().front().brim().empty());
+    CHECK(object_brim_auxiliary_layers(prepared.print.objects().front()).empty());
 }
 
 TEST_CASE("Default brim generator creates global brim and expands the first-layer hull",
@@ -280,8 +292,25 @@ TEST_CASE("Default brim generator can publish object-owned brim", "[plugins][ski
 
     CHECK(prepared.print.brim().empty());
     REQUIRE(prepared.print.objects().size() == 1);
-    CHECK_FALSE(prepared.print.objects().front().brim().empty());
+    PrintObject &object = prepared.print.objects().front();
+    CHECK_FALSE(object.brim().empty());
     CHECK(hull_area_mm2(prepared.print) > first_layer_slice_area_mm2(prepared.print));
+
+    const std::vector<const Layer *> brim_layers = object_brim_auxiliary_layers(object);
+    REQUIRE(brim_layers.size() == 1);
+    const Layer &brim_layer = *brim_layers.front();
+    REQUIRE(brim_layer.get_property<LayerBrimProperty>() != nullptr);
+    CHECK(brim_layer.get_property<LayerSupportProperty>() == nullptr);
+    CHECK_FALSE(brim_layer.lslices().empty());
+    REQUIRE_FALSE(brim_layer.islands().empty());
+    REQUIRE_FALSE(brim_layer.island(0).regions_islands().empty());
+    const LayerRegionIsland &region_island = brim_layer.island(0).regions_island(0);
+    REQUIRE(region_island.has_extrusion(LayerRegionIsland::PERIMETERS));
+    CHECK_FALSE(region_island.extrusion(LayerRegionIsland::PERIMETERS).empty());
+
+    Steps::StepSkirtBrim::clean_and_prepare(prepared.print);
+    CHECK(object.brim().empty());
+    CHECK(object_brim_auxiliary_layers(object).empty());
 }
 
 TEST_CASE("Default skirt generator creates global skirt", "[plugins][skirt-brim]")

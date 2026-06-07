@@ -59,6 +59,7 @@
 #include "Point.hpp"
 #include "Polygon.hpp"
 #include "Polyline.hpp"
+#include "PluginProperty.hpp"
 #include "Print.hpp"
 #include "PrintBase.hpp"
 #include "PrintConfig.hpp"
@@ -183,6 +184,24 @@ ExtrusionEntityCollection &ApiInternal::PrintObjectAccess::mutable_skirt(PrintOb
 std::optional<ExtrusionEntityCollection> &ApiInternal::PrintObjectAccess::mutable_skirt_first_layer(PrintObject &object)
 {
     return object.m_skirt_first_layer;
+}
+
+void ApiInternal::PrintObjectAccess::clear_brim_auxiliary_layers(PrintObject &object)
+{
+    /*
+    Object brim is mirrored in m_brim for legacy readers, but its structured
+    storage is one or more auxiliary layers tagged with LayerBrimProperty.
+    Removing the tagged layers keeps unrelated auxiliary geometry, such as
+    support, intact.
+    */
+    LayerUPtrs &layers = object.mutable_auxiliary_layers();
+    layers.erase(std::remove_if(layers.begin(),
+                                layers.end(),
+                                [](const LayerUPtr &layer) {
+                                    return layer != nullptr &&
+                                           layer->get_property<LayerBrimProperty>() != nullptr;
+                                }),
+                 layers.end());
 }
 
 bool ApiInternal::PrintObjectAccess::append_brim_move(PrintObject &object, ExtrusionEntity &extrusion)

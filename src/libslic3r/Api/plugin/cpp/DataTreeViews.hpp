@@ -121,6 +121,11 @@ struct LayerSupportProperty : c_layer_support_property
     static constexpr plugin_property_type property_type = PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT;
 };
 
+struct LayerBrimProperty : c_layer_brim_property
+{
+    static constexpr plugin_property_type property_type = PLUGIN_PROPERTY_TYPE_LAYER_BRIM;
+};
+
 /*
 C++ convenience builder for raw_surface_type.
 

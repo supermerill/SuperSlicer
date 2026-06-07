@@ -201,10 +201,14 @@ TEST_CASE("Support auxiliary layers are recognized through the plugin data tree 
     CHECK(plugin_property_has(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT) == 0);
     CHECK(plugin_property_data_size(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT) == 0);
     CHECK(plugin_property_data(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT) == nullptr);
+    CHECK(plugin_property_has(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_BRIM) == 0);
+    CHECK(plugin_property_data_size(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_BRIM) == 0);
+    CHECK(plugin_property_data(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_BRIM) == nullptr);
 
     const slic3r_api::Object object_view(object_api_handle);
     REQUIRE(object_view.auxiliary_layer_count() == 1);
     CHECK(object_view.auxiliary_layer(0).properties().get<slic3r_api::LayerSupportProperty>() == nullptr);
+    CHECK(object_view.auxiliary_layer(0).properties().get<slic3r_api::LayerBrimProperty>() == nullptr);
 
     LayerSupportProperty &support_property = plain_layer.get_or_add_property<LayerSupportProperty>();
     support_property.interface_id = 17;
@@ -222,4 +226,17 @@ TEST_CASE("Support auxiliary layers are recognized through the plugin data tree 
         object_view.auxiliary_layer(0).properties().get<slic3r_api::LayerSupportProperty>();
     REQUIRE(view_support_property != nullptr);
     CHECK(view_support_property->interface_id == 17);
+
+    LayerBrimProperty &brim_property = plain_layer.get_or_add_property<LayerBrimProperty>();
+    brim_property.reserved = 0;
+    REQUIRE(plain_layer.get_property<LayerBrimProperty>() != nullptr);
+    CHECK(plugin_property_has(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_BRIM) != 0);
+    REQUIRE(plugin_property_data_size(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_BRIM) == sizeof(c_layer_brim_property));
+    const c_layer_brim_property *raw_brim_property =
+        static_cast<const c_layer_brim_property *>(plugin_property_data(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_BRIM));
+    REQUIRE(raw_brim_property != nullptr);
+
+    const slic3r_api::LayerBrimProperty *view_brim_property =
+        object_view.auxiliary_layer(0).properties().get<slic3r_api::LayerBrimProperty>();
+    REQUIRE(view_brim_property != nullptr);
 }
