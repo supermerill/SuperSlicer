@@ -13,9 +13,14 @@
 #include "libslic3r/Api/plugin/c/slic3r_config_def.h"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_skirt_brim.h"
+#include "libslic3r/Api/internal/PrintObjectAccess.hpp"
+#include "libslic3r/Api/plugin/cpp/AuxiliaryLayerHelpers.hpp"
 #include "libslic3r/Api/plugin/cpp/ClipperViews.hpp"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
 #include "libslic3r/Api/plugin/cpp/SkirtBrimStepViews.hpp"
+#include "libslic3r/ClipperUtils.hpp"
+#include "libslic3r/ExtrusionEntity.hpp"
+#include "libslic3r/PrintObject.hpp"
 
 /*
 Default brim/skirt trim
@@ -180,8 +185,129 @@ void append_trimmed_brim_tree(storage_handle *storage,
         append_trimmed_brim_tree(storage, entity.child(child_idx), trim_area, out);
 }
 
+Slic3r::PrintObject *native_object(const Object &object)
+{
+    return reinterpret_cast<Slic3r::PrintObject *>(const_cast<object_handle *>(object.handle()));
+}
+
+Slic3r::ExPolygons object_brim_subject_from_extrusion(const ExtrusionEntity &extrusion)
+{
+    /*
+    Auxiliary brim layers need an area subject, while the trimmed result is an
+    extrusion tree. Reuse the native cover computation here because the trim
+    plugin is built into the host and the API has no cover-by-width helper yet.
+    */
+    const Slic3r::ExtrusionEntity *native =
+        reinterpret_cast<const Slic3r::ExtrusionEntity *>(extrusion.handle());
+    Slic3r::Polygons coverage = native->polygons_covered_by_width(float(SCALED_EPSILON));
+    return coverage.empty() ? Slic3r::ExPolygons{} : Slic3r::union_ex(coverage);
+}
+
+void clear_object_brim_output(const Object &object)
+{
+    /*
+    The structured brim output is every auxiliary layer tagged LayerBrimProperty.
+    Iterate backwards so removing one layer cannot change the index of layers
+    that still need to be inspected.
+    */
+    for (uint32_t idx = object.auxiliary_layer_count(); idx > 0; --idx) {
+        const Layer layer = object.auxiliary_layer(idx - 1);
+        if (layer.properties().get<LayerBrimProperty>() != nullptr)
+            object.remove_auxiliary_layer(layer);
+    }
+
+    /*
+    m_brim is only a compatibility mirror. Keep it synchronized until all
+    legacy readers consume object-brim auxiliary layers directly.
+    */
+    Slic3r::PrintObject *native = native_object(object);
+    if (native != nullptr)
+        Slic3r::ApiInternal::PrintObjectAccess::mutable_brim(*native).clear();
+}
+
+bool publish_object_brim(storage_handle *storage,
+                         orchestrator_handle *orchestrator,
+                         const Print &print,
+                         const Object &object,
+                         StoredExtrusionEntity &brim)
+{
+    if (storage == nullptr || brim.empty() || object.layer_count() == 0)
+        return false;
+
+    Slic3r::ExPolygons subject = object_brim_subject_from_extrusion(brim.readonly());
+    if (subject.empty())
+        return false;
+
+    const Layer first_layer = object.layer(0);
+    const ExPolygonCollection subject_view(reinterpret_cast<const expolygon_collection_handle *>(&subject));
+
+    /*
+    Build a normal auxiliary Layer from the clipped brim footprint. Region
+    masks are applied by the shared helper, so the layer can later participate
+    in ordering and preview like any other generated layer.
+    */
+    AuxiliaryLayerBuildResult result =
+        build_auxiliary_layer_regions_from_subject(storage,
+                                                   print,
+                                                   object,
+                                                   subject_view,
+                                                   first_layer.height(),
+                                                   first_layer.print_z(),
+                                                   first_layer.slice_z());
+    if (!result.created)
+        return false;
+
+    LayerBrimProperty &property = result.layer.properties().get_or_add<LayerBrimProperty>(orchestrator);
+    property.reserved = 0;
+
+    if (result.layer.island_count() == 0) {
+        object.remove_auxiliary_layer(result.layer);
+        return false;
+    }
+
+    layer_region_island_handle *region_island =
+        layer_island_get_or_create_region_island(
+            const_cast<layer_island_handle *>(result.layer.island(0).handle()),
+            nullptr,
+            0,
+            -1);
+    if (region_island == nullptr) {
+        object.remove_auxiliary_layer(result.layer);
+        return false;
+    }
+
+    extrusion_entity_handle *root =
+        layer_region_island_get_mutable_extrusion(region_island, RAW_EXTRUSION_ROLE_PERIMETER);
+    if (root == nullptr) {
+        object.remove_auxiliary_layer(result.layer);
+        return false;
+    }
+
+    /*
+    Clone for the mirror before moving the structured output into the layer.
+    The mirror clone is storage-owned, but PrintObjectAccess moves only its
+    content, so the temporary handle can still be freed safely afterwards.
+    */
+    StoredExtrusionEntity legacy_mirror(storage, brim.readonly());
+    const uint32_t inserted =
+        MutableExtrusionEntity(root).append_child_move(brim.mutable_view());
+    if (is_invalid_index(inserted)) {
+        object.remove_auxiliary_layer(result.layer);
+        return false;
+    }
+
+    Slic3r::PrintObject *native = native_object(object);
+    if (native == nullptr)
+        return false;
+    return Slic3r::ApiInternal::PrintObjectAccess::append_brim_move(
+        *native,
+        *reinterpret_cast<Slic3r::ExtrusionEntity *>(legacy_mirror.mutable_handle()));
+}
+
 bool trim_print_brim(storage_handle *storage,
+                     orchestrator_handle *orchestrator,
                      const SkirtBrimStep &step,
+                     const Print &print,
                      const ExtrusionEntity &brim,
                      const ExtrusionEntity &skirt,
                      const Object *object)
@@ -206,14 +332,13 @@ bool trim_print_brim(storage_handle *storage,
         return true;
     }
 
-    if (!step.clear_object_brim(*object))
-        throw std::runtime_error("Default brim/skirt trim could not clear object brim.");
-    if (!trimmed.empty() && !step.append_object_brim_move(*object, trimmed))
+    clear_object_brim_output(*object);
+    if (!trimmed.empty() && !publish_object_brim(storage, orchestrator, print, *object, trimmed))
         throw std::runtime_error("Default brim/skirt trim could not publish object brim.");
     return true;
 }
 
-void trim_brim_against_skirt(const plugin_run_context *run_ctx)
+void trim_brim_against_skirt(const plugin_run_context *run_ctx, orchestrator_handle *orchestrator)
 {
     const run_ctx_skirt_brim *ctx = plugin_ctx_as_skirt_brim(run_ctx);
     if (ctx == nullptr || ctx->print == nullptr)
@@ -227,13 +352,13 @@ void trim_brim_against_skirt(const plugin_run_context *run_ctx)
         return;
 
     storage_handle *storage = run_ctx->plugin_storage;
-    trim_print_brim(storage, step, step.brim(), step.skirt(), nullptr);
+    trim_print_brim(storage, orchestrator, step, print, step.brim(), step.skirt(), nullptr);
 
     for (uint32_t object_idx = 0; object_idx < print.object_count(); ++object_idx) {
         const Object object = print.object(object_idx);
         const ExtrusionEntity object_skirt = step.object_skirt(object);
         const ExtrusionEntity skirt = object_skirt.empty() ? step.skirt() : object_skirt;
-        trim_print_brim(storage, step, step.object_brim(object), skirt, &object);
+        trim_print_brim(storage, orchestrator, step, print, step.object_brim(object), skirt, &object);
     }
 }
 
@@ -312,7 +437,7 @@ private:
 
     void run_impl(const plugin_run_context *run_ctx) const override
     {
-        trim_brim_against_skirt(run_ctx);
+        trim_brim_against_skirt(run_ctx, m_orchestrator);
     }
 };
 

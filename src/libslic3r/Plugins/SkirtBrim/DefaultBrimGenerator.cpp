@@ -15,6 +15,8 @@
 
 #include "libslic3r/Api/internal/PrintObjectAccess.hpp"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_skirt_brim.h"
+#include "libslic3r/Api/plugin/cpp/AuxiliaryLayerHelpers.hpp"
+#include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
 #include "libslic3r/Brim.hpp"
 #include "libslic3r/ClipperUtils.hpp"
@@ -122,7 +124,7 @@ bool has_brim_patch(const PrintObject &object, ModelVolumeType brim_type);
 bool has_brim_patch(const std::vector<PrintObject *> &objects, ModelVolumeType brim_type);
 
 // Group objects whose brim-affecting settings are identical.
-std::vector<std::vector<PrintObject *>> group_objects_by_brim_settings(Print &print, bool &brim_per_object);
+std::vector<std::vector<PrintObject *>> group_objects_by_brim_settings(Slic3r::Print &print, bool &brim_per_object);
 
 // Compare the optional first-layer extrusion width setting for grouping.
 bool same_first_layer_extrusion_width(const PrintObjectConfig &lhs, const PrintObjectConfig &rhs);
@@ -134,14 +136,17 @@ bool same_brim_group_settings(const PrintObjectConfig &lhs, const PrintObjectCon
 ExPolygons initial_unbrimmable_area(const std::vector<std::vector<PrintObject *>> &object_groups,
                                     bool brim_per_object);
 
+// Convert centerline brim extrusions into the 2D subject owned by the auxiliary layer.
+ExPolygons object_brim_subject_from_extrusion(const Slic3r::ExtrusionEntity &extrusion);
+
 // Select the extrusion flow used by per-object brim generation.
-Flow brim_flow_for_object(const Print &print, const PrintObject &object);
+Flow brim_flow_for_object(const Slic3r::Print &print, const PrintObject &object);
 
 // Select the extrusion flow used by global brim generation.
-Flow brim_flow_for_print(const Print &print);
+Flow brim_flow_for_print(const Slic3r::Print &print);
 
 // Add the configured outer, interior and patch brim into one temporary output collection.
-void generate_brim_for_objects(const Print &print,
+void generate_brim_for_objects(const Slic3r::Print &print,
                                const Flow &flow,
                                const PrintObjectPtrs &objects,
                                ExPolygons &unbrimmable_area,
@@ -150,23 +155,40 @@ void generate_brim_for_objects(const Print &print,
 // Publish a temporary collection into Print::m_brim through the step callback.
 void publish_global_brim(const run_ctx_skirt_brim &ctx, ExtrusionEntityCollection &brim);
 
-// Publish a temporary collection into PrintObject::m_brim through the step callback.
-void publish_object_brim(const run_ctx_skirt_brim &ctx, PrintObject &object, ExtrusionEntityCollection &brim);
+// Publish object-owned brim into an auxiliary layer and keep the legacy mirror synchronized.
+void publish_object_brim(storage_handle *storage,
+                         orchestrator_handle *orchestrator,
+                         Slic3r::Print &print,
+                         PrintObject &object,
+                         ExtrusionEntityCollection &brim);
+
+// Move one object-owned brim root into a freshly built LayerRegionIsland.
+bool publish_object_brim_to_auxiliary_layer(storage_handle *storage,
+                                            orchestrator_handle *orchestrator,
+                                            Slic3r::Print &print,
+                                            PrintObject &object,
+                                            Slic3r::ExtrusionEntity &brim);
 
 // Generate the object-owned branch used when brim_per_object is enabled.
-void generate_per_object_brim(const run_ctx_skirt_brim &ctx,
-                              Print &print,
+void generate_per_object_brim(storage_handle *storage,
+                              orchestrator_handle *orchestrator,
+                              Slic3r::Print &print,
                               PrintObject &object,
                               ExPolygons &unbrimmable_area);
 
 // Generate the print-owned branch used when compatible objects share one global brim.
-void generate_global_brim(const run_ctx_skirt_brim &ctx,
-                          Print &print,
+void generate_global_brim(storage_handle *storage,
+                          orchestrator_handle *orchestrator,
+                          const run_ctx_skirt_brim &ctx,
+                          Slic3r::Print &print,
                           const std::vector<PrintObject *> &object_group,
                           ExPolygons &unbrimmable_area);
 
 // Generate all brim groups for one print.
-void generate_default_brim(const run_ctx_skirt_brim &ctx, Print &print);
+void generate_default_brim(storage_handle *storage,
+                           orchestrator_handle *orchestrator,
+                           const run_ctx_skirt_brim &ctx,
+                           Slic3r::Print &print);
 
 TemporaryObjectInstances::TemporaryObjectInstances(PrintObject &object) :
     m_object(object),
@@ -211,7 +233,7 @@ bool has_brim_patch(const std::vector<PrintObject *> &objects, const ModelVolume
     return false;
 }
 
-std::vector<std::vector<PrintObject *>> group_objects_by_brim_settings(Print &print, bool &brim_per_object)
+std::vector<std::vector<PrintObject *>> group_objects_by_brim_settings(Slic3r::Print &print, bool &brim_per_object)
 {
     std::vector<std::vector<PrintObject *>> object_groups;
     brim_per_object = false;
@@ -286,7 +308,7 @@ ExPolygons initial_unbrimmable_area(const std::vector<std::vector<PrintObject *>
             if (object == nullptr)
                 continue;
             if (object->layer_count() > 0) {
-                const Layer &first_layer = object->layers().front();
+                const Slic3r::Layer &first_layer = object->layers().front();
                 for (const PrintInstance &instance : object->instances()) {
                     const size_t first_idx = brim_area.size();
                     brim_area.insert(brim_area.end(), first_layer.lslices().begin(), first_layer.lslices().end());
@@ -300,8 +322,8 @@ ExPolygons initial_unbrimmable_area(const std::vector<std::vector<PrintObject *>
             must keep away from them even though they are not real object slices.
             */
             if (has_brim_patch(*object, ModelVolumeType::BRIM_NEGATIVE)) {
-                for (Polygon &polygon : object->get_brim_patch(ModelVolumeType::BRIM_NEGATIVE))
-                    brim_area.push_back(ExPolygon(std::move(polygon)));
+                for (Slic3r::Polygon &polygon : object->get_brim_patch(ModelVolumeType::BRIM_NEGATIVE))
+                    brim_area.push_back(Slic3r::ExPolygon(std::move(polygon)));
             }
         }
     }
@@ -309,7 +331,19 @@ ExPolygons initial_unbrimmable_area(const std::vector<std::vector<PrintObject *>
     return brim_area;
 }
 
-Flow brim_flow_for_object(const Print &print, const PrintObject &object)
+ExPolygons object_brim_subject_from_extrusion(const Slic3r::ExtrusionEntity &extrusion)
+{
+    /*
+    Brim paths are stored as centerlines, but auxiliary layers own printable
+    area. Inflate every leaf by the width carried in its extrusion attributes,
+    then union the polygons so region/island reconstruction receives a clean
+    subject instead of a set of overlapping path covers.
+    */
+    Polygons coverage = extrusion.polygons_covered_by_width(float(SCALED_EPSILON));
+    return coverage.empty() ? ExPolygons{} : union_ex(coverage);
+}
+
+Flow brim_flow_for_object(const Slic3r::Print &print, const PrintObject &object)
 {
     std::set<uint16_t> extruders = print.object_extruders(PrintObjectPtrs{ const_cast<PrintObject *>(&object) });
     append(extruders, print.support_material_extruders());
@@ -318,7 +352,7 @@ Flow brim_flow_for_object(const Print &print, const PrintObject &object)
     return print.brim_flow(extruder_id, object.config());
 }
 
-Flow brim_flow_for_print(const Print &print)
+Flow brim_flow_for_print(const Slic3r::Print &print)
 {
     std::set<uint16_t> extruders = print.object_extruders();
     append(extruders, print.support_material_extruders());
@@ -327,7 +361,7 @@ Flow brim_flow_for_print(const Print &print)
     return print.brim_flow(extruder_id, print.default_object_config());
 }
 
-void generate_brim_for_objects(const Print &print,
+void generate_brim_for_objects(const Slic3r::Print &print,
                                const Flow &flow,
                                const PrintObjectPtrs &objects,
                                ExPolygons &unbrimmable_area,
@@ -357,19 +391,102 @@ void publish_global_brim(const run_ctx_skirt_brim &ctx, ExtrusionEntityCollectio
         throw RuntimeError("Default brim generator could not publish global brim.");
 }
 
-void publish_object_brim(const run_ctx_skirt_brim &ctx, PrintObject &object, ExtrusionEntityCollection &brim)
+void publish_object_brim(storage_handle *storage,
+                         orchestrator_handle *orchestrator,
+                         Slic3r::Print &print,
+                         PrintObject &object,
+                         ExtrusionEntityCollection &brim)
 {
     if (brim.empty())
         return;
-    assert(ctx.append_object_brim_move != nullptr);
-    if (ctx.append_object_brim_move == nullptr ||
-        ctx.append_object_brim_move(reinterpret_cast<object_handle *>(&object),
-                                    reinterpret_cast<extrusion_entity_handle *>(&brim)) == 0)
-        throw RuntimeError("Default brim generator could not publish object brim.");
+
+    /*
+    The auxiliary layer is now the structured output. m_brim is kept as a
+    deprecated mirror for legacy G-code, preview and the current skirt reader,
+    so clone before moving the real tree into the layer.
+    */
+    ExtrusionEntityUPtr legacy_mirror(brim.clone());
+    if (!publish_object_brim_to_auxiliary_layer(storage, orchestrator, print, object, brim))
+        throw RuntimeError("Default brim generator could not publish object brim auxiliary layer.");
+    if (!ApiInternal::PrintObjectAccess::append_brim_move(object, *legacy_mirror))
+        throw RuntimeError("Default brim generator could not update object brim compatibility mirror.");
 }
 
-void generate_per_object_brim(const run_ctx_skirt_brim &ctx,
-                              Print &print,
+bool publish_object_brim_to_auxiliary_layer(storage_handle *storage,
+                                            orchestrator_handle *orchestrator,
+                                            Slic3r::Print &print,
+                                            PrintObject &object,
+                                            Slic3r::ExtrusionEntity &brim)
+{
+    if (storage == nullptr || brim.empty() || object.layer_count() == 0)
+        return false;
+
+    ExPolygons subject = object_brim_subject_from_extrusion(brim);
+    if (subject.empty())
+        return false;
+
+    const Slic3r::Layer &first_layer = object.layer(0);
+    const slic3r_api::Print print_view(reinterpret_cast<const print_handle *>(&print));
+    const slic3r_api::Object object_view(reinterpret_cast<const object_handle *>(&object));
+    const slic3r_api::ExPolygonCollection subject_view(
+        reinterpret_cast<const expolygon_collection_handle *>(&subject));
+
+    /*
+    AuxiliaryLayerHelpers applies the object's region masks to this already-2D
+    brim subject, rebuilds layer slices/islands, and leaves an ordinary Layer
+    ready to receive extrusion roots.
+    */
+    AuxiliaryLayerBuildResult result =
+        build_auxiliary_layer_regions_from_subject(storage,
+                                                   print_view,
+                                                   object_view,
+                                                   subject_view,
+                                                   first_layer.scaled_height(),
+                                                   first_layer.scaled_print_z(),
+                                                   scale_to_layer_coord(first_layer.slice_z));
+    if (!result.created)
+        return false;
+
+    slic3r_api::LayerBrimProperty &property =
+        result.layer.properties().get_or_add<slic3r_api::LayerBrimProperty>(orchestrator);
+    property.reserved = 0;
+
+    if (result.layer.island_count() == 0) {
+        object_view.remove_auxiliary_layer(result.layer);
+        return false;
+    }
+
+    layer_region_island_handle *region_island =
+        layer_island_get_or_create_region_island(
+            const_cast<layer_island_handle *>(result.layer.island(0).handle()),
+            nullptr,
+            0,
+            -1);
+    if (region_island == nullptr) {
+        object_view.remove_auxiliary_layer(result.layer);
+        return false;
+    }
+
+    extrusion_entity_handle *root =
+        layer_region_island_get_mutable_extrusion(region_island, RAW_EXTRUSION_ROLE_PERIMETER);
+    if (root == nullptr) {
+        object_view.remove_auxiliary_layer(result.layer);
+        return false;
+    }
+
+    const uint32_t inserted =
+        slic3r_api::MutableExtrusionEntity(root).append_child_move(
+            slic3r_api::MutableExtrusionEntity(reinterpret_cast<extrusion_entity_handle *>(&brim)));
+    if (slic3r_api::is_invalid_index(inserted)) {
+        object_view.remove_auxiliary_layer(result.layer);
+        return false;
+    }
+    return true;
+}
+
+void generate_per_object_brim(storage_handle *storage,
+                              orchestrator_handle *orchestrator,
+                              Slic3r::Print &print,
                               PrintObject &object,
                               ExPolygons &unbrimmable_area)
 {
@@ -389,7 +506,7 @@ void generate_per_object_brim(const run_ctx_skirt_brim &ctx,
         generate_brim_for_objects(print, flow, PrintObjectPtrs{ &object }, local_unbrimmable_area, object_brim);
         make_brim_patch(
             print, flow, object.get_brim_patch(ModelVolumeType::BRIM_PATCH), local_unbrimmable_area, object_brim);
-        publish_object_brim(ctx, object, object_brim);
+        publish_object_brim(storage, orchestrator, print, object, object_brim);
         return;
     }
 
@@ -400,7 +517,7 @@ void generate_per_object_brim(const run_ctx_skirt_brim &ctx,
     /*
     In normal multi-object mode, every copy lives in bed coordinates and must
     avoid every other occupied area. Generate one temporary tree per copy, then
-    append it to the object brim root through the callback.
+    publish it as an object-owned auxiliary brim layer plus legacy mirror.
     */
     for (const PrintInstance &instance : copies) {
         instances_guard.set_single_instance(instance);
@@ -408,12 +525,14 @@ void generate_per_object_brim(const run_ctx_skirt_brim &ctx,
         generate_brim_for_objects(print, flow, PrintObjectPtrs{ &object }, unbrimmable_area, entity_brim);
         make_brim_patch(
             print, flow, object.get_brim_patch(ModelVolumeType::BRIM_PATCH), unbrimmable_area, entity_brim);
-        publish_object_brim(ctx, object, entity_brim);
+        publish_object_brim(storage, orchestrator, print, object, entity_brim);
     }
 }
 
-void generate_global_brim(const run_ctx_skirt_brim &ctx,
-                          Print &print,
+void generate_global_brim(storage_handle *storage,
+                          orchestrator_handle *orchestrator,
+                          const run_ctx_skirt_brim &ctx,
+                          Slic3r::Print &print,
                           const std::vector<PrintObject *> &object_group,
                           ExPolygons &unbrimmable_area)
 {
@@ -436,12 +555,15 @@ void generate_global_brim(const run_ctx_skirt_brim &ctx,
             ExtrusionEntityCollection patch_brim;
             make_brim_patch(
                 print, flow, object->get_brim_patch(ModelVolumeType::BRIM_PATCH, &instance), unbrimmable_area, patch_brim);
-            publish_object_brim(ctx, *object, patch_brim);
+            publish_object_brim(storage, orchestrator, print, *object, patch_brim);
         }
     }
 }
 
-void generate_default_brim(const run_ctx_skirt_brim &ctx, Print &print)
+void generate_default_brim(storage_handle *storage,
+                           orchestrator_handle *orchestrator,
+                           const run_ctx_skirt_brim &ctx,
+                           Slic3r::Print &print)
 {
     bool brim_per_object = false;
     std::vector<std::vector<PrintObject *>> object_groups =
@@ -462,10 +584,10 @@ void generate_default_brim(const run_ctx_skirt_brim &ctx, Print &print)
             for (PrintObject *object : object_group) {
                 assert(object != nullptr);
                 if (object != nullptr)
-                    generate_per_object_brim(ctx, print, *object, unbrimmable_area);
+                    generate_per_object_brim(storage, orchestrator, print, *object, unbrimmable_area);
             }
         } else {
-            generate_global_brim(ctx, print, object_group, unbrimmable_area);
+            generate_global_brim(storage, orchestrator, ctx, print, object_group, unbrimmable_area);
         }
     }
 }
@@ -515,7 +637,11 @@ private:
         if (ctx == nullptr || ctx->print == nullptr)
             return;
 
-        generate_default_brim(*ctx, *reinterpret_cast<Print *>(ctx->print));
+        generate_default_brim(
+            run_ctx->plugin_storage,
+            m_orchestrator,
+            *ctx,
+            *reinterpret_cast<Slic3r::Print *>(ctx->print));
     }
 };
 

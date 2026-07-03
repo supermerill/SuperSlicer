@@ -33,13 +33,10 @@ points when it creates skirt geometry; it does not need to rebuild the whole
 print hull itself.
 */
 typedef int32_t (*skirt_brim_clear_brim_fn)(print_handle *print);
-typedef int32_t (*skirt_brim_clear_object_brim_fn)(object_handle *object);
 typedef int32_t (*skirt_brim_clear_skirt_fn)(print_handle *print);
 typedef int32_t (*skirt_brim_clear_object_skirt_fn)(object_handle *object);
 typedef int32_t (*skirt_brim_append_brim_move_fn)(print_handle *print,
                                                   extrusion_entity_handle *extrusion);
-typedef int32_t (*skirt_brim_append_object_brim_move_fn)(object_handle *object,
-                                                         extrusion_entity_handle *extrusion);
 typedef int32_t (*skirt_brim_append_skirt_move_fn)(print_handle *print,
                                                    extrusion_entity_handle *extrusion);
 typedef int32_t (*skirt_brim_append_object_skirt_move_fn)(object_handle *object,
@@ -58,11 +55,9 @@ typedef struct run_ctx_skirt_brim {
     print_handle *print;
 
     skirt_brim_clear_brim_fn clear_brim;
-    skirt_brim_clear_object_brim_fn clear_object_brim;
     skirt_brim_clear_skirt_fn clear_skirt;
     skirt_brim_clear_object_skirt_fn clear_object_skirt;
     skirt_brim_append_brim_move_fn append_brim_move;
-    skirt_brim_append_object_brim_move_fn append_object_brim_move;
     skirt_brim_append_skirt_move_fn append_skirt_move;
     skirt_brim_append_object_skirt_move_fn append_object_skirt_move;
     skirt_brim_append_skirt_first_layer_move_fn append_skirt_first_layer_move;

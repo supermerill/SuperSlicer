@@ -125,6 +125,9 @@ void append_points_from_polygon(std::vector<c_point> &points, const Polygon &pol
 // Add every point from an extrusion tree; empty optional trees are ignored.
 void append_points_from_extrusion(std::vector<c_point> &points, const ExtrusionEntity &entity);
 
+// Prefer structured object-brim auxiliary layers and return whether any brim points were found.
+bool append_points_from_object_brim_auxiliary_layers(std::vector<c_point> &points, const Object &object);
+
 // Collect object/support/brim points in object-local coordinates.
 void collect_object_local_hull_points(std::vector<c_point> &object_points,
                                       storage_handle *storage,
@@ -297,6 +300,36 @@ void append_points_from_extrusion(std::vector<c_point> &points, const ExtrusionE
     points.insert(points.end(), extrusion_points.begin(), extrusion_points.end());
 }
 
+bool append_points_from_object_brim_auxiliary_layers(std::vector<c_point> &points, const Object &object)
+{
+    bool found = false;
+    for (uint32_t layer_idx = 0; layer_idx < object.auxiliary_layer_count(); ++layer_idx) {
+        const Layer layer = object.auxiliary_layer(layer_idx);
+        if (layer.properties().get<LayerBrimProperty>() == nullptr)
+            continue;
+
+        /*
+        Object brim is now stored as normal perimeter-bucket extrusions inside
+        auxiliary layer region-islands. Reading that tree keeps the skirt hull
+        tied to the structured output instead of the temporary m_brim mirror.
+        */
+        for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx) {
+            const LayerIsland island = layer.island(island_idx);
+            for (uint32_t region_island_idx = 0; region_island_idx < island.region_island_count();
+                 ++region_island_idx) {
+                const LayerRegionIsland region_island = island.region_island(region_island_idx);
+                if (!region_island.has_extrusion(RAW_EXTRUSION_ROLE_PERIMETER))
+                    continue;
+                append_points_from_extrusion(
+                    points,
+                    ExtrusionEntity(region_island.extrusion(RAW_EXTRUSION_ROLE_PERIMETER)));
+                found = true;
+            }
+        }
+    }
+    return found;
+}
+
 void collect_object_local_hull_points(std::vector<c_point> &object_points,
                                       storage_handle *storage,
                                       const SkirtBrimStep &step,
@@ -333,7 +366,8 @@ void collect_object_local_hull_points(std::vector<c_point> &object_points,
     }
 
     if (print.config().get("skirt_distance_from_brim").get_bool()) {
-        append_points_from_extrusion(object_points, step.object_brim(object));
+        if (!append_points_from_object_brim_auxiliary_layers(object_points, object))
+            append_points_from_extrusion(object_points, step.object_brim(object));
 
         /*
         In object-local mode, old brim patches are now represented by the brim
@@ -408,8 +442,11 @@ StoredPolygon collect_print_hull(storage_handle *storage,
 
     if (print_config.get("draft_shield").get_int() == 0 || print_config.get("skirt_distance_from_brim").get_bool()) {
         append_points_from_extrusion(points, step.brim());
-        for (uint32_t object_idx = 0; object_idx < print.object_count(); ++object_idx)
-            append_points_from_extrusion(points, step.object_brim(print.object(object_idx)));
+        for (uint32_t object_idx = 0; object_idx < print.object_count(); ++object_idx) {
+            const Object object = print.object(object_idx);
+            if (!append_points_from_object_brim_auxiliary_layers(points, object))
+                append_points_from_extrusion(points, step.object_brim(object));
+        }
     }
 
     StoredPolygon point_cloud(storage);

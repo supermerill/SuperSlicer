@@ -47,12 +47,6 @@ public:
         return m_ctx->clear_brim(m_ctx->print) != 0;
     }
 
-    bool clear_object_brim(const Object &object) const
-    {
-        assert(m_ctx->clear_object_brim != nullptr);
-        return m_ctx->clear_object_brim(const_cast<object_handle *>(object.handle())) != 0;
-    }
-
     bool clear_skirt() const
     {
         assert(m_ctx->clear_skirt != nullptr);
@@ -112,14 +106,6 @@ public:
     {
         assert(m_ctx->append_brim_move != nullptr);
         return m_ctx->append_brim_move(m_ctx->print, extrusion.mutable_handle()) != 0;
-    }
-
-    bool append_object_brim_move(const Object &object, StoredExtrusionEntity &extrusion) const
-    {
-        assert(m_ctx->append_object_brim_move != nullptr);
-        return m_ctx->append_object_brim_move(
-            const_cast<object_handle *>(object.handle()),
-            extrusion.mutable_handle()) != 0;
     }
 
     bool append_skirt_move(StoredExtrusionEntity &extrusion) const
