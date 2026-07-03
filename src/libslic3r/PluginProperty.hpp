@@ -43,6 +43,18 @@ struct LayerBrimProperty : c_layer_brim_property
 };
 
 /*
+Built-in adhesion marker for auxiliary layers.
+
+Brim and skirt are both first-layer adhesion helpers. New code should prefer
+this generic property over feature-specific layer tags so one layer scan can
+classify every adhesion layer by kind and flags.
+*/
+struct LayerAdhesionProperty : c_layer_adhesion_property
+{
+    static constexpr plugin_property_type property_type = PLUGIN_PROPERTY_TYPE_LAYER_ADHESION;
+};
+
+/*
 Typed property payloads for plugin-controlled data-tree objects.
 
 PluginPropertyContainer is the metadata side channel for objects that are not

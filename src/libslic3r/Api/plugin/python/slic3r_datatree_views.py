@@ -45,6 +45,7 @@ import ctypes
 from typing import Iterator, Sequence
 
 from slic3r_api_generated import (
+    CLayerAdhesionProperty,
     CLayerBrimProperty,
     CLayerSupportProperty,
     CFlow,
@@ -52,6 +53,7 @@ from slic3r_api_generated import (
     CMatrix4d,
     CSurface,
     CTriangleIndices,
+    PLUGIN_PROPERTY_TYPE_LAYER_ADHESION,
     PLUGIN_PROPERTY_TYPE_LAYER_BRIM,
     PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT,
     RAW_SURFACE_TYPE_DENS_SOLID,
@@ -130,6 +132,8 @@ CLayerSupportProperty.property_type = PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT
 LayerSupportProperty = CLayerSupportProperty
 CLayerBrimProperty.property_type = PLUGIN_PROPERTY_TYPE_LAYER_BRIM
 LayerBrimProperty = CLayerBrimProperty
+CLayerAdhesionProperty.property_type = PLUGIN_PROPERTY_TYPE_LAYER_ADHESION
+LayerAdhesionProperty = CLayerAdhesionProperty
 
 
 # Base for borrowed data-tree views. It never owns or frees the handle.

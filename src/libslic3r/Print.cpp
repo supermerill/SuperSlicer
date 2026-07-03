@@ -59,6 +59,7 @@
 #include "GCode/WipeTower2.hpp"
 #include "Geometry/ConvexHull.hpp"
 #include "I18N.hpp"
+#include "PluginProperty.hpp"
 #include "PrintObject.hpp"
 #include "PrintObjectRegion.hpp"
 #include "PrintRegion.hpp"
@@ -703,6 +704,111 @@ std::vector<ObjectID> Print::print_object_ids() const
     return out;
 }
 
+static bool layer_has_adhesion_kind(const Layer &layer, const raw_layer_adhesion_kind kind)
+{
+    const LayerAdhesionProperty *adhesion = layer.get_property<LayerAdhesionProperty>();
+    if (adhesion != nullptr)
+        return adhesion->kind == kind;
+    return kind == RAW_LAYER_ADHESION_KIND_BRIM &&
+           layer.get_property<LayerBrimProperty>() != nullptr;
+}
+
+static bool layer_has_normal_skirt(const Layer &layer)
+{
+    const LayerAdhesionProperty *adhesion = layer.get_property<LayerAdhesionProperty>();
+    return adhesion != nullptr &&
+           adhesion->kind == RAW_LAYER_ADHESION_KIND_SKIRT &&
+           (adhesion->flags & RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY) == 0;
+}
+
+static bool layer_has_skirt_first_layer_only(const Layer &layer)
+{
+    const LayerAdhesionProperty *adhesion = layer.get_property<LayerAdhesionProperty>();
+    return adhesion != nullptr &&
+           adhesion->kind == RAW_LAYER_ADHESION_KIND_SKIRT &&
+           (adhesion->flags & RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY) != 0;
+}
+
+static void append_adhesion_extrusion_copy(ExtrusionEntityCollection &dst, const ExtrusionEntity &src)
+{
+    if (src.is_nop())
+        return;
+
+    if (const ExtrusionEntityCollection *collection = dynamic_cast<const ExtrusionEntityCollection *>(&src)) {
+        /*
+        Compatibility collections should look like the old direct m_brim/m_skirt
+        storage. A plain transport collection is flattened by one level; a
+        property-bearing collection stays whole because its children inherit
+        those properties.
+        */
+        if (collection->has_properties()) {
+            dst.append(src);
+            return;
+        }
+        for (const ExtrusionEntity *child : collection->entities())
+            dst.append(*child);
+        return;
+    }
+
+    if (src.is_leaf()) {
+        dst.append(src);
+        return;
+    }
+
+    for (const ExtrusionEntityUPtr &child : src.children())
+        dst.append(*child);
+}
+
+static void collect_adhesion_layer_extrusions(const Layer &layer, ExtrusionEntityCollection &dst)
+{
+    for (const LayerSliceIsland &island : layer.islands()) {
+        for (const LayerRegionIsland &region_island : island.regions_islands()) {
+            if (region_island.has_extrusion(LayerRegionIsland::PERIMETERS))
+                append_adhesion_extrusion_copy(dst, region_island.extrusion(LayerRegionIsland::PERIMETERS));
+        }
+    }
+}
+
+template<class Visitor> static void visit_adhesion_layer_extrusions(Layer &layer, Visitor &visitor)
+{
+    for (LayerSliceIsland &island : layer.islands()) {
+        for (LayerRegionIsland &region_island : island.regions_islands()) {
+            if (region_island.has_extrusion(LayerRegionIsland::PERIMETERS))
+                region_island.mutable_extrusion(LayerRegionIsland::PERIMETERS).visit(visitor);
+        }
+    }
+}
+
+static void collect_adhesion_layer_points(const Layer &layer, Points &dst)
+{
+    /*
+    The first-layer hull must cover the physical adhesion area, not only the
+    centerlines. Auxiliary layer slices are built from extrusion coverage, so
+    collecting their polygon points gives the bed-leveling envelope the right
+    margin.
+    */
+    for (const ExPolygon &slice : layer.lslices()) {
+        append(dst, slice.contour.points);
+        for (const Polygon &hole : slice.holes)
+            append(dst, hole.points);
+    }
+}
+
+static void remove_print_auxiliary_adhesion_layers(Print &print, const raw_layer_adhesion_kind kind)
+{
+    PrintObject *auxiliary_object = const_cast<PrintObject *>(print.auxiliary_object());
+    if (auxiliary_object == nullptr)
+        return;
+
+    LayerUPtrs &layers = auxiliary_object->mutable_auxiliary_layers();
+    layers.erase(std::remove_if(layers.begin(),
+                                layers.end(),
+                                [kind](const LayerUPtr &layer) {
+                                    return layer != nullptr && layer_has_adhesion_kind(*layer, kind);
+                                }),
+                 layers.end());
+}
+
 bool Print::has_infinite_skirt() const
 {
     return (m_config.draft_shield.value == dsEnabled && m_config.skirts > 0)/* || (m_config.ooze_prevention && this->extruders().size() > 1)*/;
@@ -717,7 +823,53 @@ bool Print::has_skirt() const
 
 bool Print::has_brim() const
 {
-    return !this->m_brim.empty() || std::any_of(m_objects.begin(), m_objects.end(), [](const PrintObjectUPtr &object) { return object->has_brim(); });
+    const PrintObject *auxiliary_object = this->auxiliary_object();
+    if (auxiliary_object != nullptr) {
+        for (const Layer &layer : auxiliary_object->auxiliary_layers())
+            if (layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM))
+                return true;
+    }
+    return std::any_of(m_objects.begin(), m_objects.end(), [](const PrintObjectUPtr &object) { return object->has_brim(); });
+}
+
+const ExtrusionEntityCollection &Print::brim() const
+{
+    m_legacy_brim_cache.clear();
+    const PrintObject *auxiliary_object = this->auxiliary_object();
+    if (auxiliary_object != nullptr) {
+        for (const Layer &layer : auxiliary_object->auxiliary_layers())
+            if (layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM))
+                collect_adhesion_layer_extrusions(layer, m_legacy_brim_cache);
+    }
+    return m_legacy_brim_cache;
+}
+
+const ExtrusionEntityCollection &Print::skirt() const
+{
+    m_legacy_skirt_cache.clear();
+    const PrintObject *auxiliary_object = this->auxiliary_object();
+    if (auxiliary_object != nullptr) {
+        for (const Layer &layer : auxiliary_object->auxiliary_layers())
+            if (layer_has_normal_skirt(layer))
+                collect_adhesion_layer_extrusions(layer, m_legacy_skirt_cache);
+    }
+    return m_legacy_skirt_cache;
+}
+
+const std::optional<ExtrusionEntityCollection> &Print::skirt_first_layer() const
+{
+    m_legacy_skirt_first_layer_cache.reset();
+    const PrintObject *auxiliary_object = this->auxiliary_object();
+    if (auxiliary_object != nullptr) {
+        for (const Layer &layer : auxiliary_object->auxiliary_layers()) {
+            if (!layer_has_skirt_first_layer_only(layer))
+                continue;
+            if (!m_legacy_skirt_first_layer_cache)
+                m_legacy_skirt_first_layer_cache.emplace();
+            collect_adhesion_layer_extrusions(layer, *m_legacy_skirt_first_layer_cache);
+        }
+    }
+    return m_legacy_skirt_first_layer_cache;
 }
 
 bool Print::sequential_print_horizontal_clearance_valid(const Print &print, Polygons* polygons)
@@ -1821,84 +1973,42 @@ void append_extrusion_children_to_collection(ExtrusionEntityCollection &dst, Ext
 
 void ApiInternal::PrintAccess::clear_brim(Print &print)
 {
-    print.m_brim.clear();
-    for (PrintObjectUPtr &object : print.m_objects) {
-        ApiInternal::PrintObjectAccess::mutable_brim(*object).clear();
+    remove_print_auxiliary_adhesion_layers(print, RAW_LAYER_ADHESION_KIND_BRIM);
+    for (PrintObjectUPtr &object : print.m_objects)
         ApiInternal::PrintObjectAccess::clear_brim_auxiliary_layers(*object);
-    }
 }
 
 void ApiInternal::PrintAccess::clear_skirt(Print &print)
 {
-    print.m_skirt.clear();
-    print.m_skirt_first_layer.reset();
-    print.m_skirt_convex_hull.clear();
-    for (PrintObjectUPtr &object : print.m_objects) {
-        ApiInternal::PrintObjectAccess::mutable_skirt(*object).clear();
-        ApiInternal::PrintObjectAccess::mutable_skirt_first_layer(*object).reset();
-    }
-}
-
-bool ApiInternal::PrintAccess::append_brim_move(Print &print, ExtrusionEntity &extrusion)
-{
-    append_extrusion_children_to_collection(print.m_brim, extrusion);
-    return true;
-}
-
-bool ApiInternal::PrintAccess::append_skirt_move(Print &print, ExtrusionEntity &extrusion)
-{
-    append_extrusion_children_to_collection(print.m_skirt, extrusion);
-    return true;
-}
-
-bool ApiInternal::PrintAccess::append_skirt_first_layer_move(Print &print, ExtrusionEntity &extrusion)
-{
-    if (!print.m_skirt_first_layer)
-        print.m_skirt_first_layer.emplace();
-    append_extrusion_children_to_collection(*print.m_skirt_first_layer, extrusion);
-    return true;
-}
-
-bool ApiInternal::PrintAccess::append_skirt_convex_hull_move(Print &print, Polygons &polygons)
-{
-    /*
-    The incoming polygons live in plugin storage and the print hull lives until
-    export finishes. Copying the point coordinates is intentionally boring and
-    robust: the hull is small, and no persistent Print data keeps buffers that
-    were allocated for a temporary plugin result.
-    */
-    for (const Polygon &polygon : polygons)
-        append(print.m_skirt_convex_hull, polygon.points);
-    polygons.clear();
-    return true;
-}
-
-const ExtrusionEntity *ApiInternal::PrintAccess::skirt_first_layer(const Print &print)
-{
-    return print.m_skirt_first_layer ? &*print.m_skirt_first_layer : nullptr;
+    remove_print_auxiliary_adhesion_layers(print, RAW_LAYER_ADHESION_KIND_SKIRT);
+    for (PrintObjectUPtr &object : print.m_objects)
+        ApiInternal::PrintObjectAccess::clear_skirt_auxiliary_layers(*object);
 }
 
 void ApiInternal::PrintAccess::normalize_skirt_brim_direction(Print &print)
 {
     /*
-    Skirt/brim output is stored partly on Print and partly on PrintObject.
-    Normalize both places after plugins finish so each generator does not have
-    to duplicate the perimeter-direction rule.
+    Skirt/brim output is stored in auxiliary layers. Normalize every tagged
+    layer after plugins finish so each generator does not have to duplicate the
+    perimeter-direction rule.
     */
     if (print.m_default_region_config.perimeter_direction.value == pdCW_CCW ||
         print.m_default_region_config.perimeter_direction.value == pdCW_CW) {
         ExtrusionDirectionSetter visitor(true);
-        print.m_brim.visit(visitor);
-        print.m_skirt.visit(visitor);
-        if (print.m_skirt_first_layer)
-            print.m_skirt_first_layer->visit(visitor);
+        PrintObject *auxiliary_object = const_cast<PrintObject *>(print.auxiliary_object());
+        if (auxiliary_object != nullptr) {
+            for (Layer &layer : auxiliary_object->auxiliary_layers()) {
+                if (layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM) ||
+                    layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
+                    visit_adhesion_layer_extrusions(layer, visitor);
+            }
+        }
         for (PrintObjectUPtr &object : print.m_objects) {
-            ApiInternal::PrintObjectAccess::mutable_brim(*object).visit(visitor);
-            ApiInternal::PrintObjectAccess::mutable_skirt(*object).visit(visitor);
-            std::optional<ExtrusionEntityCollection> &first_layer =
-                ApiInternal::PrintObjectAccess::mutable_skirt_first_layer(*object);
-            if (first_layer)
-                first_layer->visit(visitor);
+            for (Layer &layer : object->auxiliary_layers()) {
+                if (layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM) ||
+                    layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
+                    visit_adhesion_layer_extrusions(layer, visitor);
+            }
         }
     }
 }
@@ -1908,24 +2018,28 @@ void ApiInternal::PrintAccess::rebuild_first_layer_convex_hull_after_skirt_brim(
     /*
     The hull is a print-level safety envelope used by bed-leveling, placeholders
     and wipe/purge placement. Build it from the stable final geometry: first
-    layer islands plus any brim trees published by plugins. finalize_* then
-    adds skirt and wipe tower corners using the existing host logic.
+    layer islands plus physical auxiliary-layer slices published by brim/skirt
+    plugins. Those auxiliary slices are extrusion coverage, so the hull includes
+    path width instead of only centerline points.
     */
     print.m_first_layer_convex_hull.points.clear();
     for (Polygon &polygon : print.first_layer_islands())
         append(print.m_first_layer_convex_hull.points, std::move(polygon.points));
 
-    print.m_brim.collect_points(print.m_first_layer_convex_hull.points);
-    print.m_skirt.collect_points(print.m_first_layer_convex_hull.points);
-    if (print.m_skirt_first_layer)
-        print.m_skirt_first_layer->collect_points(print.m_first_layer_convex_hull.points);
+    const PrintObject *auxiliary_object = print.auxiliary_object();
+    if (auxiliary_object != nullptr) {
+        for (const Layer &layer : auxiliary_object->auxiliary_layers()) {
+            if (layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM) ||
+                layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
+                collect_adhesion_layer_points(layer, print.m_first_layer_convex_hull.points);
+        }
+    }
     for (PrintObjectUPtr &object : print.m_objects) {
-        ApiInternal::PrintObjectAccess::mutable_brim(*object).collect_points(print.m_first_layer_convex_hull.points);
-        ApiInternal::PrintObjectAccess::mutable_skirt(*object).collect_points(print.m_first_layer_convex_hull.points);
-        std::optional<ExtrusionEntityCollection> &first_layer =
-            ApiInternal::PrintObjectAccess::mutable_skirt_first_layer(*object);
-        if (first_layer)
-            first_layer->collect_points(print.m_first_layer_convex_hull.points);
+        for (const Layer &layer : object->auxiliary_layers()) {
+            if (layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM) ||
+                layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
+                collect_adhesion_layer_points(layer, print.m_first_layer_convex_hull.points);
+        }
     }
 
     print.finalize_first_layer_convex_hull();
@@ -1934,81 +2048,15 @@ void ApiInternal::PrintAccess::rebuild_first_layer_convex_hull_after_skirt_brim(
 void Print::_make_skirt_brim() {
 
     if (this->set_started(psSkirtBrim)) {
-        this->set_status(printstep_percent(psSkirtBrim), L("Generating skirt and brim"));
-        m_skirt.clear();
-        m_skirt_first_layer.reset();
-        //const bool draft_shield = config().draft_shield != dsDisabled;
-
-        //first skirt. If it need the brim area, it will extrapolate it from config.
-        m_skirt_convex_hull.clear();
-        m_first_layer_convex_hull.points.clear();
-        for (PrintObjectUPtr &obj : m_objects) {
-            obj->m_skirt.clear();
-            obj->m_skirt_first_layer.reset();
-        }
-        if (this->has_skirt()) {
-            this->set_status(printstep_percent(psSkirtBrim), L("Generating skirt"));
-            if (config().complete_objects && !config().complete_objects_one_skirt){
-                for (PrintObjectUPtr &obj : m_objects) {
-                    //create a skirt "pattern" (one per object)
-                    const std::vector<PrintInstance> copies{obj->instances()};
-                    obj->m_instances.clear();
-                    obj->m_instances.emplace_back();
-                    this->_make_skirt({ obj.get() }, obj->m_skirt, obj->m_skirt_first_layer);
-                    obj->m_instances = copies;
-                    DEBUG_VISIT(obj->m_skirt, CheckOrientation(true))
-                    DEBUG_TREE_VISIT(obj->m_skirt, LoopAssertVisitor())
-                }
-            } else {
-                PrintObjectPtrs objects;
-                objects.reserve(m_objects.size());
-                for (PrintObjectUPtr &object : m_objects)
-                    objects.emplace_back(object.get());
-                this->_make_skirt(objects, m_skirt, m_skirt_first_layer);
-                DEBUG_VISIT(m_skirt, CheckOrientation(true))
-                DEBUG_TREE_VISIT(m_skirt, LoopAssertVisitor())
-            }
-        }
-
         /*
-        Brim is generated by STEP_SKIRT_BRIM plugins before this legacy skirt
-        pass runs. Rebuild the print hull from the first-layer islands, plugin
-        brim output, skirt and wipe-tower geometry so the old placeholders and
-        placement code keep seeing one complete first-layer envelope.
+        Legacy entry point kept for callers that still expect psSkirtBrim state
+        transitions. Real brim/skirt generation is owned by STEP_SKIRT_BRIM
+        plugins and stored in auxiliary layers, so this method only applies the
+        host post-processing that is safe for that canonical storage.
         */
+        this->set_status(printstep_percent(psSkirtBrim), L("Generating skirt and brim"));
+        ApiInternal::PrintAccess::normalize_skirt_brim_direction(*this);
         ApiInternal::PrintAccess::rebuild_first_layer_convex_hull_after_skirt_brim(*this);
-
-        // everything should be extruded ccw, so only chajnge dir if cw is requested
-        if (this->m_default_region_config.perimeter_direction.value == pdCW_CCW ||
-            this->m_default_region_config.perimeter_direction.value == pdCW_CW) {
-            ExtrusionDirectionSetter visitor(true);
-            this->m_skirt.visit(visitor);
-            if (m_skirt_first_layer) {
-                this->m_skirt_first_layer->visit(visitor);
-            }
-            this->m_brim.visit(visitor);
-        }
-        for (PrintObjectUPtr &object : m_objects) {
-            const PrintRegionConfig &region_config = object->default_region_config(this->m_default_region_config);
-            if (region_config.perimeter_direction.value == pdCW_CCW ||
-                region_config.perimeter_direction.value == pdCW_CW) {
-                ExtrusionDirectionSetter visitor(true);
-                // using firend privilege. If you remove it, just create & call a printobject function.
-                object->m_skirt.visit(visitor);
-                if (object->m_skirt_first_layer) {
-                    object->m_skirt_first_layer->visit(visitor);
-                }
-            }
-            // only global setting is useful for brim
-            if (this->m_default_region_config.perimeter_direction.value == pdCW_CCW ||
-                this->m_default_region_config.perimeter_direction.value == pdCW_CW) {
-                ExtrusionDirectionSetter visitor(true);
-                object->m_brim.visit(visitor);
-            }
-        }
-
-        // Brim depends on skirt (brim lines are trimmed by the skirt lines), therefore if
-        // the skirt gets invalidated, brim gets invalidated as well and the following line is called.
         this->set_done(psSkirtBrim);
     }
 

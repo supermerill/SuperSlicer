@@ -126,6 +126,11 @@ struct LayerBrimProperty : c_layer_brim_property
     static constexpr plugin_property_type property_type = PLUGIN_PROPERTY_TYPE_LAYER_BRIM;
 };
 
+struct LayerAdhesionProperty : c_layer_adhesion_property
+{
+    static constexpr plugin_property_type property_type = PLUGIN_PROPERTY_TYPE_LAYER_ADHESION;
+};
+
 /*
 C++ convenience builder for raw_surface_type.
 

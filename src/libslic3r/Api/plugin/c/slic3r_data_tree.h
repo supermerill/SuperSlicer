@@ -38,6 +38,7 @@ typedef slic3r_property_type plugin_property_type;
 #define PLUGIN_PROPERTY_TYPE_INVALID ((plugin_property_type)SLIC3R_PROPERTY_TYPE_INVALID)
 #define PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT ((plugin_property_type)SLIC3R_PROPERTY_TYPE_LAYER_SUPPORT)
 #define PLUGIN_PROPERTY_TYPE_LAYER_BRIM ((plugin_property_type)SLIC3R_PROPERTY_TYPE_LAYER_BRIM)
+#define PLUGIN_PROPERTY_TYPE_LAYER_ADHESION ((plugin_property_type)SLIC3R_PROPERTY_TYPE_LAYER_ADHESION)
 
 /*
 Built-in payload stored on auxiliary Layers that represent generated support.
@@ -64,6 +65,27 @@ generic plugin-property backend.
 typedef struct c_layer_brim_property {
     uint32_t reserved;
 } c_layer_brim_property;
+
+typedef uint32_t raw_layer_adhesion_kind;
+typedef uint32_t raw_layer_adhesion_flag;
+
+#define RAW_LAYER_ADHESION_KIND_BRIM  1u
+#define RAW_LAYER_ADHESION_KIND_SKIRT 2u
+
+#define RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY 1u
+
+/*
+Built-in marker stored on auxiliary Layers that contain first-layer adhesion.
+
+Auxiliary layers are generic; this payload tells later code whether the layer
+contains brim or skirt geometry. `flags` refines the behavior inside that kind.
+For skirt, FIRST_LAYER_ONLY means the layer carries the special first-layer
+skirt loops that replace the normal skirt only on the first printed Z.
+*/
+typedef struct c_layer_adhesion_property {
+    raw_layer_adhesion_kind kind;
+    raw_layer_adhesion_flag flags;
+} c_layer_adhesion_property;
 
 typedef struct c_curled_line
 {

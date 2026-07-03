@@ -6,12 +6,9 @@
 #define slic3r_Api_plugin_cpp_SkirtBrimStepViews_hpp_
 
 #include <cassert>
-#include <optional>
 
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_skirt_brim.h"
 #include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
-#include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
-#include "libslic3r/Api/plugin/cpp/GeometryViews.hpp"
 
 namespace slic3r_api {
 
@@ -19,14 +16,10 @@ namespace slic3r_api {
 STEP_SKIRT_BRIM C++ helper
 ==========================
 
-The skirt/brim step stores its output on Print and PrintObject, not inside the
-LayerRegionIsland tree used by perimeters and infill. This helper keeps that
-special publication path explicit: a plugin builds an extrusion tree in plugin
-storage, then moves it into the host with append_*_move().
-
-Moving means ownership of the extrusion content is transferred to the host. The
-StoredExtrusionEntity object itself remains valid, but callers should treat its
-tree as consumed after a successful append.
+The step itself only gives plugins a mutable Print handle. Brim and skirt are
+ordinary auxiliary layers now: create them on print.auxiliary_object() for
+global adhesion or on a real Object for object-local adhesion, tag the layer
+with LayerAdhesionProperty, and write extrusions into its LayerRegionIslands.
 */
 class SkirtBrimStep
 {
@@ -39,107 +32,6 @@ public:
     {
         assert(m_ctx->print != nullptr);
         return Print(reinterpret_cast<const print_handle *>(m_ctx->print));
-    }
-
-    bool clear_brim() const
-    {
-        assert(m_ctx->clear_brim != nullptr);
-        return m_ctx->clear_brim(m_ctx->print) != 0;
-    }
-
-    bool clear_skirt() const
-    {
-        assert(m_ctx->clear_skirt != nullptr);
-        return m_ctx->clear_skirt(m_ctx->print) != 0;
-    }
-
-    bool clear_object_skirt(const Object &object) const
-    {
-        assert(m_ctx->clear_object_skirt != nullptr);
-        return m_ctx->clear_object_skirt(const_cast<object_handle *>(object.handle())) != 0;
-    }
-
-    ExtrusionEntity brim() const
-    {
-        assert(m_ctx->get_brim != nullptr);
-        return ExtrusionEntity(m_ctx->get_brim(reinterpret_cast<const print_handle *>(m_ctx->print)));
-    }
-
-    ExtrusionEntity object_brim(const Object &object) const
-    {
-        assert(m_ctx->get_object_brim != nullptr);
-        return ExtrusionEntity(m_ctx->get_object_brim(object.handle()));
-    }
-
-    ExtrusionEntity skirt() const
-    {
-        assert(m_ctx->get_skirt != nullptr);
-        return ExtrusionEntity(m_ctx->get_skirt(reinterpret_cast<const print_handle *>(m_ctx->print)));
-    }
-
-    ExtrusionEntity object_skirt(const Object &object) const
-    {
-        assert(m_ctx->get_object_skirt != nullptr);
-        return ExtrusionEntity(m_ctx->get_object_skirt(object.handle()));
-    }
-
-    std::optional<ExtrusionEntity> skirt_first_layer() const
-    {
-        assert(m_ctx->get_skirt_first_layer != nullptr);
-        const extrusion_entity_handle *handle =
-            m_ctx->get_skirt_first_layer(reinterpret_cast<const print_handle *>(m_ctx->print));
-        if (handle == nullptr)
-            return std::nullopt;
-        return ExtrusionEntity(handle);
-    }
-
-    std::optional<ExtrusionEntity> object_skirt_first_layer(const Object &object) const
-    {
-        assert(m_ctx->get_object_skirt_first_layer != nullptr);
-        const extrusion_entity_handle *handle = m_ctx->get_object_skirt_first_layer(object.handle());
-        if (handle == nullptr)
-            return std::nullopt;
-        return ExtrusionEntity(handle);
-    }
-
-    bool append_brim_move(StoredExtrusionEntity &extrusion) const
-    {
-        assert(m_ctx->append_brim_move != nullptr);
-        return m_ctx->append_brim_move(m_ctx->print, extrusion.mutable_handle()) != 0;
-    }
-
-    bool append_skirt_move(StoredExtrusionEntity &extrusion) const
-    {
-        assert(m_ctx->append_skirt_move != nullptr);
-        return m_ctx->append_skirt_move(m_ctx->print, extrusion.mutable_handle()) != 0;
-    }
-
-    bool append_object_skirt_move(const Object &object, StoredExtrusionEntity &extrusion) const
-    {
-        assert(m_ctx->append_object_skirt_move != nullptr);
-        return m_ctx->append_object_skirt_move(
-            const_cast<object_handle *>(object.handle()),
-            extrusion.mutable_handle()) != 0;
-    }
-
-    bool append_skirt_first_layer_move(StoredExtrusionEntity &extrusion) const
-    {
-        assert(m_ctx->append_skirt_first_layer_move != nullptr);
-        return m_ctx->append_skirt_first_layer_move(m_ctx->print, extrusion.mutable_handle()) != 0;
-    }
-
-    bool append_object_skirt_first_layer_move(const Object &object, StoredExtrusionEntity &extrusion) const
-    {
-        assert(m_ctx->append_object_skirt_first_layer_move != nullptr);
-        return m_ctx->append_object_skirt_first_layer_move(
-            const_cast<object_handle *>(object.handle()),
-            extrusion.mutable_handle()) != 0;
-    }
-
-    bool append_skirt_convex_hull_move(StoredPolygonCollection &polygons) const
-    {
-        assert(m_ctx->append_skirt_convex_hull_move != nullptr);
-        return m_ctx->append_skirt_convex_hull_move(m_ctx->print, polygons.mutable_handle()) != 0;
     }
 
 private:

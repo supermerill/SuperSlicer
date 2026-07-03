@@ -118,35 +118,91 @@ using namespace std::literals;
 
 namespace Slic3r {
 
-void append_extrusion_children_to_object_brim(ExtrusionEntityCollection &dst, ExtrusionEntity &src)
+static void append_adhesion_extrusion_copy(ExtrusionEntityCollection &dst, const ExtrusionEntity &src)
 {
     if (src.is_nop())
         return;
 
-    if (ExtrusionEntityCollection *collection = dynamic_cast<ExtrusionEntityCollection *>(&src)) {
+    if (const ExtrusionEntityCollection *collection = dynamic_cast<const ExtrusionEntityCollection *>(&src)) {
         /*
-        Most plugins use a plain collection as a transport box. Move those
-        children directly into the object brim. A collection with properties is
-        kept whole because the properties may describe all descendant paths.
+        Auxiliary LayerRegionIsland roots are often plain transport
+        collections. Copy their direct children into the legacy cache so old
+        callers that inspect collection.entities() see the same shape they saw
+        when brim/skirt was stored directly on PrintObject. If a collection has
+        properties, keep it whole so descendants still inherit them.
         */
         if (collection->has_properties()) {
-            dst.append(std::move(src));
+            dst.append(src);
             return;
         }
-        dst.append_move_from(*collection);
+        for (const ExtrusionEntity *child : collection->entities())
+            dst.append(*child);
         return;
     }
 
     if (src.is_leaf()) {
-        dst.append(std::move(src));
+        dst.append(src);
         return;
     }
 
-    ExtrusionEntity::Children &children = src.children();
-    while (!children.empty()) {
-        dst.append(std::move(children.front()));
-        children.erase(children.begin());
+    for (const ExtrusionEntityUPtr &child : src.children())
+        dst.append(*child);
+}
+
+static bool layer_has_adhesion_kind(const Layer &layer, const raw_layer_adhesion_kind kind)
+{
+    const LayerAdhesionProperty *adhesion = layer.get_property<LayerAdhesionProperty>();
+    if (adhesion != nullptr)
+        return adhesion->kind == kind;
+    return kind == RAW_LAYER_ADHESION_KIND_BRIM &&
+           layer.get_property<LayerBrimProperty>() != nullptr;
+}
+
+static bool layer_has_skirt_first_layer_only(const Layer &layer)
+{
+    const LayerAdhesionProperty *adhesion = layer.get_property<LayerAdhesionProperty>();
+    return adhesion != nullptr &&
+           adhesion->kind == RAW_LAYER_ADHESION_KIND_SKIRT &&
+           (adhesion->flags & RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY) != 0;
+}
+
+static bool layer_has_normal_skirt(const Layer &layer)
+{
+    const LayerAdhesionProperty *adhesion = layer.get_property<LayerAdhesionProperty>();
+    return adhesion != nullptr &&
+           adhesion->kind == RAW_LAYER_ADHESION_KIND_SKIRT &&
+           (adhesion->flags & RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY) == 0;
+}
+
+static void collect_adhesion_layer_extrusions(const Layer &layer, ExtrusionEntityCollection &dst)
+{
+    for (const LayerSliceIsland &island : layer.islands()) {
+        for (const LayerRegionIsland &region_island : island.regions_islands()) {
+            if (region_island.has_extrusion(LayerRegionIsland::PERIMETERS))
+                append_adhesion_extrusion_copy(dst, region_island.extrusion(LayerRegionIsland::PERIMETERS));
+        }
     }
+}
+
+template<class Visitor> static void visit_adhesion_layer_extrusions(Layer &layer, Visitor &visitor)
+{
+    for (LayerSliceIsland &island : layer.islands()) {
+        for (LayerRegionIsland &region_island : island.regions_islands()) {
+            if (region_island.has_extrusion(LayerRegionIsland::PERIMETERS))
+                visitor.traverse(region_island.mutable_extrusion(LayerRegionIsland::PERIMETERS));
+        }
+    }
+}
+
+static void remove_adhesion_layers(PrintObject &object, const raw_layer_adhesion_kind kind)
+{
+    LayerUPtrs &layers = object.mutable_auxiliary_layers();
+    layers.erase(std::remove_if(layers.begin(),
+                                layers.end(),
+                                [kind](const LayerUPtr &layer) {
+                                    return layer != nullptr && layer_has_adhesion_kind(*layer, kind);
+                                }),
+                 layers.end());
 }
 
 static bool dont_support_bridges_or_default(const ConfigBase &config)
@@ -171,62 +227,53 @@ PrintInstances &ApiInternal::PrintObjectAccess::mutable_instances(PrintObject &o
     return object.m_instances;
 }
 
-ExtrusionEntityCollection &ApiInternal::PrintObjectAccess::mutable_brim(PrintObject &object)
-{
-    return object.m_brim;
-}
-
-ExtrusionEntityCollection &ApiInternal::PrintObjectAccess::mutable_skirt(PrintObject &object)
-{
-    return object.m_skirt;
-}
-
-std::optional<ExtrusionEntityCollection> &ApiInternal::PrintObjectAccess::mutable_skirt_first_layer(PrintObject &object)
-{
-    return object.m_skirt_first_layer;
-}
-
 void ApiInternal::PrintObjectAccess::clear_brim_auxiliary_layers(PrintObject &object)
 {
     /*
-    Object brim is mirrored in m_brim for legacy readers, but its structured
-    storage is one or more auxiliary layers tagged with LayerBrimProperty.
-    Removing the tagged layers keeps unrelated auxiliary geometry, such as
-    support, intact.
+    Brim is represented by auxiliary layers. Remove only those tagged layers so
+    support, skirt and future auxiliary geometry stay attached to the object.
     */
-    LayerUPtrs &layers = object.mutable_auxiliary_layers();
-    layers.erase(std::remove_if(layers.begin(),
-                                layers.end(),
-                                [](const LayerUPtr &layer) {
-                                    return layer != nullptr &&
-                                           layer->get_property<LayerBrimProperty>() != nullptr;
-                                }),
-                 layers.end());
+    remove_adhesion_layers(object, RAW_LAYER_ADHESION_KIND_BRIM);
 }
 
-bool ApiInternal::PrintObjectAccess::append_brim_move(PrintObject &object, ExtrusionEntity &extrusion)
+void ApiInternal::PrintObjectAccess::clear_skirt_auxiliary_layers(PrintObject &object)
 {
-    append_extrusion_children_to_object_brim(object.m_brim, extrusion);
-    return true;
+    /*
+    Both normal skirt and first-layer-only skirt use the same kind. The flags
+    distinguish them when legacy readers rebuild their separate caches.
+    */
+    remove_adhesion_layers(object, RAW_LAYER_ADHESION_KIND_SKIRT);
 }
 
-bool ApiInternal::PrintObjectAccess::append_skirt_move(PrintObject &object, ExtrusionEntity &extrusion)
+const ExtrusionEntityCollection &PrintObject::brim() const
 {
-    append_extrusion_children_to_object_brim(object.m_skirt, extrusion);
-    return true;
+    m_legacy_brim_cache.clear();
+    for (const Layer &layer : this->auxiliary_layers())
+        if (layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM))
+            collect_adhesion_layer_extrusions(layer, m_legacy_brim_cache);
+    return m_legacy_brim_cache;
 }
 
-bool ApiInternal::PrintObjectAccess::append_skirt_first_layer_move(PrintObject &object, ExtrusionEntity &extrusion)
+const ExtrusionEntityCollection &PrintObject::skirt() const
 {
-    if (!object.m_skirt_first_layer)
-        object.m_skirt_first_layer.emplace();
-    append_extrusion_children_to_object_brim(*object.m_skirt_first_layer, extrusion);
-    return true;
+    m_legacy_skirt_cache.clear();
+    for (const Layer &layer : this->auxiliary_layers())
+        if (layer_has_normal_skirt(layer))
+            collect_adhesion_layer_extrusions(layer, m_legacy_skirt_cache);
+    return m_legacy_skirt_cache;
 }
 
-const ExtrusionEntity *ApiInternal::PrintObjectAccess::skirt_first_layer(const PrintObject &object)
+const std::optional<ExtrusionEntityCollection> &PrintObject::skirt_first_layer() const
 {
-    return object.m_skirt_first_layer ? &*object.m_skirt_first_layer : nullptr;
+    m_legacy_skirt_first_layer_cache.reset();
+    for (const Layer &layer : this->auxiliary_layers()) {
+        if (!layer_has_skirt_first_layer_only(layer))
+            continue;
+        if (!m_legacy_skirt_first_layer_cache)
+            m_legacy_skirt_first_layer_cache.emplace();
+        collect_adhesion_layer_extrusions(layer, *m_legacy_skirt_first_layer_cache);
+    }
+    return m_legacy_skirt_first_layer_cache;
 }
 
 #ifdef _DEBUG
@@ -1217,8 +1264,11 @@ void PrintObject::simplify_extrusion_path()
             const ConfigOptionFloatOrPercent& arc_fitting_tolerance = print_config.arc_fitting_tolerance;
 
             GetPathsVisitor visitor;
-            visitor.traverse(this->m_skirt);
-            visitor.traverse(this->m_brim);
+            for (Layer &layer : this->auxiliary_layers()) {
+                if (layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM) ||
+                    layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
+                    visit_adhesion_layer_extrusions(layer, visitor);
+            }
             tbb::parallel_for(
                 tbb::blocked_range<size_t>(0, visitor.paths.size()),
                 [this, &visitor, scaled_resolution, &arc_fitting_tolerance, &print_config](const tbb::blocked_range<size_t>& range) {

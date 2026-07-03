@@ -15,10 +15,14 @@
 #include <vector>
 
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_skirt_brim.h"
+#include "libslic3r/Api/plugin/cpp/AuxiliaryLayerHelpers.hpp"
 #include "libslic3r/Api/plugin/cpp/ClipperViews.hpp"
+#include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
 #include "libslic3r/Api/plugin/cpp/PrintHelpers.hpp"
 #include "libslic3r/Api/plugin/cpp/SkirtBrimStepViews.hpp"
+#include "libslic3r/ClipperUtils.hpp"
+#include "libslic3r/ExtrusionEntity.hpp"
 
 /*
 Default skirt generator
@@ -31,7 +35,7 @@ dependency has an API-side replacement:
 - Print/Object/Layer views provide slices, support layers, instances and config;
 - PrintHelpers reproduces the first-layer height, skirt flow and E/mm logic;
 - ClipperViews builds offset loops around the convex hull;
-- SkirtBrimStep moves the final extrusion trees and hull points into Print.
+- AuxiliaryLayerHelpers creates normal auxiliary layers that own the output.
 
 The plugin deliberately generates skirt after brim. When skirt_distance_from_brim
 is enabled, the already-published brim points become part of the skirt hull, so
@@ -127,6 +131,7 @@ void append_points_from_extrusion(std::vector<c_point> &points, const ExtrusionE
 
 // Prefer structured object-brim auxiliary layers and return whether any brim points were found.
 bool append_points_from_object_brim_auxiliary_layers(std::vector<c_point> &points, const Object &object);
+bool append_points_from_print_brim_auxiliary_layers(std::vector<c_point> &points, const Print &print);
 
 // Collect object/support/brim points in object-local coordinates.
 void collect_object_local_hull_points(std::vector<c_point> &object_points,
@@ -156,12 +161,20 @@ SkirtOutput make_skirt(storage_handle *storage,
                        const std::vector<Object> &objects,
                        bool object_local);
 
-// Publish a print-owned or object-owned skirt result through the step callbacks.
-void publish_print_skirt(const SkirtBrimStep &step, SkirtOutput &output);
-void publish_object_skirt(const SkirtBrimStep &step, const Object &object, SkirtOutput &output);
+// Publish print-owned or object-owned skirt results as tagged auxiliary layers.
+void publish_print_skirt(storage_handle *storage,
+                         orchestrator_handle *orchestrator,
+                         const Print &print,
+                         const std::vector<Object> &objects,
+                         SkirtOutput &output);
+void publish_object_skirt(storage_handle *storage,
+                          orchestrator_handle *orchestrator,
+                          const Print &print,
+                          const Object &object,
+                          SkirtOutput &output);
 
 // Generate the correct global/per-object branch for one print.
-void generate_default_skirt(const plugin_run_context *run_ctx);
+void generate_default_skirt(const plugin_run_context *run_ctx, orchestrator_handle *orchestrator);
 
 bool has_skirt_work(const Config &print_config)
 {
@@ -300,32 +313,57 @@ void append_points_from_extrusion(std::vector<c_point> &points, const ExtrusionE
     points.insert(points.end(), extrusion_points.begin(), extrusion_points.end());
 }
 
+bool layer_is_brim(const Layer &layer)
+{
+    const LayerAdhesionProperty *adhesion = layer.properties().get<LayerAdhesionProperty>();
+    if (adhesion != nullptr)
+        return adhesion->kind == RAW_LAYER_ADHESION_KIND_BRIM;
+    return layer.properties().get<LayerBrimProperty>() != nullptr;
+}
+
+void append_points_from_brim_layer(std::vector<c_point> &points, const Layer &layer, bool &found)
+{
+    for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx) {
+        const LayerIsland island = layer.island(island_idx);
+        for (uint32_t region_island_idx = 0; region_island_idx < island.region_island_count();
+             ++region_island_idx) {
+            const LayerRegionIsland region_island = island.region_island(region_island_idx);
+            if (!region_island.has_extrusion(RAW_EXTRUSION_ROLE_PERIMETER))
+                continue;
+            append_points_from_extrusion(
+                points,
+                ExtrusionEntity(region_island.extrusion(RAW_EXTRUSION_ROLE_PERIMETER)));
+            found = true;
+        }
+    }
+}
+
 bool append_points_from_object_brim_auxiliary_layers(std::vector<c_point> &points, const Object &object)
 {
     bool found = false;
     for (uint32_t layer_idx = 0; layer_idx < object.auxiliary_layer_count(); ++layer_idx) {
         const Layer layer = object.auxiliary_layer(layer_idx);
-        if (layer.properties().get<LayerBrimProperty>() == nullptr)
+        if (!layer_is_brim(layer))
             continue;
 
         /*
-        Object brim is now stored as normal perimeter-bucket extrusions inside
-        auxiliary layer region-islands. Reading that tree keeps the skirt hull
-        tied to the structured output instead of the temporary m_brim mirror.
+        Brim is stored as normal perimeter-bucket extrusions inside auxiliary
+        layer region-islands. Reading that tree keeps the skirt hull tied to the
+        structured output that will be printed.
         */
-        for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx) {
-            const LayerIsland island = layer.island(island_idx);
-            for (uint32_t region_island_idx = 0; region_island_idx < island.region_island_count();
-                 ++region_island_idx) {
-                const LayerRegionIsland region_island = island.region_island(region_island_idx);
-                if (!region_island.has_extrusion(RAW_EXTRUSION_ROLE_PERIMETER))
-                    continue;
-                append_points_from_extrusion(
-                    points,
-                    ExtrusionEntity(region_island.extrusion(RAW_EXTRUSION_ROLE_PERIMETER)));
-                found = true;
-            }
-        }
+        append_points_from_brim_layer(points, layer, found);
+    }
+    return found;
+}
+
+bool append_points_from_print_brim_auxiliary_layers(std::vector<c_point> &points, const Print &print)
+{
+    bool found = false;
+    const Object auxiliary_object = print.auxiliary_object();
+    for (uint32_t layer_idx = 0; layer_idx < auxiliary_object.auxiliary_layer_count(); ++layer_idx) {
+        const Layer layer = auxiliary_object.auxiliary_layer(layer_idx);
+        if (layer_is_brim(layer))
+            append_points_from_brim_layer(points, layer, found);
     }
     return found;
 }
@@ -366,8 +404,7 @@ void collect_object_local_hull_points(std::vector<c_point> &object_points,
     }
 
     if (print.config().get("skirt_distance_from_brim").get_bool()) {
-        if (!append_points_from_object_brim_auxiliary_layers(object_points, object))
-            append_points_from_extrusion(object_points, step.object_brim(object));
+        append_points_from_object_brim_auxiliary_layers(object_points, object);
 
         /*
         In object-local mode, old brim patches are now represented by the brim
@@ -441,11 +478,10 @@ StoredPolygon collect_print_hull(storage_handle *storage,
     }
 
     if (print_config.get("draft_shield").get_int() == 0 || print_config.get("skirt_distance_from_brim").get_bool()) {
-        append_points_from_extrusion(points, step.brim());
+        append_points_from_print_brim_auxiliary_layers(points, print);
         for (uint32_t object_idx = 0; object_idx < print.object_count(); ++object_idx) {
             const Object object = print.object(object_idx);
-            if (!append_points_from_object_brim_auxiliary_layers(points, object))
-                append_points_from_extrusion(points, step.object_brim(object));
+            append_points_from_object_brim_auxiliary_layers(points, object);
         }
     }
 
@@ -606,27 +642,134 @@ SkirtOutput make_skirt(storage_handle *storage,
     return output;
 }
 
-void publish_print_skirt(const SkirtBrimStep &step, SkirtOutput &output)
+StoredExPolygonCollection skirt_subject_from_extrusion(storage_handle *storage, const StoredExtrusionEntity &extrusion)
 {
-    if (!output.skirt.empty() && !step.append_skirt_move(output.skirt))
+    StoredExPolygonCollection stored_subject(storage);
+    const Slic3r::ExtrusionEntity *native =
+        reinterpret_cast<const Slic3r::ExtrusionEntity *>(extrusion.readonly().handle());
+    if (native == nullptr || native->empty())
+        return stored_subject;
+
+    const Slic3r::Polygons coverage = native->polygons_covered_by_width(float(SCALED_EPSILON));
+    Slic3r::ExPolygons subject = coverage.empty() ? Slic3r::ExPolygons{} : union_ex(coverage);
+    for (const Slic3r::ExPolygon &expolygon : subject)
+        stored_subject.push_back(ExPolygon(reinterpret_cast<const expolygon_handle *>(&expolygon)));
+    return stored_subject;
+}
+
+bool publish_skirt_tree(storage_handle *storage,
+                        orchestrator_handle *orchestrator,
+                        const Print &print,
+                        const Object &object,
+                        const Layer &reference_layer,
+                        StoredExtrusionEntity &extrusion,
+                        raw_layer_adhesion_flag flags)
+{
+    if (extrusion.empty())
+        return true;
+
+    StoredExPolygonCollection subject = skirt_subject_from_extrusion(storage, extrusion);
+    if (subject.empty())
+        return false;
+
+    AuxiliaryLayerBuildResult result =
+        build_auxiliary_layer_regions_from_subject(storage,
+                                                   print,
+                                                   object,
+                                                   subject.readonly(),
+                                                   reference_layer.height(),
+                                                   reference_layer.print_z(),
+                                                   reference_layer.slice_z());
+    if (!result.created)
+        return false;
+
+    LayerAdhesionProperty &property = result.layer.properties().get_or_add<LayerAdhesionProperty>(orchestrator);
+    property.kind = RAW_LAYER_ADHESION_KIND_SKIRT;
+    property.flags = flags;
+
+    if (result.layer.island_count() == 0) {
+        object.remove_auxiliary_layer(result.layer);
+        return false;
+    }
+
+    layer_region_island_handle *region_island =
+        layer_island_get_or_create_region_island(
+            const_cast<layer_island_handle *>(result.layer.island(0).handle()),
+            nullptr,
+            0,
+            -1);
+    if (region_island == nullptr) {
+        object.remove_auxiliary_layer(result.layer);
+        return false;
+    }
+
+    extrusion_entity_handle *root =
+        layer_region_island_get_mutable_extrusion(region_island, RAW_EXTRUSION_ROLE_PERIMETER);
+    if (root == nullptr) {
+        object.remove_auxiliary_layer(result.layer);
+        return false;
+    }
+
+    const uint32_t inserted =
+        MutableExtrusionEntity(root).append_child_move(extrusion.mutable_view());
+    if (is_invalid_index(inserted)) {
+        object.remove_auxiliary_layer(result.layer);
+        return false;
+    }
+    return true;
+}
+
+Layer first_print_layer_or_throw(const std::vector<Object> &objects)
+{
+    for (const Object &object : objects)
+        if (object.layer_count() > 0)
+            return object.layer(0);
+    throw std::runtime_error("Default skirt generator could not find a first object layer.");
+}
+
+void publish_print_skirt(storage_handle *storage,
+                         orchestrator_handle *orchestrator,
+                         const Print &print,
+                         const std::vector<Object> &objects,
+                         SkirtOutput &output)
+{
+    const Object auxiliary_object = print.auxiliary_object();
+    const Layer reference_layer = first_print_layer_or_throw(objects);
+    if (!publish_skirt_tree(storage, orchestrator, print, auxiliary_object, reference_layer, output.skirt, 0))
         throw std::runtime_error("Default skirt generator could not publish print skirt.");
-    if (!output.first_layer.empty() && !step.append_skirt_first_layer_move(output.first_layer))
+    if (!publish_skirt_tree(storage,
+                            orchestrator,
+                            print,
+                            auxiliary_object,
+                            reference_layer,
+                            output.first_layer,
+                            RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY))
         throw std::runtime_error("Default skirt generator could not publish first-layer skirt.");
-    if (!output.convex_hull_points.empty() && !step.append_skirt_convex_hull_move(output.convex_hull_points))
-        throw std::runtime_error("Default skirt generator could not publish skirt hull.");
 }
 
-void publish_object_skirt(const SkirtBrimStep &step, const Object &object, SkirtOutput &output)
+void publish_object_skirt(storage_handle *storage,
+                          orchestrator_handle *orchestrator,
+                          const Print &print,
+                          const Object &object,
+                          SkirtOutput &output)
 {
-    if (!output.skirt.empty() && !step.append_object_skirt_move(object, output.skirt))
+    if (object.layer_count() == 0)
+        return;
+
+    const Layer reference_layer = object.layer(0);
+    if (!publish_skirt_tree(storage, orchestrator, print, object, reference_layer, output.skirt, 0))
         throw std::runtime_error("Default skirt generator could not publish object skirt.");
-    if (!output.first_layer.empty() && !step.append_object_skirt_first_layer_move(object, output.first_layer))
+    if (!publish_skirt_tree(storage,
+                            orchestrator,
+                            print,
+                            object,
+                            reference_layer,
+                            output.first_layer,
+                            RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY))
         throw std::runtime_error("Default skirt generator could not publish object first-layer skirt.");
-    if (!output.convex_hull_points.empty() && !step.append_skirt_convex_hull_move(output.convex_hull_points))
-        throw std::runtime_error("Default skirt generator could not publish object skirt hull.");
 }
 
-void generate_default_skirt(const plugin_run_context *run_ctx)
+void generate_default_skirt(const plugin_run_context *run_ctx, orchestrator_handle *orchestrator)
 {
     const run_ctx_skirt_brim *ctx = plugin_ctx_as_skirt_brim(run_ctx);
     if (ctx == nullptr || ctx->print == nullptr)
@@ -644,7 +787,7 @@ void generate_default_skirt(const plugin_run_context *run_ctx)
         for (uint32_t object_idx = 0; object_idx < print.object_count(); ++object_idx) {
             const Object object = print.object(object_idx);
             SkirtOutput output = make_skirt(storage, step, print, std::vector<Object>{ object }, true);
-            publish_object_skirt(step, object, output);
+            publish_object_skirt(storage, orchestrator, print, object, output);
         }
         return;
     }
@@ -654,7 +797,7 @@ void generate_default_skirt(const plugin_run_context *run_ctx)
     for (uint32_t object_idx = 0; object_idx < print.object_count(); ++object_idx)
         objects.push_back(print.object(object_idx));
     SkirtOutput output = make_skirt(storage, step, print, objects, false);
-    publish_print_skirt(step, output);
+    publish_print_skirt(storage, orchestrator, print, objects, output);
 }
 
 class DefaultSkirtGenerator : public PluginBase
@@ -696,7 +839,7 @@ private:
 
     void run_impl(const plugin_run_context *run_ctx) const override
     {
-        generate_default_skirt(run_ctx);
+        generate_default_skirt(run_ctx, m_orchestrator);
     }
 };
 

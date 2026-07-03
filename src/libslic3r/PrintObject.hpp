@@ -192,9 +192,12 @@ public:
     std::vector<Polygons> project_and_append_custom_facets(const std::string &painting_key, EnforcerBlockerType type) const;
 
     /// skirts if done per copy and not per platter
-    const std::optional<ExtrusionEntityCollection>& skirt_first_layer() const { return m_skirt_first_layer; }
-    const ExtrusionEntityCollection& skirt() const { return m_skirt; }
-    const ExtrusionEntityCollection& brim() const { return m_brim; }
+    [[deprecated("brim/skirt are stored in auxiliary layers; this accessor materializes a compatibility cache.")]]
+    const std::optional<ExtrusionEntityCollection>& skirt_first_layer() const;
+    [[deprecated("brim/skirt are stored in auxiliary layers; this accessor materializes a compatibility cache.")]]
+    const ExtrusionEntityCollection& skirt() const;
+    [[deprecated("brim/skirt are stored in auxiliary layers; this accessor materializes a compatibility cache.")]]
+    const ExtrusionEntityCollection& brim() const;
 
     // for unique_ptr
     ~PrintObject() override;
@@ -295,11 +298,14 @@ private:
     LayerUPtrs                               m_layers;
     LayerUPtrs                              m_auxiliary_layers;
 
-    // Ordered collections of extrusion paths to build skirt loops and brim.
-    // have to be duplicated per copy
-    std::optional<ExtrusionEntityCollection> m_skirt_first_layer;
-    ExtrusionEntityCollection               m_skirt;
-    ExtrusionEntityCollection               m_brim;
+    /*
+    Deprecated read-through caches for legacy callers. Object-owned brim/skirt
+    now lives in auxiliary layers; these collections are rebuilt from those
+    layers when old accessors are called.
+    */
+    mutable std::optional<ExtrusionEntityCollection> m_legacy_skirt_first_layer_cache;
+    mutable ExtrusionEntityCollection               m_legacy_skirt_cache;
+    mutable ExtrusionEntityCollection               m_legacy_brim_cache;
 
     // this is set to true when LayerRegion->slices is split in top/internal/bottom
     // so that next call to make_perimeters() performs a union() before computing loops

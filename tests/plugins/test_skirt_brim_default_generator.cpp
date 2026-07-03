@@ -34,8 +34,8 @@ contracts:
 - STEP_SKIRT_BRIM is a non-exclusive chain, while brim and skirt sub-features
   are separate exclusive groups selected by plugin id.
 - The default brim/skirt plugins write global, per-object, and first-layer-only
-  extrusion through the step callbacks.
-- The host rebuilds the first-layer convex hull from plugin brim output.
+  extrusion through tagged auxiliary layers.
+- The host rebuilds the first-layer convex hull from auxiliary adhesion output.
 */
 
 namespace {
@@ -193,9 +193,12 @@ double extrusion_tree_length_mm(const ExtrusionEntity &entity)
 std::vector<const Layer *> object_brim_auxiliary_layers(const PrintObject &object)
 {
     std::vector<const Layer *> out;
-    for (const Layer &layer : object.auxiliary_layers())
-        if (layer.get_property<LayerBrimProperty>() != nullptr)
+    for (const Layer &layer : object.auxiliary_layers()) {
+        const LayerAdhesionProperty *adhesion = layer.get_property<LayerAdhesionProperty>();
+        if ((adhesion != nullptr && adhesion->kind == RAW_LAYER_ADHESION_KIND_BRIM) ||
+            layer.get_property<LayerBrimProperty>() != nullptr)
             out.push_back(&layer);
+    }
     return out;
 }
 
@@ -299,7 +302,9 @@ TEST_CASE("Default brim generator can publish object-owned brim", "[plugins][ski
     const std::vector<const Layer *> brim_layers = object_brim_auxiliary_layers(object);
     REQUIRE(brim_layers.size() == 1);
     const Layer &brim_layer = *brim_layers.front();
-    REQUIRE(brim_layer.get_property<LayerBrimProperty>() != nullptr);
+    const LayerAdhesionProperty *adhesion = brim_layer.get_property<LayerAdhesionProperty>();
+    REQUIRE(adhesion != nullptr);
+    CHECK(adhesion->kind == RAW_LAYER_ADHESION_KIND_BRIM);
     CHECK(brim_layer.get_property<LayerSupportProperty>() == nullptr);
     CHECK_FALSE(brim_layer.lslices().empty());
     REQUIRE_FALSE(brim_layer.islands().empty());
