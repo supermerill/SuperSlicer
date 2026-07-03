@@ -303,6 +303,9 @@ public:
     const Printing::PrintingPlan *printing_plan() const { return m_printing_plan.get(); }
     Printing::PrintingPlan &mutable_printing_plan();
     void reset_printing_plan();
+    const PrintObject *auxiliary_object() const { return m_auxiliary_object.get(); }
+    PrintObject &mutable_auxiliary_object();
+    void reset_auxiliary_object();
 
     std::string                 output_filename(const std::string &filename_base = std::string()) const override;
 
@@ -382,6 +385,11 @@ private:
     PrintObjectConfig                       m_default_object_config;
     PrintRegionConfig                       m_default_region_config;
     PrintObjectUPtrs                        m_objects;
+    // Hidden owner for print-level auxiliary layers such as global skirt, brim
+    // or wipe-tower helper geometry. It is not part of objects(), so normal
+    // model slicing, validation and GUI object counts keep seeing only real
+    // model-derived PrintObjects.
+    std::unique_ptr<PrintObject>             m_auxiliary_object;
     // print regions are stored in PrintObjectRegions, here it's a shortcut
     PrintRegionPtrs                         m_print_regions;
 

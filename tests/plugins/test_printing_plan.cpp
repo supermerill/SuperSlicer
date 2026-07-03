@@ -11,8 +11,14 @@
 
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/host/Plugin.hpp"
+#include "libslic3r/Api/plugin/c/slic3r_data_tree.h"
 #include "libslic3r/Api/plugin/c/slic3r_printing_plan.h"
+#include "libslic3r/Api/plugin/cpp/AuxiliaryLayerHelpers.hpp"
+#include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
+#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/ExPolygon.hpp"
 #include "libslic3r/ExtrusionEntityCollection.hpp"
+#include "libslic3r/Layer.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/Printing/PrintingPlan.hpp"
 #include "libslic3r/Steps/StepExtrusionOrdering.hpp"
@@ -71,6 +77,26 @@ std::vector<uint16_t> marker_order(const PrintingLayerGroup &layer)
 ExtrusionEntityUPtr test_path(std::initializer_list<Point> points, const bool can_reverse = true)
 {
     return std::make_unique<ExtrusionEntity>(can_reverse, ArcPolyline(Points(points)));
+}
+
+ExPolygon rectangle_expolygon(const double min_x, const double min_y, const double max_x, const double max_y)
+{
+    return ExPolygon(Polygon({
+        Point(scale_i(min_x), scale_i(min_y)),
+        Point(scale_i(max_x), scale_i(min_y)),
+        Point(scale_i(max_x), scale_i(max_y)),
+        Point(scale_i(min_x), scale_i(max_y))
+    }));
+}
+
+slic3r_api::Print print_view(Print &print)
+{
+    return slic3r_api::Print(reinterpret_cast<const print_handle *>(&print));
+}
+
+slic3r_api::ExPolygonCollection expolygons_view(const ExPolygons &expolygons)
+{
+    return slic3r_api::ExPolygonCollection(reinterpret_cast<const expolygon_collection_handle *>(&expolygons));
 }
 
 std::unique_ptr<ExtrusionEntityCollection> test_root(const bool can_sort = true, const bool can_reverse = true)
@@ -590,4 +616,64 @@ TEST_CASE("STEP_ORDERING runs default plugin chain on a shared PrintingPlan", "[
 
     REQUIRE(print.printing_plan() != nullptr);
     CHECK(print.printing_plan()->groups.size() == 1);
+}
+
+TEST_CASE("STEP_ORDERING includes print-level auxiliary layers", "[printing][plan][step-ordering]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    CHECK(print_count_object(reinterpret_cast<const print_handle *>(&print)) == 0);
+
+    PluginStorage plugin_storage;
+    storage_handle *storage = reinterpret_cast<storage_handle *>(&plugin_storage);
+    const ExPolygons subject{ rectangle_expolygon(20., 20., 40., 40.) };
+
+    /*
+    Build a print-level auxiliary layer without adding any real PrintObject.
+    The default plan builder must still see this layer through the explicit
+    print auxiliary object API.
+    */
+    slic3r_api::AuxiliaryLayerBuildResult result =
+        slic3r_api::build_auxiliary_layer_regions_from_subject(
+            storage,
+            print_view(print),
+            print_view(print).auxiliary_object(),
+            expolygons_view(subject),
+            scale_i(1.),
+            scale_i(1.),
+            scale_i(0.5));
+    REQUIRE(result.created);
+
+    slic3r_api::Layer layer = result.layer;
+    REQUIRE(layer.island_count() == 1);
+    layer_region_island_handle *region_island_handle =
+        layer_island_get_or_create_region_island(
+            const_cast<layer_island_handle *>(layer.island(0).handle()),
+            nullptr,
+            0,
+            0);
+    REQUIRE(region_island_handle != nullptr);
+
+    extrusion_entity_handle *extrusion_handle =
+        layer_region_island_get_mutable_extrusion(region_island_handle, RAW_EXTRUSION_ROLE_PERIMETER);
+    REQUIRE(extrusion_handle != nullptr);
+    ExtrusionEntityCollection *extrusion_root =
+        reinterpret_cast<ExtrusionEntityCollection *>(extrusion_handle);
+    extrusion_root->append(test_path({Point(scale_i(20.), scale_i(20.)),
+                                      Point(scale_i(40.), scale_i(20.))}));
+
+    Orchestrator &orchestrator = Orchestrator::instance();
+    Steps::StepExtrusionOrdering::clean_and_prepare(print);
+    Steps::StepExtrusionOrdering::run_step(orchestrator, print);
+
+    REQUIRE(print.printing_plan() != nullptr);
+    REQUIRE(print.printing_plan()->groups.size() == 1);
+    const PrintingGroup &group = print.printing_plan()->groups.front();
+    REQUIRE(group.object_instances.size() == 1);
+    CHECK(group.object_instances.front().object == print.auxiliary_object());
+    REQUIRE(group.layers.size() == 1);
+    REQUIRE(group.layers.front().tool_groups.size() == 1);
+    REQUIRE(group.layers.front().tool_groups.front().extrusions.size() == 1);
+    CHECK(group.layers.front().tool_groups.front().extrusions.front().object_instance_idx == 0);
 }

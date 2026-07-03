@@ -944,6 +944,15 @@ public:
     Object object(uint32_t idx) const {
         return Object(print_get_object(handle(), idx));
     }
+
+    /*
+    Hidden Object that owns print-level auxiliary layers. It is not part of
+    object_count()/object(), so use it only for global generated geometry such
+    as print-level skirt, brim or wipe-tower layers.
+    */
+    Object auxiliary_object() const {
+        return Object(print_get_auxiliary_object(handle()));
+    }
 };
 
 inline Layer LayerRegion::layer() const

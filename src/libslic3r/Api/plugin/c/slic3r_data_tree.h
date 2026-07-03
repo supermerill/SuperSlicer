@@ -515,6 +515,17 @@ SLIC3R_HOST_API uint32_t print_count_object(const print_handle *me);
 
 SLIC3R_HOST_API object_handle *print_get_object_mutable(print_handle *me, uint32_t idx);
 SLIC3R_HOST_API const object_handle *print_get_object(const print_handle *me, uint32_t idx);
+/*
+Return the hidden Object that owns print-level auxiliary layers.
+
+This Object is not counted by print_count_object() and is never returned by
+print_get_object(). It exists only so plugins can store global helper geometry
+with the same Object auxiliary-layer API used by object-local support, brim,
+skirt and future generated layers. The returned Object is mutable because
+auxiliary layers are plugin-owned work data; normal model-derived objects stay
+reachable only through the regular object list above.
+*/
+SLIC3R_HOST_API object_handle *print_get_auxiliary_object(const print_handle *me);
 
 /* ========================= CONFIG ========================= */
 

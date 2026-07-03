@@ -155,6 +155,35 @@ void append_region_island_instance_extrusions(const PrintingLayerGroup &layer_gr
                                               uint32_t instance_idx);
 
 /*
+Append every printable LayerRegionIsland found in one Layer.
+
+Normal object layers and auxiliary layers share the same LayerIsland tree once
+their raw slices have been recomputed. Keeping this traversal shared prevents
+print-level helper layers from needing their own ordering model.
+*/
+void append_layer_instance_extrusions(const PrintingLayerGroup &layer_group,
+                                      const Layer &layer,
+                                      c_point instance_shift,
+                                      uint32_t instance_idx);
+
+/*
+Append the hidden print-level auxiliary object to an existing by-layer group.
+
+The auxiliary object has exactly one logical instance at shift zero. Its layers
+are already in platter coordinates, so they must not be duplicated for real
+object instances.
+*/
+void append_print_auxiliary_layers_to_group(const Print &print,
+                                            const PrintingGroup &group,
+                                            std::map<coord_t, uint32_t> &layer_index_by_print_z);
+
+/*
+Create the leading group used by complete-object plans for global helper
+layers. Returning false means the print has no print-level auxiliary work.
+*/
+bool append_print_auxiliary_group(const Print &print, const PrintingPlan &plan);
+
+/*
 Translate every local polyline in an extrusion tree.
 
 The plugin ABI currently exposes path points and child trees, but not the
@@ -416,6 +445,72 @@ void append_region_island_instance_extrusions(const PrintingLayerGroup &layer_gr
     append_region_island_once(tool_group, region_island);
 }
 
+void append_layer_instance_extrusions(const PrintingLayerGroup &layer_group,
+                                      const Layer &layer,
+                                      const c_point instance_shift,
+                                      const uint32_t instance_idx)
+{
+    for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx) {
+        const LayerIsland island = layer.island(island_idx);
+        for (uint32_t region_island_idx = 0; region_island_idx < island.region_island_count();
+             ++region_island_idx) {
+            /*
+            The layer tree already encodes the region/extruder split. The plan
+            only clones the printable role buckets and applies the caller's
+            instance shift when this layer belongs to a real object copy.
+            */
+            append_region_island_instance_extrusions(layer_group,
+                                                     island.region_island(region_island_idx),
+                                                     instance_shift,
+                                                     instance_idx);
+        }
+    }
+}
+
+void append_print_auxiliary_layers_to_group(const Print &print,
+                                            const PrintingGroup &group,
+                                            std::map<coord_t, uint32_t> &layer_index_by_print_z)
+{
+    const Object auxiliary_object = print.auxiliary_object();
+    if (auxiliary_object.auxiliary_layer_count() == 0)
+        return;
+
+    /*
+    Print-level auxiliary layers are global work, not per-object work. Record a
+    single synthetic object instance as context, then clone each source root
+    once with a zero shift.
+    */
+    group.append_object_instance(auxiliary_object, 0);
+    for (uint32_t layer_idx = 0; layer_idx < auxiliary_object.auxiliary_layer_count(); ++layer_idx) {
+        const Layer layer = auxiliary_object.auxiliary_layer(layer_idx);
+        PrintingLayerGroup layer_group =
+            layer_group_for_print_z(group, layer_index_by_print_z, layer.print_z());
+        append_layer_once(layer_group, layer);
+        append_layer_instance_extrusions(layer_group, layer, c_point{}, 0);
+    }
+}
+
+bool append_print_auxiliary_group(const Print &print, const PrintingPlan &plan)
+{
+    const Object auxiliary_object = print.auxiliary_object();
+    if (auxiliary_object.auxiliary_layer_count() == 0)
+        return false;
+
+    /*
+    Complete-object mode prints one independent object group at a time. Global
+    print-level helper layers do not belong to any model object, so they get a
+    deterministic leading group of their own.
+    */
+    PrintingGroup group = plan.append_group();
+    if (!group.valid())
+        return false;
+
+    std::map<coord_t, uint32_t> layer_index_by_print_z;
+    append_print_auxiliary_layers_to_group(print, group, layer_index_by_print_z);
+    sort_layer_groups_by_print_z(group);
+    return true;
+}
+
 void translate_extrusion_tree(MutableExtrusionEntity entity, const c_point shift)
 {
     if (shift.x == 0 && shift.y == 0)
@@ -489,33 +584,26 @@ void build_plan_by_layer(const Print &print, const PrintingPlan &plan)
             PrintingLayerGroup layer_group =
                 layer_group_for_print_z(group, layer_index_by_print_z, layer.print_z());
             append_layer_once(layer_group, layer);
-
-            for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx) {
-                const LayerIsland island = layer.island(island_idx);
-                for (uint32_t region_island_idx = 0; region_island_idx < island.region_island_count();
-                     ++region_island_idx) {
-                    const LayerRegionIsland region_island = island.region_island(region_island_idx);
-                    /*
-                    The source island exists once per object layer. Duplicate it
-                    for every physical object instance so the plan has one
-                    shifted printable root per actual copy on the bed.
-                    */
-                    for (uint32_t instance_idx = 0; instance_idx < object.instance_count(); ++instance_idx)
-                        append_region_island_instance_extrusions(layer_group,
-                                                                 region_island,
-                                                                 object.instance_shift(instance_idx),
-                                                                 instance_idx);
-                }
-            }
+            /*
+            The source layer exists once per object, so clone it once per
+            physical instance with that instance's bed shift applied.
+            */
+            for (uint32_t instance_idx = 0; instance_idx < object.instance_count(); ++instance_idx)
+                append_layer_instance_extrusions(layer_group,
+                                                 layer,
+                                                 object.instance_shift(instance_idx),
+                                                 instance_idx);
         }
     }
 
+    append_print_auxiliary_layers_to_group(print, group, layer_index_by_print_z);
     sort_layer_groups_by_print_z(group);
 }
 
 void build_plan_by_object(const Print &print, const PrintingPlan &plan)
 {
     plan.clear();
+    append_print_auxiliary_group(print, plan);
     const std::vector<SourceInstance> instances = ordered_source_instances_for_object_plan(print);
 
     for (const SourceInstance &source : instances) {
@@ -541,23 +629,11 @@ void build_plan_by_object(const Print &print, const PrintingPlan &plan)
             PrintingLayerGroup layer_group =
                 layer_group_for_print_z(group, layer_index_by_print_z, layer.print_z());
             append_layer_once(layer_group, layer);
-
-            for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx) {
-                const LayerIsland island = layer.island(island_idx);
-                for (uint32_t region_island_idx = 0; region_island_idx < island.region_island_count();
-                     ++region_island_idx) {
-                    const LayerRegionIsland region_island = island.region_island(region_island_idx);
-                    /*
-                    Unlike by-layer mode, only the selected object instance is
-                    cloned into this group. That keeps each complete-object
-                    batch independent.
-                    */
-                    append_region_island_instance_extrusions(layer_group,
-                                                             region_island,
-                                                             source.shift,
-                                                             source.instance_idx);
-                }
-            }
+            /*
+            Unlike by-layer mode, only the selected object instance is cloned
+            into this group. That keeps each complete-object batch independent.
+            */
+            append_layer_instance_extrusions(layer_group, layer, source.shift, source.instance_idx);
         }
 
         sort_layer_groups_by_print_z(group);

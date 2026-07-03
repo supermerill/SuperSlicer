@@ -202,6 +202,69 @@ void Print::reset_printing_plan()
     m_printing_plan.reset();
 }
 
+PrintObject &Print::mutable_auxiliary_object()
+{
+    if (m_auxiliary_object)
+        return *m_auxiliary_object;
+
+    /*
+    Print-level helper geometry needs an Object owner because Layer, LayerRegion
+    and LayerIsland are all object-scoped. The auxiliary object is deliberately
+    hidden from m_objects, so normal model slicing and GUI object counts do not
+    see it. Plugins reach it through an explicit data-tree API.
+    */
+    std::shared_ptr<PrintObjectRegions> shared_regions = std::make_shared<PrintObjectRegions>();
+    shared_regions->all_regions.emplace_back(std::make_unique<PrintRegion>(
+        m_default_region_config,
+        m_default_region_config.hash(),
+        0));
+
+    /*
+    Region zero is always the fallback region. If the real print already has an
+    equivalent global PrintRegion, keep its global id; otherwise the fallback is
+    still usable for auxiliary-only geometry that does not need a print-global
+    region id.
+    */
+    for (const PrintRegion *region : m_print_regions) {
+        if (region != nullptr && *shared_regions->all_regions.front() == *region) {
+            shared_regions->all_regions.front()->m_print_region_id = region->print_region_id();
+            break;
+        }
+    }
+
+    for (const PrintRegion *region : m_print_regions) {
+        if (region == nullptr || *shared_regions->all_regions.front() == *region)
+            continue;
+
+        const int print_object_region_id = int(shared_regions->all_regions.size());
+        shared_regions->all_regions.emplace_back(std::make_unique<PrintRegion>(
+            region->config(),
+            region->config_hash(),
+            print_object_region_id));
+        shared_regions->all_regions.back()->m_print_region_id = region->print_region_id();
+    }
+
+    /*
+    The hidden object covers the print bed in XY for diagnostics and future
+    placement logic. The auxiliary layers themselves are still built from their
+    explicit 2D subjects, not from this bounding box.
+    */
+    const Points bed_shape = get_bed_shape(m_config);
+    const BoundingBox bed_bbox = bed_shape.empty() ? BoundingBox{} : get_extents(bed_shape);
+    const Vec3crd size(
+        bed_bbox.size().x(),
+        bed_bbox.size().y(),
+        scale_i(m_config.max_print_height.value));
+
+    m_auxiliary_object.reset(new PrintObject(this, size, std::move(shared_regions)));
+    return *m_auxiliary_object;
+}
+
+void Print::reset_auxiliary_object()
+{
+    m_auxiliary_object.reset();
+}
+
 void Print::set_task(const TaskParams &params)
 {
     const SlicingStepArray &object_steps = ordered_object_steps();
@@ -293,6 +356,7 @@ void Print::clear() {
     // The following call should stop background processing if it is running.
     this->invalidate_all_steps();
     m_objects.clear();
+    this->reset_auxiliary_object();
     m_print_regions.clear();
     m_model.clear_objects();
     this->reset_printing_plan();

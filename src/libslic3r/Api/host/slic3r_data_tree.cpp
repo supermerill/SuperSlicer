@@ -741,9 +741,10 @@ plugin_property_container_handle *object_get_properties(const object_handle *me)
 
 coord_t object_get_max_z(const object_handle *me)
 {
-    return me == nullptr || Slic3r::to_object(me)->model_object() == nullptr ?
-               coord_t(0) :
-               scale_i(Slic3r::to_object(me)->model_object()->max_z());
+    if (me == nullptr)
+        return coord_t(0);
+    const Slic3r::PrintObject *object = Slic3r::to_object(me);
+    return object->model_object() == nullptr ? object->height() : scale_i(object->model_object()->max_z());
 }
 
 c_matrix4d object_get_transform(const object_handle *me)
@@ -922,6 +923,14 @@ const object_handle *print_get_object(const print_handle *me, uint32_t idx)
     if (me == nullptr || idx >= Slic3r::to_print(me)->objects().size())
         return nullptr;
     return reinterpret_cast<const object_handle*>(&Slic3r::to_print(me)->object(idx));
+}
+
+object_handle *print_get_auxiliary_object(const print_handle *me)
+{
+    if (me == nullptr)
+        return nullptr;
+    return reinterpret_cast<object_handle *>(
+        &const_cast<Slic3r::Print *>(Slic3r::to_print(me))->mutable_auxiliary_object());
 }
 
 const_strings_t config_keys(const config_handle *me)

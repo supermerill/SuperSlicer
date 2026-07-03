@@ -206,6 +206,11 @@ protected:
     friend struct ApiInternal::PrintObjectAccess;
 
     PrintObject(Print* print, ModelObject* model_object, const Transform3d& trafo, PrintInstances&& instances);
+    // Print-level auxiliary geometry uses a hidden PrintObject with no source
+    // ModelObject. It owns only auxiliary layers and exists so plugins can use
+    // the same Layer/LayerRegion/LayerIsland APIs for global print helpers as
+    // they already use for object-local support, skirt or brim.
+    PrintObject(Print* print, const Vec3crd &size, std::shared_ptr<PrintObjectRegions> shared_regions);
     // as Layers are linked to us via a pointer, we can't move ourselves, or the link is severed
     PrintObject(PrintObject&&) = delete;
     PrintObject& operator=(PrintObject&&) = delete;

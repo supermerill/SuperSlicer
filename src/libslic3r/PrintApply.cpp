@@ -1558,8 +1558,10 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
     for (PrintObjectUPtr &object : m_objects)
         object->update_slicing_parameters();
 
-    if (apply_status == APPLY_STATUS_CHANGED || apply_status == APPLY_STATUS_INVALIDATED)
+    if (apply_status == APPLY_STATUS_CHANGED || apply_status == APPLY_STATUS_INVALIDATED) {
+        this->reset_auxiliary_object();
         this->cleanup();
+    }
 
 #ifdef _DEBUG
     check_model_ids_equal(m_model, model);

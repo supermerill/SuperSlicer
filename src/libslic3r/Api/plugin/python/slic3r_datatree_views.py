@@ -950,6 +950,10 @@ class Print(DataTreeView):
         for idx in range(self.object_count()):
             yield self.object(idx)
 
+    def auxiliary_object(self) -> Object:
+        """Hidden object that owns print-level auxiliary layers."""
+        return Object(self.api, self.api.host.print_get_auxiliary_object(self.c_handle()))
+
 
 class MutablePrint(Print):
     def mutable_c_handle(self) -> ctypes.c_void_p:

@@ -270,6 +270,29 @@ PrintObject::PrintObject(Print* print, ModelObject* model_object, const Transfor
     m_config.parent = &print->config();
 }
 
+PrintObject::PrintObject(Print* print,
+                         const Vec3crd &size,
+                         std::shared_ptr<PrintObjectRegions> shared_regions) :
+    PrintObjectBaseWithState(print, nullptr),
+    m_size(size),
+    m_shared_regions(std::move(shared_regions))
+{
+    /*
+    A print-level auxiliary object has no mesh and therefore no ModelObject.
+    It still needs normal object config, regions and one logical instance so
+    plugin APIs and PrintingPlan builders can treat its auxiliary layers like
+    other object-owned helper layers.
+    */
+    m_config.parent = &print->config();
+    m_config.apply(print->default_object_config());
+
+    PrintInstance instance;
+    instance.print_object = this;
+    instance.model_instance = nullptr;
+    instance.shift = Point::new_scale(0., 0.);
+    m_instances.push_back(instance);
+}
+
 PrintObject::~PrintObject() = default;
 
 Transform3d PrintObject::trafo_centered() const {

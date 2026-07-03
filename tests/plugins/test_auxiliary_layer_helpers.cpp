@@ -165,6 +165,16 @@ double area_mm2(const ExPolygons &areas)
     return unscaled(unscaled(std::abs(area(areas))));
 }
 
+ExPolygon rectangle_expolygon(const double min_x, const double min_y, const double max_x, const double max_y)
+{
+    return ExPolygon(Polygon({
+        Point(scale_i(min_x), scale_i(min_y)),
+        Point(scale_i(max_x), scale_i(min_y)),
+        Point(scale_i(max_x), scale_i(max_y)),
+        Point(scale_i(min_x), scale_i(max_y))
+    }));
+}
+
 } // namespace
 
 TEST_CASE("PrintApply keeps region zero as object default fallback",
@@ -214,6 +224,69 @@ TEST_CASE("Auxiliary layer C API creates mutable generic layers",
 
     CHECK(object_remove_auxiliary_layer(object_handle_value, layer_handle_value) != 0);
     CHECK(object_count_auxiliary_layer(object_handle_value) == 0);
+}
+
+TEST_CASE("Print auxiliary object owns print-level auxiliary layers outside object list",
+          "[plugins][auxiliary-layer][api]")
+{
+    Print print;
+    const print_handle *print_handle_value = reinterpret_cast<const print_handle *>(&print);
+    CHECK(print_count_object(print_handle_value) == 0);
+    CHECK(print.auxiliary_object() == nullptr);
+
+    object_handle *first_auxiliary_object = print_get_auxiliary_object(print_handle_value);
+    object_handle *second_auxiliary_object = print_get_auxiliary_object(print_handle_value);
+    REQUIRE(first_auxiliary_object != nullptr);
+    CHECK(first_auxiliary_object == second_auxiliary_object);
+    CHECK(print_count_object(print_handle_value) == 0);
+
+    /*
+    The hidden object is a normal auxiliary-layer owner. It has no object layers
+    and no model instances, but it has one synthetic print instance and the
+    fallback PrintRegion needed by object_add_auxiliary_layer().
+    */
+    CHECK(object_count_layer(first_auxiliary_object) == 0);
+    CHECK(object_count_instance(first_auxiliary_object) == 1);
+    REQUIRE(object_count_region(first_auxiliary_object) >= 1);
+
+    layer_handle *layer_handle_value =
+        object_add_auxiliary_layer(first_auxiliary_object, scale_i(1.), scale_i(1.), scale_i(0.5));
+    REQUIRE(layer_handle_value != nullptr);
+    CHECK(object_count_auxiliary_layer(first_auxiliary_object) == 1);
+    CHECK(object_get_auxiliary_layer(first_auxiliary_object, 0) == layer_handle_value);
+
+    print.clear();
+    CHECK(print.auxiliary_object() == nullptr);
+}
+
+TEST_CASE("Auxiliary layer helper builds regions on print-level auxiliary object",
+          "[plugins][auxiliary-layer][regions]")
+{
+    Print print;
+    PluginStorage plugin_storage;
+    storage_handle *storage = reinterpret_cast<storage_handle *>(&plugin_storage);
+
+    const ExPolygons subject{ rectangle_expolygon(10., 10., 30., 30.) };
+    slic3r_api::AuxiliaryLayerBuildResult result =
+        slic3r_api::build_auxiliary_layer_regions_from_subject(
+            storage,
+            print_view(print),
+            print_view(print).auxiliary_object(),
+            expolygons_view(subject),
+            scale_i(1.),
+            scale_i(1.),
+            scale_i(0.5));
+
+    REQUIRE(result.created);
+    const object_handle *auxiliary_object = print_get_auxiliary_object(reinterpret_cast<const print_handle *>(&print));
+    REQUIRE(auxiliary_object != nullptr);
+    CHECK(object_count_auxiliary_layer(auxiliary_object) == 1);
+
+    const Layer &layer = *reinterpret_cast<const Layer *>(result.layer.handle());
+    REQUIRE(layer.regions().size() >= 1);
+    REQUIRE(!layer.lslices().empty());
+    REQUIRE(!layer.islands().empty());
+    CHECK(area_mm2(layer.lslices()) == Approx(area_mm2(subject)).epsilon(0.001));
 }
 
 TEST_CASE("Auxiliary layer helper splits subject into default, part and modifier regions",
