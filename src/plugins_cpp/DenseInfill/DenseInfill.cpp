@@ -695,6 +695,34 @@ void append_destination_regions(DensePostInfillWork &work, const LayerRegionIsla
     }
 }
 
+int32_t destination_infill_extruder_id(const DensePostInfillWork &work)
+{
+    // The generic data-tree API receives an explicit extruder id. Dense infill
+    // moves internal-infill subtrees, so the destination group must resolve to
+    // one unique infill_extruder across every region it collected.
+    int32_t destination_extruder_id = -1;
+    for (const layer_region_handle *handle : work.destination_regions) {
+        if (handle == nullptr)
+            return -1;
+
+        const LayerRegion region(handle);
+        const Config config = region.print_region().config();
+        if (!config.has(k_infill_extruder_key))
+            return -1;
+
+        const int32_t extruder_id = config.get(k_infill_extruder_key).get_int() - 1;
+        if (extruder_id < 0)
+            return -1;
+        if (destination_extruder_id < 0) {
+            destination_extruder_id = extruder_id;
+            continue;
+        }
+        if (destination_extruder_id != extruder_id)
+            return -1;
+    }
+    return destination_extruder_id;
+}
+
 bool extract_dense_children_from_root(storage_handle *storage,
                                       MutableExtrusionEntity root,
                                       const std::map<uint64_t, uint16_t> &priorities,
@@ -758,16 +786,19 @@ void publish_dense_children_by_priority(const run_ctx_post_infill_generation &ct
                                         DensePostInfillWork &work)
 {
     if (work.dense_children_by_priority.empty() ||
-        ctx.get_or_create_region_island == nullptr ||
         ctx.get_region_island_mutable_extrusion == nullptr)
         return;
 
+    const int32_t destination_extruder_id = destination_infill_extruder_id(work);
+    if (destination_extruder_id < 0)
+        return;
+
     layer_region_island_handle *destination_region_island =
-        ctx.get_or_create_region_island(
-            island.handle(),
+        layer_island_get_or_create_region_island(
+            const_cast<layer_island_handle *>(island.handle()),
             work.destination_regions.empty() ? nullptr : work.destination_regions.data(),
             static_cast<uint32_t>(work.destination_regions.size()),
-            RAW_EXTRUSION_ROLE_INTERNAL_INFILL);
+            destination_extruder_id);
     if (destination_region_island == nullptr)
         return;
 

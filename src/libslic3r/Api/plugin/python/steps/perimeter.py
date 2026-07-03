@@ -19,8 +19,8 @@ PerimeterContext exposes:
 
 * read-only print(), object(), layer(), and island() views for the island being
   processed;
-* get_or_create_region_island(), which selects the LayerRegionIsland receiving
-  output for a compatible set of LayerRegions;
+* LayerIsland.get_or_create_region_island(), from the data-tree views, when a
+  generator needs an additional destination LayerRegionIsland;
 * set_region_island_extrusion(), which publishes a generated extrusion tree to
   the selected LayerRegionIsland;
 * run_region_group(), the host-managed perimeter loop. The plugin provides a
@@ -341,20 +341,6 @@ class PerimeterContext:
 
     def island(self) -> LayerIsland:
         return LayerIsland(self.api, self.payload.island)
-
-    def get_or_create_region_island(
-        self,
-        island: LayerIsland,
-        regions: Iterable[LayerRegion],
-    ) -> LayerRegionIsland | None:
-        if not self.payload.get_or_create_region_island:
-            return None
-        region_addresses = [_region_handle(region) for region in regions]
-        region_array = None
-        if region_addresses:
-            region_array = (ctypes.c_void_p * len(region_addresses))(*region_addresses)
-        handle = self.payload.get_or_create_region_island(island.c_handle(), region_array, len(region_addresses))
-        return None if not handle else LayerRegionIsland(self.api, handle)
 
     def set_region_island_extrusion(
         self,

@@ -24,16 +24,6 @@ LayerRegionIsland *to_layer_region_island(const layer_region_island_handle *hand
     return const_cast<LayerRegionIsland *>(reinterpret_cast<const LayerRegionIsland *>(handle));
 }
 
-LayerSliceIsland *to_layer_island(const layer_island_handle *handle)
-{
-    return const_cast<LayerSliceIsland *>(reinterpret_cast<const LayerSliceIsland *>(handle));
-}
-
-const LayerRegion *to_layer_region(const layer_region_handle *handle)
-{
-    return reinterpret_cast<const LayerRegion *>(handle);
-}
-
 bool role_is_post_infill_owned(raw_extrusion_role role)
 {
     // This step runs after infill generation. A plugin here may only edit
@@ -56,107 +46,6 @@ ExtrusionRole bucket_role_from_raw(raw_extrusion_role role)
     if (role == RAW_EXTRUSION_ROLE_GAP_FILL)
         return LayerRegionIsland::GAP_FILLS;
     return LayerRegionIsland::INFILLS;
-}
-
-LayerRegionSetCPtrs region_set_from_handles(const layer_region_handle *const *region_handles,
-                                             uint32_t region_count,
-                                             const LayerSliceIsland &island)
-{
-    // A post-infill plugin usually wants to publish into the same region group
-    // as an existing LayerRegionIsland. Passing no explicit list means "all
-    // regions of this island", matching the surface-generation step contract.
-    LayerRegionSetCPtrs regions;
-    if (region_handles == nullptr || region_count == 0)
-        return island.regions();
-
-    for (uint32_t idx = 0; idx < region_count; ++idx) {
-        const LayerRegion *region = to_layer_region(region_handles[idx]);
-        if (region != nullptr)
-            regions.insert(region);
-    }
-    return regions;
-}
-
-bool region_extruder_id_for_role(const LayerRegion &region,
-                                 const raw_extrusion_role role,
-                                 uint16_t &extruder_id)
-{
-    // STEP_POST_INFILL may move generated infill between region groups. The
-    // output role decides which region extruder setting participates in the
-    // LayerRegionIsland key, matching STEP_SURFACE_GENERATION.
-    int extruder = 0;
-    if ((role & RAW_EXTRUSION_ROLE_INFILL) != 0) {
-        if ((role & RAW_EXTRUSION_ROLE_SOLID) != 0 ||
-            (role & RAW_EXTRUSION_ROLE_BRIDGE) != 0 ||
-            (role & RAW_EXTRUSION_ROLE_IRONING) != 0)
-            extruder = region.region().config().solid_infill_extruder.value;
-        else
-            extruder = region.region().config().infill_extruder.value;
-    } else if (role == RAW_EXTRUSION_ROLE_GAP_FILL) {
-        extruder = region.region().config().infill_extruder.value;
-    } else {
-        return false;
-    }
-
-    if (extruder <= 0)
-        return false;
-
-    extruder_id = uint16_t(extruder - 1);
-    return true;
-}
-
-bool unique_extruder_id_for_role(const LayerRegionSetCPtrs &regions,
-                                 const raw_extrusion_role role,
-                                 uint16_t &extruder_id)
-{
-    // A mixed-extruder group cannot be represented by a single
-    // LayerRegionIsland. Returning false makes the C callback fail with NULL,
-    // which tells the plugin to split the output before publishing it.
-    bool has_extruder = false;
-    for (const LayerRegion *region : regions) {
-        if (region == nullptr)
-            continue;
-
-        uint16_t region_extruder_id = uint16_t(-1);
-        if (!region_extruder_id_for_role(*region, role, region_extruder_id))
-            return false;
-
-        if (!has_extruder) {
-            extruder_id = region_extruder_id;
-            has_extruder = true;
-            continue;
-        }
-
-        if (extruder_id != region_extruder_id)
-            return false;
-    }
-
-    return has_extruder;
-}
-
-layer_region_island_handle *get_or_create_region_island_callback(
-    const layer_island_handle *island_handle,
-    const layer_region_handle *const *region_handles,
-    uint32_t region_count,
-    raw_extrusion_role role)
-{
-    // This is the only topology-writing callback for STEP_POST_INFILL. It lets
-    // a plugin request a destination LayerRegionIsland for a region group, but
-    // keeps the actual island geometry and slice data read-only.
-    LayerSliceIsland *island = to_layer_island(island_handle);
-    if (island == nullptr)
-        return nullptr;
-
-    LayerRegionSetCPtrs regions = region_set_from_handles(region_handles, region_count, *island);
-    if (regions.empty())
-        return nullptr;
-
-    uint16_t extruder_id = uint16_t(-1);
-    if (!unique_extruder_id_for_role(regions, role, extruder_id))
-        return nullptr;
-
-    LayerRegionIsland &region_island = island->get_or_add_region_island(regions, extruder_id);
-    return reinterpret_cast<layer_region_island_handle *>(&region_island);
 }
 
 extrusion_entity_handle *get_region_island_mutable_extrusion_callback(
@@ -237,7 +126,6 @@ void run_step(Orchestrator &orchestrator, Print &print)
             run_ctx_post_infill_generation context = {};
             context.print = reinterpret_cast<const print_handle *>(&print);
             context.object = reinterpret_cast<const object_handle *>(&print.object(object_idx));
-            context.get_or_create_region_island = &get_or_create_region_island_callback;
             context.get_region_island_mutable_extrusion = &get_region_island_mutable_extrusion_callback;
             return context;
         });

@@ -7,6 +7,7 @@
 #include "libslic3r/Api/host/Plugin.hpp"
 #include "libslic3r/Api/internal/LayerAccess.hpp"
 #include "libslic3r/Api/internal/LayerRegionAccess.hpp"
+#include "libslic3r/Api/plugin/c/slic3r_data_tree.h"
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/Layer.hpp"
 #include "libslic3r/LayerRegion.hpp"
@@ -266,6 +267,81 @@ void run_perimeter_and_surface_steps(Print &print)
 }
 
 } // namespace
+
+TEST_CASE("LayerIsland C API creates and reuses LayerRegionIslands",
+          "[plugins][surface-generation][data-tree]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    PreparedPerimeterPrint prepared;
+    prepare_cube_print(prepared, perimeter_config({{"perimeters", "1"}}));
+    REQUIRE(prepared.print.object(0).layer_count() > 1);
+    Layer &layer = prepared.print.object(0).layer(0);
+    replace_layer_island_with_two_infill_extruders(
+        prepared, layer, rectangle_expolygon(-10., -10., 10., 10.));
+    LayerSliceIsland &island = layer.island(0);
+
+    const layer_region_handle *left_region =
+        reinterpret_cast<const layer_region_handle *>(&layer.region(0));
+    const layer_region_handle *right_region =
+        reinterpret_cast<const layer_region_handle *>(&layer.region(1));
+    const layer_region_handle *left_regions[] = { left_region };
+    const layer_region_handle *both_regions[] = { left_region, right_region };
+
+    layer_region_island_handle *left_first =
+        layer_island_get_or_create_region_island(
+            reinterpret_cast<layer_island_handle *>(&island),
+            left_regions,
+            1,
+            0);
+    REQUIRE(left_first != nullptr);
+
+    // Same island, same region set, same extruder returns the existing bucket.
+    layer_region_island_handle *left_second =
+        layer_island_get_or_create_region_island(
+            reinterpret_cast<layer_island_handle *>(&island),
+            left_regions,
+            1,
+            0);
+    CHECK(left_second == left_first);
+
+    // The extruder participates in the key, so the same regions can own a
+    // separate output bucket for a different tool.
+    layer_region_island_handle *left_other_extruder =
+        layer_island_get_or_create_region_island(
+            reinterpret_cast<layer_island_handle *>(&island),
+            left_regions,
+            1,
+            1);
+    REQUIRE(left_other_extruder != nullptr);
+    CHECK(left_other_extruder != left_first);
+
+    layer_region_island_handle *full =
+        layer_island_get_or_create_region_island(
+            reinterpret_cast<layer_island_handle *>(&island),
+            nullptr,
+            0,
+            -1);
+    REQUIRE(full != nullptr);
+    CHECK(layer_region_island_count_region(full) == island.regions().size());
+
+    layer_region_island_handle *explicit_full =
+        layer_island_get_or_create_region_island(
+            reinterpret_cast<layer_island_handle *>(&island),
+            both_regions,
+            2,
+            -1);
+    CHECK(explicit_full == full);
+
+    const layer_region_handle *foreign_region =
+        reinterpret_cast<const layer_region_handle *>(&prepared.print.object(0).layer(1).region(0));
+    const layer_region_handle *foreign_regions[] = { foreign_region };
+    CHECK(layer_island_get_or_create_region_island(
+              reinterpret_cast<layer_island_handle *>(&island),
+              foreign_regions,
+              1,
+              0) == nullptr);
+}
 
 TEST_CASE("InitialTypedSurfaceBuilder converts island infill areas to typed region-island surfaces",
           "[plugins][surface-generation]")

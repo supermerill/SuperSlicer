@@ -261,7 +261,6 @@ void mutate_post_infill_outputs(RecordingPluginState &state, const plugin_run_co
 {
     const run_ctx_post_infill_generation *payload = plugin_ctx_as_post_infill_generation(run_ctx);
     if (payload == nullptr || payload->object == nullptr ||
-        payload->get_or_create_region_island == nullptr ||
         payload->get_region_island_mutable_extrusion == nullptr)
         return;
 
@@ -281,16 +280,16 @@ void mutate_post_infill_outputs(RecordingPluginState &state, const plugin_run_co
                     region_handles.push_back(region);
             }
 
-            // STEP_POST_INFILL can create or retrieve the destination
-            // LayerRegionIsland used by a post-process that merges infill from
-            // several source groups. The root returned below is still the
-            // normal infill bucket of that destination group.
+            // STEP_POST_INFILL now uses the generic data-tree mutation to
+            // create or retrieve the destination LayerRegionIsland. The root
+            // returned below is still the normal infill bucket of that
+            // destination group.
             layer_region_island_handle *destination_region_island =
-                payload->get_or_create_region_island(
-                    island,
+                layer_island_get_or_create_region_island(
+                    const_cast<layer_island_handle *>(island),
                     region_handles.empty() ? nullptr : region_handles.data(),
                     uint32_t(region_handles.size()),
-                    RAW_EXTRUSION_ROLE_INTERNAL_INFILL);
+                    0);
             if (destination_region_island != nullptr) {
                 state.saw_post_infill_region_island = true;
 

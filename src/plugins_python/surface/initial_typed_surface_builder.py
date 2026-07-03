@@ -190,8 +190,8 @@ class PythonInitialTypedSurfaceBuilderPlugin(PluginBase):
             return
 
         single_group = len(grouped_regions) == 1
-        for regions in grouped_regions.values():
-            region_island = ctx.get_or_create_region_island(island, regions)
+        for extruder_id, regions in grouped_regions.items():
+            region_island = island.get_or_create_region_island(regions, extruder_id)
             if region_island is None:
                 continue
 

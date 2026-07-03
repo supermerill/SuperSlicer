@@ -51,10 +51,12 @@ Normal plugin usage:
 6. The host builds child nodes from these output collections, runs modules, then
    publishes the aggregated result.
 
-The get_or_create_region_island() and set_region_island_*() callbacks are
-low-level host services kept for experiments and compatibility. New perimeter
-generators should prefer run_region_group(), because it keeps tree traversal and
-module ordering in one host-owned implementation.
+The set_region_island_*() callbacks are low-level host services kept for
+experiments and compatibility. New perimeter generators should prefer
+run_region_group(), because it keeps tree traversal and module ordering in one
+host-owned implementation. If a generator needs an additional destination
+LayerRegionIsland, use layer_island_get_or_create_region_island() from the
+generic data-tree API.
 
 The print/object/layer/island handles are processing context. Do not store them
 for another run. If a plugin needs persistent data, store it in plugin storage
@@ -108,11 +110,6 @@ typedef int32_t (*perimeter_run_region_group_fn)(
     void *generator_context,
     perimeter_generate_node_fn generate_node);
 
-typedef layer_region_island_handle *(*perimeter_get_or_create_region_island_fn)(
-    const layer_island_handle *island,
-    const layer_region_handle *const *regions,
-    uint32_t region_count);
-
 /*
 Move one extrusion entity into a layer region island.
 
@@ -163,12 +160,6 @@ typedef struct run_ctx_generate_perimeter {
     node tree, module calls and final publication to the host.
     */
     perimeter_run_region_group_fn run_region_group;
-
-    /*
-    Return the region-island output node for island and a set of regions,
-    creating it when necessary.
-    */
-    perimeter_get_or_create_region_island_fn get_or_create_region_island;
 
     /*
     Publish perimeter/gap-fill/other extrusions into a region island.

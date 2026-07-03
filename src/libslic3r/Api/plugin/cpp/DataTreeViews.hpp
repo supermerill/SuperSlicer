@@ -767,6 +767,35 @@ public:
         return LayerRegionIsland(layer_island_get_region_island(handle(), idx));
     }
 
+    LayerRegionIsland get_or_create_region_island(const std::vector<LayerRegion> &regions,
+                                                  int32_t extruder_id = -1) const {
+        std::vector<const layer_region_handle *> handles;
+        handles.reserve(regions.size());
+        for (const LayerRegion &region : regions)
+            handles.push_back(region.handle());
+
+        // The C API intentionally receives the extruder explicitly. Helpers
+        // that decide "which extruder for which role" should run before this
+        // call, so this method remains a plain data-tree mutation.
+        layer_region_island_handle *region_island =
+            layer_island_get_or_create_region_island(
+                const_cast<layer_island_handle *>(handle()),
+                handles.empty() ? nullptr : handles.data(),
+                uint32_t(handles.size()),
+                extruder_id);
+        return LayerRegionIsland(region_island);
+    }
+
+    LayerRegionIsland get_or_create_full_region_island(int32_t extruder_id = -1) const {
+        layer_region_island_handle *region_island =
+            layer_island_get_or_create_region_island(
+                const_cast<layer_island_handle *>(handle()),
+                nullptr,
+                0,
+                extruder_id);
+        return LayerRegionIsland(region_island);
+    }
+
     Layer layer() const;
 
     uint32_t lower_island_count() const { return layer_island_count_lower_island(handle()); }

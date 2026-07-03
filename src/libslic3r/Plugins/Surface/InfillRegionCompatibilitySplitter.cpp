@@ -67,7 +67,6 @@ struct RegionKey
 struct PendingSurfaceGroup
 {
     RegionKey regions;
-    raw_extrusion_role role;
     StoredSurfaceCollection surfaces;
 };
 
@@ -256,14 +255,13 @@ bool key_from_regions(const std::vector<LayerRegion> &regions,
 
 StoredSurfaceCollection &surfaces_for_region_key(std::vector<PendingSurfaceGroup> &groups,
                                                  storage_handle *storage,
-                                                 RegionKey key,
-                                                 const raw_extrusion_role role)
+                                                 RegionKey key)
 {
     for (PendingSurfaceGroup &group : groups)
         if (group.regions == key)
             return group.surfaces;
 
-    groups.push_back(PendingSurfaceGroup{std::move(key), role, StoredSurfaceCollection(storage)});
+    groups.push_back(PendingSurfaceGroup{std::move(key), StoredSurfaceCollection(storage)});
     return groups.back().surfaces;
 }
 
@@ -301,7 +299,7 @@ void append_unsplit_surface(std::vector<PendingSurfaceGroup> &groups,
     if (!key_from_regions(regions, role, region_key))
         return;
 
-    StoredSurfaceCollection &surfaces = surfaces_for_region_key(groups, storage, std::move(region_key), role);
+    StoredSurfaceCollection &surfaces = surfaces_for_region_key(groups, storage, std::move(region_key));
     StoredExPolygonCollection single(storage);
     single.push_back(surface.expolygon());
     append_surface_like(ctx, surfaces, surface, single.readonly());
@@ -347,7 +345,7 @@ void split_surface_by_region_settings(orchestrator_handle *orchestrator,
         if (!key_from_regions(target_regions, role, target_key))
             continue;
 
-        StoredSurfaceCollection &surfaces = surfaces_for_region_key(groups, storage, std::move(target_key), role);
+        StoredSurfaceCollection &surfaces = surfaces_for_region_key(groups, storage, std::move(target_key));
         append_surface_piece(surfaces, ctx, surface, setting_clip);
     }
 }
@@ -362,12 +360,12 @@ void publish_split_groups(const run_ctx_surface_generation &ctx,
                           const LayerRegionIsland &original_region_island,
                           std::vector<PendingSurfaceGroup> &groups)
 {
-    if (ctx.get_or_create_region_island == nullptr || ctx.set_region_island_fill_surfaces == nullptr)
+    if (ctx.set_region_island_fill_surfaces == nullptr)
         return;
 
     // Clear the old group first. Any newly created compatible group gets a full
     // replacement collection below. If one target uses the original region set,
-    // get_or_create_region_island() simply returns this cleared group.
+    // layer_island_get_or_create_region_island() simply returns this cleared group.
     ctx.set_region_island_fill_surfaces(
         const_cast<layer_region_island_handle *>(original_region_island.handle()),
         nullptr);
@@ -379,8 +377,11 @@ void publish_split_groups(const run_ctx_surface_generation &ctx,
         const layer_region_handle *const *handles =
             group.regions.handles.empty() ? nullptr : group.regions.handles.data();
         layer_region_island_handle *target =
-            ctx.get_or_create_region_island(
-                island.handle(), handles, uint32_t(group.regions.handles.size()), group.role);
+            layer_island_get_or_create_region_island(
+                const_cast<layer_island_handle *>(island.handle()),
+                handles,
+                uint32_t(group.regions.handles.size()),
+                group.regions.extruder_id);
         if (target != nullptr)
             ctx.set_region_island_fill_surfaces(target, group.surfaces.mutable_handle());
     }

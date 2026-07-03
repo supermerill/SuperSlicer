@@ -18,8 +18,8 @@ SurfaceGenerationContext exposes:
 
 * read-only print() and object() views; the plugin iterates layers, islands, and
   LayerRegionIslands through the data-tree views;
-* get_or_create_region_island(), which returns the LayerRegionIsland associated
-  with one island, a compatible set of LayerRegions, and an extrusion role;
+* data-tree helpers such as LayerIsland.get_or_create_region_island(), used
+  after the plugin has resolved the destination extruder;
 * set_fill_surfaces() and set_fill_surface_groups(), which build host-owned
   Surface objects from ExPolygon areas and move them into a LayerRegionIsland;
 * append_surface_like(), for copying the non-geometric attributes of an
@@ -35,7 +35,7 @@ Typical use
     for layer in obj.layers():
         for island in layer.islands():
             regions = list(island.regions())
-            region_island = ctx.get_or_create_region_island(island, regions)
+            region_island = island.get_or_create_region_island(regions, extruder_id=0)
             ctx.set_fill_surfaces(region_island, island.infill_areas(),
                                   RAW_SURFACE_TYPE_POS_INTERNAL | RAW_SURFACE_TYPE_DENS_SPARSE)
 
@@ -48,18 +48,16 @@ alive until set_fill_surfaces() returns.
 from __future__ import annotations
 
 import ctypes
-from typing import Iterable
 
 from slic3r_api_generated import (
     PLUGIN_IS_CANCELLED,
     PLUGIN_REPORT,
     PLUGIN_REPORT_PROGRESS,
     PluginRunContext,
-    RAW_EXTRUSION_ROLE_INTERNAL_INFILL,
     RunCtxSurfaceGeneration,
     STEP_SURFACE_GENERATION,
 )
-from slic3r_datatree_views import LayerIsland, LayerRegion, LayerRegionIsland, Object, Print, Surface
+from slic3r_datatree_views import LayerRegionIsland, Object, Print, Surface
 from slic3r_geometry_views import ExPolygonCollection
 
 
@@ -83,12 +81,6 @@ def _as_bytes(text: str) -> bytes:
 
 def _optional_bytes(text: str | None) -> bytes | None:
     return None if text is None else text.encode("utf-8")
-
-
-def _region_handle(region) -> int:
-    if isinstance(region, LayerRegion):
-        return region.address
-    return _address(region)
 
 
 def _areas_handle(areas) -> int:
@@ -125,9 +117,7 @@ class SurfaceGenerationContext:
         payload = payload_ptr.contents
         if not payload.print or not payload.object:
             return None
-        if (not payload.get_or_create_region_island or
-                not payload.set_region_island_fill_surfaces or
-                not payload.append_surface_like):
+        if not payload.set_region_island_fill_surfaces or not payload.append_surface_like:
             return None
         return cls(api, common, payload_ptr)
 
@@ -158,31 +148,6 @@ class SurfaceGenerationContext:
             PLUGIN_REPORT_PROGRESS(self.common.report_progress)(
                 self.common.host_context, float(progress), _optional_bytes(message)
             )
-
-    def get_or_create_region_island(
-        self,
-        island: LayerIsland,
-        regions: Iterable[LayerRegion],
-        role: int = RAW_EXTRUSION_ROLE_INTERNAL_INFILL,
-    ) -> LayerRegionIsland | None:
-        """
-        Return the destination LayerRegionIsland for one fill role.
-
-        The host uses ``role`` to select the extruder that participates in the
-        LayerRegionIsland key. If ``regions`` contains several extruders for
-        that role, the host returns None and does not create a destination.
-        """
-        region_addresses = [_region_handle(region) for region in regions]
-        region_array = None
-        if region_addresses:
-            region_array = (ctypes.c_void_p * len(region_addresses))(*region_addresses)
-        handle = self.payload.get_or_create_region_island(
-            island.c_handle(),
-            region_array,
-            len(region_addresses),
-            int(role),
-        )
-        return None if not handle else LayerRegionIsland(self.api, handle)
 
     def set_fill_surfaces(self, region_island: LayerRegionIsland, areas, surface_type: int) -> bool:
         return self.set_fill_surface_groups(region_island, [(areas, surface_type)])

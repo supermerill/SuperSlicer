@@ -42,7 +42,7 @@ Inspect region-island extrusions:
 from __future__ import annotations
 
 import ctypes
-from typing import Iterator
+from typing import Iterator, Sequence
 
 from slic3r_api_generated import (
     CLayerBrimProperty,
@@ -686,6 +686,47 @@ class LayerIsland(DataTreeView):
     def region_islands(self) -> Iterator[LayerRegionIsland]:
         for idx in range(self.region_island_count()):
             yield self.region_island(idx)
+
+    def get_or_create_region_island(
+        self,
+        regions: Sequence[LayerRegion],
+        extruder_id: int = -1,
+    ) -> LayerRegionIsland | None:
+        """
+        Return the LayerRegionIsland for this island, region list, and extruder.
+
+        The caller must already know which extruder should own the output.
+        Passing an empty region list means "all regions of this island", just
+        like get_or_create_full_region_island().
+        """
+        region_addresses = [_address(region.c_handle()) for region in regions]
+        region_array = None
+        if region_addresses:
+            region_array = (ctypes.c_void_p * len(region_addresses))(*region_addresses)
+
+        handle = self.api.host.layer_island_get_or_create_region_island(
+            self.c_handle(),
+            region_array,
+            len(region_addresses),
+            int(extruder_id),
+        )
+        return _optional(LayerRegionIsland, self.api, handle)
+
+    def get_or_create_full_region_island(self, extruder_id: int = -1) -> LayerRegionIsland | None:
+        """
+        Return the LayerRegionIsland that represents every region on this island.
+
+        Use this when the plugin output is not split by region settings. The
+        extruder is still explicit, because the data-tree API does not infer it
+        from an extrusion role.
+        """
+        handle = self.api.host.layer_island_get_or_create_region_island(
+            self.c_handle(),
+            None,
+            0,
+            int(extruder_id),
+        )
+        return _optional(LayerRegionIsland, self.api, handle)
 
     def layer(self) -> "Layer":
         return Layer(self.api, self.api.host.layer_island_get_layer(self.c_handle()))

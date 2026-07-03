@@ -153,7 +153,19 @@ bool publish_object_brim_to_auxiliary_layer(PrintObject &object, ExtrusionEntity
     paths keep their ExtrusionAttributes role Skirt, which is how the G-code
     and preview layers identify skirt/brim material today.
     */
-    LayerRegionIsland &region_island = layer->island(0).get_or_add_region_island(layer->island(0).regions());
+    layer_region_island_handle *region_island_handle =
+        layer_island_get_or_create_region_island(
+            reinterpret_cast<layer_island_handle *>(&layer->island(0)),
+            nullptr,
+            0,
+            -1);
+    if (region_island_handle == nullptr) {
+        remove_auxiliary_layer(object, *layer);
+        return false;
+    }
+
+    LayerRegionIsland &region_island =
+        *reinterpret_cast<LayerRegionIsland *>(region_island_handle);
     region_island.mutable_extrusion(LayerRegionIsland::PERIMETERS).append(std::move(extrusion));
     return true;
 }

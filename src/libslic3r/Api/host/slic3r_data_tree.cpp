@@ -3,6 +3,7 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 #include <algorithm>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -576,6 +577,45 @@ const layer_region_island_handle *layer_island_get_region_island(const layer_isl
     if (me == nullptr || idx >= Slic3r::to_layer_island(me)->regions_islands().size())
         return nullptr;
     return reinterpret_cast<const layer_region_island_handle*>(&Slic3r::to_layer_island(me)->regions_island(idx));
+}
+
+layer_region_island_handle *layer_island_get_or_create_region_island(
+    layer_island_handle *island_handle,
+    const layer_region_handle *const *region_handles,
+    uint32_t region_count,
+    int32_t extruder_id)
+{
+    Slic3r::LayerSliceIsland *island = Slic3r::to_layer_island(island_handle);
+    if (island == nullptr)
+        return nullptr;
+
+    Slic3r::LayerRegionSetCPtrs regions;
+    if (region_handles == nullptr || region_count == 0) {
+        regions = island->regions();
+    } else {
+        const Slic3r::LayerRegionSetCPtrs &island_regions = island->regions();
+        for (uint32_t idx = 0; idx < region_count; ++idx) {
+            const Slic3r::LayerRegion *region = Slic3r::to_layer_region(region_handles[idx]);
+            if (region == nullptr || island_regions.find(region) == island_regions.end())
+                return nullptr;
+            regions.insert(region);
+        }
+    }
+
+    if (regions.empty())
+        return nullptr;
+
+    // uint16_t(-1) is the host-side sentinel for "no concrete extruder".
+    // Accept it only through negative input so a real extruder id cannot
+    // accidentally collide with the sentinel value.
+    if (extruder_id > int32_t(std::numeric_limits<uint16_t>::max() - 1))
+        return nullptr;
+    const uint16_t native_extruder_id =
+        extruder_id < 0 ? uint16_t(-1) : uint16_t(extruder_id);
+
+    Slic3r::LayerRegionIsland &region_island =
+        island->get_or_add_region_island(regions, native_extruder_id);
+    return reinterpret_cast<layer_region_island_handle *>(&region_island);
 }
 
 const layer_handle *layer_island_get_layer(const layer_island_handle *me)

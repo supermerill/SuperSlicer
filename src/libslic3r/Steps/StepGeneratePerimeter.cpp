@@ -194,11 +194,6 @@ const LayerRegion *to_layer_region(const layer_region_handle *handle)
     return reinterpret_cast<const LayerRegion *>(handle);
 }
 
-LayerSliceIsland *to_layer_island(layer_island_handle *handle)
-{
-    return reinterpret_cast<LayerSliceIsland *>(handle);
-}
-
 ExtrusionEntity *to_extrusion(extrusion_entity_handle *handle)
 {
     return reinterpret_cast<ExtrusionEntity *>(handle);
@@ -863,24 +858,6 @@ int32_t run_region_group_callback(const run_ctx_generate_perimeter *ctx,
     return result;
 }
 
-layer_region_island_handle *get_or_create_region_island_callback(const layer_island_handle *island_handle,
-                                                                 const layer_region_handle *const *region_handles,
-                                                                 uint32_t region_count)
-{
-    // Generators may need to create a region-island without running a full
-    // region group, for example to publish auxiliary extrusion. The callback
-    // keeps the same region/extruder grouping rule as run_region_group().
-    LayerSliceIsland *island = to_layer_island(const_cast<layer_island_handle *>(island_handle));
-    if (island == nullptr)
-        return nullptr;
-
-    LayerRegionSetCPtrs regions = region_set_from_handles(region_handles, region_count, *island);
-    if (regions.empty())
-        return nullptr;
-    LayerRegionIsland &region_island = island->get_or_add_region_island(regions, perimeter_extruder_id(regions));
-    return reinterpret_cast<layer_region_island_handle *>(&region_island);
-}
-
 int32_t set_region_island_extrusion_callback(layer_region_island_handle *region_island_handle,
                                              raw_extrusion_role role,
                                              extrusion_entity_handle *extrusion_handle)
@@ -974,7 +951,6 @@ bool run_generator_for_island(Orchestrator &orchestrator,
     payload.island = reinterpret_cast<const layer_island_handle *>(&island);
     payload.host_context = &perimeter_context;
     payload.run_region_group = &run_region_group_callback;
-    payload.get_or_create_region_island = &get_or_create_region_island_callback;
     payload.set_region_island_extrusion = &set_region_island_extrusion_callback;
     run_context.data = &payload;
 

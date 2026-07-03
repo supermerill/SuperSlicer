@@ -78,28 +78,6 @@ bool first_layer_top_surface_has_priority(const Object &object, const bool is_fi
     return config_int_value(object.config(), "raft_layers", raft_layers) && raft_layers == 0;
 }
 
-std::vector<const layer_region_handle *> region_handles(const std::vector<LayerRegion> &regions)
-{
-    std::vector<const layer_region_handle *> out;
-    out.reserve(regions.size());
-    for (const LayerRegion &region : regions)
-        out.push_back(region.handle());
-    return out;
-}
-
-layer_region_island_handle *get_or_create_region_island(const run_ctx_surface_generation &ctx,
-                                                        const LayerIsland &island,
-                                                        const std::vector<LayerRegion> &regions,
-                                                        const raw_extrusion_role role)
-{
-    if (ctx.get_or_create_region_island == nullptr)
-        return nullptr;
-
-    std::vector<const layer_region_handle *> handles = region_handles(regions);
-    const layer_region_handle *const *raw_handles = handles.empty() ? nullptr : handles.data();
-    return ctx.get_or_create_region_island(island.handle(), raw_handles, uint32_t(handles.size()), role);
-}
-
 StoredExPolygonCollection clip_infill_areas_to_regions(storage_handle *storage,
                                                        const LayerIsland &island,
                                                        const std::vector<LayerRegion> &regions)
@@ -253,23 +231,22 @@ void build_island_surfaces(const run_ctx_surface_generation &ctx,
     const bool first_layer_top_priority = first_layer_top_surface_has_priority(object, is_first_layer);
     const bool single_group = grouped_regions.size() == 1;
     for (const auto &[extruder_id, regions] : grouped_regions) {
-        (void)extruder_id;
-        layer_region_island_handle *region_island =
-            get_or_create_region_island(ctx, island, regions, RAW_EXTRUSION_ROLE_INTERNAL_INFILL);
-        if (region_island == nullptr)
-            continue;
+        LayerRegionIsland region_island =
+            island.get_or_create_region_island(regions, extruder_id);
+        layer_region_island_handle *region_island_handle =
+            const_cast<layer_region_island_handle *>(region_island.handle());
 
         if (single_group) {
             StoredSurfaceCollection surfaces =
                 classify_areas(storage, island, island.infill_areas(), is_first_layer, first_layer_top_priority);
-            set_region_island_surfaces(ctx, region_island, surfaces);
+            set_region_island_surfaces(ctx, region_island_handle, surfaces);
             continue;
         }
 
         StoredExPolygonCollection clipped_areas = clip_infill_areas_to_regions(storage, island, regions);
         StoredSurfaceCollection surfaces =
             classify_areas(storage, island, clipped_areas.readonly(), is_first_layer, first_layer_top_priority);
-        set_region_island_surfaces(ctx, region_island, surfaces);
+        set_region_island_surfaces(ctx, region_island_handle, surfaces);
     }
 }
 

@@ -332,6 +332,29 @@ SLIC3R_HOST_API uint32_t layer_island_count_region_island(const layer_island_han
 SLIC3R_HOST_API layer_region_island_handle *layer_island_get_region_island_mutable(layer_island_handle *me, uint32_t idx);
 SLIC3R_HOST_API const layer_region_island_handle *layer_island_get_region_island(const layer_island_handle *me, uint32_t idx);
 
+/*
+Return the LayerRegionIsland for one island, one region set, and one extruder.
+
+LayerRegionIslands are the mutable work buckets shared by perimeter, surface,
+infill, and post-process plugins. A plugin uses this function when it already
+knows which regions and which extruder must own the output. The function only
+validates and mutates the data tree; it does not decide which extruder a role
+should use.
+
+regions must contain LayerRegion handles that belong to island. Passing
+regions == NULL or region_count == 0 means "all regions of the island".
+extruder_id is a zero-based extruder index. Passing a negative value stores the
+generic "no single extruder" value uint16_t(-1), matching existing host data.
+
+Returns NULL when island is invalid, when any region is invalid or belongs to a
+different island, or when the final region set is empty.
+*/
+SLIC3R_HOST_API layer_region_island_handle *layer_island_get_or_create_region_island(
+    layer_island_handle *island,
+    const layer_region_handle *const *regions,
+    uint32_t region_count,
+    int32_t extruder_id);
+
 SLIC3R_HOST_API const layer_handle *layer_island_get_layer(const layer_island_handle *me);
 
 /*

@@ -31,16 +31,6 @@
 namespace Slic3r::Steps::StepSurfaceGeneration {
 namespace {
 
-LayerSliceIsland *to_layer_island(const layer_island_handle *handle)
-{
-    return const_cast<LayerSliceIsland *>(reinterpret_cast<const LayerSliceIsland *>(handle));
-}
-
-const LayerRegion *to_layer_region(const layer_region_handle *handle)
-{
-    return reinterpret_cast<const LayerRegion *>(handle);
-}
-
 LayerRegionIsland *to_layer_region_island(layer_region_island_handle *handle)
 {
     return reinterpret_cast<LayerRegionIsland *>(handle);
@@ -147,107 +137,6 @@ bool validate_island_surface_partition(const LayerSliceIsland &island,
     }
 
     return true;
-}
-
-LayerRegionSetCPtrs region_set_from_handles(const layer_region_handle *const *region_handles,
-                                             uint32_t region_count,
-                                             const LayerSliceIsland &island)
-{
-    // Plugins usually ask for "the whole island" by passing no explicit region
-    // list. In that case the callback uses the island's current region set,
-    // which was computed by slicing and is stable for this step.
-    LayerRegionSetCPtrs regions;
-    if (region_handles == nullptr || region_count == 0)
-        return island.regions();
-
-    for (uint32_t idx = 0; idx < region_count; ++idx) {
-        const LayerRegion *region = to_layer_region(region_handles[idx]);
-        if (region != nullptr)
-            regions.insert(region);
-    }
-    return regions;
-}
-
-bool region_extruder_id_for_role(const LayerRegion &region,
-                                 const raw_extrusion_role role,
-                                 uint16_t &extruder_id)
-{
-    // LayerRegionIsland is keyed by the extruder that will print the generated
-    // fill. Surface plugins describe the output role; the host resolves the
-    // matching region setting so plugin authors do not have to duplicate the
-    // sparse-vs-solid extruder rule at every call site.
-    int extruder = 0;
-    if ((role & RAW_EXTRUSION_ROLE_INFILL) != 0) {
-        if ((role & RAW_EXTRUSION_ROLE_SOLID) != 0 ||
-            (role & RAW_EXTRUSION_ROLE_BRIDGE) != 0 ||
-            (role & RAW_EXTRUSION_ROLE_IRONING) != 0)
-            extruder = region.region().config().solid_infill_extruder.value;
-        else
-            extruder = region.region().config().infill_extruder.value;
-    } else if (role == RAW_EXTRUSION_ROLE_GAP_FILL) {
-        extruder = region.region().config().infill_extruder.value;
-    } else {
-        return false;
-    }
-
-    if (extruder <= 0)
-        return false;
-
-    extruder_id = uint16_t(extruder - 1);
-    return true;
-}
-
-bool unique_extruder_id_for_role(const LayerRegionSetCPtrs &regions,
-                                 const raw_extrusion_role role,
-                                 uint16_t &extruder_id)
-{
-    // One LayerRegionIsland may only represent one extruder. If a plugin asks
-    // for a mixed region group, fail the request and let the plugin split the
-    // geometry into smaller compatible groups.
-    bool has_extruder = false;
-    for (const LayerRegion *region : regions) {
-        if (region == nullptr)
-            continue;
-
-        uint16_t region_extruder_id = uint16_t(-1);
-        if (!region_extruder_id_for_role(*region, role, region_extruder_id))
-            return false;
-
-        if (!has_extruder) {
-            extruder_id = region_extruder_id;
-            has_extruder = true;
-            continue;
-        }
-
-        if (extruder_id != region_extruder_id)
-            return false;
-    }
-
-    return has_extruder;
-}
-
-layer_region_island_handle *get_or_create_region_island_callback(const layer_island_handle *island_handle,
-                                                                 const layer_region_handle *const *region_handles,
-                                                                 uint32_t region_count,
-                                                                 raw_extrusion_role role)
-{
-    // This is the host-owned write entry point for surface-generation plugins:
-    // a plugin can request a region island for a subset of regions, but it never
-    // mutates the LayerSliceIsland geometry itself.
-    LayerSliceIsland *island = to_layer_island(island_handle);
-    if (island == nullptr)
-        return nullptr;
-
-    LayerRegionSetCPtrs regions = region_set_from_handles(region_handles, region_count, *island);
-    if (regions.empty())
-        return nullptr;
-
-    uint16_t extruder_id = uint16_t(-1);
-    if (!unique_extruder_id_for_role(regions, role, extruder_id))
-        return nullptr;
-
-    LayerRegionIsland &region_island = island->get_or_add_region_island(regions, extruder_id);
-    return reinterpret_cast<layer_region_island_handle *>(&region_island);
 }
 
 int32_t set_region_island_fill_surfaces_callback(layer_region_island_handle *region_island_handle,
@@ -360,7 +249,6 @@ void run_step(Orchestrator &orchestrator, Print &print)
             run_ctx_surface_generation payload = {};
             payload.print = reinterpret_cast<const print_handle *>(&print);
             payload.object = reinterpret_cast<const object_handle *>(&print.object(object_idx));
-            payload.get_or_create_region_island = &get_or_create_region_island_callback;
             payload.set_region_island_fill_surfaces = &set_region_island_fill_surfaces_callback;
             payload.append_surface_like = &append_surface_like_callback;
             return payload;
