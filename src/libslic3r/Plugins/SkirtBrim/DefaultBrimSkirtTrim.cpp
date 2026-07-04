@@ -264,56 +264,17 @@ bool publish_brim(storage_handle *storage,
 
     const ExPolygonCollection subject_view(reinterpret_cast<const expolygon_collection_handle *>(&subject));
 
-    /*
-    Build a normal auxiliary Layer from the clipped brim footprint. Region
-    masks are applied by the shared helper, so the layer can later participate
-    in ordering and preview like any other generated layer.
-    */
-    AuxiliaryLayerBuildResult result =
-        build_auxiliary_layer_regions_from_subject(storage,
-                                                   print,
-                                                   object,
-                                                   subject_view,
-                                                   height,
-                                                   print_z,
-                                                   slice_z);
-    if (!result.created)
-        return false;
-
-    LayerAdhesionProperty &property = result.layer.properties().get_or_add<LayerAdhesionProperty>(orchestrator);
-    property.kind = RAW_LAYER_ADHESION_KIND_BRIM;
-    property.flags = 0;
-
-    if (result.layer.island_count() == 0) {
-        object.remove_auxiliary_layer(result.layer);
-        return false;
-    }
-
-    layer_region_island_handle *region_island =
-        layer_island_get_or_create_region_island(
-            const_cast<layer_island_handle *>(result.layer.island(0).handle()),
-            nullptr,
-            0,
-            -1);
-    if (region_island == nullptr) {
-        object.remove_auxiliary_layer(result.layer);
-        return false;
-    }
-
-    extrusion_entity_handle *root =
-        layer_region_island_get_mutable_extrusion(region_island, RAW_EXTRUSION_ROLE_PERIMETER);
-    if (root == nullptr) {
-        object.remove_auxiliary_layer(result.layer);
-        return false;
-    }
-
-    const uint32_t inserted =
-        MutableExtrusionEntity(root).append_child_move(brim.mutable_view());
-    if (is_invalid_index(inserted)) {
-        object.remove_auxiliary_layer(result.layer);
-        return false;
-    }
-    return true;
+    return publish_adhesion_extrusion_to_auxiliary_layer(storage,
+                                                         orchestrator,
+                                                         print,
+                                                         object,
+                                                         subject_view,
+                                                         height,
+                                                         print_z,
+                                                         slice_z,
+                                                         RAW_LAYER_ADHESION_KIND_BRIM,
+                                                         0,
+                                                         brim.mutable_view());
 }
 
 bool trim_print_brim(storage_handle *storage,

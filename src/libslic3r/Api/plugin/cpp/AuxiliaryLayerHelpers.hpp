@@ -24,9 +24,12 @@ volumes are sliced locally at the requested Z only to decide where alternate
 settings apply. Negative volumes are ignored because the subject is already the
 geometry the plugin wants to print.
 
-After the helper returns, the Layer has raw LayerRegion slices, cached Layer
-slices and LayerSliceIsland membership ready for later perimeter/surface/infill
-code. The helper does not create extrusions.
+After the build helper returns, the Layer has raw LayerRegion slices, cached
+Layer slices and LayerSliceIsland membership ready for later
+perimeter/surface/infill code. The publication helper below performs the next
+common step for adhesion plugins: attach a brim/skirt tag and move one already
+generated extrusion tree into the new layer. It does not generate the subject
+area or the extrusion tree; callers are still responsible for those algorithms.
 */
 
 struct AuxiliaryLayerBuildResult
@@ -42,6 +45,18 @@ AuxiliaryLayerBuildResult build_auxiliary_layer_regions_from_subject(storage_han
                                                                      coord_t height,
                                                                      coord_t print_z,
                                                                      coord_t slice_z);
+
+bool publish_adhesion_extrusion_to_auxiliary_layer(storage_handle *storage,
+                                                   orchestrator_handle *orchestrator,
+                                                   const Print &print,
+                                                   const Object &object,
+                                                   const ExPolygonCollection &subject,
+                                                   coord_t height,
+                                                   coord_t print_z,
+                                                   coord_t slice_z,
+                                                   raw_layer_adhesion_kind kind,
+                                                   raw_layer_adhesion_flag flags,
+                                                   MutableExtrusionEntity extrusion);
 
 } // namespace slic3r_api
 

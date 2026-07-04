@@ -41,6 +41,8 @@ public:
         return m_handle;
     }
 
+    bool valid() const { return m_handle != nullptr; }
+
     bool same_handle(const ConstDataTreeHandleView &other) const { return m_handle == other.m_handle; }
 
 protected:

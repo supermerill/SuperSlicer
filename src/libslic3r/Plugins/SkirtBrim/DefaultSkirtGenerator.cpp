@@ -664,51 +664,17 @@ bool publish_skirt_tree(storage_handle *storage,
     if (subject.empty())
         return false;
 
-    AuxiliaryLayerBuildResult result =
-        build_auxiliary_layer_regions_from_subject(storage,
-                                                   print,
-                                                   object,
-                                                   subject.readonly(),
-                                                   reference_layer.height(),
-                                                   reference_layer.print_z(),
-                                                   reference_layer.slice_z());
-    if (!result.created)
-        return false;
-
-    LayerAdhesionProperty &property = result.layer.properties().get_or_add<LayerAdhesionProperty>(orchestrator);
-    property.kind = RAW_LAYER_ADHESION_KIND_SKIRT;
-    property.flags = flags;
-
-    if (result.layer.island_count() == 0) {
-        object.remove_auxiliary_layer(result.layer);
-        return false;
-    }
-
-    layer_region_island_handle *region_island =
-        layer_island_get_or_create_region_island(
-            const_cast<layer_island_handle *>(result.layer.island(0).handle()),
-            nullptr,
-            0,
-            -1);
-    if (region_island == nullptr) {
-        object.remove_auxiliary_layer(result.layer);
-        return false;
-    }
-
-    extrusion_entity_handle *root =
-        layer_region_island_get_mutable_extrusion(region_island, RAW_EXTRUSION_ROLE_PERIMETER);
-    if (root == nullptr) {
-        object.remove_auxiliary_layer(result.layer);
-        return false;
-    }
-
-    const uint32_t inserted =
-        MutableExtrusionEntity(root).append_child_move(extrusion.mutable_view());
-    if (is_invalid_index(inserted)) {
-        object.remove_auxiliary_layer(result.layer);
-        return false;
-    }
-    return true;
+    return publish_adhesion_extrusion_to_auxiliary_layer(storage,
+                                                         orchestrator,
+                                                         print,
+                                                         object,
+                                                         subject.readonly(),
+                                                         reference_layer.height(),
+                                                         reference_layer.print_z(),
+                                                         reference_layer.slice_z(),
+                                                         RAW_LAYER_ADHESION_KIND_SKIRT,
+                                                         flags,
+                                                         extrusion.mutable_view());
 }
 
 Layer first_print_layer_or_throw(const std::vector<Object> &objects)

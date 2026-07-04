@@ -928,6 +928,8 @@ public:
     MutableExtrusionEntity() = default;
     explicit MutableExtrusionEntity(extrusion_entity_handle *handle) : m_handle(handle) { assert(handle != nullptr); }
 
+    bool valid() const { return m_handle != nullptr; }
+
     const extrusion_entity_handle *handle() const {
         assert(m_handle != nullptr);
         return m_handle;

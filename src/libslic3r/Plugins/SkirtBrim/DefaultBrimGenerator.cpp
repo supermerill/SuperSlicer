@@ -410,58 +410,18 @@ bool publish_brim_to_auxiliary_layer(storage_handle *storage,
     const slic3r_api::ExPolygonCollection subject_view(
         reinterpret_cast<const expolygon_collection_handle *>(&subject));
 
-    /*
-    AuxiliaryLayerHelpers applies the object's region masks to this already-2D
-    brim subject, rebuilds layer slices/islands, and leaves an ordinary Layer
-    ready to receive extrusion roots.
-    */
-    AuxiliaryLayerBuildResult result =
-        build_auxiliary_layer_regions_from_subject(storage,
-                                                   print_view,
-                                                   object,
-                                                   subject_view,
-                                                   reference_layer.scaled_height(),
-                                                   reference_layer.scaled_print_z(),
-                                                   scale_to_layer_coord(reference_layer.slice_z));
-    if (!result.created)
-        return false;
-
-    slic3r_api::LayerAdhesionProperty &property =
-        result.layer.properties().get_or_add<slic3r_api::LayerAdhesionProperty>(orchestrator);
-    property.kind = RAW_LAYER_ADHESION_KIND_BRIM;
-    property.flags = 0;
-
-    if (result.layer.island_count() == 0) {
-        object.remove_auxiliary_layer(result.layer);
-        return false;
-    }
-
-    layer_region_island_handle *region_island =
-        layer_island_get_or_create_region_island(
-            const_cast<layer_island_handle *>(result.layer.island(0).handle()),
-            nullptr,
-            0,
-            -1);
-    if (region_island == nullptr) {
-        object.remove_auxiliary_layer(result.layer);
-        return false;
-    }
-
-    extrusion_entity_handle *root =
-        layer_region_island_get_mutable_extrusion(region_island, RAW_EXTRUSION_ROLE_PERIMETER);
-    if (root == nullptr) {
-        object.remove_auxiliary_layer(result.layer);
-        return false;
-    }
-
-    const uint32_t inserted =
-        slic3r_api::MutableExtrusionEntity(root).append_child_move(
-            slic3r_api::MutableExtrusionEntity(reinterpret_cast<extrusion_entity_handle *>(&brim)));
-    if (slic3r_api::is_invalid_index(inserted)) {
-        object.remove_auxiliary_layer(result.layer);
-        return false;
-    }
-    return true;
+    return publish_adhesion_extrusion_to_auxiliary_layer(
+        storage,
+        orchestrator,
+        print_view,
+        object,
+        subject_view,
+        reference_layer.scaled_height(),
+        reference_layer.scaled_print_z(),
+        scale_to_layer_coord(reference_layer.slice_z),
+        RAW_LAYER_ADHESION_KIND_BRIM,
+        0,
+        slic3r_api::MutableExtrusionEntity(reinterpret_cast<extrusion_entity_handle *>(&brim)));
 }
 
 void generate_per_object_brim(storage_handle *storage,
