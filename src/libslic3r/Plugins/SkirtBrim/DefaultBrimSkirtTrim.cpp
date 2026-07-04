@@ -185,23 +185,6 @@ void append_trimmed_brim_tree(storage_handle *storage,
         append_trimmed_brim_tree(storage, entity.child(child_idx), trim_area, out);
 }
 
-bool layer_is_adhesion_kind(const Layer &layer, raw_layer_adhesion_kind kind)
-{
-    const LayerAdhesionProperty *adhesion = layer.properties().get<LayerAdhesionProperty>();
-    if (adhesion != nullptr)
-        return adhesion->kind == kind;
-    return kind == RAW_LAYER_ADHESION_KIND_BRIM &&
-           layer.properties().get<LayerBrimProperty>() != nullptr;
-}
-
-bool layer_is_normal_skirt(const Layer &layer)
-{
-    const LayerAdhesionProperty *adhesion = layer.properties().get<LayerAdhesionProperty>();
-    return adhesion != nullptr &&
-           adhesion->kind == RAW_LAYER_ADHESION_KIND_SKIRT &&
-           (adhesion->flags & RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY) == 0;
-}
-
 void append_layer_extrusions(storage_handle *storage, const Layer &layer, StoredExtrusionEntity &out)
 {
     for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx) {
@@ -227,7 +210,9 @@ StoredExtrusionEntity collect_adhesion_tree(storage_handle *storage,
     out.disable_sort().disable_reverse();
     for (uint32_t layer_idx = 0; layer_idx < object.auxiliary_layer_count(); ++layer_idx) {
         const Layer layer = object.auxiliary_layer(layer_idx);
-        if (normal_skirt_only ? layer_is_normal_skirt(layer) : layer_is_adhesion_kind(layer, kind))
+        if (normal_skirt_only ?
+            LayerAdhesionProperty::layer_is_normal_skirt(layer) :
+            LayerAdhesionProperty::layer_has_kind(layer, kind))
             append_layer_extrusions(storage, layer, out);
     }
     out.disable_sort().disable_reverse();
@@ -256,7 +241,7 @@ void clear_brim_output(const Object &object)
     */
     for (uint32_t idx = object.auxiliary_layer_count(); idx > 0; --idx) {
         const Layer layer = object.auxiliary_layer(idx - 1);
-        if (layer_is_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM))
+        if (LayerAdhesionProperty::layer_is_brim(layer))
             object.remove_auxiliary_layer(layer);
     }
 }

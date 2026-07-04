@@ -254,6 +254,8 @@ TEST_CASE("Support auxiliary layers are recognized through the plugin data tree 
     adhesion_property.kind = RAW_LAYER_ADHESION_KIND_SKIRT;
     adhesion_property.flags = RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY;
     REQUIRE(plain_layer.get_property<LayerAdhesionProperty>() != nullptr);
+    CHECK(plain_layer.get_property<LayerAdhesionProperty>()->is_skirt());
+    CHECK(plain_layer.get_property<LayerAdhesionProperty>()->is_first_layer_only());
     CHECK(plugin_property_has(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_ADHESION) != 0);
     REQUIRE(plugin_property_data_size(plain_properties, PLUGIN_PROPERTY_TYPE_LAYER_ADHESION) == sizeof(c_layer_adhesion_property));
     const c_layer_adhesion_property *raw_adhesion_property =
@@ -265,6 +267,6 @@ TEST_CASE("Support auxiliary layers are recognized through the plugin data tree 
     const slic3r_api::LayerAdhesionProperty *view_adhesion_property =
         object_view.auxiliary_layer(0).properties().get<slic3r_api::LayerAdhesionProperty>();
     REQUIRE(view_adhesion_property != nullptr);
-    CHECK(view_adhesion_property->kind == RAW_LAYER_ADHESION_KIND_SKIRT);
-    CHECK(view_adhesion_property->flags == RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY);
+    CHECK(view_adhesion_property->is_skirt());
+    CHECK(view_adhesion_property->is_first_layer_only());
 }

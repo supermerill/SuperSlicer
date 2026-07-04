@@ -193,12 +193,9 @@ double extrusion_tree_length_mm(const ExtrusionEntity &entity)
 std::vector<const Layer *> object_brim_auxiliary_layers(const PrintObject &object)
 {
     std::vector<const Layer *> out;
-    for (const Layer &layer : object.auxiliary_layers()) {
-        const LayerAdhesionProperty *adhesion = layer.get_property<LayerAdhesionProperty>();
-        if ((adhesion != nullptr && adhesion->kind == RAW_LAYER_ADHESION_KIND_BRIM) ||
-            layer.get_property<LayerBrimProperty>() != nullptr)
+    for (const Layer &layer : object.auxiliary_layers())
+        if (LayerAdhesionProperty::layer_is_brim(layer))
             out.push_back(&layer);
-    }
     return out;
 }
 
@@ -304,7 +301,7 @@ TEST_CASE("Default brim generator can publish object-owned brim", "[plugins][ski
     const Layer &brim_layer = *brim_layers.front();
     const LayerAdhesionProperty *adhesion = brim_layer.get_property<LayerAdhesionProperty>();
     REQUIRE(adhesion != nullptr);
-    CHECK(adhesion->kind == RAW_LAYER_ADHESION_KIND_BRIM);
+    CHECK(adhesion->is_brim());
     CHECK(brim_layer.get_property<LayerSupportProperty>() == nullptr);
     CHECK_FALSE(brim_layer.lslices().empty());
     REQUIRE_FALSE(brim_layer.islands().empty());

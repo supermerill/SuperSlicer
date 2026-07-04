@@ -704,31 +704,6 @@ std::vector<ObjectID> Print::print_object_ids() const
     return out;
 }
 
-static bool layer_has_adhesion_kind(const Layer &layer, const raw_layer_adhesion_kind kind)
-{
-    const LayerAdhesionProperty *adhesion = layer.get_property<LayerAdhesionProperty>();
-    if (adhesion != nullptr)
-        return adhesion->kind == kind;
-    return kind == RAW_LAYER_ADHESION_KIND_BRIM &&
-           layer.get_property<LayerBrimProperty>() != nullptr;
-}
-
-static bool layer_has_normal_skirt(const Layer &layer)
-{
-    const LayerAdhesionProperty *adhesion = layer.get_property<LayerAdhesionProperty>();
-    return adhesion != nullptr &&
-           adhesion->kind == RAW_LAYER_ADHESION_KIND_SKIRT &&
-           (adhesion->flags & RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY) == 0;
-}
-
-static bool layer_has_skirt_first_layer_only(const Layer &layer)
-{
-    const LayerAdhesionProperty *adhesion = layer.get_property<LayerAdhesionProperty>();
-    return adhesion != nullptr &&
-           adhesion->kind == RAW_LAYER_ADHESION_KIND_SKIRT &&
-           (adhesion->flags & RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY) != 0;
-}
-
 static void append_adhesion_extrusion_copy(ExtrusionEntityCollection &dst, const ExtrusionEntity &src)
 {
     if (src.is_nop())
@@ -804,7 +779,7 @@ static void remove_print_auxiliary_adhesion_layers(Print &print, const raw_layer
     layers.erase(std::remove_if(layers.begin(),
                                 layers.end(),
                                 [kind](const LayerUPtr &layer) {
-                                    return layer != nullptr && layer_has_adhesion_kind(*layer, kind);
+                                    return layer != nullptr && LayerAdhesionProperty::layer_has_kind(*layer, kind);
                                 }),
                  layers.end());
 }
@@ -826,7 +801,7 @@ bool Print::has_brim() const
     const PrintObject *auxiliary_object = this->auxiliary_object();
     if (auxiliary_object != nullptr) {
         for (const Layer &layer : auxiliary_object->auxiliary_layers())
-            if (layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM))
+            if (LayerAdhesionProperty::layer_is_brim(layer))
                 return true;
     }
     return std::any_of(m_objects.begin(), m_objects.end(), [](const PrintObjectUPtr &object) { return object->has_brim(); });
@@ -838,7 +813,7 @@ const ExtrusionEntityCollection &Print::brim() const
     const PrintObject *auxiliary_object = this->auxiliary_object();
     if (auxiliary_object != nullptr) {
         for (const Layer &layer : auxiliary_object->auxiliary_layers())
-            if (layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM))
+            if (LayerAdhesionProperty::layer_is_brim(layer))
                 collect_adhesion_layer_extrusions(layer, m_legacy_brim_cache);
     }
     return m_legacy_brim_cache;
@@ -850,7 +825,7 @@ const ExtrusionEntityCollection &Print::skirt() const
     const PrintObject *auxiliary_object = this->auxiliary_object();
     if (auxiliary_object != nullptr) {
         for (const Layer &layer : auxiliary_object->auxiliary_layers())
-            if (layer_has_normal_skirt(layer))
+            if (LayerAdhesionProperty::layer_is_normal_skirt(layer))
                 collect_adhesion_layer_extrusions(layer, m_legacy_skirt_cache);
     }
     return m_legacy_skirt_cache;
@@ -862,7 +837,7 @@ const std::optional<ExtrusionEntityCollection> &Print::skirt_first_layer() const
     const PrintObject *auxiliary_object = this->auxiliary_object();
     if (auxiliary_object != nullptr) {
         for (const Layer &layer : auxiliary_object->auxiliary_layers()) {
-            if (!layer_has_skirt_first_layer_only(layer))
+            if (!LayerAdhesionProperty::layer_is_skirt_first_layer_only(layer))
                 continue;
             if (!m_legacy_skirt_first_layer_cache)
                 m_legacy_skirt_first_layer_cache.emplace();
@@ -1998,15 +1973,15 @@ void ApiInternal::PrintAccess::normalize_skirt_brim_direction(Print &print)
         PrintObject *auxiliary_object = const_cast<PrintObject *>(print.auxiliary_object());
         if (auxiliary_object != nullptr) {
             for (Layer &layer : auxiliary_object->auxiliary_layers()) {
-                if (layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM) ||
-                    layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
+                if (LayerAdhesionProperty::layer_is_brim(layer) ||
+                    LayerAdhesionProperty::layer_has_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
                     visit_adhesion_layer_extrusions(layer, visitor);
             }
         }
         for (PrintObjectUPtr &object : print.m_objects) {
             for (Layer &layer : object->auxiliary_layers()) {
-                if (layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM) ||
-                    layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
+                if (LayerAdhesionProperty::layer_is_brim(layer) ||
+                    LayerAdhesionProperty::layer_has_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
                     visit_adhesion_layer_extrusions(layer, visitor);
             }
         }
@@ -2029,15 +2004,15 @@ void ApiInternal::PrintAccess::rebuild_first_layer_convex_hull_after_skirt_brim(
     const PrintObject *auxiliary_object = print.auxiliary_object();
     if (auxiliary_object != nullptr) {
         for (const Layer &layer : auxiliary_object->auxiliary_layers()) {
-            if (layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM) ||
-                layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
+            if (LayerAdhesionProperty::layer_is_brim(layer) ||
+                LayerAdhesionProperty::layer_has_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
                 collect_adhesion_layer_points(layer, print.m_first_layer_convex_hull.points);
         }
     }
     for (PrintObjectUPtr &object : print.m_objects) {
         for (const Layer &layer : object->auxiliary_layers()) {
-            if (layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM) ||
-                layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
+            if (LayerAdhesionProperty::layer_is_brim(layer) ||
+                LayerAdhesionProperty::layer_has_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
                 collect_adhesion_layer_points(layer, print.m_first_layer_convex_hull.points);
         }
     }

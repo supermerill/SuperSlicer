@@ -4,11 +4,50 @@
 ///|/
 #include "PluginProperty.hpp"
 
+#include "Layer.hpp"
+
 #include <algorithm>
 #include <cassert>
 #include <limits>
 
 namespace Slic3r {
+
+const LayerAdhesionProperty *LayerAdhesionProperty::get(const Layer &layer)
+{
+    return layer.get_property<LayerAdhesionProperty>();
+}
+
+bool LayerAdhesionProperty::layer_has_kind(const Layer &layer, raw_layer_adhesion_kind kind)
+{
+    const LayerAdhesionProperty *adhesion = get(layer);
+    if (adhesion != nullptr)
+        return adhesion->has_kind(kind);
+
+    /*
+    Compatibility path for layers produced while the old brim-only marker still
+    existed. New code writes LayerAdhesionProperty, but readers may still see
+    LayerBrimProperty until all persisted/intermediate producers are migrated.
+    */
+    return kind == RAW_LAYER_ADHESION_KIND_BRIM &&
+           layer.get_property<LayerBrimProperty>() != nullptr;
+}
+
+bool LayerAdhesionProperty::layer_is_brim(const Layer &layer)
+{
+    return layer_has_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM);
+}
+
+bool LayerAdhesionProperty::layer_is_normal_skirt(const Layer &layer)
+{
+    const LayerAdhesionProperty *adhesion = get(layer);
+    return adhesion != nullptr && adhesion->is_skirt() && !adhesion->is_first_layer_only();
+}
+
+bool LayerAdhesionProperty::layer_is_skirt_first_layer_only(const Layer &layer)
+{
+    const LayerAdhesionProperty *adhesion = get(layer);
+    return adhesion != nullptr && adhesion->is_skirt() && adhesion->is_first_layer_only();
+}
 
 PluginPropertyContainer::PluginPropertyContainer(const PluginPropertyContainer &rhs)
 {

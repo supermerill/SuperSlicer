@@ -17,6 +17,8 @@
 
 namespace Slic3r {
 
+class Layer;
+
 /*
 Built-in support marker for auxiliary layers.
 
@@ -52,6 +54,18 @@ classify every adhesion layer by kind and flags.
 struct LayerAdhesionProperty : c_layer_adhesion_property
 {
     static constexpr plugin_property_type property_type = PLUGIN_PROPERTY_TYPE_LAYER_ADHESION;
+
+    bool has_kind(raw_layer_adhesion_kind expected_kind) const { return kind == expected_kind; }
+    bool has_flag(raw_layer_adhesion_flag flag) const { return (flags & flag) != 0; }
+    bool is_brim() const { return has_kind(RAW_LAYER_ADHESION_KIND_BRIM); }
+    bool is_skirt() const { return has_kind(RAW_LAYER_ADHESION_KIND_SKIRT); }
+    bool is_first_layer_only() const { return has_flag(RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY); }
+
+    static const LayerAdhesionProperty *get(const Layer &layer);
+    static bool layer_has_kind(const Layer &layer, raw_layer_adhesion_kind kind);
+    static bool layer_is_brim(const Layer &layer);
+    static bool layer_is_normal_skirt(const Layer &layer);
+    static bool layer_is_skirt_first_layer_only(const Layer &layer);
 };
 
 /*

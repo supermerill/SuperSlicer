@@ -313,14 +313,6 @@ void append_points_from_extrusion(std::vector<c_point> &points, const ExtrusionE
     points.insert(points.end(), extrusion_points.begin(), extrusion_points.end());
 }
 
-bool layer_is_brim(const Layer &layer)
-{
-    const LayerAdhesionProperty *adhesion = layer.properties().get<LayerAdhesionProperty>();
-    if (adhesion != nullptr)
-        return adhesion->kind == RAW_LAYER_ADHESION_KIND_BRIM;
-    return layer.properties().get<LayerBrimProperty>() != nullptr;
-}
-
 void append_points_from_brim_layer(std::vector<c_point> &points, const Layer &layer, bool &found)
 {
     for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx) {
@@ -343,7 +335,7 @@ bool append_points_from_object_brim_auxiliary_layers(std::vector<c_point> &point
     bool found = false;
     for (uint32_t layer_idx = 0; layer_idx < object.auxiliary_layer_count(); ++layer_idx) {
         const Layer layer = object.auxiliary_layer(layer_idx);
-        if (!layer_is_brim(layer))
+        if (!LayerAdhesionProperty::layer_is_brim(layer))
             continue;
 
         /*
@@ -362,7 +354,7 @@ bool append_points_from_print_brim_auxiliary_layers(std::vector<c_point> &points
     const Object auxiliary_object = print.auxiliary_object();
     for (uint32_t layer_idx = 0; layer_idx < auxiliary_object.auxiliary_layer_count(); ++layer_idx) {
         const Layer layer = auxiliary_object.auxiliary_layer(layer_idx);
-        if (layer_is_brim(layer))
+        if (LayerAdhesionProperty::layer_is_brim(layer))
             append_points_from_brim_layer(points, layer, found);
     }
     return found;

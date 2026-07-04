@@ -149,31 +149,6 @@ static void append_adhesion_extrusion_copy(ExtrusionEntityCollection &dst, const
         dst.append(*child);
 }
 
-static bool layer_has_adhesion_kind(const Layer &layer, const raw_layer_adhesion_kind kind)
-{
-    const LayerAdhesionProperty *adhesion = layer.get_property<LayerAdhesionProperty>();
-    if (adhesion != nullptr)
-        return adhesion->kind == kind;
-    return kind == RAW_LAYER_ADHESION_KIND_BRIM &&
-           layer.get_property<LayerBrimProperty>() != nullptr;
-}
-
-static bool layer_has_skirt_first_layer_only(const Layer &layer)
-{
-    const LayerAdhesionProperty *adhesion = layer.get_property<LayerAdhesionProperty>();
-    return adhesion != nullptr &&
-           adhesion->kind == RAW_LAYER_ADHESION_KIND_SKIRT &&
-           (adhesion->flags & RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY) != 0;
-}
-
-static bool layer_has_normal_skirt(const Layer &layer)
-{
-    const LayerAdhesionProperty *adhesion = layer.get_property<LayerAdhesionProperty>();
-    return adhesion != nullptr &&
-           adhesion->kind == RAW_LAYER_ADHESION_KIND_SKIRT &&
-           (adhesion->flags & RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY) == 0;
-}
-
 static void collect_adhesion_layer_extrusions(const Layer &layer, ExtrusionEntityCollection &dst)
 {
     for (const LayerSliceIsland &island : layer.islands()) {
@@ -200,7 +175,7 @@ static void remove_adhesion_layers(PrintObject &object, const raw_layer_adhesion
     layers.erase(std::remove_if(layers.begin(),
                                 layers.end(),
                                 [kind](const LayerUPtr &layer) {
-                                    return layer != nullptr && layer_has_adhesion_kind(*layer, kind);
+                                    return layer != nullptr && LayerAdhesionProperty::layer_has_kind(*layer, kind);
                                 }),
                  layers.end());
 }
@@ -249,7 +224,7 @@ const ExtrusionEntityCollection &PrintObject::brim() const
 {
     m_legacy_brim_cache.clear();
     for (const Layer &layer : this->auxiliary_layers())
-        if (layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM))
+        if (LayerAdhesionProperty::layer_is_brim(layer))
             collect_adhesion_layer_extrusions(layer, m_legacy_brim_cache);
     return m_legacy_brim_cache;
 }
@@ -258,7 +233,7 @@ const ExtrusionEntityCollection &PrintObject::skirt() const
 {
     m_legacy_skirt_cache.clear();
     for (const Layer &layer : this->auxiliary_layers())
-        if (layer_has_normal_skirt(layer))
+        if (LayerAdhesionProperty::layer_is_normal_skirt(layer))
             collect_adhesion_layer_extrusions(layer, m_legacy_skirt_cache);
     return m_legacy_skirt_cache;
 }
@@ -267,7 +242,7 @@ const std::optional<ExtrusionEntityCollection> &PrintObject::skirt_first_layer()
 {
     m_legacy_skirt_first_layer_cache.reset();
     for (const Layer &layer : this->auxiliary_layers()) {
-        if (!layer_has_skirt_first_layer_only(layer))
+        if (!LayerAdhesionProperty::layer_is_skirt_first_layer_only(layer))
             continue;
         if (!m_legacy_skirt_first_layer_cache)
             m_legacy_skirt_first_layer_cache.emplace();
@@ -1265,8 +1240,8 @@ void PrintObject::simplify_extrusion_path()
 
             GetPathsVisitor visitor;
             for (Layer &layer : this->auxiliary_layers()) {
-                if (layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM) ||
-                    layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
+                if (LayerAdhesionProperty::layer_is_brim(layer) ||
+                    LayerAdhesionProperty::layer_has_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
                     visit_adhesion_layer_extrusions(layer, visitor);
             }
             tbb::parallel_for(
