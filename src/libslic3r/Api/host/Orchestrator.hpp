@@ -70,6 +70,9 @@ struct GenericFacetsAnnotationDefinition
     std::string label;
     std::string enforce_label;
     std::string block_label;
+    // Gettext catalog which owns the labels. An empty domain selects the
+    // application catalog for definitions created by the host.
+    std::string translation_domain;
 
     // Built-in tools may point to an icon stored in resources/icons. This stays
     // separate from plugin icons so libslic3r does not need to know how wx code
@@ -90,6 +93,7 @@ inline GenericFacetsAnnotationDefinition builtin_seam_facets_annotation_definiti
     def.label = "Seam painting";
     def.enforce_label = "Enforce seam";
     def.block_label = "Block seam";
+    def.translation_domain = "Slic3r";
     def.icon_filename = "seam.svg";
     return def;
 }
@@ -97,6 +101,29 @@ inline GenericFacetsAnnotationDefinition builtin_seam_facets_annotation_definiti
 class Orchestrator
 {
 public:
+    struct TranslationCatalog
+    {
+        std::string domain;
+        std::string locale_directory;
+        std::string package_root;
+    };
+
+    class PluginRegistrationScope
+    {
+    public:
+        PluginRegistrationScope(const PluginRegistrationScope &) = delete;
+        PluginRegistrationScope &operator=(const PluginRegistrationScope &) = delete;
+        PluginRegistrationScope(PluginRegistrationScope &&other) noexcept;
+        PluginRegistrationScope &operator=(PluginRegistrationScope &&other) noexcept;
+        ~PluginRegistrationScope();
+
+    private:
+        friend class Orchestrator;
+        explicit PluginRegistrationScope(Orchestrator *orchestrator) : m_orchestrator(orchestrator) {}
+
+        Orchestrator *m_orchestrator = nullptr;
+    };
+
     struct CustomExtrusionPropertyInfo
     {
         slic3r_property_type type;
@@ -195,6 +222,13 @@ public:
 
     bool register_plugin(plugin_instance plugin);
 
+    // The dynamic library loader establishes this scope while it calls a
+    // plugin's register_plugin() export. It gives catalog registration a
+    // package-relative root without exposing filesystem details through C.
+    PluginRegistrationScope plugin_registration_scope(std::string package_root, bool external_plugin);
+    int32_t register_translation_catalog(const char *domain, const char *locale_directory);
+    const std::vector<TranslationCatalog> &translation_catalogs() const { return m_translation_catalogs; }
+
     // Add one plugin UI fragment to a target .ui file.
     //
     // target_file + fragment_id is de-duplicated so an installed layout or an
@@ -263,7 +297,16 @@ public:
     const std::vector<GenericFacetsAnnotationDefinition> &generic_facets_annotations() const { return m_generic_facets_annotations; }
 
 private:
+    struct PluginRegistrationSource
+    {
+        std::string package_root;
+        bool external_plugin = false;
+    };
+
     Orchestrator();
+    void end_plugin_registration_scope();
+    std::string resolved_translation_domain(const char *requested_domain) const;
+    bool is_translation_domain_available(const std::string &domain, const std::string &package_root) const;
 
     std::vector<std::unique_ptr<Plugin>> m_registered_plugins;
     std::unordered_set<Plugin *> m_active_plugins;
@@ -273,6 +316,8 @@ private:
     uint64_t m_next_ui_fragment_order { 0 };
     std::vector<PluginGuiRule> m_gui_rules;
     std::map<std::string, ConfigOptionOwner> m_config_option_owners;
+    std::vector<TranslationCatalog> m_translation_catalogs;
+    std::vector<PluginRegistrationSource> m_plugin_registration_sources;
     std::vector<PropertyInfo> m_custom_property_infos;
     slic3r_property_type m_next_custom_property_type { SLIC3R_PROPERTY_TYPE_CUSTOM_BEGIN };
     std::vector<GenericFacetsAnnotationDefinition> m_generic_facets_annotations;

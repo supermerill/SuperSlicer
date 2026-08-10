@@ -32,12 +32,66 @@
 #ifndef slic3r_GUI_I18N_hpp_
 #define slic3r_GUI_I18N_hpp_
 
+#include <string>
+
 #include <wx/intl.h>
 #include <wx/version.h>
 
 namespace Slic3r { namespace GUI { 
 
 namespace I18N {
+	// Plugin-provided text carries its gettext domain with the owning
+	// definition. Keeping the lookup here confines wxWidgets to the GUI layer.
+	inline wxString translate_in_domain(const char *s, const std::string &domain) {
+		return domain.empty() ? wxGetTranslation(wxString(s, wxConvUTF8)) :
+			wxGetTranslation(wxString(s, wxConvUTF8), wxString(domain.c_str(), wxConvUTF8));
+	}
+	inline wxString translate_in_domain(const std::string &s, const std::string &domain) {
+		return translate_in_domain(s.c_str(), domain);
+	}
+	inline wxString translate_in_domain(const char *s, const char *plural, unsigned int n, const std::string &domain) {
+		return domain.empty() ? wxGetTranslation(wxString(s, wxConvUTF8), wxString(plural, wxConvUTF8), n) :
+			wxGetTranslation(wxString(s, wxConvUTF8), wxString(plural, wxConvUTF8), n,
+							 wxString(domain.c_str(), wxConvUTF8));
+	}
+	inline wxString translate_in_domain_with_context(const char *s, const char *context, const std::string &domain) {
+#if wxCHECK_VERSION(3, 1, 1)
+		return wxGetTranslation(wxString(s, wxConvUTF8),
+							domain.empty() ? wxEmptyString : wxString(domain.c_str(), wxConvUTF8),
+							wxString(context, wxConvUTF8));
+#else
+		(void)context;
+		return translate_in_domain(s, domain);
+#endif
+	}
+	inline wxString translate_in_domain_with_context(const char *s, const char *plural, unsigned int n,
+	                                                 const char *context, const std::string &domain) {
+#if wxCHECK_VERSION(3, 1, 1)
+		return wxGetTranslation(wxString(s, wxConvUTF8), wxString(plural, wxConvUTF8), n,
+							domain.empty() ? wxEmptyString : wxString(domain.c_str(), wxConvUTF8),
+							wxString(context, wxConvUTF8));
+#else
+		(void)context;
+		return translate_in_domain(s, plural, n, domain);
+#endif
+	}
+	inline std::string translate_utf8_in_domain(const char *s, const std::string &domain) {
+		return translate_in_domain(s, domain).ToUTF8().data();
+	}
+	inline std::string translate_utf8_in_domain(const std::string &s, const std::string &domain) {
+		return translate_in_domain(s, domain).ToUTF8().data();
+	}
+	inline std::string translate_utf8_in_domain(const char *s, const char *plural, unsigned int n, const std::string &domain) {
+		return translate_in_domain(s, plural, n, domain).ToUTF8().data();
+	}
+	inline std::string translate_utf8_in_domain_with_context(const char *s, const char *context, const std::string &domain) {
+		return translate_in_domain_with_context(s, context, domain).ToUTF8().data();
+	}
+	inline std::string translate_utf8_in_domain_with_context(const char *s, const char *plural, unsigned int n,
+	                                                         const char *context, const std::string &domain) {
+		return translate_in_domain_with_context(s, plural, n, context, domain).ToUTF8().data();
+	}
+
 	inline wxString translate(const char         *s) { return wxGetTranslation(wxString(s, wxConvUTF8)); }
 	inline wxString translate(const wchar_t      *s) { return wxGetTranslation(s); }
 	inline wxString translate(const std::string  &s) { return wxGetTranslation(wxString(s.c_str(), wxConvUTF8)); }

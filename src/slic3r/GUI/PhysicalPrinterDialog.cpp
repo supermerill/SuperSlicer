@@ -30,6 +30,7 @@
 #include "format.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
+#include "I18N.hpp"
 #include "MainFrame.hpp"
 #include "MsgDialog.hpp"
 #include "PresetComboBoxes.hpp"
@@ -782,7 +783,7 @@ void PhysicalPrinterDialog::update_host_type(bool printer_change)
 // TODO: review if it's good this time. supermerill/SuperSlicer#2395 f5afec0                                   
     assert(ht->m_opt.enum_def->labels().size() == ht->m_opt.enum_def->values().size());
     for (size_t i = 0; i < ht->m_opt.enum_def->labels().size(); ++ i) {
-        wxString label = _(ht->m_opt.enum_def->label(i));
+        wxString label = I18N::translate_in_domain(ht->m_opt.enum_def->label(i), ht->m_opt.translation_domain);
         if (const std::string &value = ht->m_opt.enum_def->value(i);
             value == "prusalink") {
             link.label = label;
@@ -801,9 +802,11 @@ void PhysicalPrinterDialog::update_host_type(bool printer_change)
     choice->set_values(types);
     int32_t index_in_choice = (printer_change ? std::clamp(last_in_conf - ((int32_t)ht->m_opt.enum_def->values().size() - (int32_t)types.size()), 0, (int32_t)ht->m_opt.enum_def->values().size() - 1) : last_in_conf);
     choice->set_any_value(index_in_choice, false);
-    if (link.supported && link.label == _(ht->m_opt.enum_def->label(index_in_choice)))
+    if (link.supported &&
+        link.label == I18N::translate_in_domain(ht->m_opt.enum_def->label(index_in_choice), ht->m_opt.translation_domain))
         m_config->set_key_value("host_type", new ConfigOptionEnum<PrintHostType>(htPrusaLink));
-    else if (connect.supported && connect.label == _(ht->m_opt.enum_def->label(index_in_choice)))
+    else if (connect.supported &&
+             connect.label == I18N::translate_in_domain(ht->m_opt.enum_def->label(index_in_choice), ht->m_opt.translation_domain))
         m_config->set_key_value("host_type", new ConfigOptionEnum<PrintHostType>(htPrusaConnect));
     else {
         int host_type = std::clamp(index_in_choice + ((int)ht->m_opt.enum_def->values().size() - (int)types.size()), 0, (int)ht->m_opt.enum_def->values().size() - 1);

@@ -542,7 +542,8 @@ void ConfigManipulation::update_print_fff_config(DynamicPrintConfig* config, con
             const ConfigOptionDef *fill_pattern_def = config->option_def("fill_pattern");
             assert(fill_pattern_def != nullptr);
             if (auto label = fill_pattern_def->enum_def->enum_to_label(fill_pattern); label.has_value()) {
-                wxString msg_text = GUI::format_wxstr(_L("The %1% infill pattern is not supposed to work at 100%% density."), _(*label));
+                wxString msg_text = GUI::format_wxstr(_L("The %1% infill pattern is not supposed to work at 100%% density."),
+                                                       I18N::translate_in_domain(*label, fill_pattern_def->translation_domain));
                 if (is_global_config) {
                     msg_text += "\n\n" + _L("Shall I switch to rectilinear fill pattern?");
                 MessageDialog dialog(m_msg_dlg_parent, msg_text, _L("Infill"),

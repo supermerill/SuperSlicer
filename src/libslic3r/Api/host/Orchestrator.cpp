@@ -5,6 +5,7 @@
 #include "Orchestrator.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstring>
@@ -15,6 +16,8 @@
 #include <sstream>
 #include <string>
 #include <utility>
+
+#include <boost/filesystem.hpp>
 
 #include "libslic3r/Api/plugin/c/slic3r_config_def.h"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
@@ -137,6 +140,7 @@ static bool config_option_def_compatible(const ConfigOptionDef &existing,
     if (existing.label != candidate.label) return fail("label");
     if (existing.full_label != candidate.full_label) return fail("full_label");
     if (existing.tooltip != candidate.tooltip) return fail("tooltip");
+    if (existing.translation_domain != candidate.translation_domain) return fail("translation_domain");
     if (existing.sidetext != candidate.sidetext) return fail("sidetext");
     if (existing.cli != candidate.cli) return fail("cli");
     if (existing.ratio_over != candidate.ratio_over) return fail("ratio_over");
@@ -178,7 +182,35 @@ static bool same_option_ownership_scope(const Orchestrator::ConfigOptionOwner &e
            existing.exclusive_group == candidate.get_exclusive_group();
 }
 
-static void populate_config_option_def_from_raw(ConfigOptionDef &out, const raw_config_option_def *def)
+static bool is_valid_translation_domain(const std::string &domain)
+{
+    if (domain.empty())
+        return false;
+
+    for (const unsigned char character : domain)
+        if (!std::isalnum(character) && character != '.' && character != '_' && character != '-')
+            return false;
+    return true;
+}
+
+static bool is_path_inside(const boost::filesystem::path &directory,
+                           const boost::filesystem::path &package_root)
+{
+    // Compare canonical path components instead of string prefixes. A prefix
+    // would incorrectly accept a sibling such as "plugin-extra", and cannot
+    // detect a locale directory reached through a junction outside the package.
+    boost::filesystem::path::iterator directory_part = directory.begin();
+    boost::filesystem::path::iterator root_part = package_root.begin();
+    for (; root_part != package_root.end(); ++root_part, ++directory_part) {
+        if (directory_part == directory.end() || *directory_part != *root_part)
+            return false;
+    }
+    return true;
+}
+
+static void populate_config_option_def_from_raw(ConfigOptionDef &out,
+                                                const raw_config_option_def *def,
+                                                const std::string &translation_domain)
 {
     out.opt_key = def->opt_key;
     out.type = config_option_type(def->type);
@@ -208,6 +240,7 @@ static void populate_config_option_def_from_raw(ConfigOptionDef &out, const raw_
         out.full_label = def->full_label;
     if (def->tooltip)
         out.tooltip = def->tooltip;
+    out.translation_domain = translation_domain;
     if (def->sidetext)
         out.sidetext = def->sidetext;
     if (def->cli)
@@ -458,7 +491,11 @@ bool Orchestrator::register_plugin(plugin_instance plugin) {
     const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
     std::unique_ptr<Plugin> new_plugin;
     try {
-        new_plugin.reset(new Plugin(plugin));
+        const PluginRegistrationSource *source = m_plugin_registration_sources.empty() ?
+            nullptr : &m_plugin_registration_sources.back();
+        new_plugin.reset(new Plugin(plugin,
+                                    source != nullptr && source->external_plugin ? std::string() : "Slic3r",
+                                    source != nullptr ? source->package_root : std::string()));
     } catch (const std::exception &error) {
         BOOST_LOG_TRIVIAL(error) << "Cannot register plugin: " << error.what() << std::endl;
         return false;
@@ -474,6 +511,102 @@ bool Orchestrator::register_plugin(plugin_instance plugin) {
     m_registered_plugins.emplace_back(std::move(new_plugin));
     BOOST_LOG_TRIVIAL(debug) << "Registered plugin '" << new_id << "' in " << elapsed_ms(start).count() << " ms.";
     return true;
+}
+
+Orchestrator::PluginRegistrationScope::PluginRegistrationScope(PluginRegistrationScope &&other) noexcept
+    : m_orchestrator(std::exchange(other.m_orchestrator, nullptr))
+{
+}
+
+Orchestrator::PluginRegistrationScope &Orchestrator::PluginRegistrationScope::operator=(PluginRegistrationScope &&other) noexcept
+{
+    if (this != &other) {
+        if (m_orchestrator != nullptr)
+            m_orchestrator->end_plugin_registration_scope();
+        m_orchestrator = std::exchange(other.m_orchestrator, nullptr);
+    }
+    return *this;
+}
+
+Orchestrator::PluginRegistrationScope::~PluginRegistrationScope()
+{
+    if (m_orchestrator != nullptr)
+        m_orchestrator->end_plugin_registration_scope();
+}
+
+Orchestrator::PluginRegistrationScope Orchestrator::plugin_registration_scope(std::string package_root,
+                                                                                bool external_plugin)
+{
+    PluginRegistrationSource source;
+    if (!package_root.empty())
+        source.package_root = boost::filesystem::absolute(boost::filesystem::path(package_root))
+                                  .lexically_normal()
+                                  .generic_string();
+    source.external_plugin = external_plugin;
+    m_plugin_registration_sources.emplace_back(std::move(source));
+    return PluginRegistrationScope(this);
+}
+
+void Orchestrator::end_plugin_registration_scope()
+{
+    assert(!m_plugin_registration_sources.empty());
+    m_plugin_registration_sources.pop_back();
+}
+
+int32_t Orchestrator::register_translation_catalog(const char *domain, const char *locale_directory)
+{
+    if (domain == nullptr || locale_directory == nullptr || m_plugin_registration_sources.empty())
+        return -1;
+
+    const std::string domain_value(domain);
+    const boost::filesystem::path locale_path(locale_directory);
+    const PluginRegistrationSource &source = m_plugin_registration_sources.back();
+    if (!is_valid_translation_domain(domain_value) || locale_path.empty() || locale_path.is_absolute() ||
+        source.package_root.empty())
+        return -1;
+
+    for (boost::filesystem::path::iterator it = locale_path.begin(); it != locale_path.end(); ++it)
+        if (*it == "..")
+            return -1;
+
+    boost::system::error_code error;
+    const boost::filesystem::path package_root =
+        boost::filesystem::canonical(boost::filesystem::path(source.package_root), error);
+    if (error)
+        return -1;
+
+    const boost::filesystem::path absolute_directory =
+        boost::filesystem::canonical(package_root / locale_path, error);
+    if (error || !is_path_inside(absolute_directory, package_root))
+        return -1;
+
+    const std::string directory_value = absolute_directory.generic_string();
+    for (const TranslationCatalog &existing : m_translation_catalogs) {
+        if (existing.domain != domain_value)
+            continue;
+        return existing.locale_directory == directory_value ? 0 : -2;
+    }
+
+    m_translation_catalogs.push_back(TranslationCatalog{domain_value, directory_value, package_root.generic_string()});
+    return 1;
+}
+
+std::string Orchestrator::resolved_translation_domain(const char *requested_domain) const
+{
+    if (requested_domain != nullptr && requested_domain[0] != '\0')
+        return requested_domain;
+    return m_initializing_plugin != nullptr ? m_initializing_plugin->get_translation_domain() : std::string();
+}
+
+bool Orchestrator::is_translation_domain_available(const std::string &domain, const std::string &package_root) const
+{
+    if (domain.empty() || domain == "Slic3r")
+        return true;
+
+    for (const TranslationCatalog &catalog : m_translation_catalogs)
+        if (catalog.domain == domain && catalog.package_root == package_root)
+            return true;
+    return false;
 }
 
 std::vector<Plugin *> Orchestrator::registered_plugins() const
@@ -661,6 +794,14 @@ bool Orchestrator::register_generic_facets_annotation(GenericFacetsAnnotationDef
     if (def.icon_filename.empty() && def.icon_svg.empty())
         return false;
 
+    const bool has_explicit_translation_domain = !def.translation_domain.empty();
+    def.translation_domain = this->resolved_translation_domain(def.translation_domain.c_str());
+    if (has_explicit_translation_domain &&
+        !this->is_translation_domain_available(
+            def.translation_domain,
+            m_initializing_plugin != nullptr ? m_initializing_plugin->get_package_root() : std::string()))
+        return false;
+
     // Duplicate keys are allowed only when they describe the same painting, so
     // a plugin can call registration more than once without changing the GUI or
     // model storage associated with that stable key.
@@ -671,6 +812,7 @@ bool Orchestrator::register_generic_facets_annotation(GenericFacetsAnnotationDef
         if (existing.label == def.label &&
             existing.enforce_label == def.enforce_label &&
             existing.block_label == def.block_label &&
+            existing.translation_domain == def.translation_domain &&
             existing.icon_filename == def.icon_filename &&
             existing.icon_svg == def.icon_svg)
             return true;
@@ -841,6 +983,15 @@ option_def_error_code Orchestrator::create_new_print_config(const raw_config_opt
         config_option_def_with_resolved_invalidation(*def, m_initializing_plugin);
     def = &resolved_def;
 
+    const bool has_explicit_translation_domain =
+        def->translation_domain != nullptr && def->translation_domain[0] != '\0';
+    const std::string translation_domain = this->resolved_translation_domain(def->translation_domain);
+    if (has_explicit_translation_domain &&
+        !this->is_translation_domain_available(
+            translation_domain,
+            m_initializing_plugin != nullptr ? m_initializing_plugin->get_package_root() : std::string()))
+        return OPTION_DEF_ERROR_INVALID_ARGUMENT;
+
     //PrintOptionPresetType preset_type = static_cast<PrintOptionPresetType>(def->option_preset_type);
     //PrintOptionContainer container = static_cast<PrintOptionContainer>(def->container_type);
     const ConfigOptionType type = config_option_type(def->type);
@@ -858,7 +1009,7 @@ option_def_error_code Orchestrator::create_new_print_config(const raw_config_opt
     // dependent plugin should only read the already-owned key.
     if (const ConfigOptionDef *existing = PrintConfigDef::instance().get(def->opt_key)) {
         ConfigOptionDef candidate;
-        populate_config_option_def_from_raw(candidate, def);
+        populate_config_option_def_from_raw(candidate, def, translation_domain);
 
         std::string reason;
         if (config_option_def_compatible(*existing, candidate, &reason)) {
@@ -910,7 +1061,7 @@ option_def_error_code Orchestrator::create_new_print_config(const raw_config_opt
     }
 
     ConfigOptionDef &out = *PrintConfigDef::instance_mutable().add(def->opt_key, type);
-    populate_config_option_def_from_raw(out, def);
+    populate_config_option_def_from_raw(out, def, translation_domain);
 
     // publish it?
     PrintConfigDef::instance_mutable().option_keys(def->option_preset_type).insert(out.opt_key);

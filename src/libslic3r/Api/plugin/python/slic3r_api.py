@@ -270,6 +270,14 @@ class Slic3rAPI:
             int(priority),
         )
 
+    def register_translation_catalog(self, domain: str, locale_directory: str) -> int:
+        """Register one gettext domain from this plugin package during registration."""
+        return int(self.host.orchestrator_register_translation_catalog(
+            self.orchestrator,
+            _as_bytes(domain),
+            _as_bytes(locale_directory),
+        ))
+
     def add_gui_rule(
         self,
         *,
@@ -323,12 +331,14 @@ class Slic3rAPI:
         enforce_label: str,
         block_label: str,
         icon_svg: str,
+        translation_domain: str = "",
     ) -> int:
         defn = RawGenericFacetsAnnotationDef(
             _as_bytes(key),
             _as_bytes(label),
             _as_bytes(enforce_label),
             _as_bytes(block_label),
+            _as_bytes(translation_domain),
             _as_bytes(icon_svg),
         )
         return int(self.host.orchestrator_register_generic_facets_annotation(self.orchestrator, ctypes.byref(defn)))

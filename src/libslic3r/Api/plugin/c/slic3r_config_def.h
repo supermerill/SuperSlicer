@@ -199,6 +199,14 @@ typedef struct raw_config_option_def {
     /* Tooltip text shown in GUI */
     const char *tooltip;
 
+    /*
+    Gettext domain used for every user-facing text in this definition,
+    including enum labels. NULL or empty selects the registering plugin's
+    default domain. The domain must either be "Slic3r" or have been
+    registered with orchestrator_register_translation_catalog().
+    */
+    const char *translation_domain;
+
     /* Text displayed next to input (e.g. unit) */
     const char *sidetext;
 

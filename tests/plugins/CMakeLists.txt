@@ -12,6 +12,7 @@ add_executable(${_TEST_NAME}_tests
     test_clipper_views.cpp
     test_extrusion_continuity.cpp
     test_plugin_property.cpp
+    test_plugin_translation_catalogs.cpp
     test_gcode_printing_plan_file_writer.cpp
     test_flat_area_layer_height.cpp
     test_perimeter_empty_steps.cpp

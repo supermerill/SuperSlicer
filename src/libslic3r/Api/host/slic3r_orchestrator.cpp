@@ -83,6 +83,19 @@ void orchestrator_register_plugin(orchestrator_handle *orch, plugin_instance plu
     }
 }
 
+int32_t orchestrator_register_translation_catalog(orchestrator_handle *orch,
+                                                  const char *domain,
+                                                  const char *locale_directory)
+{
+    try {
+        Slic3r::Orchestrator *orchestrator = to_orchestrator(orch);
+        return orchestrator == nullptr ? -1 :
+                                       orchestrator->register_translation_catalog(domain, locale_directory);
+    } catch (...) {
+        return -3;
+    }
+}
+
 bridge_detector_instance orchestrator_create_bridge_detector(orchestrator_handle *orch,
                                                              const bridge_detector_create_input *input) {
     bridge_detector_instance out = {};
@@ -169,6 +182,8 @@ int32_t orchestrator_register_generic_facets_annotation(
         native_def.label = def->label;
         native_def.enforce_label = def->enforce_label;
         native_def.block_label = def->block_label;
+        if (def->translation_domain != nullptr)
+            native_def.translation_domain = def->translation_domain;
         native_def.icon_svg = def->icon_svg;
         return orchestrator->register_generic_facets_annotation(std::move(native_def)) ? 1 : -2;
     } catch (...) {

@@ -1820,13 +1820,12 @@ PageFirmware::PageFirmware(ConfigWizard *parent)
     , gcode_picker(nullptr)
 {
     append_text(_L("Choose the type of firmware used by your printer."));
-    append_text(_(gcode_opt.tooltip));
+    append_text(I18N::translate_in_domain(gcode_opt.tooltip, gcode_opt.translation_domain));
 
     wxArrayString choices;
     choices.Alloc(gcode_opt.enum_def->labels().size());
-    for (const auto &label : gcode_opt.enum_def->labels()) {
-        choices.Add(label);
-    }
+    for (const std::string &label : gcode_opt.enum_def->labels())
+        choices.Add(I18N::translate_in_domain(label, gcode_opt.translation_domain));
 
     gcode_picker = new wxChoice(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, choices);
     wxGetApp().UpdateDarkUI(gcode_picker);

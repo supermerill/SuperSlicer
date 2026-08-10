@@ -27,6 +27,24 @@ SLIC3R_HOST_API void orchestrator_register_plugin(
     plugin_instance plugin
 );
 
+/*
+Register one gettext catalog domain provided by the plugin package currently
+being loaded. locale_directory is relative to that package root and contains
+one subdirectory per language, for example:
+
+    locale/fr/com.example.plugin.mo
+
+The host loads the catalog after it has selected the application language.
+Call this from register_plugin(), before the loader returns control to the
+host. A plugin may register several distinct domains. Returns 1 when added,
+0 for an identical duplicate, and a negative value for invalid input.
+*/
+SLIC3R_HOST_API int32_t orchestrator_register_translation_catalog(
+    orchestrator_handle *orch,
+    const char *domain,
+    const char *locale_directory
+);
+
 SLIC3R_HOST_API bridge_detector_instance orchestrator_create_bridge_detector(
     orchestrator_handle *orch,
     const bridge_detector_create_input *input
@@ -90,6 +108,11 @@ typedef struct raw_generic_facets_annotation_def {
     const char *label;
     const char *enforce_label;
     const char *block_label;
+    /*
+    NULL or empty selects the registering plugin's default gettext domain.
+    A non-empty domain must be "Slic3r" or registered by the current package.
+    */
+    const char *translation_domain;
     const char *icon_svg;
 } raw_generic_facets_annotation_def;
 

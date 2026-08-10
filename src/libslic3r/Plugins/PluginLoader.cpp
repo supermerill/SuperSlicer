@@ -238,7 +238,20 @@ bool is_plugin_library_path(const boost::filesystem::path &path)
 #endif
 }
 
-void load_plugin_library(const boost::filesystem::path &plugin_path, orchestrator_handle *orchestrator)
+const char *plugin_package_library_filename()
+{
+#ifdef _WIN32
+    return "plugin.dll";
+#elif defined(__APPLE__)
+    return "plugin.dylib";
+#else
+    return "plugin.so";
+#endif
+}
+
+void load_plugin_library(const boost::filesystem::path &plugin_path,
+                         const boost::filesystem::path &package_root,
+                         orchestrator_handle *orchestrator)
 {
     const PluginLoadClock::time_point start = PluginLoadClock::now();
 #ifdef _WIN32
@@ -277,6 +290,8 @@ void load_plugin_library(const boost::filesystem::path &plugin_path, orchestrato
     }
 
     RegisterPluginFn register_plugin_fn = reinterpret_cast<RegisterPluginFn>(farproc);
+    Orchestrator::PluginRegistrationScope registration_scope(
+        reinterpret_cast<Orchestrator *>(orchestrator)->plugin_registration_scope(package_root.string(), true));
     register_plugin_fn(orchestrator);
     loaded_modules.push_back(module);
     BOOST_LOG_TRIVIAL(debug) << "Loaded plugin DLL '" << plugin_path.string() << "' in "
@@ -317,6 +332,8 @@ void load_plugin_library(const boost::filesystem::path &plugin_path, orchestrato
     }
 
     RegisterPluginFn register_plugin_fn = reinterpret_cast<RegisterPluginFn>(symbol);
+    Orchestrator::PluginRegistrationScope registration_scope(
+        reinterpret_cast<Orchestrator *>(orchestrator)->plugin_registration_scope(package_root.string(), true));
     register_plugin_fn(orchestrator);
     loaded_modules.push_back(module);
     BOOST_LOG_TRIVIAL(debug) << "Loaded plugin library '" << plugin_path.string() << "' in "
@@ -339,7 +356,13 @@ void load_plugins_from_repository(const boost::filesystem::path &repository, orc
         const boost::filesystem::path plugin_path = it->path();
         if (boost::filesystem::is_regular_file(plugin_path) && is_plugin_library_path(plugin_path)) {
             BOOST_LOG_TRIVIAL(info) << "Loading plugin '" << plugin_path.string() << "'.";
-            load_plugin_library(plugin_path, orchestrator);
+            load_plugin_library(plugin_path, plugin_path.parent_path(), orchestrator);
+        } else if (boost::filesystem::is_directory(plugin_path)) {
+            const boost::filesystem::path package_library = plugin_path / plugin_package_library_filename();
+            if (boost::filesystem::is_regular_file(package_library)) {
+                BOOST_LOG_TRIVIAL(info) << "Loading plugin package '" << plugin_path.string() << "'.";
+                load_plugin_library(package_library, plugin_path, orchestrator);
+            }
         }
     }
 }
@@ -349,6 +372,8 @@ void register_builtin_plugin(orchestrator_handle *orchestrator,
                              RegisterPluginFn register_plugin_fn)
 {
     const PluginLoadClock::time_point start = PluginLoadClock::now();
+    Orchestrator::PluginRegistrationScope registration_scope(
+        reinterpret_cast<Orchestrator *>(orchestrator)->plugin_registration_scope(std::string(), false));
     register_plugin_fn(orchestrator);
     BOOST_LOG_TRIVIAL(debug) << "Loaded built-in plugin '" << plugin_name << "' in "
                              << elapsed_ms(start).count() << " ms.";

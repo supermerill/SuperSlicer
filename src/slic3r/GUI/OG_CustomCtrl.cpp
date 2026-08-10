@@ -219,7 +219,7 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
                 if (is_multioption_line && !option.label.empty()) {
                     std::string opt_label = (option.label.empty() || option.label.back() != '_') ? option.label : option.label.substr(0, option.label.size() - 1);
                     // FIXME: 'Top' & 'Bottom'  require localization with context 'Layers'
-                    label =  _(opt_label);
+                    label = I18N::translate_in_domain(opt_label, option.translation_domain);
                     bool no_dots = label.empty() || option.label.back() == '_';
                     if (!no_dots)
                         label += ":";
@@ -801,14 +801,14 @@ void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord v_pos)
         ConfigOptionDef option = opt.opt;
 
         //tooltip for labels
-        wxString option_tooltip = _(option.tooltip);
+        wxString option_tooltip = I18N::translate_in_domain(option.tooltip, option.translation_domain);
         update_Slic3r_string(option_tooltip);
 
         // add label if any
         if (is_multioption_line && !option.label.empty()) {
             std::string opt_label = (option.label.empty() || option.label.back() != '_') ? option.label : option.label.substr(0, option.label.size() - 1);
             // FIXME: 'Top' & 'Bottom'  require localization with context 'Layers'
-            wxString label = _(opt_label);
+            wxString label = I18N::translate_in_domain(opt_label, option.translation_domain);
             bool no_dots = label.empty() || option.label.back() == '_';
             if (!no_dots)
                 label += ":";
@@ -858,7 +858,7 @@ void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord v_pos)
 
         // add sidetext if any
         if ( (!option.sidetext.empty() || ctrl->opt_group->sidetext_width > 0 || option.sidetext_width > 0 ) && option.sidetext_width != 0)
-            h_pos = draw_text(dc, wxPoint(h_pos, v_pos), _(option.sidetext), option_tooltip, nullptr, (option.sidetext_width > 0 ? option.sidetext_width : ctrl->opt_group->sidetext_width ) * ctrl->m_em_unit);
+            h_pos = draw_text(dc, wxPoint(h_pos, v_pos), I18N::translate_in_domain(option.sidetext, option.translation_domain), option_tooltip, nullptr, (option.sidetext_width > 0 ? option.sidetext_width : ctrl->opt_group->sidetext_width ) * ctrl->m_em_unit);
 
         if (opt.opt_key != option_set.back().opt_key || opt.opt_idx != option_set.back().opt_idx) //! istead of (opt != option_set.back())
             h_pos += lround(0.6 * ctrl->m_em_unit);

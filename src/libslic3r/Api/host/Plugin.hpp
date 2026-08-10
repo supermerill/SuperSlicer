@@ -27,6 +27,10 @@ public:
 protected:
     plugin_instance m_c_api;
     std::string m_id;
+    std::string m_translation_domain;
+    // The registration root remains available while initialize() registers
+    // option definitions, after the dynamic-library loader scope has ended.
+    std::string m_package_root;
     std::string m_name;
     std::string m_description;
     std::string m_exclusive_group;
@@ -39,9 +43,13 @@ protected:
     int m_priority;
 
 public:
-    Plugin(plugin_instance c_api);
+    Plugin(plugin_instance c_api,
+           std::string default_translation_domain,
+           std::string package_root);
 
     const std::string& get_id() const noexcept { return m_id; }
+    const std::string& get_translation_domain() const noexcept { return m_translation_domain; }
+    const std::string& get_package_root() const noexcept { return m_package_root; }
     const std::string& get_name() const noexcept { return m_name; }
     const std::string& get_description() const noexcept { return m_description; }
     const std::string& get_exclusive_group() const noexcept { return m_exclusive_group; }

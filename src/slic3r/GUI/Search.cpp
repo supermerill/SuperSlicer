@@ -20,6 +20,7 @@
 
 #include "GUI.hpp"
 #include "GUI_App.hpp"
+#include "I18N.hpp"
 #include "Plater.hpp"
 #include "Tab.hpp"
 #include "wx/dataview.h"
@@ -105,14 +106,15 @@ static SearchOption create_option(const std::string& opt_key, const int32_t opt_
     wxString local_label;
     if (opt.full_label.empty()) {
         label = opt.label;
-        local_label = _(opt.label);
+        local_label = GUI::I18N::translate_in_domain(opt.label, opt.translation_domain);
     } else {
         if (opt.label.empty() || opt.label.front() == '_') {
             label = opt.full_label;
-            local_label = _(opt.full_label);
+            local_label = GUI::I18N::translate_in_domain(opt.full_label, opt.translation_domain);
         } else {
             label = opt.full_label + " (" + opt.label + ')';
-            local_label = _(opt.full_label) + " (" + _(opt.label) + ')';
+            local_label = GUI::I18N::translate_in_domain(opt.full_label, opt.translation_domain) + " (" +
+                          GUI::I18N::translate_in_domain(opt.label, opt.translation_domain) + ')';
         }
     }
 
@@ -121,8 +123,8 @@ static SearchOption create_option(const std::string& opt_key, const int32_t opt_
                                     (label + suffix).ToStdWstring(), (local_label + suffix_local).ToStdWstring(),
                                     gc.group.ToStdWstring(), _(gc.group).ToStdWstring(),
                                     category.ToStdWstring(), GUI::Tab::translate_category(category, type).ToStdWstring() ,
-                                    wxString(opt.tooltip).ToStdWstring(), (_(opt.tooltip)).ToStdWstring(),
-                                    boost::algorithm::to_lower_copy(wxString(opt.tooltip).ToStdWstring()), boost::algorithm::to_lower_copy((_(opt.tooltip)).ToStdWstring()) };
+                                    wxString(opt.tooltip).ToStdWstring(), GUI::I18N::translate_in_domain(opt.tooltip, opt.translation_domain).ToStdWstring(),
+                                    boost::algorithm::to_lower_copy(wxString(opt.tooltip).ToStdWstring()), boost::algorithm::to_lower_copy(GUI::I18N::translate_in_domain(opt.tooltip, opt.translation_domain).ToStdWstring()) };
     return SearchOption{};
 
 }
@@ -522,6 +524,7 @@ void OptionsSearcher::append_script_option(const ConfigOptionDef &opt,
     if (label.IsEmpty())
         return;
     wxString tooltip = opt.tooltip;
+    const wxString translated_tooltip = GUI::I18N::translate_in_domain(opt.tooltip, opt.translation_domain);
     wxString tooltip_lc = tooltip;
     tooltip_lc.LowerCase();
 
@@ -536,15 +539,15 @@ void OptionsSearcher::append_script_option(const ConfigOptionDef &opt,
         idx,
         opt.mode,
         label.ToStdWstring(),
-        _(label).ToStdWstring(),
+        GUI::I18N::translate_in_domain(into_u8(label), opt.translation_domain).ToStdWstring(),
         gc.group.ToStdWstring(),
         _(gc.group).ToStdWstring(),
         gc.category.ToStdWstring(),
         _(gc.category).ToStdWstring(),
         tooltip.ToStdWstring(),
-        _(tooltip).ToStdWstring(),
+        translated_tooltip.ToStdWstring(),
         tooltip_lc.ToStdWstring(),
-        _(tooltip_lc).ToStdWstring(),
+        boost::algorithm::to_lower_copy(translated_tooltip.ToStdWstring()),
     });
 }
 void OptionsSearcher::append_preferences_option(const GUI::Line& opt_line)

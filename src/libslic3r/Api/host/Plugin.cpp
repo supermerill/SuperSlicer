@@ -94,7 +94,12 @@ void read_plugin_defined_config_keys(const plugin_instance &c_api,
 
 } // namespace
 
-Plugin::Plugin(plugin_instance c_api) : m_c_api(c_api) {
+Plugin::Plugin(plugin_instance c_api,
+               std::string default_translation_domain,
+               std::string package_root)
+    : m_c_api(c_api)
+    , m_package_root(std::move(package_root))
+{
     validate_plugin_instance(c_api);
 
     const char *plugin_id = c_api.vt->get_id(c_api.ctx);
@@ -104,6 +109,9 @@ Plugin::Plugin(plugin_instance c_api) : m_c_api(c_api) {
     const char *plugin_exclusive_group_label = c_api.vt->get_exclusive_group_label(c_api.ctx);
     const char *plugin_exclusive_group_tooltip = c_api.vt->get_exclusive_group_tooltip(c_api.ctx);
     this->m_id = plugin_id != nullptr ? plugin_id : "";
+    this->m_translation_domain = std::move(default_translation_domain);
+    if (this->m_translation_domain.empty())
+        this->m_translation_domain = this->m_id;
     this->m_name = plugin_name != nullptr && plugin_name[0] != '\0' ? plugin_name : this->m_id;
     this->m_description = plugin_description != nullptr ? plugin_description : "";
     this->m_exclusive_group = plugin_exclusive_group != nullptr && plugin_exclusive_group[0] != '\0' ?

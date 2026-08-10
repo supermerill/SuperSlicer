@@ -329,6 +329,9 @@ public:
     // The full label is shown, when adding an override parameter for an object or a modified object.
     std::string                         label;
     std::string                         full_label;
+    // Gettext catalog of all user-facing text owned by this definition. An
+    // empty value keeps the historic application catalog lookup.
+    std::string                         translation_domain;
     std::string                         get_full_label() const { return !full_label.empty() ? full_label : label; }
     // With which printer technology is this configuration valid?
     PrinterTechnology                   printer_technology = ptUnknown;

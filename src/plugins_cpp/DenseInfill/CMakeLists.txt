@@ -21,6 +21,8 @@ endif()
 
 set_target_properties(dense_infill_plugin PROPERTIES
     FOLDER "plugins"
-    OUTPUT_NAME "dense_infill"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src/$<CONFIG>/plugins"
+    OUTPUT_NAME "plugin"
+    PREFIX ""
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src/$<CONFIG>/plugins/dense_infill"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src/$<CONFIG>/plugins/dense_infill"
 )

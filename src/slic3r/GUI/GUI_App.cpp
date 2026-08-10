@@ -34,6 +34,7 @@
 #include <exception>
 #include <cstdlib>
 #include <regex>
+#include <set>
 #include <string_view>
 #include <boost/nowide/fstream.hpp>
 #include <boost/algorithm/string/predicate.hpp>
@@ -67,6 +68,7 @@
 #include "exif.h"
 
 #include "libslic3r/Utils.hpp"
+#include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/Color.hpp"
@@ -3069,6 +3071,15 @@ bool GUI_App::load_language(wxString language, bool initial)
     if (initial) {
     	// There is a static list of lookup path prefixes in wxWidgets. Add ours.
 	    wxFileTranslationsLoader::AddCatalogLookupPathPrefix(from_u8(localization_dir()));
+
+        // External plugin catalogs are registered while their packages load,
+        // before the GUI creates wxLocale. wx keeps lookup paths globally, so
+        // add each directory once and only select catalogs after the language
+        // is known below.
+        std::set<std::string> plugin_locale_directories;
+        for (const Orchestrator::TranslationCatalog &catalog : Orchestrator::instance().translation_catalogs())
+            if (plugin_locale_directories.insert(catalog.locale_directory).second)
+                wxFileTranslationsLoader::AddCatalogLookupPathPrefix(from_u8(catalog.locale_directory));
     	// Get the active language from PrusaSlicer.ini, or empty string if the key does not exist.
         language = app_config->get("translation_language");
         if (! language.empty())
@@ -3198,6 +3209,10 @@ bool GUI_App::load_language(wxString language, bool initial)
     // to load possibly different dictionary, for example, load Czech dictionary for Slovak language.
     wxTranslations::Get()->SetLanguage(language_dict);
     m_wxLocale->AddCatalog(SLIC3R_APP_KEY);
+    for (const Orchestrator::TranslationCatalog &catalog : Orchestrator::instance().translation_catalogs())
+        if (!m_wxLocale->AddCatalog(from_u8(catalog.domain)))
+            BOOST_LOG_TRIVIAL(trace) << "No translation catalog for plugin domain '" << catalog.domain
+                                     << "' in the selected language.";
     m_imgui->set_language(into_u8(language_info->CanonicalName));
     //FIXME This is a temporary workaround, the correct solution is to switch to "C" locale during file import / export only.
     //wxSetlocale(LC_NUMERIC, "C");

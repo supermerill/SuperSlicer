@@ -167,7 +167,7 @@ Option::Option(const ConfigOptionDef &_opt, int32_t idx /*= -1*/)
         wxString tooltip;
         if (opt.opt_key.rfind("branching", 0) == 0)
             tooltip = _L("Unavailable for this method.") + "\n";
-        tooltip += _(opt.tooltip);
+        tooltip += I18N::translate_in_domain(opt.tooltip, opt.translation_domain);
 
         update_Slic3r_string(tooltip);
 
@@ -271,7 +271,8 @@ void OptionsGroup::append_line(const Line& line)
 
     //if first control don't have a label, use the line one for the tooltip
     if (!option_set.empty() && (option_set.front().opt.label.empty() || "_" == option_set.front().opt.label)) {
-        wxString tooltip = _(option_set.front().opt.tooltip);
+        wxString tooltip = I18N::translate_in_domain(option_set.front().opt.tooltip,
+                                                      option_set.front().opt.translation_domain);
         update_Slic3r_string(tooltip);
         m_lines.back().label_tooltip = tooltip;
     }
@@ -447,7 +448,7 @@ void OptionsGroup::activate_line(Line& line)
                                                                       option.label :
                                                                       option.label.substr(0, option.label.size() - 1);
                 // those two parameter names require localization with context
-                const wxString str_label = _(opt_label);
+                const wxString str_label = I18N::translate_in_domain(opt_label, option.translation_domain);
                 bool no_dots = str_label.empty() || option.label.back() == '_';
                 label = new wxStaticText(this->ctrl_parent(), wxID_ANY,
                    (no_dots ? str_label : (str_label + ": ")), wxDefaultPosition, //wxDefaultSize);
@@ -491,7 +492,7 @@ void OptionsGroup::activate_line(Line& line)
                 wxString textstring;
                 if(!option.sidetext.empty())
                     if (option.sidetext.at(option.sidetext.size() - 1) != '_') {
-                        textstring = _(option.sidetext);
+                        textstring = I18N::translate_in_domain(option.sidetext, option.translation_domain);
                     } else {
                         textstring = option.sidetext.substr(0, option.sidetext.size() - 1);
                     }
@@ -627,10 +628,10 @@ void OptionsGroup::clear(bool destroy_custom_ctrl)
 
 Line OptionsGroup::create_single_option_line(const Option& option, const std::string& path/* = std::string()*/) const
 {
-    wxString tooltip = _(option.opt.tooltip);
+    wxString tooltip = I18N::translate_in_domain(option.opt.tooltip, option.opt.translation_domain);
     update_Slic3r_string(tooltip);
     // note: Line constructor already do _()
-	Line retval{ _(option.opt.label), tooltip };
+	Line retval{ I18N::translate_in_domain(option.opt.label, option.opt.translation_domain), tooltip };
 	retval.label_path = path;
     if(option.opt.label.empty()) {
         retval.append_option(option);

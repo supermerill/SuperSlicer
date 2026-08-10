@@ -26,9 +26,10 @@
 
 namespace Slic3r::GUI {
 
-static wxString label_from_utf8(const std::string &label)
+static wxString translated_annotation_label(const GenericFacetsAnnotationDefinition &definition,
+                                            const std::string &label)
 {
-    return from_u8(label);
+    return I18N::translate_in_domain(label, definition.translation_domain);
 }
 
 GLGizmoGenericFacetPainting::GLGizmoGenericFacetPainting(GLCanvas3D &parent,
@@ -58,9 +59,9 @@ bool GLGizmoGenericFacetPainting::on_init()
     m_desc["cursor_size"]      = _L("Brush size") + ": ";
     m_desc["cursor_type"]      = _L("Brush shape") + ": ";
     m_desc["enforce_caption"]  = _L("Left mouse button") + ": ";
-    m_desc["enforce"]          = label_from_utf8(m_definition.enforce_label);
+    m_desc["enforce"]          = translated_annotation_label(m_definition, m_definition.enforce_label);
     m_desc["block_caption"]    = _L("Right mouse button") + ": ";
-    m_desc["block"]            = label_from_utf8(m_definition.block_label);
+    m_desc["block"]            = translated_annotation_label(m_definition, m_definition.block_label);
     m_desc["remove_caption"]   = _L("Shift + Left mouse button") + ": ";
     m_desc["remove"]           = _L("Remove selection");
     m_desc["remove_all"]       = _L("Remove all selection");
@@ -72,7 +73,7 @@ bool GLGizmoGenericFacetPainting::on_init()
 
 std::string GLGizmoGenericFacetPainting::on_get_name() const
 {
-    return m_definition.label;
+    return I18N::translate_utf8_in_domain(m_definition.label, m_definition.translation_domain);
 }
 
 void GLGizmoGenericFacetPainting::render_painter_gizmo()

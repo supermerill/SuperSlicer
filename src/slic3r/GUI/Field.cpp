@@ -52,6 +52,13 @@
 
 namespace Slic3r :: GUI {
 
+// ConfigOptionDef stores gettext source text. Its domain identifies whether
+// the text came from the application catalog or from a plugin package.
+static wxString translate_option_text(const ConfigOptionDef &option, const std::string &text)
+{
+    return I18N::translate_in_domain(text, option.translation_domain);
+}
+
 wxString double_to_string(double const value, const int max_precision /*= 6*/)
 {
 // Style_NoTrailingZeroes does not work on OSX. It also does not work correctly with some locales on Windows.
@@ -282,7 +289,7 @@ wxString Field::get_tooltip_text(const wxString& default_string)
     if (m_opt.tooltip.empty())
         return "";
     wxString tooltip_text("");
-    wxString tooltip = from_u8(m_opt.tooltip);
+    wxString tooltip = translate_option_text(m_opt, m_opt.tooltip);
     update_Slic3r_string(tooltip);
 
     std::string str_opt = m_opt_key_idx.key;
@@ -304,7 +311,7 @@ wxString Field::get_tooltip_text(const wxString& default_string)
 wxString Field::get_rich_tooltip_text(const wxString& default_string)
 {
     wxString tooltip_text("");
-    wxString tooltip = from_u8(m_opt.tooltip);
+    wxString tooltip = translate_option_text(m_opt, m_opt.tooltip);
     update_Slic3r_string(tooltip);
     std::wstring wtooltip = tooltip.ToStdWstring();
     std::wstring wtooltip_text;
@@ -649,7 +656,7 @@ void TextField::get_value_by_opt_type(wxString &str, const bool check_value /* =
                 break;
             }
 
-            wxString label = m_opt.full_label.empty() ? _(m_opt.label) : _(m_opt.full_label);
+            wxString label = translate_option_text(m_opt, m_opt.full_label.empty() ? m_opt.label : m_opt.full_label);
             show_error(m_parent, format_wxstr(_L("%s doesn't support percentage"), label));
             set_text_value(double_to_string(m_opt.min, m_opt.precision).ToStdString(), true);
             m_value = double(m_opt.min);
@@ -1590,7 +1597,7 @@ void Choice::BUILD() {
         if (auto& labels = m_opt.enum_def->labels(); !labels.empty()) {
             bool localized = m_opt.enum_def->has_labels();
             for (const std::string& el : labels)
-                temp->Append(localized ? _(from_u8(el)) : from_u8(el));
+                temp->Append(localized ? translate_option_text(m_opt, el) : from_u8(el));
 			set_selection();
 		}
 	}
@@ -1876,7 +1883,7 @@ boost::any& Choice::get_value()
             m_value = m_opt.enum_def->value(ret_enum);
         } else if (ret_enum < 0 || !m_opt.enum_def->has_values() || m_opt.type == coStrings ||
                    (into_u8(ret_str) != m_opt.enum_def->value(ret_enum) &&
-                    ret_str != _(m_opt.enum_def->label(ret_enum)))) {
+                    ret_str != translate_option_text(m_opt, m_opt.enum_def->label(ret_enum)))) {
             // modifies ret_string!
             get_value_by_opt_type(ret_str);
         } else if (m_opt.type == coFloatOrPercent) {
@@ -1948,7 +1955,7 @@ void Choice::msw_rescale()
         if (auto& labels = m_opt.enum_def->labels(); !labels.empty()) {
             const bool localized = m_opt.enum_def->has_labels();
             for (const std::string& el : labels)
-                field->Append(localized ? _(from_u8(el)) : from_u8(el));
+                field->Append(localized ? translate_option_text(m_opt, el) : from_u8(el));
 
             if (auto opt = m_opt.enum_def->label_to_index(into_u8(selection)); opt.has_value())
                 // This enum has a value field of the same content as text_value. Select it.
@@ -2128,8 +2135,9 @@ void GraphButton::BUILD()
         if (m_opt.graph_settings) {
             settings = *m_opt.graph_settings;
         } else {
-            settings.title       = m_opt.full_label.empty() ? m_opt.label : m_opt.full_label;
-            settings.description = m_opt.tooltip;
+            settings.title       = I18N::translate_utf8_in_domain(
+                m_opt.full_label.empty() ? m_opt.label : m_opt.full_label, m_opt.translation_domain);
+            settings.description = I18N::translate_utf8_in_domain(m_opt.tooltip, m_opt.translation_domain);
             settings.x_label     = "";
             settings.y_label     = "";
             settings.null_label  = L("No values");

@@ -25,6 +25,7 @@
 #include "format.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
+#include "I18N.hpp"
 #include "MainFrame.hpp"
 #include "MsgDialog.hpp"
 #include "Plater.hpp"
@@ -356,11 +357,14 @@ void EditGCodeDialog::selection_changed(wxDataViewEvent& evt)
 
             label = (!def || (def->full_label.empty() && def->label.empty()) ) ? format_wxstr("%1%\n(%2%)", opt_key, type_str) :
                     (!def->full_label.empty() && !def->label.empty() ) ?
-                    format_wxstr("%1% > %2%\n(%3%)", _(def->full_label), _(def->label), type_str) :
-                    format_wxstr("%1%\n(%2%)", def->label.empty() ? _(def->full_label) : _(def->label), type_str);
+                    format_wxstr("%1% > %2%\n(%3%)", I18N::translate_in_domain(def->full_label, def->translation_domain),
+                                 I18N::translate_in_domain(def->label, def->translation_domain), type_str) :
+                    format_wxstr("%1%\n(%2%)", def->label.empty() ?
+                                 I18N::translate_in_domain(def->full_label, def->translation_domain) :
+                                 I18N::translate_in_domain(def->label, def->translation_domain), type_str);
 
             if (def)
-                description = get_wraped_wxString(_(def->tooltip), 120);
+                description = get_wraped_wxString(I18N::translate_in_domain(def->tooltip, def->translation_domain), 120);
         }
         else
             label = "Undef optptr";

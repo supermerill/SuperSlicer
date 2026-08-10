@@ -180,7 +180,7 @@ static void add_config_substitutions(const ConfigSubstitutions& conf_substitutio
 			auto idx = def->enum_def->enum_to_index(conf_substitution.new_value->get_int());
 			new_val = idx.has_value() ?
 				wxString("\"") + def->enum_def->value(*idx) + "\"" + " (" +
-					_(from_u8(def->enum_def->label(*idx))) + ")" :
+					I18N::translate_in_domain(def->enum_def->label(*idx), def->translation_domain) + ")" :
 				_L("Undefined");
 			break;
 		}
@@ -218,7 +218,8 @@ static void add_config_substitutions(const ConfigSubstitutions& conf_substitutio
 			new_val.Replace("!", "Disabled:");
 		}
 
-		changes += format_wxstr("<tr><td><b>\"%1%\" (%2%)</b></td><td>: ", def->opt_key, _(def->label)) +
+		changes += format_wxstr("<tr><td><b>\"%1%\" (%2%)</b></td><td>: ", def->opt_key,
+									 I18N::translate_in_domain(def->label, def->translation_domain)) +
 				   format_wxstr(_L("%1% was substituted with %2%"), bold_string(conf_substitution.old_value), bold(new_val)) + 
 				   "</td></tr>";
 	}
