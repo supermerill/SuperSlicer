@@ -185,40 +185,6 @@ void append_trimmed_brim_tree(storage_handle *storage,
         append_trimmed_brim_tree(storage, entity.child(child_idx), trim_area, out);
 }
 
-void append_layer_extrusions(storage_handle *storage, const Layer &layer, StoredExtrusionEntity &out)
-{
-    for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx) {
-        const LayerIsland island = layer.island(island_idx);
-        for (uint32_t region_island_idx = 0; region_island_idx < island.region_island_count();
-             ++region_island_idx) {
-            const LayerRegionIsland region_island = island.region_island(region_island_idx);
-            if (!region_island.has_extrusion(RAW_EXTRUSION_ROLE_PERIMETER))
-                continue;
-            const ExtrusionEntity extrusion(region_island.extrusion(RAW_EXTRUSION_ROLE_PERIMETER));
-            StoredExtrusionEntity copy(storage, extrusion);
-            out.append_child_move(copy.mutable_view());
-        }
-    }
-}
-
-StoredExtrusionEntity collect_adhesion_tree(storage_handle *storage,
-                                            const Object &object,
-                                            raw_layer_adhesion_kind kind,
-                                            bool normal_skirt_only)
-{
-    StoredExtrusionEntity out(storage);
-    out.disable_sort().disable_reverse();
-    for (uint32_t layer_idx = 0; layer_idx < object.auxiliary_layer_count(); ++layer_idx) {
-        const Layer layer = object.auxiliary_layer(layer_idx);
-        if (normal_skirt_only ?
-            LayerAdhesionProperty::layer_is_normal_skirt(layer) :
-            LayerAdhesionProperty::layer_has_kind(layer, kind))
-            append_layer_extrusions(storage, layer, out);
-    }
-    out.disable_sort().disable_reverse();
-    return out;
-}
-
 Slic3r::ExPolygons brim_subject_from_extrusion(const ExtrusionEntity &extrusion)
 {
     /*
@@ -230,20 +196,6 @@ Slic3r::ExPolygons brim_subject_from_extrusion(const ExtrusionEntity &extrusion)
         reinterpret_cast<const Slic3r::ExtrusionEntity *>(extrusion.handle());
     Slic3r::Polygons coverage = native->polygons_covered_by_width(float(SCALED_EPSILON));
     return coverage.empty() ? Slic3r::ExPolygons{} : Slic3r::union_ex(coverage);
-}
-
-void clear_brim_output(const Object &object)
-{
-    /*
-    The structured brim output is every auxiliary layer tagged as brim adhesion.
-    Iterate backwards so removing one layer cannot change the index of layers
-    that still need to be inspected.
-    */
-    for (uint32_t idx = object.auxiliary_layer_count(); idx > 0; --idx) {
-        const Layer layer = object.auxiliary_layer(idx - 1);
-        if (LayerAdhesionProperty::layer_is_brim(layer))
-            object.remove_auxiliary_layer(layer);
-    }
 }
 
 bool publish_brim(storage_handle *storage,
@@ -300,7 +252,7 @@ bool trim_print_brim(storage_handle *storage,
     const coord_t height = reference_layer.height();
     const coord_t print_z = reference_layer.print_z();
     const coord_t slice_z = reference_layer.slice_z();
-    clear_brim_output(object);
+    remove_auxiliary_layers(object, layer_is_brim_adhesion);
     if (!trimmed.empty() && !publish_brim(storage, orchestrator, print, object, height, print_z, slice_z, trimmed))
         throw std::runtime_error("Default brim/skirt trim could not publish brim.");
     return true;
@@ -321,10 +273,10 @@ void trim_brim_against_skirt(const plugin_run_context *run_ctx, orchestrator_han
 
     storage_handle *storage = run_ctx->plugin_storage;
     const Object auxiliary_object = print.auxiliary_object();
-    StoredExtrusionEntity print_brim = collect_adhesion_tree(
-        storage, auxiliary_object, RAW_LAYER_ADHESION_KIND_BRIM, false);
-    StoredExtrusionEntity print_skirt = collect_adhesion_tree(
-        storage, auxiliary_object, RAW_LAYER_ADHESION_KIND_SKIRT, true);
+    StoredExtrusionEntity print_brim =
+        collect_auxiliary_layer_extrusions(storage, auxiliary_object, layer_is_brim_adhesion);
+    StoredExtrusionEntity print_skirt =
+        collect_auxiliary_layer_extrusions(storage, auxiliary_object, layer_is_normal_skirt_adhesion);
     if (!print_brim.empty() && !print_skirt.empty() && auxiliary_object.auxiliary_layer_count() > 0) {
         const Layer reference_layer = auxiliary_object.auxiliary_layer(0);
         trim_print_brim(storage, orchestrator, print, auxiliary_object, reference_layer, print_brim.readonly(), print_skirt.readonly());
@@ -332,13 +284,13 @@ void trim_brim_against_skirt(const plugin_run_context *run_ctx, orchestrator_han
 
     for (uint32_t object_idx = 0; object_idx < print.object_count(); ++object_idx) {
         const Object object = print.object(object_idx);
-        StoredExtrusionEntity object_brim = collect_adhesion_tree(
-            storage, object, RAW_LAYER_ADHESION_KIND_BRIM, false);
+        StoredExtrusionEntity object_brim =
+            collect_auxiliary_layer_extrusions(storage, object, layer_is_brim_adhesion);
         if (object_brim.empty() || object.layer_count() == 0)
             continue;
 
-        StoredExtrusionEntity object_skirt = collect_adhesion_tree(
-            storage, object, RAW_LAYER_ADHESION_KIND_SKIRT, true);
+        StoredExtrusionEntity object_skirt =
+            collect_auxiliary_layer_extrusions(storage, object, layer_is_normal_skirt_adhesion);
         const ExtrusionEntity skirt =
             object_skirt.empty() ? print_skirt.readonly() : object_skirt.readonly();
         trim_print_brim(storage, orchestrator, print, object, object.layer(0), object_brim.readonly(), skirt);

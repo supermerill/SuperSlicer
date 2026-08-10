@@ -35,6 +35,7 @@
 #include <oneapi/tbb/parallel_for.h>
 
 #include "AABBTreeLines.hpp"
+#include "AdhesionLayerHelpers.hpp"
 #include "Api/internal/PrintObjectAccess.hpp"
 #include "BoundingBox.hpp"
 #include "BridgeDetector.hpp"
@@ -118,68 +119,6 @@ using namespace std::literals;
 
 namespace Slic3r {
 
-static void append_adhesion_extrusion_copy(ExtrusionEntityCollection &dst, const ExtrusionEntity &src)
-{
-    if (src.is_nop())
-        return;
-
-    if (const ExtrusionEntityCollection *collection = dynamic_cast<const ExtrusionEntityCollection *>(&src)) {
-        /*
-        Auxiliary LayerRegionIsland roots are often plain transport
-        collections. Copy their direct children into the legacy cache so old
-        callers that inspect collection.entities() see the same shape they saw
-        when brim/skirt was stored directly on PrintObject. If a collection has
-        properties, keep it whole so descendants still inherit them.
-        */
-        if (collection->has_properties()) {
-            dst.append(src);
-            return;
-        }
-        for (const ExtrusionEntity *child : collection->entities())
-            dst.append(*child);
-        return;
-    }
-
-    if (src.is_leaf()) {
-        dst.append(src);
-        return;
-    }
-
-    for (const ExtrusionEntityUPtr &child : src.children())
-        dst.append(*child);
-}
-
-static void collect_adhesion_layer_extrusions(const Layer &layer, ExtrusionEntityCollection &dst)
-{
-    for (const LayerSliceIsland &island : layer.islands()) {
-        for (const LayerRegionIsland &region_island : island.regions_islands()) {
-            if (region_island.has_extrusion(LayerRegionIsland::PERIMETERS))
-                append_adhesion_extrusion_copy(dst, region_island.extrusion(LayerRegionIsland::PERIMETERS));
-        }
-    }
-}
-
-template<class Visitor> static void visit_adhesion_layer_extrusions(Layer &layer, Visitor &visitor)
-{
-    for (LayerSliceIsland &island : layer.islands()) {
-        for (LayerRegionIsland &region_island : island.regions_islands()) {
-            if (region_island.has_extrusion(LayerRegionIsland::PERIMETERS))
-                visitor.traverse(region_island.mutable_extrusion(LayerRegionIsland::PERIMETERS));
-        }
-    }
-}
-
-static void remove_adhesion_layers(PrintObject &object, const raw_layer_adhesion_kind kind)
-{
-    LayerUPtrs &layers = object.mutable_auxiliary_layers();
-    layers.erase(std::remove_if(layers.begin(),
-                                layers.end(),
-                                [kind](const LayerUPtr &layer) {
-                                    return layer != nullptr && LayerAdhesionProperty::layer_has_kind(*layer, kind);
-                                }),
-                 layers.end());
-}
-
 static bool dont_support_bridges_or_default(const ConfigBase &config)
 {
     const ConfigOption *option = config.optptr("dont_support_bridges");
@@ -208,7 +147,7 @@ void ApiInternal::PrintObjectAccess::clear_brim_auxiliary_layers(PrintObject &ob
     Brim is represented by auxiliary layers. Remove only those tagged layers so
     support, skirt and future auxiliary geometry stay attached to the object.
     */
-    remove_adhesion_layers(object, RAW_LAYER_ADHESION_KIND_BRIM);
+    remove_auxiliary_layers(object, layer_is_brim_adhesion);
 }
 
 void ApiInternal::PrintObjectAccess::clear_skirt_auxiliary_layers(PrintObject &object)
@@ -217,36 +156,30 @@ void ApiInternal::PrintObjectAccess::clear_skirt_auxiliary_layers(PrintObject &o
     Both normal skirt and first-layer-only skirt use the same kind. The flags
     distinguish them when legacy readers rebuild their separate caches.
     */
-    remove_adhesion_layers(object, RAW_LAYER_ADHESION_KIND_SKIRT);
+    remove_auxiliary_layers(object, layer_is_any_skirt_adhesion);
 }
 
 const ExtrusionEntityCollection &PrintObject::brim() const
 {
     m_legacy_brim_cache.clear();
-    for (const Layer &layer : this->auxiliary_layers())
-        if (LayerAdhesionProperty::layer_is_brim(layer))
-            collect_adhesion_layer_extrusions(layer, m_legacy_brim_cache);
+    collect_auxiliary_layer_extrusions(*this, layer_is_brim_adhesion, m_legacy_brim_cache);
     return m_legacy_brim_cache;
 }
 
 const ExtrusionEntityCollection &PrintObject::skirt() const
 {
     m_legacy_skirt_cache.clear();
-    for (const Layer &layer : this->auxiliary_layers())
-        if (LayerAdhesionProperty::layer_is_normal_skirt(layer))
-            collect_adhesion_layer_extrusions(layer, m_legacy_skirt_cache);
+    collect_auxiliary_layer_extrusions(*this, layer_is_normal_skirt_adhesion, m_legacy_skirt_cache);
     return m_legacy_skirt_cache;
 }
 
 const std::optional<ExtrusionEntityCollection> &PrintObject::skirt_first_layer() const
 {
     m_legacy_skirt_first_layer_cache.reset();
-    for (const Layer &layer : this->auxiliary_layers()) {
-        if (!LayerAdhesionProperty::layer_is_skirt_first_layer_only(layer))
-            continue;
-        if (!m_legacy_skirt_first_layer_cache)
-            m_legacy_skirt_first_layer_cache.emplace();
-        collect_adhesion_layer_extrusions(layer, *m_legacy_skirt_first_layer_cache);
+    if (has_auxiliary_layer(*this, layer_is_first_layer_skirt_adhesion)) {
+        m_legacy_skirt_first_layer_cache.emplace();
+        collect_auxiliary_layer_extrusions(
+            *this, layer_is_first_layer_skirt_adhesion, *m_legacy_skirt_first_layer_cache);
     }
     return m_legacy_skirt_first_layer_cache;
 }
@@ -1239,11 +1172,7 @@ void PrintObject::simplify_extrusion_path()
             const ConfigOptionFloatOrPercent& arc_fitting_tolerance = print_config.arc_fitting_tolerance;
 
             GetPathsVisitor visitor;
-            for (Layer &layer : this->auxiliary_layers()) {
-                if (LayerAdhesionProperty::layer_is_brim(layer) ||
-                    LayerAdhesionProperty::layer_has_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
-                    visit_adhesion_layer_extrusions(layer, visitor);
-            }
+            visit_matching_auxiliary_layer_extrusions(*this, layer_is_any_adhesion, visitor);
             tbb::parallel_for(
                 tbb::blocked_range<size_t>(0, visitor.paths.size()),
                 [this, &visitor, scaled_resolution, &arc_fitting_tolerance, &print_config](const tbb::blocked_range<size_t>& range) {

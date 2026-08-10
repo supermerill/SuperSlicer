@@ -38,6 +38,7 @@
 #include <oneapi/tbb/parallel_for.h>
 
 #include "BoundingBox.hpp"
+#include "AdhesionLayerHelpers.hpp"
 #include "Api/internal/PrintAccess.hpp"
 #include "Api/internal/PrintObjectAccess.hpp"
 #include "Api/host/Orchestrator.hpp"
@@ -704,86 +705,6 @@ std::vector<ObjectID> Print::print_object_ids() const
     return out;
 }
 
-static void append_adhesion_extrusion_copy(ExtrusionEntityCollection &dst, const ExtrusionEntity &src)
-{
-    if (src.is_nop())
-        return;
-
-    if (const ExtrusionEntityCollection *collection = dynamic_cast<const ExtrusionEntityCollection *>(&src)) {
-        /*
-        Compatibility collections should look like the old direct m_brim/m_skirt
-        storage. A plain transport collection is flattened by one level; a
-        property-bearing collection stays whole because its children inherit
-        those properties.
-        */
-        if (collection->has_properties()) {
-            dst.append(src);
-            return;
-        }
-        for (const ExtrusionEntity *child : collection->entities())
-            dst.append(*child);
-        return;
-    }
-
-    if (src.is_leaf()) {
-        dst.append(src);
-        return;
-    }
-
-    for (const ExtrusionEntityUPtr &child : src.children())
-        dst.append(*child);
-}
-
-static void collect_adhesion_layer_extrusions(const Layer &layer, ExtrusionEntityCollection &dst)
-{
-    for (const LayerSliceIsland &island : layer.islands()) {
-        for (const LayerRegionIsland &region_island : island.regions_islands()) {
-            if (region_island.has_extrusion(LayerRegionIsland::PERIMETERS))
-                append_adhesion_extrusion_copy(dst, region_island.extrusion(LayerRegionIsland::PERIMETERS));
-        }
-    }
-}
-
-template<class Visitor> static void visit_adhesion_layer_extrusions(Layer &layer, Visitor &visitor)
-{
-    for (LayerSliceIsland &island : layer.islands()) {
-        for (LayerRegionIsland &region_island : island.regions_islands()) {
-            if (region_island.has_extrusion(LayerRegionIsland::PERIMETERS))
-                region_island.mutable_extrusion(LayerRegionIsland::PERIMETERS).visit(visitor);
-        }
-    }
-}
-
-static void collect_adhesion_layer_points(const Layer &layer, Points &dst)
-{
-    /*
-    The first-layer hull must cover the physical adhesion area, not only the
-    centerlines. Auxiliary layer slices are built from extrusion coverage, so
-    collecting their polygon points gives the bed-leveling envelope the right
-    margin.
-    */
-    for (const ExPolygon &slice : layer.lslices()) {
-        append(dst, slice.contour.points);
-        for (const Polygon &hole : slice.holes)
-            append(dst, hole.points);
-    }
-}
-
-static void remove_print_auxiliary_adhesion_layers(Print &print, const raw_layer_adhesion_kind kind)
-{
-    PrintObject *auxiliary_object = const_cast<PrintObject *>(print.auxiliary_object());
-    if (auxiliary_object == nullptr)
-        return;
-
-    LayerUPtrs &layers = auxiliary_object->mutable_auxiliary_layers();
-    layers.erase(std::remove_if(layers.begin(),
-                                layers.end(),
-                                [kind](const LayerUPtr &layer) {
-                                    return layer != nullptr && LayerAdhesionProperty::layer_has_kind(*layer, kind);
-                                }),
-                 layers.end());
-}
-
 bool Print::has_infinite_skirt() const
 {
     return (m_config.draft_shield.value == dsEnabled && m_config.skirts > 0)/* || (m_config.ooze_prevention && this->extruders().size() > 1)*/;
@@ -799,11 +720,8 @@ bool Print::has_skirt() const
 bool Print::has_brim() const
 {
     const PrintObject *auxiliary_object = this->auxiliary_object();
-    if (auxiliary_object != nullptr) {
-        for (const Layer &layer : auxiliary_object->auxiliary_layers())
-            if (LayerAdhesionProperty::layer_is_brim(layer))
-                return true;
-    }
+    if (auxiliary_object != nullptr && has_auxiliary_layer(*auxiliary_object, layer_is_brim_adhesion))
+        return true;
     return std::any_of(m_objects.begin(), m_objects.end(), [](const PrintObjectUPtr &object) { return object->has_brim(); });
 }
 
@@ -811,11 +729,8 @@ const ExtrusionEntityCollection &Print::brim() const
 {
     m_legacy_brim_cache.clear();
     const PrintObject *auxiliary_object = this->auxiliary_object();
-    if (auxiliary_object != nullptr) {
-        for (const Layer &layer : auxiliary_object->auxiliary_layers())
-            if (LayerAdhesionProperty::layer_is_brim(layer))
-                collect_adhesion_layer_extrusions(layer, m_legacy_brim_cache);
-    }
+    if (auxiliary_object != nullptr)
+        collect_auxiliary_layer_extrusions(*auxiliary_object, layer_is_brim_adhesion, m_legacy_brim_cache);
     return m_legacy_brim_cache;
 }
 
@@ -823,11 +738,8 @@ const ExtrusionEntityCollection &Print::skirt() const
 {
     m_legacy_skirt_cache.clear();
     const PrintObject *auxiliary_object = this->auxiliary_object();
-    if (auxiliary_object != nullptr) {
-        for (const Layer &layer : auxiliary_object->auxiliary_layers())
-            if (LayerAdhesionProperty::layer_is_normal_skirt(layer))
-                collect_adhesion_layer_extrusions(layer, m_legacy_skirt_cache);
-    }
+    if (auxiliary_object != nullptr)
+        collect_auxiliary_layer_extrusions(*auxiliary_object, layer_is_normal_skirt_adhesion, m_legacy_skirt_cache);
     return m_legacy_skirt_cache;
 }
 
@@ -835,14 +747,10 @@ const std::optional<ExtrusionEntityCollection> &Print::skirt_first_layer() const
 {
     m_legacy_skirt_first_layer_cache.reset();
     const PrintObject *auxiliary_object = this->auxiliary_object();
-    if (auxiliary_object != nullptr) {
-        for (const Layer &layer : auxiliary_object->auxiliary_layers()) {
-            if (!LayerAdhesionProperty::layer_is_skirt_first_layer_only(layer))
-                continue;
-            if (!m_legacy_skirt_first_layer_cache)
-                m_legacy_skirt_first_layer_cache.emplace();
-            collect_adhesion_layer_extrusions(layer, *m_legacy_skirt_first_layer_cache);
-        }
+    if (auxiliary_object != nullptr && has_auxiliary_layer(*auxiliary_object, layer_is_first_layer_skirt_adhesion)) {
+        m_legacy_skirt_first_layer_cache.emplace();
+        collect_auxiliary_layer_extrusions(
+            *auxiliary_object, layer_is_first_layer_skirt_adhesion, *m_legacy_skirt_first_layer_cache);
     }
     return m_legacy_skirt_first_layer_cache;
 }
@@ -1948,14 +1856,18 @@ void append_extrusion_children_to_collection(ExtrusionEntityCollection &dst, Ext
 
 void ApiInternal::PrintAccess::clear_brim(Print &print)
 {
-    remove_print_auxiliary_adhesion_layers(print, RAW_LAYER_ADHESION_KIND_BRIM);
+    PrintObject *auxiliary_object = const_cast<PrintObject *>(print.auxiliary_object());
+    if (auxiliary_object != nullptr)
+        remove_auxiliary_layers(*auxiliary_object, layer_is_brim_adhesion);
     for (PrintObjectUPtr &object : print.m_objects)
         ApiInternal::PrintObjectAccess::clear_brim_auxiliary_layers(*object);
 }
 
 void ApiInternal::PrintAccess::clear_skirt(Print &print)
 {
-    remove_print_auxiliary_adhesion_layers(print, RAW_LAYER_ADHESION_KIND_SKIRT);
+    PrintObject *auxiliary_object = const_cast<PrintObject *>(print.auxiliary_object());
+    if (auxiliary_object != nullptr)
+        remove_auxiliary_layers(*auxiliary_object, layer_is_any_skirt_adhesion);
     for (PrintObjectUPtr &object : print.m_objects)
         ApiInternal::PrintObjectAccess::clear_skirt_auxiliary_layers(*object);
 }
@@ -1971,20 +1883,10 @@ void ApiInternal::PrintAccess::normalize_skirt_brim_direction(Print &print)
         print.m_default_region_config.perimeter_direction.value == pdCW_CW) {
         ExtrusionDirectionSetter visitor(true);
         PrintObject *auxiliary_object = const_cast<PrintObject *>(print.auxiliary_object());
-        if (auxiliary_object != nullptr) {
-            for (Layer &layer : auxiliary_object->auxiliary_layers()) {
-                if (LayerAdhesionProperty::layer_is_brim(layer) ||
-                    LayerAdhesionProperty::layer_has_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
-                    visit_adhesion_layer_extrusions(layer, visitor);
-            }
-        }
-        for (PrintObjectUPtr &object : print.m_objects) {
-            for (Layer &layer : object->auxiliary_layers()) {
-                if (LayerAdhesionProperty::layer_is_brim(layer) ||
-                    LayerAdhesionProperty::layer_has_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
-                    visit_adhesion_layer_extrusions(layer, visitor);
-            }
-        }
+        if (auxiliary_object != nullptr)
+            visit_matching_auxiliary_layer_extrusions(*auxiliary_object, layer_is_any_adhesion, visitor);
+        for (PrintObjectUPtr &object : print.m_objects)
+            visit_matching_auxiliary_layer_extrusions(*object, layer_is_any_adhesion, visitor);
     }
 }
 
@@ -2002,20 +1904,11 @@ void ApiInternal::PrintAccess::rebuild_first_layer_convex_hull_after_skirt_brim(
         append(print.m_first_layer_convex_hull.points, std::move(polygon.points));
 
     const PrintObject *auxiliary_object = print.auxiliary_object();
-    if (auxiliary_object != nullptr) {
-        for (const Layer &layer : auxiliary_object->auxiliary_layers()) {
-            if (LayerAdhesionProperty::layer_is_brim(layer) ||
-                LayerAdhesionProperty::layer_has_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
-                collect_adhesion_layer_points(layer, print.m_first_layer_convex_hull.points);
-        }
-    }
-    for (PrintObjectUPtr &object : print.m_objects) {
-        for (const Layer &layer : object->auxiliary_layers()) {
-            if (LayerAdhesionProperty::layer_is_brim(layer) ||
-                LayerAdhesionProperty::layer_has_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT))
-                collect_adhesion_layer_points(layer, print.m_first_layer_convex_hull.points);
-        }
-    }
+    if (auxiliary_object != nullptr)
+        append_matching_auxiliary_layer_points(
+            *auxiliary_object, layer_is_any_adhesion, print.m_first_layer_convex_hull.points);
+    for (PrintObjectUPtr &object : print.m_objects)
+        append_matching_auxiliary_layer_points(*object, layer_is_any_adhesion, print.m_first_layer_convex_hull.points);
 
     print.finalize_first_layer_convex_hull();
 }
