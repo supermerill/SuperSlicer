@@ -1713,8 +1713,11 @@ void Print::process()
         for (PrintObjectUPtr &obj : m_objects) {
             obj->simplify_extrusion_path();
         }
-        //also simplify object skirt & brim
-        if (enable_arc_fitting && (!this->m_skirt.empty() || !this->m_brim.empty())) {
+        // The print-level brim and skirt live on the hidden auxiliary object.
+        // Object-local adhesion was already processed by the loop above.
+        PrintObject *auxiliary_object = m_auxiliary_object.get();
+        if (enable_arc_fitting && auxiliary_object != nullptr &&
+            has_auxiliary_layer(*auxiliary_object, layer_is_any_adhesion)) {
             coordf_t scaled_resolution = scale_d(config().arc_fitting_resolution.get_effective_value(config().resolution.value));
             if (scaled_resolution == 0) scaled_resolution = SCALED_EPSILON * 2 ;
             const ConfigOptionFloatOrPercent& arc_fitting_tolerance = config().arc_fitting_tolerance;
@@ -1722,10 +1725,9 @@ void Print::process()
             this->set_status(0, L("Optimizing skirt & brim %s%%"), { std::to_string(0) }, PrintBase::SlicingStatus::SECONDARY_STATE);
             std::atomic<int> atomic_count{ 0 };
             GetPathsVisitor visitor;
-            visitor.traverse(this->m_skirt);
-            visitor.traverse(this->m_brim);
+            visit_matching_auxiliary_layer_extrusions(*auxiliary_object, layer_is_any_adhesion, visitor);
 #if _DEBUG
-            this->m_skirt.visit(get_loops);
+            visit_matching_auxiliary_layer_extrusions(*auxiliary_object, layer_is_any_adhesion, get_loops);
             for (auto loop : get_loops.loops) assert(loop->is_counter_clockwise());
 #endif
             tbb::parallel_for(
@@ -1744,7 +1746,7 @@ void Print::process()
             );
 #if _DEBUG
             get_loops.loops.clear();
-            this->m_skirt.visit(get_loops);
+            visit_matching_auxiliary_layer_extrusions(*auxiliary_object, layer_is_any_adhesion, get_loops);
             for (auto loop : get_loops.loops) {
                 assert(loop->is_counter_clockwise());
             }
