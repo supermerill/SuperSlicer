@@ -21,8 +21,6 @@ endif()
 
 set_target_properties(polyholes_plugin PROPERTIES
     FOLDER "plugins"
-    OUTPUT_NAME "plugin"
-    PREFIX ""
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src/$<CONFIG>/plugins/polyholes"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src/$<CONFIG>/plugins/polyholes"
 )
+
+slic3r_package_plugin(polyholes_plugin polyholes)

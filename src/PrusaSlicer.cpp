@@ -892,7 +892,7 @@ bool CLI::setup(int argc, char **argv)
     if (!cli_data_dir.empty())
         set_data_dir(cli_data_dir);
 
-    // Plugin activation is stored below data_dir()/plugin. The GUI normally
+    // Plugin activation is stored below data_dir()/plugins. The GUI normally
     // initializes AppConfig later, but plugins must be loaded before the full
     // CLI definition is built so their options are accepted by read_cli().
     m_app_config = std::make_unique<AppConfig>(AppConfig::EAppMode::Editor);

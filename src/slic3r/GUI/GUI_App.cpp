@@ -1253,7 +1253,7 @@ void GUI_App::init_app_config()
 
     if (app_config_was_preinitialized) {
         // CLI::setup() may initialize AppConfig early so plugin loading can
-        // read data_dir()/plugin/activated.ini before the GUI exists. Reuse
+        // read data_dir()/plugins/activated.ini before the GUI exists. Reuse
         // that AppConfig instead of treating the path as a new command-line
         // override.
         m_datadir_redefined = app_config->get_root_data_dir().empty();

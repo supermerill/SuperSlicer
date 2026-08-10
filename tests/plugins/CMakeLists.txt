@@ -12,6 +12,7 @@ add_executable(${_TEST_NAME}_tests
     test_clipper_views.cpp
     test_extrusion_continuity.cpp
     test_plugin_property.cpp
+    test_plugin_repository.cpp
     test_plugin_translation_catalogs.cpp
     test_gcode_printing_plan_file_writer.cpp
     test_flat_area_layer_height.cpp
@@ -60,17 +61,17 @@ if (TARGET python_plugin_loader)
     target_compile_definitions(${_TEST_NAME}_tests PRIVATE SLIC3R_TEST_PYTHON_PLUGINS)
     add_custom_command(TARGET ${_TEST_NAME}_tests POST_BUILD
         COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins"
+            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "$<TARGET_FILE:python_plugin_loader>"
-            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/$<TARGET_FILE_NAME:python_plugin_loader>"
+            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python/$<TARGET_FILE_NAME:python_plugin_loader>"
         COMMAND "${CMAKE_COMMAND}" -E copy_directory
             "$<TARGET_FILE_DIR:python_plugin_loader>/python"
-            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python"
+            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python/python"
         COMMAND "${CMAKE_COMMAND}" -E rm -f
-            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python/plugins/default_surface_generator.py"
+            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python/python/plugins/default_surface_generator.py"
         COMMAND "${CMAKE_COMMAND}" -E rm -f
-            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python/plugins/simple_perimeter_generator2.py"
+            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python/python/plugins/simple_perimeter_generator2.py"
         COMMAND "${CMAKE_COMMAND}" -E rm -f
             "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/Slic3r.dll"
         COMMENT "Copy Python plugin runtime to plugin tests"

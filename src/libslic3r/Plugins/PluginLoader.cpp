@@ -4,6 +4,7 @@
 ///|/
 
 #include "PluginLoader.hpp"
+#include "PluginRepository.hpp"
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -18,19 +19,13 @@
 #endif
 
 #include <chrono>
-#include <map>
 #include <set>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include <boost/algorithm/string/predicate.hpp>
-#include <boost/algorithm/string/trim.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/log/trivial.hpp>
-#include <boost/nowide/fstream.hpp>
-#include <boost/property_tree/ini_parser.hpp>
-#include <boost/property_tree/ptree.hpp>
 
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/plugin/c/slic3r_plugin.h"
@@ -80,131 +75,9 @@ using RegisterPluginFn = void (*)(orchestrator_handle *);
 using PluginAbiVersionFn = uint32_t (*)();
 using PluginLoadClock = std::chrono::steady_clock;
 
-const char *const PLUGIN_ACTIVATION_DIR = "plugin";
-const char *const ACTIVATED_PLUGINS_FILENAME = "activated.ini";
-const char *const DEFAULT_ACTIVATED_PLUGINS_DIR = "plugins";
-const char *const DEFAULT_ACTIVATED_PLUGINS_FILENAME = "default_activated.ini";
-
 std::chrono::milliseconds elapsed_ms(const PluginLoadClock::time_point &start)
 {
     return std::chrono::duration_cast<std::chrono::milliseconds>(PluginLoadClock::now() - start);
-}
-
-bool ini_value_is_enabled(const std::string &value)
-{
-    return boost::algorithm::iequals(value, "1") ||
-           boost::algorithm::iequals(value, "true") ||
-           boost::algorithm::iequals(value, "yes") ||
-           boost::algorithm::iequals(value, "on") ||
-           boost::algorithm::iequals(value, "enabled");
-}
-
-bool read_plugin_activation_ini(const boost::filesystem::path &config_path,
-                                std::map<std::string, bool> &plugin_states)
-{
-    boost::nowide::ifstream stream(config_path.string());
-    if (!stream) {
-        BOOST_LOG_TRIVIAL(warning) << "Cannot read active plugin configuration '" << config_path.string() << "'.";
-        return false;
-    }
-
-    boost::property_tree::ptree tree;
-    try {
-        boost::property_tree::read_ini(stream, tree);
-    } catch (const boost::property_tree::ini_parser_error &error) {
-        BOOST_LOG_TRIVIAL(warning) << "Cannot parse active plugin configuration '" << config_path.string()
-                                   << "': " << error.what();
-        return false;
-    }
-
-    const boost::property_tree::ptree &const_tree = tree;
-    const boost::optional<const boost::property_tree::ptree&> activated = const_tree.get_child_optional("activated");
-    if (!activated) {
-        BOOST_LOG_TRIVIAL(warning) << "Active plugin configuration '" << config_path.string()
-                                   << "' has no [activated] section.";
-        return false;
-    }
-
-    for (const boost::property_tree::ptree::value_type &entry : *activated) {
-        const std::string plugin_id = boost::algorithm::trim_copy(entry.first);
-        if (!plugin_id.empty())
-            plugin_states[plugin_id] = ini_value_is_enabled(entry.second.get_value<std::string>());
-    }
-
-    return true;
-}
-
-std::vector<std::string> enabled_plugin_ids(const std::map<std::string, bool> &plugin_states)
-{
-    std::vector<std::string> plugin_ids;
-    for (const auto &[plugin_id, is_enabled] : plugin_states)
-        if (is_enabled)
-            plugin_ids.push_back(plugin_id);
-    return plugin_ids;
-}
-
-boost::filesystem::path default_active_plugin_config_path()
-{
-    return boost::filesystem::path(Slic3r::resources_dir()) / DEFAULT_ACTIVATED_PLUGINS_DIR / DEFAULT_ACTIVATED_PLUGINS_FILENAME;
-}
-
-boost::filesystem::path active_plugin_config_path(const boost::filesystem::path &config_dir)
-{
-    return config_dir / PLUGIN_ACTIVATION_DIR / ACTIVATED_PLUGINS_FILENAME;
-}
-
-boost::filesystem::path ensure_active_plugin_config(const boost::filesystem::path &config_dir,
-                                                    bool &from_user_config)
-{
-    const boost::filesystem::path default_config_path = default_active_plugin_config_path();
-    from_user_config = false;
-
-    if (config_dir.empty()) {
-        BOOST_LOG_TRIVIAL(trace) << "data_dir is not available before plugin activation. Using default active plugin "
-                                    "configuration from resources.";
-        return default_config_path;
-    }
-
-    const boost::filesystem::path config_path = active_plugin_config_path(config_dir);
-    if (boost::filesystem::exists(config_path)) {
-        from_user_config = true;
-        return config_path;
-    }
-
-    try {
-        boost::filesystem::create_directories(config_path.parent_path());
-        boost::filesystem::copy_file(default_config_path, config_path);
-        from_user_config = true;
-        return config_path;
-    } catch (const boost::filesystem::filesystem_error &error) {
-        BOOST_LOG_TRIVIAL(warning) << "Cannot create active plugin configuration '" << config_path.string()
-                                   << "' from '" << default_config_path.string() << "': " << error.what()
-                                   << ". Falling back to resources.";
-        return default_config_path;
-    }
-}
-
-std::vector<std::string> read_active_plugin_ids(const boost::filesystem::path &config_dir,
-                                                bool &from_user_config)
-{
-    const boost::filesystem::path config_path = ensure_active_plugin_config(config_dir, from_user_config);
-    std::map<std::string, bool> plugin_states;
-    if (!read_plugin_activation_ini(config_path, plugin_states))
-        return {};
-
-    if (from_user_config) {
-        // Existing user profiles may have been created before newer built-in
-        // plugins existed. Merge newly-added default-active plugins into the
-        // effective activation set, while keeping an explicit "plugin = 0" in
-        // the user file as a real opt-out.
-        std::map<std::string, bool> default_plugin_states;
-        if (read_plugin_activation_ini(default_active_plugin_config_path(), default_plugin_states))
-            for (const auto &[plugin_id, is_enabled] : default_plugin_states)
-                if (is_enabled && plugin_states.find(plugin_id) == plugin_states.end())
-                    plugin_states.emplace(plugin_id, true);
-    }
-
-    return enabled_plugin_ids(plugin_states);
 }
 
 void activate_plugins_from_ids(Orchestrator &orchestrator,
@@ -221,21 +94,10 @@ void activate_plugins_from_ids(Orchestrator &orchestrator,
 
         if (from_user_config)
             BOOST_LOG_TRIVIAL(warning) << "Active plugin '" << plugin_id << "' is listed in "
-                                       << ACTIVATED_PLUGINS_FILENAME << " but is not loaded.";
+                                       << "activated.ini but is not loaded.";
         else
             BOOST_LOG_TRIVIAL(trace) << "Default active plugin '" << plugin_id << "' is not loaded.";
     }
-}
-
-bool is_plugin_library_path(const boost::filesystem::path &path)
-{
-#ifdef _WIN32
-    return boost::algorithm::iequals(path.extension().string(), ".dll");
-#elif defined(__APPLE__)
-    return path.extension() == ".dylib";
-#else
-    return path.extension() == ".so";
-#endif
 }
 
 const char *plugin_package_library_filename()
@@ -354,12 +216,18 @@ void load_plugins_from_repository(const boost::filesystem::path &repository, orc
 
     for (boost::filesystem::directory_iterator it(repository), end; it != end; ++it) {
         const boost::filesystem::path plugin_path = it->path();
-        if (boost::filesystem::is_regular_file(plugin_path) && is_plugin_library_path(plugin_path)) {
-            BOOST_LOG_TRIVIAL(info) << "Loading plugin '" << plugin_path.string() << "'.";
-            load_plugin_library(plugin_path, plugin_path.parent_path(), orchestrator);
-        } else if (boost::filesystem::is_directory(plugin_path)) {
+        if (boost::filesystem::is_directory(plugin_path)) {
+            const std::string package_name = plugin_path.filename().string();
+            // Interrupted install transactions keep their staging and backup
+            // folders beside the real package. Their leading dot makes them
+            // ineligible for loading on the next launch.
+            if (package_name.empty() || package_name.front() == '.')
+                continue;
+
             const boost::filesystem::path package_library = plugin_path / plugin_package_library_filename();
-            if (boost::filesystem::is_regular_file(package_library)) {
+            const boost::filesystem::path package_manifest = plugin_path / (package_name + ".ini");
+            if (boost::filesystem::is_regular_file(package_library) &&
+                boost::filesystem::is_regular_file(package_manifest)) {
                 BOOST_LOG_TRIVIAL(info) << "Loading plugin package '" << plugin_path.string() << "'.";
                 load_plugin_library(package_library, plugin_path, orchestrator);
             }
@@ -628,20 +496,49 @@ void load_plugins()
     Orchestrator &orchestrator = Orchestrator::instance();
     orchestrator_handle *orchestrator_handle_ptr = reinterpret_cast<orchestrator_handle *>(&orchestrator);
 
+    // Package installation happens before any external DLL is loaded. This
+    // keeps a running process from replacing a library that Windows or the
+    // dynamic linker may still hold open.
+    bool active_plugins_loaded_from_user_config = false;
+    const boost::filesystem::path config_dir = has_data_dir() ? boost::filesystem::path(data_dir()) :
+                                                                boost::filesystem::path();
+    PluginActivationConfig plugin_config;
+    std::string plugin_config_error;
+    if (!ensure_plugin_activation_config(config_dir, plugin_config, active_plugins_loaded_from_user_config,
+                                         plugin_config_error)) {
+        BOOST_LOG_TRIVIAL(warning) << plugin_config_error;
+    } else if (!config_dir.empty()) {
+        // A profile created before a later built-in plugin existed should pick
+        // up the new default unless it explicitly keeps that id disabled.
+        PluginActivationConfig default_plugin_config;
+        bool ignored_from_user_config = false;
+        if (ensure_plugin_activation_config(boost::filesystem::path(), default_plugin_config,
+                                            ignored_from_user_config, plugin_config_error)) {
+            for (const auto &[plugin_id, enabled] : default_plugin_config.activated)
+                if (enabled && plugin_config.activated.find(plugin_id) == plugin_config.activated.end())
+                    plugin_config.activated.emplace(plugin_id, true);
+        } else {
+            BOOST_LOG_TRIVIAL(warning) << plugin_config_error;
+        }
+        if (!prepare_plugin_bundle_cache(boost::filesystem::path(resources_dir()), config_dir, plugin_config_error) ||
+            !install_requested_plugin_packages(config_dir, plugin_config, plugin_config_error))
+            BOOST_LOG_TRIVIAL(warning) << plugin_config_error;
+    }
+
     register_builtin_plugins(orchestrator_handle_ptr);
-    load_plugins_from_repository(Slic3r::install_path() / "plugins", orchestrator_handle_ptr);
+    if (!config_dir.empty())
+        load_plugins_from_repository(config_dir / "plugins", orchestrator_handle_ptr);
 
     // Loading and activation are intentionally separate. A disabled plugin is
     // still registered so the configuration dialog can show it, but it cannot
     // publish settings or run until its id appears in activated.ini.
-    bool active_plugins_loaded_from_user_config = false;
-    const boost::filesystem::path config_dir = has_data_dir() ? boost::filesystem::path(data_dir()) :
-                                                                boost::filesystem::path();
-    const std::vector<std::string> active_plugin_ids =
-        read_active_plugin_ids(config_dir, active_plugins_loaded_from_user_config);
+    std::vector<std::string> active_plugin_ids;
+    for (const auto &[plugin_id, is_enabled] : plugin_config.activated)
+        if (is_enabled)
+            active_plugin_ids.push_back(plugin_id);
     BOOST_LOG_TRIVIAL(info) << "Loaded " << active_plugin_ids.size() << " active plugin id(s) from "
-                            << (active_plugins_loaded_from_user_config ? active_plugin_config_path(config_dir).string() :
-                                default_active_plugin_config_path().string()) << ".";
+                            << (active_plugins_loaded_from_user_config ? plugin_activation_config_path(config_dir).string() :
+                                (boost::filesystem::path(resources_dir()) / "plugins/default_activated.ini").string()) << ".";
     activate_plugins_from_ids(orchestrator, active_plugin_ids, active_plugins_loaded_from_user_config);
     register_infill_pattern_config_choices(orchestrator);
     register_exclusive_step_group_options_impl(orchestrator);

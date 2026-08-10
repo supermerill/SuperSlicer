@@ -21,8 +21,6 @@ endif()
 
 set_target_properties(extra_perimeter_overhang_wave_plugin PROPERTIES
     FOLDER "plugins"
-    OUTPUT_NAME "plugin"
-    PREFIX ""
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src/$<CONFIG>/plugins/extra_perimeter_overhang_wave"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src/$<CONFIG>/plugins/extra_perimeter_overhang_wave"
 )
+
+slic3r_package_plugin(extra_perimeter_overhang_wave_plugin extra_perimeter_overhang_wave)

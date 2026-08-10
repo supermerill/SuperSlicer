@@ -6,18 +6,12 @@
 #include "PluginConfigDialog.hpp"
 
 #include <algorithm>
-#include <ios>
 #include <set>
 #include <string>
 #include <vector>
 
-#include <boost/algorithm/string/predicate.hpp>
-#include <boost/algorithm/string/trim.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/log/trivial.hpp>
-#include <boost/nowide/fstream.hpp>
-#include <boost/property_tree/ini_parser.hpp>
-#include <boost/property_tree/ptree.hpp>
 
 #include <wx/button.h>
 #include <wx/checkbox.h>
@@ -27,6 +21,7 @@
 
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/host/Plugin.hpp"
+#include "libslic3r/Plugins/PluginRepository.hpp"
 #include "libslic3r/Utils.hpp"
 
 #include "format.hpp"
@@ -41,52 +36,23 @@ namespace Slic3r::GUI {
 
 namespace {
 
-const char *const PLUGIN_ACTIVATION_DIR = "plugin";
-const char *const ACTIVATED_PLUGINS_FILENAME = "activated.ini";
-
-boost::filesystem::path active_plugin_config_path()
-{
-    return boost::filesystem::path(data_dir()) / PLUGIN_ACTIVATION_DIR / ACTIVATED_PLUGINS_FILENAME;
-}
-
-bool ini_value_is_enabled(const std::string &value)
-{
-    return boost::algorithm::iequals(value, "1") ||
-           boost::algorithm::iequals(value, "true") ||
-           boost::algorithm::iequals(value, "yes") ||
-           boost::algorithm::iequals(value, "on") ||
-           boost::algorithm::iequals(value, "enabled");
-}
-
 std::set<std::string> read_active_plugin_ids()
 {
     std::set<std::string> out;
     if (!has_data_dir())
         return out;
 
-    const boost::filesystem::path config_path = active_plugin_config_path();
-    boost::nowide::ifstream stream(config_path.string());
-    if (!stream)
+    PluginActivationConfig config;
+    std::string error_message;
+    const boost::filesystem::path config_path = plugin_activation_config_path(boost::filesystem::path(data_dir()));
+    if (!read_plugin_activation_config(config_path, config, error_message)) {
+        BOOST_LOG_TRIVIAL(warning) << error_message;
         return out;
-
-    try {
-        boost::property_tree::ptree tree;
-        boost::property_tree::read_ini(stream, tree);
-        const boost::property_tree::ptree &const_tree = tree;
-        const boost::optional<const boost::property_tree::ptree&> activated =
-            const_tree.get_child_optional("activated");
-        if (!activated)
-            return out;
-
-        for (const boost::property_tree::ptree::value_type &entry : *activated) {
-            const std::string plugin_id = boost::algorithm::trim_copy(entry.first);
-            if (!plugin_id.empty() && ini_value_is_enabled(entry.second.get_value<std::string>()))
-                out.insert(plugin_id);
-        }
-    } catch (const std::exception &error) {
-        BOOST_LOG_TRIVIAL(warning) << "Cannot read active plugin configuration '"
-                                   << config_path.string() << "': " << error.what();
     }
+
+    for (const auto &[plugin_id, enabled] : config.activated)
+        if (enabled)
+            out.insert(plugin_id);
     return out;
 }
 
@@ -257,7 +223,7 @@ bool PluginConfigDialog::write_active_plugins(std::string &error_message) const
         return false;
     }
 
-    const boost::filesystem::path config_path = active_plugin_config_path();
+    const boost::filesystem::path config_path = plugin_activation_config_path(boost::filesystem::path(data_dir()));
     try {
         std::set<std::string> active_ids = m_original_active_plugin_ids;
         for (const PluginRow &row : m_rows) {
@@ -270,17 +236,14 @@ bool PluginConfigDialog::write_active_plugins(std::string &error_message) const
         if (!Orchestrator::instance().validate_plugin_activation(selected_plugin_ids, error_message))
             return false;
 
-        boost::filesystem::create_directories(config_path.parent_path());
-        boost::nowide::ofstream stream(config_path.string(), std::ios::out | std::ios::trunc);
-        if (!stream) {
-            error_message = "Cannot write " + config_path.string();
+        PluginActivationConfig config;
+        if (!read_plugin_activation_config(config_path, config, error_message))
             return false;
-        }
 
-        stream << "[activated]\n";
-        stream << "; Plugin ids enabled by the user.\n";
-        for (const std::string &plugin_id : active_ids)
-            stream << plugin_id << " = 1\n";
+        for (const PluginRow &row : m_rows)
+            config.activated[row.id] = row.checkbox != nullptr && row.checkbox->GetValue();
+        if (!write_plugin_activation_config(config_path, config, error_message))
+            return false;
     } catch (const std::exception &error) {
         error_message = error.what();
         return false;
@@ -319,7 +282,7 @@ void PluginConfigDialog::save_and_restart(wxCommandEvent &)
     }
 
     BOOST_LOG_TRIVIAL(info) << "Plugin activation configuration saved to '"
-                            << active_plugin_config_path().string() << "'. Restarting.";
+                            << plugin_activation_config_path(boost::filesystem::path(data_dir())).string() << "'. Restarting.";
     EndModal(wxID_OK);
     start_new_slicer(nullptr, false);
     if (wxGetApp().mainframe != nullptr)

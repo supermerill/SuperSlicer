@@ -13,6 +13,11 @@
 #include <Windows.h>
 #else
 #include <dlfcn.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#else
+#include <unistd.h>
+#endif
 #endif
 
 #if defined(_MSC_VER) && defined(_DEBUG)
@@ -110,7 +115,24 @@ boost::filesystem::path current_executable_path()
     }
     return boost::filesystem::path(std::wstring(buffer.data(), length));
 #else
-    return {};
+#ifdef __APPLE__
+    uint32_t length = 0;
+    _NSGetExecutablePath(nullptr, &length);
+    std::vector<char> buffer(length);
+    if (_NSGetExecutablePath(buffer.data(), &length) != 0)
+        return {};
+    return boost::filesystem::canonical(boost::filesystem::path(buffer.data()));
+#else
+    std::vector<char> buffer(1024);
+    for (;;) {
+        const ssize_t length = readlink("/proc/self/exe", buffer.data(), buffer.size());
+        if (length < 0)
+            return {};
+        if (size_t(length) < buffer.size())
+            return boost::filesystem::path(std::string(buffer.data(), size_t(length)));
+        buffer.resize(buffer.size() * 2);
+    }
+#endif
 #endif
 }
 
@@ -757,7 +779,9 @@ void load_python_plugins(orchestrator_handle *orchestrator)
     if (!boost::filesystem::exists(host_library_path))
         host_library_path = current_executable_path();
 #else
-    const boost::filesystem::path host_library_path = plugin_repository.parent_path() / "Slic3r";
+    boost::filesystem::path host_library_path = plugin_repository.parent_path() / "Slic3r";
+    if (!boost::filesystem::exists(host_library_path))
+        host_library_path = current_executable_path();
 #endif
 
     if (!boost::filesystem::exists(python_plugins)) {

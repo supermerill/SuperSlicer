@@ -104,7 +104,7 @@ boost::filesystem::path current_executable_dir()
 bool load_python_plugins_for_tests(orchestrator_handle *orchestrator)
 {
 #ifdef _WIN32
-    const boost::filesystem::path loader_path = current_executable_dir() / "plugins" / "python_plugin_loader.dll";
+    const boost::filesystem::path loader_path = current_executable_dir() / "plugins" / "python" / "plugin.dll";
     if (!boost::filesystem::exists(loader_path)) {
         BOOST_LOG_TRIVIAL(warning) << "Python plugin loader not found for plugin tests: " << loader_path.string();
         return false;
@@ -126,7 +126,7 @@ bool load_python_plugins_for_tests(orchestrator_handle *orchestrator)
         return false;
     }
 #else
-    const boost::filesystem::path loader_path = current_executable_dir() / "plugins" / "libpython_plugin_loader.so";
+    const boost::filesystem::path loader_path = current_executable_dir() / "plugins" / "python" / "plugin.so";
     if (!boost::filesystem::exists(loader_path)) {
         BOOST_LOG_TRIVIAL(warning) << "Python plugin loader not found for plugin tests: " << loader_path.string();
         return false;

@@ -21,8 +21,6 @@ endif()
 
 set_target_properties(flat_area_layer_height_plugin PROPERTIES
     FOLDER "plugins"
-    OUTPUT_NAME "plugin"
-    PREFIX ""
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src/$<CONFIG>/plugins/flat_area_layer_height"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src/$<CONFIG>/plugins/flat_area_layer_height"
 )
+
+slic3r_package_plugin(flat_area_layer_height_plugin flat_area_layer_height)

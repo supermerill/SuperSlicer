@@ -209,6 +209,8 @@ set(SLIC3R_SOURCES
 	Plugins/Perimeter/SimplePerimeterGenerator.hpp
 	Plugins/PluginLoader.cpp
 	Plugins/PluginLoader.hpp
+	Plugins/PluginRepository.cpp
+	Plugins/PluginRepository.hpp
 	Plugins/SliceVolume.cpp
 	Plugins/SliceVolume.hpp
 	Plugins/StandardLayerHeightGenerator.cpp

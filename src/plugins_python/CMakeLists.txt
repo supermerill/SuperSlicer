@@ -4,6 +4,7 @@
 #/|/
 
 find_package(Python3 COMPONENTS Interpreter Development QUIET)
+include(../plugins_cpp/PluginPackage.cmake)
 
 if (Python3_FOUND)
     add_library(python_plugin_loader SHARED
@@ -18,8 +19,6 @@ if (Python3_FOUND)
 
     set_target_properties(python_plugin_loader PROPERTIES
         FOLDER "plugins"
-        OUTPUT_NAME "python_plugin_loader"
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src/$<CONFIG>/plugins"
     )
 
     set(SLIC3R_PYTHON_API_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../libslic3r/Api/plugin/python")
@@ -122,6 +121,8 @@ if (Python3_FOUND)
         COMMENT "Copying Python plugin helper and examples"
         VERBATIM
     )
+
+    slic3r_package_plugin(python_plugin_loader python python)
 else()
     message(STATUS "Python3 development files were not found; python_plugin_loader will not be built.")
 endif()
