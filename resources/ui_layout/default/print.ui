@@ -280,14 +280,7 @@ group:Skirt
 	setting:min_skirt_length
 group:Brim
 	setting:tags$Advanced$Expert$Prusa:brim_width
-	setting:brim_inside_holes
 	setting:brim_width_interior
-	line:Brim ears
-		setting:tags$Advanced$Expert$Prusa:label$_:sidetext_width$0:brim_ears
-		setting:width$3:sidetext_width$1:brim_ears_max_angle
-		setting:width$3:sidetext_width$3:brim_ears_detection_length
-		setting:brim_ears_pattern
-	end_line
 	setting:brim_separation
 	setting:brim_per_object
 
@@ -638,6 +631,5 @@ group:Support Material
 group:Skirt & Brim
 	setting:tags$Simple:skirts
 	setting:tags$Simple:brim_width
-	setting:tags$Simple:sidetext_width$0:brim_ears
 group:Sequential printing
 	setting:tags$Simple:complete_objects

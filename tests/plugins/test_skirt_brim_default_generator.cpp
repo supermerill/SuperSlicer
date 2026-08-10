@@ -1,6 +1,7 @@
 #include <catch2/catch.hpp>
 
 #include <initializer_list>
+#include <string>
 #include <vector>
 
 #include "plugin_test_helpers.hpp"
@@ -140,11 +141,28 @@ struct PreparedBrimPrint
     Print print;
 };
 
+void run_prepared_print_until_skirt_brim(PreparedBrimPrint &prepared,
+                                         bool include_trim = true);
+
 void run_until_skirt_brim(PreparedBrimPrint &prepared,
                           const DynamicPrintConfig &config,
                           const bool include_trim = true)
 {
     Slic3r::Test::init_print({ Slic3r::Test::TestMesh::cube_20x20x20 }, prepared.print, prepared.model, config);
+    run_prepared_print_until_skirt_brim(prepared, include_trim);
+}
+
+void run_mesh_until_skirt_brim(PreparedBrimPrint &prepared,
+                               const TriangleMesh &mesh,
+                               const DynamicPrintConfig &config)
+{
+    Slic3r::Test::init_print({ mesh }, prepared.print, prepared.model, config);
+    run_prepared_print_until_skirt_brim(prepared);
+}
+
+void run_prepared_print_until_skirt_brim(PreparedBrimPrint &prepared,
+                                         const bool include_trim)
+{
     std::vector<const char *> active_plugin_ids = {
         STANDARD_LAYER_HEIGHT_GENERATOR,
         SLICE_VOLUME,
@@ -222,20 +240,118 @@ TEST_CASE("STEP_SKIRT_BRIM exposes a brim exclusive group but is not exclusive i
     CHECK(trim_plugin->get_step() == STEP_SKIRT_BRIM);
     CHECK(trim_plugin->get_exclusive_group() == "skirt_brim.brim_skirt_trim");
 
+    bool found_brim_setting_fragment = false;
     bool found_trim_setting_fragment = false;
     const std::vector<Orchestrator::PluginUiFragment> print_fragments =
         orchestrator.ui_fragments_for_file("print.ui");
-    for (const Orchestrator::PluginUiFragment &fragment : print_fragments)
+    for (const Orchestrator::PluginUiFragment &fragment : print_fragments) {
+        if (fragment.fragment_id == "skirt_brim.brim.default.settings") {
+            found_brim_setting_fragment = true;
+            CHECK(fragment.content.find("insert$aftersetting$brim_width:brim_inside_holes") !=
+                  std::string::npos);
+            CHECK(fragment.content.find("insert$aftersetting$brim_width_interior:Brim ears") !=
+                  std::string::npos);
+            CHECK(fragment.content.find("tags$Simple:sidetext_width$0:brim_ears") !=
+                  std::string::npos);
+        }
         if (fragment.fragment_id == "brim_skirt_trim") {
             found_trim_setting_fragment = true;
             CHECK(fragment.content.find("group:Brim") != std::string::npos);
             CHECK(fragment.content.find("insert$aftersetting$brim_per_object:brim_skirt_trim") !=
                   std::string::npos);
         }
+    }
+    CHECK(found_brim_setting_fragment);
     CHECK(found_trim_setting_fragment);
+
+    bool ears_require_outer_brim = false;
+    bool inside_holes_require_outer_brim = false;
+    bool inside_holes_require_no_inner_brim = false;
+    bool pattern_requires_ears = false;
+    bool detection_requires_ears = false;
+    for (const Orchestrator::PluginGuiRule &rule : orchestrator.gui_rules()) {
+        ears_require_outer_brim = ears_require_outer_brim ||
+            (rule.target_key == "brim_ears" && rule.condition_key == "brim_width" &&
+             rule.condition == RAW_GUI_RULE_CONDITION_VALUE_NON_ZERO);
+        inside_holes_require_outer_brim = inside_holes_require_outer_brim ||
+            (rule.target_key == "brim_inside_holes" && rule.condition_key == "brim_width" &&
+             rule.condition == RAW_GUI_RULE_CONDITION_VALUE_NON_ZERO);
+        inside_holes_require_no_inner_brim = inside_holes_require_no_inner_brim ||
+            (rule.target_key == "brim_inside_holes" && rule.condition_key == "brim_width_interior" &&
+             rule.condition == RAW_GUI_RULE_CONDITION_BOOL_FALSE);
+        pattern_requires_ears = pattern_requires_ears ||
+            (rule.target_key == "brim_ears_pattern" && rule.condition_key == "brim_ears" &&
+             rule.condition == RAW_GUI_RULE_CONDITION_BOOL_TRUE);
+        detection_requires_ears = detection_requires_ears ||
+            (rule.target_key == "brim_ears_detection_length" && rule.condition_key == "brim_ears" &&
+             rule.condition == RAW_GUI_RULE_CONDITION_BOOL_TRUE);
+    }
+    CHECK(ears_require_outer_brim);
+    CHECK(inside_holes_require_outer_brim);
+    CHECK(inside_holes_require_no_inner_brim);
+    CHECK(pattern_requires_ears);
+    CHECK(detection_requires_ears);
 
     const std::map<slicing_step_t, Steps::StepExclusiveGroup> &exclusive_steps = Steps::get_exclusive_steps();
     CHECK(exclusive_steps.find(STEP_SKIRT_BRIM) == exclusive_steps.end());
+}
+
+TEST_CASE("Default brim generator owns its serialized geometry options", "[plugins][skirt-brim][config]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    const ConfigOptionDef *inside_holes = PrintConfigDef::instance().get("brim_inside_holes");
+    const ConfigOptionDef *ears = PrintConfigDef::instance().get("brim_ears");
+    const ConfigOptionDef *max_angle = PrintConfigDef::instance().get("brim_ears_max_angle");
+    const ConfigOptionDef *detection_length = PrintConfigDef::instance().get("brim_ears_detection_length");
+    const ConfigOptionDef *pattern = PrintConfigDef::instance().get("brim_ears_pattern");
+    REQUIRE(inside_holes != nullptr);
+    REQUIRE(ears != nullptr);
+    REQUIRE(max_angle != nullptr);
+    REQUIRE(detection_length != nullptr);
+    REQUIRE(pattern != nullptr);
+
+    /*
+    Leaving invalidates_step at STEP_NONE in the raw definitions asks the
+    orchestrator to resolve it to the owning plugin's step.
+    */
+    for (const ConfigOptionDef *def : { inside_holes, ears, max_angle, detection_length, pattern }) {
+        CHECK(def->container_type == ConfigOptionContainerType::Object);
+        CHECK(def->option_preset_type == RAW_PRESET_TYPE_FFF_PRINT);
+        CHECK(def->invalidates_step == STEP_SKIRT_BRIM);
+    }
+
+    CHECK(inside_holes->type == coBool);
+    CHECK(inside_holes->default_value->serialize() == "0");
+    CHECK(ears->type == coBool);
+    CHECK(ears->default_value->serialize() == "0");
+    CHECK(max_angle->type == coFloat);
+    CHECK(max_angle->min == 0.0);
+    CHECK(max_angle->max == 180.0);
+    CHECK(max_angle->default_value->serialize() == "125");
+    CHECK(detection_length->type == coFloat);
+    CHECK(detection_length->min == 0.0);
+    CHECK(detection_length->default_value->serialize() == "1");
+    CHECK(pattern->type == coEnum);
+    CHECK(pattern->gui_type == ConfigOptionDef::GUIType::select_close);
+    CHECK(pattern->has_enum_value("concentric"));
+    CHECK(pattern->has_enum_value("rectilinear"));
+    CHECK_FALSE(pattern->has_enum_value("grid"));
+    CHECK(pattern->default_value->serialize() == "concentric");
+
+    DynamicPrintConfig config = DynamicPrintConfig::full_print_config();
+    config.set_deserialize_strict({
+        { "brim_inside_holes", "1" },
+        { "brim_ears", "1" },
+        { "brim_ears_max_angle", "73.5" },
+        { "brim_ears_detection_length", "2.25" },
+        { "brim_ears_pattern", "rectilinear" }
+    });
+    CHECK(config.option("brim_inside_holes")->serialize() == "1");
+    CHECK(config.option("brim_ears")->serialize() == "1");
+    CHECK(config.option("brim_ears_max_angle")->serialize() == "73.5");
+    CHECK(config.option("brim_ears_detection_length")->serialize() == "2.25");
+    CHECK(config.option("brim_ears_pattern")->serialize() == "rectilinear");
 }
 
 TEST_CASE("Default skirt/brim plugins are active by default for plugin tests", "[plugins][skirt-brim]")
@@ -283,6 +399,68 @@ TEST_CASE("Default brim generator creates global brim and expands the first-laye
     output were not considered, the hull would stay near the object slice area.
     */
     CHECK(hull_area_mm2(prepared.print) > first_layer_slice_area_mm2(prepared.print));
+}
+
+TEST_CASE("Default brim generator applies its ear geometry options", "[plugins][skirt-brim]")
+{
+    DynamicPrintConfig concentric_config = brim_test_config(true, false);
+    concentric_config.set_deserialize_strict({
+        { "brim_ears", "1" },
+        { "brim_ears_max_angle", "125" },
+        { "brim_ears_detection_length", "1" },
+        { "brim_ears_pattern", "concentric" }
+    });
+    PreparedBrimPrint concentric;
+    run_until_skirt_brim(concentric, concentric_config);
+    REQUIRE_FALSE(concentric.print.brim().empty());
+
+    DynamicPrintConfig rectilinear_config = concentric_config;
+    rectilinear_config.set_deserialize_strict({ { "brim_ears_pattern", "rectilinear" } });
+    PreparedBrimPrint rectilinear;
+    run_until_skirt_brim(rectilinear, rectilinear_config);
+    REQUIRE_FALSE(rectilinear.print.brim().empty());
+    CHECK(extrusion_tree_length_mm(rectilinear.print.brim()) !=
+          Approx(extrusion_tree_length_mm(concentric.print.brim())));
+
+    /*
+    Zero is the documented off value for the angular detector. Reaching an
+    empty output here proves that the plugin value reaches make_brim_ears()
+    instead of falling back to the former static PrintObjectConfig member.
+    */
+    DynamicPrintConfig disabled_angle_config = concentric_config;
+    disabled_angle_config.set_deserialize_strict({ { "brim_ears_max_angle", "0" } });
+    PreparedBrimPrint disabled_angle;
+    run_until_skirt_brim(disabled_angle, disabled_angle_config);
+    CHECK(disabled_angle.print.brim().empty());
+}
+
+TEST_CASE("Default brim generator applies brim inside holes", "[plugins][skirt-brim]")
+{
+    DynamicPrintConfig outside_only_config = brim_test_config(true, false);
+    outside_only_config.set_deserialize_strict({ { "brim_inside_holes", "0" } });
+    PreparedBrimPrint outside_only;
+    run_mesh_until_skirt_brim(
+        outside_only,
+        Slic3r::Test::mesh(Slic3r::Test::TestMesh::cube_with_hole, Vec3d::Zero(), Vec3d(1., 1., 0.02)),
+        outside_only_config);
+    REQUIRE_FALSE(outside_only.print.brim().empty());
+
+    DynamicPrintConfig inside_holes_config = outside_only_config;
+    inside_holes_config.set_deserialize_strict({ { "brim_inside_holes", "1" } });
+    PreparedBrimPrint inside_holes;
+    run_mesh_until_skirt_brim(
+        inside_holes,
+        Slic3r::Test::mesh(Slic3r::Test::TestMesh::cube_with_hole, Vec3d::Zero(), Vec3d(1., 1., 0.02)),
+        inside_holes_config);
+    REQUIRE_FALSE(inside_holes.print.brim().empty());
+
+    /*
+    Enabling the option preserves holes while the object outline is converted
+    into the area from which brim loops are derived. The resulting tree must
+    therefore contain additional centerline around the model's opening.
+    */
+    CHECK(extrusion_tree_length_mm(inside_holes.print.brim()) >
+          extrusion_tree_length_mm(outside_only.print.brim()));
 }
 
 TEST_CASE("Default brim generator can publish object-owned brim", "[plugins][skirt-brim]")

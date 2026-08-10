@@ -737,11 +737,6 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
     // perimeter_extruder uses the same logic as in Print::extruders()
     toggle_field("perimeter_extruder", have_perimeters || have_brim);
 
-    toggle_field("brim_ears", config->opt_float("brim_width") > 0);
-    toggle_field("brim_inside_holes", config->opt_float("brim_width") > 0 && config->opt_float("brim_width_interior") == 0);
-    toggle_field("brim_ears_max_angle", have_brim && config->opt_bool("brim_ears"));
-    toggle_field("brim_ears_pattern", have_brim && config->opt_bool("brim_ears"));
-
     bool have_raft = config->opt_int("raft_layers") > 0;
     bool have_support_material = config->opt_bool("support_material") || have_raft;
     bool have_support_material_auto = have_support_material && config->opt_bool("support_material_auto");

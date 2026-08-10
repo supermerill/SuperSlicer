@@ -13,6 +13,7 @@
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/CustomGCode.hpp"
 #include "libslic3r/Model.hpp"
+#include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/Utils.hpp"
 
 #include "GLCanvas3D.hpp"
@@ -185,7 +186,8 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
     if (brim_width < nozzle_diameter * 8) {
         model.objects()[objs_idx[0]].config.set_key_value("brim_width", new ConfigOptionFloat(nozzle_diameter * 8));
     }
-    model.objects()[objs_idx[0]].config.set_key_value("brim_ears", new ConfigOptionBool(false));
+    if (PrintConfigDef::instance().get("brim_ears") != nullptr)
+        model.objects()[objs_idx[0]].config.set_key_value("brim_ears", new ConfigOptionBool(false));
     model.objects()[objs_idx[0]].config.set_key_value("perimeters", new ConfigOptionInt(1));
     model.objects()[objs_idx[0]].config.set_key_value("extra_perimeters_on_overhangs", new ConfigOptionBool(true));
     model.objects()[objs_idx[0]].config.set_key_value("bottom_solid_layers", new ConfigOptionInt(2));

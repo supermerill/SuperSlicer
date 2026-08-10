@@ -14,6 +14,7 @@
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/LocalesUtils.hpp"
 #include "libslic3r/Model.hpp"
+#include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/Utils.hpp"
 
 #include "GLCanvas3D.hpp"
@@ -425,7 +426,8 @@ void CalibrationFlowSpeedDialog::create_geometry(
         objs[i]->config.set_key_value("first_layer_size_compensation", new ConfigOptionFloat(0));
 
         // no brim (but a skirt for primming)
-        objs[i]->config.set_key_value("brim_ears", new ConfigOptionBool(false));
+        if (PrintConfigDef::instance().get("brim_ears") != nullptr)
+            objs[i]->config.set_key_value("brim_ears", new ConfigOptionBool(false));
         objs[i]->config.set_key_value("brim_width", new ConfigOptionFloat(0));
 
         objs[i]->config.set_key_value("enforce_full_fill_volume", new ConfigOptionBool(true));

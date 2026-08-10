@@ -7,6 +7,7 @@
 
 #include "I18N.hpp"
 #include "libslic3r/Model.hpp"
+#include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/AppConfig.hpp"
 // #include "Jobs/ArrangeJob2.hpp"
@@ -173,7 +174,8 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
         model.objects()[objs_idx[i]].config.set_key_value("thin_perimeters", new ConfigOptionPercent(0));
         model.objects()[objs_idx[i]].config.set_key_value("external_perimeter_overlap", new ConfigOptionPercent(80));
         model.objects()[objs_idx[i]].config.set_key_value("perimeter_overlap", new ConfigOptionPercent(80));
-        model.objects()[objs_idx[i]].config.set_key_value("brim_ears", new ConfigOptionBool(false));
+        if (PrintConfigDef::instance().get("brim_ears") != nullptr)
+            model.objects()[objs_idx[i]].config.set_key_value("brim_ears", new ConfigOptionBool(false));
         model.objects()[objs_idx[i]].config.set_key_value("perimeters", new ConfigOptionInt(3));
         model.objects()[objs_idx[i]].config.set_key_value("only_one_perimeter_top", new ConfigOptionBool(true));
         model.objects()[objs_idx[i]].config.set_key_value("enforce_full_fill_volume", new ConfigOptionBool(true));

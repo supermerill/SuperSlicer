@@ -7,6 +7,7 @@
 #ifndef slic3r_Brim_hpp_
 #define slic3r_Brim_hpp_
 
+#include <cstdint>
 #include <vector>
 
 #include "ExPolygon.hpp"
@@ -17,6 +18,29 @@
 namespace Slic3r {
     
 class ExtrusionEntityCollection;
+
+enum class BrimEarPattern : uint8_t
+{
+    Concentric,
+    Rectilinear
+};
+
+/*
+Geometry controls supplied by the brim generator.
+
+The core brim routines receive resolved values instead of looking up plugin
+configuration keys themselves. This keeps Brim.cpp usable by another generator
+while the plugin remains responsible for defining, reading and validating its
+settings.
+*/
+struct BrimGenerationParameters
+{
+    bool fill_enclosed_holes = false;
+    double ear_max_angle_degrees = 125.0;
+    double ear_detection_length_mm = 1.0;
+    BrimEarPattern ear_pattern = BrimEarPattern::Concentric;
+};
+
 class Flow;
 class Print;
 class PrintObject;
@@ -44,8 +68,8 @@ public:
 // Collect islands_area to be merged into the final 1st layer convex hull.
 ExtrusionEntityCollection make_brim(const Print &print, PrintTryCancel try_cancel, Polygons &islands_area);
 #endif
-void make_brim(const Print& print, const Flow& flow, const PrintObjectPtrs& objects, ExPolygons& unbrimmable, ExtrusionEntityCollection& out);
-void make_brim_ears(const Print& print, const Flow& flow, const PrintObjectPtrs& objects, ExPolygons& unbrimmable, ExtrusionEntityCollection& out);
+void make_brim(const Print& print, const Flow& flow, const PrintObjectPtrs& objects, const BrimGenerationParameters &parameters, ExPolygons& unbrimmable, ExtrusionEntityCollection& out);
+void make_brim_ears(const Print& print, const Flow& flow, const PrintObjectPtrs& objects, const BrimGenerationParameters &parameters, ExPolygons& unbrimmable, ExtrusionEntityCollection& out);
 void make_brim_patch(const Print &print, const Flow &flow, const Polygons &patches, ExPolygons &unbrimmable_areas, ExtrusionEntityCollection &out);
 void make_brim_interior(const Print& print, const Flow& flow, const PrintObjectPtrs& objects, ExPolygons& unbrimmable_areas, ExtrusionEntityCollection& out);
 

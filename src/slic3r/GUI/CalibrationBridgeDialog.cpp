@@ -7,6 +7,7 @@
 
 #include "I18N.hpp"
 #include "libslic3r/Model.hpp"
+#include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/AppConfig.hpp"
 //#include "Jobs/ArrangeJob2.hpp"
@@ -152,7 +153,8 @@ void CalibrationBridgeDialog::create_geometry(std::string setting_to_test, bool 
     /// --- custom config ---
     for (size_t i = 0; i < nb_items; i++) {
         model.objects()[objs_idx[i]].config.set_key_value("brim_width", new ConfigOptionFloat(brim_width));
-        model.objects()[objs_idx[i]].config.set_key_value("brim_ears", new ConfigOptionBool(false));
+        if (PrintConfigDef::instance().get("brim_ears") != nullptr)
+            model.objects()[objs_idx[i]].config.set_key_value("brim_ears", new ConfigOptionBool(false));
         model.objects()[objs_idx[i]].config.set_key_value("perimeters", new ConfigOptionInt(2));
         model.objects()[objs_idx[i]].config.set_key_value("bottom_solid_layers", new ConfigOptionInt(2));
         model.objects()[objs_idx[i]].config.set_key_value("gap_fill_enabled", new ConfigOptionBool(false));

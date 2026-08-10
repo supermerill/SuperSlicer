@@ -1016,7 +1016,7 @@ Polylines reorder_brim_polyline(Polylines lines, ExtrusionEntityCollection& out,
 
 //TODO: test if no regression vs old _make_brim.
 // this new one can extrude brim for an object inside an other object.
-void make_brim(const Print& print, const Flow& flow, const PrintObjectPtrs& objects, ExPolygons& unbrimmable, ExtrusionEntityCollection& out) {
+void make_brim(const Print& print, const Flow& flow, const PrintObjectPtrs& objects, const BrimGenerationParameters &parameters, ExPolygons& unbrimmable, ExtrusionEntityCollection& out) {
     const coord_t scaled_spacing = flow.scaled_spacing();
     const PrintObjectConfig& brim_config = objects.front()->config();
     coord_t brim_offset = scale_i(brim_config.brim_separation.value);
@@ -1024,7 +1024,7 @@ void make_brim(const Print& print, const Flow& flow, const PrintObjectPtrs& obje
     for (PrintObject* object : objects) {
         ExPolygons object_islands;
         for (const ExPolygon &expoly : object->layers().front().lslices()) {
-            if (brim_config.brim_inside_holes && brim_config.brim_width_interior == 0) {
+            if (parameters.fill_enclosed_holes && brim_config.brim_width_interior == 0) {
                 if (brim_offset == 0) {
                     object_islands.push_back(expoly);
                 } else {
@@ -1205,7 +1205,7 @@ void make_brim(const Print& print, const Flow& flow, const PrintObjectPtrs& obje
     unbrimmable.insert(unbrimmable.end(), brimmable_areas.begin(), brimmable_areas.end());
 }
 
-void make_brim_ears(const Print& print, const Flow& flow, const PrintObjectPtrs& objects, ExPolygons& unbrimmable, ExtrusionEntityCollection& out) {
+void make_brim_ears(const Print& print, const Flow& flow, const PrintObjectPtrs& objects, const BrimGenerationParameters &parameters, ExPolygons& unbrimmable, ExtrusionEntityCollection& out) {
     const PrintObjectConfig& brim_config = objects.front()->config();
     Points pt_ears;
     coord_t brim_offset = scale_i(brim_config.brim_separation.value);
@@ -1215,7 +1215,7 @@ void make_brim_ears(const Print& print, const Flow& flow, const PrintObjectPtrs&
         ExPolygons object_islands;
         ExPolygons support_island;
         for (const ExPolygon& expoly : object->layers().front().lslices()) {
-            if (brim_config.brim_inside_holes && brim_config.brim_width_interior == 0) {
+            if (parameters.fill_enclosed_holes && brim_config.brim_width_interior == 0) {
                 if (brim_offset == 0) {
                     object_islands.push_back(expoly);
                 } else {
@@ -1269,7 +1269,7 @@ void make_brim_ears(const Print& print, const Flow& flow, const PrintObjectPtrs&
             break;
         }
         islands.reserve(islands.size() + object_islands.size() * object->instances().size());
-        coord_t ear_detection_length = std::max(scale_i(object->config().brim_ears_detection_length.value), SCALED_EPSILON);
+        coord_t ear_detection_length = std::max(scale_i(parameters.ear_detection_length_mm), SCALED_EPSILON);
         // duplicate & translate for each instance
         for (const PrintInstance& copy_pt : object->instances()) {
             for (const ExPolygon& poly : object_islands) {
@@ -1289,7 +1289,7 @@ void make_brim_ears(const Print& print, const Flow& flow, const PrintObjectPtrs&
                         decimated_polygon.points = MultiPoint::douglas_peucker(poly.contour.points, SCALED_EPSILON);
                     }
                 }
-                Points pts = decimated_polygon.convex_points(0, brim_config.brim_ears_max_angle.value * PI / 180.0);
+                Points pts = decimated_polygon.convex_points(0, parameters.ear_max_angle_degrees * PI / 180.0);
                 for (const Point& p : pts) {
                     pt_ears.push_back(p);
                     pt_ears.back() += (copy_pt.shift);
@@ -1324,7 +1324,7 @@ void make_brim_ears(const Print& print, const Flow& flow, const PrintObjectPtrs&
     //get brim resolution (low resolution if no arc fitting)
     coordf_t scaled_resolution_brim = (print.config().arc_fitting.value != ArcFittingType::Disabled) ? scale_d(print.config().resolution) : scale_d(print.config().resolution_internal) / 10;
     scaled_resolution_brim = std::max(scaled_resolution_brim, coordf_t(SCALED_EPSILON * 10));
-    if (brim_config.brim_ears_pattern.value == InfillPattern::ipConcentric) {
+    if (parameters.ear_pattern == BrimEarPattern::Concentric) {
 
         //create loops (same as standard brim)
         Polygons loops;
@@ -1377,7 +1377,7 @@ void make_brim_ears(const Print& print, const Flow& flow, const PrintObjectPtrs&
 
         append(unbrimmable, offset_ex(mouse_ears_ex, flow.scaled_spacing() / 2));
 
-    } else /* brim_config.brim_ears_pattern.value == InfillPattern::ipRectilinear */ {
+    } else /* parameters.ear_pattern == BrimEarPattern::Rectilinear */ {
 
         //create ear pattern
         coord_t size_ear = (scale_i((brim_config.brim_width.value - brim_config.brim_separation.value)) - flow.scaled_spacing());

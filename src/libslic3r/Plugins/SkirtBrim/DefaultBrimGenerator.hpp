@@ -14,9 +14,10 @@ Default brim generator
 ======================
 
 This built-in STEP_SKIRT_BRIM plugin owns the classic brim behavior while the
-legacy host path still owns skirt generation. The plugin uses host brim helpers
-for the heavy geometry work, then publishes the resulting extrusion trees
-through the STEP_SKIRT_BRIM callback table just like an external plugin would.
+skirt generation is owned by a separate plugin. This implementation defines
+the options specific to classic brim geometry, uses the host brim helpers for
+the heavy geometry work, then publishes the resulting extrusion trees into
+tagged auxiliary layers through the generic data-tree API.
 */
 void register_default_brim_generator_plugin(orchestrator_handle *orchestrator);
 

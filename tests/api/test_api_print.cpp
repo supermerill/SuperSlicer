@@ -15,6 +15,7 @@
 #include <libslic3r/Plugins/GuiRulesExample.hpp>
 #include <libslic3r/Plugins/MaxOverhangThreshold.hpp>
 #include <libslic3r/Plugins/PluginLoader.hpp>
+#include <libslic3r/Plugins/SkirtBrim/DefaultBrimGenerator.hpp>
 #include <libslic3r/Plugins/SliceVolume.hpp>
 #include <libslic3r/Plugins/StandardLayerHeightGenerator.hpp>
 #include <libslic3r/Plugins/Support/SupportDemandBridgeRemoval.hpp>
@@ -50,6 +51,7 @@ void ensure_api_test_runtime_initialized()
         slic3r_api::GuiRulesExamplePlugin::register_gui_rules_example_plugin(orchestrator);
         slic3r_api::MaxOverhangThresholdPlugin::register_max_overhang_threshold_plugin(orchestrator);
         slic3r_api::Support::SupportDemandBridgeRemovalPlugin::register_support_demand_bridge_removal_plugin(orchestrator);
+        slic3r_api::SkirtBrim::DefaultBrimGeneratorPlugin::register_default_brim_generator_plugin(orchestrator);
 
         REQUIRE(Orchestrator::instance().set_plugin_active("bridge_detector.default", true));
         REQUIRE(Orchestrator::instance().set_plugin_active("standard_layer_height_generator", true));
@@ -58,6 +60,7 @@ void ensure_api_test_runtime_initialized()
         REQUIRE(Orchestrator::instance().set_plugin_active("gui_rules_example", true));
         REQUIRE(Orchestrator::instance().set_plugin_active("max_overhang_threshold", true));
         REQUIRE(Orchestrator::instance().set_plugin_active("support.demand.bridge_removal", true));
+        REQUIRE(Orchestrator::instance().set_plugin_active("skirt_brim.brim.default", true));
 
         register_exclusive_step_group_options(Orchestrator::instance());
         Orchestrator::instance().initialize_plugins();
@@ -138,12 +141,12 @@ TEST_CASE("Plugin UI fragment rebuilds the original print layout", "[Api][UiLayo
     const std::string expected = read_text_file(std::string(TEST_DATA_DIR) + "/ui_layout/print_with_builtin_overhang_threshold.ui");
 
     const std::string merged = orchestrator.merged_ui_layout("print.ui", base);
-    if (merged != expected) {
-        const size_t diff_pos = std::mismatch(merged.begin(), merged.end(), expected.begin(), expected.end()).first - merged.begin();
-        CAPTURE(diff_pos);
-        CAPTURE(merged.substr(diff_pos, 160));
-        CAPTURE(expected.substr(diff_pos, 160));
-    }
+    const size_t common_size = std::min(merged.size(), expected.size());
+    const size_t diff_pos = std::mismatch(merged.begin(), merged.begin() + common_size, expected.begin()).first -
+                            merged.begin();
+    CAPTURE(diff_pos);
+    CAPTURE(merged.substr(diff_pos, 160));
+    CAPTURE(expected.substr(diff_pos, 160));
     REQUIRE(merged == expected);
 }
 

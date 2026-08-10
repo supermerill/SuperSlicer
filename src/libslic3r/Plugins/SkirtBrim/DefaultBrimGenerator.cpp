@@ -14,8 +14,11 @@
 #include <vector>
 
 #include "libslic3r/Api/internal/PrintObjectAccess.hpp"
+#include "libslic3r/Api/plugin/c/slic3r_config_def.h"
+#include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_skirt_brim.h"
 #include "libslic3r/Api/plugin/cpp/AuxiliaryLayerHelpers.hpp"
+#include "libslic3r/Api/plugin/cpp/ConfigViews.hpp"
 #include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
 #include "libslic3r/Brim.hpp"
@@ -64,6 +67,20 @@ using namespace Slic3r;
 
 const char *const k_no_dependencies[] = { nullptr };
 const char *const k_group_id = "skirt_brim.brim";
+const char *const k_settings_fragment_id = "skirt_brim.brim.default.settings";
+
+const char *const k_defined_config_keys[] = {
+    "brim_ears",
+    "brim_ears_max_angle",
+    "brim_ears_pattern",
+    "brim_ears_detection_length",
+    "brim_inside_holes"
+};
+
+const key_value_string_pair_t k_brim_ear_patterns[] = {
+    { "concentric", "Concentric" },
+    { "rectilinear", "Rectilinear" }
+};
 
 const raw_used_config_key k_used_config_keys[] = {
     { "brim_width", RAW_CO_FLOAT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE },
@@ -117,6 +134,29 @@ private:
     PrintInstances m_saved_instances;
 };
 
+/*
+Values owned by this plugin and resolved from one object's dynamic config.
+Keeping them together makes the grouping comparison and the geometry call use
+the same snapshot of configuration.
+*/
+struct DefaultBrimSettings
+{
+    bool use_ears = false;
+    BrimGenerationParameters geometry;
+};
+
+// Read the five settings owned by this plugin from an object's API config view.
+DefaultBrimSettings read_default_brim_settings(const PrintObject &object);
+
+// Register one GUI activation rule for a setting owned by this plugin.
+void add_enable_rule(orchestrator_handle *orchestrator,
+                     const char *target_key,
+                     raw_gui_rule_condition condition,
+                     const char *condition_key);
+
+// Register the option definitions, layout fragment and activation rules.
+void initialize_default_brim_settings(orchestrator_handle *orchestrator);
+
 // Return true when an object has a model volume that explicitly adds/removes brim.
 bool has_brim_patch(const PrintObject &object, ModelVolumeType brim_type);
 
@@ -129,8 +169,8 @@ std::vector<std::vector<PrintObject *>> group_objects_by_brim_settings(Slic3r::P
 // Compare the optional first-layer extrusion width setting for grouping.
 bool same_first_layer_extrusion_width(const PrintObjectConfig &lhs, const PrintObjectConfig &rhs);
 
-// Compare all brim settings that change the generated geometry.
-bool same_brim_group_settings(const PrintObjectConfig &lhs, const PrintObjectConfig &rhs);
+// Compare all static and plugin-owned settings that change generated geometry.
+bool same_brim_group_settings(const PrintObject &lhs, const PrintObject &rhs);
 
 // Build the running occupied area used to keep generated brim away from objects and negative patches.
 ExPolygons initial_unbrimmable_area(const std::vector<std::vector<PrintObject *>> &object_groups,
@@ -186,6 +226,163 @@ void generate_default_brim(storage_handle *storage,
                            orchestrator_handle *orchestrator,
                            Slic3r::Print &print);
 
+DefaultBrimSettings read_default_brim_settings(const PrintObject &object)
+{
+    const slic3r_api::Object object_view(reinterpret_cast<const object_handle *>(&object));
+    const Config config = object_view.config();
+
+    DefaultBrimSettings settings;
+    settings.use_ears = config.bool_or_default("brim_ears", false);
+    settings.geometry.fill_enclosed_holes = config.bool_or_default("brim_inside_holes", false);
+    settings.geometry.ear_max_angle_degrees = config.float_or_default("brim_ears_max_angle", 125.0);
+    settings.geometry.ear_detection_length_mm = config.float_or_default("brim_ears_detection_length", 1.0);
+    settings.geometry.ear_pattern = config.enum_or_default("brim_ears_pattern", 0) == 1 ?
+        BrimEarPattern::Rectilinear : BrimEarPattern::Concentric;
+    return settings;
+}
+
+void add_enable_rule(orchestrator_handle *orchestrator,
+                     const char *target_key,
+                     const raw_gui_rule_condition condition,
+                     const char *condition_key)
+{
+    raw_gui_rule rule = raw_gui_rule_init();
+    rule.action = RAW_GUI_RULE_ACTION_ENABLE;
+    rule.condition = condition;
+    rule.target_key = target_key;
+    rule.condition_key = condition_key;
+    orchestrator_add_gui_rule(orchestrator, &rule);
+}
+
+void initialize_default_brim_settings(orchestrator_handle *orchestrator)
+{
+    /*
+    These definitions deliberately keep the historic serialized keys and
+    defaults. Existing profiles therefore load unchanged even though ownership
+    moves from FFFPrintConfig to this plugin.
+    */
+    raw_config_option_def def = raw_config_option_def_init();
+    def.opt_key = "brim_inside_holes";
+    def.type = RAW_CO_BOOL;
+    def.container_type = RAW_CONTAINER_TYPE_OBJECT;
+    def.option_preset_type = RAW_PRESET_TYPE_FFF_PRINT;
+    def.printer_technology = RAW_PT_FFF;
+    def.label = "Brim inside holes";
+    def.category = RAW_OPTION_CATEGORY_SKIRT_BRIM;
+    def.tooltip = "Allow to create a brim over an island when it's inside a hole (or surrounded by an object)."
+                  "\nIncompatible with brim_width_interior, as it enables it with brim_width width.";
+    def.mode = RAW_CONFIG_OPTION_MODE_ADV_EXP | RAW_CONFIG_OPTION_MODE_SUSI;
+    def.default_serialized_value = "0";
+    orchestrator_create_option_def(orchestrator, &def);
+
+    def = raw_config_option_def_init();
+    def.opt_key = "brim_ears";
+    def.type = RAW_CO_BOOL;
+    def.container_type = RAW_CONTAINER_TYPE_OBJECT;
+    def.option_preset_type = RAW_PRESET_TYPE_FFF_PRINT;
+    def.printer_technology = RAW_PT_FFF;
+    def.label = "Brim ears";
+    def.full_label = "Brim ears";
+    def.category = RAW_OPTION_CATEGORY_SKIRT_BRIM;
+    def.tooltip = "Only draw brim over the sharp edges of the model.";
+    def.mode = RAW_CONFIG_OPTION_MODE_SIM_ADV_EXP | RAW_CONFIG_OPTION_MODE_SUSI;
+    def.default_serialized_value = "0";
+    orchestrator_create_option_def(orchestrator, &def);
+
+    def = raw_config_option_def_init();
+    def.opt_key = "brim_ears_max_angle";
+    def.type = RAW_CO_FLOAT;
+    def.container_type = RAW_CONTAINER_TYPE_OBJECT;
+    def.option_preset_type = RAW_PRESET_TYPE_FFF_PRINT;
+    def.printer_technology = RAW_PT_FFF;
+    def.label = "Max angle";
+    def.full_label = "Brim ear max angle";
+    def.category = RAW_OPTION_CATEGORY_SKIRT_BRIM;
+    def.tooltip = "Maximum angle to let a brim ear appear. \nIf set to 0, no brim will be created. "
+                  "\nIf set to ~178, brim will be created on everything but straight sections.";
+    def.sidetext = "°";
+    def.has_min = 1;
+    def.min_value = 0.0;
+    def.has_max = 1;
+    def.max_value = 180.0;
+    def.mode = RAW_CONFIG_OPTION_MODE_ADV_EXP | RAW_CONFIG_OPTION_MODE_SUSI;
+    def.default_serialized_value = "125";
+    orchestrator_create_option_def(orchestrator, &def);
+
+    def = raw_config_option_def_init();
+    def.opt_key = "brim_ears_detection_length";
+    def.type = RAW_CO_FLOAT;
+    def.container_type = RAW_CONTAINER_TYPE_OBJECT;
+    def.option_preset_type = RAW_PRESET_TYPE_FFF_PRINT;
+    def.printer_technology = RAW_PT_FFF;
+    def.label = "Detection radius";
+    def.full_label = "Brim ear detection length";
+    def.category = RAW_OPTION_CATEGORY_SKIRT_BRIM;
+    def.tooltip = "The geometry will be decimated before dectecting sharp angles. This parameter indicates "
+                  "the minimum length of the deviation for the decimation.\n0 to deactivate";
+    def.sidetext = "mm";
+    def.has_min = 1;
+    def.min_value = 0.0;
+    def.mode = RAW_CONFIG_OPTION_MODE_ADV_EXP | RAW_CONFIG_OPTION_MODE_SUSI;
+    def.default_serialized_value = "1";
+    orchestrator_create_option_def(orchestrator, &def);
+
+    def = raw_config_option_def_init();
+    def.opt_key = "brim_ears_pattern";
+    def.type = RAW_CO_ENUM;
+    def.container_type = RAW_CONTAINER_TYPE_OBJECT;
+    def.option_preset_type = RAW_PRESET_TYPE_FFF_PRINT;
+    def.gui_type = RAW_GUI_TYPE_SELECT_CLOSE;
+    def.printer_technology = RAW_PT_FFF;
+    def.label = "Pattern";
+    def.full_label = "Ear pattern";
+    def.category = RAW_OPTION_CATEGORY_INFILL;
+    def.tooltip = "Pattern for the ear. The concentric is the default one. The rectilinear has a perimeter "
+                  "around it, you can try it if the concentric has too many problems to stick to the build plate.";
+    def.mode = RAW_CONFIG_OPTION_MODE_EXPERT | RAW_CONFIG_OPTION_MODE_SUSI;
+    def.default_serialized_value = "concentric";
+    def.enum_def.value_label_pairs.items = k_brim_ear_patterns;
+    def.enum_def.value_label_pairs.count = uint32_t(std::size(k_brim_ear_patterns));
+    orchestrator_create_option_def(orchestrator, &def);
+
+    /*
+    The fragment restores the same controls after they are removed from the
+    static print.ui file. It also supplies the Simple-mode copy of brim_ears.
+    */
+    orchestrator_add_ui_fragment(
+        orchestrator,
+        "print.ui",
+        k_settings_fragment_id,
+        "page:Skirt & Brim\n"
+        "group:Brim\n"
+        "setting:insert$aftersetting$brim_width:brim_inside_holes\n"
+        "line:insert$aftersetting$brim_width_interior:Brim ears\n"
+        "setting:tags$Advanced$Expert$Prusa:label$_:sidetext_width$0:brim_ears\n"
+        "setting:width$3:sidetext_width$1:brim_ears_max_angle\n"
+        "setting:width$3:sidetext_width$3:brim_ears_detection_length\n"
+        "setting:brim_ears_pattern\n"
+        "end_line\n"
+        "page:Support & Other\n"
+        "group:Skirt & Brim\n"
+        "setting:insert$aftersetting$brim_width:tags$Simple:sidetext_width$0:brim_ears\n",
+        0);
+
+    /*
+    Multiple ENABLE rules for one target are combined with AND. The GUI thus
+    mirrors the geometric preconditions without hardcoded option names in
+    ConfigManipulation.
+    */
+    add_enable_rule(orchestrator, "brim_ears", RAW_GUI_RULE_CONDITION_VALUE_NON_ZERO, "brim_width");
+    add_enable_rule(orchestrator, "brim_inside_holes", RAW_GUI_RULE_CONDITION_VALUE_NON_ZERO, "brim_width");
+    add_enable_rule(orchestrator, "brim_inside_holes", RAW_GUI_RULE_CONDITION_BOOL_FALSE, "brim_width_interior");
+    add_enable_rule(orchestrator, "brim_ears_max_angle", RAW_GUI_RULE_CONDITION_BOOL_TRUE, "brim_ears");
+    add_enable_rule(orchestrator, "brim_ears_max_angle", RAW_GUI_RULE_CONDITION_VALUE_NON_ZERO, "brim_width");
+    add_enable_rule(orchestrator, "brim_ears_detection_length", RAW_GUI_RULE_CONDITION_BOOL_TRUE, "brim_ears");
+    add_enable_rule(orchestrator, "brim_ears_detection_length", RAW_GUI_RULE_CONDITION_VALUE_NON_ZERO, "brim_width");
+    add_enable_rule(orchestrator, "brim_ears_pattern", RAW_GUI_RULE_CONDITION_BOOL_TRUE, "brim_ears");
+    add_enable_rule(orchestrator, "brim_ears_pattern", RAW_GUI_RULE_CONDITION_VALUE_NON_ZERO, "brim_width");
+}
+
 TemporaryObjectInstances::TemporaryObjectInstances(PrintObject &object) :
     m_object(object),
     m_saved_instances(ApiInternal::PrintObjectAccess::mutable_instances(object))
@@ -239,7 +436,7 @@ std::vector<std::vector<PrintObject *>> group_objects_by_brim_settings(Slic3r::P
         bool added = false;
         for (std::vector<PrintObject *> &object_group : object_groups) {
             assert(!object_group.empty());
-            if (same_brim_group_settings(object_group.front()->config(), object.config())) {
+            if (same_brim_group_settings(*object_group.front(), object)) {
                 object_group.push_back(&object);
                 added = true;
                 break;
@@ -261,18 +458,23 @@ bool same_first_layer_extrusion_width(const PrintObjectConfig &lhs, const PrintO
     return lhs.first_layer_extrusion_width.value == rhs.first_layer_extrusion_width.value;
 }
 
-bool same_brim_group_settings(const PrintObjectConfig &lhs, const PrintObjectConfig &rhs)
+bool same_brim_group_settings(const PrintObject &lhs, const PrintObject &rhs)
 {
-    return lhs.brim_ears.value == rhs.brim_ears.value &&
-           lhs.brim_ears_max_angle.value == rhs.brim_ears_max_angle.value &&
-           lhs.brim_ears_pattern.value == rhs.brim_ears_pattern.value &&
-           lhs.brim_ears_detection_length.value == rhs.brim_ears_detection_length.value &&
-           lhs.brim_inside_holes.value == rhs.brim_inside_holes.value &&
-           lhs.brim_per_object.value == rhs.brim_per_object.value &&
-           lhs.brim_separation.value == rhs.brim_separation.value &&
-           lhs.brim_width.value == rhs.brim_width.value &&
-           lhs.brim_width_interior.value == rhs.brim_width_interior.value &&
-           same_first_layer_extrusion_width(lhs, rhs);
+    const PrintObjectConfig &lhs_config = lhs.config();
+    const PrintObjectConfig &rhs_config = rhs.config();
+    const DefaultBrimSettings lhs_settings = read_default_brim_settings(lhs);
+    const DefaultBrimSettings rhs_settings = read_default_brim_settings(rhs);
+
+    return lhs_settings.use_ears == rhs_settings.use_ears &&
+           lhs_settings.geometry.fill_enclosed_holes == rhs_settings.geometry.fill_enclosed_holes &&
+           lhs_settings.geometry.ear_max_angle_degrees == rhs_settings.geometry.ear_max_angle_degrees &&
+           lhs_settings.geometry.ear_detection_length_mm == rhs_settings.geometry.ear_detection_length_mm &&
+           lhs_settings.geometry.ear_pattern == rhs_settings.geometry.ear_pattern &&
+           lhs_config.brim_per_object.value == rhs_config.brim_per_object.value &&
+           lhs_config.brim_separation.value == rhs_config.brim_separation.value &&
+           lhs_config.brim_width.value == rhs_config.brim_width.value &&
+           lhs_config.brim_width_interior.value == rhs_config.brim_width_interior.value &&
+           same_first_layer_extrusion_width(lhs_config, rhs_config);
 }
 
 ExPolygons initial_unbrimmable_area(const std::vector<std::vector<PrintObject *>> &object_groups,
@@ -365,12 +567,13 @@ void generate_brim_for_objects(const Slic3r::Print &print,
 {
     assert(!objects.empty());
     const PrintObjectConfig &brim_config = objects.front()->config();
+    const DefaultBrimSettings brim_settings = read_default_brim_settings(*objects.front());
 
     if (brim_config.brim_width > 0) {
-        if (brim_config.brim_ears)
-            make_brim_ears(print, flow, objects, unbrimmable_area, out);
+        if (brim_settings.use_ears)
+            make_brim_ears(print, flow, objects, brim_settings.geometry, unbrimmable_area, out);
         else
-            make_brim(print, flow, objects, unbrimmable_area, out);
+            make_brim(print, flow, objects, brim_settings.geometry, unbrimmable_area, out);
     }
 
     if (brim_config.brim_width_interior > 0)
@@ -584,6 +787,19 @@ private:
             return int32_t(std::size(k_used_config_keys));
         std::copy(std::begin(k_used_config_keys), std::end(k_used_config_keys), keys);
         return int32_t(std::size(k_used_config_keys));
+    }
+
+    int32_t defined_config_keys(const char **keys) const noexcept override
+    {
+        if (keys != nullptr)
+            for (size_t idx = 0; idx < std::size(k_defined_config_keys); ++idx)
+                keys[idx] = k_defined_config_keys[idx];
+        return int32_t(std::size(k_defined_config_keys));
+    }
+
+    void inilialize_impl(storage_handle *) const override
+    {
+        initialize_default_brim_settings(m_orchestrator);
     }
 
     void run_impl(const plugin_run_context *run_ctx) const override

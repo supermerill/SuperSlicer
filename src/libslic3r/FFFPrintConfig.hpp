@@ -258,13 +258,8 @@ PRINT_CONFIG_CLASS_DEFINE_WITH_SCOPE(
     StaticPrintConfig::DynamicOptionScope::FFFObject,
 
     ((ConfigOptionFloatOrPercent,       brim_acceleration))
-    ((ConfigOptionBool,                 brim_inside_holes))
     ((ConfigOptionFloat,                brim_width))
     ((ConfigOptionFloat,                brim_width_interior))
-    ((ConfigOptionBool,                 brim_ears))
-    ((ConfigOptionFloat,                brim_ears_detection_length))
-    ((ConfigOptionFloat,                brim_ears_max_angle))
-    ((ConfigOptionEnum<InfillPattern>,  brim_ears_pattern))
     ((ConfigOptionBool,                 brim_per_object))
     ((ConfigOptionFloat,                brim_separation))
     ((ConfigOptionFloatOrPercent,       brim_speed))

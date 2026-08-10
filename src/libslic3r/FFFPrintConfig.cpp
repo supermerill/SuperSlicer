@@ -443,10 +443,6 @@ std::string validate(const FullPrintConfig& cfg)
     if (!PrintConfigDef::instance().get("solid_fill_pattern")->has_enum_value(cfg.solid_fill_pattern.serialize()))
         return "Invalid value for --solid-fill-pattern";
 
-    // --brim-ears-pattern
-    if (!PrintConfigDef::instance().get("brim_ears_pattern")->has_enum_value(cfg.brim_ears_pattern.serialize()))
-        return "Invalid value for --brim-ears-pattern";
-
     // --fill-density
     if (fabs(cfg.fill_density.value - 100.) < EPSILON &&
         (! PrintConfigDef::instance().get("top_fill_pattern")->has_enum_value(cfg.fill_pattern.serialize())
@@ -927,14 +923,9 @@ void init_categories(PrintConfigDef &definition)
         "min_skirt_length",
         "draft_shield",
         // brim
-        "brim_inside_holes",
         "brim_per_object",
         "brim_width",
         "brim_width_interior",
-        "brim_ears",
-        "brim_ears_detection_length",
-        "brim_ears_max_angle",
-        "brim_ears_pattern",
         "brim_separation",
         //"brim_type",
         // support
@@ -1882,15 +1873,6 @@ void init_fff_params(PrintConfigDef &definition)
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionFloatOrPercent(60, true));
 
-    def = definition.add("brim_inside_holes", coBool, ptFFF);
-    def->label = L("Brim inside holes");
-    def->category = OptionCategory::skirtBrim;
-    def->invalidates_step = posSupportMaterial;
-    def->tooltip = L("Allow to create a brim over an island when it's inside a hole (or surrounded by an object)."
-        "\nIncompatible with brim_width_interior, as it enables it with brim_width width.");
-    def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(new ConfigOptionBool(false));
-
     def = definition.add("brim_per_object", coBool, ptFFF);
     def->label = L("Brim per object");
     def->category = OptionCategory::skirtBrim;
@@ -1922,27 +1904,6 @@ void init_fff_params(PrintConfigDef &definition)
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(new ConfigOptionFloat(0));
 
-    def = definition.add("brim_ears", coBool, ptFFF);
-    def->label = L("Brim ears");
-    def->full_label = L("Brim ears");
-    def->category = OptionCategory::skirtBrim;
-    def->invalidates_step = posSupportMaterial;
-    def->tooltip = L("Only draw brim over the sharp edges of the model.");
-    def->mode = comSimpleAE | comSuSi;
-    def->set_default_value(new ConfigOptionBool(false));
-
-    def = definition.add("brim_ears_max_angle", coFloat, ptFFF);
-    def->label = L("Max angle");
-    def->full_label = L("Brim ear max angle");
-    def->category = OptionCategory::skirtBrim;
-    def->invalidates_step = posSupportMaterial;
-    def->tooltip = L("Maximum angle to let a brim ear appear. \nIf set to 0, no brim will be created. \nIf set to ~178, brim will be created on everything but straight sections.");
-    def->sidetext = L("°");
-    def->min = 0;
-    def->max = 180;
-    def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(new ConfigOptionFloat(125)); 
-    
     def = definition.add("brim_acceleration", coFloatOrPercent, ptFFF);
     def->label = L("Brim & Skirt");
     def->full_label = L("Brim & Skirt acceleration");
@@ -1957,32 +1918,6 @@ void init_fff_params(PrintConfigDef &definition)
     def->max_literal = { -200, false };
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(new ConfigOptionFloatOrPercent(0, false));
-
-    def = definition.add("brim_ears_detection_length", coFloat, ptFFF);
-    def->label = L("Detection radius");
-    def->full_label = L("Brim ear detection length");
-    def->category = OptionCategory::skirtBrim;
-    def->invalidates_step = posSupportMaterial;
-    def->tooltip = L("The geometry will be decimated before dectecting sharp angles. This parameter indicates the minimum length of the deviation for the decimation."
-                    "\n0 to deactivate");
-    def->sidetext = L("mm");
-    def->min = 0;
-    def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(new ConfigOptionFloat(1));
-
-    def = definition.add("brim_ears_pattern", coEnum, ptFFF);
-    def->label = L("Pattern");
-    def->full_label = L("Ear pattern");
-    def->category = OptionCategory::infill;
-    def->invalidates_step = posSupportMaterial;
-    def->tooltip = L("Pattern for the ear. The concentric is the default one."
-                    " The rectilinear has a perimeter around it, you can try it if the concentric has too many problems to stick to the build plate.");
-    def->set_enum<InfillPattern>({
-        { "concentric", L("Concentric") },
-        { "rectilinear", L("Rectilinear") },
-    });
-    def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionEnum<InfillPattern>(ipConcentric));
 
     def = definition.add("brim_separation", coFloat, ptFFF);
     def->label = L("Brim separation gap");

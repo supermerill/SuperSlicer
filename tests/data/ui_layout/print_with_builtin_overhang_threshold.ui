@@ -7,6 +7,7 @@ group:Vertical shells
 	end_line
 	setting:tags$Simple$Expert$SuSi:script:float:depends$perimeter_spacing$external_perimeter_spacing:label$Wall Thickness:tooltip$Change the perimeter extrusion widths to ensure that there is an exact number of perimeters for this wall thickness value. It won't put the perimeter width below the nozzle diameter, and up to double.\nNote that the value displayed is just a view of the current perimeter thickness, like the info text below. The number of perimeters used to compute this value is one loop, or the custom variable 'wall_thickness_lines' (advanced mode) if defined.\nIf the value is too low, it will revert the widths to the saved value.\nIf the value is set to 0, it will show 0.:s_wall_thickness
 	setting:perimeter_generator
+	setting:step_perimeter_plugin
 	setting:spiral_vase
 	recommended_thin_wall_thickness_description
 group:Horizontal shells
@@ -183,11 +184,6 @@ group:Modifying slices
 		setting:sidetext_width$5:hole_to_polyhole_threshold
 		setting:hole_to_polyhole_twisted
 	end_line
-	line:Overhangs cut
-		setting:overhangs_max_slope
-		setting:overhangs_bridge_threshold
-		setting:overhangs_bridge_upper_layers
-	end_line
 	line:Plugin GUI rule bool true
 		setting:plugin_gui_rule_test_bool_true_condition
 		setting:plugin_gui_rule_test_bool_true_target
@@ -215,6 +211,11 @@ group:Modifying slices
 	line:Plugin GUI rule thin walls copy
 		setting:plugin_gui_rule_test_thin_walls
 		setting:sidetext_width$5:plugin_gui_rule_test_thin_walls_min_width
+	end_line
+	line:Overhangs cut
+		setting:overhangs_max_slope
+		setting:overhangs_bridge_threshold
+		setting:overhangs_bridge_upper_layers
 	end_line
 group:Other
 	setting:slicing_mode
@@ -355,6 +356,7 @@ group:Raft
 	setting:raft_expansion
 group:Options for support material and raft
 	setting:support_material_style
+	setting:step_support_plugin
 	setting:support_material_layer_height
 	line:Z-offset
 		setting:width$13:support_material_contact_distance_type
