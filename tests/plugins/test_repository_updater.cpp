@@ -4,17 +4,22 @@
 ///|/
 
 // These tests keep the updater data model independent from wxWidgets. They
-// verify the common success/error result, injectable HTTP behavior and that a
-// vendor repository keeps local metadata while enriching it with tag data.
+// verify the common success/error result, injectable HTTP behavior and the
+// complete vendor workflow exposed to the preset-selection dialog. Functional
+// scenarios use isolated resource/data directories and real package archives,
+// so no test can modify the developer's installed presets.
 
 #include <catch2/catch.hpp>
 
+#include <algorithm>
 #include <deque>
 #include <fstream>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <boost/filesystem.hpp>
 #include <boost/nowide/fstream.hpp>
@@ -25,6 +30,7 @@
 #include "libslic3r/Updater/UpdaterHttp.hpp"
 #include "libslic3r/Updater/UpdaterError.hpp"
 #include "libslic3r/Utils.hpp"
+#include "libslic3r/miniz_extension.hpp"
 
 namespace {
 
@@ -38,6 +44,8 @@ public:
     size_t pending_count() const { return m_pending.size(); }
     const Slic3r::UpdaterHttpRequest &pending_front() const { return m_pending.front(); }
     const Slic3r::UpdaterHttpRequest &pending_at(size_t idx) const { return m_pending.at(idx); }
+    size_t sync_request_count() const { return m_sync_request_urls.size(); }
+    const std::string &sync_request_url(size_t idx) const { return m_sync_request_urls.at(idx); }
 
     void succeed_front(std::string body, unsigned http_status)
     {
@@ -88,6 +96,7 @@ private:
     // the production transport contract without starting a worker thread.
     void perform_request_sync(Slic3r::UpdaterHttpRequest request) override
     {
+        m_sync_request_urls.emplace_back(request.url());
         if (!m_sync_response)
             throw std::logic_error("The fake updater transport has no scripted synchronous response.");
 
@@ -101,6 +110,37 @@ private:
 
     std::deque<Slic3r::UpdaterHttpRequest> m_pending;
     std::optional<SyncResponse> m_sync_response;
+    std::vector<std::string> m_sync_request_urls;
+};
+
+struct VendorChangeCall {
+    Slic3r::VendorChange change;
+    std::vector<std::string> vendor_ids;
+};
+
+// The GUI host normally creates a configuration snapshot before a change and
+// reloads presets afterwards. Recording both calls verifies that the core
+// updater surrounds filesystem changes with the same application contract.
+class FakePresetUpdaterHost final : public Slic3r::PresetUpdaterHost
+{
+public:
+    bool prepare_vendor_change(Slic3r::VendorChange change,
+                               const std::vector<std::string> &vendor_ids) override
+    {
+        prepared_changes.push_back({change, vendor_ids});
+        return accept_changes;
+    }
+
+    void vendor_files_changed(Slic3r::PresetUpdater &,
+                              Slic3r::VendorChange change,
+                              const std::vector<std::string> &vendor_ids) override
+    {
+        completed_changes.push_back({change, vendor_ids});
+    }
+
+    bool accept_changes = true;
+    std::vector<VendorChangeCall> prepared_changes;
+    std::vector<VendorChangeCall> completed_changes;
 };
 
 // Exposes the common protocol to focused unit tests. Real updaters use the same
@@ -188,6 +228,141 @@ void write_test_file(const boost::filesystem::path &path, const std::string &con
     boost::filesystem::create_directories(path.parent_path());
     boost::nowide::ofstream stream(path.string(), std::ios::out | std::ios::trunc);
     stream << contents;
+}
+
+struct ZipEntry {
+    std::string name;
+    std::string contents;
+};
+
+struct TestVendorVersion {
+    std::string config_version;
+    std::string slicer_version;
+    std::string archive_url;
+};
+
+struct PresetDialogSnapshot {
+    std::vector<Slic3r::VendorSync> vendors;
+    int profile_count_to_update = 0;
+};
+
+bool write_test_zip(const boost::filesystem::path &archive_path, const std::vector<ZipEntry> &entries);
+std::string vendor_profile_contents(const std::string &vendor_id,
+                                    const std::string &config_version,
+                                    const std::string &slicer_version);
+std::string vendor_repository_tags(const std::vector<TestVendorVersion> &versions);
+
+// This fixture reproduces the core portion of the GUI pipeline: discover local
+// vendors, synchronize the repository, copy the dialog model, then apply the
+// operation selected from that copied model.
+class PresetUpdaterFunctionalFixture
+{
+protected:
+    PresetUpdaterFunctionalFixture();
+
+    void write_resource_vendor(const std::string &config_version);
+    void write_installed_vendor(const std::string &config_version);
+    PresetDialogSnapshot synchronize_and_open_dialog(const std::vector<TestVendorVersion> &versions);
+
+    TemporaryDirectory temporary;
+    boost::filesystem::path resources_directory;
+    boost::filesystem::path data_directory;
+    ScopedUpdaterDirectories directories;
+    FakePresetUpdaterHost host;
+    FakeUpdaterHttpTransport http;
+    Slic3r::PresetUpdater updater;
+    const std::string vendor_id = "functional_vendor";
+    const std::string slicer_version = "2.7.0.0";
+};
+
+bool write_test_zip(const boost::filesystem::path &archive_path, const std::vector<ZipEntry> &entries)
+{
+    mz_zip_archive archive = {};
+    if (!Slic3r::open_zip_writer(&archive, archive_path.string()))
+        return false;
+
+    bool success = true;
+    for (const ZipEntry &entry : entries) {
+        if (!mz_zip_writer_add_mem(&archive, entry.name.c_str(), entry.contents.data(), entry.contents.size(),
+                                   MZ_BEST_COMPRESSION)) {
+            success = false;
+            break;
+        }
+    }
+    // miniz writes the central directory only during finalization. Closing the
+    // writer without this call produces bytes but not a readable ZIP package.
+    const bool finalized = success && mz_zip_writer_finalize_archive(&archive);
+    return Slic3r::close_zip_writer(&archive) && finalized;
+}
+
+std::string vendor_profile_contents(const std::string &vendor_id,
+                                    const std::string &config_version,
+                                    const std::string &slicer_version)
+{
+    return "[vendor]\n"
+           "id = " + vendor_id + "\n"
+           "name = Functional vendor\n"
+           "full_name = Functional vendor\n"
+           "config_version = " + config_version + "\n"
+           "slicer_version = " + slicer_version + "\n"
+           "config_update_rest = example/vendor\n";
+}
+
+std::string vendor_repository_tags(const std::vector<TestVendorVersion> &versions)
+{
+    std::ostringstream json;
+    json << '[';
+    for (size_t idx = 0; idx < versions.size(); ++idx) {
+        if (idx != 0)
+            json << ',';
+        const TestVendorVersion &version = versions[idx];
+        const std::string tag = version.config_version + '=' + version.slicer_version;
+        json << "{\"name\":\"" << tag
+             << "\",\"zipball_url\":\"" << version.archive_url
+             << "\",\"commit\":{\"sha\":\"sha-" << version.config_version
+             << "\",\"url\":\"https://api.github.com/repos/example/vendor/commits/"
+             << version.config_version << "\"}}";
+    }
+    json << ']';
+    return json.str();
+}
+
+PresetUpdaterFunctionalFixture::PresetUpdaterFunctionalFixture()
+    : resources_directory(temporary.path() / "resources")
+    , data_directory(temporary.path() / "data")
+    , directories(resources_directory, data_directory)
+    , updater(&host, http)
+{
+}
+
+void PresetUpdaterFunctionalFixture::write_resource_vendor(const std::string &config_version)
+{
+    write_test_file(resources_directory / "profiles" / (vendor_id + ".ini"),
+                    vendor_profile_contents(vendor_id, config_version, slicer_version));
+}
+
+void PresetUpdaterFunctionalFixture::write_installed_vendor(const std::string &config_version)
+{
+    write_test_file(data_directory / "vendor" / (vendor_id + ".ini"),
+                    vendor_profile_contents(vendor_id, config_version, slicer_version));
+}
+
+PresetDialogSnapshot PresetUpdaterFunctionalFixture::synchronize_and_open_dialog(
+    const std::vector<TestVendorVersion> &versions)
+{
+    std::optional<int> update_count;
+    updater.sync_async([&update_count](int count) { update_count = count; }, true);
+
+    // The dialog is scheduled only after the repository request completes.
+    // Completing the retained request here reproduces that asynchronous edge.
+    REQUIRE(http.pending_count() == 1);
+    CHECK(http.pending_front().url() ==
+          "https://api.github.com/repos/example/vendor/tags?per_page=100;page=1");
+    http.succeed_front(vendor_repository_tags(versions), 200);
+
+    REQUIRE(update_count.has_value());
+    CHECK(updater.is_synchronized());
+    return {updater.vendors(), *update_count};
 }
 
 } // namespace
@@ -769,6 +944,292 @@ TEST_CASE("Updater HTTP progress remains controllable from a fake transport", "[
     CHECK(http.progress_front(10, 10, "complete"));
     http.succeed_front(std::string(), 200);
     CHECK(http.pending_count() == 0);
+}
+
+TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
+                 "PresetUpdater functional dialog installs an uninstalled bundled vendor",
+                 "[plugins][updater][preset-functional]")
+{
+    write_resource_vendor("1.0.0.0");
+    updater.reload_all_vendors();
+
+    const PresetDialogSnapshot dialog = synchronize_and_open_dialog({
+        {"1.0.0.0", slicer_version, "https://example.invalid/vendor-1.zip"}
+    });
+    REQUIRE(dialog.vendors.size() == 1);
+    CHECK(dialog.profile_count_to_update == 0);
+
+    // vendors() is the detached model read by the selection dialog. Installing
+    // through its best pointer verifies that copied models rebuild that pointer
+    // correctly instead of retaining an address from the updater's map.
+    const Slic3r::VendorSync &dialog_vendor = dialog.vendors.front();
+    CHECK_FALSE(dialog_vendor.is_installed);
+    REQUIRE(dialog_vendor.best != nullptr);
+    CHECK(dialog_vendor.best->config_version.to_string() == "1.0.0.0");
+    CHECK_FALSE(dialog_vendor.best->local_file.empty());
+
+    std::optional<Slic3r::UpdaterError> install_result;
+    updater.install_vendor(vendor_id, *dialog_vendor.best,
+                           [&install_result](Slic3r::UpdaterError error) {
+                               install_result = std::move(error);
+                           });
+
+    REQUIRE(install_result.has_value());
+    CHECK(install_result->succeeded());
+    CHECK(updater.count_installed() == 1);
+    const boost::filesystem::path installed_file = data_directory / "vendor" / (vendor_id + ".ini");
+    REQUIRE(boost::filesystem::is_regular_file(installed_file));
+    CHECK(Slic3r::VendorProfile::from_ini(installed_file, true).config_version.to_string() == "1.0.0.0");
+    CHECK(http.sync_request_count() == 0);
+
+    REQUIRE(host.prepared_changes.size() == 1);
+    CHECK(host.prepared_changes.front().change == Slic3r::VendorChange::Install);
+    CHECK(host.prepared_changes.front().vendor_ids == std::vector<std::string>{vendor_id});
+    REQUIRE(host.completed_changes.size() == 1);
+    CHECK(host.completed_changes.front().change == Slic3r::VendorChange::Install);
+}
+
+TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
+                 "PresetUpdater functional dialog changes an installed vendor to a selected local version",
+                 "[plugins][updater][preset-functional]")
+{
+    write_installed_vendor("2.0.0.0");
+    write_resource_vendor("1.5.0.0");
+    updater.reload_all_vendors();
+
+    const PresetDialogSnapshot dialog = synchronize_and_open_dialog({
+        {"2.0.0.0", slicer_version, "https://example.invalid/vendor-2.zip"},
+        {"1.5.0.0", slicer_version, "https://example.invalid/vendor-15.zip"}
+    });
+    REQUIRE(dialog.vendors.size() == 1);
+    CHECK(dialog.profile_count_to_update == 0);
+    const Slic3r::VendorSync &dialog_vendor = dialog.vendors.front();
+    CHECK(dialog_vendor.is_installed);
+
+    // The detailed selector may choose any compatible entry, not only best.
+    // Choosing the bundled older version exercises a real version replacement
+    // without involving the separate archive-download path.
+    const std::vector<Slic3r::VendorAvailable>::const_iterator selected = std::find_if(
+        dialog_vendor.available_profiles.begin(), dialog_vendor.available_profiles.end(),
+        [](const Slic3r::VendorAvailable &version) {
+            return version.config_version.to_string() == "1.5.0.0";
+        });
+    REQUIRE(selected != dialog_vendor.available_profiles.end());
+    CHECK_FALSE(selected->local_file.empty());
+
+    std::optional<Slic3r::UpdaterError> change_result;
+    updater.install_vendor(vendor_id, *selected,
+                           [&change_result](Slic3r::UpdaterError error) {
+                               change_result = std::move(error);
+                           });
+
+    REQUIRE(change_result.has_value());
+    CHECK(change_result->succeeded());
+    const boost::filesystem::path installed_file = data_directory / "vendor" / (vendor_id + ".ini");
+    REQUIRE(boost::filesystem::is_regular_file(installed_file));
+    CHECK(Slic3r::VendorProfile::from_ini(installed_file, true).config_version.to_string() == "1.5.0.0");
+    CHECK(http.sync_request_count() == 0);
+    REQUIRE(host.completed_changes.size() == 1);
+    CHECK(host.completed_changes.front().change == Slic3r::VendorChange::Install);
+}
+
+TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
+                 "PresetUpdater functional dialog removes an installed vendor",
+                 "[plugins][updater][preset-functional]")
+{
+    write_installed_vendor("1.0.0.0");
+    updater.reload_all_vendors();
+
+    const PresetDialogSnapshot dialog = synchronize_and_open_dialog({
+        {"1.0.0.0", slicer_version, "https://example.invalid/vendor-1.zip"}
+    });
+    REQUIRE(dialog.vendors.size() == 1);
+    CHECK(dialog.vendors.front().is_installed);
+
+    std::optional<Slic3r::UpdaterError> uninstall_result;
+    updater.uninstall_vendor(vendor_id,
+                             [&uninstall_result](Slic3r::UpdaterError error) {
+                                 uninstall_result = std::move(error);
+                             });
+
+    REQUIRE(uninstall_result.has_value());
+    CHECK(uninstall_result->succeeded());
+    CHECK(updater.count_installed() == 0);
+    CHECK_FALSE(boost::filesystem::exists(data_directory / "vendor" / (vendor_id + ".ini")));
+    CHECK(boost::filesystem::is_regular_file(
+        data_directory / "cache" / "vendor" / vendor_id / (vendor_id + ".ini")));
+
+    const Slic3r::VendorSync *remaining_vendor = updater.get_vendor(vendor_id);
+    REQUIRE(remaining_vendor != nullptr);
+    CHECK_FALSE(remaining_vendor->is_installed);
+    CHECK(remaining_vendor->has_cache);
+    REQUIRE(host.prepared_changes.size() == 1);
+    CHECK(host.prepared_changes.front().change == Slic3r::VendorChange::Uninstall);
+    REQUIRE(host.completed_changes.size() == 1);
+    CHECK(host.completed_changes.front().change == Slic3r::VendorChange::Uninstall);
+}
+
+TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
+                 "PresetUpdater functional dialog downloads and installs a newer remote vendor",
+                 "[plugins][updater][preset-functional]")
+{
+    write_installed_vendor("1.0.0.0");
+    updater.reload_all_vendors();
+
+    const std::string remote_archive_url = "https://example.invalid/vendor-2.zip";
+    const PresetDialogSnapshot dialog = synchronize_and_open_dialog({
+        {"2.0.0.0", slicer_version, remote_archive_url},
+        {"1.0.0.0", slicer_version, "https://example.invalid/vendor-1.zip"}
+    });
+    REQUIRE(dialog.vendors.size() == 1);
+    CHECK(dialog.profile_count_to_update == 1);
+    const Slic3r::VendorSync &dialog_vendor = dialog.vendors.front();
+    CHECK(dialog_vendor.is_installed);
+    CHECK(dialog_vendor.can_upgrade);
+    REQUIRE(dialog_vendor.best != nullptr);
+    CHECK(dialog_vendor.best->config_version.to_string() == "2.0.0.0");
+    CHECK(dialog_vendor.best->local_file.empty());
+
+    // The remote branch receives the archive through perform_sync(), extracts
+    // its profiles directory, then atomically publishes the selected INI into
+    // the normal installed-vendor directory.
+    const boost::filesystem::path archive_file = temporary.path() / "vendor-2.zip";
+    REQUIRE(write_test_zip(
+        archive_file,
+        {{"profiles/" + vendor_id + ".ini",
+          vendor_profile_contents(vendor_id, "2.0.0.0", slicer_version)}}));
+    http.script_sync_success(read_test_file(archive_file));
+
+    std::optional<Slic3r::UpdaterError> upgrade_result;
+    updater.install_vendor(vendor_id, *dialog_vendor.best,
+                           [&upgrade_result](Slic3r::UpdaterError error) {
+                               upgrade_result = std::move(error);
+                           });
+
+    REQUIRE(upgrade_result.has_value());
+    INFO("Updater error code: " << static_cast<int>(upgrade_result->code));
+    INFO("Updater error detail: " << upgrade_result->detail);
+    CHECK(upgrade_result->succeeded());
+    REQUIRE(http.sync_request_count() == 1);
+    CHECK(http.sync_request_url(0) == remote_archive_url);
+    const boost::filesystem::path installed_file = data_directory / "vendor" / (vendor_id + ".ini");
+    REQUIRE(boost::filesystem::is_regular_file(installed_file));
+    CHECK(Slic3r::VendorProfile::from_ini(installed_file, true).config_version.to_string() == "2.0.0.0");
+
+    const Slic3r::VendorSync *updated_vendor = updater.get_vendor(vendor_id);
+    REQUIRE(updated_vendor != nullptr);
+    CHECK(updated_vendor->is_installed);
+    CHECK_FALSE(updated_vendor->can_upgrade);
+    REQUIRE(host.completed_changes.size() == 1);
+    CHECK(host.completed_changes.front().change == Slic3r::VendorChange::Install);
+}
+
+TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
+                 "PresetUpdater functional version dialog installs a newer vendor after loading changelogs",
+                 "[plugins][updater][preset-functional]")
+{
+    write_installed_vendor("1.0.0.0");
+    updater.reload_all_vendors();
+
+    const std::string remote_archive_url = "https://example.invalid/vendor-2-with-logs.zip";
+    const PresetDialogSnapshot main_dialog = synchronize_and_open_dialog({
+        {"2.0.0.0", slicer_version, remote_archive_url},
+        {"1.0.0.0", slicer_version, "https://example.invalid/vendor-1.zip"}
+    });
+    REQUIRE(main_dialog.vendors.size() == 1);
+    CHECK(main_dialog.profile_count_to_update == 1);
+    REQUIRE(main_dialog.vendors.front().best != nullptr);
+    CHECK(main_dialog.vendors.front().best->config_version.to_string() == "2.0.0.0");
+
+    // Clicking the installed-version button downloads all notes before the
+    // detailed selector is created. The recent version uses a GitHub compare;
+    // the first published version has no predecessor and uses its commit URL.
+    std::optional<bool> changelogs_succeeded;
+    int changelog_callback_count = 0;
+    updater.download_changelogs(
+        vendor_id,
+        [&changelogs_succeeded, &changelog_callback_count](bool succeeded) {
+            changelogs_succeeded = succeeded;
+            ++changelog_callback_count;
+        });
+
+    REQUIRE(http.pending_count() == 2);
+    CHECK(http.pending_at(0).url() ==
+          "https://api.github.com/repos/example/vendor/compare/"
+          "1.0.0.0=2.7.0.0...2.0.0.0=2.7.0.0");
+    CHECK(http.pending_at(1).url() ==
+          "https://api.github.com/repos/example/vendor/commits/1.0.0.0");
+    http.succeed_front(
+        R"({"commits":[{"commit":{"message":"prepare upgrade"}},{"commit":{"message":"add new profiles"}}]})",
+        200);
+    CHECK_FALSE(changelogs_succeeded.has_value());
+    http.succeed_front(R"({"commit":{"message":"initial profiles"}})", 200);
+
+    REQUIRE(changelogs_succeeded.has_value());
+    CHECK(*changelogs_succeeded);
+    CHECK(changelog_callback_count == 1);
+    CHECK(http.pending_count() == 0);
+
+    // ChooseVendorVersionDialog copies the now-enriched internal VendorSync.
+    // sort_available() is required after that copy so best points into the
+    // copied available_profiles vector rather than into the updater's model.
+    const Slic3r::VendorSync *enriched_vendor = updater.get_vendor(vendor_id);
+    REQUIRE(enriched_vendor != nullptr);
+    Slic3r::VendorSync version_dialog = *enriched_vendor;
+    version_dialog.sort_available();
+    const std::vector<Slic3r::VendorAvailable>::const_iterator selected = std::find_if(
+        version_dialog.available_profiles.begin(), version_dialog.available_profiles.end(),
+        [](const Slic3r::VendorAvailable &version) {
+            return version.config_version.to_string() == "2.0.0.0";
+        });
+    REQUIRE(selected != version_dialog.available_profiles.end());
+    CHECK(selected->notes == "add new profiles\nprepare upgrade");
+    CHECK(selected->url_zip == remote_archive_url);
+    CHECK(selected->local_file.empty());
+
+    const std::vector<Slic3r::VendorAvailable>::const_iterator installed_version = std::find_if(
+        version_dialog.available_profiles.begin(), version_dialog.available_profiles.end(),
+        [](const Slic3r::VendorAvailable &version) {
+            return version.config_version.to_string() == "1.0.0.0";
+        });
+    REQUIRE(installed_version != version_dialog.available_profiles.end());
+    CHECK(installed_version->notes == "initial profiles");
+
+    // Selecting the changelog row starts the normal remote installation path.
+    // The archive response therefore uses the synchronous side of the same
+    // fake transport that supplied the asynchronous changelog responses.
+    const boost::filesystem::path archive_file = temporary.path() / "vendor-2-with-logs.zip";
+    REQUIRE(write_test_zip(
+        archive_file,
+        {{"profiles/" + vendor_id + ".ini",
+          vendor_profile_contents(vendor_id, "2.0.0.0", slicer_version)}}));
+    http.script_sync_success(read_test_file(archive_file));
+
+    std::optional<Slic3r::UpdaterError> install_result;
+    updater.install_vendor(vendor_id, *selected,
+                           [&install_result](Slic3r::UpdaterError error) {
+                               install_result = std::move(error);
+                           });
+
+    REQUIRE(install_result.has_value());
+    INFO("Updater error code: " << static_cast<int>(install_result->code));
+    INFO("Updater error detail: " << install_result->detail);
+    CHECK(install_result->succeeded());
+    REQUIRE(http.sync_request_count() == 1);
+    CHECK(http.sync_request_url(0) == remote_archive_url);
+
+    const boost::filesystem::path installed_file = data_directory / "vendor" / (vendor_id + ".ini");
+    REQUIRE(boost::filesystem::is_regular_file(installed_file));
+    CHECK(Slic3r::VendorProfile::from_ini(installed_file, true).config_version.to_string() == "2.0.0.0");
+    const Slic3r::VendorSync *updated_vendor = updater.get_vendor(vendor_id);
+    REQUIRE(updated_vendor != nullptr);
+    CHECK(updated_vendor->is_installed);
+    CHECK_FALSE(updated_vendor->can_upgrade);
+
+    REQUIRE(host.prepared_changes.size() == 1);
+    CHECK(host.prepared_changes.front().change == Slic3r::VendorChange::Install);
+    REQUIRE(host.completed_changes.size() == 1);
+    CHECK(host.completed_changes.front().change == Slic3r::VendorChange::Install);
 }
 
 TEST_CASE("PresetUpdater processes a controlled successful HTTP response", "[plugins][updater]")
