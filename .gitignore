@@ -25,5 +25,6 @@ CMakeUserPresets.json
 **/bad_*
 releases/
 resources/plugins/*.zip
+resources/plugins/descriptions/
 .tgitconfig
 AGENT*.md

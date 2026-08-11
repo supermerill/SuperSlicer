@@ -247,7 +247,8 @@ void ensure_plugin_test_runtime_initialized()
                                   orchestrator.get_plugin("python.polyholes") != nullptr &&
                                   orchestrator.get_plugin("python.polyholes.high_level") != nullptr &&
                                   orchestrator.get_plugin("python.perimeter.post_process.hairy_object") != nullptr &&
-                                  orchestrator.get_plugin("python.perimeter.generator.simple") != nullptr;
+                                  orchestrator.get_plugin("python.perimeter.generator.simple") != nullptr &&
+                                  orchestrator.get_plugin("python.external.package_root") != nullptr;
 #endif
 
         activate_plugin_or_fail(orchestrator, "bridge_detector.default");

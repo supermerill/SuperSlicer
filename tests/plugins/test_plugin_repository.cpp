@@ -4,8 +4,8 @@
 ///|/
 
 // These tests exercise the package filesystem protocol without loading a DLL.
-// A package is valid as soon as its version description is valid; loading the
-// platform library remains the responsibility of PluginLoader.
+// Generic descriptions and package versions are validated independently;
+// loading the platform payload remains the responsibility of PluginLoader.
 
 #include <catch2/catch.hpp>
 
@@ -17,9 +17,16 @@
 #include <boost/nowide/fstream.hpp>
 
 #include "libslic3r/Plugins/PluginRepository.hpp"
+#include "libslic3r/Api/host/Orchestrator.hpp"
+#include "libslic3r/Api/host/Plugin.hpp"
 #include "libslic3r/Updater/RepositoryPackageCache.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/miniz_extension.hpp"
+#include "plugin_test_helpers.hpp"
+
+#ifdef _WIN32
+#include <Windows.h>
+#endif
 
 namespace {
 
@@ -41,14 +48,18 @@ private:
 
 bool write_zip(const boost::filesystem::path &archive_path, const std::vector<ZipEntry> &entries);
 std::string description_contents(const std::string &package_name,
-                                 const std::string &package_version,
-                                 const std::string &slicer_version);
+                                 const std::string &name = std::string());
+std::string version_contents(const std::string &package_version,
+                             const std::string &slicer_version);
 void write_description(const boost::filesystem::path &package_root,
                        const std::string &package_name,
                        const std::string &package_version,
                        const std::string &slicer_version);
 const char *plugin_library_filename();
 std::string read_text_file(const boost::filesystem::path &path);
+#ifdef _WIN32
+boost::filesystem::path current_test_executable();
+#endif
 
 ScopedPluginRepositoryDirectories::ScopedPluginRepositoryDirectories(const boost::filesystem::path &resources_directory,
                                                                        const boost::filesystem::path &data_directory)
@@ -87,14 +98,19 @@ bool write_zip(const boost::filesystem::path &archive_path, const std::vector<Zi
 }
 
 std::string description_contents(const std::string &package_name,
-                                 const std::string &package_version,
-                                 const std::string &slicer_version)
+                                 const std::string &name)
 {
     return "[plugin]\n"
            "id = " + package_name + "\n"
-           "name = " + package_name + "\n"
+           "name = " + (name.empty() ? package_name : name) + "\n"
            "full_name = " + package_name + "\n"
-           "type = local\n"
+           "type = local\n";
+}
+
+std::string version_contents(const std::string &package_version,
+                             const std::string &slicer_version)
+{
+    return "[plugin]\n"
            "package_version = " + package_version + "\n"
            "slicer_version = " + slicer_version + "\n";
 }
@@ -105,8 +121,10 @@ void write_description(const boost::filesystem::path &package_root,
                        const std::string &slicer_version)
 {
     boost::filesystem::create_directories(package_root);
-    boost::nowide::ofstream stream((package_root / "description.ini").string());
-    stream << description_contents(package_name, package_version, slicer_version);
+    boost::nowide::ofstream description((package_root / "description.ini").string());
+    description << description_contents(package_name);
+    boost::nowide::ofstream version((package_root / "version.ini").string());
+    version << version_contents(package_version, slicer_version);
 }
 
 const char *plugin_library_filename()
@@ -126,9 +144,24 @@ std::string read_text_file(const boost::filesystem::path &path)
     return std::string(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
 }
 
+#ifdef _WIN32
+boost::filesystem::path current_test_executable()
+{
+    std::vector<wchar_t> buffer(MAX_PATH);
+    for (;;) {
+        const DWORD length = GetModuleFileNameW(nullptr, buffer.data(), DWORD(buffer.size()));
+        if (length == 0)
+            return {};
+        if (length < buffer.size() - 1)
+            return boost::filesystem::path(std::wstring(buffer.data(), length));
+        buffer.resize(buffer.size() * 2);
+    }
+}
+#endif
+
 } // namespace
 
-TEST_CASE("Plugin bundles are cached with their versioned description", "[plugins][repository]")
+TEST_CASE("Plugin bundles separate generic description from generated version metadata", "[plugins][repository]")
 {
     const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
                                          boost::filesystem::unique_path("slic3r-plugin-repository-%%%%-%%%%");
@@ -141,7 +174,7 @@ TEST_CASE("Plugin bundles are cached with their versioned description", "[plugin
     const boost::filesystem::path archive_path = archive_directory / (package_name + "_" + package_version + "_" + slicer_version + ".zip");
     boost::filesystem::create_directories(archive_directory);
     REQUIRE(write_zip(archive_path, {{plugin_library_filename(), "library"},
-                                     {"description.ini", description_contents(package_name, package_version, slicer_version)}}));
+                                     {"description.ini", description_contents(package_name)}}));
 
     std::string error_message;
     CHECK(Slic3r::prepare_plugin_bundle_cache(resources_directory, data_directory, error_message));
@@ -150,6 +183,16 @@ TEST_CASE("Plugin bundles are cached with their versioned description", "[plugin
         package_name, package_version, slicer_version);
     CHECK(boost::filesystem::exists(cached_package / plugin_library_filename()));
     CHECK(boost::filesystem::exists(cached_package / "description.ini"));
+    CHECK(read_text_file(cached_package / "description.ini").find("package_version") == std::string::npos);
+    CHECK(read_text_file(cached_package / "description.ini").find("slicer_version") == std::string::npos);
+    const std::string cached_version_contents = read_text_file(cached_package / "version.ini");
+    CHECK(cached_version_contents.find("package_version = " + package_version) != std::string::npos);
+    CHECK(cached_version_contents.find("slicer_version = " + slicer_version) != std::string::npos);
+    const boost::filesystem::path root_description = Slic3r::repository_cache_root_path(
+        data_directory, Slic3r::RepositoryPackageType::Plugin, package_name) / "description.ini";
+    CHECK(boost::filesystem::is_regular_file(root_description));
+    CHECK(read_text_file(root_description).find("package_version") == std::string::npos);
+    CHECK(read_text_file(root_description).find("slicer_version") == std::string::npos);
 
     // A valid cache remains usable even if the source archive is no longer
     // available, which is how cached packages survive application updates.
@@ -194,7 +237,7 @@ TEST_CASE("Plugin bundle extraction rejects a mismatched supplied manifest", "[p
     boost::filesystem::create_directories(archive_directory);
     REQUIRE(write_zip(archive_directory / (package_name + "_" + package_version + "_" + slicer_version + ".zip"),
                       {{plugin_library_filename(), "library"},
-                       {"description.ini", description_contents("another.plugin", package_version, slicer_version)}}));
+                       {"description.ini", description_contents("another.plugin")}}));
 
     std::string error_message;
     CHECK_FALSE(Slic3r::prepare_plugin_bundle_cache(resources_directory, data_directory, error_message));
@@ -249,24 +292,17 @@ TEST_CASE("Plugin installation is deferred and preserves the previous package on
 
     config.installed[package_name] = {second_version, slicer_version};
     REQUIRE(Slic3r::apply_requested_plugin_package_changes(data_directory, config, warnings, error_message));
-    std::string installed_manifest;
-    {
-        boost::nowide::ifstream stream((data_directory / "plugins" / package_name / "description.ini").string());
-        for (int line = 0; line < 6; ++line)
-            std::getline(stream, installed_manifest);
-    }
-    CHECK(installed_manifest == "package_version = " + second_version);
+    const std::string installed_version = read_text_file(
+        data_directory / "plugins" / package_name / "version.ini");
+    CHECK(installed_version.find("package_version = " + second_version) != std::string::npos);
+    CHECK(installed_version.find("slicer_version = " + slicer_version) != std::string::npos);
 
     config.installed[package_name] = {"9.9.9.9", slicer_version};
     CHECK_FALSE(Slic3r::apply_requested_plugin_package_changes(data_directory, config, warnings, error_message));
     CHECK(boost::filesystem::exists(installed_package / "description.ini"));
-    std::string installed_manifest_after_failure;
-    {
-        boost::nowide::ifstream stream((installed_package / "description.ini").string());
-        for (int line = 0; line < 6; ++line)
-            std::getline(stream, installed_manifest_after_failure);
-    }
-    CHECK(installed_manifest_after_failure == "package_version = " + second_version);
+    const std::string preserved_version = read_text_file(installed_package / "version.ini");
+    CHECK(preserved_version.find("package_version = " + second_version) != std::string::npos);
+    CHECK(preserved_version.find("slicer_version = " + slicer_version) != std::string::npos);
 
     boost::filesystem::remove_all(root);
 }
@@ -337,7 +373,7 @@ TEST_CASE("Repository descriptions and GitHub tags share one version protocol", 
         "package_version = 1.0.0.0\nslicer_version = 2.7.63.0\n",
         Slic3r::RepositoryPackageType::Plugin, plugin, error_message));
     CHECK(plugin.id == "postprocess.truc");
-    CHECK(plugin.package_version == "1.0.0.0");
+    CHECK(plugin.name == "truc");
     CHECK(Slic3r::repository_package_cache_path("data", Slic3r::RepositoryPackageType::Plugin,
                                                  plugin.id, "1.0.0.0", "2.7.63.0") ==
           boost::filesystem::path("data/cache/plugins/postprocess.truc/1.0.0.0=2.7.63.0"));
@@ -406,15 +442,244 @@ TEST_CASE("Repository package cache imports incomplete local content with defaul
         Slic3r::RepositoryCachedVersion cached;
         REQUIRE(cache.cache_simple(package, cached, error_message));
         CHECK(cached.description.id == "local_plugin");
-        CHECK(cached.description.package_version == "1.0.0.0");
-        CHECK(cached.description.slicer_version == "1.0.0.0");
+        CHECK(cached.version.package_version == "1.0.0.0");
+        CHECK(cached.version.slicer_version == "1.0.0.0");
         CHECK(cached.description.config_update_rest.empty());
         CHECK(boost::filesystem::is_regular_file(cached.directory / "description.ini"));
+        CHECK(boost::filesystem::is_regular_file(cached.directory / "version.ini"));
         CHECK(boost::filesystem::is_regular_file(cached.directory / plugin_library_filename()));
     }
 
     boost::filesystem::remove_all(root);
 }
+
+TEST_CASE("Vendor archive takes versions only from its profile",
+          "[plugins][repository][cache-layout]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-vendor-version-source-%%%%-%%%%");
+    const boost::filesystem::path archive = root / "vendor.zip";
+    const std::string vendor_id = "example_vendor";
+    const std::string profile =
+        "[vendor]\n"
+        "id = " + vendor_id + "\n"
+        "name = Example Vendor\n"
+        "full_name = Example Vendor\n"
+        "config_version = 1.0.0.0\n"
+        "slicer_version = 2.7.63.0-alpha\n";
+    const std::string generic_description =
+        "[vendor]\n"
+        "id = " + vendor_id + "\n"
+        "name = Example Vendor\n"
+        "full_name = Example Vendor\n"
+        // These obsolete fields must not override the profile versions.
+        "config_version = 9.0.0.0\n"
+        "slicer_version = 1.0.0.0\n";
+    boost::filesystem::create_directories(root);
+    REQUIRE(write_zip(archive, {{"description.ini", generic_description},
+                                {"profiles/" + vendor_id + ".ini", profile}}));
+
+    Slic3r::RepositoryPackageCache cache(root / "data", Slic3r::vendor_repository_cache_adapter());
+    bool purged = false;
+    std::string error_message;
+    REQUIRE(cache.prepare_layout(purged, error_message));
+    Slic3r::RepositoryCachedVersion cached;
+    REQUIRE(cache.cache_archive(archive, std::nullopt, cached, error_message));
+    CHECK(cached.version.package_version == "1.0.0.0");
+    CHECK(cached.version.slicer_version == "2.7.63.0-alpha");
+    CHECK(cached.directory.filename() == "1.0.0.0=2.7.63.0-alpha");
+    CHECK(read_text_file(cached.directory / "description.ini").find("config_version") == std::string::npos);
+    CHECK(cache.repository_description_path(vendor_id) ==
+          cache.repository_directory(vendor_id) / "description.ini");
+
+    boost::filesystem::remove_all(root);
+}
+
+TEST_CASE("Python plugin metadata creates version.ini and conflicts are rejected",
+          "[plugins][repository][cache-layout]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-python-package-%%%%-%%%%");
+    const boost::filesystem::path package = root / "python.example";
+    boost::filesystem::create_directories(package);
+    {
+        boost::nowide::ofstream description((package / "description.ini").string());
+        description << description_contents("python.example")
+                    << "package_version = 99.0.0.0\n"
+                    << "slicer_version = 99.0.0.0\n";
+        boost::nowide::ofstream script((package / "plugin.py").string());
+        script << "__version__ = '1.4.0'\n"
+                  "__slicer_version__ = \"2.7.63.0\"\n"
+                  "def register_plugin(api):\n    return None\n";
+    }
+
+    Slic3r::RepositoryPackageCache cache(root / "data", Slic3r::plugin_repository_cache_adapter());
+    bool purged = false;
+    std::string error_message;
+    REQUIRE(cache.prepare_layout(purged, error_message));
+    Slic3r::RepositoryCachedVersion cached;
+    REQUIRE(cache.cache_simple(package, cached, error_message));
+    CHECK(cached.version.package_version == "1.4.0");
+    CHECK(cached.version.slicer_version == "2.7.63.0");
+    CHECK_FALSE(boost::filesystem::exists(package / "version.ini"));
+    CHECK(boost::filesystem::is_regular_file(cached.directory / "version.ini"));
+    CHECK(boost::filesystem::is_regular_file(cached.directory / "plugin.py"));
+    CHECK(read_text_file(cached.directory / "description.ini").find("99.0.0.0") == std::string::npos);
+
+    // An explicit version file has higher provenance priority, but it may not
+    // disagree with metadata embedded in the same package.
+    {
+        boost::nowide::ofstream version((package / "version.ini").string());
+        version << version_contents("1.5.0", "2.7.63.0");
+    }
+    CHECK_FALSE(cache.cache_simple(package, cached, error_message));
+    CHECK(error_message.find("conflict") != std::string::npos);
+
+    {
+        boost::nowide::ofstream version((package / "version.ini").string(), std::ios::out | std::ios::trunc);
+        version << version_contents("1.4.0", "2.7.63.0");
+    }
+    Slic3r::RepositoryPackageExpectation expected;
+    expected.type = Slic3r::RepositoryPackageType::Plugin;
+    expected.id = "python.example";
+    expected.version.package_version = "2.0.0";
+    expected.version.slicer_version = "2.7.63.0";
+    CHECK_FALSE(cache.cache_package_directory(package, expected, cached, error_message));
+    CHECK(error_message.find("repository tag") != std::string::npos);
+
+    boost::filesystem::remove_all(root);
+}
+
+TEST_CASE("Python plugin entry selection is deterministic",
+          "[plugins][repository][cache-layout]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-python-entry-%%%%-%%%%");
+    const boost::filesystem::path package = root / "entry.example";
+    boost::filesystem::create_directories(package);
+    {
+        boost::nowide::ofstream description((package / "description.ini").string());
+        description << description_contents("entry.example");
+        boost::nowide::ofstream named((package / "entry.example.py").string());
+        named << "__version__ = '2.0.0.0'\n__slicer_version__ = '2.7.63.0'\n";
+        boost::nowide::ofstream conventional((package / "plugin.py").string());
+        conventional << "__version__ = '9.0.0.0'\n__slicer_version__ = '9.0.0.0'\n";
+    }
+
+    Slic3r::RepositoryPackageCache cache(root / "data", Slic3r::plugin_repository_cache_adapter());
+    bool purged = false;
+    std::string error_message;
+    REQUIRE(cache.prepare_layout(purged, error_message));
+    Slic3r::RepositoryCachedVersion cached;
+    REQUIRE(cache.cache_simple(package, cached, error_message));
+    CHECK(cached.version.package_version == "2.0.0.0");
+    CHECK(cached.version.slicer_version == "2.7.63.0");
+
+    boost::filesystem::remove(package / "entry.example.py");
+    boost::filesystem::remove(package / "plugin.py");
+    {
+        boost::nowide::ofstream first((package / "first.py").string());
+        first << "__version__ = '1.0.0.0'\n";
+        boost::nowide::ofstream second((package / "second.py").string());
+        second << "__version__ = '1.0.0.0'\n";
+    }
+    CHECK_FALSE(cache.cache_simple(package, cached, error_message));
+    CHECK(error_message.find("unambiguous Python entry point") != std::string::npos);
+
+    boost::filesystem::remove_all(root);
+}
+
+TEST_CASE("Pure Python plugin packages install and remove through the normal lifecycle",
+          "[plugins][repository][python]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-python-lifecycle-%%%%-%%%%");
+    const boost::filesystem::path data_directory = root / "data";
+    const boost::filesystem::path package = root / "lifecycle.python";
+    boost::filesystem::create_directories(package);
+    {
+        boost::nowide::ofstream description((package / "description.ini").string());
+        description << description_contents("lifecycle.python");
+        boost::nowide::ofstream script((package / "plugin.py").string());
+        script << "__version__ = '1.0.0.0'\n__slicer_version__ = '2.7.63.0'\n";
+    }
+
+    Slic3r::RepositoryPackageCache cache(data_directory, Slic3r::plugin_repository_cache_adapter());
+    bool purged = false;
+    std::string error_message;
+    REQUIRE(cache.prepare_layout(purged, error_message));
+    Slic3r::RepositoryCachedVersion cached;
+    REQUIRE(cache.cache_simple(package, cached, error_message));
+
+    Slic3r::PluginActivationConfig config;
+    config.installed["lifecycle.python"] = {"1.0.0.0", "2.7.63.0"};
+    std::vector<std::string> warnings;
+    REQUIRE(Slic3r::apply_requested_plugin_package_changes(
+        data_directory, config, warnings, error_message));
+    const boost::filesystem::path installed = data_directory / "plugins" / "lifecycle.python";
+    CHECK(boost::filesystem::is_regular_file(installed / "plugin.py"));
+    CHECK(boost::filesystem::is_regular_file(installed / "description.ini"));
+    CHECK(boost::filesystem::is_regular_file(installed / "version.ini"));
+
+    config.installed.clear();
+    config.removed.insert("lifecycle.python");
+    REQUIRE(Slic3r::apply_requested_plugin_package_changes(
+        data_directory, config, warnings, error_message));
+    CHECK_FALSE(boost::filesystem::exists(installed));
+    CHECK(boost::filesystem::is_directory(cached.directory));
+
+    boost::filesystem::remove_all(root);
+}
+
+#ifdef SLIC3R_TEST_PYTHON_PLUGINS
+TEST_CASE("Pure Python package is loaded with its own package root",
+          "[plugins][repository][python]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    REQUIRE(Slic3r::Test::Plugins::python_plugin_test_runtime_available());
+    const Slic3r::Plugin *plugin =
+        Slic3r::Orchestrator::instance().get_plugin("python.external.package_root");
+    REQUIRE(plugin != nullptr);
+    const boost::filesystem::path package_root(plugin->get_package_root());
+    CHECK(package_root.filename() == "python.external.package_root");
+    CHECK(boost::filesystem::is_regular_file(package_root / "description.ini"));
+    CHECK(boost::filesystem::is_regular_file(package_root / "version.ini"));
+}
+#endif
+
+#ifdef _WIN32
+TEST_CASE("Windows plugin VERSIONINFO supplies missing package versions",
+          "[plugins][repository][cache-layout]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-native-version-%%%%-%%%%");
+    const boost::filesystem::path package = root / "native.example";
+    boost::filesystem::create_directories(package);
+    {
+        boost::nowide::ofstream description((package / "description.ini").string());
+        description << description_contents("native.example");
+    }
+    boost::filesystem::copy_file(current_test_executable(), package / plugin_library_filename());
+
+    Slic3r::RepositoryPackageCache cache(root / "data", Slic3r::plugin_repository_cache_adapter());
+    bool purged = false;
+    std::string error_message;
+    REQUIRE(cache.prepare_layout(purged, error_message));
+    Slic3r::RepositoryCachedVersion cached;
+    REQUIRE(cache.cache_simple(package, cached, error_message));
+    CHECK(cached.version.package_version == "9.8.7.6");
+    CHECK(cached.version.slicer_version == "2.7.63.0");
+
+    {
+        boost::nowide::ofstream version((package / "version.ini").string());
+        version << version_contents("1.0.0.0", "2.7.63.0");
+    }
+    CHECK_FALSE(cache.cache_simple(package, cached, error_message));
+    CHECK(error_message.find("native metadata") != std::string::npos);
+
+    boost::filesystem::remove_all(root);
+}
+#endif
 
 TEST_CASE("Repository package cache preserves versions and selects root metadata",
           "[plugins][repository][cache-layout]")
@@ -443,8 +708,9 @@ TEST_CASE("Repository package cache preserves versions and selects root metadata
     {
         boost::nowide::ofstream description((second / "description.ini").string());
         description << "[plugin]\nid = versioned.plugin\nname = New name\n"
-                       "full_name = New full name\npackage_version = 2.0.0-beta.1\n"
-                       "slicer_version = 2.7.0.0\n";
+                       "full_name = New full name\n";
+        boost::nowide::ofstream version((second / "version.ini").string());
+        version << version_contents("2.0.0-beta.1", "2.7.0.0");
         boost::nowide::ofstream library((second / plugin_library_filename()).string(), std::ios::binary);
         library << "second";
     }

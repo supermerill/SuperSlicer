@@ -3,6 +3,14 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 
+// PythonPluginLoader is the native bridge between Python plugin objects and
+// the public C plugin ABI. It loads scripts bundled with the bridge and scans
+// sibling installed packages that contain description.ini, version.ini and a
+// Python entry point but no native plugin library. External scripts are loaded
+// by absolute path under unique module names, then registered with their own
+// package root so relative resources and diagnostics belong to the package
+// which supplied them.
+
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -31,6 +39,7 @@
 #endif
 
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <utility>
@@ -38,12 +47,14 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/log/trivial.hpp>
+#include <boost/nowide/fstream.hpp>
 
 #include "libslic3r/Api/plugin/c/slic3r_plugin.h"
 
 namespace {
 
 using OrchestratorRegisterPluginFn = void (*)(orchestrator_handle *, plugin_instance);
+using OrchestratorRegisterPluginFromPackageFn = void (*)(orchestrator_handle *, plugin_instance, const char *);
 
 std::vector<std::unique_ptr<class PythonPlugin>> s_python_plugins;
 
@@ -607,15 +618,19 @@ private:
     std::vector<const char *> m_defined_config_key_ptrs;
 };
 
-OrchestratorRegisterPluginFn resolve_register_plugin(const boost::filesystem::path &host_library_path)
+bool resolve_registration_functions(const boost::filesystem::path &host_library_path,
+                                    OrchestratorRegisterPluginFn &register_plugin_fn,
+                                    OrchestratorRegisterPluginFromPackageFn &register_package_plugin_fn)
 {
+    register_plugin_fn = nullptr;
+    register_package_plugin_fn = nullptr;
 #ifdef _WIN32
     static std::vector<HMODULE> loaded_modules;
     HMODULE module = LoadLibraryW(host_library_path.wstring().c_str());
     if (module == NULL) {
         BOOST_LOG_TRIVIAL(error) << "Cannot open host library '" << host_library_path.string()
                                  << "' for Python plugin registration: error " << GetLastError();
-        return nullptr;
+        return false;
     }
     loaded_modules.push_back(module);
 
@@ -623,48 +638,74 @@ OrchestratorRegisterPluginFn resolve_register_plugin(const boost::filesystem::pa
     if (farproc == NULL) {
         BOOST_LOG_TRIVIAL(error) << "Host library '" << host_library_path.string()
                                  << "' does not export orchestrator_register_plugin.";
-        return nullptr;
+        return false;
     }
-    return reinterpret_cast<OrchestratorRegisterPluginFn>(farproc);
+    FARPROC package_farproc = GetProcAddress(module, "orchestrator_register_plugin_from_package");
+    if (package_farproc == NULL) {
+        BOOST_LOG_TRIVIAL(error) << "Host library '" << host_library_path.string()
+                                 << "' does not export orchestrator_register_plugin_from_package.";
+        return false;
+    }
+    register_plugin_fn = reinterpret_cast<OrchestratorRegisterPluginFn>(farproc);
+    register_package_plugin_fn = reinterpret_cast<OrchestratorRegisterPluginFromPackageFn>(package_farproc);
 #else
     void *symbol = dlsym(RTLD_DEFAULT, "orchestrator_register_plugin");
-    if (symbol != nullptr)
-        return reinterpret_cast<OrchestratorRegisterPluginFn>(symbol);
+    void *package_symbol = dlsym(RTLD_DEFAULT, "orchestrator_register_plugin_from_package");
+    if (symbol != nullptr && package_symbol != nullptr) {
+        register_plugin_fn = reinterpret_cast<OrchestratorRegisterPluginFn>(symbol);
+        register_package_plugin_fn = reinterpret_cast<OrchestratorRegisterPluginFromPackageFn>(package_symbol);
+        return true;
+    }
 
     void *module = dlopen(host_library_path.string().c_str(), RTLD_NOW | RTLD_GLOBAL);
     if (module == nullptr) {
         BOOST_LOG_TRIVIAL(error) << "Cannot open host library '" << host_library_path.string()
                                  << "' for Python plugin registration: " << dlerror();
-        return nullptr;
+        return false;
     }
 
     symbol = dlsym(module, "orchestrator_register_plugin");
     if (symbol == nullptr) {
         BOOST_LOG_TRIVIAL(error) << "Host library '" << host_library_path.string()
                                  << "' does not export orchestrator_register_plugin: " << dlerror();
-        return nullptr;
+        return false;
     }
-    return reinterpret_cast<OrchestratorRegisterPluginFn>(symbol);
+    package_symbol = dlsym(module, "orchestrator_register_plugin_from_package");
+    if (package_symbol == nullptr) {
+        BOOST_LOG_TRIVIAL(error) << "Host library '" << host_library_path.string()
+                                 << "' does not export orchestrator_register_plugin_from_package: " << dlerror();
+        return false;
+    }
+    register_plugin_fn = reinterpret_cast<OrchestratorRegisterPluginFn>(symbol);
+    register_package_plugin_fn = reinterpret_cast<OrchestratorRegisterPluginFromPackageFn>(package_symbol);
 #endif
+    return true;
 }
 
 void register_python_plugin_object(PyObject *plugin_object,
                                    OrchestratorRegisterPluginFn register_plugin_fn,
-                                   orchestrator_handle *orchestrator)
+                                   OrchestratorRegisterPluginFromPackageFn register_package_plugin_fn,
+                                   orchestrator_handle *orchestrator,
+                                   const boost::filesystem::path &package_root)
 {
     if (plugin_object == nullptr || plugin_object == Py_None)
         return;
 
     std::unique_ptr<PythonPlugin> plugin(new PythonPlugin(plugin_object));
     plugin_instance instance = plugin->c_instance();
-    register_plugin_fn(orchestrator, instance);
+    if (package_root.empty())
+        register_plugin_fn(orchestrator, instance);
+    else
+        register_package_plugin_fn(orchestrator, instance, package_root.string().c_str());
     BOOST_LOG_TRIVIAL(info) << "Registered Python plugin '" << plugin->c_instance().vt->get_id(plugin.get()) << "'.";
     s_python_plugins.emplace_back(std::move(plugin));
 }
 
 void register_python_plugin_result(PyObject *result,
                                    OrchestratorRegisterPluginFn register_plugin_fn,
-                                   orchestrator_handle *orchestrator)
+                                   OrchestratorRegisterPluginFromPackageFn register_package_plugin_fn,
+                                   orchestrator_handle *orchestrator,
+                                   const boost::filesystem::path &package_root)
 {
     if (result == nullptr || result == Py_None)
         return;
@@ -673,13 +714,15 @@ void register_python_plugin_result(PyObject *result,
         const Py_ssize_t count = PySequence_Size(result);
         for (Py_ssize_t idx = 0; idx < count; ++idx) {
             PyObject *item = PySequence_GetItem(result, idx);
-            register_python_plugin_object(item, register_plugin_fn, orchestrator);
+            register_python_plugin_object(item, register_plugin_fn, register_package_plugin_fn,
+                                          orchestrator, package_root);
             Py_XDECREF(item);
         }
         return;
     }
 
-    register_python_plugin_object(result, register_plugin_fn, orchestrator);
+    register_python_plugin_object(result, register_plugin_fn, register_package_plugin_fn,
+                                  orchestrator, package_root);
 }
 
 PyObject *create_python_api(orchestrator_handle *orchestrator, const boost::filesystem::path &host_library_path)
@@ -714,8 +757,10 @@ PyObject *create_python_api(orchestrator_handle *orchestrator, const boost::file
 void call_python_register(PyObject *module,
                           PyObject *api,
                           OrchestratorRegisterPluginFn register_plugin_fn,
+                          OrchestratorRegisterPluginFromPackageFn register_package_plugin_fn,
                           orchestrator_handle *orchestrator,
-                          const boost::filesystem::path &plugin_path)
+                          const boost::filesystem::path &plugin_path,
+                          const boost::filesystem::path &package_root)
 {
     PyObject *register_fn = PyObject_GetAttrString(module, "register_plugin");
     if (register_fn == nullptr) {
@@ -741,7 +786,8 @@ void call_python_register(PyObject *module,
         return;
     }
 
-    register_python_plugin_result(result, register_plugin_fn, orchestrator);
+    register_python_plugin_result(result, register_plugin_fn, register_package_plugin_fn,
+                                  orchestrator, package_root);
     Py_DECREF(result);
     BOOST_LOG_TRIVIAL(info) << "Loaded Python plugin module '" << plugin_path.string() << "'.";
 }
@@ -749,7 +795,9 @@ void call_python_register(PyObject *module,
 void load_python_plugin(const boost::filesystem::path &plugin_path,
                         PyObject *api,
                         OrchestratorRegisterPluginFn register_plugin_fn,
-                        orchestrator_handle *orchestrator)
+                        OrchestratorRegisterPluginFromPackageFn register_package_plugin_fn,
+                        orchestrator_handle *orchestrator,
+                        const boost::filesystem::path &package_root)
 {
     const std::string module_name = plugin_path.stem().string();
     PyObject *module = PyImport_ImportModule(module_name.c_str());
@@ -759,8 +807,79 @@ void load_python_plugin(const boost::filesystem::path &plugin_path,
         return;
     }
 
-    call_python_register(module, api, register_plugin_fn, orchestrator, plugin_path);
+    call_python_register(module, api, register_plugin_fn, register_package_plugin_fn,
+                         orchestrator, plugin_path, package_root);
     Py_DECREF(module);
+}
+
+// External packages are loaded by absolute path under a unique module name.
+// Two packages may both use plugin.py, so importing by stem would otherwise
+// return the first package from Python's module cache.
+void load_python_plugin_from_path(const boost::filesystem::path &plugin_path,
+                                  PyObject *api,
+                                  OrchestratorRegisterPluginFn register_plugin_fn,
+                                  OrchestratorRegisterPluginFromPackageFn register_package_plugin_fn,
+                                  orchestrator_handle *orchestrator,
+                                  const boost::filesystem::path &package_root)
+{
+    boost::nowide::ifstream stream(plugin_path.string(), std::ios::in | std::ios::binary);
+    if (!stream) {
+        BOOST_LOG_TRIVIAL(error) << "Cannot read Python plugin '" << plugin_path.string() << "'.";
+        return;
+    }
+    const std::string source((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+    static uint64_t next_module_id = 0;
+    const std::string module_name = "_slic3r_package_" + std::to_string(++next_module_id);
+    PyObject *code = Py_CompileString(source.c_str(), plugin_path.string().c_str(), Py_file_input);
+    if (code == nullptr) {
+        PyErr_Print();
+        BOOST_LOG_TRIVIAL(error) << "Cannot compile Python plugin '" << plugin_path.string() << "'.";
+        return;
+    }
+    PyObject *module = PyImport_ExecCodeModuleEx(
+        module_name.c_str(), code, plugin_path.string().c_str());
+    Py_DECREF(code);
+    if (module == nullptr) {
+        PyErr_Print();
+        BOOST_LOG_TRIVIAL(error) << "Cannot load Python plugin '" << plugin_path.string() << "'.";
+        return;
+    }
+
+    call_python_register(module, api, register_plugin_fn, register_package_plugin_fn,
+                         orchestrator, plugin_path, package_root);
+    Py_DECREF(module);
+}
+
+std::string native_plugin_filename()
+{
+#ifdef _WIN32
+    return "plugin.dll";
+#elif defined(__APPLE__)
+    return "plugin.dylib";
+#else
+    return "plugin.so";
+#endif
+}
+
+boost::filesystem::path external_python_entry(const boost::filesystem::path &package_root)
+{
+    const std::string package_id = package_root.filename().string();
+    const boost::filesystem::path named_entry = package_root / (package_id + ".py");
+    if (boost::filesystem::is_regular_file(named_entry))
+        return named_entry;
+    const boost::filesystem::path conventional_entry = package_root / "plugin.py";
+    if (boost::filesystem::is_regular_file(conventional_entry))
+        return conventional_entry;
+
+    boost::filesystem::path unique_entry;
+    for (boost::filesystem::directory_iterator it(package_root), end; it != end; ++it) {
+        if (!boost::filesystem::is_regular_file(it->path()) || it->path().extension() != ".py")
+            continue;
+        if (!unique_entry.empty())
+            return {};
+        unique_entry = it->path();
+    }
+    return unique_entry;
 }
 
 void load_python_plugins(orchestrator_handle *orchestrator)
@@ -784,13 +903,9 @@ void load_python_plugins(orchestrator_handle *orchestrator)
         host_library_path = current_executable_path();
 #endif
 
-    if (!boost::filesystem::exists(python_plugins)) {
-        BOOST_LOG_TRIVIAL(trace) << "Python plugin directory '" << python_plugins.string() << "' does not exist.";
-        return;
-    }
-
-    OrchestratorRegisterPluginFn register_plugin_fn = resolve_register_plugin(host_library_path);
-    if (register_plugin_fn == nullptr)
+    OrchestratorRegisterPluginFn register_plugin_fn = nullptr;
+    OrchestratorRegisterPluginFromPackageFn register_package_plugin_fn = nullptr;
+    if (!resolve_registration_functions(host_library_path, register_plugin_fn, register_package_plugin_fn))
         return;
 
     if (!ensure_python_initialized_for_plugins()) {
@@ -804,10 +919,35 @@ void load_python_plugins(orchestrator_handle *orchestrator)
 
     PyObject *api = create_python_api(orchestrator, host_library_path);
     if (api != nullptr) {
-        for (boost::filesystem::directory_iterator it(python_plugins), end; it != end; ++it) {
-            const boost::filesystem::path plugin_path = it->path();
-            if (boost::filesystem::is_regular_file(plugin_path) && plugin_path.extension() == ".py")
-                load_python_plugin(plugin_path, api, register_plugin_fn, orchestrator);
+        // Scripts bundled with the Python loader keep the loader package scope
+        // supplied by the native PluginLoader.
+        if (boost::filesystem::is_directory(python_plugins)) {
+            for (boost::filesystem::directory_iterator it(python_plugins), end; it != end; ++it) {
+                const boost::filesystem::path plugin_path = it->path();
+                if (boost::filesystem::is_regular_file(plugin_path) && plugin_path.extension() == ".py")
+                    load_python_plugin(plugin_path, api, register_plugin_fn, register_package_plugin_fn,
+                                       orchestrator, {});
+            }
+        }
+
+        // Pure Python packages are siblings of native packages. Requiring both
+        // normalized metadata files keeps runtime discovery aligned with cache
+        // validation, while the absence of a library avoids double loading a
+        // native package that also ships helper scripts.
+        const boost::filesystem::path installed_packages = plugin_repository.parent_path();
+        for (boost::filesystem::directory_iterator it(installed_packages), end; it != end; ++it) {
+            const boost::filesystem::path package_root = it->path();
+            if (!boost::filesystem::is_directory(package_root) || package_root == plugin_repository ||
+                boost::filesystem::is_regular_file(package_root / native_plugin_filename()) ||
+                !boost::filesystem::is_regular_file(package_root / "description.ini") ||
+                !boost::filesystem::is_regular_file(package_root / "version.ini"))
+                continue;
+            const boost::filesystem::path plugin_path = external_python_entry(package_root);
+            if (plugin_path.empty())
+                continue;
+            append_python_path(package_root);
+            load_python_plugin_from_path(plugin_path, api, register_plugin_fn, register_package_plugin_fn,
+                                         orchestrator, package_root);
         }
         Py_DECREF(api);
     }

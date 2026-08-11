@@ -5,7 +5,8 @@
 
 // This file implements the durable on-disk protocol shared by downloadable
 // vendor and plugin packages. A package is always validated in a cache first;
-// plugin packages are copied into the live directory only before DLL loading.
+// plugin packages are copied into the live directory only before native or
+// Python plugin loading begins.
 
 #include "PluginRepository.hpp"
 
@@ -38,6 +39,7 @@ const char *const LEGACY_PLUGIN_DIRECTORY = "plugin";
 const char *const ACTIVATED_PLUGINS_FILENAME = "activated.ini";
 const char *const DEFAULT_ACTIVATED_PLUGINS_FILENAME = "default_activated.ini";
 const char *const DESCRIPTION_FILENAME = "description.ini";
+const char *const VERSION_FILENAME = "version.ini";
 
 const char *plugin_package_library_filename();
 bool ini_value_is_enabled(const std::string &value);
@@ -50,6 +52,11 @@ bool parse_bundle_filename(const boost::filesystem::path &archive_path,
 bool is_safe_archive_entry(const std::string &entry_name);
 bool copy_directory_tree(const boost::filesystem::path &source,
                          const boost::filesystem::path &destination,
+                         std::string &error_message);
+boost::filesystem::path find_plugin_python_entry(const boost::filesystem::path &package_root,
+                                                 const std::string &package_name);
+bool read_plugin_version(const boost::filesystem::path &package_root,
+                         PluginInstalledVersion &version,
                          std::string &error_message);
 bool validate_plugin_package(const boost::filesystem::path &package_root,
                              const std::string &package_name,
@@ -182,6 +189,52 @@ bool copy_directory_tree(const boost::filesystem::path &source,
     return true;
 }
 
+// Python packages use one predictable root entry so both validation and the
+// runtime loader agree on exactly which script owns plugin registration.
+boost::filesystem::path find_plugin_python_entry(const boost::filesystem::path &package_root,
+                                                 const std::string &package_name)
+{
+    const boost::filesystem::path named_entry = package_root / (package_name + ".py");
+    if (boost::filesystem::is_regular_file(named_entry))
+        return named_entry;
+    const boost::filesystem::path conventional_entry = package_root / "plugin.py";
+    if (boost::filesystem::is_regular_file(conventional_entry))
+        return conventional_entry;
+
+    boost::filesystem::path unique_entry;
+    for (boost::filesystem::directory_iterator it(package_root), end; it != end; ++it) {
+        if (!boost::filesystem::is_regular_file(it->path()) || it->path().extension() != ".py")
+            continue;
+        if (!unique_entry.empty())
+            return {};
+        unique_entry = it->path();
+    }
+    return unique_entry;
+}
+
+bool read_plugin_version(const boost::filesystem::path &package_root,
+                         PluginInstalledVersion &version,
+                         std::string &error_message)
+{
+    const boost::filesystem::path version_path = package_root / VERSION_FILENAME;
+    try {
+        boost::property_tree::ptree tree;
+        boost::property_tree::read_ini(version_path.string(), tree);
+        const boost::property_tree::ptree &plugin = tree.get_child("plugin");
+        version.package_version = plugin.get<std::string>("package_version", std::string());
+        version.slicer_version = plugin.get<std::string>("slicer_version", std::string());
+        if (!is_valid_package_version(version.package_version) ||
+            !is_valid_package_version(version.slicer_version)) {
+            error_message = "Plugin version.ini contains an invalid package or slicer version.";
+            return false;
+        }
+        return true;
+    } catch (const std::exception &error) {
+        error_message = "Cannot read plugin version.ini: " + std::string(error.what());
+        return false;
+    }
+}
+
 bool validate_plugin_package(const boost::filesystem::path &package_root,
                              const std::string &package_name,
                              const PluginInstalledVersion &version,
@@ -203,17 +256,25 @@ bool validate_plugin_package(const boost::filesystem::path &package_root,
     RepositoryDescription description;
     if (!parse_repository_description(contents, RepositoryPackageType::Plugin, description, error_message))
         return false;
-    if (description.id != package_name || description.package_version != version.package_version ||
-        description.slicer_version != version.slicer_version) {
-        error_message = "Plugin description.ini does not match package '" + package_name + "' version '" +
-                        version.package_version + "' for slicer '" + version.slicer_version + "'.";
+    if (description.id != package_name) {
+        error_message = "Plugin description.ini does not match package '" + package_name + "'.";
+        return false;
+    }
+
+    PluginInstalledVersion stored_version;
+    if (!read_plugin_version(package_root, stored_version, error_message) ||
+        stored_version.package_version != version.package_version ||
+        stored_version.slicer_version != version.slicer_version) {
+        if (error_message.empty())
+            error_message = "Plugin version.ini does not match the requested cached version.";
         return false;
     }
 
     const boost::filesystem::path library_path = package_root / plugin_package_library_filename();
-    if (!boost::filesystem::is_regular_file(library_path)) {
-        error_message = "Plugin package '" + package_name + "' does not contain '" +
-                        plugin_package_library_filename() + "' at its root.";
+    if (!boost::filesystem::is_regular_file(library_path) &&
+        find_plugin_python_entry(package_root, package_name).empty()) {
+        error_message = "Plugin package '" + package_name + "' contains neither '" +
+                        plugin_package_library_filename() + "' nor an unambiguous Python entry point.";
         return false;
     }
     return true;
@@ -308,8 +369,9 @@ bool parse_repository_description(const std::string &contents,
         description.description = section.get<std::string>("description", std::string());
         description.config_update_rest = section.get<std::string>("config_update_rest", std::string());
         description.slicer = section.get<std::string>("slicer", std::string());
-        description.package_version = section.get<std::string>("package_version", section.get<std::string>("config_version", std::string()));
-        description.slicer_version = section.get<std::string>("slicer_version", std::string());
+        // Version-looking keys are accepted for compatibility with packages
+        // produced before versions were separated, but are intentionally not
+        // copied into the generic repository description.
         if (!is_valid_repository_id(description.id)) {
             error_message = "Repository description contains an invalid id '" + description.id + "'.";
             return false;
@@ -566,11 +628,11 @@ bool cache_plugin_package_archive(const boost::filesystem::path &data_directory,
     if (!cache.prepare_layout(purged, error_message))
         return false;
 
-    RepositoryDescription expected;
+    RepositoryPackageExpectation expected;
     expected.type = RepositoryPackageType::Plugin;
     expected.id = package_name;
-    expected.package_version = package_version;
-    expected.slicer_version = slicer_version;
+    expected.version.package_version = package_version;
+    expected.version.slicer_version = slicer_version;
     RepositoryCachedVersion cached;
     if (!cache.cache_archive(archive_path, expected, cached, error_message))
         return false;
@@ -648,15 +710,15 @@ bool prepare_plugin_bundle_cache(const boost::filesystem::path &resources_direct
                 if (!boost::filesystem::is_directory(it->path()))
                     continue;
                 const std::string package_name = it->path().filename().string();
-                std::optional<RepositoryDescription> expected;
+                std::optional<RepositoryPackageExpectation> expected;
                 const std::map<std::string, PluginInstalledVersion>::const_iterator requested =
                     config.installed.find(package_name);
                 if (requested != config.installed.end()) {
                     expected.emplace();
                     expected->type = RepositoryPackageType::Plugin;
                     expected->id = package_name;
-                    expected->package_version = requested->second.package_version;
-                    expected->slicer_version = requested->second.slicer_version;
+                    expected->version.package_version = requested->second.package_version;
+                    expected->version.slicer_version = requested->second.slicer_version;
                 }
                 RepositoryCachedVersion cached;
                 std::string cache_error;

@@ -3,6 +3,12 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 
+// PluginLoader prepares requested package changes, loads native installed
+// packages, registers built-in plugins, and finally applies activation choices.
+// Native packages are loaded here under a package registration scope. Pure
+// Python sibling packages are intentionally left to PythonPluginLoader, which
+// constructs the same scope when it registers their plugin instances.
+
 #include "PluginLoader.hpp"
 #include "PluginRepository.hpp"
 
@@ -225,9 +231,11 @@ void load_plugins_from_repository(const boost::filesystem::path &repository, orc
                 continue;
 
             const boost::filesystem::path package_library = plugin_path / plugin_package_library_filename();
-            const boost::filesystem::path package_manifest = plugin_path / (package_name + ".ini");
+            const boost::filesystem::path package_manifest = plugin_path / "description.ini";
+            const boost::filesystem::path package_version = plugin_path / "version.ini";
             if (boost::filesystem::is_regular_file(package_library) &&
-                boost::filesystem::is_regular_file(package_manifest)) {
+                boost::filesystem::is_regular_file(package_manifest) &&
+                boost::filesystem::is_regular_file(package_version)) {
                 BOOST_LOG_TRIVIAL(info) << "Loading plugin package '" << plugin_path.string() << "'.";
                 load_plugin_library(package_library, plugin_path, orchestrator);
             }

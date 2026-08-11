@@ -53,6 +53,7 @@ target_link_libraries(${_TEST_NAME}_tests test_common test_common_data libslic3r
 set_property(TARGET ${_TEST_NAME}_tests PROPERTY FOLDER "tests")
 
 if (WIN32)
+    target_sources(${_TEST_NAME}_tests PRIVATE plugin_version_metadata.rc)
     prusaslicer_copy_dlls(${_TEST_NAME}_tests)
     set_target_properties(${_TEST_NAME}_tests PROPERTIES ENABLE_EXPORTS ON)
 endif()
@@ -69,6 +70,9 @@ if (TARGET python_plugin_loader)
         COMMAND "${CMAKE_COMMAND}" -E copy_directory
             "$<TARGET_FILE_DIR:python_plugin_loader>/python"
             "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python/python"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/pure_python_package"
+            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python.external.package_root"
         COMMAND "${CMAKE_COMMAND}" -E rm -f
             "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python/python/plugins/default_surface_generator.py"
         COMMAND "${CMAKE_COMMAND}" -E rm -f

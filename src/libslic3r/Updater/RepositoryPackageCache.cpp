@@ -13,8 +13,10 @@
 #include <cctype>
 #include <fstream>
 #include <iterator>
+#include <regex>
 #include <sstream>
 #include <utility>
+#include <vector>
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/filesystem.hpp>
@@ -26,12 +28,18 @@
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/libslic3r.h"
 
+#ifdef _WIN32
+#include <Windows.h>
+#pragma comment(lib, "version.lib")
+#endif
+
 namespace Slic3r {
 namespace {
 
 const char *const CACHE_LAYOUT_VERSION = "2";
 const char *const CACHE_LAYOUT_FILENAME = ".layout_version";
 const char *const DESCRIPTION_FILENAME = "description.ini";
+const char *const VERSION_FILENAME = "version.ini";
 const char *const DEFAULT_VERSION = "1.0.0.0";
 
 std::string package_type_directory(RepositoryPackageType type);
@@ -44,18 +52,28 @@ bool repository_root_accepts_id(const boost::filesystem::path &descriptor,
                                 std::string &error_message);
 bool write_description_file(const boost::filesystem::path &path,
                             const RepositoryDescription &description,
-                            bool include_version,
                             std::string &error_message);
+bool write_plugin_version_file(const boost::filesystem::path &path,
+                               const RepositoryPackageVersion &version,
+                               std::string &error_message);
+bool read_plugin_version_file(const boost::filesystem::path &path,
+                              RepositoryPackageVersion &version,
+                              std::string &error_message);
 bool copy_directory_tree(const boost::filesystem::path &source,
                          const boost::filesystem::path &destination,
                          std::string &error_message);
 bool descriptions_match(const RepositoryDescription &actual,
                         const RepositoryDescription &expected,
                         std::string &error_message);
+bool versions_match(const RepositoryPackageVersion &actual,
+                    const RepositoryPackageVersion &expected,
+                    std::string &error_message);
 void apply_description_defaults(RepositoryDescription &description);
+void apply_version_defaults(RepositoryPackageVersion &version);
 bool normalize_vendor_profile(const boost::filesystem::path &source,
                               const boost::filesystem::path &destination,
                               RepositoryDescription &description,
+                              RepositoryPackageVersion &version,
                               std::string &error_message);
 bool locate_vendor_profile(const boost::filesystem::path &source,
                            RepositoryPackageSource source_type,
@@ -64,23 +82,46 @@ bool locate_vendor_profile(const boost::filesystem::path &source,
 bool parse_version_directory_name(const std::string &name,
                                   std::string &package_version,
                                   std::string &slicer_version);
-bool newer_description(const RepositoryDescription &left, const RepositoryDescription &right);
+bool newer_version(const RepositoryPackageVersion &left, const RepositoryPackageVersion &right);
+boost::filesystem::path find_plugin_python_entry(const boost::filesystem::path &source,
+                                                 const std::string &id);
+bool plugin_has_supported_payload(const boost::filesystem::path &source,
+                                  const std::string &id,
+                                  std::string &error_message);
+bool read_python_plugin_version(const boost::filesystem::path &entry,
+                                RepositoryPackageVersion &version,
+                                std::string &error_message);
+bool read_native_plugin_version(const boost::filesystem::path &library,
+                                RepositoryPackageVersion &version,
+                                std::string &error_message);
+bool merge_plugin_version_source(RepositoryPackageVersion &version,
+                                 const RepositoryPackageVersion &source,
+                                 const std::string &source_name,
+                                 std::string &error_message);
+bool resolve_plugin_version(const boost::filesystem::path &source,
+                            const std::string &id,
+                            const std::optional<RepositoryPackageExpectation> &expected,
+                            RepositoryPackageVersion &version,
+                            std::string &error_message);
 
 class VendorRepositoryPackageCacheAdapter final : public RepositoryPackageCacheAdapter {
 public:
     RepositoryPackageType package_type() const override { return RepositoryPackageType::Vendor; }
     bool inspect(const boost::filesystem::path &source,
                  RepositoryPackageSource source_type,
-                 const std::optional<RepositoryDescription> &expected,
+                 const std::optional<RepositoryPackageExpectation> &expected,
                  RepositoryDescription &description,
+                 RepositoryPackageVersion &version,
                  std::string &error_message) const override;
     bool stage(const boost::filesystem::path &source,
                RepositoryPackageSource source_type,
                const RepositoryDescription &description,
+               const RepositoryPackageVersion &version,
                const boost::filesystem::path &staging,
                std::string &error_message) const override;
     bool validate(const boost::filesystem::path &version_directory,
                   const RepositoryDescription &description,
+                  const RepositoryPackageVersion &version,
                   std::string &error_message) const override;
 };
 
@@ -89,16 +130,19 @@ public:
     RepositoryPackageType package_type() const override { return RepositoryPackageType::Plugin; }
     bool inspect(const boost::filesystem::path &source,
                  RepositoryPackageSource source_type,
-                 const std::optional<RepositoryDescription> &expected,
+                 const std::optional<RepositoryPackageExpectation> &expected,
                  RepositoryDescription &description,
+                 RepositoryPackageVersion &version,
                  std::string &error_message) const override;
     bool stage(const boost::filesystem::path &source,
                RepositoryPackageSource source_type,
                const RepositoryDescription &description,
+               const RepositoryPackageVersion &version,
                const boost::filesystem::path &staging,
                std::string &error_message) const override;
     bool validate(const boost::filesystem::path &version_directory,
                   const RepositoryDescription &description,
+                  const RepositoryPackageVersion &version,
                   std::string &error_message) const override;
 };
 
@@ -158,11 +202,10 @@ bool repository_root_accepts_id(const boost::filesystem::path &descriptor,
     return false;
 }
 
-// Root descriptors intentionally omit versions. Version descriptions use the
-// key expected by their package family while sharing all identity fields.
+// Descriptions contain only repository identity and display metadata. The
+// same normalized format is used at repository root and inside each version.
 bool write_description_file(const boost::filesystem::path &path,
                             const RepositoryDescription &description,
-                            bool include_version,
                             std::string &error_message)
 {
     try {
@@ -180,11 +223,6 @@ bool write_description_file(const boost::filesystem::path &path,
         stream << "description = " << description.description << "\n";
         stream << "config_update_rest = " << description.config_update_rest << "\n";
         stream << "slicer = " << description.slicer << "\n";
-        if (include_version) {
-            stream << (description.type == RepositoryPackageType::Vendor ? "config_version = " : "package_version = ")
-                   << description.package_version << "\n";
-            stream << "slicer_version = " << description.slicer_version << "\n";
-        }
         if (!stream.good()) {
             error_message = "Cannot finish repository description '" + path.string() + "'.";
             return false;
@@ -192,6 +230,51 @@ bool write_description_file(const boost::filesystem::path &path,
         return true;
     } catch (const boost::filesystem::filesystem_error &error) {
         error_message = error.what();
+        return false;
+    }
+}
+
+// Plugin versions are deliberately stored apart from description.ini. This
+// file travels with the payload and is the authoritative local version source.
+bool write_plugin_version_file(const boost::filesystem::path &path,
+                               const RepositoryPackageVersion &version,
+                               std::string &error_message)
+{
+    try {
+        boost::nowide::ofstream stream(path.string(), std::ios::out | std::ios::trunc);
+        if (!stream) {
+            error_message = "Cannot create plugin version file '" + path.string() + "'.";
+            return false;
+        }
+        stream << "[plugin]\n";
+        stream << "package_version = " << version.package_version << "\n";
+        stream << "slicer_version = " << version.slicer_version << "\n";
+        if (!stream.good()) {
+            error_message = "Cannot finish plugin version file '" + path.string() + "'.";
+            return false;
+        }
+        return true;
+    } catch (const std::exception &error) {
+        error_message = error.what();
+        return false;
+    }
+}
+
+// Missing values remain empty here so metadata and repository expectations can
+// provide them later. Syntax errors are rejected instead of being defaulted.
+bool read_plugin_version_file(const boost::filesystem::path &path,
+                              RepositoryPackageVersion &version,
+                              std::string &error_message)
+{
+    try {
+        boost::property_tree::ptree tree;
+        boost::property_tree::read_ini(path.string(), tree);
+        const boost::property_tree::ptree &plugin = tree.get_child("plugin");
+        version.package_version = plugin.get<std::string>("package_version", std::string());
+        version.slicer_version = plugin.get<std::string>("slicer_version", std::string());
+        return true;
+    } catch (const std::exception &error) {
+        error_message = "Cannot read plugin version file '" + path.string() + "': " + error.what();
         return false;
     }
 }
@@ -232,6 +315,26 @@ bool descriptions_match(const RepositoryDescription &actual,
         error_message = "Package id '" + actual.id + "' does not match expected id '" + expected.id + "'.";
         return false;
     }
+    const std::pair<const std::string *, const std::string *> fields[] = {
+        {&actual.name, &expected.name},
+        {&actual.full_name, &expected.full_name},
+        {&actual.description, &expected.description},
+        {&actual.config_update_rest, &expected.config_update_rest},
+        {&actual.slicer, &expected.slicer}
+    };
+    for (const std::pair<const std::string *, const std::string *> &field : fields) {
+        if (!field.second->empty() && *field.first != *field.second) {
+            error_message = "Package description metadata does not match its expected value.";
+            return false;
+        }
+    }
+    return true;
+}
+
+bool versions_match(const RepositoryPackageVersion &actual,
+                    const RepositoryPackageVersion &expected,
+                    std::string &error_message)
+{
     if (!expected.package_version.empty() && actual.package_version != expected.package_version) {
         error_message = "Package version '" + actual.package_version + "' does not match expected version '" +
                         expected.package_version + "'.";
@@ -247,10 +350,6 @@ bool descriptions_match(const RepositoryDescription &actual,
 
 void apply_description_defaults(RepositoryDescription &description)
 {
-    if (description.package_version.empty())
-        description.package_version = DEFAULT_VERSION;
-    if (description.slicer_version.empty())
-        description.slicer_version = DEFAULT_VERSION;
     if (description.name.empty())
         description.name = description.id;
     if (description.full_name.empty())
@@ -259,11 +358,20 @@ void apply_description_defaults(RepositoryDescription &description)
         description.slicer = SLIC3R_APP_KEY;
 }
 
+void apply_version_defaults(RepositoryPackageVersion &version)
+{
+    if (version.package_version.empty())
+        version.package_version = DEFAULT_VERSION;
+    if (version.slicer_version.empty())
+        version.slicer_version = DEFAULT_VERSION;
+}
+
 // Rewrite the vendor header in the staged copy so defaults are part of the
 // installable profile itself, not only its generated description.ini.
 bool normalize_vendor_profile(const boost::filesystem::path &source,
                               const boost::filesystem::path &destination,
                               RepositoryDescription &description,
+                              RepositoryPackageVersion &version,
                               std::string &error_message)
 {
     try {
@@ -272,6 +380,7 @@ bool normalize_vendor_profile(const boost::filesystem::path &source,
         boost::property_tree::ptree &vendor = tree.get_child("vendor");
         const std::string fallback_id = source.stem().string();
         description = {};
+        version = {};
         description.type = RepositoryPackageType::Vendor;
         description.id = vendor.get<std::string>("id", fallback_id);
         description.name = vendor.get<std::string>("name", description.id);
@@ -279,9 +388,10 @@ bool normalize_vendor_profile(const boost::filesystem::path &source,
         description.description = vendor.get<std::string>("description", std::string());
         description.config_update_rest = vendor.get<std::string>("config_update_rest", std::string());
         description.slicer = vendor.get<std::string>("slicer", std::string());
-        description.package_version = vendor.get<std::string>("config_version", std::string());
-        description.slicer_version = vendor.get<std::string>("slicer_version", std::string());
+        version.package_version = vendor.get<std::string>("config_version", std::string());
+        version.slicer_version = vendor.get<std::string>("slicer_version", std::string());
         apply_description_defaults(description);
+        apply_version_defaults(version);
 
         vendor.put("id", description.id);
         vendor.put("name", description.name);
@@ -289,8 +399,8 @@ bool normalize_vendor_profile(const boost::filesystem::path &source,
         vendor.put("description", description.description);
         vendor.put("config_update_rest", description.config_update_rest);
         vendor.put("slicer", description.slicer);
-        vendor.put("config_version", description.package_version);
-        vendor.put("slicer_version", description.slicer_version);
+        vendor.put("config_version", version.package_version);
+        vendor.put("slicer_version", version.slicer_version);
         boost::filesystem::create_directories(destination.parent_path());
         boost::property_tree::write_ini(destination.string(), tree);
         return true;
@@ -348,7 +458,7 @@ bool parse_version_directory_name(const std::string &name,
     return Semver::parse(package_version).has_value() && Semver::parse(slicer_version).has_value();
 }
 
-bool newer_description(const RepositoryDescription &left, const RepositoryDescription &right)
+bool newer_version(const RepositoryPackageVersion &left, const RepositoryPackageVersion &right)
 {
     const std::optional<Semver> left_package = Semver::parse(left.package_version);
     const std::optional<Semver> right_package = Semver::parse(right.package_version);
@@ -359,11 +469,190 @@ bool newer_description(const RepositoryDescription &left, const RepositoryDescri
     return *Semver::parse(left.slicer_version) > *Semver::parse(right.slicer_version);
 }
 
+// A package may use its id as the entry-point name, the conventional
+// plugin.py name, or a single unambiguous Python file at its root.
+boost::filesystem::path find_plugin_python_entry(const boost::filesystem::path &source,
+                                                 const std::string &id)
+{
+    const boost::filesystem::path named_entry = source / (id + ".py");
+    if (boost::filesystem::is_regular_file(named_entry))
+        return named_entry;
+    const boost::filesystem::path conventional_entry = source / "plugin.py";
+    if (boost::filesystem::is_regular_file(conventional_entry))
+        return conventional_entry;
+
+    boost::filesystem::path unique_entry;
+    if (!boost::filesystem::is_directory(source))
+        return unique_entry;
+    for (boost::filesystem::directory_iterator it(source), end; it != end; ++it) {
+        if (!boost::filesystem::is_regular_file(it->path()) || it->path().extension() != ".py")
+            continue;
+        if (!unique_entry.empty())
+            return {};
+        unique_entry = it->path();
+    }
+    return unique_entry;
+}
+
+bool plugin_has_supported_payload(const boost::filesystem::path &source,
+                                  const std::string &id,
+                                  std::string &error_message)
+{
+    if (boost::filesystem::is_regular_file(source / plugin_library_filename()) ||
+        !find_plugin_python_entry(source, id).empty())
+        return true;
+    error_message = "Plugin package '" + id + "' must contain '" + plugin_library_filename() +
+                    "' or one unambiguous Python entry point.";
+    return false;
+}
+
+// Python metadata is parsed as literal single-line assignments. The package is
+// never executed while being inspected, so importing a local archive is safe.
+bool read_python_plugin_version(const boost::filesystem::path &entry,
+                                RepositoryPackageVersion &version,
+                                std::string &error_message)
+{
+    boost::nowide::ifstream stream(entry.string());
+    if (!stream) {
+        error_message = "Cannot read Python plugin entry '" + entry.string() + "'.";
+        return false;
+    }
+
+    const std::regex package_pattern("^[[:space:]]*__version__[[:space:]]*=[[:space:]]*(['\"])([^'\"]+)\\1[[:space:]]*(?:#.*)?$");
+    const std::regex slicer_pattern("^[[:space:]]*__slicer_version__[[:space:]]*=[[:space:]]*(['\"])([^'\"]+)\\1[[:space:]]*(?:#.*)?$");
+    std::string line;
+    std::smatch match;
+    while (std::getline(stream, line)) {
+        if (std::regex_match(line, match, package_pattern)) {
+            if (!version.package_version.empty() && version.package_version != match[2].str()) {
+                error_message = "Python plugin declares __version__ more than once with different values.";
+                return false;
+            }
+            version.package_version = match[2].str();
+        } else if (std::regex_match(line, match, slicer_pattern)) {
+            if (!version.slicer_version.empty() && version.slicer_version != match[2].str()) {
+                error_message = "Python plugin declares __slicer_version__ more than once with different values.";
+                return false;
+            }
+            version.slicer_version = match[2].str();
+        }
+    }
+    return true;
+}
+
+// Native metadata is optional. On Windows, VERSIONINFO strings provide the
+// plugin version without loading untrusted code into the slicer process.
+bool read_native_plugin_version(const boost::filesystem::path &library,
+                                RepositoryPackageVersion &version,
+                                std::string &error_message)
+{
+#ifdef _WIN32
+    DWORD ignored = 0;
+    const DWORD size = GetFileVersionInfoSizeW(library.wstring().c_str(), &ignored);
+    if (size == 0)
+        return true;
+    std::vector<unsigned char> data(size);
+    if (!GetFileVersionInfoW(library.wstring().c_str(), 0, size, data.data())) {
+        error_message = "Cannot read VERSIONINFO from plugin library '" + library.string() + "'.";
+        return false;
+    }
+
+    struct Translation { WORD language; WORD code_page; };
+    Translation *translations = nullptr;
+    UINT translation_bytes = 0;
+    if (!VerQueryValueW(data.data(), L"\\VarFileInfo\\Translation",
+                        reinterpret_cast<void **>(&translations), &translation_bytes) ||
+        translation_bytes < sizeof(Translation))
+        return true;
+
+    const wchar_t *keys[] = {L"ProductVersion", L"SlicerVersion"};
+    std::string *outputs[] = {&version.package_version, &version.slicer_version};
+    for (size_t idx = 0; idx < 2; ++idx) {
+        wchar_t query[128];
+        swprintf(query, sizeof(query) / sizeof(query[0]), L"\\StringFileInfo\\%04x%04x\\%ls",
+                 translations[0].language, translations[0].code_page, keys[idx]);
+        wchar_t *value = nullptr;
+        UINT value_size = 0;
+        if (VerQueryValueW(data.data(), query, reinterpret_cast<void **>(&value), &value_size) &&
+            value != nullptr && value_size > 1)
+            *outputs[idx] = boost::nowide::narrow(value);
+    }
+#else
+    (void) library;
+    (void) error_message;
+#endif
+    return true;
+}
+
+// Merge one provenance source without silently choosing a winner. A conflict
+// means the package cannot identify which version would actually be installed.
+bool merge_plugin_version_source(RepositoryPackageVersion &version,
+                                 const RepositoryPackageVersion &source,
+                                 const std::string &source_name,
+                                 std::string &error_message)
+{
+    if (!source.package_version.empty()) {
+        if (!version.package_version.empty() && version.package_version != source.package_version) {
+            error_message = "Plugin package version conflict with " + source_name + ": '" +
+                            version.package_version + "' versus '" + source.package_version + "'.";
+            return false;
+        }
+        version.package_version = source.package_version;
+    }
+    if (!source.slicer_version.empty()) {
+        if (!version.slicer_version.empty() && version.slicer_version != source.slicer_version) {
+            error_message = "Plugin slicer version conflict with " + source_name + ": '" +
+                            version.slicer_version + "' versus '" + source.slicer_version + "'.";
+            return false;
+        }
+        version.slicer_version = source.slicer_version;
+    }
+    return true;
+}
+
+bool resolve_plugin_version(const boost::filesystem::path &source,
+                            const std::string &id,
+                            const std::optional<RepositoryPackageExpectation> &expected,
+                            RepositoryPackageVersion &version,
+                            std::string &error_message)
+{
+    version = {};
+    const boost::filesystem::path version_path = source / VERSION_FILENAME;
+    if (boost::filesystem::is_regular_file(version_path) &&
+        !read_plugin_version_file(version_path, version, error_message))
+        return false;
+
+    RepositoryPackageVersion native_version;
+    const boost::filesystem::path library = source / plugin_library_filename();
+    if (boost::filesystem::is_regular_file(library) &&
+        !read_native_plugin_version(library, native_version, error_message))
+        return false;
+    const boost::filesystem::path python_entry = find_plugin_python_entry(source, id);
+    if (!python_entry.empty()) {
+        RepositoryPackageVersion python_version;
+        if (!read_python_plugin_version(python_entry, python_version, error_message) ||
+            !merge_plugin_version_source(native_version, python_version, "Python metadata", error_message))
+            return false;
+    }
+    if (!merge_plugin_version_source(version, native_version, "native metadata", error_message))
+        return false;
+    if (expected && !merge_plugin_version_source(version, expected->version, "repository tag", error_message))
+        return false;
+
+    apply_version_defaults(version);
+    if (!Semver::parse(version.package_version) || !Semver::parse(version.slicer_version)) {
+        error_message = "Plugin package contains an invalid package or slicer version.";
+        return false;
+    }
+    return true;
+}
+
 bool VendorRepositoryPackageCacheAdapter::inspect(
     const boost::filesystem::path &source,
     RepositoryPackageSource source_type,
-    const std::optional<RepositoryDescription> &expected,
+    const std::optional<RepositoryPackageExpectation> &expected,
     RepositoryDescription &description,
+    RepositoryPackageVersion &version,
     std::string &error_message) const
 {
     boost::filesystem::path profile_path;
@@ -372,15 +661,15 @@ bool VendorRepositoryPackageCacheAdapter::inspect(
 
     const boost::filesystem::path temporary = boost::filesystem::temp_directory_path() /
         boost::filesystem::unique_path(".vendor-description-%%%%-%%%%.ini");
-    const bool normalized = normalize_vendor_profile(profile_path, temporary, description, error_message);
+    const bool normalized = normalize_vendor_profile(profile_path, temporary, description, version, error_message);
     boost::system::error_code ignored_error;
     boost::filesystem::remove(temporary, ignored_error);
     if (!normalized)
         return false;
 
-    // Complete archives may repeat package metadata in description.ini. It is
-    // not used to relabel the vendor profile, but conflicting identity or
-    // versions make the archive ambiguous and are rejected.
+    // Complete archives may repeat generic display metadata in description.ini.
+    // Version-looking keys in that file are ignored; only the profile owns the
+    // vendor and slicer versions.
     const boost::filesystem::path manifest_path = source / DESCRIPTION_FILENAME;
     if (source_type == RepositoryPackageSource::Package &&
         boost::filesystem::is_regular_file(manifest_path)) {
@@ -389,17 +678,22 @@ bool VendorRepositoryPackageCacheAdapter::inspect(
         if (!read_file(manifest_path, contents) ||
             !parse_repository_description(contents, RepositoryPackageType::Vendor, manifest, error_message))
             return false;
-        apply_description_defaults(manifest);
         if (!descriptions_match(description, manifest, error_message))
             return false;
     }
-    return !expected || descriptions_match(description, *expected, error_message);
+    if (expected && (expected->type != RepositoryPackageType::Vendor ||
+                     description.id != expected->id)) {
+        error_message = "Vendor package identity does not match its repository tag.";
+        return false;
+    }
+    return !expected || versions_match(version, expected->version, error_message);
 }
 
 bool VendorRepositoryPackageCacheAdapter::stage(
     const boost::filesystem::path &source,
     RepositoryPackageSource source_type,
     const RepositoryDescription &description,
+    const RepositoryPackageVersion &version,
     const boost::filesystem::path &staging,
     std::string &error_message) const
 {
@@ -414,11 +708,14 @@ bool VendorRepositoryPackageCacheAdapter::stage(
         boost::filesystem::create_directories(staging / "profiles");
 
         RepositoryDescription normalized;
+        RepositoryPackageVersion normalized_version;
         const boost::filesystem::path normalized_profile = staging / "profiles" / (description.id + ".ini");
         if (!normalize_vendor_profile(profile_path, normalized_profile,
-                                      normalized, error_message))
+                                      normalized, normalized_version, error_message))
             return false;
-        if (!descriptions_match(normalized, description, error_message))
+        if (!descriptions_match(normalized, description, error_message) ||
+            !versions_match(normalized_version, version, error_message) ||
+            !versions_match(version, normalized_version, error_message))
             return false;
 
         // A package may name its input profile after an archive wrapper. Keep
@@ -437,7 +734,7 @@ bool VendorRepositoryPackageCacheAdapter::stage(
                 !copy_directory_tree(icons, staging / "profiles" / description.id, error_message))
                 return false;
         }
-        return write_description_file(staging / DESCRIPTION_FILENAME, description, true, error_message);
+        return write_description_file(staging / DESCRIPTION_FILENAME, description, error_message);
     } catch (const boost::filesystem::filesystem_error &error) {
         error_message = error.what();
         return false;
@@ -447,6 +744,7 @@ bool VendorRepositoryPackageCacheAdapter::stage(
 bool VendorRepositoryPackageCacheAdapter::validate(
     const boost::filesystem::path &version_directory,
     const RepositoryDescription &description,
+    const RepositoryPackageVersion &version,
     std::string &error_message) const
 {
     const boost::filesystem::path profile_path = version_directory / "profiles" / (description.id + ".ini");
@@ -456,28 +754,34 @@ bool VendorRepositoryPackageCacheAdapter::validate(
     }
     try {
         const VendorProfile profile = VendorProfile::from_ini(profile_path, true);
-        if (profile.id != description.id || profile.config_version.to_string() != description.package_version ||
-            profile.slicer_version.to_string() != description.slicer_version) {
-            error_message = "Vendor profile metadata does not match its version description.";
+        if (profile.id != description.id || profile.config_version.to_string() != version.package_version ||
+            profile.slicer_version.to_string() != version.slicer_version) {
+            error_message = "Vendor profile metadata does not match its cached version directory.";
             return false;
         }
     } catch (const std::exception &error) {
         error_message = error.what();
         return false;
     }
-    return true;
+    std::string contents;
+    RepositoryDescription actual;
+    if (!read_file(version_directory / DESCRIPTION_FILENAME, contents) ||
+        !parse_repository_description(contents, RepositoryPackageType::Vendor, actual, error_message))
+        return false;
+    return descriptions_match(actual, description, error_message) &&
+           descriptions_match(description, actual, error_message);
 }
 
 bool PluginRepositoryPackageCacheAdapter::inspect(
     const boost::filesystem::path &source,
     RepositoryPackageSource,
-    const std::optional<RepositoryDescription> &expected,
+    const std::optional<RepositoryPackageExpectation> &expected,
     RepositoryDescription &description,
+    RepositoryPackageVersion &version,
     std::string &error_message) const
 {
-    if (!boost::filesystem::is_directory(source) ||
-        !boost::filesystem::is_regular_file(source / plugin_library_filename())) {
-        error_message = "Plugin package must be a directory containing '" + plugin_library_filename() + "'.";
+    if (!boost::filesystem::is_directory(source)) {
+        error_message = "Plugin package source is not a directory.";
         return false;
     }
 
@@ -492,42 +796,53 @@ bool PluginRepositoryPackageCacheAdapter::inspect(
         // descriptions. Its requested activation version is authoritative in
         // that case; a manually imported folder still derives its identity
         // from the directory name and receives local-package defaults.
-        description = expected.value_or(RepositoryDescription{});
+        description = {};
         description.type = RepositoryPackageType::Plugin;
-        if (description.id.empty())
-            description.id = source.filename().string();
+        description.id = expected ? expected->id : source.filename().string();
     }
     apply_description_defaults(description);
-    return !expected || descriptions_match(description, *expected, error_message);
+    if (expected && (expected->type != RepositoryPackageType::Plugin || description.id != expected->id)) {
+        error_message = "Plugin package identity does not match its repository tag.";
+        return false;
+    }
+    return plugin_has_supported_payload(source, description.id, error_message) &&
+           resolve_plugin_version(source, description.id, expected, version, error_message);
 }
 
 bool PluginRepositoryPackageCacheAdapter::stage(
     const boost::filesystem::path &source,
     RepositoryPackageSource,
     const RepositoryDescription &description,
+    const RepositoryPackageVersion &version,
     const boost::filesystem::path &staging,
     std::string &error_message) const
 {
     if (!copy_directory_tree(source, staging, error_message))
         return false;
-    return write_description_file(staging / DESCRIPTION_FILENAME, description, true, error_message);
+    return write_description_file(staging / DESCRIPTION_FILENAME, description, error_message) &&
+           write_plugin_version_file(staging / VERSION_FILENAME, version, error_message);
 }
 
 bool PluginRepositoryPackageCacheAdapter::validate(
     const boost::filesystem::path &version_directory,
     const RepositoryDescription &description,
+    const RepositoryPackageVersion &version,
     std::string &error_message) const
 {
-    if (!boost::filesystem::is_regular_file(version_directory / plugin_library_filename())) {
-        error_message = "Plugin version does not contain '" + plugin_library_filename() + "'.";
+    if (!plugin_has_supported_payload(version_directory, description.id, error_message))
         return false;
-    }
     std::string contents;
     RepositoryDescription actual;
     if (!read_file(version_directory / DESCRIPTION_FILENAME, contents) ||
         !parse_repository_description(contents, RepositoryPackageType::Plugin, actual, error_message))
         return false;
-    return descriptions_match(actual, description, error_message);
+    RepositoryPackageVersion actual_version;
+    if (!read_plugin_version_file(version_directory / VERSION_FILENAME, actual_version, error_message))
+        return false;
+    return descriptions_match(actual, description, error_message) &&
+           descriptions_match(description, actual, error_message) &&
+           versions_match(actual_version, version, error_message) &&
+           versions_match(version, actual_version, error_message);
 }
 
 } // namespace
@@ -580,8 +895,7 @@ boost::filesystem::path RepositoryPackageCache::repository_directory(const std::
 
 boost::filesystem::path RepositoryPackageCache::repository_description_path(const std::string &id) const
 {
-    const std::string filesystem_id = safe_id(id);
-    return type_directory() / filesystem_id / (filesystem_id + ".ini");
+    return repository_directory(id) / DESCRIPTION_FILENAME;
 }
 
 boost::filesystem::path RepositoryPackageCache::repository_tags_path(const std::string &id) const
@@ -615,15 +929,11 @@ bool RepositoryPackageCache::save_repository_description(const RepositoryDescrip
         if (!repository_root_accepts_id(descriptor, m_adapter.package_type(), description.id, error_message))
             return false;
         boost::filesystem::create_directories(root);
-        RepositoryDescription root_description = description;
-        root_description.package_version.clear();
-        root_description.slicer_version.clear();
-
         const boost::filesystem::path staging = root /
             boost::filesystem::unique_path(".description-%%%%-%%%%.ini");
         const boost::filesystem::path backup = root /
             boost::filesystem::unique_path(".description-previous-%%%%-%%%%.ini");
-        if (!write_description_file(staging, root_description, false, error_message)) {
+        if (!write_description_file(staging, description, error_message)) {
             boost::system::error_code cleanup_error;
             boost::filesystem::remove(staging, cleanup_error);
             return false;
@@ -666,7 +976,7 @@ bool RepositoryPackageCache::cache_simple(const boost::filesystem::path &source,
 }
 
 bool RepositoryPackageCache::cache_archive(const boost::filesystem::path &archive_path,
-                                           const std::optional<RepositoryDescription> &expected,
+                                           const std::optional<RepositoryPackageExpectation> &expected,
                                            RepositoryCachedVersion &cached,
                                            std::string &error_message) const
 {
@@ -678,10 +988,12 @@ bool RepositoryPackageCache::cache_archive(const boost::filesystem::path &archiv
             return false;
         }
 
-        RepositoryDescription ignored;
+        RepositoryDescription ignored_description;
+        RepositoryPackageVersion ignored_version;
         std::string direct_error;
         boost::filesystem::path package_root = extraction;
-        if (!m_adapter.inspect(package_root, RepositoryPackageSource::Package, expected, ignored, direct_error)) {
+        if (!m_adapter.inspect(package_root, RepositoryPackageSource::Package, expected,
+                               ignored_description, ignored_version, direct_error)) {
             boost::filesystem::directory_iterator it(extraction), end;
             if (it == end || !boost::filesystem::is_directory(it->path())) {
                 boost::filesystem::remove_all(extraction);
@@ -711,7 +1023,7 @@ bool RepositoryPackageCache::cache_archive(const boost::filesystem::path &archiv
 
 bool RepositoryPackageCache::cache_package_directory(
     const boost::filesystem::path &package_directory,
-    const std::optional<RepositoryDescription> &expected,
+    const std::optional<RepositoryPackageExpectation> &expected,
     RepositoryCachedVersion &cached,
     std::string &error_message) const
 {
@@ -720,30 +1032,33 @@ bool RepositoryPackageCache::cache_package_directory(
 
 bool RepositoryPackageCache::cache_source(const boost::filesystem::path &source,
                                           RepositoryPackageSource source_type,
-                                          const std::optional<RepositoryDescription> &expected,
+                                          const std::optional<RepositoryPackageExpectation> &expected,
                                           RepositoryCachedVersion &cached,
                                           std::string &error_message) const
 {
     RepositoryDescription description;
-    if (!m_adapter.inspect(source, source_type, expected, description, error_message))
+    RepositoryPackageVersion version;
+    if (!m_adapter.inspect(source, source_type, expected, description, version, error_message))
         return false;
     apply_description_defaults(description);
-    if (!Semver::parse(description.package_version) || !Semver::parse(description.slicer_version)) {
+    apply_version_defaults(version);
+    if (!Semver::parse(version.package_version) || !Semver::parse(version.slicer_version)) {
         error_message = "Repository package contains an invalid package or slicer version.";
         return false;
     }
-    return publish(source, source_type, description, cached, error_message);
+    return publish(source, source_type, description, version, cached, error_message);
 }
 
 bool RepositoryPackageCache::publish(const boost::filesystem::path &source,
                                      RepositoryPackageSource source_type,
                                      const RepositoryDescription &description,
+                                     const RepositoryPackageVersion &version,
                                      RepositoryCachedVersion &cached,
                                      std::string &error_message) const
 {
     const boost::filesystem::path root = repository_directory(description.id);
     const boost::filesystem::path destination = version_directory(
-        description.id, description.package_version, description.slicer_version);
+        description.id, version.package_version, version.slicer_version);
     const boost::filesystem::path staging = root /
         boost::filesystem::unique_path(".publish-%%%%-%%%%");
     const boost::filesystem::path backup = root /
@@ -755,8 +1070,8 @@ bool RepositoryPackageCache::publish(const boost::filesystem::path &source,
                                         m_adapter.package_type(), description.id, error_message))
             return false;
         boost::filesystem::create_directories(root);
-        if (!m_adapter.stage(source, source_type, description, staging, error_message) ||
-            !m_adapter.validate(staging, description, error_message)) {
+        if (!m_adapter.stage(source, source_type, description, version, staging, error_message) ||
+            !m_adapter.validate(staging, description, version, error_message)) {
             boost::filesystem::remove_all(staging);
             return false;
         }
@@ -774,7 +1089,7 @@ bool RepositoryPackageCache::publish(const boost::filesystem::path &source,
                 boost::filesystem::rename(backup, destination);
             throw;
         }
-        if (!refresh_repository_description(description.id, description, error_message)) {
+        if (!refresh_repository_description(description.id, description, version, error_message)) {
             // The root descriptor is part of publication. Restore the previous
             // exact version when it existed, or remove the newly added version,
             // so callers never observe a half-published package.
@@ -791,6 +1106,7 @@ bool RepositoryPackageCache::publish(const boost::filesystem::path &source,
                                            << backup.string() << "': " << cleanup_error.message();
         }
         cached.description = description;
+        cached.version = version;
         cached.directory = destination;
         return true;
     } catch (const boost::filesystem::filesystem_error &error) {
@@ -814,9 +1130,11 @@ bool RepositoryPackageCache::publish(const boost::filesystem::path &source,
 bool RepositoryPackageCache::refresh_repository_description(
     const std::string &id,
     const RepositoryDescription &fallback,
+    const RepositoryPackageVersion &fallback_version,
     std::string &error_message) const
 {
     RepositoryDescription selected = fallback;
+    RepositoryPackageVersion selected_version = fallback_version;
     RepositoryDescription existing;
     std::string contents;
     const boost::filesystem::path descriptor = repository_description_path(id);
@@ -841,9 +1159,15 @@ bool RepositoryPackageCache::refresh_repository_description(
         if (!read_file(it->path() / DESCRIPTION_FILENAME, version_contents) ||
             !parse_repository_description(version_contents, m_adapter.package_type(), candidate, parse_error))
             continue;
-        if (newer_description(candidate, selected)) {
+        RepositoryPackageVersion candidate_version;
+        candidate_version.package_version = package_version;
+        candidate_version.slicer_version = slicer_version;
+        if (!m_adapter.validate(it->path(), candidate, candidate_version, parse_error))
+            continue;
+        if (newer_version(candidate_version, selected_version)) {
             const std::string preserved_url = selected.config_update_rest;
             selected = std::move(candidate);
+            selected_version = std::move(candidate_version);
             if (selected.config_update_rest.empty())
                 selected.config_update_rest = preserved_url;
         }
@@ -868,7 +1192,7 @@ std::vector<RepositoryCachedEntry> RepositoryPackageCache::scan() const
             std::string contents;
             RepositoryDescription root_description;
             std::string error_message;
-            if (!read_file(root_it->path() / (filesystem_id + ".ini"), contents) ||
+            if (!read_file(root_it->path() / DESCRIPTION_FILENAME, contents) ||
                 !parse_repository_description(contents, m_adapter.package_type(), root_description, error_message) ||
                 safe_id(root_description.id) != filesystem_id) {
                 if (error_message.empty())
@@ -896,18 +1220,20 @@ std::vector<RepositoryCachedEntry> RepositoryPackageCache::scan() const
                     !parse_repository_description(version_contents, m_adapter.package_type(),
                                                   version_description, error_message) ||
                     version_description.id != root_description.id ||
-                    version_description.package_version != package_version ||
-                    version_description.slicer_version != slicer_version ||
-                    !m_adapter.validate(version_it->path(), version_description, error_message)) {
+                    !m_adapter.validate(version_it->path(), version_description,
+                                        RepositoryPackageVersion{package_version, slicer_version}, error_message)) {
                     BOOST_LOG_TRIVIAL(warning) << "Ignoring repository package '"
                                                << version_it->path().string() << "': " << error_message;
                     continue;
                 }
-                entry.versions.push_back({std::move(version_description), version_it->path()});
+                RepositoryPackageVersion version;
+                version.package_version = std::move(package_version);
+                version.slicer_version = std::move(slicer_version);
+                entry.versions.push_back({std::move(version_description), std::move(version), version_it->path()});
             }
             std::sort(entry.versions.begin(), entry.versions.end(),
                       [](const RepositoryCachedVersion &left, const RepositoryCachedVersion &right) {
-                          return newer_description(left.description, right.description);
+                          return newer_version(left.version, right.version);
                       });
             entries.emplace_back(std::move(entry));
         }

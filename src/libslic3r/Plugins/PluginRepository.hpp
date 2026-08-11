@@ -3,6 +3,13 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 
+// PluginRepository defines the durable metadata shared by vendor and plugin
+// repositories, plus the plugin activation/install protocol. description.ini
+// carries stable repository identity only. RepositoryPackageVersion carries a
+// selected downloadable version; installed plugin packages persist that value
+// separately in version.ini. Filesystem cache layout and normalization live in
+// RepositoryPackageCache.
+
 #ifndef plugins_pluginrepository_hpp_
 #define plugins_pluginrepository_hpp_
 
@@ -31,8 +38,6 @@ struct RepositoryDescription {
     std::string description;
     std::string config_update_rest;
     std::string slicer;
-    std::string package_version;
-    std::string slicer_version;
 };
 
 struct RepositoryPackageVersion {
@@ -44,9 +49,9 @@ struct RepositoryPackageVersion {
     std::string tag;
 };
 
-// Parse either a repository descriptor or a version description. Root
-// descriptors intentionally omit versions; package adapters decide whether
-// missing version fields may receive local-content defaults.
+// Parse repository-level identity and display metadata. Version-looking keys
+// are deliberately ignored because versions belong to a vendor profile or a
+// plugin version.ini, never to description.ini.
 bool parse_repository_description(const std::string &contents,
                                   RepositoryPackageType expected_type,
                                   RepositoryDescription &description,

@@ -384,15 +384,13 @@ std::string plugin_description_contents(const std::string &plugin_id,
                                         const std::string &slicer_version,
                                         bool include_repository)
 {
+    (void) package_version;
+    (void) slicer_version;
     std::string contents =
         "[plugin]\n"
         "id = " + plugin_id + "\n"
         "name = Functional plugin\n"
         "full_name = Functional plugin\n";
-    if (!package_version.empty())
-        contents += "package_version = " + package_version + "\n";
-    if (!slicer_version.empty())
-        contents += "slicer_version = " + slicer_version + "\n";
     if (include_repository)
         contents += "config_update_rest = example/plugin\n";
     return contents;
@@ -480,6 +478,9 @@ void PluginUpdaterFunctionalFixture::write_installed_plugin(const std::string &p
     const boost::filesystem::path package_root = data_directory / "plugins" / plugin_id;
     write_test_file(package_root / "description.ini",
                     plugin_description_contents(plugin_id, package_version, slicer_version, false));
+    write_test_file(package_root / "version.ini",
+                    "[plugin]\npackage_version = " + package_version +
+                    "\nslicer_version = " + slicer_version + "\n");
     write_test_file(package_root / plugin_library_filename(), "installed library " + package_version);
 
     Slic3r::PluginActivationConfig config;
@@ -495,6 +496,9 @@ boost::filesystem::path PluginUpdaterFunctionalFixture::write_cached_plugin(cons
         data_directory, Slic3r::RepositoryPackageType::Plugin, plugin_id, package_version, slicer_version);
     write_test_file(package_root / "description.ini",
                     plugin_description_contents(plugin_id, package_version, slicer_version, false));
+    write_test_file(package_root / "version.ini",
+                    "[plugin]\npackage_version = " + package_version +
+                    "\nslicer_version = " + slicer_version + "\n");
     write_test_file(package_root / plugin_library_filename(), "cached library " + package_version);
     return package_root;
 }
@@ -1430,7 +1434,9 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
         (vendor_id + "_" + config_version + "_" + slicer_version + ".zip");
     REQUIRE(write_test_zip(
         archive_path,
-        {{"description.ini", vendor_profile_contents(vendor_id, config_version, slicer_version)},
+        {{"description.ini", "[vendor]\nid = " + vendor_id +
+                             "\nname = Functional vendor\nfull_name = Functional vendor\n"
+                             "config_update_rest = example/vendor\n"},
          {"profiles/" + vendor_id + ".ini",
           vendor_profile_contents(vendor_id, config_version, slicer_version)}}));
 

@@ -70,8 +70,9 @@ public:
                              bool force = false);
     void download_new_repo(const std::string &rest_url, std::function<void(UpdaterError)> callback_result);
 
-    // Import an unpacked package directory. A missing description.ini is
-    // generated from the folder name with local-only default metadata.
+    // Import an unpacked package directory. Generic description.ini and
+    // version.ini files are generated in the cache when their information can
+    // be derived from the folder, payload metadata or local defaults.
     UpdaterError cache_plugin_directory(const boost::filesystem::path &package_directory);
     void install_plugin(const std::string &plugin_id,
                         const PluginAvailable &version,

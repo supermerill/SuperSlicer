@@ -83,6 +83,21 @@ void orchestrator_register_plugin(orchestrator_handle *orch, plugin_instance plu
     }
 }
 
+void orchestrator_register_plugin_from_package(orchestrator_handle *orch,
+                                               plugin_instance plugin,
+                                               const char *package_root)
+{
+    if (package_root == nullptr || package_root[0] == '\0')
+        return;
+    Slic3r::Orchestrator *orchestrator = to_orchestrator(orch);
+    if (orchestrator == nullptr)
+        return;
+
+    Slic3r::Orchestrator::PluginRegistrationScope registration_scope(
+        orchestrator->plugin_registration_scope(package_root, true));
+    orchestrator->register_plugin(plugin);
+}
+
 int32_t orchestrator_register_translation_catalog(orchestrator_handle *orch,
                                                   const char *domain,
                                                   const char *locale_directory)

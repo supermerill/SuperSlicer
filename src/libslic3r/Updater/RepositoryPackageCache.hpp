@@ -32,8 +32,18 @@ enum class RepositoryPackageSource {
     Package
 };
 
+// A download expectation is intentionally smaller than a repository
+// description. It identifies the package selected by a repository tag without
+// pretending that description.ini owns version information.
+struct RepositoryPackageExpectation {
+    RepositoryPackageType type = RepositoryPackageType::Plugin;
+    std::string id;
+    RepositoryPackageVersion version;
+};
+
 struct RepositoryCachedVersion {
     RepositoryDescription description;
+    RepositoryPackageVersion version;
     boost::filesystem::path directory;
 };
 
@@ -52,14 +62,14 @@ public:
 
     virtual RepositoryPackageType package_type() const = 0;
 
-    // Read identity and version from source. expected is present for a remote
-    // archive whose repository tag already declares id and versions. The
-    // adapter must reject conflicting metadata instead of silently relabeling
-    // the downloaded package.
+    // Read generic identity and the independently stored package version.
+    // expected is present for a remote archive whose repository tag already
+    // declares both. Conflicting sources must be rejected.
     virtual bool inspect(const boost::filesystem::path &source,
                          RepositoryPackageSource source_type,
-                         const std::optional<RepositoryDescription> &expected,
+                         const std::optional<RepositoryPackageExpectation> &expected,
                          RepositoryDescription &description,
+                         RepositoryPackageVersion &version,
                          std::string &error_message) const = 0;
 
     // Copy and normalize source into an empty staging directory. The resulting
@@ -67,6 +77,7 @@ public:
     virtual bool stage(const boost::filesystem::path &source,
                        RepositoryPackageSource source_type,
                        const RepositoryDescription &description,
+                       const RepositoryPackageVersion &version,
                        const boost::filesystem::path &staging,
                        std::string &error_message) const = 0;
 
@@ -74,6 +85,7 @@ public:
     // description.ini and mandatory type-specific files.
     virtual bool validate(const boost::filesystem::path &version_directory,
                           const RepositoryDescription &description,
+                          const RepositoryPackageVersion &version,
                           std::string &error_message) const = 0;
 };
 
@@ -96,9 +108,7 @@ public:
                                               const std::string &package_version,
                                               const std::string &slicer_version) const;
 
-    // Save repository-level metadata such as a downloaded description. Version
-    // fields are omitted because they belong to description.ini below a
-    // version directory.
+    // Save repository-level metadata such as a downloaded description.
     bool save_repository_description(const RepositoryDescription &description,
                                      std::string &error_message) const;
 
@@ -111,14 +121,14 @@ public:
     // Import an archive. expected may identify the repository tag that caused
     // the download; local archive imports omit it and use package metadata.
     bool cache_archive(const boost::filesystem::path &archive_path,
-                       const std::optional<RepositoryDescription> &expected,
+                       const std::optional<RepositoryPackageExpectation> &expected,
                        RepositoryCachedVersion &cached,
                        std::string &error_message) const;
 
     // Import an already unpacked package, for example a live plugin copied back
     // into a freshly purged cache.
     bool cache_package_directory(const boost::filesystem::path &package_directory,
-                                 const std::optional<RepositoryDescription> &expected,
+                                 const std::optional<RepositoryPackageExpectation> &expected,
                                  RepositoryCachedVersion &cached,
                                  std::string &error_message) const;
 
@@ -133,16 +143,18 @@ public:
 private:
     bool cache_source(const boost::filesystem::path &source,
                       RepositoryPackageSource source_type,
-                      const std::optional<RepositoryDescription> &expected,
+                      const std::optional<RepositoryPackageExpectation> &expected,
                       RepositoryCachedVersion &cached,
                       std::string &error_message) const;
     bool publish(const boost::filesystem::path &source,
                  RepositoryPackageSource source_type,
                  const RepositoryDescription &description,
+                 const RepositoryPackageVersion &version,
                  RepositoryCachedVersion &cached,
                  std::string &error_message) const;
     bool refresh_repository_description(const std::string &id,
                                         const RepositoryDescription &fallback,
+                                        const RepositoryPackageVersion &fallback_version,
                                         std::string &error_message) const;
 
     boost::filesystem::path m_data_directory;

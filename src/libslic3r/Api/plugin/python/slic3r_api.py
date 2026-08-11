@@ -6,8 +6,9 @@
 """
 Small Python helper layer for SuperSlicer plugins.
 
-Python plugins are loaded by python_plugin_loader.dll. The loader imports every
-script from plugins/python/plugins and calls:
+Python plugins are loaded by python_plugin_loader.dll. The loader imports both
+the scripts bundled in plugins/python/python/plugins and Python-only sibling
+packages installed in plugins/<package-id>. Every script is called through:
 
     register_plugin(api: Slic3rAPI)
 
@@ -55,8 +56,9 @@ splitting work where region/modifier settings differ:
         selected = area_clip.intersections(candidate_areas)
 
 Do not copy this file, or slic3r_api_generated.py, into each plugin. The loader
-adds both plugins/python and plugins/python/plugins to sys.path before loading
-plugin scripts, so the shared helper module is available to all plugins.
+adds the shared Python runtime and the current package root to sys.path before
+loading plugin scripts, so common helpers and package-local modules are both
+available.
 
 slic3r_api_generated.py is generated from Api/plugin/c headers by
 generate_slic3r_api.py. It is copied next to this file in the Python runtime

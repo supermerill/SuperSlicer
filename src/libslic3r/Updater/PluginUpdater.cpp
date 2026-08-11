@@ -166,8 +166,8 @@ void PluginUpdater::reload_all_plugins()
         plugin.has_cache = !repository.versions.empty();
         for (const RepositoryCachedVersion &cached : repository.versions) {
             PluginAvailable available;
-            available.package_version = cached.description.package_version;
-            available.slicer_version = cached.description.slicer_version;
+            available.package_version = cached.version.package_version;
+            available.slicer_version = cached.version.slicer_version;
             available.tag = RepositoryPackageCache::version_directory_name(
                 available.package_version, available.slicer_version);
             available.local_directory = cached.directory.string();

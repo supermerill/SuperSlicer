@@ -28,6 +28,24 @@ SLIC3R_HOST_API void orchestrator_register_plugin(
 );
 
 /*
+Register a plugin instance and explicitly associate it with its installed
+package directory. This variant is intended for loaders which discover a
+plugin after the native package-loading scope has ended, notably the Python
+loader. Relative resources, translations and diagnostics for the registered
+plugin are resolved from package_root.
+
+package_root must name the root containing description.ini and version.ini.
+Normal native register_plugin() entry points should continue to call
+orchestrator_register_plugin(), because PluginLoader already supplies their
+package scope.
+*/
+SLIC3R_HOST_API void orchestrator_register_plugin_from_package(
+    orchestrator_handle *orch,
+    plugin_instance plugin,
+    const char *package_root
+);
+
+/*
 Register one gettext catalog domain provided by the plugin package currently
 being loaded. locale_directory is relative to that package root and contains
 one subdirectory per language, for example:

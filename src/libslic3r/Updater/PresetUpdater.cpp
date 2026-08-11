@@ -406,11 +406,11 @@ UpdaterError PresetUpdater::install_vendor_files(VendorSync &vendor, const Vendo
                 if (!download_error.succeeded())
                     return download_error;
 
-                RepositoryDescription expected;
+                RepositoryPackageExpectation expected;
                 expected.type = RepositoryPackageType::Vendor;
                 expected.id = vendor.profile.id;
-                expected.package_version = version.config_version.to_string();
-                expected.slicer_version = version.slicer_version.to_string();
+                expected.version.package_version = version.config_version.to_string();
+                expected.version.slicer_version = version.slicer_version.to_string();
                 RepositoryPackageCache cache(data_path(), vendor_repository_cache_adapter());
                 RepositoryCachedVersion cached;
                 std::string error_message;
