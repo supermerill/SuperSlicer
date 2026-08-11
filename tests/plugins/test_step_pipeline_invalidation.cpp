@@ -23,11 +23,11 @@ TEST_CASE("Step pipeline DAG invalidates only skirt/brim dependents", "[plugins]
     // The new pipeline is not topologically sorted at runtime. This test
     // protects the central dependency table used by Print invalidation: changing
     // skirt/brim must re-run its finalization consumers, but it must not force
-    // unrelated object geometry steps such as perimeter, surface or infill.
+    // upstream support producers or unrelated perimeter, surface and infill steps.
     const std::vector<slicing_step_t> dependents = Slic3r::Steps::dependent_steps_closure(STEP_SKIRT_BRIM);
 
-    CHECK(contains_step(dependents, STEP_SUPPORT_DEMAND));
-    CHECK(contains_step(dependents, STEP_SUPPORT));
+    CHECK_FALSE(contains_step(dependents, STEP_SUPPORT_DEMAND));
+    CHECK_FALSE(contains_step(dependents, STEP_SUPPORT));
     CHECK(contains_step(dependents, STEP_PRE_GCODE));
     CHECK(contains_step(dependents, STEP_ORDERING));
     CHECK(contains_step(dependents, STEP_WIPETOWER));
@@ -53,6 +53,8 @@ TEST_CASE("Step pipeline DAG invalidates only skirt/brim dependents", "[plugins]
     CHECK(print.should_execute_step(STEP_ORDERING));
     CHECK(print.should_execute_step(STEP_GCODE));
 
+    CHECK_FALSE(print.should_execute_step(STEP_SUPPORT_DEMAND));
+    CHECK_FALSE(print.should_execute_step(STEP_SUPPORT));
     CHECK_FALSE(print.should_execute_step(STEP_PERIMETER));
     CHECK_FALSE(print.should_execute_step(STEP_SURFACE_GENERATION));
     CHECK_FALSE(print.should_execute_step(STEP_INFILL));
