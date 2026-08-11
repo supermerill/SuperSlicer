@@ -45,6 +45,10 @@ struct PluginSync {
 class PluginUpdater : public RepositoryUpdater {
 public:
     PluginUpdater() = default;
+
+    // Uses an injected transport instead of the process HTTP backend. Pending
+    // requests retain their callbacks, so the transport must outlive them.
+    explicit PluginUpdater(UpdaterHttpTransport &http_transport) : RepositoryUpdater(http_transport) {}
     PluginUpdater(const PluginUpdater &) = delete;
     PluginUpdater(PluginUpdater &&) = delete;
     PluginUpdater &operator=(const PluginUpdater &) = delete;

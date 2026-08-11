@@ -21,9 +21,14 @@
 
 namespace Slic3r {
 
+class UpdaterHttpTransport;
+
 class RepositoryUpdater {
 public:
-    RepositoryUpdater() = default;
+    // The default constructor uses the application's Http backend. Tests pass
+    // a transport whose lifetime covers the updater and all pending callbacks.
+    RepositoryUpdater();
+    explicit RepositoryUpdater(UpdaterHttpTransport &http_transport);
     RepositoryUpdater(const RepositoryUpdater &) = delete;
     RepositoryUpdater(RepositoryUpdater &&) = delete;
     RepositoryUpdater &operator=(const RepositoryUpdater &) = delete;
@@ -45,6 +50,10 @@ protected:
 
     bool sync_in_progress() const { return m_sync_in_progress; }
 
+    // Derived updaters build every request through this accessor so tests can
+    // observe and complete the operation without contacting the network.
+    UpdaterHttpTransport &http() { return m_http_transport; }
+
 private:
     virtual int update_count() = 0;
     virtual void on_sync_completed() {}
@@ -55,6 +64,7 @@ private:
     std::function<void(int)> m_callback;
     std::atomic_int m_max_api_requests = 25;
     std::time_t m_next_api_window = 0;
+    UpdaterHttpTransport &m_http_transport;
 };
 
 } // namespace Slic3r

@@ -24,7 +24,7 @@
 #include "libslic3r/Semver.hpp"
 #include "libslic3r/Utils.hpp"
 
-#include "libslic3r/Updater/Http.hpp"
+#include "libslic3r/Updater/UpdaterHttp.hpp"
 
 namespace Slic3r {
 namespace {
@@ -238,7 +238,7 @@ void PluginUpdater::update_plugin(PluginSync &plugin, bool force)
     }
     plugin.sync_in_progress = true;
     boost::filesystem::create_directories(cache_path.parent_path());
-    Http::get(url)
+    http().get(url)
         .size_limit(1024 * 64)
         .on_error([this, &plugin](std::string, std::string error, unsigned) {
             BOOST_LOG_TRIVIAL(warning) << "Cannot update plugin repository '" << plugin.description.id << "': " << error;
@@ -266,7 +266,7 @@ void PluginUpdater::download_new_repo(const std::string &rest_url, std::function
     const std::string description_url = marker != std::string::npos ?
         "https://raw.githubusercontent.com/" + normalized_rest_url.substr(marker + strlen("https://api.github.com/repos/")) +
             "/refs/heads/main/description.ini" : normalized_rest_url + "/description";
-    Http::get(description_url)
+    http().get(description_url)
         .size_limit(1024 * 64)
         .on_error([callback_result](std::string, std::string error, unsigned) {
             callback_result(updater_error(UpdaterError::Code::Network, std::move(error)));
@@ -306,7 +306,7 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
     const boost::filesystem::path archive_path = repositories_directory() / plugin_id /
         (version.package_version + "=" + version.slicer_version + ".zip");
     boost::filesystem::create_directories(archive_path.parent_path());
-    Http::get(version.url_zip)
+    http().get(version.url_zip)
         .size_limit(130 * 1024 * 1024)
         .on_error([callback_result](std::string, std::string error, unsigned) {
             callback_result(updater_error(UpdaterError::Code::Network, std::move(error)));

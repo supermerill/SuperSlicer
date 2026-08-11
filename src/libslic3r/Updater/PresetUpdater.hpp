@@ -87,6 +87,10 @@ public:
 class PresetUpdater : public RepositoryUpdater {
 public:
     explicit PresetUpdater(PresetUpdaterHost *host = nullptr);
+
+    // Uses an injected transport for deterministic repository tests. The
+    // caller owns both host and transport for the updater's full lifetime.
+    PresetUpdater(PresetUpdaterHost *host, UpdaterHttpTransport &http_transport);
     PresetUpdater(const PresetUpdater &) = delete;
     PresetUpdater(PresetUpdater &&) = delete;
     PresetUpdater &operator=(const PresetUpdater &) = delete;

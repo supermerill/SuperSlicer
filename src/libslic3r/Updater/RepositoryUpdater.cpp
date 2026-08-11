@@ -9,7 +9,19 @@
 
 #include "libslic3r/Updater/RepositoryUpdater.hpp"
 
+#include "libslic3r/Updater/UpdaterHttp.hpp"
+
 namespace Slic3r {
+
+RepositoryUpdater::RepositoryUpdater()
+    : RepositoryUpdater(default_updater_http_transport())
+{
+}
+
+RepositoryUpdater::RepositoryUpdater(UpdaterHttpTransport &http_transport)
+    : m_http_transport(http_transport)
+{
+}
 
 bool RepositoryUpdater::begin_sync(size_t repository_count, std::function<void(int)> callback)
 {

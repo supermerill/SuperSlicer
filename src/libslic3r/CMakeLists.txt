@@ -294,6 +294,8 @@ set(SLIC3R_SOURCES
 	Updater/PresetUpdater.hpp
 	Updater/RepositoryUpdater.cpp
 	Updater/RepositoryUpdater.hpp
+	Updater/UpdaterHttp.cpp
+	Updater/UpdaterHttp.hpp
 	Updater/UpdaterError.hpp
     BoundingBox.cpp
     BoundingBox.hpp

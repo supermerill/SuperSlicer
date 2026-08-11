@@ -31,7 +31,8 @@
 
 #include "libslic3r/Plugins/PluginRepository.hpp"
 #include "libslic3r/PresetBundle.hpp"
-#include "libslic3r/Updater/Http.hpp"
+#include "libslic3r/Updater/UpdaterHttp.hpp"
+#include "libslic3r/Utils.hpp"
 #include "libslic3r/libslic3r.h"
 
 namespace Slic3r {
@@ -62,7 +63,7 @@ boost::filesystem::path vendor_cache_directory(const VendorProfile &profile)
     return data_path() / k_vendor_cache_directory / profile.usable_id();
 }
 
-UpdaterError make_error(UpdaterError::Code code, std::string detail = std::string())
+UpdaterError make_error(UpdaterError::Code code, std::string detail)
 {
     UpdaterError error;
     error.code = code;
@@ -239,6 +240,11 @@ PresetUpdater::PresetUpdater(PresetUpdaterHost *host)
 {
 }
 
+PresetUpdater::PresetUpdater(PresetUpdaterHost *host, UpdaterHttpTransport &http_transport)
+    : RepositoryUpdater(http_transport), m_host(host)
+{
+}
+
 VendorSync *PresetUpdater::get_vendor(const std::string &id)
 {
     const std::map<std::string, VendorSync>::iterator it = m_vendors.find(id);
@@ -406,7 +412,7 @@ void PresetUpdater::update_vendor(VendorSync &vendor, bool force)
 
     vendor.synch_in_progress = true;
     boost::filesystem::create_directories(cache_file.parent_path());
-    Http::get(rest_url + "/tags?per_page=100;page=1")
+    http().get(rest_url + "/tags?per_page=100;page=1")
         .size_limit(1024 * 64)
         .on_error([this, &vendor](std::string, std::string error, unsigned) {
             BOOST_LOG_TRIVIAL(warning) << "Cannot update vendor repository '" << vendor.profile.id << "': " << error;
@@ -494,7 +500,7 @@ void PresetUpdater::download_logs(const std::string &vendor_id,
             complete_changelog_request(state, false);
             continue;
         }
-        Http::get(request.url)
+        http().get(request.url)
             .size_limit(request.compare ? 1024 * 128 : 1024 * 1024 * 4)
             .on_error([state, request](std::string, std::string error, unsigned) {
                 BOOST_LOG_TRIVIAL(warning) << "Cannot download vendor changelog '" << request.url << "': " << error;
@@ -526,7 +532,7 @@ void PresetUpdater::download_new_repo(const std::string &rest_url, std::function
         callback_result(make_error(UpdaterError::Code::RepositoryNotFound, "The repository URL is empty or malformed."));
         return;
     }
-    Http::get(description_url)
+    http().get(description_url)
         .size_limit(1024 * 64)
         .on_error([callback_result](std::string, std::string error, unsigned) {
             callback_result(make_error(UpdaterError::Code::Network, std::move(error)));
@@ -560,7 +566,7 @@ UpdaterError PresetUpdater::install_vendor_files(VendorSync &vendor, const Vendo
                 boost::filesystem::create_directories(archive_path.parent_path());
                 std::string transport_error;
                 bool download_succeeded = false;
-                Http::get(version.url_zip)
+                http().get(version.url_zip)
                     .size_limit(130 * 1024 * 1024)
                     .on_error([&transport_error](std::string, std::string error, unsigned) {
                         transport_error = std::move(error);
