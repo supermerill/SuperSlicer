@@ -464,10 +464,12 @@ void RepositoryUpdater::download_repository_changelogs(std::vector<RepositoryCha
                 complete_repository_changelog_request(state, succeeded);
         };
 
-        // A cache entry represents immutable commit data, so it has no expiry.
-        // force bypasses it when the caller wants to repair or refresh files.
+        // Reuse recent notes while still allowing repositories to repair tags
+        // or commit metadata that was rewritten after an initial publication.
         try {
-            if (!force && boost::filesystem::is_regular_file(request.cache_file)) {
+            if (!force && boost::filesystem::is_regular_file(request.cache_file) &&
+                boost::filesystem::last_write_time(request.cache_file) + k_repository_cache_lifetime >
+                    std::time(nullptr)) {
                 boost::nowide::ifstream stream(request.cache_file.string());
                 if (!stream) {
                     complete(false);

@@ -273,6 +273,17 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
         callback_result(make_updater_error(UpdaterError::Code::ArchiveUnavailable));
         return;
     }
+
+    // A previously downloaded package can be scheduled immediately. Validate
+    // it before skipping HTTP so a corrupt cache is repaired by a fresh ZIP.
+    std::string cache_error_message;
+    const PluginInstalledVersion cached_version{version.package_version, version.slicer_version};
+    if (plugin_package_cache_is_valid(boost::filesystem::path(data_dir()), plugin_id,
+                                      cached_version, cache_error_message)) {
+        callback_result(schedule_cached_plugin_install(plugin_id, version));
+        return;
+    }
+
     const boost::filesystem::path archive_path = repositories_directory() / plugin_id /
         (version.package_version + "=" + version.slicer_version + ".zip");
     download_repository_file_async(
@@ -284,29 +295,60 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
             }
             std::string error_message;
             if (!cache_plugin_package_archive(boost::filesystem::path(data_dir()), archive_path, plugin_id,
-                                              version.package_version, version.slicer_version, error_message) ||
-                !request_plugin_install(plugin_id, version.package_version, version.slicer_version, error_message)) {
+                                              version.package_version, version.slicer_version, error_message)) {
                 callback_result(make_updater_error(UpdaterError::Code::Cache, std::move(error_message)));
                 return;
             }
-
-            // The activation config now names the package that will be loaded
-            // at the next startup. Mirror that scheduled selection in the
-            // current updater model so the GUI can redraw without discarding
-            // the downloaded tag and changelog data.
-            {
-                std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
-                PluginSync *scheduled = get_plugin(plugin_id);
-                if (scheduled != nullptr) {
-                    scheduled->is_installed = true;
-                    scheduled->installed_version = PluginInstalledVersion{
-                        version.package_version, version.slicer_version};
-                    scheduled->has_cache = true;
-                    scheduled->sort_available();
-                }
-            }
-            callback_result(UpdaterError());
+            callback_result(schedule_cached_plugin_install(plugin_id, version));
         });
+}
+
+UpdaterError PluginUpdater::schedule_cached_plugin_install(const std::string &plugin_id,
+                                                            const PluginAvailable &version)
+{
+    std::string error_message;
+    if (!request_plugin_install(plugin_id, version.package_version, version.slicer_version, error_message))
+        return make_updater_error(UpdaterError::Code::Cache, std::move(error_message));
+
+    // The activation config names the package loaded on the next startup. The
+    // current model mirrors that selection so the dialog updates immediately.
+    std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
+    PluginSync *scheduled = get_plugin(plugin_id);
+    if (scheduled != nullptr) {
+        scheduled->is_installed = true;
+        scheduled->installed_version = PluginInstalledVersion{
+            version.package_version, version.slicer_version};
+        scheduled->has_cache = true;
+        scheduled->sort_available();
+    }
+    return UpdaterError();
+}
+
+void PluginUpdater::uninstall_plugin(const std::string &plugin_id,
+                                     std::function<void(UpdaterError)> callback_result)
+{
+    PluginSync *plugin = get_plugin(plugin_id);
+    if (plugin == nullptr || !plugin->is_installed) {
+        callback_result(make_updater_error(UpdaterError::Code::ArchiveUnavailable));
+        return;
+    }
+
+    std::string error_message;
+    if (!request_plugin_uninstall(plugin_id, error_message)) {
+        callback_result(make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message)));
+        return;
+    }
+
+    // The DLL remains loaded until restart, but the updater presents the
+    // package state requested for that restart just as it does for installs.
+    std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
+    PluginSync *scheduled = get_plugin(plugin_id);
+    if (scheduled != nullptr) {
+        scheduled->is_installed = false;
+        scheduled->installed_version = {};
+        scheduled->can_upgrade = false;
+    }
+    callback_result(UpdaterError());
 }
 
 void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::function<void(UpdaterError)> callback_result)

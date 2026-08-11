@@ -221,19 +221,20 @@ TEST_CASE("Plugin installation is deferred and preserves the previous package on
 
     Slic3r::PluginActivationConfig config;
     config.installed[package_name] = {first_version, slicer_version};
+    std::vector<std::string> warnings;
     std::string error_message;
-    REQUIRE(Slic3r::install_requested_plugin_packages(data_directory, config, error_message));
+    REQUIRE(Slic3r::apply_requested_plugin_package_changes(data_directory, config, warnings, error_message));
     CHECK(boost::filesystem::exists(data_directory / "plugins" / package_name / "description.ini"));
     const boost::filesystem::path installed_package = data_directory / "plugins" / package_name;
     {
         boost::nowide::ofstream stream((installed_package / "local-marker.txt").string());
         stream << "preserved";
     }
-    REQUIRE(Slic3r::install_requested_plugin_packages(data_directory, config, error_message));
+    REQUIRE(Slic3r::apply_requested_plugin_package_changes(data_directory, config, warnings, error_message));
     CHECK(boost::filesystem::exists(installed_package / "local-marker.txt"));
 
     config.installed[package_name] = {second_version, slicer_version};
-    REQUIRE(Slic3r::install_requested_plugin_packages(data_directory, config, error_message));
+    REQUIRE(Slic3r::apply_requested_plugin_package_changes(data_directory, config, warnings, error_message));
     std::string installed_manifest;
     {
         boost::nowide::ifstream stream((data_directory / "plugins" / package_name / "description.ini").string());
@@ -243,7 +244,7 @@ TEST_CASE("Plugin installation is deferred and preserves the previous package on
     CHECK(installed_manifest == "package_version = " + second_version);
 
     config.installed[package_name] = {"9.9.9.9", slicer_version};
-    CHECK_FALSE(Slic3r::install_requested_plugin_packages(data_directory, config, error_message));
+    CHECK_FALSE(Slic3r::apply_requested_plugin_package_changes(data_directory, config, warnings, error_message));
     CHECK(boost::filesystem::exists(installed_package / "description.ini"));
     std::string installed_manifest_after_failure;
     {
@@ -348,6 +349,30 @@ TEST_CASE("Legacy installed plugin version is read as both package and slicer ve
     REQUIRE(Slic3r::read_plugin_activation_config(config_path, config, error_message));
     CHECK(config.installed["example.plugin"].package_version == "1.2.3.4");
     CHECK(config.installed["example.plugin"].slicer_version == "1.2.3.4");
+    CHECK(config.activated["example.id"]);
+    boost::filesystem::remove_all(root);
+}
+
+TEST_CASE("Plugin removal requests override conflicting installation entries", "[plugins][repository]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-plugin-removal-%%%%-%%%%");
+    const boost::filesystem::path config_path = root / "activated.ini";
+    boost::filesystem::create_directories(root);
+    {
+        boost::nowide::ofstream stream(config_path.string());
+        stream << "[installed]\n"
+               << "example.plugin = 1.2.3.4\n"
+               << "example.plugin.slicer_version = 2.7.0.0\n\n"
+               << "[removed]\nexample.plugin = 1\n\n"
+               << "[activated]\nexample.id = 1\n";
+    }
+
+    Slic3r::PluginActivationConfig config;
+    std::string error_message;
+    REQUIRE(Slic3r::read_plugin_activation_config(config_path, config, error_message));
+    CHECK(config.installed.count("example.plugin") == 0);
+    CHECK(config.removed.count("example.plugin") == 1);
     CHECK(config.activated["example.id"]);
     boost::filesystem::remove_all(root);
 }

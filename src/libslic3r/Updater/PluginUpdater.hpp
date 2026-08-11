@@ -59,9 +59,9 @@ public:
     void reload_all_plugins();
     void sync_async(std::function<void(int)> callback_result, bool force = false);
 
-    // Load the notes for every known package of one plugin. Cached notes are
-    // reused unless force is true; the callback reports whether every version
-    // succeeded, while successfully loaded notes remain available on failure.
+    // Load the notes for every known package of one plugin. Notes cached less
+    // than 24 hours ago are reused unless force is true. The callback reports
+    // whether every version succeeded; partial results remain available.
     void download_changelogs(const std::string &plugin_id,
                              std::function<void(bool)> callback_result,
                              bool force = false);
@@ -69,6 +69,9 @@ public:
     void install_plugin(const std::string &plugin_id,
                         const PluginAvailable &version,
                         std::function<void(UpdaterError)> callback_result);
+    // Record a package removal for the next startup without unloading the DLL
+    // currently used by this process.
+    void uninstall_plugin(const std::string &plugin_id, std::function<void(UpdaterError)> callback_result);
     void clear_cache_plugin(const std::string &plugin_id, std::function<void(UpdaterError)> callback_result);
 
     size_t count_available() const;
@@ -78,6 +81,7 @@ public:
 
 private:
     void update_plugin(PluginSync &plugin, bool force);
+    UpdaterError schedule_cached_plugin_install(const std::string &plugin_id, const PluginAvailable &version);
     int update_count() override;
 
     std::recursive_mutex m_plugins_mutex;

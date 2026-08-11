@@ -7,6 +7,7 @@
 #define plugins_pluginrepository_hpp_
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -76,20 +77,23 @@ struct PluginInstalledVersion {
     std::string slicer_version;
 };
 
-// The activation file has two independent concerns. A package version is
-// selected in [installed], while individual plugin ids are enabled in
-// [activated] after that package has been loaded on the next launch.
+// The activation file separates package lifecycle from plugin activation. A
+// package version selected in [installed] is copied into the live directory on
+// the next launch. A package listed in [removed] is deleted on that launch.
+// Individual plugin ids remain independently enabled in [activated].
 struct PluginActivationConfig {
     std::map<std::string, bool> activated;
     std::map<std::string, PluginInstalledVersion> installed;
+    std::set<std::string> removed;
 };
 
-// Return the user configuration file which records requested package versions
-// and enabled plugin ids.
+// Return the user configuration file which records package changes and enabled
+// plugin ids.
 boost::filesystem::path plugin_activation_config_path(const boost::filesystem::path &data_directory);
 
-// Read or write both sections of activated.ini. Writing deliberately preserves
-// [installed] when a caller changes only the enabled plugin ids.
+// Read or write the [installed], [removed] and [activated] sections. Callers
+// load the complete value before changing one concern, so unrelated package
+// requests and activation choices remain present when the file is rewritten.
 bool read_plugin_activation_config(const boost::filesystem::path &config_path,
                                    PluginActivationConfig &config,
                                    std::string &error_message);
@@ -105,9 +109,8 @@ bool ensure_plugin_activation_config(const boost::filesystem::path &data_directo
                                      bool &from_user_config,
                                      std::string &error_message);
 
-// Extract shipped ZIP bundles into a versioned cache, then install the
-// versions requested by config. These functions use explicit roots so tests
-// can exercise the filesystem behaviour without global application state.
+// Extract shipped ZIP bundles into the versioned cache. The loader applies the
+// package requests separately after every required package is available.
 bool prepare_plugin_bundle_cache(const boost::filesystem::path &resources_directory,
                                  const boost::filesystem::path &data_directory,
                                  std::string &error_message);
@@ -121,9 +124,22 @@ bool cache_plugin_package_archive(const boost::filesystem::path &data_directory,
                                   const std::string &package_version,
                                   const std::string &slicer_version,
                                   std::string &error_message);
-bool install_requested_plugin_packages(const boost::filesystem::path &data_directory,
-                                       const PluginActivationConfig &config,
-                                       std::string &error_message);
+
+// Validate a cached package without changing either the cache or the live
+// plugin directory. Updaters use this before deciding whether a network
+// download is necessary.
+bool plugin_package_cache_is_valid(const boost::filesystem::path &data_directory,
+                                   const std::string &package_name,
+                                   const PluginInstalledVersion &version,
+                                   std::string &error_message);
+
+// Apply the package requests read from activated.ini before loading any DLL.
+// Missing removal targets are non-fatal and returned through warnings. Fatal
+// validation or filesystem failures return false through error_message.
+bool apply_requested_plugin_package_changes(const boost::filesystem::path &data_directory,
+                                            PluginActivationConfig &config,
+                                            std::vector<std::string> &warnings,
+                                            std::string &error_message);
 
 // Schedule a cached package version for installation on the next process
 // start. The current process never replaces a loaded plugin library.
@@ -131,6 +147,10 @@ bool request_plugin_install(const std::string &package_name,
                             const std::string &package_version,
                             const std::string &slicer_version,
                             std::string &error_message);
+
+// Schedule removal for the next process start. The running process keeps its
+// loaded DLL and files untouched until the loader applies this request.
+bool request_plugin_uninstall(const std::string &package_name, std::string &error_message);
 
 } // namespace Slic3r
 

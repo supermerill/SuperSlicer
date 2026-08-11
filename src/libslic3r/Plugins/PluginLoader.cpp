@@ -520,8 +520,14 @@ void load_plugins()
         } else {
             BOOST_LOG_TRIVIAL(warning) << plugin_config_error;
         }
-        if (!prepare_plugin_bundle_cache(boost::filesystem::path(resources_dir()), config_dir, plugin_config_error) ||
-            !install_requested_plugin_packages(config_dir, plugin_config, plugin_config_error))
+        std::vector<std::string> package_warnings;
+        const bool packages_prepared = prepare_plugin_bundle_cache(
+            boost::filesystem::path(resources_dir()), config_dir, plugin_config_error);
+        const bool packages_applied = packages_prepared && apply_requested_plugin_package_changes(
+            config_dir, plugin_config, package_warnings, plugin_config_error);
+        for (const std::string &warning : package_warnings)
+            BOOST_LOG_TRIVIAL(warning) << warning;
+        if (!packages_applied)
             BOOST_LOG_TRIVIAL(warning) << plugin_config_error;
     }
 

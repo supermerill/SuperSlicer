@@ -53,10 +53,6 @@ bool validate_plugin_package(const boost::filesystem::path &package_root,
                              const std::string &package_name,
                              const PluginInstalledVersion &version,
                              std::string &error_message);
-bool cached_plugin_package_is_valid(const boost::filesystem::path &data_directory,
-                                    const std::string &package_name,
-                                    const PluginInstalledVersion &version,
-                                    std::string &error_message);
 bool installed_package_matches(const boost::filesystem::path &package_root,
                                const std::string &package_name,
                                const PluginInstalledVersion &version);
@@ -226,21 +222,6 @@ bool validate_plugin_package(const boost::filesystem::path &package_root,
     return true;
 }
 
-bool cached_plugin_package_is_valid(const boost::filesystem::path &data_directory,
-                                    const std::string &package_name,
-                                    const PluginInstalledVersion &version,
-                                    std::string &error_message)
-{
-    const boost::filesystem::path package_root = repository_package_cache_path(
-        data_directory, RepositoryPackageType::Plugin, package_name, version.package_version, version.slicer_version);
-    if (!boost::filesystem::is_directory(package_root)) {
-        error_message = "Plugin package '" + package_name + "' version '" + version.package_version +
-                        "' is not cached.";
-        return false;
-    }
-    return validate_plugin_package(package_root, package_name, version, error_message);
-}
-
 bool installed_package_matches(const boost::filesystem::path &package_root,
                                const std::string &package_name,
                                const PluginInstalledVersion &version)
@@ -255,7 +236,7 @@ bool replace_installed_package(const boost::filesystem::path &data_directory,
                                const PluginInstalledVersion &version,
                                std::string &error_message)
 {
-    if (!cached_plugin_package_is_valid(data_directory, package_name, version, error_message))
+    if (!plugin_package_cache_is_valid(data_directory, package_name, version, error_message))
         return false;
 
     const boost::filesystem::path source = repository_package_cache_path(
@@ -484,6 +465,20 @@ bool read_plugin_activation_config(const boost::filesystem::path &config_path,
                 ++it;
             }
         }
+
+        if (const boost::optional<boost::property_tree::ptree&> removed = tree.get_child_optional("removed"))
+            for (const boost::property_tree::ptree::value_type &entry : *removed) {
+                const std::string package_name = boost::algorithm::trim_copy(entry.first);
+                if (is_safe_package_name(package_name) &&
+                    ini_value_is_enabled(entry.second.get_value<std::string>())) {
+                    config.removed.insert(package_name);
+                    // A removal request wins over a stale or manually merged
+                    // installation request for the same package.
+                    config.installed.erase(package_name);
+                } else {
+                    BOOST_LOG_TRIVIAL(warning) << "Ignoring invalid removed plugin package '" << package_name << "'.";
+                }
+            }
     } catch (const std::exception &error) {
         error_message = "Cannot parse plugin configuration '" + config_path.string() + "': " + error.what();
         return false;
@@ -507,6 +502,9 @@ bool write_plugin_activation_config(const boost::filesystem::path &config_path,
             stream << package_name << " = " << version.package_version << "\n";
             stream << package_name << ".slicer_version = " << version.slicer_version << "\n";
         }
+        stream << "\n[removed]\n";
+        for (const std::string &package_name : config.removed)
+            stream << package_name << " = 1\n";
         stream << "\n[activated]\n";
         for (const auto &[plugin_id, enabled] : config.activated)
             stream << plugin_id << " = " << (enabled ? "1" : "0") << "\n";
@@ -611,6 +609,21 @@ bool cache_plugin_package_archive(const boost::filesystem::path &data_directory,
     return true;
 }
 
+bool plugin_package_cache_is_valid(const boost::filesystem::path &data_directory,
+                                   const std::string &package_name,
+                                   const PluginInstalledVersion &version,
+                                   std::string &error_message)
+{
+    const boost::filesystem::path package_root = repository_package_cache_path(
+        data_directory, RepositoryPackageType::Plugin, package_name, version.package_version, version.slicer_version);
+    if (!boost::filesystem::is_directory(package_root)) {
+        error_message = "Plugin package '" + package_name + "' version '" + version.package_version +
+                        "' is not cached.";
+        return false;
+    }
+    return validate_plugin_package(package_root, package_name, version, error_message);
+}
+
 bool prepare_plugin_bundle_cache(const boost::filesystem::path &resources_directory,
                                  const boost::filesystem::path &data_directory,
                                  std::string &error_message)
@@ -642,13 +655,47 @@ bool prepare_plugin_bundle_cache(const boost::filesystem::path &resources_direct
     return true;
 }
 
-bool install_requested_plugin_packages(const boost::filesystem::path &data_directory,
-                                       const PluginActivationConfig &config,
-                                       std::string &error_message)
+bool apply_requested_plugin_package_changes(const boost::filesystem::path &data_directory,
+                                            PluginActivationConfig &config,
+                                            std::vector<std::string> &warnings,
+                                            std::string &error_message)
 {
+    warnings.clear();
+    error_message.clear();
+
+    // Validate every requested installation before changing a live package.
+    // A missing archive therefore cannot leave a partially applied startup.
+    for (const auto &[package_name, version] : config.installed)
+        if (!plugin_package_cache_is_valid(data_directory, package_name, version, error_message))
+            return false;
+
     for (const auto &[package_name, version] : config.installed)
         if (!replace_installed_package(data_directory, package_name, version, error_message))
             return false;
+
+    PluginActivationConfig updated_config = config;
+    for (const std::string &package_name : config.removed) {
+        const boost::filesystem::path package_root = data_directory / PLUGIN_DIRECTORY / package_name;
+        try {
+            if (!boost::filesystem::exists(package_root)) {
+                warnings.emplace_back("Plugin package '" + package_name + "' was already absent from the live plugin directory.");
+            } else {
+                boost::filesystem::remove_all(package_root);
+            }
+        } catch (const boost::filesystem::filesystem_error &error) {
+            error_message = "Cannot remove plugin package '" + package_name + "': " + error.what();
+            return false;
+        }
+        updated_config.removed.erase(package_name);
+    }
+
+    // Removal markers are one-shot startup requests. Persist their consumption
+    // only after every requested filesystem operation has completed.
+    if (updated_config.removed != config.removed) {
+        if (!write_plugin_activation_config(plugin_activation_config_path(data_directory), updated_config, error_message))
+            return false;
+        config = std::move(updated_config);
+    }
     return true;
 }
 
@@ -664,14 +711,36 @@ bool request_plugin_install(const std::string &package_name,
     PluginInstalledVersion version{package_version, slicer_version};
     const boost::filesystem::path data_directory(data_dir());
     if (!prepare_plugin_bundle_cache(boost::filesystem::path(resources_dir()), data_directory, error_message) ||
-        !cached_plugin_package_is_valid(data_directory, package_name, version, error_message))
+        !plugin_package_cache_is_valid(data_directory, package_name, version, error_message))
         return false;
 
     PluginActivationConfig config;
     bool from_user_config = false;
     if (!ensure_plugin_activation_config(data_directory, config, from_user_config, error_message))
         return false;
+    config.removed.erase(package_name);
     config.installed[package_name] = version;
+    return write_plugin_activation_config(plugin_activation_config_path(data_directory), config, error_message);
+}
+
+bool request_plugin_uninstall(const std::string &package_name, std::string &error_message)
+{
+    if (!has_data_dir()) {
+        error_message = "Cannot schedule a plugin removal before data_dir is available.";
+        return false;
+    }
+    if (!is_safe_package_name(package_name)) {
+        error_message = "Cannot schedule removal for invalid plugin package '" + package_name + "'.";
+        return false;
+    }
+
+    PluginActivationConfig config;
+    bool from_user_config = false;
+    const boost::filesystem::path data_directory(data_dir());
+    if (!ensure_plugin_activation_config(data_directory, config, from_user_config, error_message))
+        return false;
+    config.installed.erase(package_name);
+    config.removed.insert(package_name);
     return write_plugin_activation_config(plugin_activation_config_path(data_directory), config, error_message);
 }
 
