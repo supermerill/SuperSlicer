@@ -10,6 +10,7 @@
 #include "PluginUpdateDialog.hpp"
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <wx/button.h>
@@ -18,10 +19,11 @@
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
 
-#include "slic3r/Utils/PluginUpdater.hpp"
+#include "libslic3r/Updater/PluginUpdater.hpp"
 
 #include "I18N.hpp"
 #include "GUI.hpp"
+#include "UpdaterErrorMessages.hpp"
 
 namespace Slic3r::GUI {
 
@@ -100,10 +102,10 @@ void PluginUpdateDialog::add_repository()
     const std::string url = m_repository_url->GetValue().utf8_string();
     if (url.empty())
         return;
-    m_updater.download_new_repo(url, [this](bool success) {
-        CallAfter([this, success] {
-            if (!success)
-                wxMessageBox(_L("Unable to read a valid plugin description.ini from this repository."), _L("Plugin updates"), wxICON_ERROR);
+    m_updater.download_new_repo(url, [this](UpdaterError error) {
+        CallAfter([this, error = std::move(error)] {
+            if (!error.succeeded())
+                wxMessageBox(from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR);
             else
                 m_updater.reload_all_plugins();
             rebuild();
@@ -122,10 +124,10 @@ void PluginUpdateDialog::install_latest(const std::string &plugin_id)
     if (plugin == nullptr || plugin->best == nullptr)
         return;
     const PluginAvailable version = *plugin->best;
-    m_updater.install_plugin(plugin_id, version, [this](const std::string &error_message) {
-        CallAfter([this, error_message] {
-            if (!error_message.empty())
-                wxMessageBox(from_u8(error_message), _L("Plugin updates"), wxICON_ERROR);
+    m_updater.install_plugin(plugin_id, version, [this](UpdaterError error) {
+        CallAfter([this, error = std::move(error)] {
+            if (!error.succeeded())
+                wxMessageBox(from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR);
             else
                 wxMessageBox(_L("The selected plugin version will be installed after restarting the application."),
                              _L("Plugin updates"), wxICON_INFORMATION);
@@ -137,10 +139,10 @@ void PluginUpdateDialog::install_latest(const std::string &plugin_id)
 
 void PluginUpdateDialog::clear_cache(const std::string &plugin_id)
 {
-    m_updater.clear_cache_plugin(plugin_id, [this](bool success) {
-        CallAfter([this, success] {
-            if (!success)
-                wxMessageBox(_L("Unable to clear this plugin cache."), _L("Plugin updates"), wxICON_ERROR);
+    m_updater.clear_cache_plugin(plugin_id, [this](UpdaterError error) {
+        CallAfter([this, error = std::move(error)] {
+            if (!error.succeeded())
+                wxMessageBox(from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR);
             rebuild();
         });
     });

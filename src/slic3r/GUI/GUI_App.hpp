@@ -38,7 +38,6 @@ namespace Slic3r {
 
 class AppConfig;
 class PresetBundle;
-class PresetUpdater;
 class PluginUpdater;
 class ModelObject;
 class PrintHostJobQueue;
@@ -60,6 +59,7 @@ class NotificationManager;
 class Downloader;
 struct GUI_InitParams;
 class GalleryDialog;
+class PresetUpdater;
 
 
 

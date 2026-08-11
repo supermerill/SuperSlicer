@@ -7,7 +7,7 @@
 // from wx and package files so it can coordinate both vendor and plugin HTTP
 // operations without knowing what their archives contain.
 
-#include "RepositoryUpdater.hpp"
+#include "libslic3r/Updater/RepositoryUpdater.hpp"
 
 namespace Slic3r {
 

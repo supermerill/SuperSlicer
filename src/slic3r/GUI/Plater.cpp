@@ -141,7 +141,7 @@
 #include "slic3r/Utils/PrintHost.hpp"
 #include "slic3r/Utils/FixModelByWin10.hpp"
 #include "slic3r/Utils/UndoRedo.hpp"
-#include "slic3r/Utils/PresetUpdater.hpp"
+#include "slic3r/GUI/PresetUpdater.hpp"
 #include "slic3r/Utils/Process.hpp"
 #include "Gizmos/GLGizmoSimplify.hpp" // create suggestion notification
 #include "Gizmos/GLGizmoSVG.hpp" // Drop SVG file

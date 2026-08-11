@@ -81,8 +81,8 @@
 #include "Plater.hpp"
 #include "GLCanvas3D.hpp"
 
-#include "slic3r/Utils/PresetUpdater.hpp"
-#include "slic3r/Utils/PluginUpdater.hpp"
+#include "libslic3r/Updater/PluginUpdater.hpp"
+#include "slic3r/GUI/PresetUpdater.hpp"
 #include "slic3r/Utils/HttpErrorMessages.hpp"
 #include "slic3r/Utils/PrintHost.hpp"
 #include "slic3r/Utils/Process.hpp"
@@ -1669,7 +1669,7 @@ bool GUI_App::on_init_inner()
             associate_stl_files();
 #endif // __WXMSW__
 
-        preset_updater.reset(new PresetUpdater(this));
+        preset_updater.reset(new PresetUpdater(*this));
         plugin_updater.reset(new PluginUpdater());
         plugin_updater->reload_all_plugins();
         Bind(EVT_SLIC3R_VERSION_ONLINE, &GUI_App::on_version_read, this);
@@ -3387,42 +3387,10 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
 #else
             assert(this->preset_updater);
             if (this->preset_updater) {
-                bool is_in_synch = this->preset_updater->synch_process_ongoing;
-                if (is_in_synch) {
-                    std::lock_guard<std::mutex> guard(this->preset_updater->callback_update_preset_mutex);
-                    //test again, to avoid issues
-                    if (this->preset_updater->synch_process_ongoing) {
-                        auto old_callback_update_preset = this->preset_updater->callback_update_preset;
-                        this->preset_updater->sync_async([this, old_callback_update_preset](int nb_updates) {
-                            old_callback_update_preset(nb_updates);
-                            this->preset_updater->set_installed_vendors(preset_bundle.get());
-                            this->preset_updater->reload_all_vendors();
-                            this->preset_updater->sync_async([this](int update_count) {
-                                // end of waiting dialog (yes, it has to be called without any exception)
-                                this->wait_dialog.reset();
-                                // call show_synch_window once this call is returned.
-                                // can't call it here as there is still things to celan up before
-                                wxCommandEvent* evt = new wxCommandEvent(EVT_CONFIG_UPDATER_SHOW_DIALOG);
-                                this->QueueEvent(evt);
-                            });
-                        });
-                        this->wait_dialog.reset(new wxBusyInfo("Updating the presets, please wait"));
-                        return;
-                    } else {
-                        // the mutex lock makes us wait enough time.
-                    }
-                }
-                this->wait_dialog.reset(new wxBusyInfo("Updating the presets, please wait"));
                 this->preset_updater->set_installed_vendors(preset_bundle.get());
                 this->preset_updater->reload_all_vendors();
-                this->preset_updater->sync_async([this](int update_count) {
-                    // end of waiting dialog (yes, it has to be called without any exception)
-                    this->wait_dialog.reset();
-                    // call show_synch_window once this call is returned.
-                    // can't call it here as there is still things to celan up before
-                    wxCommandEvent* evt = new wxCommandEvent(EVT_CONFIG_UPDATER_SHOW_DIALOG);
-                    this->QueueEvent(evt);
-                });
+                this->preset_updater->show_synch_window(
+                    this->plater(), _L("Managing vendor bundles (hover for more information):"), [](bool) {});
             }
 #endif
             break;
@@ -4087,7 +4055,6 @@ bool GUI_App::run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage
 #endif
 #ifndef ALLOW_PRUSA_FIRST
     // if nothing installed, show the installation dialog first
-    bool is_synch = this->preset_updater->is_synch;
     if (bypass_bundle_install == RVBM_ALWAYS ||
         (bypass_bundle_install == RVBM_IF_EMPTY && this->preset_updater->count_installed() == 0)) {
         this->preset_updater->show_synch_window(
@@ -4105,8 +4072,8 @@ bool GUI_App::run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage
         // don't run the bundle manager but just install the vendor version
         this->preset_updater->sync_async([this, reason, start_page](int update_count) {
             bool found;
-            std::lock_guard<std::recursive_mutex> guard(this->preset_updater->all_vendors_mutex);
-            for (const auto &[id, vendor] : this->preset_updater->all_vendors) {
+            const std::vector<VendorSync> vendors = this->preset_updater->vendors();
+            for (const VendorSync &vendor : vendors) {
                 if (vendor.profile.id == ALLOW_PRUSA_FIRST) {
                     found = true;
                     if (vendor.best != nullptr) {

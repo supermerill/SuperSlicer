@@ -8,12 +8,14 @@
 // scheduled for the next launch because the current process may hold plugin
 // DLLs open.
 
-#include "PluginUpdater.hpp"
+#include "libslic3r/Updater/PluginUpdater.hpp"
 
 #include <algorithm>
 #include <cstring>
+#include <ctime>
 #include <iterator>
 #include <sstream>
+#include <utility>
 
 #include <boost/filesystem.hpp>
 #include <boost/log/trivial.hpp>
@@ -40,6 +42,15 @@ bool read_plugin_description(const boost::filesystem::path &path,
 void load_plugin_descriptions(const boost::filesystem::path &directory,
                               std::map<std::string, PluginSync> &plugins);
 void save_plugin_description(const RepositoryDescription &description, const std::string &contents);
+UpdaterError updater_error(UpdaterError::Code code, std::string detail = std::string());
+
+UpdaterError updater_error(UpdaterError::Code code, std::string detail)
+{
+    UpdaterError error;
+    error.code = code;
+    error.detail = std::move(detail);
+    return error;
+}
 
 boost::filesystem::path repositories_directory()
 {
@@ -248,7 +259,7 @@ void PluginUpdater::update_plugin(PluginSync &plugin, bool force)
         .perform();
 }
 
-void PluginUpdater::download_new_repo(const std::string &rest_url, std::function<void(bool)> callback_result)
+void PluginUpdater::download_new_repo(const std::string &rest_url, std::function<void(UpdaterError)> callback_result)
 {
     const std::string normalized_rest_url = repository_rest_url(rest_url);
     const size_t marker = normalized_rest_url.find("https://api.github.com/repos/");
@@ -257,21 +268,23 @@ void PluginUpdater::download_new_repo(const std::string &rest_url, std::function
             "/refs/heads/main/description.ini" : normalized_rest_url + "/description";
     Http::get(description_url)
         .size_limit(1024 * 64)
-        .on_error([callback_result](std::string, std::string, unsigned) { callback_result(false); })
+        .on_error([callback_result](std::string, std::string error, unsigned) {
+            callback_result(updater_error(UpdaterError::Code::Network, std::move(error)));
+        })
         .on_complete([callback_result](std::string contents, unsigned) {
             RepositoryDescription description;
             std::string error_message;
             if (!parse_repository_description(contents, RepositoryPackageType::Plugin, description, error_message)) {
                 BOOST_LOG_TRIVIAL(warning) << error_message;
-                callback_result(false);
+                callback_result(updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message)));
                 return;
             }
             try {
                 save_plugin_description(description, contents);
-                callback_result(true);
+                callback_result(UpdaterError());
             } catch (const boost::filesystem::filesystem_error &error) {
                 BOOST_LOG_TRIVIAL(warning) << error.what();
-                callback_result(false);
+                callback_result(updater_error(UpdaterError::Code::Filesystem, error.what()));
             }
         })
         .perform();
@@ -279,15 +292,15 @@ void PluginUpdater::download_new_repo(const std::string &rest_url, std::function
 
 void PluginUpdater::install_plugin(const std::string &plugin_id,
                                    const PluginAvailable &version,
-                                   std::function<void(const std::string &)> callback_result)
+                                   std::function<void(UpdaterError)> callback_result)
 {
     PluginSync *plugin = get_plugin(plugin_id);
     if (plugin == nullptr || version.url_zip.empty()) {
-        callback_result("The selected plugin version has no downloadable archive.");
+        callback_result(updater_error(UpdaterError::Code::ArchiveUnavailable));
         return;
     }
     if (!has_api_request_slot(version.url_zip)) {
-        callback_result("Too many requests to GitHub. Please try again later.");
+        callback_result(updater_error(UpdaterError::Code::RateLimited));
         return;
     }
     const boost::filesystem::path archive_path = repositories_directory() / plugin_id /
@@ -295,7 +308,9 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
     boost::filesystem::create_directories(archive_path.parent_path());
     Http::get(version.url_zip)
         .size_limit(130 * 1024 * 1024)
-        .on_error([callback_result](std::string, std::string error, unsigned) { callback_result(error); })
+        .on_error([callback_result](std::string, std::string error, unsigned) {
+            callback_result(updater_error(UpdaterError::Code::Network, std::move(error)));
+        })
         .on_complete([plugin_id, version, archive_path, callback_result](std::string contents, unsigned) {
             boost::nowide::ofstream stream(archive_path.string(), std::ios::out | std::ios::binary | std::ios::trunc);
             stream.write(contents.data(), static_cast<std::streamsize>(contents.size()));
@@ -304,15 +319,15 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
             if (!cache_plugin_package_archive(boost::filesystem::path(data_dir()), archive_path, plugin_id,
                                               version.package_version, version.slicer_version, error_message) ||
                 !request_plugin_install(plugin_id, version.package_version, version.slicer_version, error_message)) {
-                callback_result(error_message);
+                callback_result(updater_error(UpdaterError::Code::Cache, std::move(error_message)));
                 return;
             }
-            callback_result(std::string());
+            callback_result(UpdaterError());
         })
         .perform();
 }
 
-void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::function<void(bool)> callback_result)
+void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::function<void(UpdaterError)> callback_result)
 {
     try {
         const boost::filesystem::path cache_directory = boost::filesystem::path(data_dir()) / "cache/plugins";
@@ -320,10 +335,10 @@ void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::functi
             for (boost::filesystem::directory_iterator it(cache_directory), end; it != end; ++it)
                 if (it->path().filename().string().find(plugin_id + "_") == 0)
                     boost::filesystem::remove_all(it->path());
-        callback_result(true);
+        callback_result(UpdaterError());
     } catch (const boost::filesystem::filesystem_error &error) {
         BOOST_LOG_TRIVIAL(warning) << error.what();
-        callback_result(false);
+        callback_result(updater_error(UpdaterError::Code::Filesystem, error.what()));
     }
 }
 

@@ -24,7 +24,6 @@
 namespace Slic3r {
 
 class PresetBundle;
-class PresetUpdater;
 
 namespace GUI {
 

@@ -13,6 +13,7 @@ add_executable(${_TEST_NAME}_tests
     test_extrusion_continuity.cpp
     test_plugin_property.cpp
     test_plugin_repository.cpp
+    test_repository_updater.cpp
     test_plugin_translation_catalogs.cpp
     test_gcode_printing_plan_file_writer.cpp
     test_flat_area_layer_height.cpp

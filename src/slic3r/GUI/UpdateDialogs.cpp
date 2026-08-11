@@ -972,26 +972,23 @@ void UpdateConfigDialog::build_ui() {
         }
     }));
 
-    std::vector<VendorSync*> ordered_vendors;
-    {
-        std::lock_guard<std::recursive_mutex> guard(m_data.all_vendors_mutex);
-        for (auto &[id, vendor_synch] : m_data.all_vendors) {
-            ordered_vendors.push_back(&vendor_synch);
-        }
-    }
-    std::sort(ordered_vendors.begin(), ordered_vendors.end(), [](VendorSync *e1, VendorSync *e2) {
-        if (e1->is_installed == e2->is_installed) {
-            if (e1->can_upgrade == e2->can_upgrade) {
-                return e1->profile.name < e2->profile.name;
+    std::vector<VendorSync> ordered_vendors = m_data.vendors();
+    std::sort(ordered_vendors.begin(), ordered_vendors.end(), [](const VendorSync &left, const VendorSync &right) {
+        if (left.is_installed == right.is_installed) {
+            if (left.can_upgrade == right.can_upgrade) {
+                return left.profile.name < right.profile.name;
             } else {
-                return e1->can_upgrade;
+                return left.can_upgrade;
             }
         } else {
-            return e1->is_installed;
+            return left.is_installed;
         }
     });
-    for (VendorSync *vendor_synch : ordered_vendors) {
-        add_vendor_in_list(hscroll, *vendor_synch, versions_sizer, ++row_idx);
+    for (VendorSync &vendor : ordered_vendors) {
+        // Sorting moves VendorSync values. Rebuild best so it points to this
+        // copied row's available_profiles rather than a previous container.
+        vendor.sort_available();
+        add_vendor_in_list(hscroll, vendor, versions_sizer, ++row_idx);
     }
 
     //if no bundle, then deactivate the button and add a text.

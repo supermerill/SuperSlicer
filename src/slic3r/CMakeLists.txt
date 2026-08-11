@@ -132,6 +132,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/PluginConfigDialog.hpp
     GUI/PluginUpdateDialog.cpp
     GUI/PluginUpdateDialog.hpp
+    GUI/PresetUpdater.cpp
+    GUI/PresetUpdater.hpp
     GUI/RepositoryUpdatesDialogBase.cpp
     GUI/RepositoryUpdatesDialogBase.hpp
     GUI/PresetHints.cpp
@@ -243,6 +245,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/MsgDialog.hpp
     GUI/UpdateDialogs.cpp
     GUI/UpdateDialogs.hpp
+    GUI/UpdaterErrorMessages.cpp
+    GUI/UpdaterErrorMessages.hpp
     GUI/FirmwareDialog.cpp
     GUI/FirmwareDialog.hpp
     GUI/PrintHostDialogs.cpp
@@ -364,12 +368,6 @@ set(SLIC3R_GUI_SOURCES
     Utils/PrintHost.hpp
     Utils/Bonjour.cpp
     Utils/Bonjour.hpp
-    Utils/PluginUpdater.cpp
-    Utils/PluginUpdater.hpp
-    Utils/PresetUpdater.cpp
-    Utils/PresetUpdater.hpp
-    Utils/RepositoryUpdater.cpp
-    Utils/RepositoryUpdater.hpp
     Utils/Process.cpp
     Utils/Process.hpp
     Utils/RaycastManager.cpp

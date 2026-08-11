@@ -288,6 +288,13 @@ set(SLIC3R_SOURCES
 	Steps/StepSurfaceGeneration.hpp
 	Updater/Http.cpp
 	Updater/Http.hpp
+	Updater/PluginUpdater.cpp
+	Updater/PluginUpdater.hpp
+	Updater/PresetUpdater.cpp
+	Updater/PresetUpdater.hpp
+	Updater/RepositoryUpdater.cpp
+	Updater/RepositoryUpdater.hpp
+	Updater/UpdaterError.hpp
     BoundingBox.cpp
     BoundingBox.hpp
     BridgeDetector.cpp

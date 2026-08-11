@@ -4,11 +4,11 @@
 ///|/
 
 // This updater is the plugin counterpart to PresetUpdater. It reuses the
-// repository description, tag and archive protocol from libslic3r, but keeps
-// HTTP and wx callbacks in slic3r so console and server code remain GUI-free.
+// repository description, tag and archive protocol from libslic3r. Its
+// callbacks expose transport-neutral results so GUI code can localize them.
 
-#ifndef slic3r_PluginUpdater_hpp_
-#define slic3r_PluginUpdater_hpp_
+#ifndef slic3r_Updater_PluginUpdater_hpp_
+#define slic3r_Updater_PluginUpdater_hpp_
 
 #include <functional>
 #include <map>
@@ -18,8 +18,8 @@
 #include <vector>
 
 #include "libslic3r/Plugins/PluginRepository.hpp"
-
-#include "RepositoryUpdater.hpp"
+#include "libslic3r/Updater/RepositoryUpdater.hpp"
+#include "libslic3r/Updater/UpdaterError.hpp"
 
 namespace Slic3r {
 
@@ -54,11 +54,11 @@ public:
     // contact the network; sync_async() performs that work later.
     void reload_all_plugins();
     void sync_async(std::function<void(int)> callback_result, bool force = false);
-    void download_new_repo(const std::string &rest_url, std::function<void(bool)> callback_result);
+    void download_new_repo(const std::string &rest_url, std::function<void(UpdaterError)> callback_result);
     void install_plugin(const std::string &plugin_id,
                         const PluginAvailable &version,
-                        std::function<void(const std::string &)> callback_result);
-    void clear_cache_plugin(const std::string &plugin_id, std::function<void(bool)> callback_result);
+                        std::function<void(UpdaterError)> callback_result);
+    void clear_cache_plugin(const std::string &plugin_id, std::function<void(UpdaterError)> callback_result);
 
     size_t count_available() const;
     size_t count_updates() const;
@@ -75,4 +75,4 @@ private:
 
 } // namespace Slic3r
 
-#endif // slic3r_PluginUpdater_hpp_
+#endif // slic3r_Updater_PluginUpdater_hpp_

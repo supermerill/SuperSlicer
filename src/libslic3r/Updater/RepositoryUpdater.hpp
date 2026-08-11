@@ -9,8 +9,8 @@
 // and completion callback. This keeps plugin DLL lifetime and preset loading
 // out of the common layer.
 
-#ifndef slic3r_RepositoryUpdater_hpp_
-#define slic3r_RepositoryUpdater_hpp_
+#ifndef slic3r_Updater_RepositoryUpdater_hpp_
+#define slic3r_Updater_RepositoryUpdater_hpp_
 
 #include <atomic>
 #include <ctime>
@@ -59,4 +59,4 @@ private:
 
 } // namespace Slic3r
 
-#endif // slic3r_RepositoryUpdater_hpp_
+#endif // slic3r_Updater_RepositoryUpdater_hpp_
