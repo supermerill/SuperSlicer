@@ -23,4 +23,10 @@ set_target_properties(dense_infill_plugin PROPERTIES
     FOLDER "plugins"
 )
 
-slic3r_package_plugin(dense_infill_plugin dense_infill)
+slic3r_package_plugin(
+    dense_infill_plugin
+    dense_infill
+    NAME "Dense infill"
+    FULL_NAME "Dense infill"
+    DESCRIPTION "Generate and order denser infill below upper solid surfaces."
+)

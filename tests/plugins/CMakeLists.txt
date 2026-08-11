@@ -56,6 +56,22 @@ if (WIN32)
     target_sources(${_TEST_NAME}_tests PRIVATE plugin_version_metadata.rc)
     prusaslicer_copy_dlls(${_TEST_NAME}_tests)
     set_target_properties(${_TEST_NAME}_tests PROPERTIES ENABLE_EXPORTS ON)
+
+    # Exercise the metadata generated for an actual external plugin target.
+    # The test receives both the DLL path and the values resolved by the
+    # packaging helper, so it does not duplicate version constants.
+    if (TARGET polyholes_plugin)
+        add_dependencies(${_TEST_NAME}_tests polyholes_plugin)
+        get_target_property(_polyholes_package_version
+            polyholes_plugin SLIC3R_PLUGIN_PACKAGE_VERSION)
+        get_target_property(_polyholes_slicer_version
+            polyholes_plugin SLIC3R_PLUGIN_SLICER_VERSION)
+        target_compile_definitions(${_TEST_NAME}_tests PRIVATE
+            SLIC3R_TEST_POLYHOLES_PLUGIN_DLL=R"\($<TARGET_FILE:polyholes_plugin>\)"
+            SLIC3R_TEST_POLYHOLES_PACKAGE_VERSION=R"\(${_polyholes_package_version}\)"
+            SLIC3R_TEST_POLYHOLES_SLICER_VERSION=R"\(${_polyholes_slicer_version}\)"
+        )
+    endif()
 endif()
 
 if (TARGET python_plugin_loader)

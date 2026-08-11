@@ -679,6 +679,55 @@ TEST_CASE("Windows plugin VERSIONINFO supplies missing package versions",
 
     boost::filesystem::remove_all(root);
 }
+
+#ifdef SLIC3R_TEST_POLYHOLES_PLUGIN_DLL
+TEST_CASE("Packaged C++ plugin DLL metadata matches its generated version file",
+          "[plugins][repository][cache-layout]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-packaged-native-version-%%%%-%%%%");
+    const boost::filesystem::path package = root / "polyholes";
+    boost::filesystem::create_directories(package);
+    {
+        boost::nowide::ofstream description((package / "description.ini").string());
+        description << description_contents("polyholes", "Polyholes");
+    }
+    boost::filesystem::copy_file(
+        boost::filesystem::path(SLIC3R_TEST_POLYHOLES_PLUGIN_DLL),
+        package / plugin_library_filename());
+
+    Slic3r::RepositoryPackageCache cache(root / "data", Slic3r::plugin_repository_cache_adapter());
+    bool purged = false;
+    std::string error_message;
+    REQUIRE(cache.prepare_layout(purged, error_message));
+    Slic3r::RepositoryCachedVersion cached;
+
+    // With no sidecar file, the cache must recover both values from the DLL.
+    REQUIRE(cache.cache_simple(package, cached, error_message));
+    CHECK(cached.version.package_version == SLIC3R_TEST_POLYHOLES_PACKAGE_VERSION);
+    CHECK(cached.version.slicer_version == SLIC3R_TEST_POLYHOLES_SLICER_VERSION);
+
+    // The normal package contains the same values in version.ini. Importing it
+    // again verifies that generated native and sidecar metadata agree.
+    {
+        boost::nowide::ofstream version((package / "version.ini").string());
+        version << version_contents(SLIC3R_TEST_POLYHOLES_PACKAGE_VERSION,
+                                    SLIC3R_TEST_POLYHOLES_SLICER_VERSION);
+    }
+    REQUIRE(cache.cache_simple(package, cached, error_message));
+
+    // A plugin must never silently choose between two different package
+    // versions because the selected cache directory would become ambiguous.
+    {
+        boost::nowide::ofstream version((package / "version.ini").string());
+        version << version_contents("999.999.999.999", SLIC3R_TEST_POLYHOLES_SLICER_VERSION);
+    }
+    CHECK_FALSE(cache.cache_simple(package, cached, error_message));
+    CHECK(error_message.find("native metadata") != std::string::npos);
+
+    boost::filesystem::remove_all(root);
+}
+#endif
 #endif
 
 TEST_CASE("Repository package cache preserves versions and selects root metadata",

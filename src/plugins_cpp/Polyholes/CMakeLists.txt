@@ -23,4 +23,10 @@ set_target_properties(polyholes_plugin PROPERTIES
     FOLDER "plugins"
 )
 
-slic3r_package_plugin(polyholes_plugin polyholes)
+slic3r_package_plugin(
+    polyholes_plugin
+    polyholes
+    NAME "Polyholes"
+    FULL_NAME "Polyholes"
+    DESCRIPTION "Convert round vertical holes to polygonal holes tuned for FDM extrusion."
+)
