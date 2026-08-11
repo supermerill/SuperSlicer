@@ -8,8 +8,8 @@
 // the GUI-only responsibilities: snapshots, AppConfig reconciliation, preset
 // reloads and posting asynchronous callbacks back to the wx event loop.
 
-#ifndef slic3r_GUI_PresetUpdater_hpp_
-#define slic3r_GUI_PresetUpdater_hpp_
+#ifndef slic3r_Utils_PresetUpdater_hpp_
+#define slic3r_Utils_PresetUpdater_hpp_
 
 #ifndef USE_GTHUB_PRESET_UPDATE
 #define USE_GTHUB_PRESET_UPDATE 1
@@ -92,4 +92,4 @@ private:
 
 } // namespace Slic3r::GUI
 
-#endif // slic3r_GUI_PresetUpdater_hpp_
+#endif // slic3r_Utils_PresetUpdater_hpp_

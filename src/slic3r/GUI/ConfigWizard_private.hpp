@@ -33,7 +33,7 @@
 #include "ConfigWizard.hpp"
 #include "GUI.hpp"
 #include "SavePresetDialog.hpp"
-#include "slic3r/GUI/PresetUpdater.hpp"
+#include "slic3r/Utils/PresetUpdater.hpp"
 #include "Widgets/SpinInput.hpp"
 #include "wxExtensions.hpp"
 namespace fs = boost::filesystem;

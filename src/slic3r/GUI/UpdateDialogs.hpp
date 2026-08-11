@@ -22,7 +22,7 @@
 #include "libslic3r/Semver.hpp"
 
 #include "MsgDialog.hpp"
-#include "slic3r/GUI/PresetUpdater.hpp"
+#include "slic3r/Utils/PresetUpdater.hpp"
 #include "RepositoryUpdatesDialogBase.hpp"
 class wxBoxSizer;
 class wxCheckBox;

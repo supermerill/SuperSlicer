@@ -66,7 +66,7 @@
 #include "Field.hpp"
 #include "DesktopIntegrationDialog.hpp"
 #include "slic3r/Config/Snapshot.hpp"
-#include "slic3r/GUI/PresetUpdater.hpp"
+#include "slic3r/Utils/PresetUpdater.hpp"
 #include "format.hpp"
 #include "MsgDialog.hpp"
 #include "UnsavedChangesDialog.hpp"

@@ -7,7 +7,7 @@
 // changes touch wxWidgets, snapshots and the currently loaded presets. The
 // core updater can therefore be reused by the console and future server code.
 
-#include "PresetUpdater.hpp"
+#include "slic3r/Utils/PresetUpdater.hpp"
 
 #include <algorithm>
 #include <set>
@@ -21,11 +21,11 @@
 
 #include "slic3r/Config/Snapshot.hpp"
 
-#include "GUI_App.hpp"
-#include "GUI.hpp"
-#include "I18N.hpp"
-#include "UpdateDialogs.hpp"
-#include "UpdaterErrorMessages.hpp"
+#include "slic3r/GUI/GUI_App.hpp"
+#include "slic3r/GUI/GUI.hpp"
+#include "slic3r/GUI/I18N.hpp"
+#include "slic3r/GUI/UpdateDialogs.hpp"
+#include "slic3r/GUI/UpdaterErrorMessages.hpp"
 
 namespace Slic3r::GUI {
 

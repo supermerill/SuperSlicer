@@ -132,8 +132,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/PluginConfigDialog.hpp
     GUI/PluginUpdateDialog.cpp
     GUI/PluginUpdateDialog.hpp
-    GUI/PresetUpdater.cpp
-    GUI/PresetUpdater.hpp
     GUI/RepositoryUpdatesDialogBase.cpp
     GUI/RepositoryUpdatesDialogBase.hpp
     GUI/PresetHints.cpp
@@ -236,6 +234,8 @@ set(SLIC3R_GUI_SOURCES
     Config/Version.hpp    
     Utils/ASCIIFolding.cpp
     Utils/ASCIIFolding.hpp
+    Utils/PresetUpdater.cpp
+    Utils/PresetUpdater.hpp
     Utils/Serial.cpp
     Utils/Serial.hpp
     GUI/ConfigWizard.cpp

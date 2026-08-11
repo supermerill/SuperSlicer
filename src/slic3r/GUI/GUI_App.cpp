@@ -82,7 +82,7 @@
 #include "GLCanvas3D.hpp"
 
 #include "libslic3r/Updater/PluginUpdater.hpp"
-#include "slic3r/GUI/PresetUpdater.hpp"
+#include "slic3r/Utils/PresetUpdater.hpp"
 #include "slic3r/Utils/HttpErrorMessages.hpp"
 #include "slic3r/Utils/PrintHost.hpp"
 #include "slic3r/Utils/Process.hpp"
