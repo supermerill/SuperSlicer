@@ -59,6 +59,7 @@
 #include "libslic3r/Model.hpp"
 #include "libslic3r/Color.hpp"
 #include "libslic3r/FFFPrintConfig.hpp"
+#include "libslic3r/Updater/RepositoryPackageCache.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
 #include "GUI_Utils.hpp"
@@ -138,21 +139,17 @@ BundleMap BundleMap::load()
 
     const auto vendor_dir = (boost::filesystem::path(Slic3r::data_dir()) / "vendor").make_preferred();
 #ifndef USE_GTHUB_PRESET_UPDATE
-    const auto archive_dir = (boost::filesystem::path(Slic3r::data_dir()) / "cache" / "vendor").make_preferred();
     const auto rsrc_vendor_dir = (boost::filesystem::path(resources_dir()) / "profiles").make_preferred();
     const auto cache_dir = boost::filesystem::path(Slic3r::data_dir()) / "cache"; // for Index
 #endif
-    // Load Prusa bundle from the datadir/vendor directory or from datadir/cache/vendor (archive) or from resources/profiles.
+    // Load the mandatory bundle from the installed vendor directory or from
+    // resources. Versioned cache entries join the general scan below.
 #ifdef ALLOW_PRUSA_FIRST
     // prusa bundle mandatory check at startup
     auto prusa_bundle_path = (vendor_dir / ALLOW_PRUSA_FIRST).replace_extension(".ini");
     BundleLocation prusa_bundle_loc = BundleLocation::IN_VENDOR;
 #ifndef USE_GTHUB_PRESET_UPDATE
     if (! boost::filesystem::exists(prusa_bundle_path)) {
-        prusa_bundle_path = (archive_dir / ALLOW_PRUSA_FIRST).replace_extension(".ini");
-        prusa_bundle_loc = BundleLocation::IN_ARCHIVE;
-    }
-    if (!boost::filesystem::exists(prusa_bundle_path)) {
         prusa_bundle_path = (rsrc_vendor_dir / PresetBundle::PRUSA_BUNDLE).replace_extension(".ini");
         prusa_bundle_loc = BundleLocation::IN_RESOURCES;
     }
@@ -170,13 +167,23 @@ BundleMap BundleMap::load()
     }
 #endif
 
-    // Load the other bundles in the datadir/vendor directory
-    // and then additionally from datadir/cache/vendor (archive) and resources/profiles.
+    // Load other bundles from installed vendors, versioned cache packages and
+    // resources in that precedence order.
     // Should we concider case where archive has older profiles than resources (shouldnt happen)? -> YES, it happens during re-configuration when running older PS after newer version
-    typedef std::pair<const fs::path&, BundleLocation> DirData;
+    typedef std::pair<fs::path, BundleLocation> DirData;
 #ifndef USE_GTHUB_PRESET_UPDATE
-    std::vector<DirData> dir_list { {vendor_dir, BundleLocation::IN_VENDOR},  {archive_dir, BundleLocation::IN_ARCHIVE},  {rsrc_vendor_dir, BundleLocation::IN_RESOURCES} };
-    for ( auto dir : dir_list) {
+    std::vector<DirData> dir_list{{vendor_dir, BundleLocation::IN_VENDOR}};
+    const RepositoryPackageCache vendor_cache(boost::filesystem::path(Slic3r::data_dir()),
+                                              vendor_repository_cache_adapter());
+    for (const RepositoryCachedEntry &repository : vendor_cache.scan())
+        for (const RepositoryCachedVersion &version : repository.versions)
+            dir_list.emplace_back(version.directory / "profiles", BundleLocation::IN_ARCHIVE);
+    dir_list.emplace_back(rsrc_vendor_dir, BundleLocation::IN_RESOURCES);
+
+    // Cached versions are ordered newest-first. The first occurrence of one
+    // vendor id is therefore the package shown by the wizard; older versions
+    // remain selectable in the dedicated updater dialog.
+    for (const DirData &dir : dir_list) {
         if (!fs::exists(dir.first))
             continue;
 #else

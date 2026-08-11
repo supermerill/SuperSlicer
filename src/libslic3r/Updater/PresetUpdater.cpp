@@ -24,10 +24,9 @@
 #include <boost/filesystem.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/nowide/fstream.hpp>
-#include <boost/property_tree/ini_parser.hpp>
-
 #include "libslic3r/Plugins/PluginRepository.hpp"
 #include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Updater/RepositoryPackageCache.hpp"
 #include "libslic3r/Updater/UpdaterHttp.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/libslic3r.h"
@@ -35,23 +34,13 @@
 namespace Slic3r {
 namespace {
 
-const char *const k_vendor_cache_directory = "cache/vendor";
-
 boost::filesystem::path data_path();
 boost::filesystem::path vendor_cache_directory(const VendorProfile &profile);
+bool prepare_vendor_cache(RepositoryPackageCache &cache, bool &purged, std::string &error_message);
 bool transfer_vendor_files(const boost::filesystem::path &input_directory,
                            const boost::filesystem::path &output_directory,
                            const std::string &vendor_id,
                            bool copy);
-bool resolve_vendor_archive_root(const boost::filesystem::path &staging,
-                                 boost::filesystem::path &archive_root,
-                                 std::string &error_message);
-UpdaterError publish_vendor_profiles(const boost::filesystem::path &archive_root,
-                                     const boost::filesystem::path &package_root,
-                                     const std::string &vendor_id);
-UpdaterError extract_vendor_package(const boost::filesystem::path &archive_path,
-                                    const boost::filesystem::path &package_root,
-                                    const std::string &vendor_id);
 UpdaterError save_vendor_description(const std::string &contents, const std::string &fallback_id);
 
 boost::filesystem::path data_path()
@@ -61,7 +50,47 @@ boost::filesystem::path data_path()
 
 boost::filesystem::path vendor_cache_directory(const VendorProfile &profile)
 {
-    return data_path() / k_vendor_cache_directory / profile.usable_id();
+    return repository_cache_root_path(data_path(), RepositoryPackageType::Vendor, profile.id);
+}
+
+// Initialize the schema and restore durable vendor sources after a purge. This
+// function is used by every public cache entry point because the first action
+// in a process may be an import rather than reload_all_vendors().
+bool prepare_vendor_cache(RepositoryPackageCache &cache, bool &purged, std::string &error_message)
+{
+    if (!cache.prepare_layout(purged, error_message))
+        return false;
+    if (!purged)
+        return true;
+
+    const boost::filesystem::path installed = data_path() / "vendor";
+    if (boost::filesystem::is_directory(installed)) {
+        for (const boost::filesystem::directory_entry &entry : boost::filesystem::directory_iterator(installed)) {
+            if (!boost::filesystem::is_regular_file(entry.path()) || entry.path().extension() != ".ini")
+                continue;
+            RepositoryCachedVersion cached;
+            if (!cache.cache_simple(entry.path(), cached, error_message)) {
+                BOOST_LOG_TRIVIAL(warning) << "Cannot restore installed vendor profile '"
+                                           << entry.path().string() << "': " << error_message;
+                error_message.clear();
+            }
+        }
+    }
+
+    const boost::filesystem::path embedded = boost::filesystem::path(resources_dir()) / "profiles";
+    if (boost::filesystem::is_directory(embedded)) {
+        for (const boost::filesystem::directory_entry &entry : boost::filesystem::directory_iterator(embedded)) {
+            if (!boost::filesystem::is_regular_file(entry.path()) || entry.path().extension() != ".ini")
+                continue;
+            RepositoryCachedVersion cached;
+            if (!cache.cache_simple(entry.path(), cached, error_message)) {
+                BOOST_LOG_TRIVIAL(warning) << "Cannot restore embedded vendor profile '"
+                                           << entry.path().string() << "': " << error_message;
+                error_message.clear();
+            }
+        }
+    }
+    return true;
 }
 
 // Copies or moves one vendor INI and its icon directory. The temporary INI
@@ -104,129 +133,23 @@ bool transfer_vendor_files(const boost::filesystem::path &input_directory,
     return true;
 }
 
-// Accepts the two layouts produced by regular ZIP tools and GitHub source
-// archives. Restricting the wrapper to one directory keeps profile discovery
-// deterministic and prevents unrelated archive trees from entering the cache.
-bool resolve_vendor_archive_root(const boost::filesystem::path &staging,
-                                 boost::filesystem::path &archive_root,
-                                 std::string &error_message)
-{
-    archive_root = staging;
-    if (boost::filesystem::is_directory(archive_root / "profiles"))
-        return true;
-
-    boost::filesystem::directory_iterator entry(staging);
-    const boost::filesystem::directory_iterator end;
-    if (entry == end || !boost::filesystem::is_directory(entry->path())) {
-        error_message = "The archive has no profiles directory.";
-        return false;
-    }
-
-    archive_root = entry->path();
-    ++entry;
-    if (entry != end || !boost::filesystem::is_directory(archive_root / "profiles")) {
-        error_message = "The archive root directory is invalid.";
-        return false;
-    }
-    return true;
-}
-
-// Publish only the profiles tree below the permanent vendor directory. The
-// surrounding directory also stores repository descriptions, tags and logs,
-// which must survive a profile update.
-UpdaterError publish_vendor_profiles(const boost::filesystem::path &archive_root,
-                                     const boost::filesystem::path &package_root,
-                                     const std::string &vendor_id)
-{
-    const boost::filesystem::path source_profiles = archive_root / "profiles";
-    if (!boost::filesystem::is_regular_file(source_profiles / (vendor_id + ".ini")))
-        return make_updater_error(UpdaterError::Code::InvalidArchive,
-                                  "The archive does not contain the expected vendor profile.");
-
-    const boost::filesystem::path destination_profiles = package_root / "profiles";
-    const boost::filesystem::path previous_profiles = package_root /
-        boost::filesystem::unique_path(".profiles.previous-%%%%-%%%%");
-    const bool replace_existing = boost::filesystem::exists(destination_profiles);
-    boost::filesystem::create_directories(package_root);
-
-    // Keep the previous tree until the validated replacement is in place. Both
-    // directories are siblings, so the publication uses atomic renames.
-    if (replace_existing)
-        boost::filesystem::rename(destination_profiles, previous_profiles);
-    try {
-        boost::filesystem::rename(source_profiles, destination_profiles);
-    } catch (...) {
-        if (replace_existing && !boost::filesystem::exists(destination_profiles))
-            boost::filesystem::rename(previous_profiles, destination_profiles);
-        throw;
-    }
-
-    boost::system::error_code ignored_error;
-    if (replace_existing)
-        boost::filesystem::remove_all(previous_profiles, ignored_error);
-    return UpdaterError();
-}
-
-// The downloaded archive may either contain profiles/ directly or wrap it in
-// one top-level directory, as GitHub source archives do. Only those two
-// layouts are accepted so an archive cannot publish an unexpected tree.
-UpdaterError extract_vendor_package(const boost::filesystem::path &archive_path,
-                                    const boost::filesystem::path &package_root,
-                                    const std::string &vendor_id)
-{
-    std::string error_message;
-    const boost::filesystem::path staging = package_root.parent_path() /
-        boost::filesystem::unique_path("." + vendor_id + ".extract-%%%%-%%%%");
-    try {
-        if (!extract_repository_archive(archive_path, staging, error_message)) {
-            boost::filesystem::remove_all(staging);
-            return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
-        }
-
-        boost::filesystem::path extracted_root;
-        if (!resolve_vendor_archive_root(staging, extracted_root, error_message)) {
-            boost::filesystem::remove_all(staging);
-            return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
-        }
-
-        const UpdaterError publish_error = publish_vendor_profiles(extracted_root, package_root, vendor_id);
-        boost::filesystem::remove_all(staging);
-        return publish_error;
-    } catch (const boost::filesystem::filesystem_error &error) {
-        boost::filesystem::remove_all(staging);
-        return make_updater_error(UpdaterError::Code::Filesystem, error.what());
-    }
-}
-
 // Writes a repository description only after it has been parsed and checked.
 // The cache is then a valid local source for the next repository reload.
 UpdaterError save_vendor_description(const std::string &contents, const std::string &fallback_id)
 {
-    try {
-        boost::property_tree::ptree root;
-        std::stringstream stream(contents);
-        boost::property_tree::read_ini(stream, root);
-        const VendorProfile profile = VendorProfile::from_ini(root, fallback_id, false);
+    RepositoryDescription description;
+    std::string error_message;
+    if (!parse_repository_description(contents, RepositoryPackageType::Vendor, description, error_message))
+        return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
+    if (description.id.empty())
+        description.id = fallback_id;
 
-        RepositoryDescription description;
-        std::string description_error;
-        if (!parse_repository_description(contents, RepositoryPackageType::Vendor, description, description_error) ||
-            description.id != profile.id)
-            return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(description_error));
-
-        const boost::filesystem::path directory = vendor_cache_directory(profile);
-        boost::filesystem::create_directories(directory);
-        boost::nowide::ofstream output((directory / (profile.usable_id() + ".ini")).string(),
-                                       std::ios::out | std::ios::trunc);
-        if (!output)
-            return make_updater_error(UpdaterError::Code::Filesystem, "Cannot create vendor description file.");
-        output << contents;
-        return UpdaterError();
-    } catch (const boost::filesystem::filesystem_error &error) {
-        return make_updater_error(UpdaterError::Code::Filesystem, error.what());
-    } catch (const std::exception &error) {
-        return make_updater_error(UpdaterError::Code::InvalidArchive, error.what());
-    }
+    RepositoryPackageCache cache(data_path(), vendor_repository_cache_adapter());
+    bool purged = false;
+    if (!prepare_vendor_cache(cache, purged, error_message) ||
+        !cache.save_repository_description(description, error_message))
+        return make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message));
+    return UpdaterError();
 }
 
 } // namespace
@@ -275,7 +198,8 @@ void PresetUpdater::set_installed_vendors(const PresetBundle *preset_bundle)
     std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
     for (const auto &[id, installed_vendor] : preset_bundle->vendors) {
         VendorSync &vendor = m_vendors[installed_vendor.id];
-        vendor.reset(installed_vendor, true, boost::filesystem::is_directory(vendor_cache_directory(installed_vendor)));
+        vendor.reset(installed_vendor, true, boost::filesystem::is_directory(
+            repository_cache_root_path(data_path(), RepositoryPackageType::Vendor, installed_vendor.id)));
         if (!installed_vendor.config_update_rest.empty())
             m_is_synchronized = false;
     }
@@ -318,7 +242,7 @@ void PresetUpdater::load_unused_vendors(std::set<std::string> &vendor_ids,
 void PresetUpdater::reload_all_vendors()
 {
     const boost::filesystem::path configuration_directory = data_path();
-    const boost::filesystem::path cache_directory = configuration_directory / k_vendor_cache_directory;
+    RepositoryPackageCache cache(configuration_directory, vendor_repository_cache_adapter());
     const boost::filesystem::path profiles_directory = boost::filesystem::path(resources_dir()) / "profiles";
     std::set<std::string> vendor_ids;
 
@@ -331,36 +255,35 @@ void PresetUpdater::reload_all_vendors()
         m_vendors.clear();
         m_is_synchronized = false;
     }
-    load_unused_vendors(vendor_ids, configuration_directory / "vendor", true);
+    std::string cache_error;
+    bool purged = false;
+    if (!prepare_vendor_cache(cache, purged, cache_error)) {
+        BOOST_LOG_TRIVIAL(warning) << cache_error;
+        return;
+    }
+    const boost::filesystem::path installed_directory = configuration_directory / "vendor";
 
-    // Built-in profiles are copied to the vendor's canonical profiles tree.
-    // Built-in, imported and downloaded profiles therefore share one layout.
+    // Embedded profiles are imported through the same adapter as user files.
+    // Replacing their exact version is harmless and ensures newly shipped
+    // bundles appear even when the cache marker was already current.
     if (boost::filesystem::is_directory(profiles_directory)) {
         for (const boost::filesystem::directory_entry &entry : boost::filesystem::directory_iterator(profiles_directory)) {
-            if (entry.path().extension() != ".ini")
+            if (!boost::filesystem::is_regular_file(entry.path()) || entry.path().extension() != ".ini")
                 continue;
-            try {
-                const VendorProfile profile = VendorProfile::from_ini(entry.path(), false);
-                const boost::filesystem::path package_root = repository_package_cache_path(
-                    configuration_directory, RepositoryPackageType::Vendor, profile.usable_id(),
-                    profile.config_version.to_string(), profile.slicer_version.to_string());
-                if (!boost::filesystem::is_regular_file(package_root / "profiles" / (profile.id + ".ini")))
-                    transfer_vendor_files(entry.path().parent_path(), package_root / "profiles", profile.id, true);
-            } catch (const std::exception &error) {
+            RepositoryCachedVersion cached;
+            if (!cache.cache_simple(entry.path(), cached, cache_error))
                 BOOST_LOG_TRIVIAL(warning) << "Cannot cache built-in vendor profile '" << entry.path().string()
-                                           << "': " << error.what();
-            }
+                                           << "': " << cache_error;
         }
     }
 
-    if (boost::filesystem::is_directory(cache_directory)) {
-        for (const boost::filesystem::directory_entry &entry : boost::filesystem::directory_iterator(cache_directory)) {
-            if (!boost::filesystem::is_directory(entry.path()))
-                continue;
-            const boost::filesystem::path profiles = entry.path() / "profiles";
-            if (boost::filesystem::is_directory(profiles))
-                load_unused_vendors(vendor_ids, profiles, false);
-        }
+    load_unused_vendors(vendor_ids, installed_directory, true);
+    for (const RepositoryCachedEntry &repository : cache.scan()) {
+        // The root descriptor makes a local-only or newly configured remote
+        // repository visible before it has any downloaded version.
+        load_unused_vendors(vendor_ids, repository.directory, false);
+        for (const RepositoryCachedVersion &version : repository.versions)
+            load_unused_vendors(vendor_ids, version.directory / "profiles", false);
     }
 }
 
@@ -377,8 +300,8 @@ void PresetUpdater::sync_async(std::function<void(int)> callback_result, bool fo
 
 void PresetUpdater::update_vendor(VendorSync &vendor, bool force)
 {
-    const boost::filesystem::path cache_file = vendor_cache_directory(vendor.profile) /
-        (vendor.profile.usable_id() + "_tags.json");
+    const RepositoryPackageCache cache(data_path(), vendor_repository_cache_adapter());
+    const boost::filesystem::path cache_file = cache.repository_tags_path(vendor.profile.id);
     vendor.synch_in_progress = true;
     refresh_repository_tags(
         vendor.profile.id, vendor.profile.config_update_rest, cache_file, force,
@@ -401,7 +324,8 @@ void PresetUpdater::download_changelogs(const std::string &vendor_id,
         return;
     }
 
-    const boost::filesystem::path log_directory = vendor_cache_directory(vendor->profile) / "logs";
+    const RepositoryPackageCache cache(data_path(), vendor_repository_cache_adapter());
+    const boost::filesystem::path log_directory = cache.repository_logs_directory(vendor->profile.id);
     for (VendorAvailable &version : vendor->available_profiles) {
         RepositoryChangelogVersion common_version;
         common_version.content_version = version.config_version;
@@ -433,71 +357,15 @@ UpdaterError PresetUpdater::cache_vendor_archive(const boost::filesystem::path &
         return make_updater_error(UpdaterError::Code::ArchiveUnavailable,
                                   "The selected vendor archive does not exist.");
 
-    const boost::filesystem::path cache_directory = data_path() / k_vendor_cache_directory;
-    const boost::filesystem::path staging = cache_directory /
-        boost::filesystem::unique_path(".vendor-import-%%%%-%%%%");
+    RepositoryPackageCache cache(data_path(), vendor_repository_cache_adapter());
     std::string error_message;
-
-    try {
-        boost::filesystem::create_directories(cache_directory);
-        if (!extract_repository_archive(archive_path, staging, error_message)) {
-            boost::filesystem::remove_all(staging);
-            return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
-        }
-
-        // A local archive has no repository row telling us which vendor it
-        // contains. Discover exactly one profile before choosing its cache key.
-        boost::filesystem::path archive_root;
-        if (!resolve_vendor_archive_root(staging, archive_root, error_message)) {
-            boost::filesystem::remove_all(staging);
-            return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
-        }
-
-        boost::filesystem::path profile_path;
-        const boost::filesystem::path profiles_directory = archive_root / "profiles";
-        for (const boost::filesystem::directory_entry &entry :
-             boost::filesystem::directory_iterator(profiles_directory)) {
-            if (!boost::filesystem::is_regular_file(entry.path()) || entry.path().extension() != ".ini")
-                continue;
-            if (!profile_path.empty()) {
-                boost::filesystem::remove_all(staging);
-                return make_updater_error(UpdaterError::Code::InvalidArchive,
-                                          "A vendor archive must contain exactly one profile INI file.");
-            }
-            profile_path = entry.path();
-        }
-        if (profile_path.empty()) {
-            boost::filesystem::remove_all(staging);
-            return make_updater_error(UpdaterError::Code::InvalidArchive,
-                                      "The vendor archive profiles directory contains no INI file.");
-        }
-
-        // Parsing with load_all=true checks the version and complete vendor
-        // metadata now, before a malformed package can replace a cached one.
-        const VendorProfile profile = VendorProfile::from_ini(profile_path, true);
-        if (profile_path.filename() != profile.id + ".ini") {
-            boost::filesystem::remove_all(staging);
-            return make_updater_error(UpdaterError::Code::InvalidArchive,
-                                      "The vendor profile filename must match its vendor id.");
-        }
-
-        const boost::filesystem::path package_root = repository_package_cache_path(
-            data_path(), RepositoryPackageType::Vendor, profile.usable_id(),
-            profile.config_version.to_string(), profile.slicer_version.to_string());
-        const UpdaterError publish_error = publish_vendor_profiles(archive_root, package_root, profile.id);
-
-        boost::system::error_code ignored_error;
-        boost::filesystem::remove_all(staging, ignored_error);
-        return publish_error;
-    } catch (const boost::filesystem::filesystem_error &error) {
-        boost::system::error_code ignored_error;
-        boost::filesystem::remove_all(staging, ignored_error);
-        return make_updater_error(UpdaterError::Code::Filesystem, error.what());
-    } catch (const std::exception &error) {
-        boost::system::error_code ignored_error;
-        boost::filesystem::remove_all(staging, ignored_error);
-        return make_updater_error(UpdaterError::Code::InvalidArchive, error.what());
-    }
+    bool purged = false;
+    RepositoryCachedVersion cached;
+    if (!prepare_vendor_cache(cache, purged, error_message))
+        return make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message));
+    if (!cache.cache_archive(archive_path, std::nullopt, cached, error_message))
+        return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
+    return UpdaterError();
 }
 
 UpdaterError PresetUpdater::cache_vendor_ini(const boost::filesystem::path &profile_path)
@@ -506,36 +374,22 @@ UpdaterError PresetUpdater::cache_vendor_ini(const boost::filesystem::path &prof
         return make_updater_error(UpdaterError::Code::ArchiveUnavailable,
                                   "The selected vendor profile does not exist.");
 
-    try {
-        // Parse before touching the cache so a malformed profile cannot replace
-        // a previously usable version of the same vendor.
-        const VendorProfile profile = VendorProfile::from_ini(profile_path, true);
-        if (profile_path.filename().string() != profile.id + ".ini")
-            return make_updater_error(UpdaterError::Code::InvalidArchive,
-                                      "The vendor profile filename must match its vendor id.");
-
-        // The profiles subdirectory is the same layout used by extracted
-        // packages. transfer_vendor_files also replaces the matching icon set.
-        const boost::filesystem::path package_root = repository_package_cache_path(
-            data_path(), RepositoryPackageType::Vendor, profile.usable_id(),
-            profile.config_version.to_string(), profile.slicer_version.to_string());
-        const boost::filesystem::path profiles_directory = package_root / "profiles";
-        if (!transfer_vendor_files(profile_path.parent_path(), profiles_directory, profile.id, true))
-            return make_updater_error(UpdaterError::Code::Filesystem,
-                                      "Cannot copy the vendor profile into the cache.");
-        return UpdaterError();
-    } catch (const boost::filesystem::filesystem_error &error) {
-        return make_updater_error(UpdaterError::Code::Filesystem, error.what());
-    } catch (const std::exception &error) {
-        return make_updater_error(UpdaterError::Code::InvalidArchive, error.what());
-    }
+    RepositoryPackageCache cache(data_path(), vendor_repository_cache_adapter());
+    std::string error_message;
+    bool purged = false;
+    RepositoryCachedVersion cached;
+    if (!prepare_vendor_cache(cache, purged, error_message))
+        return make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message));
+    if (!cache.cache_simple(profile_path, cached, error_message))
+        return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
+    return UpdaterError();
 }
 
 UpdaterError PresetUpdater::install_vendor_files(VendorSync &vendor, const VendorAvailable &version)
 {
     const boost::filesystem::path vendor_directory = data_path() / "vendor";
-    const boost::filesystem::path package_root = repository_package_cache_path(
-        data_path(), RepositoryPackageType::Vendor, vendor.profile.usable_id(),
+    boost::filesystem::path package_root = repository_package_cache_path(
+        data_path(), RepositoryPackageType::Vendor, vendor.profile.id,
         version.config_version.to_string(), version.slicer_version.to_string());
     try {
         if (!version.local_file.empty()) {
@@ -545,15 +399,26 @@ UpdaterError PresetUpdater::install_vendor_files(VendorSync &vendor, const Vendo
         } else {
             if (!boost::filesystem::is_regular_file(package_root / "profiles" / (vendor.profile.id + ".ini"))) {
                 const boost::filesystem::path archive_path = vendor_cache_directory(vendor.profile) /
-                    (vendor.profile.usable_id() + ".zip");
+                    (RepositoryPackageCache::version_directory_name(
+                        version.config_version.to_string(), version.slicer_version.to_string()) + ".zip");
                 UpdaterError download_error = download_repository_file_sync(
                     version.url_zip, archive_path, 130 * 1024 * 1024);
                 if (!download_error.succeeded())
                     return download_error;
 
-                UpdaterError extraction_error = extract_vendor_package(archive_path, package_root, vendor.profile.usable_id());
-                if (!extraction_error.succeeded())
-                    return extraction_error;
+                RepositoryDescription expected;
+                expected.type = RepositoryPackageType::Vendor;
+                expected.id = vendor.profile.id;
+                expected.package_version = version.config_version.to_string();
+                expected.slicer_version = version.slicer_version.to_string();
+                RepositoryPackageCache cache(data_path(), vendor_repository_cache_adapter());
+                RepositoryCachedVersion cached;
+                std::string error_message;
+                if (!cache.cache_archive(archive_path, expected, cached, error_message))
+                    return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
+                boost::system::error_code cleanup_error;
+                boost::filesystem::remove(archive_path, cleanup_error);
+                package_root = cached.directory;
             }
             if (!transfer_vendor_files(package_root / "profiles", vendor_directory, vendor.profile.id, true))
                 return make_updater_error(UpdaterError::Code::Filesystem, "Cannot copy the vendor profile from the package cache.");
@@ -573,11 +438,11 @@ UpdaterError PresetUpdater::install_vendor_files(VendorSync &vendor, const Vendo
 UpdaterError PresetUpdater::uninstall_vendor_files(VendorSync &vendor)
 {
     try {
-        const boost::filesystem::path package_root = repository_package_cache_path(
-            data_path(), RepositoryPackageType::Vendor, vendor.profile.usable_id(),
-            vendor.profile.config_version.to_string(), vendor.profile.slicer_version.to_string());
-        if (!transfer_vendor_files(data_path() / "vendor", package_root / "profiles", vendor.profile.id, true))
-            return make_updater_error(UpdaterError::Code::Filesystem);
+        RepositoryPackageCache cache(data_path(), vendor_repository_cache_adapter());
+        RepositoryCachedVersion cached;
+        std::string error_message;
+        if (!cache.cache_simple(data_path() / "vendor" / (vendor.profile.id + ".ini"), cached, error_message))
+            return make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message));
 
         // The cache now owns a verified copy. Remove the installed files only
         // after publication so a failed copy cannot uninstall the vendor.

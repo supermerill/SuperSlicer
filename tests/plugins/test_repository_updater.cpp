@@ -29,6 +29,7 @@
 #include "libslic3r/Plugins/PluginRepository.hpp"
 #include "libslic3r/Updater/PluginUpdater.hpp"
 #include "libslic3r/Updater/PresetUpdater.hpp"
+#include "libslic3r/Updater/RepositoryPackageCache.hpp"
 #include "libslic3r/Updater/UpdaterHttp.hpp"
 #include "libslic3r/Updater/UpdaterError.hpp"
 #include "libslic3r/Utils.hpp"
@@ -462,6 +463,10 @@ PluginUpdaterFunctionalFixture::PluginUpdaterFunctionalFixture()
 {
     write_test_file(resources_directory / "plugins" / "default_activated.ini",
                     "[installed]\n\n[removed]\n\n[activated]\n");
+    Slic3r::RepositoryPackageCache cache(data_directory, Slic3r::plugin_repository_cache_adapter());
+    bool purged = false;
+    std::string error_message;
+    REQUIRE(cache.prepare_layout(purged, error_message));
 }
 
 void PluginUpdaterFunctionalFixture::write_resource_plugin()
@@ -1057,8 +1062,8 @@ TEST_CASE("PluginUpdater selects comparable versions and caches their changelogs
     CHECK(plugin->available_packages[2].notes == "newer\nolder");
     CHECK(plugin->available_packages[3].notes == "initial");
 
-    const boost::filesystem::path log_directory =
-        data_directory / "cache" / "plugins" / "repositories" / "example.plugin" / "logs";
+    const boost::filesystem::path log_directory = Slic3r::repository_cache_root_path(
+        data_directory, Slic3r::RepositoryPackageType::Plugin, "example.plugin") / "logs";
     CHECK(boost::filesystem::is_regular_file(
         log_directory / "2.0.0.0=2.7.64.0...3.0.0.0=2.8.0.0.json"));
     CHECK(boost::filesystem::is_regular_file(log_directory / "1.0.0.0=2.7.63.0.json"));
@@ -1284,6 +1289,27 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
 }
 
 TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
+                 "PluginUpdater imports an unpacked local package",
+                 "[plugins][updater][plugin-functional]")
+{
+    const boost::filesystem::path package = temporary.path() / "local_only_plugin";
+    write_test_file(package / plugin_library_filename(), "local library");
+
+    const Slic3r::UpdaterError import_error = updater.cache_plugin_directory(package);
+    REQUIRE(import_error.succeeded());
+    updater.reload_all_plugins();
+
+    Slic3r::PluginSync *plugin = updater.get_plugin("local_only_plugin");
+    REQUIRE(plugin != nullptr);
+    CHECK(plugin->description.config_update_rest.empty());
+    REQUIRE(plugin->available_packages.size() == 1);
+    CHECK(plugin->available_packages.front().package_version == "1.0.0.0");
+    CHECK(plugin->available_packages.front().slicer_version == "1.0.0.0");
+    CHECK_FALSE(plugin->available_packages.front().local_directory.empty());
+    CHECK(http.pending_count() == 0);
+}
+
+TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
                  "PluginUpdater reuses recent changelogs and refreshes stale files",
                  "[plugins][updater][plugin-functional]")
 {
@@ -1295,8 +1321,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     REQUIRE(plugin != nullptr);
     REQUIRE(plugin->available_packages.size() == 1);
     const std::string tag = "1.0.0.0=" + slicer_version;
-    const boost::filesystem::path cache_file = data_directory / "cache" / "plugins" / "repositories" /
-        plugin_id / "logs" / (tag + ".json");
+    const boost::filesystem::path cache_file = Slic3r::repository_cache_root_path(
+        data_directory, Slic3r::RepositoryPackageType::Plugin, plugin_id) / "logs" / (tag + ".json");
     write_test_file(cache_file, R"({"commit":{"message":"cached notes"}})");
 
     std::optional<bool> changelogs_succeeded;
@@ -1420,7 +1446,7 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
         config_version, slicer_version);
     const boost::filesystem::path cached_profile = package_root / "profiles" / (vendor_id + ".ini");
     REQUIRE(boost::filesystem::is_regular_file(cached_profile));
-    CHECK(package_root.filename() == vendor_id);
+    CHECK(package_root.filename() == config_version + "=" + slicer_version);
     CHECK_FALSE(boost::filesystem::exists(
         data_directory / "cache" / "vendor" / archive_path.stem()));
 
@@ -1453,8 +1479,9 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     INFO("Second import error: " << second_import.detail);
     REQUIRE(second_import.succeeded());
 
-    const boost::filesystem::path cached_profile = data_directory / "cache" / "vendor" /
-        vendor_id / "profiles" / (vendor_id + ".ini");
+    const boost::filesystem::path cached_profile = Slic3r::repository_package_cache_path(
+        data_directory, Slic3r::RepositoryPackageType::Vendor, vendor_id,
+        "2.0.0.0", slicer_version) / "profiles" / (vendor_id + ".ini");
     REQUIRE(boost::filesystem::is_regular_file(cached_profile));
     CHECK(Slic3r::VendorProfile::from_ini(cached_profile, true).config_version.to_string() == "2.0.0.0");
 
@@ -1463,7 +1490,7 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     REQUIRE(vendor != nullptr);
     REQUIRE(vendor->best != nullptr);
     CHECK(vendor->best->config_version.to_string() == "2.0.0.0");
-    CHECK(vendor->available_profiles.size() == 1);
+    CHECK(vendor->available_profiles.size() == 2);
 }
 
 TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
@@ -1533,8 +1560,9 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     CHECK(uninstall_result->succeeded());
     CHECK(updater.count_installed() == 0);
     CHECK_FALSE(boost::filesystem::exists(data_directory / "vendor" / (vendor_id + ".ini")));
-    CHECK(boost::filesystem::is_regular_file(
-        data_directory / "cache" / "vendor" / vendor_id / "profiles" / (vendor_id + ".ini")));
+    CHECK(boost::filesystem::is_regular_file(Slic3r::repository_package_cache_path(
+        data_directory, Slic3r::RepositoryPackageType::Vendor, vendor_id,
+        "1.0.0.0", slicer_version) / "profiles" / (vendor_id + ".ini")));
 
     const Slic3r::VendorSync *remaining_vendor = updater.get_vendor(vendor_id);
     REQUIRE(remaining_vendor != nullptr);

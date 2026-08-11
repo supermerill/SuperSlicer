@@ -22,6 +22,7 @@
 #include <boost/nowide/fstream.hpp>
 
 #include "libslic3r/Semver.hpp"
+#include "libslic3r/Updater/RepositoryPackageCache.hpp"
 #include "libslic3r/Utils.hpp"
 
 #include "libslic3r/Updater/UpdaterHttp.hpp"
@@ -29,22 +30,12 @@
 namespace Slic3r {
 namespace {
 
-const char *const REPOSITORIES_DIRECTORY = "cache/plugins/repositories";
 const char *const DESCRIPTION_FILENAME = "description.ini";
-const char *const TAGS_FILENAME = "tags.json";
 
-boost::filesystem::path repositories_directory();
 boost::filesystem::path resource_descriptions_directory();
 bool read_plugin_description(const boost::filesystem::path &path,
                              RepositoryDescription &description,
                              std::string &error_message);
-void load_plugin_descriptions(const boost::filesystem::path &directory,
-                              std::map<std::string, PluginSync> &plugins);
-void save_plugin_description(const RepositoryDescription &description, const std::string &contents);
-boost::filesystem::path repositories_directory()
-{
-    return boost::filesystem::path(data_dir()) / REPOSITORIES_DIRECTORY;
-}
 
 boost::filesystem::path resource_descriptions_directory()
 {
@@ -64,34 +55,6 @@ bool read_plugin_description(const boost::filesystem::path &path,
     return parse_repository_description(contents, RepositoryPackageType::Plugin, description, error_message);
 }
 
-void load_plugin_descriptions(const boost::filesystem::path &directory,
-                              std::map<std::string, PluginSync> &plugins)
-{
-    if (!boost::filesystem::is_directory(directory))
-        return;
-    for (boost::filesystem::directory_iterator it(directory), end; it != end; ++it) {
-        const boost::filesystem::path description_path = boost::filesystem::is_directory(it->path()) ?
-            it->path() / DESCRIPTION_FILENAME : it->path();
-        if (!boost::filesystem::is_regular_file(description_path) || description_path.extension() != ".ini")
-            continue;
-        RepositoryDescription description;
-        std::string error_message;
-        if (!read_plugin_description(description_path, description, error_message)) {
-            BOOST_LOG_TRIVIAL(warning) << error_message;
-            continue;
-        }
-        plugins[description.id].description = std::move(description);
-    }
-}
-
-void save_plugin_description(const RepositoryDescription &description, const std::string &contents)
-{
-    const boost::filesystem::path destination = repositories_directory() / description.id / DESCRIPTION_FILENAME;
-    boost::filesystem::create_directories(destination.parent_path());
-    boost::nowide::ofstream stream(destination.string(), std::ios::out | std::ios::trunc);
-    stream << contents;
-}
-
 } // namespace
 
 bool PluginSync::parse_tags(const std::string &json, std::string &error_message)
@@ -99,11 +62,21 @@ bool PluginSync::parse_tags(const std::string &json, std::string &error_message)
     std::vector<RepositoryPackageVersion> parsed;
     if (!parse_repository_versions(json, parsed, error_message))
         return false;
-    available_packages.clear();
     for (const RepositoryPackageVersion &version : parsed) {
-        PluginAvailable available;
-        static_cast<RepositoryPackageVersion &>(available) = version;
-        available_packages.emplace_back(std::move(available));
+        const std::vector<PluginAvailable>::iterator existing = std::find_if(
+            available_packages.begin(), available_packages.end(),
+            [&version](const PluginAvailable &candidate) { return candidate.tag == version.tag; });
+        if (existing == available_packages.end()) {
+            PluginAvailable available;
+            static_cast<RepositoryPackageVersion &>(available) = version;
+            available_packages.emplace_back(std::move(available));
+        } else {
+            // A local package already owns its cache path and notes. Refresh
+            // only the network fields supplied by the repository tag.
+            existing->url_zip = version.url_zip;
+            existing->commit_sha = version.commit_sha;
+            existing->commit_url = version.commit_url;
+        }
     }
     sort_available();
     return true;
@@ -147,22 +120,75 @@ void PluginUpdater::reload_all_plugins()
     if (sync_in_progress() || changelog_download_in_progress())
         return;
     m_plugins.clear();
-    load_plugin_descriptions(resource_descriptions_directory(), m_plugins);
-    load_plugin_descriptions(repositories_directory(), m_plugins);
+
+    const boost::filesystem::path configuration_directory(data_dir());
+    std::string error_message;
+    if (!prepare_plugin_bundle_cache(boost::filesystem::path(resources_dir()),
+                                     configuration_directory, error_message))
+        BOOST_LOG_TRIVIAL(warning) << error_message;
+
+    RepositoryPackageCache cache(configuration_directory, plugin_repository_cache_adapter());
+    const boost::filesystem::path descriptions = resource_descriptions_directory();
+    if (boost::filesystem::is_directory(descriptions)) {
+        for (boost::filesystem::directory_iterator it(descriptions), end; it != end; ++it) {
+            if (!boost::filesystem::is_regular_file(it->path()) || it->path().extension() != ".ini")
+                continue;
+            RepositoryDescription description;
+            if (!read_plugin_description(it->path(), description, error_message)) {
+                BOOST_LOG_TRIVIAL(warning) << error_message;
+                continue;
+            }
+            // A package manifest is the source for display metadata, while an
+            // embedded repository descriptor may supply the URL omitted by a
+            // local bundle. Preserve package metadata and fill only that
+            // missing repository field.
+            const boost::filesystem::path cached_description =
+                cache.repository_description_path(description.id);
+            RepositoryDescription merged = description;
+            if (boost::filesystem::is_regular_file(cached_description)) {
+                RepositoryDescription existing;
+                if (!read_plugin_description(cached_description, existing, error_message)) {
+                    BOOST_LOG_TRIVIAL(warning) << error_message;
+                    continue;
+                }
+                merged = std::move(existing);
+                if (merged.config_update_rest.empty())
+                    merged.config_update_rest = description.config_update_rest;
+            }
+            if (!cache.save_repository_description(merged, error_message))
+                BOOST_LOG_TRIVIAL(warning) << error_message;
+        }
+    }
+
+    for (const RepositoryCachedEntry &repository : cache.scan()) {
+        PluginSync &plugin = m_plugins[repository.description.id];
+        plugin.description = repository.description;
+        plugin.has_cache = !repository.versions.empty();
+        for (const RepositoryCachedVersion &cached : repository.versions) {
+            PluginAvailable available;
+            available.package_version = cached.description.package_version;
+            available.slicer_version = cached.description.slicer_version;
+            available.tag = RepositoryPackageCache::version_directory_name(
+                available.package_version, available.slicer_version);
+            available.local_directory = cached.directory.string();
+            plugin.available_packages.emplace_back(std::move(available));
+        }
+        plugin.sort_available();
+    }
 
     PluginActivationConfig config;
-    std::string error_message;
     bool from_user_config = false;
     if (!ensure_plugin_activation_config(boost::filesystem::path(data_dir()), config, from_user_config, error_message)) {
         BOOST_LOG_TRIVIAL(warning) << error_message;
         return;
     }
     for (const auto &[id, version] : config.installed) {
+        PluginSync &plugin = m_plugins[id];
         const boost::filesystem::path package_root = boost::filesystem::path(data_dir()) / "plugins" / id;
         RepositoryDescription description;
-        if (read_plugin_description(package_root / DESCRIPTION_FILENAME, description, error_message))
-            m_plugins[id].description = std::move(description);
-        PluginSync &plugin = m_plugins[id];
+        if (plugin.description.id.empty() &&
+            read_plugin_description(package_root / DESCRIPTION_FILENAME, description, error_message))
+            plugin.description = std::move(description);
         if (plugin.description.id.empty()) {
             plugin.description.type = RepositoryPackageType::Plugin;
             plugin.description.id = id;
@@ -171,9 +197,10 @@ void PluginUpdater::reload_all_plugins()
         }
         plugin.is_installed = true;
         plugin.installed_version = version;
-        plugin.has_cache = boost::filesystem::is_directory(repository_package_cache_path(
+        plugin.has_cache = plugin.has_cache || boost::filesystem::is_directory(repository_package_cache_path(
             boost::filesystem::path(data_dir()), RepositoryPackageType::Plugin, id,
             version.package_version, version.slicer_version));
+        plugin.sort_available();
     }
 }
 
@@ -192,7 +219,9 @@ void PluginUpdater::sync_async(std::function<void(int)> callback_result, bool fo
 
 void PluginUpdater::update_plugin(PluginSync &plugin, bool force)
 {
-    const boost::filesystem::path cache_path = repositories_directory() / plugin.description.id / TAGS_FILENAME;
+    const RepositoryPackageCache cache(boost::filesystem::path(data_dir()),
+                                       plugin_repository_cache_adapter());
+    const boost::filesystem::path cache_path = cache.repository_tags_path(plugin.description.id);
     plugin.sync_in_progress = true;
     refresh_repository_tags(
         plugin.description.id, plugin.description.config_update_rest, cache_path, force,
@@ -221,7 +250,9 @@ void PluginUpdater::download_changelogs(const std::string &plugin_id,
         return;
     }
 
-    const boost::filesystem::path log_directory = repositories_directory() / plugin_id / "logs";
+    const RepositoryPackageCache cache(boost::filesystem::path(data_dir()),
+                                       plugin_repository_cache_adapter());
+    const boost::filesystem::path log_directory = cache.repository_logs_directory(plugin_id);
     for (PluginAvailable &version : plugin->available_packages) {
         const std::optional<Semver> package_version = Semver::parse(version.package_version);
         const std::optional<Semver> slicer_version = Semver::parse(version.slicer_version);
@@ -253,15 +284,32 @@ void PluginUpdater::download_new_repo(const std::string &rest_url, std::function
                 BOOST_LOG_TRIVIAL(warning) << error_message;
                 return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
             }
-            try {
-                save_plugin_description(description, contents);
-                return UpdaterError();
-            } catch (const boost::filesystem::filesystem_error &error) {
-                BOOST_LOG_TRIVIAL(warning) << error.what();
-                return make_updater_error(UpdaterError::Code::Filesystem, error.what());
-            }
+            RepositoryPackageCache cache(boost::filesystem::path(data_dir()),
+                                         plugin_repository_cache_adapter());
+            if (!prepare_plugin_bundle_cache(boost::filesystem::path(resources_dir()),
+                                             boost::filesystem::path(data_dir()), error_message) ||
+                !cache.save_repository_description(description, error_message))
+                return make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message));
+            return UpdaterError();
         },
         std::move(callback_result));
+}
+
+UpdaterError PluginUpdater::cache_plugin_directory(const boost::filesystem::path &package_directory)
+{
+    if (!boost::filesystem::is_directory(package_directory))
+        return make_updater_error(UpdaterError::Code::ArchiveUnavailable,
+                                  "The selected plugin package directory does not exist.");
+
+    RepositoryPackageCache cache(boost::filesystem::path(data_dir()), plugin_repository_cache_adapter());
+    std::string error_message;
+    RepositoryCachedVersion cached;
+    if (!prepare_plugin_bundle_cache(boost::filesystem::path(resources_dir()),
+                                     boost::filesystem::path(data_dir()), error_message))
+        return make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message));
+    if (!cache.cache_simple(package_directory, cached, error_message))
+        return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
+    return UpdaterError();
 }
 
 void PluginUpdater::install_plugin(const std::string &plugin_id,
@@ -284,8 +332,10 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
         return;
     }
 
-    const boost::filesystem::path archive_path = repositories_directory() / plugin_id /
-        (version.package_version + "=" + version.slicer_version + ".zip");
+    const boost::filesystem::path archive_path = repository_cache_root_path(
+        boost::filesystem::path(data_dir()), RepositoryPackageType::Plugin, plugin_id) /
+        (RepositoryPackageCache::version_directory_name(
+            version.package_version, version.slicer_version) + ".zip");
     download_repository_file_async(
         version.url_zip, archive_path, 130 * 1024 * 1024,
         [this, plugin_id, version, archive_path, callback_result](UpdaterError download_error) {
@@ -299,6 +349,8 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
                 callback_result(make_updater_error(UpdaterError::Code::Cache, std::move(error_message)));
                 return;
             }
+            boost::system::error_code cleanup_error;
+            boost::filesystem::remove(archive_path, cleanup_error);
             callback_result(schedule_cached_plugin_install(plugin_id, version));
         });
 }
@@ -354,11 +406,15 @@ void PluginUpdater::uninstall_plugin(const std::string &plugin_id,
 void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::function<void(UpdaterError)> callback_result)
 {
     try {
-        const boost::filesystem::path cache_directory = boost::filesystem::path(data_dir()) / "cache/plugins";
-        if (boost::filesystem::is_directory(cache_directory))
-            for (boost::filesystem::directory_iterator it(cache_directory), end; it != end; ++it)
-                if (it->path().filename().string().find(plugin_id + "_") == 0)
-                    boost::filesystem::remove_all(it->path());
+        boost::filesystem::remove_all(repository_cache_root_path(
+            boost::filesystem::path(data_dir()), RepositoryPackageType::Plugin, plugin_id));
+        std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
+        PluginSync *plugin = get_plugin(plugin_id);
+        if (plugin != nullptr) {
+            plugin->has_cache = false;
+            for (PluginAvailable &version : plugin->available_packages)
+                version.local_directory.clear();
+        }
         callback_result(UpdaterError());
     } catch (const boost::filesystem::filesystem_error &error) {
         BOOST_LOG_TRIVIAL(warning) << error.what();

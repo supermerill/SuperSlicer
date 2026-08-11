@@ -24,6 +24,9 @@
 namespace Slic3r {
 
 struct PluginAvailable : public RepositoryPackageVersion {
+    // Non-empty when this exact package version is already validated in the
+    // local repository cache. The updater can schedule it without HTTP.
+    std::string local_directory;
     std::string notes;
 };
 
@@ -66,6 +69,10 @@ public:
                              std::function<void(bool)> callback_result,
                              bool force = false);
     void download_new_repo(const std::string &rest_url, std::function<void(UpdaterError)> callback_result);
+
+    // Import an unpacked package directory. A missing description.ini is
+    // generated from the folder name with local-only default metadata.
+    UpdaterError cache_plugin_directory(const boost::filesystem::path &package_directory);
     void install_plugin(const std::string &plugin_id,
                         const PluginAvailable &version,
                         std::function<void(UpdaterError)> callback_result);

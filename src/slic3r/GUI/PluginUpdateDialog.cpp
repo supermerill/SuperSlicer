@@ -17,8 +17,10 @@
 
 #include <wx/busyinfo.h>
 #include <wx/button.h>
+#include <wx/dirdlg.h>
 #include <wx/gbsizer.h>
 #include <wx/msgdlg.h>
+#include <wx/panel.h>
 #include <wx/scrolwin.h>
 #include <wx/sizer.h>
 #include <wx/stattext.h>
@@ -53,12 +55,15 @@ void PluginUpdateDialog::rebuild()
     wxBoxSizer *repository_sizer = new wxBoxSizer(wxHORIZONTAL);
     m_repository_url = new wxTextCtrl(this, wxID_ANY);
     wxButton *add_button = new wxButton(this, wxID_ANY, _L("Add repository"));
+    wxButton *load_button = new wxButton(this, wxID_ANY, _L("Load plugin folder"));
     wxButton *check_button = new wxButton(this, wxID_ANY, _L("Check for updates"));
     repository_sizer->Add(m_repository_url, 1, wxRIGHT, 6);
     repository_sizer->Add(add_button, 0, wxRIGHT, 6);
+    repository_sizer->Add(load_button, 0, wxRIGHT, 6);
     repository_sizer->Add(check_button, 0);
     m_main_sizer->Add(repository_sizer, 0, wxEXPAND | wxALL, 10);
     add_button->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { add_repository(); });
+    load_button->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { load_package_directory(); });
     check_button->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { check_updates(); });
 
     wxFlexGridSizer *grid = new wxFlexGridSizer(5, 8, 10);
@@ -128,6 +133,22 @@ void PluginUpdateDialog::add_repository()
             rebuild();
         });
     });
+}
+
+void PluginUpdateDialog::load_package_directory()
+{
+    wxDirDialog dialog(this, _L("Choose a plugin package folder"));
+    if (dialog.ShowModal() != wxID_OK)
+        return;
+
+    const UpdaterError error = m_updater.cache_plugin_directory(
+        boost::filesystem::path(dialog.GetPath().utf8_string()));
+    if (!error.succeeded()) {
+        wxMessageBox(from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR);
+        return;
+    }
+    m_updater.reload_all_plugins();
+    rebuild();
 }
 
 void PluginUpdateDialog::check_updates()
@@ -221,9 +242,22 @@ void ChoosePluginVersionDialog::build()
             const bool compatible = current_slicer && target_slicer && *target_slicer <= *current_slicer;
 
             if (selected) {
-                wxStaticText *installed = new wxStaticText(m_scroll, wxID_ANY, from_u8(version.package_version));
+                // This row describes the package selected for startup, so it
+                // uses a non-interactive status panel instead of a disabled
+                // button. The centered label and background match the vendor
+                // version chooser without suggesting that it can be clicked.
+                wxPanel *installed_panel = new wxPanel(m_scroll, wxID_ANY);
+                wxBoxSizer *installed_sizer = new wxBoxSizer(wxHORIZONTAL);
+                wxStaticText *installed = new wxStaticText(installed_panel, wxID_ANY, from_u8(version.package_version));
+                installed_sizer->AddStretchSpacer();
+                installed_sizer->Add(installed, 0, wxALIGN_CENTER_VERTICAL | wxTOP | wxBOTTOM, 5);
+                installed_sizer->AddStretchSpacer();
+                installed_panel->SetSizer(installed_sizer);
+                installed_panel->SetBackgroundColour(wxColour(127, 250, 127));
+                installed->SetBackgroundColour(wxColour(127, 250, 127));
+                installed_panel->SetToolTip(_L("This plugin package is selected for the next application startup."));
                 installed->SetToolTip(_L("This plugin package is selected for the next application startup."));
-                grid->Add(installed, wxGBPosition(row, 0), wxDefaultSpan, wxALIGN_CENTER_VERTICAL);
+                grid->Add(installed_panel, wxGBPosition(row, 0), wxDefaultSpan, wxEXPAND);
             } else {
                 wxButton *select = new wxButton(m_scroll, wxID_ANY, from_u8(version.package_version));
                 select->Enable(compatible);

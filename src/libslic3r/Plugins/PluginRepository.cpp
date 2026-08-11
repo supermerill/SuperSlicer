@@ -26,6 +26,7 @@
 #include <boost/property_tree/ptree.hpp>
 
 #include "libslic3r/Semver.hpp"
+#include "libslic3r/Updater/RepositoryPackageCache.hpp"
 #include "libslic3r/miniz_extension.hpp"
 #include "libslic3r/Utils.hpp"
 
@@ -41,7 +42,8 @@ const char *const DESCRIPTION_FILENAME = "description.ini";
 const char *plugin_package_library_filename();
 bool ini_value_is_enabled(const std::string &value);
 bool is_safe_package_name(const std::string &package_name);
-bool is_four_component_version(const std::string &version);
+bool is_valid_repository_id(const std::string &repository_id);
+bool is_valid_package_version(const std::string &version);
 bool parse_bundle_filename(const boost::filesystem::path &archive_path,
                            std::string &package_name,
                            PluginInstalledVersion &version);
@@ -92,27 +94,22 @@ bool is_safe_package_name(const std::string &package_name)
     return true;
 }
 
-bool is_four_component_version(const std::string &version)
+bool is_valid_repository_id(const std::string &repository_id)
 {
-    if (version.empty() || version.back() == '.')
+    if (repository_id.empty() || repository_id == "." || repository_id == ".." ||
+        repository_id.back() == '.' || repository_id.back() == ' ')
         return false;
-
-    size_t component_start = 0;
-    unsigned int component_count = 0;
-    while (component_start < version.size()) {
-        const size_t component_end = version.find('.', component_start);
-        const size_t end = component_end == std::string::npos ? version.size() : component_end;
-        if (end == component_start)
+    for (const unsigned char character : repository_id)
+        if (character < 0x20 || character == '/' || character == '\\' || character == ':' ||
+            character == '*' || character == '?' || character == '"' || character == '<' ||
+            character == '>' || character == '|')
             return false;
-        for (size_t index = component_start; index < end; ++index)
-            if (!std::isdigit(static_cast<unsigned char>(version[index])))
-                return false;
-        ++component_count;
-        if (component_end == std::string::npos)
-            break;
-        component_start = component_end + 1;
-    }
-    return component_count == 4;
+    return true;
+}
+
+bool is_valid_package_version(const std::string &version)
+{
+    return Semver::parse(version).has_value();
 }
 
 bool parse_bundle_filename(const boost::filesystem::path &archive_path,
@@ -133,8 +130,8 @@ bool parse_bundle_filename(const boost::filesystem::path &archive_path,
     package_name = stem.substr(0, package_separator);
     version.package_version = stem.substr(package_separator + 1, slicer_separator - package_separator - 1);
     version.slicer_version = stem.substr(slicer_separator + 1);
-    return is_safe_package_name(package_name) && is_four_component_version(version.package_version) &&
-           is_four_component_version(version.slicer_version);
+    return is_safe_package_name(package_name) && is_valid_package_version(version.package_version) &&
+           is_valid_package_version(version.slicer_version);
 }
 
 bool is_safe_archive_entry(const std::string &entry_name)
@@ -190,8 +187,8 @@ bool validate_plugin_package(const boost::filesystem::path &package_root,
                              const PluginInstalledVersion &version,
                              std::string &error_message)
 {
-    if (!is_safe_package_name(package_name) || !is_four_component_version(version.package_version) ||
-        !is_four_component_version(version.slicer_version)) {
+    if (!is_safe_package_name(package_name) || !is_valid_package_version(version.package_version) ||
+        !is_valid_package_version(version.slicer_version)) {
         error_message = "Invalid plugin package name or version.";
         return false;
     }
@@ -313,8 +310,8 @@ bool parse_repository_description(const std::string &contents,
         description.slicer = section.get<std::string>("slicer", std::string());
         description.package_version = section.get<std::string>("package_version", section.get<std::string>("config_version", std::string()));
         description.slicer_version = section.get<std::string>("slicer_version", std::string());
-        if (!is_safe_package_name(description.id)) {
-            error_message = "Repository description contains an unsafe id '" + description.id + "'.";
+        if (!is_valid_repository_id(description.id)) {
+            error_message = "Repository description contains an invalid id '" + description.id + "'.";
             return false;
         }
     } catch (const std::exception &error) {
@@ -375,10 +372,20 @@ boost::filesystem::path repository_package_cache_path(const boost::filesystem::p
                                                       const std::string &package_version,
                                                       const std::string &slicer_version)
 {
-    if (type == RepositoryPackageType::Vendor)
-        return data_directory / "cache" / "vendor" / package_name;
-    return data_directory / "cache" / "plugins" /
-           (package_name + "_" + package_version + "_" + slicer_version);
+    const RepositoryPackageCache cache(data_directory,
+        type == RepositoryPackageType::Vendor ? vendor_repository_cache_adapter() :
+                                                plugin_repository_cache_adapter());
+    return cache.version_directory(package_name, package_version, slicer_version);
+}
+
+boost::filesystem::path repository_cache_root_path(const boost::filesystem::path &data_directory,
+                                                   RepositoryPackageType type,
+                                                   const std::string &package_name)
+{
+    const RepositoryPackageCache cache(data_directory,
+        type == RepositoryPackageType::Vendor ? vendor_repository_cache_adapter() :
+                                                plugin_repository_cache_adapter());
+    return cache.repository_directory(package_name);
 }
 
 bool extract_repository_archive(const boost::filesystem::path &archive_path,
@@ -447,7 +454,7 @@ bool read_plugin_activation_config(const boost::filesystem::path &config_path,
                 const std::string suffix = ".slicer_version";
                 if (key.size() > suffix.size() && key.compare(key.size() - suffix.size(), suffix.size(), suffix) == 0)
                     requested_slicer_versions.emplace(key.substr(0, key.size() - suffix.size()), value);
-                else if (is_safe_package_name(key) && is_four_component_version(value))
+                else if (is_safe_package_name(key) && is_valid_package_version(value))
                     config.installed[key].package_version = value;
                 else
                     BOOST_LOG_TRIVIAL(warning) << "Ignoring invalid requested plugin package '" << key << "'.";
@@ -459,7 +466,7 @@ bool read_plugin_activation_config(const boost::filesystem::path &config_path,
             // produced while package and slicer versions were identical.
             it->second.slicer_version = slicer == requested_slicer_versions.end() ?
                 it->second.package_version : slicer->second;
-            if (!is_four_component_version(it->second.slicer_version)) {
+            if (!is_valid_package_version(it->second.slicer_version)) {
                 BOOST_LOG_TRIVIAL(warning) << "Ignoring invalid slicer version for plugin package '" << it->first << "'.";
                 it = config.installed.erase(it);
             } else {
@@ -554,57 +561,20 @@ bool cache_plugin_package_archive(const boost::filesystem::path &data_directory,
                                   const std::string &slicer_version,
                                   std::string &error_message)
 {
-    const PluginInstalledVersion version{package_version, slicer_version};
-    const boost::filesystem::path cache_root = repository_package_cache_path(
-        data_directory, RepositoryPackageType::Plugin, package_name, package_version, slicer_version);
-    try {
-        if (boost::filesystem::is_directory(cache_root)) {
-            std::string validation_error;
-            if (validate_plugin_package(cache_root, package_name, version, validation_error))
-                return true;
-            BOOST_LOG_TRIVIAL(warning) << validation_error << " Re-extracting plugin archive.";
-            boost::filesystem::remove_all(cache_root);
-        }
-
-        const boost::filesystem::path staging = cache_root.parent_path() /
-            boost::filesystem::unique_path("." + package_name + ".extract-%%%%-%%%%");
-        boost::filesystem::create_directories(cache_root.parent_path());
-        if (!extract_repository_archive(archive_path, staging, error_message)) {
-            boost::filesystem::remove_all(staging);
-            return false;
-        }
-
-        boost::filesystem::path package_root = staging;
-        if (!boost::filesystem::exists(package_root / DESCRIPTION_FILENAME)) {
-            boost::filesystem::directory_iterator it(staging);
-            const boost::filesystem::directory_iterator end;
-            if (it == end || !boost::filesystem::is_directory(it->path())) {
-                boost::filesystem::remove_all(staging);
-                error_message = "Plugin archive '" + archive_path.string() + "' has no package root.";
-                return false;
-            }
-            package_root = it->path();
-            ++it;
-            if (it != end) {
-                boost::filesystem::remove_all(staging);
-                error_message = "Plugin archive '" + archive_path.string() + "' has more than one root entry.";
-                return false;
-            }
-        }
-        if (!validate_plugin_package(package_root, package_name, version, error_message)) {
-            boost::filesystem::remove_all(staging);
-            return false;
-        }
-        if (package_root == staging) {
-            boost::filesystem::rename(staging, cache_root);
-        } else {
-            boost::filesystem::rename(package_root, cache_root);
-            boost::filesystem::remove_all(staging);
-        }
-    } catch (const boost::filesystem::filesystem_error &error) {
-        error_message = "Cannot cache plugin package '" + package_name + "': " + error.what();
+    RepositoryPackageCache cache(data_directory, plugin_repository_cache_adapter());
+    bool purged = false;
+    if (!cache.prepare_layout(purged, error_message))
         return false;
-    }
+
+    RepositoryDescription expected;
+    expected.type = RepositoryPackageType::Plugin;
+    expected.id = package_name;
+    expected.package_version = package_version;
+    expected.slicer_version = slicer_version;
+    RepositoryCachedVersion cached;
+    if (!cache.cache_archive(archive_path, expected, cached, error_message))
+        return false;
+
     BOOST_LOG_TRIVIAL(info) << "Cached plugin package '" << package_name << "' version '" << package_version
                             << "' for slicer '" << slicer_version << "'.";
     return true;
@@ -629,26 +599,90 @@ bool prepare_plugin_bundle_cache(const boost::filesystem::path &resources_direct
                                  const boost::filesystem::path &data_directory,
                                  std::string &error_message)
 {
-    const boost::filesystem::path bundles_directory = resources_directory / PLUGIN_DIRECTORY;
-    if (!boost::filesystem::is_directory(bundles_directory))
-        return true;
+    RepositoryPackageCache cache(data_directory, plugin_repository_cache_adapter());
+    bool purged = false;
+    if (!cache.prepare_layout(purged, error_message))
+        return false;
 
+    const boost::filesystem::path bundles_directory = resources_directory / PLUGIN_DIRECTORY;
     try {
-        for (boost::filesystem::directory_iterator it(bundles_directory), end; it != end; ++it) {
-            if (!boost::filesystem::is_regular_file(it->path()))
-                continue;
-            std::string package_name;
-            PluginInstalledVersion version;
-            if (!parse_bundle_filename(it->path(), package_name, version)) {
-                if (boost::algorithm::iequals(it->path().extension().string(), ".zip"))
-                    BOOST_LOG_TRIVIAL(warning) << "Ignoring invalid plugin archive name '" << it->path().filename().string() << "'.";
+        // Embedded bundles are valid installation sources after a purge, so
+        // publish them before deciding whether a pending request was lost with
+        // the old cache layout.
+        if (boost::filesystem::is_directory(bundles_directory)) {
+            for (boost::filesystem::directory_iterator it(bundles_directory), end; it != end; ++it) {
+                if (!boost::filesystem::is_regular_file(it->path()))
+                    continue;
+                std::string package_name;
+                PluginInstalledVersion version;
+                if (!parse_bundle_filename(it->path(), package_name, version)) {
+                    if (boost::algorithm::iequals(it->path().extension().string(), ".zip"))
+                        BOOST_LOG_TRIVIAL(warning) << "Ignoring invalid plugin archive name '"
+                                                   << it->path().filename().string() << "'.";
+                    continue;
+                }
+
+                if (!cache_plugin_package_archive(data_directory, it->path(), package_name,
+                                                  version.package_version, version.slicer_version,
+                                                  error_message))
+                    return false;
+            }
+        }
+
+        if (!purged)
+            return true;
+
+        PluginActivationConfig config;
+        const boost::filesystem::path activation_path = plugin_activation_config_path(data_directory);
+        const bool has_activation_config = boost::filesystem::is_regular_file(activation_path);
+        if (has_activation_config && !read_plugin_activation_config(activation_path, config, error_message))
+            return false;
+
+        // Every live plugin directory is a durable package source, including
+        // manually installed packages not listed in [installed]. A matching
+        // request supplies exact versions when an older live package has no
+        // description.ini yet.
+        const boost::filesystem::path live_plugins = data_directory / PLUGIN_DIRECTORY;
+        if (boost::filesystem::is_directory(live_plugins)) {
+            for (boost::filesystem::directory_iterator it(live_plugins), end; it != end; ++it) {
+                if (!boost::filesystem::is_directory(it->path()))
+                    continue;
+                const std::string package_name = it->path().filename().string();
+                std::optional<RepositoryDescription> expected;
+                const std::map<std::string, PluginInstalledVersion>::const_iterator requested =
+                    config.installed.find(package_name);
+                if (requested != config.installed.end()) {
+                    expected.emplace();
+                    expected->type = RepositoryPackageType::Plugin;
+                    expected->id = package_name;
+                    expected->package_version = requested->second.package_version;
+                    expected->slicer_version = requested->second.slicer_version;
+                }
+                RepositoryCachedVersion cached;
+                std::string cache_error;
+                if (!cache.cache_package_directory(it->path(), expected, cached, cache_error))
+                    BOOST_LOG_TRIVIAL(warning) << "Cannot restore live plugin package '" << package_name
+                                               << "': " << cache_error;
+            }
+        }
+
+        bool config_changed = false;
+        for (std::map<std::string, PluginInstalledVersion>::iterator it = config.installed.begin();
+             it != config.installed.end();) {
+            std::string validation_error;
+            if (plugin_package_cache_is_valid(data_directory, it->first, it->second, validation_error)) {
+                ++it;
                 continue;
             }
 
-            if (!cache_plugin_package_archive(data_directory, it->path(), package_name, version.package_version,
-                                              version.slicer_version, error_message))
-                return false;
+            BOOST_LOG_TRIVIAL(warning) << "Cancelled pending installation of plugin package '" << it->first
+                                       << "' because its old cached package is no longer available.";
+            it = config.installed.erase(it);
+            config_changed = true;
         }
+        if (config_changed && has_activation_config &&
+            !write_plugin_activation_config(activation_path, config, error_message))
+            return false;
     } catch (const boost::filesystem::filesystem_error &error) {
         error_message = "Cannot prepare plugin bundle cache: " + std::string(error.what());
         return false;

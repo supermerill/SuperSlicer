@@ -606,7 +606,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
     if (vendor.is_installed) {
         assert(vendor.profile.config_version != Semver::zero());
         bt_version_msg = vendor.profile.config_version.to_string();
-    } else if(vendor.available_profiles.size() > 1) {
+    } else if (!vendor.available_profiles.empty()) {
         bt_version_msg = _L("Choose version");
     } else {
         bt_version_msg = _L("Not installed");
@@ -618,28 +618,10 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
     wxButton *bt_version = new wxButton(bt_version_panel, wxID_ANY, bt_version_msg);
     bt_version_sizer->Add(bt_version, 1, wxEXPAND);
     bt_version_panel->SetSizer(bt_version_sizer);
-    if ((!vendor.is_installed && vendor.available_profiles.size() <= 1)  || vendor.available_profiles.size() < 1) {
+    if (vendor.available_profiles.empty()) {
         bt_version->Enable(false);
-
-        // A disabled selector still explains whether there is no choice or
-        // whether the cached profile targets a different slicer version.
-        if (vendor.available_profiles.empty()) {
-            bt_version_panel->SetToolTip(
-                _L("No vendor profile version is available in the local cache or repository."));
-        } else if (!has_compatible_version) {
-            const std::vector<VendorAvailable>::const_iterator oldest_profile = std::min_element(
-                vendor.available_profiles.begin(), vendor.available_profiles.end(),
-                [](const VendorAvailable &left, const VendorAvailable &right) {
-                    return left.slicer_version < right.slicer_version;
-                });
-            bt_version_panel->SetToolTip(format(
-                _L("No compatible vendor profile is available. The oldest available profile targets slicer version "
-                   "%1%, while the current slicer version is %2%."),
-                oldest_profile->slicer_version.to_string(), SLIC3R_VERSION_FULL));
-        } else {
-            bt_version_panel->SetToolTip(
-                _L("Only one compatible vendor profile version is available. Use the Install button to install it."));
-        }
+        bt_version_panel->SetToolTip(
+            _L("No vendor profile version is available in the local cache or repository."));
     } else {
         bt_version->Bind(wxEVT_BUTTON, ([this, vendor_id](wxCommandEvent &e) {
             m_data.download_changelogs(vendor_id, [this, vendor_id](bool ok) {
@@ -648,7 +630,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                 this->QueueEvent(evt);
             });
         }));
-        bt_version->SetToolTip(_L("Click this button to choose a different version from the one currently installed."));
+        bt_version->SetToolTip(_L("Click this button to choose a vendor bundle version to install."));
     }
     versions_sizer->Add(bt_version_panel, wxGBPosition(line_num, 2), wxGBSpan(1, 1), wxEXPAND, 2);
 
@@ -1284,9 +1266,21 @@ void ChooseVendorVersionDialog::add_version_in_list(wxWindow *parent,
     ////// version selector button //////
     if (m_vendor.is_installed && m_vendor.profile.config_version == version.config_version &&
         (m_vendor.profile.slicer_version == Semver::zero() || m_vendor.profile.slicer_version == version.slicer_version)) {
-        wxStaticText *msg_version = new wxStaticText(parent, wxID_ANY, version.config_version.to_string());
+        // The installed version is a status, not an action. A panel gives it
+        // the same visual footprint as the install buttons while keeping it
+        // out of keyboard navigation and clearly marking the active version.
+        wxPanel *installed_panel = new wxPanel(parent, wxID_ANY);
+        wxBoxSizer *installed_sizer = new wxBoxSizer(wxHORIZONTAL);
+        wxStaticText *msg_version = new wxStaticText(installed_panel, wxID_ANY, version.config_version.to_string());
+        installed_sizer->AddStretchSpacer();
+        installed_sizer->Add(msg_version, 0, wxALIGN_CENTER_VERTICAL | wxTOP | wxBOTTOM, 5);
+        installed_sizer->AddStretchSpacer();
+        installed_panel->SetSizer(installed_sizer);
+        installed_panel->SetToolTip(_L("This is the version currently installed."));
         msg_version->SetToolTip(_L("This is the version currently installed."));
-        versions_sizer->Add(msg_version, wxGBPosition(line_num, 1), wxGBSpan(1, 1), wxEXPAND | wxCENTER, 2);
+        green_foreground_color.push_back(installed_panel);
+        green_foreground_color.push_back(msg_version);
+        versions_sizer->Add(installed_panel, wxGBPosition(line_num, 1), wxGBSpan(1, 1), wxEXPAND, 2);
     } else {
         wxButton *bt_version = new wxButton(parent, wxID_ANY, version.config_version.to_string());
         bt_version->Bind(wxEVT_BUTTON, ([this, &version](wxCommandEvent &e) {

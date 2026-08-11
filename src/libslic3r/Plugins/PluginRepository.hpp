@@ -44,8 +44,9 @@ struct RepositoryPackageVersion {
     std::string tag;
 };
 
-// Parse the common description.ini stored both beside a repository and in a
-// downloaded package. A plugin package must provide both version fields.
+// Parse either a repository descriptor or a version description. Root
+// descriptors intentionally omit versions; package adapters decide whether
+// missing version fields may receive local-content defaults.
 bool parse_repository_description(const std::string &contents,
                                   RepositoryPackageType expected_type,
                                   RepositoryDescription &description,
@@ -58,9 +59,15 @@ bool parse_repository_versions(const std::string &json,
                                std::vector<RepositoryPackageVersion> &versions,
                                std::string &error_message);
 
-// Vendor packages share one directory per vendor because only their current
-// local profile tree is cached. Plugin packages keep a versioned directory so
-// an installation request can select an exact binary after restart.
+// Return the root containing one repository descriptor, tags, logs and all
+// cached versions. The physical name is sanitized; package INI files retain
+// the original repository id.
+boost::filesystem::path repository_cache_root_path(const boost::filesystem::path &data_directory,
+                                                   RepositoryPackageType type,
+                                                   const std::string &package_name);
+
+// Return one exact cached version. Vendors and plugins use the same
+// <content-version>=<slicer-version> directory convention.
 boost::filesystem::path repository_package_cache_path(const boost::filesystem::path &data_directory,
                                                       RepositoryPackageType type,
                                                       const std::string &package_name,
@@ -111,8 +118,9 @@ bool ensure_plugin_activation_config(const boost::filesystem::path &data_directo
                                      bool &from_user_config,
                                      std::string &error_message);
 
-// Extract shipped ZIP bundles into the versioned cache. The loader applies the
-// package requests separately after every required package is available.
+// Prepare the current cache layout and extract shipped ZIP bundles. After a
+// layout purge, live packages are recached and requests whose only copy was in
+// the obsolete cache are removed before the loader applies package changes.
 bool prepare_plugin_bundle_cache(const boost::filesystem::path &resources_directory,
                                  const boost::filesystem::path &data_directory,
                                  std::string &error_message);

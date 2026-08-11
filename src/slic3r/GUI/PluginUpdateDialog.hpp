@@ -35,6 +35,7 @@ public:
 private:
     void rebuild();
     void add_repository();
+    void load_package_directory();
     void check_updates();
     void choose_version(const std::string &plugin_id);
     void install_latest(const std::string &plugin_id);
