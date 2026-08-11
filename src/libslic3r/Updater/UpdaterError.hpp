@@ -11,6 +11,7 @@
 #define slic3r_Updater_UpdaterError_hpp_
 
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace Slic3r {
@@ -33,6 +34,17 @@ struct UpdaterError {
 
     bool succeeded() const { return code == Code::None; }
 };
+
+// Constructs the common updater result without making each repository engine
+// repeat the same field assignments. An omitted detail is useful for stable
+// error categories whose user-facing text is supplied by the GUI.
+inline UpdaterError make_updater_error(UpdaterError::Code code, std::string detail = std::string())
+{
+    UpdaterError error;
+    error.code = code;
+    error.detail = std::move(detail);
+    return error;
+}
 
 using UpdaterErrors = std::vector<UpdaterError>;
 

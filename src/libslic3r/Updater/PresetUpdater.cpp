@@ -42,7 +42,6 @@ const char *const k_vendor_cache_directory = "cache/vendor";
 
 boost::filesystem::path data_path();
 boost::filesystem::path vendor_cache_directory(const VendorProfile &profile);
-UpdaterError make_error(UpdaterError::Code code, std::string detail = std::string());
 bool transfer_vendor_files(const boost::filesystem::path &input_directory,
                            const boost::filesystem::path &output_directory,
                            const std::string &vendor_id,
@@ -61,14 +60,6 @@ boost::filesystem::path data_path()
 boost::filesystem::path vendor_cache_directory(const VendorProfile &profile)
 {
     return data_path() / k_vendor_cache_directory / profile.usable_id();
-}
-
-UpdaterError make_error(UpdaterError::Code code, std::string detail)
-{
-    UpdaterError error;
-    error.code = code;
-    error.detail = std::move(detail);
-    return error;
 }
 
 // Copies or moves one vendor INI and its icon directory. The temporary INI
@@ -124,7 +115,7 @@ UpdaterError extract_vendor_package(const boost::filesystem::path &archive_path,
     try {
         if (!extract_repository_archive(archive_path, staging, error_message)) {
             boost::filesystem::remove_all(staging);
-            return make_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
+            return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
         }
 
         boost::filesystem::path extracted_root = staging;
@@ -133,13 +124,13 @@ UpdaterError extract_vendor_package(const boost::filesystem::path &archive_path,
             const boost::filesystem::directory_iterator end;
             if (entry == end || !boost::filesystem::is_directory(entry->path())) {
                 boost::filesystem::remove_all(staging);
-                return make_error(UpdaterError::Code::InvalidArchive, "The archive has no profiles directory.");
+                return make_updater_error(UpdaterError::Code::InvalidArchive, "The archive has no profiles directory.");
             }
             extracted_root = entry->path();
             ++entry;
             if (entry != end || !boost::filesystem::is_directory(extracted_root / "profiles")) {
                 boost::filesystem::remove_all(staging);
-                return make_error(UpdaterError::Code::InvalidArchive, "The archive root directory is invalid.");
+                return make_updater_error(UpdaterError::Code::InvalidArchive, "The archive root directory is invalid.");
             }
         }
 
@@ -149,7 +140,7 @@ UpdaterError extract_vendor_package(const boost::filesystem::path &archive_path,
         return UpdaterError();
     } catch (const boost::filesystem::filesystem_error &error) {
         boost::filesystem::remove_all(staging);
-        return make_error(UpdaterError::Code::Filesystem, error.what());
+        return make_updater_error(UpdaterError::Code::Filesystem, error.what());
     }
 }
 
@@ -167,20 +158,20 @@ UpdaterError save_vendor_description(const std::string &contents, const std::str
         std::string description_error;
         if (!parse_repository_description(contents, RepositoryPackageType::Vendor, description, description_error) ||
             description.id != profile.id)
-            return make_error(UpdaterError::Code::InvalidArchive, std::move(description_error));
+            return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(description_error));
 
         const boost::filesystem::path directory = vendor_cache_directory(profile);
         boost::filesystem::create_directories(directory);
         boost::nowide::ofstream output((directory / (profile.usable_id() + ".ini")).string(),
                                        std::ios::out | std::ios::trunc);
         if (!output)
-            return make_error(UpdaterError::Code::Filesystem, "Cannot create vendor description file.");
+            return make_updater_error(UpdaterError::Code::Filesystem, "Cannot create vendor description file.");
         output << contents;
         return UpdaterError();
     } catch (const boost::filesystem::filesystem_error &error) {
-        return make_error(UpdaterError::Code::Filesystem, error.what());
+        return make_updater_error(UpdaterError::Code::Filesystem, error.what());
     } catch (const std::exception &error) {
-        return make_error(UpdaterError::Code::InvalidArchive, error.what());
+        return make_updater_error(UpdaterError::Code::InvalidArchive, error.what());
     }
 }
 
@@ -394,40 +385,15 @@ void PresetUpdater::update_vendor(VendorSync &vendor, bool force)
 {
     const boost::filesystem::path cache_file = vendor_cache_directory(vendor.profile) /
         (vendor.profile.usable_id() + "_tags.json");
-    if (boost::filesystem::is_regular_file(cache_file) && !force &&
-        boost::filesystem::last_write_time(cache_file) + 24 * 3600 > std::time(nullptr)) {
-        boost::nowide::ifstream stream(cache_file.string());
-        const std::string tags((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
-        vendor.parse_tags(tags);
-        finish_sync();
-        return;
-    }
-
     const std::string rest_url = VendorProfile::get_http_url_rest(vendor.profile.config_update_rest);
-    if (rest_url.empty() || !has_api_request_slot(rest_url)) {
-        vendor.synch_failed = true;
-        finish_sync();
-        return;
-    }
-
     vendor.synch_in_progress = true;
-    boost::filesystem::create_directories(cache_file.parent_path());
-    http().get(rest_url + "/tags?per_page=100;page=1")
-        .size_limit(1024 * 64)
-        .on_error([this, &vendor](std::string, std::string error, unsigned) {
-            BOOST_LOG_TRIVIAL(warning) << "Cannot update vendor repository '" << vendor.profile.id << "': " << error;
-            vendor.synch_failed = true;
+    refresh_repository_tags(
+        vendor.profile.id, rest_url, cache_file, force,
+        [&vendor](const std::string &tags) { return vendor.parse_tags(tags); },
+        [&vendor](bool succeeded) {
+            vendor.synch_failed = !succeeded;
             vendor.synch_in_progress = false;
-            finish_sync();
-        })
-        .on_complete([this, cache_file, &vendor](std::string tags, unsigned) {
-            boost::nowide::ofstream stream(cache_file.string(), std::ios::out | std::ios::trunc);
-            stream << tags;
-            vendor.parse_tags(tags);
-            vendor.synch_in_progress = false;
-            finish_sync();
-        })
-        .perform();
+        });
 }
 
 void PresetUpdater::download_logs(const std::string &vendor_id,
@@ -522,25 +488,12 @@ void PresetUpdater::download_logs(const std::string &vendor_id,
 
 void PresetUpdater::download_new_repo(const std::string &rest_url, std::function<void(UpdaterError)> callback_result)
 {
-    const size_t github_marker = rest_url.find("https://api.github.com/repos/");
-    const std::string description_url = github_marker == std::string::npos ?
-        rest_url + "/description" :
-        "https://raw.githubusercontent.com/" + rest_url.substr(github_marker + strlen("https://api.github.com/repos/")) +
-            "/refs/heads/main/description.ini";
-    const std::string fallback_id = rest_url.substr(rest_url.find_last_of('/') + 1);
-    if (rest_url.empty() || fallback_id.empty()) {
-        callback_result(make_error(UpdaterError::Code::RepositoryNotFound, "The repository URL is empty or malformed."));
-        return;
-    }
-    http().get(description_url)
-        .size_limit(1024 * 64)
-        .on_error([callback_result](std::string, std::string error, unsigned) {
-            callback_result(make_error(UpdaterError::Code::Network, std::move(error)));
-        })
-        .on_complete([callback_result, fallback_id](std::string contents, unsigned) {
-            callback_result(save_vendor_description(contents, fallback_id));
-        })
-        .perform();
+    download_repository_description(
+        rest_url,
+        [](const std::string &contents, const std::string &fallback_id) {
+            return save_vendor_description(contents, fallback_id);
+        },
+        std::move(callback_result));
 }
 
 UpdaterError PresetUpdater::install_vendor_files(VendorSync &vendor, const VendorAvailable &version)
@@ -553,52 +506,22 @@ UpdaterError PresetUpdater::install_vendor_files(VendorSync &vendor, const Vendo
         if (!version.local_file.empty()) {
             if (!transfer_vendor_files(boost::filesystem::path(version.local_file).parent_path(), vendor_directory,
                                        vendor.profile.id, true))
-                return make_error(UpdaterError::Code::Filesystem);
+                return make_updater_error(UpdaterError::Code::Filesystem);
         } else {
             if (!boost::filesystem::is_directory(package_root)) {
-                if (version.url_zip.empty())
-                    return make_error(UpdaterError::Code::ArchiveUnavailable, "No archive URL is available.");
-                if (!has_api_request_slot(version.url_zip))
-                    return make_error(UpdaterError::Code::RateLimited, "GitHub request limit reached.");
-
                 const boost::filesystem::path archive_path = vendor_cache_directory(vendor.profile) /
                     (vendor.profile.usable_id() + ".zip");
-                boost::filesystem::create_directories(archive_path.parent_path());
-                std::string transport_error;
-                bool download_succeeded = false;
-                http().get(version.url_zip)
-                    .size_limit(130 * 1024 * 1024)
-                    .on_error([&transport_error](std::string, std::string error, unsigned) {
-                        transport_error = std::move(error);
-                    })
-                    .on_complete([&archive_path, &download_succeeded, &transport_error](std::string contents, unsigned) {
-                        try {
-                            boost::nowide::ofstream archive(archive_path.string(),
-                                                             std::ios::out | std::ios::binary | std::ios::trunc);
-                            if (!archive) {
-                                transport_error = "Cannot create the downloaded vendor archive.";
-                                return;
-                            }
-                            archive.write(contents.data(), static_cast<std::streamsize>(contents.size()));
-                            if (!archive) {
-                                transport_error = "Cannot write the downloaded vendor archive.";
-                                return;
-                            }
-                            download_succeeded = true;
-                        } catch (const std::exception &error) {
-                            transport_error = error.what();
-                        }
-                    })
-                    .perform_sync();
-                if (!download_succeeded)
-                    return make_error(UpdaterError::Code::Network, std::move(transport_error));
+                UpdaterError download_error = download_repository_file_sync(
+                    version.url_zip, archive_path, 130 * 1024 * 1024);
+                if (!download_error.succeeded())
+                    return download_error;
 
                 UpdaterError extraction_error = extract_vendor_package(archive_path, package_root, vendor.profile.usable_id());
                 if (!extraction_error.succeeded())
                     return extraction_error;
             }
             if (!transfer_vendor_files(package_root / "profiles", vendor_directory, vendor.profile.id, true))
-                return make_error(UpdaterError::Code::Filesystem, "Cannot copy the vendor profile from the package cache.");
+                return make_updater_error(UpdaterError::Code::Filesystem, "Cannot copy the vendor profile from the package cache.");
         }
         vendor.profile = VendorProfile::from_ini(vendor_directory / (vendor.profile.id + ".ini"), true);
         vendor.is_installed = true;
@@ -606,9 +529,9 @@ UpdaterError PresetUpdater::install_vendor_files(VendorSync &vendor, const Vendo
         vendor.can_upgrade = vendor.best != nullptr && vendor.best->config_version > vendor.profile.config_version;
         return UpdaterError();
     } catch (const boost::filesystem::filesystem_error &error) {
-        return make_error(UpdaterError::Code::Filesystem, error.what());
+        return make_updater_error(UpdaterError::Code::Filesystem, error.what());
     } catch (const std::exception &error) {
-        return make_error(UpdaterError::Code::InvalidArchive, error.what());
+        return make_updater_error(UpdaterError::Code::InvalidArchive, error.what());
     }
 }
 
@@ -616,14 +539,14 @@ UpdaterError PresetUpdater::uninstall_vendor_files(VendorSync &vendor)
 {
     try {
         if (!transfer_vendor_files(data_path() / "vendor", vendor_cache_directory(vendor.profile), vendor.profile.id, false))
-            return make_error(UpdaterError::Code::Filesystem);
+            return make_updater_error(UpdaterError::Code::Filesystem);
         vendor.is_installed = false;
         vendor.has_cache = true;
         vendor.is_synch = false;
         vendor.can_upgrade = false;
         return UpdaterError();
     } catch (const boost::filesystem::filesystem_error &error) {
-        return make_error(UpdaterError::Code::Filesystem, error.what());
+        return make_updater_error(UpdaterError::Code::Filesystem, error.what());
     }
 }
 
@@ -634,7 +557,7 @@ UpdaterError PresetUpdater::clear_cache_vendor_files(VendorSync &vendor)
         vendor.has_cache = false;
         return UpdaterError();
     } catch (const boost::filesystem::filesystem_error &error) {
-        return make_error(UpdaterError::Code::Filesystem, error.what());
+        return make_updater_error(UpdaterError::Code::Filesystem, error.what());
     }
 }
 
@@ -655,12 +578,12 @@ void PresetUpdater::uninstall_vendor(const std::string &vendor_id, std::function
     {
         std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
         if (get_vendor(vendor_id) == nullptr) {
-            callback_result(make_error(UpdaterError::Code::RepositoryNotFound));
+            callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
             return;
         }
     }
     if (!prepare_vendor_change(VendorChange::Uninstall, ids)) {
-        callback_result(make_error(UpdaterError::Code::PreparationRejected));
+        callback_result(make_updater_error(UpdaterError::Code::PreparationRejected));
         return;
     }
 
@@ -669,7 +592,7 @@ void PresetUpdater::uninstall_vendor(const std::string &vendor_id, std::function
         std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
         VendorSync *vendor = get_vendor(vendor_id);
         if (vendor == nullptr) {
-            callback_result(make_error(UpdaterError::Code::RepositoryNotFound));
+            callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
             return;
         }
         error = uninstall_vendor_files(*vendor);
@@ -687,12 +610,12 @@ void PresetUpdater::install_vendor(const std::string &vendor_id,
     {
         std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
         if (get_vendor(vendor_id) == nullptr) {
-            callback_result(make_error(UpdaterError::Code::RepositoryNotFound));
+            callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
             return;
         }
     }
     if (!prepare_vendor_change(VendorChange::Install, ids)) {
-        callback_result(make_error(UpdaterError::Code::PreparationRejected));
+        callback_result(make_updater_error(UpdaterError::Code::PreparationRejected));
         return;
     }
 
@@ -701,7 +624,7 @@ void PresetUpdater::install_vendor(const std::string &vendor_id,
         std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
         VendorSync *vendor = get_vendor(vendor_id);
         if (vendor == nullptr) {
-            callback_result(make_error(UpdaterError::Code::RepositoryNotFound));
+            callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
             return;
         }
         error = install_vendor_files(*vendor, version);
@@ -717,12 +640,12 @@ void PresetUpdater::clear_cache_vendor(const std::string &vendor_id, std::functi
     {
         std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
         if (get_vendor(vendor_id) == nullptr) {
-            callback_result(make_error(UpdaterError::Code::RepositoryNotFound));
+            callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
             return;
         }
     }
     if (!prepare_vendor_change(VendorChange::ClearCache, ids)) {
-        callback_result(make_error(UpdaterError::Code::PreparationRejected));
+        callback_result(make_updater_error(UpdaterError::Code::PreparationRejected));
         return;
     }
 
@@ -731,7 +654,7 @@ void PresetUpdater::clear_cache_vendor(const std::string &vendor_id, std::functi
         std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
         VendorSync *vendor = get_vendor(vendor_id);
         if (vendor == nullptr) {
-            callback_result(make_error(UpdaterError::Code::RepositoryNotFound));
+            callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
             return;
         }
         error = clear_cache_vendor_files(*vendor);
@@ -751,7 +674,7 @@ void PresetUpdater::uninstall_all_vendors(std::function<void(UpdaterError)> call
                 ids.emplace_back(id);
     }
     if (!prepare_vendor_change(VendorChange::Uninstall, ids)) {
-        callback_result(make_error(UpdaterError::Code::PreparationRejected));
+        callback_result(make_updater_error(UpdaterError::Code::PreparationRejected));
         return;
     }
 
@@ -784,7 +707,7 @@ void PresetUpdater::install_all_vendors(std::function<void(UpdaterErrors)> callb
                 ids.emplace_back(id);
     }
     if (!prepare_vendor_change(VendorChange::InstallAll, ids)) {
-        callback_result({make_error(UpdaterError::Code::PreparationRejected)});
+        callback_result({make_updater_error(UpdaterError::Code::PreparationRejected)});
         return;
     }
 
@@ -818,7 +741,7 @@ void PresetUpdater::upgrade_all_installed_vendors(std::function<void(UpdaterErro
                 ids.emplace_back(id);
     }
     if (!prepare_vendor_change(VendorChange::UpgradeAll, ids)) {
-        callback_result({make_error(UpdaterError::Code::PreparationRejected)});
+        callback_result({make_updater_error(UpdaterError::Code::PreparationRejected)});
         return;
     }
 

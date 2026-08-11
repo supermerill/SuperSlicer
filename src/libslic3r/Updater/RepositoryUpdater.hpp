@@ -19,6 +19,10 @@
 #include <string>
 #include <utility>
 
+#include <boost/filesystem/path.hpp>
+
+#include "libslic3r/Updater/UpdaterError.hpp"
+
 namespace Slic3r {
 
 class UpdaterHttpTransport;
@@ -36,6 +40,12 @@ public:
     virtual ~RepositoryUpdater() = default;
 
 protected:
+    using ParseRepositoryTagsFn = std::function<bool(const std::string &)>;
+    using RepositoryRefreshFinishedFn = std::function<void(bool)>;
+    using RepositoryDescriptionConsumerFn =
+        std::function<UpdaterError(const std::string &, const std::string &)>;
+    using UpdaterErrorCallback = std::function<void(UpdaterError)>;
+
     // Starts one logical refresh. Every repository must call finish_sync()
     // exactly once, including malformed descriptions and HTTP failures.
     bool begin_sync(size_t repository_count, std::function<void(int)> callback);
@@ -48,6 +58,35 @@ protected:
     // unrestricted because they may implement their own rate policy.
     bool has_api_request_slot(const std::string &url);
 
+    // Refreshes one repository's tags. A recent cache is parsed immediately;
+    // otherwise the common GitHub tags endpoint is downloaded and cached. The
+    // finished callback updates derived state before this method calls
+    // finish_sync(), so update_count() observes the final result.
+    void refresh_repository_tags(const std::string &repository_id,
+                                 const std::string &rest_url,
+                                 const boost::filesystem::path &cache_file,
+                                 bool force,
+                                 ParseRepositoryTagsFn parse_tags,
+                                 RepositoryRefreshFinishedFn finished);
+
+    // Downloads description.ini and gives its contents plus the repository
+    // name from the URL to the derived updater. The consumer owns parsing and
+    // persistence; this helper owns URL conversion and network errors.
+    void download_repository_description(const std::string &rest_url,
+                                         RepositoryDescriptionConsumerFn consume,
+                                         UpdaterErrorCallback callback);
+
+    // Downloads a repository archive into a local file. Both forms validate
+    // URL/rate limits and distinguish network failures from local filesystem
+    // failures. The synchronous form invokes no callback and returns directly.
+    void download_repository_file_async(const std::string &url,
+                                        const boost::filesystem::path &destination,
+                                        size_t size_limit,
+                                        UpdaterErrorCallback callback);
+    UpdaterError download_repository_file_sync(const std::string &url,
+                                               const boost::filesystem::path &destination,
+                                               size_t size_limit);
+
     bool sync_in_progress() const { return m_sync_in_progress; }
 
     // Derived updaters build every request through this accessor so tests can
@@ -55,6 +94,10 @@ protected:
     UpdaterHttpTransport &http() { return m_http_transport; }
 
 private:
+    // Completes the derived state transition and always releases this logical
+    // repository from the enclosing sync, including when the callback throws.
+    void finish_repository_refresh(bool succeeded, const RepositoryRefreshFinishedFn &finished);
+
     virtual int update_count() = 0;
     virtual void on_sync_completed() {}
 

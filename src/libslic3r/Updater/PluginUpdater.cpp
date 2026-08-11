@@ -42,16 +42,6 @@ bool read_plugin_description(const boost::filesystem::path &path,
 void load_plugin_descriptions(const boost::filesystem::path &directory,
                               std::map<std::string, PluginSync> &plugins);
 void save_plugin_description(const RepositoryDescription &description, const std::string &contents);
-UpdaterError updater_error(UpdaterError::Code code, std::string detail = std::string());
-
-UpdaterError updater_error(UpdaterError::Code code, std::string detail)
-{
-    UpdaterError error;
-    error.code = code;
-    error.detail = std::move(detail);
-    return error;
-}
-
 boost::filesystem::path repositories_directory()
 {
     return boost::filesystem::path(data_dir()) / REPOSITORIES_DIRECTORY;
@@ -212,82 +202,45 @@ void PluginUpdater::sync_async(std::function<void(int)> callback_result, bool fo
 
 void PluginUpdater::update_plugin(PluginSync &plugin, bool force)
 {
-    if (plugin.description.config_update_rest.empty()) {
-        plugin.sync_failed = true;
-        finish_sync();
-        return;
-    }
     const boost::filesystem::path cache_path = repositories_directory() / plugin.description.id / TAGS_FILENAME;
-    if (boost::filesystem::exists(cache_path) && !force &&
-        boost::filesystem::last_write_time(cache_path) + 24 * 3600 > std::time(nullptr)) {
-        boost::nowide::ifstream stream(cache_path.string());
-        const std::string contents((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
-        std::string error_message;
-        plugin.sync_failed = !plugin.parse_tags(contents, error_message);
-        if (plugin.sync_failed)
-            BOOST_LOG_TRIVIAL(warning) << error_message;
-        finish_sync();
-        return;
-    }
     const std::string rest_url = repository_rest_url(plugin.description.config_update_rest);
-    const std::string url = rest_url + "/tags?per_page=100;page=1";
-    if (!has_api_request_slot(url)) {
-        plugin.sync_failed = true;
-        finish_sync();
-        return;
-    }
     plugin.sync_in_progress = true;
-    boost::filesystem::create_directories(cache_path.parent_path());
-    http().get(url)
-        .size_limit(1024 * 64)
-        .on_error([this, &plugin](std::string, std::string error, unsigned) {
-            BOOST_LOG_TRIVIAL(warning) << "Cannot update plugin repository '" << plugin.description.id << "': " << error;
-            plugin.sync_failed = true;
-            plugin.sync_in_progress = false;
-            finish_sync();
-        })
-        .on_complete([this, cache_path, &plugin](std::string contents, unsigned) {
-            boost::nowide::ofstream stream(cache_path.string(), std::ios::out | std::ios::trunc);
-            stream << contents;
+    refresh_repository_tags(
+        plugin.description.id, rest_url, cache_path, force,
+        [&plugin](const std::string &contents) {
             std::string error_message;
-            plugin.sync_failed = !plugin.parse_tags(contents, error_message);
-            if (plugin.sync_failed)
+            const bool succeeded = plugin.parse_tags(contents, error_message);
+            if (!succeeded)
                 BOOST_LOG_TRIVIAL(warning) << error_message;
+            return succeeded;
+        },
+        [&plugin](bool succeeded) {
+            plugin.sync_failed = !succeeded;
             plugin.sync_in_progress = false;
-            finish_sync();
-        })
-        .perform();
+        });
 }
 
 void PluginUpdater::download_new_repo(const std::string &rest_url, std::function<void(UpdaterError)> callback_result)
 {
     const std::string normalized_rest_url = repository_rest_url(rest_url);
-    const size_t marker = normalized_rest_url.find("https://api.github.com/repos/");
-    const std::string description_url = marker != std::string::npos ?
-        "https://raw.githubusercontent.com/" + normalized_rest_url.substr(marker + strlen("https://api.github.com/repos/")) +
-            "/refs/heads/main/description.ini" : normalized_rest_url + "/description";
-    http().get(description_url)
-        .size_limit(1024 * 64)
-        .on_error([callback_result](std::string, std::string error, unsigned) {
-            callback_result(updater_error(UpdaterError::Code::Network, std::move(error)));
-        })
-        .on_complete([callback_result](std::string contents, unsigned) {
+    download_repository_description(
+        normalized_rest_url,
+        [](const std::string &contents, const std::string &) {
             RepositoryDescription description;
             std::string error_message;
             if (!parse_repository_description(contents, RepositoryPackageType::Plugin, description, error_message)) {
                 BOOST_LOG_TRIVIAL(warning) << error_message;
-                callback_result(updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message)));
-                return;
+                return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
             }
             try {
                 save_plugin_description(description, contents);
-                callback_result(UpdaterError());
+                return UpdaterError();
             } catch (const boost::filesystem::filesystem_error &error) {
                 BOOST_LOG_TRIVIAL(warning) << error.what();
-                callback_result(updater_error(UpdaterError::Code::Filesystem, error.what()));
+                return make_updater_error(UpdaterError::Code::Filesystem, error.what());
             }
-        })
-        .perform();
+        },
+        std::move(callback_result));
 }
 
 void PluginUpdater::install_plugin(const std::string &plugin_id,
@@ -295,36 +248,28 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
                                    std::function<void(UpdaterError)> callback_result)
 {
     PluginSync *plugin = get_plugin(plugin_id);
-    if (plugin == nullptr || version.url_zip.empty()) {
-        callback_result(updater_error(UpdaterError::Code::ArchiveUnavailable));
-        return;
-    }
-    if (!has_api_request_slot(version.url_zip)) {
-        callback_result(updater_error(UpdaterError::Code::RateLimited));
+    if (plugin == nullptr) {
+        callback_result(make_updater_error(UpdaterError::Code::ArchiveUnavailable));
         return;
     }
     const boost::filesystem::path archive_path = repositories_directory() / plugin_id /
         (version.package_version + "=" + version.slicer_version + ".zip");
-    boost::filesystem::create_directories(archive_path.parent_path());
-    http().get(version.url_zip)
-        .size_limit(130 * 1024 * 1024)
-        .on_error([callback_result](std::string, std::string error, unsigned) {
-            callback_result(updater_error(UpdaterError::Code::Network, std::move(error)));
-        })
-        .on_complete([plugin_id, version, archive_path, callback_result](std::string contents, unsigned) {
-            boost::nowide::ofstream stream(archive_path.string(), std::ios::out | std::ios::binary | std::ios::trunc);
-            stream.write(contents.data(), static_cast<std::streamsize>(contents.size()));
-            stream.close();
+    download_repository_file_async(
+        version.url_zip, archive_path, 130 * 1024 * 1024,
+        [plugin_id, version, archive_path, callback_result](UpdaterError download_error) {
+            if (!download_error.succeeded()) {
+                callback_result(std::move(download_error));
+                return;
+            }
             std::string error_message;
             if (!cache_plugin_package_archive(boost::filesystem::path(data_dir()), archive_path, plugin_id,
                                               version.package_version, version.slicer_version, error_message) ||
                 !request_plugin_install(plugin_id, version.package_version, version.slicer_version, error_message)) {
-                callback_result(updater_error(UpdaterError::Code::Cache, std::move(error_message)));
+                callback_result(make_updater_error(UpdaterError::Code::Cache, std::move(error_message)));
                 return;
             }
             callback_result(UpdaterError());
-        })
-        .perform();
+        });
 }
 
 void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::function<void(UpdaterError)> callback_result)
@@ -338,7 +283,7 @@ void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::functi
         callback_result(UpdaterError());
     } catch (const boost::filesystem::filesystem_error &error) {
         BOOST_LOG_TRIVIAL(warning) << error.what();
-        callback_result(updater_error(UpdaterError::Code::Filesystem, error.what()));
+        callback_result(make_updater_error(UpdaterError::Code::Filesystem, error.what()));
     }
 }
 
