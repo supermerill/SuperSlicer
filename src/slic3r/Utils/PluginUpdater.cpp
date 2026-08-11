@@ -153,7 +153,7 @@ void PluginUpdater::reload_all_plugins()
     // HTTP callbacks retain references to entries in m_plugins. Do not erase
     // them while a refresh is in flight; the next dialog refresh will reload
     // descriptions once the callbacks have completed.
-    if (m_sync_in_progress)
+    if (sync_in_progress())
         return;
     m_plugins.clear();
     load_plugin_descriptions(resource_descriptions_directory(), m_plugins);
@@ -189,20 +189,12 @@ void PluginUpdater::reload_all_plugins()
 void PluginUpdater::sync_async(std::function<void(int)> callback_result, bool force)
 {
     std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
-    if (m_sync_in_progress.exchange(true)) {
+    if (!begin_sync(m_plugins.size(), callback_result)) {
         callback_result(static_cast<int>(count_updates()));
         return;
     }
-    {
-        std::lock_guard<std::mutex> callback_guard(m_callback_mutex);
-        m_callback_result = std::move(callback_result);
-    }
-    m_plugins_sync = static_cast<int>(m_plugins.size());
-    if (m_plugins.empty()) {
-        m_sync_in_progress = false;
-        callback_result(0);
+    if (m_plugins.empty())
         return;
-    }
     for (auto &[id, plugin] : m_plugins)
         update_plugin(plugin, force);
 }
@@ -211,7 +203,7 @@ void PluginUpdater::update_plugin(PluginSync &plugin, bool force)
 {
     if (plugin.description.config_update_rest.empty()) {
         plugin.sync_failed = true;
-        end_updating();
+        finish_sync();
         return;
     }
     const boost::filesystem::path cache_path = repositories_directory() / plugin.description.id / TAGS_FILENAME;
@@ -223,14 +215,14 @@ void PluginUpdater::update_plugin(PluginSync &plugin, bool force)
         plugin.sync_failed = !plugin.parse_tags(contents, error_message);
         if (plugin.sync_failed)
             BOOST_LOG_TRIVIAL(warning) << error_message;
-        end_updating();
+        finish_sync();
         return;
     }
     const std::string rest_url = repository_rest_url(plugin.description.config_update_rest);
     const std::string url = rest_url + "/tags?per_page=100;page=1";
     if (!has_api_request_slot(url)) {
         plugin.sync_failed = true;
-        end_updating();
+        finish_sync();
         return;
     }
     plugin.sync_in_progress = true;
@@ -241,7 +233,7 @@ void PluginUpdater::update_plugin(PluginSync &plugin, bool force)
             BOOST_LOG_TRIVIAL(warning) << "Cannot update plugin repository '" << plugin.description.id << "': " << error;
             plugin.sync_failed = true;
             plugin.sync_in_progress = false;
-            end_updating();
+            finish_sync();
         })
         .on_complete([this, cache_path, &plugin](std::string contents, unsigned) {
             boost::nowide::ofstream stream(cache_path.string(), std::ios::out | std::ios::trunc);
@@ -251,34 +243,9 @@ void PluginUpdater::update_plugin(PluginSync &plugin, bool force)
             if (plugin.sync_failed)
                 BOOST_LOG_TRIVIAL(warning) << error_message;
             plugin.sync_in_progress = false;
-            end_updating();
+            finish_sync();
         })
         .perform();
-}
-
-void PluginUpdater::end_updating()
-{
-    if (--m_plugins_sync != 0)
-        return;
-    m_sync_in_progress = false;
-    std::function<void(int)> callback;
-    {
-        std::lock_guard<std::mutex> guard(m_callback_mutex);
-        callback = m_callback_result;
-        m_callback_result = [](int) {};
-    }
-    callback(static_cast<int>(count_updates()));
-}
-
-bool PluginUpdater::has_api_request_slot(const std::string &url)
-{
-    if (url.find("api.github.com") == std::string::npos)
-        return true;
-    if (m_next_time_slot + 3600 < std::time(nullptr)) {
-        m_next_time_slot = std::time(nullptr);
-        m_max_request = 25;
-    }
-    return --m_max_request > 0;
 }
 
 void PluginUpdater::download_new_repo(const std::string &rest_url, std::function<void(bool)> callback_result)
@@ -372,6 +339,11 @@ size_t PluginUpdater::count_updates() const
         if (plugin.can_upgrade)
             ++count;
     return count;
+}
+
+int PluginUpdater::update_count()
+{
+    return static_cast<int>(count_updates());
 }
 
 std::vector<std::string> PluginUpdater::plugin_ids() const

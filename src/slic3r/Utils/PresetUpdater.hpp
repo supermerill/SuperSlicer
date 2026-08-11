@@ -8,8 +8,6 @@
 #ifndef slic3r_PresetUpdate_hpp_
 #define slic3r_PresetUpdate_hpp_
 
-#include <atomic>
-#include <ctime>
 #include <functional>
 #include <map>
 #include <memory>
@@ -25,6 +23,8 @@
 
 #include "libslic3r/Preset.hpp"
 #include "libslic3r/Semver.hpp"
+
+#include "RepositoryUpdater.hpp"
 namespace Slic3r {
 
 
@@ -69,28 +69,25 @@ struct VendorSync
     bool clear_cache();
     void reset(const VendorProfile &profile, bool installed, bool has_cache);
 };
-class PresetUpdater
+class PresetUpdater : public RepositoryUpdater
 {
 protected:
 public:
     bool cancel = false; //TODO
     std::thread thread;
 
-    // max request: 60/h per ip
-    // half to allow two config update from same ip at the same time.
-    std::atomic_int max_request = 25;
-    std::time_t next_time_slot = 0;
+    // PresetUpdater still owns its legacy synchronization state because the
+    // configuration wizard chains callbacks while it is displaying dialogs.
+    std::atomic_int profiles_synch = 0;
+    std::mutex callback_update_preset_mutex;
+    std::function<void(int)> callback_update_preset;
+    std::atomic_bool synch_process_ongoing = false;
 
     //std::vector<VendorSync> installed_vendors;
     //std::vector<VendorSync> unused_vendors;
     std::recursive_mutex all_vendors_mutex;
     std::map<std::string, VendorSync> all_vendors;
 
-    std::atomic_int profiles_synch = 0;
-    //std::atomic_int profiles_to_update = 0;
-    std::mutex callback_update_preset_mutex;
-    std::function<void(int)> callback_update_preset;
-    std::atomic_bool synch_process_ongoing = false;
     bool is_synch = false;
 
     std::mutex callback_update_changelog_mutex;
@@ -116,8 +113,6 @@ public:
         auto it = all_vendors.find(id);
         return it == all_vendors.end() ? nullptr : &it->second;
     }
-
-    bool has_api_request_slot(const std::string &url);
 
     void set_installed_vendors(const PresetBundle *preset_bundle);
     void reload_all_vendors();
@@ -149,7 +144,10 @@ protected:
 
     void update_vendor(VendorSync &vendor, bool force = false);
     // must be call by each update_vendor call at some point.
+    int update_count() override;
+    void on_sync_completed() override;
     void end_updating();
+    bool has_api_request_slot(const std::string &url);
 
     std::mutex args_for_dialog_mutex;
     struct ShowDialogArgs {

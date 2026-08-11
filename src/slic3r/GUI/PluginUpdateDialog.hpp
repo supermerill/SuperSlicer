@@ -12,7 +12,7 @@
 
 #include <string>
 
-#include <wx/dialog.h>
+#include "RepositoryUpdatesDialogBase.hpp"
 
 class wxBoxSizer;
 class wxTextCtrl;
@@ -23,7 +23,7 @@ class PluginUpdater;
 
 namespace Slic3r::GUI {
 
-class PluginUpdateDialog : public wxDialog {
+class PluginUpdateDialog : public RepositoryUpdatesDialogBase {
 public:
     PluginUpdateDialog(wxWindow *parent, PluginUpdater &updater);
 

@@ -458,11 +458,10 @@ void PresetUpdater::sync_async(std::function<void(int)> callback_for_after_updat
     bool error = false;
     {
         std::lock_guard<std::mutex> guard(this->callback_update_preset_mutex);
-        bool already_in_synch = synch_process_ongoing.exchange(true); // atomic isn't necessary if behind lock
+        bool already_in_synch = synch_process_ongoing.exchange(true);
         if (already_in_synch) {
-            // shouldn't be happening, please caller, test it beforehand.
             assert(false);
-            error= true;
+            error = true;
             this->callback_update_preset = [](int) {};
         } else {
             this->callback_update_preset = callback_for_after_update_preset;
@@ -661,6 +660,16 @@ int PresetUpdater::get_profile_count_to_update() {
         }
     }
     return count;
+}
+
+int PresetUpdater::update_count()
+{
+    return get_profile_count_to_update();
+}
+
+void PresetUpdater::on_sync_completed()
+{
+    is_synch = true;
 }
 
 void PresetUpdater::uninstall_vendor(const std::string &vendor_id, std::function<void(bool)> callback_result) {
@@ -1269,16 +1278,7 @@ void PresetUpdater::uninstall_all_vendors(std::function<void(bool)> callback_res
 }
 
 bool PresetUpdater::has_api_request_slot(const std::string &url) {
-    // only limit calls to github api urls, don't limit others
-    if (url.find("api.github.com") == std::string::npos) {
-        return true;
-    }
-    if (next_time_slot + 3600 < std::time(nullptr)) {
-        next_time_slot = std::time(nullptr);
-        max_request = 25;
-    }
-    return (--max_request) > 0;
-
+    return RepositoryUpdater::has_api_request_slot(url);
 }
 
 void PresetUpdater::install_all_vendors(std::function<void(const std::string &)> callback_result) {

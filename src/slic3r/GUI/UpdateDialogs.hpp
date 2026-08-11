@@ -23,6 +23,7 @@
 
 #include "MsgDialog.hpp"
 #include "slic3r/Utils/PresetUpdater.hpp"
+#include "RepositoryUpdatesDialogBase.hpp"
 class wxBoxSizer;
 class wxCheckBox;
 
@@ -199,7 +200,7 @@ public:
 };
 
 // Dialog informing about configuration update. Lists updated bundles & their versions.
-class UpdateConfigDialog : public wxDialog
+class UpdateConfigDialog : public RepositoryUpdatesDialogBase
 {
 protected:
     PresetUpdater &m_data;

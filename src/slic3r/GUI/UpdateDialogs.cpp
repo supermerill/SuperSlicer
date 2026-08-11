@@ -1029,14 +1029,10 @@ void UpdateConfigDialog::build_ui() {
 }
 
 UpdateConfigDialog::UpdateConfigDialog(wxWindow *parent, PresetUpdater &data, const wxString &message)
-    : m_data(data)
+    : RepositoryUpdatesDialogBase(parent, _L("Configuration manager"))
+    , m_data(data)
     , m_message(message)
-    , wxDialog(parent,
-               wxID_ANY,
-               _L("Configuration manager"),
-               wxDefaultPosition,
-               wxDefaultSize,
-               wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER) {
+{
 
     this->Bind(EVT_CONFIG_UPDATER_REDRAW, [this](const wxCommandEvent& evt) {
         this->rebuild_ui();

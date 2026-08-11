@@ -26,8 +26,7 @@
 namespace Slic3r::GUI {
 
 PluginUpdateDialog::PluginUpdateDialog(wxWindow *parent, PluginUpdater &updater)
-    : wxDialog(parent, wxID_ANY, _L("Plugin updates"), wxDefaultPosition, wxDefaultSize,
-               wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+    : RepositoryUpdatesDialogBase(parent, _L("Plugin updates"))
     , m_updater(updater)
 {
     m_updater.reload_all_plugins();

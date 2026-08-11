@@ -10,8 +10,6 @@
 #ifndef slic3r_PluginUpdater_hpp_
 #define slic3r_PluginUpdater_hpp_
 
-#include <atomic>
-#include <ctime>
 #include <functional>
 #include <map>
 #include <mutex>
@@ -20,6 +18,8 @@
 #include <vector>
 
 #include "libslic3r/Plugins/PluginRepository.hpp"
+
+#include "RepositoryUpdater.hpp"
 
 namespace Slic3r {
 
@@ -42,7 +42,7 @@ struct PluginSync {
     void sort_available();
 };
 
-class PluginUpdater {
+class PluginUpdater : public RepositoryUpdater {
 public:
     PluginUpdater() = default;
     PluginUpdater(const PluginUpdater &) = delete;
@@ -67,17 +67,10 @@ public:
 
 private:
     void update_plugin(PluginSync &plugin, bool force);
-    void end_updating();
-    bool has_api_request_slot(const std::string &url);
+    int update_count() override;
 
     std::recursive_mutex m_plugins_mutex;
     std::map<std::string, PluginSync> m_plugins;
-    std::atomic_int m_plugins_sync = 0;
-    std::atomic_bool m_sync_in_progress = false;
-    std::mutex m_callback_mutex;
-    std::function<void(int)> m_callback_result;
-    std::atomic_int m_max_request = 25;
-    std::time_t m_next_time_slot = 0;
 };
 
 } // namespace Slic3r
