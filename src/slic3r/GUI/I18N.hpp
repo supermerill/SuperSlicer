@@ -57,7 +57,7 @@ namespace I18N {
 	inline wxString translate_in_domain_with_context(const char *s, const char *context, const std::string &domain) {
 #if wxCHECK_VERSION(3, 1, 1)
 		return wxGetTranslation(wxString(s, wxConvUTF8),
-							domain.empty() ? wxEmptyString : wxString(domain.c_str(), wxConvUTF8),
+							domain.empty() ? wxString(wxEmptyString) : wxString(domain.c_str(), wxConvUTF8),
 							wxString(context, wxConvUTF8));
 #else
 		(void)context;
@@ -68,7 +68,7 @@ namespace I18N {
 	                                                 const char *context, const std::string &domain) {
 #if wxCHECK_VERSION(3, 1, 1)
 		return wxGetTranslation(wxString(s, wxConvUTF8), wxString(plural, wxConvUTF8), n,
-							domain.empty() ? wxEmptyString : wxString(domain.c_str(), wxConvUTF8),
+							domain.empty() ? wxString(wxEmptyString) : wxString(domain.c_str(), wxConvUTF8),
 							wxString(context, wxConvUTF8));
 #else
 		(void)context;
