@@ -20,7 +20,7 @@
 #include "format.hpp"
 #include "GUI.hpp"
 #include "I18N.hpp"
-#include "slic3r/Utils/Http.hpp"
+#include "libslic3r/Updater/Http.hpp"
 namespace Slic3r {
 namespace GUI {
 

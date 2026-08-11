@@ -83,6 +83,7 @@
 
 #include "slic3r/Utils/PresetUpdater.hpp"
 #include "slic3r/Utils/PluginUpdater.hpp"
+#include "slic3r/Utils/HttpErrorMessages.hpp"
 #include "slic3r/Utils/PrintHost.hpp"
 #include "slic3r/Utils/Process.hpp"
 #include "slic3r/Utils/MacDarkMode.hpp"
@@ -1563,7 +1564,8 @@ bool GUI_App::on_init_inner()
     update_ui_colours_from_appconfig();
 
     if (is_editor()) {
-        std::string msg = Http::tls_global_init();
+        const Http::TlsInitializationResult &tls_initialization = Http::tls_global_init();
+        std::string msg = format_tls_initialization_message(tls_initialization);
         std::string ssl_cert_store = app_config->get("tls_accepted_cert_store_location");
         bool ssl_accept = app_config->get("tls_cert_store_accepted") == "yes" && ssl_cert_store == Http::tls_system_cert_store();
 

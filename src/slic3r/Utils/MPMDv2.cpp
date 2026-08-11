@@ -22,7 +22,7 @@
 
 #include "libslic3r/PrintConfig.hpp"
 
-#include "Http.hpp"
+#include "libslic3r/Updater/Http.hpp"
 #include "slic3r/GUI/format.hpp"
 #include "slic3r/GUI/GUI.hpp"
 #include "slic3r/GUI/I18N.hpp"

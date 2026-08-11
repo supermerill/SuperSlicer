@@ -22,7 +22,7 @@
 #include "libslic3r/Semver.hpp"
 #include "libslic3r/Utils.hpp"
 
-#include "slic3r/Utils/Http.hpp"
+#include "libslic3r/Updater/Http.hpp"
 
 namespace Slic3r {
 namespace {

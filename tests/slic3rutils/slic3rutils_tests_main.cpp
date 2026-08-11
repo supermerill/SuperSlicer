@@ -1,6 +1,6 @@
 #include <catch_main.hpp>
 
-#include "slic3r/Utils/Http.hpp"
+#include "libslic3r/Updater/Http.hpp"
 
 TEST_CASE("Check SSL certificates paths", "[Http][NotWorking]") {
     

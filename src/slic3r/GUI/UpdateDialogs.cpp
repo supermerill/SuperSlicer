@@ -34,7 +34,7 @@
 #include "I18N.hpp"
 #include "slic3r/Config/Snapshot.hpp"
 #include "slic3r/Utils/AppUpdater.hpp"
-#include "slic3r/Utils/Http.hpp"
+#include "libslic3r/Updater/Http.hpp"
 #include "UnsavedChangesDialog.hpp"
 #include "wxExtensions.hpp"
 namespace Slic3r {

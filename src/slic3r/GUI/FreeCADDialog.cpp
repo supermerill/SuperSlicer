@@ -14,7 +14,7 @@
 #include "GUI_App.hpp"
 #include "GUI_Utils.hpp"
 #include "GUI_ObjectList.hpp"
-#include "slic3r/Utils/Http.hpp"
+#include "libslic3r/Updater/Http.hpp"
 #include "slic3r/Utils/MacDarkMode.hpp"
 #include "Plater.hpp"
 #include "Tab.hpp"

@@ -44,7 +44,7 @@
 #include "slic3r/GUI/NotificationManager.hpp"
 #include "slic3r/GUI/Plater.hpp"
 #include "slic3r/GUI/UpdateDialogs.hpp"
-#include "slic3r/Utils/Http.hpp"
+#include "libslic3r/Updater/Http.hpp"
 namespace fs = boost::filesystem;
 using Slic3r::GUI::Config::Index;
 using Slic3r::GUI::Config::Version;

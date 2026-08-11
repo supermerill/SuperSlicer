@@ -7,7 +7,7 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 
-#include "Http.hpp"
+#include "libslic3r/Updater/Http.hpp"
 
 #include <cstdlib>
 #include <deque>
@@ -29,14 +29,14 @@
 
 #include "libslic3r/libslic3r.h"
 #include "libslic3r/Utils.hpp"
-#include "slic3r/GUI/I18N.hpp"
-#include "slic3r/GUI/format.hpp"
 
 namespace fs = boost::filesystem;
 
 
 namespace Slic3r {
 
+// This implementation owns cURL objects and reports only technical data. The
+// GUI turns TLS diagnostics into localized text in HttpErrorMessages.cpp.
 
 	// Downloads a file (http get operation). Cancels if the Updater is being destroyed.
 	bool get_file_from_web(const std::string& url, const boost::filesystem::path& target_path)
@@ -76,7 +76,7 @@ namespace Slic3r {
 struct CurlGlobalInit
 {
     static std::unique_ptr<CurlGlobalInit> instance;
-    std::string message;
+    Http::TlsInitializationResult result;
 
 	CurlGlobalInit()
     {
@@ -111,29 +111,18 @@ struct CurlGlobalInit
                 }
             }
 
-            if (!bundle)
-                message = _u8L("Could not detect system SSL certificate store. "
-                               "The slicer will be unable to establish secure "
-                               "network connections.");
-            else
-                message = Slic3r::GUI::format(
-					_L("The slicer detected system SSL certificate store in: %1%"),
-                    bundle);
-
-            message += "\n" + Slic3r::GUI::format(
-				_L("To specify the system certificate store manually, please "
-                   "set the %1% environment variable to the correct CA bundle "
-                   "and restart the application."),
-                SSL_CA_FILE);
+            result.certificate_store_status = bundle == nullptr ?
+                Http::TlsInitializationResult::CertificateStoreStatus::StoreNotDetected :
+                Http::TlsInitializationResult::CertificateStoreStatus::FallbackStoreDetected;
+            result.certificate_store_path = bundle == nullptr ? std::string() : bundle;
+            result.certificate_store_environment_variable = SSL_CA_FILE;
         }
 
 #endif // OPENSSL_CERT_OVERRIDE
 
         if (CURLcode ec = ::curl_global_init(CURL_GLOBAL_DEFAULT)) {
-            message += _u8L("CURL init has failed. The slicer will be unable to establish "
-                            "network connections. See logs for additional details.");
-
-            BOOST_LOG_TRIVIAL(error) << ::curl_easy_strerror(ec);
+            result.curl_error = ::curl_easy_strerror(ec);
+            BOOST_LOG_TRIVIAL(error) << result.curl_error;
         }
     }
 
@@ -683,12 +672,12 @@ bool Http::ca_file_supported()
     return res;
 }
 
-std::string Http::tls_global_init()
+const Http::TlsInitializationResult& Http::tls_global_init()
 {
     if (!CurlGlobalInit::instance)
         CurlGlobalInit::instance = std::make_unique<CurlGlobalInit>();
 
-    return CurlGlobalInit::instance->message;
+    return CurlGlobalInit::instance->result;
 }
 
 std::string Http::tls_system_cert_store()

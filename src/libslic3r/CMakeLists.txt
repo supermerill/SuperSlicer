@@ -286,6 +286,8 @@ set(SLIC3R_SOURCES
 	Steps/StepSupportDemand.hpp
 	Steps/StepSurfaceGeneration.cpp
 	Steps/StepSurfaceGeneration.hpp
+	Updater/Http.cpp
+	Updater/Http.hpp
     BoundingBox.cpp
     BoundingBox.hpp
     BridgeDetector.cpp
@@ -902,7 +904,8 @@ target_link_libraries(libslic3r
     JPEG::JPEG
     qoi
     LibBGCode::bgcode_convert
-	quickdigest5
+    quickdigest5
+    libcurl
     )
 
 if (APPLE)

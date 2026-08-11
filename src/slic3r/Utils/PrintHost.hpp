@@ -22,7 +22,7 @@
 
 #include "libslic3r/enum_bitmask.hpp"
 
-#include "Http.hpp"
+#include "libslic3r/Updater/Http.hpp"
 class wxArrayString;
 
 namespace Slic3r {

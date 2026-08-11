@@ -18,7 +18,7 @@
 #include <wx/progdlg.h>
 #include <wx/string.h>
 
-#include "Http.hpp"
+#include "libslic3r/Updater/Http.hpp"
 #include "slic3r/GUI/GUI.hpp"
 #include "slic3r/GUI/I18N.hpp"
 namespace fs = boost::filesystem;

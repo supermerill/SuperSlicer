@@ -338,8 +338,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/DownloaderFileGet.hpp
     Utils/AppUpdater.cpp
     Utils/AppUpdater.hpp
-    Utils/Http.cpp
-    Utils/Http.hpp
+    Utils/HttpErrorMessages.cpp
+    Utils/HttpErrorMessages.hpp
     Utils/FixModelByWin10.cpp
     Utils/FixModelByWin10.hpp
     Utils/Moonraker.cpp

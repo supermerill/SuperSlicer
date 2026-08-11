@@ -7,8 +7,8 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 
-#ifndef slic3r_Http_hpp_
-#define slic3r_Http_hpp_
+#ifndef slic3r_Updater_Http_hpp_
+#define slic3r_Updater_Http_hpp_
 
 #include <cstddef>
 #include <functional>
@@ -19,14 +19,37 @@
 #include <boost/filesystem/path.hpp>
 namespace Slic3r {
 
-	// simple download
+	// This file implements the transport layer used by update services and print
+	// hosts. It deliberately exposes raw network and TLS diagnostics so console,
+	// server and GUI callers can decide independently how to present them.
+
+	// Downloads a URL to a file through the same HTTP transport as Http.
 	bool get_file_from_web(const std::string& url, const boost::filesystem::path& target_path);
 
-/// Represetns a Http request
+/// Represents a HTTP request.
 class Http : public std::enable_shared_from_this<Http> {
 private:
 	struct priv;
 public:
+	// Describes TLS initialization without turning a technical condition into a
+	// user-facing message. The GUI translates these values; non-GUI clients can
+	// log or ignore them without depending on GUI code.
+	struct TlsInitializationResult {
+		enum class CertificateStoreStatus {
+			NotChecked,
+			FallbackStoreDetected,
+			StoreNotDetected
+		};
+
+		CertificateStoreStatus certificate_store_status = CertificateStoreStatus::NotChecked;
+		// Set only when a fallback store was selected during initialization.
+		std::string certificate_store_path;
+		// Set together with a certificate store warning under OpenSSL.
+		std::string certificate_store_environment_variable;
+		// Empty when curl_global_init() completed successfully.
+		std::string curl_error;
+	};
+
 	struct Progress
 	{
 		size_t dltotal;   // Total bytes to download
@@ -146,8 +169,9 @@ public:
 	// Tells whether current backend supports seting up a CA file using ca_file()
 	static bool ca_file_supported();
 
-    // Return empty string on success or error message on fail.
-    static std::string tls_global_init();
+	// Initializes libcurl once and returns raw TLS diagnostics for this process.
+    static const TlsInitializationResult& tls_global_init();
+	// Returns the certificate store selected through the environment, if any.
     static std::string tls_system_cert_store();
 
 	// converts the given string to an url_encoded_string

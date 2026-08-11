@@ -29,7 +29,7 @@
 #include "libslic3r/PrintConfig.hpp"
 
 #include "Bonjour.hpp"
-#include "Http.hpp"
+#include "libslic3r/Updater/Http.hpp"
 #include "slic3r/GUI/BonjourDialog.hpp"
 #include "slic3r/GUI/format.hpp"
 #include "slic3r/GUI/GUI.hpp"

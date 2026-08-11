@@ -27,7 +27,7 @@
 #include "MsgDialog.hpp"
 #include "OpenGLManager.hpp"
 #include "slic3r/GUI/format.hpp"
-#include "slic3r/Utils/Http.hpp"
+#include "libslic3r/Updater/Http.hpp"
 #if 0
 #include "GL/glew.h"
 

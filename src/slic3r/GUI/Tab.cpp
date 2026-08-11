@@ -53,7 +53,7 @@
 #include "Plater.hpp"
 #include "PresetComboBoxes.hpp"
 #include "PresetHints.hpp"
-#include "slic3r/Utils/Http.hpp"
+#include "libslic3r/Updater/Http.hpp"
 #include "slic3r/Utils/PrintHost.hpp"
 #include "slic3r/Utils/Serial.hpp"
 #include "SavePresetDialog.hpp"

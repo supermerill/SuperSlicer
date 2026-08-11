@@ -44,7 +44,7 @@
 #include "MainFrame.hpp"
 #include "Notebook.hpp"
 #include "Plater.hpp"
-#include "slic3r/Utils/Http.hpp"
+#include "libslic3r/Updater/Http.hpp"
 #include "Tab.hpp"
 #include "wxExtensions.hpp"
 #if ENABLE_SCROLLABLE
