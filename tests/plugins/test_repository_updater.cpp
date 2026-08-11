@@ -209,6 +209,21 @@ TEST_CASE("UpdaterError explicitly represents success and failure", "[plugins][u
     CHECK(constructed.detail == "read only");
 }
 
+TEST_CASE("RepositoryUpdater normalizes configured repository URLs", "[plugins][updater]")
+{
+    const std::string github_api = "https://api.github.com/repos/example/repository";
+    CHECK(Slic3r::RepositoryUpdater::normalize_repository_rest_url("example/repository") == github_api);
+    CHECK(Slic3r::RepositoryUpdater::normalize_repository_rest_url("github.com/example/repository") == github_api);
+    CHECK(Slic3r::RepositoryUpdater::normalize_repository_rest_url(
+              "https://github.com/example/repository.git/") == github_api);
+    CHECK(Slic3r::RepositoryUpdater::normalize_repository_rest_url(
+              "https://api.github.com/repos/example/repository/") == github_api);
+    CHECK(Slic3r::RepositoryUpdater::normalize_repository_rest_url(
+              "https://updates.example.com/repository/") ==
+          "https://updates.example.com/repository");
+    CHECK(Slic3r::RepositoryUpdater::normalize_repository_rest_url(std::string()).empty());
+}
+
 TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plugins][updater]")
 {
     FakeUpdaterHttpTransport http;

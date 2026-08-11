@@ -332,10 +332,9 @@ void PresetUpdater::update_vendor(VendorSync &vendor, bool force)
 {
     const boost::filesystem::path cache_file = vendor_cache_directory(vendor.profile) /
         (vendor.profile.usable_id() + "_tags.json");
-    const std::string rest_url = VendorProfile::get_http_url_rest(vendor.profile.config_update_rest);
     vendor.synch_in_progress = true;
     refresh_repository_tags(
-        vendor.profile.id, rest_url, cache_file, force,
+        vendor.profile.id, vendor.profile.config_update_rest, cache_file, force,
         [&vendor](const std::string &tags) { return vendor.parse_tags(tags); },
         [&vendor](bool succeeded) {
             vendor.synch_failed = !succeeded;
@@ -347,7 +346,7 @@ void PresetUpdater::download_changelogs(const std::string &vendor_id,
                                         std::function<void(bool)> callback_result,
                                         bool force)
 {
-    std::vector<RepositoryChangelogRequest> requests;
+    std::vector<RepositoryChangelogVersion> versions;
     std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
     VendorSync *vendor = get_vendor(vendor_id);
     if (vendor == nullptr) {
@@ -356,39 +355,19 @@ void PresetUpdater::download_changelogs(const std::string &vendor_id,
     }
 
     const boost::filesystem::path log_directory = vendor_cache_directory(vendor->profile) / "logs";
-    const std::string repository_url = VendorProfile::get_http_url_rest(vendor->profile.config_update_rest);
     for (VendorAvailable &version : vendor->available_profiles) {
-        if (version.commit_sha.empty())
-            continue;
-
-        VendorAvailable *previous = nullptr;
-        for (VendorAvailable &candidate : vendor->available_profiles) {
-            if (candidate.commit_sha.empty() || candidate.config_version >= version.config_version)
-                continue;
-            if (candidate.slicer_version.no_patch() == version.slicer_version.no_patch() &&
-                (previous == nullptr || candidate.config_version > previous->config_version))
-                previous = &candidate;
-        }
-        if (previous == nullptr) {
-            for (VendorAvailable &candidate : vendor->available_profiles) {
-                if (candidate.commit_sha.empty() || candidate.config_version >= version.config_version ||
-                    candidate.slicer_version.no_patch() > version.slicer_version.no_patch())
-                    continue;
-                if (previous == nullptr || candidate.config_version > previous->config_version)
-                    previous = &candidate;
-            }
-        }
-
-        RepositoryChangelogRequest request;
-        request.compare = previous != nullptr;
-        request.cache_file = log_directory /
-            (request.compare ? previous->tag + "..." + version.tag + ".json" : version.tag + ".json");
-        request.url = request.compare ? repository_url + "/compare/" + previous->tag + "..." + version.tag :
-                                        version.commit_url;
-        request.store_notes = [&version](std::string notes) { version.notes = std::move(notes); };
-        requests.emplace_back(std::move(request));
+        RepositoryChangelogVersion common_version;
+        common_version.content_version = version.config_version;
+        common_version.slicer_version = version.slicer_version;
+        common_version.tag = version.tag;
+        common_version.commit_sha = version.commit_sha;
+        common_version.commit_url = version.commit_url;
+        common_version.store_notes = [&version](std::string notes) { version.notes = std::move(notes); };
+        versions.emplace_back(std::move(common_version));
     }
-    download_repository_changelogs(std::move(requests), std::move(callback_result), force);
+    download_repository_version_changelogs(std::move(versions), log_directory,
+                                           vendor->profile.config_update_rest,
+                                           std::move(callback_result), force);
 }
 
 void PresetUpdater::download_new_repo(const std::string &rest_url, std::function<void(UpdaterError)> callback_result)

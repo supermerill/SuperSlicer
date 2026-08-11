@@ -22,6 +22,7 @@
 
 #include <boost/filesystem/path.hpp>
 
+#include "libslic3r/Semver.hpp"
 #include "libslic3r/Updater/UpdaterError.hpp"
 
 namespace Slic3r {
@@ -40,7 +41,24 @@ public:
     RepositoryUpdater &operator=(RepositoryUpdater &&) = delete;
     virtual ~RepositoryUpdater() = default;
 
+    // Convert the repository spellings accepted by the GUI and configuration
+    // files into one REST URL. Short "owner/repository" and github.com URLs
+    // become the GitHub API form; other explicit HTTP(S) endpoints are kept.
+    static std::string normalize_repository_rest_url(const std::string &configured_url);
+
 protected:
+    // Vendor and plugin models expose different version types. Each derived
+    // updater converts one package into this common description, after which
+    // RepositoryUpdater can select comparison bases and build cache paths.
+    struct RepositoryChangelogVersion {
+        Semver content_version;
+        Semver slicer_version;
+        std::string tag;
+        std::string commit_sha;
+        std::string commit_url;
+        std::function<void(std::string)> store_notes;
+    };
+
     // A derived updater creates one request per available package version.
     // store_notes is invoked only after the JSON has been parsed successfully;
     // every object captured by it must remain alive until the final callback.
@@ -104,6 +122,15 @@ protected:
     void download_repository_changelogs(std::vector<RepositoryChangelogRequest> requests,
                                         std::function<void(bool)> callback,
                                         bool force);
+
+    // Build and download changelogs for domain-specific package versions. The
+    // closest older package for the same slicer family is preferred; if none
+    // exists, the closest package for an older compatible family is used.
+    void download_repository_version_changelogs(std::vector<RepositoryChangelogVersion> versions,
+                                                const boost::filesystem::path &log_directory,
+                                                const std::string &configured_rest_url,
+                                                std::function<void(bool)> callback,
+                                                bool force);
 
     bool sync_in_progress() const { return m_sync_in_progress; }
     bool changelog_download_in_progress() const { return m_pending_changelogs != 0; }

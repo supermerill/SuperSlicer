@@ -9,6 +9,8 @@
 
 #include "libslic3r/Updater/RepositoryUpdater.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <ctime>
 #include <exception>
@@ -141,6 +143,42 @@ RepositoryUpdater::RepositoryUpdater(UpdaterHttpTransport &http_transport)
 {
 }
 
+std::string RepositoryUpdater::normalize_repository_rest_url(const std::string &configured_url)
+{
+    std::string normalized = configured_url;
+    while (!normalized.empty() && normalized.back() == '/')
+        normalized.pop_back();
+    if (normalized.empty())
+        return normalized;
+
+    // A value without a scheme may be either the common GitHub owner/project
+    // shorthand or a fully named host. Give both an explicit HTTPS scheme so
+    // all later parsing follows the same path.
+    if (normalized.find("://") == std::string::npos) {
+        const size_t first_slash = normalized.find('/');
+        const std::string first_component = normalized.substr(0, first_slash);
+        normalized = first_component.find('.') == std::string::npos ?
+            "https://github.com/" + normalized : "https://" + normalized;
+    }
+
+    const size_t scheme_end = normalized.find("://");
+    const size_t host_start = scheme_end == std::string::npos ? 0 : scheme_end + 3;
+    const size_t path_start = normalized.find('/', host_start);
+    std::string host = normalized.substr(host_start, path_start - host_start);
+    std::transform(host.begin(), host.end(), host.begin(),
+                   [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
+
+    if (host != "github.com" && host != "www.github.com" && host != "api.github.com")
+        return normalized;
+
+    std::string repository_path = path_start == std::string::npos ? std::string() : normalized.substr(path_start + 1);
+    if (host == "api.github.com" && repository_path.rfind("repos/", 0) == 0)
+        repository_path.erase(0, std::strlen("repos/"));
+    if (repository_path.size() > 4 && repository_path.compare(repository_path.size() - 4, 4, ".git") == 0)
+        repository_path.erase(repository_path.size() - 4);
+    return repository_path.empty() ? std::string() : "https://api.github.com/repos/" + repository_path;
+}
+
 bool RepositoryUpdater::begin_sync(size_t repository_count, std::function<void(int)> callback)
 {
     // Tag parsing replaces the version vectors whose entries receive
@@ -230,8 +268,9 @@ void RepositoryUpdater::refresh_repository_tags(const std::string &repository_id
         return;
     }
 
-    const std::string tags_url = rest_url + "/tags?per_page=100;page=1";
-    if (rest_url.empty() || !has_api_request_slot(tags_url)) {
+    const std::string repository_url = normalize_repository_rest_url(rest_url);
+    const std::string tags_url = repository_url + "/tags?per_page=100;page=1";
+    if (repository_url.empty() || !has_api_request_slot(tags_url)) {
         complete(false);
         return;
     }
@@ -282,19 +321,21 @@ void RepositoryUpdater::download_repository_description(const std::string &rest_
             callback(std::move(error));
     };
 
-    const size_t separator = rest_url.find_last_of('/');
-    const std::string fallback_id = separator == std::string::npos ? rest_url : rest_url.substr(separator + 1);
-    if (rest_url.empty() || fallback_id.empty()) {
+    const std::string repository_url = normalize_repository_rest_url(rest_url);
+    const size_t separator = repository_url.find_last_of('/');
+    const std::string fallback_id = separator == std::string::npos ?
+        repository_url : repository_url.substr(separator + 1);
+    if (repository_url.empty() || fallback_id.empty()) {
         complete(make_updater_error(UpdaterError::Code::RepositoryNotFound,
                                     "The repository URL is empty or malformed."));
         return;
     }
 
-    const size_t github_marker = rest_url.find("https://api.github.com/repos/");
+    const size_t github_marker = repository_url.find("https://api.github.com/repos/");
     const std::string description_url = github_marker == std::string::npos ?
-        rest_url + "/description" :
+        repository_url + "/description" :
         "https://raw.githubusercontent.com/" +
-            rest_url.substr(github_marker + std::strlen("https://api.github.com/repos/")) +
+            repository_url.substr(github_marker + std::strlen("https://api.github.com/repos/")) +
             "/refs/heads/main/description.ini";
 
     try {
@@ -471,6 +512,56 @@ void RepositoryUpdater::download_repository_changelogs(std::vector<RepositoryCha
             complete(false);
         }
     }
+}
+
+void RepositoryUpdater::download_repository_version_changelogs(
+    std::vector<RepositoryChangelogVersion> versions,
+    const boost::filesystem::path &log_directory,
+    const std::string &configured_rest_url,
+    std::function<void(bool)> callback,
+    bool force)
+{
+    std::vector<RepositoryChangelogRequest> requests;
+    const std::string repository_url = normalize_repository_rest_url(configured_rest_url);
+    for (RepositoryChangelogVersion &version : versions) {
+        if (version.commit_sha.empty())
+            continue;
+
+        // Prefer an older package produced for the same slicer family. This
+        // keeps a comparison focused on package changes instead of mixing in
+        // compatibility work for an unrelated slicer release.
+        RepositoryChangelogVersion *previous = nullptr;
+        for (RepositoryChangelogVersion &candidate : versions) {
+            if (candidate.commit_sha.empty() || candidate.content_version >= version.content_version)
+                continue;
+            if (candidate.slicer_version.no_patch() == version.slicer_version.no_patch() &&
+                (previous == nullptr || candidate.content_version > previous->content_version))
+                previous = &candidate;
+        }
+
+        // A repository may publish its first package for a new slicer family
+        // without a same-family predecessor. In that case, compare it with the
+        // newest older package that did not require a newer slicer.
+        if (previous == nullptr) {
+            for (RepositoryChangelogVersion &candidate : versions) {
+                if (candidate.commit_sha.empty() || candidate.content_version >= version.content_version ||
+                    candidate.slicer_version.no_patch() > version.slicer_version.no_patch())
+                    continue;
+                if (previous == nullptr || candidate.content_version > previous->content_version)
+                    previous = &candidate;
+            }
+        }
+
+        RepositoryChangelogRequest request;
+        request.compare = previous != nullptr && !repository_url.empty();
+        request.cache_file = log_directory /
+            (request.compare ? previous->tag + "..." + version.tag + ".json" : version.tag + ".json");
+        request.url = request.compare ? repository_url + "/compare/" + previous->tag + "..." + version.tag :
+                                        version.commit_url;
+        request.store_notes = std::move(version.store_notes);
+        requests.emplace_back(std::move(request));
+    }
+    download_repository_changelogs(std::move(requests), std::move(callback), force);
 }
 
 void RepositoryUpdater::finish_repository_refresh(bool succeeded, const RepositoryRefreshFinishedFn &finished)

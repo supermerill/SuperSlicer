@@ -35,7 +35,6 @@ const char *const TAGS_FILENAME = "tags.json";
 
 boost::filesystem::path repositories_directory();
 boost::filesystem::path resource_descriptions_directory();
-std::string repository_rest_url(const std::string &configured_url);
 bool read_plugin_description(const boost::filesystem::path &path,
                              RepositoryDescription &description,
                              std::string &error_message);
@@ -50,15 +49,6 @@ boost::filesystem::path repositories_directory()
 boost::filesystem::path resource_descriptions_directory()
 {
     return boost::filesystem::path(resources_dir()) / "plugins/descriptions";
-}
-
-std::string repository_rest_url(const std::string &configured_url)
-{
-    if (configured_url.empty())
-        return std::string();
-    if (configured_url.find("://") != std::string::npos)
-        return configured_url;
-    return "https://api.github.com/repos/" + configured_url;
 }
 
 bool read_plugin_description(const boost::filesystem::path &path,
@@ -203,10 +193,9 @@ void PluginUpdater::sync_async(std::function<void(int)> callback_result, bool fo
 void PluginUpdater::update_plugin(PluginSync &plugin, bool force)
 {
     const boost::filesystem::path cache_path = repositories_directory() / plugin.description.id / TAGS_FILENAME;
-    const std::string rest_url = repository_rest_url(plugin.description.config_update_rest);
     plugin.sync_in_progress = true;
     refresh_repository_tags(
-        plugin.description.id, rest_url, cache_path, force,
+        plugin.description.id, plugin.description.config_update_rest, cache_path, force,
         [&plugin](const std::string &contents) {
             std::string error_message;
             const bool succeeded = plugin.parse_tags(contents, error_message);
@@ -224,7 +213,7 @@ void PluginUpdater::download_changelogs(const std::string &plugin_id,
                                         std::function<void(bool)> callback_result,
                                         bool force)
 {
-    std::vector<RepositoryChangelogRequest> requests;
+    std::vector<RepositoryChangelogVersion> versions;
     std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
     PluginSync *plugin = get_plugin(plugin_id);
     if (plugin == nullptr) {
@@ -233,71 +222,30 @@ void PluginUpdater::download_changelogs(const std::string &plugin_id,
     }
 
     const boost::filesystem::path log_directory = repositories_directory() / plugin_id / "logs";
-    const std::string repository_url = repository_rest_url(plugin->description.config_update_rest);
     for (PluginAvailable &version : plugin->available_packages) {
-        if (version.commit_sha.empty())
-            continue;
-
         const std::optional<Semver> package_version = Semver::parse(version.package_version);
         const std::optional<Semver> slicer_version = Semver::parse(version.slicer_version);
         if (!package_version || !slicer_version)
             continue;
 
-        // Prefer the immediately preceding package built for the same
-        // slicer family. Its comparison contains the most relevant changes
-        // without mixing unrelated compatibility updates.
-        PluginAvailable *previous = nullptr;
-        std::optional<Semver> previous_package;
-        for (PluginAvailable &candidate : plugin->available_packages) {
-            const std::optional<Semver> candidate_package = Semver::parse(candidate.package_version);
-            const std::optional<Semver> candidate_slicer = Semver::parse(candidate.slicer_version);
-            if (candidate.commit_sha.empty() || !candidate_package || !candidate_slicer ||
-                *candidate_package >= *package_version)
-                continue;
-            if (candidate_slicer->no_patch() == slicer_version->no_patch() &&
-                (!previous_package || *candidate_package > *previous_package)) {
-                previous = &candidate;
-                previous_package = candidate_package;
-            }
-        }
-
-        // If this slicer family has no older package, compare against the
-        // nearest older package that did not target a newer slicer family.
-        if (previous == nullptr) {
-            for (PluginAvailable &candidate : plugin->available_packages) {
-                const std::optional<Semver> candidate_package = Semver::parse(candidate.package_version);
-                const std::optional<Semver> candidate_slicer = Semver::parse(candidate.slicer_version);
-                if (candidate.commit_sha.empty() || !candidate_package || !candidate_slicer ||
-                    *candidate_package >= *package_version ||
-                    candidate_slicer->no_patch() > slicer_version->no_patch())
-                    continue;
-                if (!previous_package || *candidate_package > *previous_package) {
-                    previous = &candidate;
-                    previous_package = candidate_package;
-                }
-            }
-        }
-
-        RepositoryChangelogRequest request;
-        // A comparison endpoint requires the repository REST URL. Repositories
-        // that only publish commit URLs still receive a useful single-commit
-        // changelog instead of producing an invalid relative compare URL.
-        request.compare = previous != nullptr && !repository_url.empty();
-        request.cache_file = log_directory /
-            (request.compare ? previous->tag + "..." + version.tag + ".json" : version.tag + ".json");
-        request.url = request.compare ? repository_url + "/compare/" + previous->tag + "..." + version.tag :
-                                        version.commit_url;
-        request.store_notes = [&version](std::string notes) { version.notes = std::move(notes); };
-        requests.emplace_back(std::move(request));
+        RepositoryChangelogVersion common_version;
+        common_version.content_version = *package_version;
+        common_version.slicer_version = *slicer_version;
+        common_version.tag = version.tag;
+        common_version.commit_sha = version.commit_sha;
+        common_version.commit_url = version.commit_url;
+        common_version.store_notes = [&version](std::string notes) { version.notes = std::move(notes); };
+        versions.emplace_back(std::move(common_version));
     }
-    download_repository_changelogs(std::move(requests), std::move(callback_result), force);
+    download_repository_version_changelogs(std::move(versions), log_directory,
+                                           plugin->description.config_update_rest,
+                                           std::move(callback_result), force);
 }
 
 void PluginUpdater::download_new_repo(const std::string &rest_url, std::function<void(UpdaterError)> callback_result)
 {
-    const std::string normalized_rest_url = repository_rest_url(rest_url);
     download_repository_description(
-        normalized_rest_url,
+        rest_url,
         [](const std::string &contents, const std::string &) {
             RepositoryDescription description;
             std::string error_message;

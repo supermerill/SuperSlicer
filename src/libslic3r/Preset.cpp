@@ -14,6 +14,7 @@
 #include "AppConfig.hpp"
 #include "Exception.hpp"
 #include "I18N.hpp"
+#include "Updater/RepositoryUpdater.hpp"
 
 #ifdef _MSC_VER
     #define WIN32_LEAN_AND_MEAN
@@ -92,72 +93,11 @@ ConfigFileType guess_config_file_type(const ptree &tree)
            (bundle > config) ? CONFIG_FILE_TYPE_CONFIG_BUNDLE : CONFIG_FILE_TYPE_CONFIG;
 }
 
-/*static*/ std::string VendorProfile::get_http_url_rest(const std::string &config_update_rest) {
-    if (config_update_rest.empty()) {
-        return "";
-    }
-    size_t pos_http = config_update_rest.find("://");
-    std::string http_part;
-    std::string domain_part;
-    std::string rest_api_root;
-    //extract http part
-    if (pos_http != std::string::npos) {
-        http_part = config_update_rest.substr(0, pos_http + 3);
-        domain_part = config_update_rest.substr(pos_http + 3);
-    } else {
-        http_part = "";
-        domain_part = config_update_rest;
-    }
-    //extract domain
-    size_t pos_slash = domain_part.find("/");
-    size_t pos_dot = domain_part.find(".");
-    if (pos_dot == std::string::npos) {
-        if (http_part.empty()) {
-            //no http nor domain, use github
-            http_part = "https://";
-            rest_api_root = domain_part;
-            domain_part = "api.github.com/repos";
-            if (!rest_api_root.empty() && rest_api_root[0] == '/') {
-                rest_api_root = rest_api_root.substr(1);
-            }
-            if (!rest_api_root.empty() && rest_api_root[rest_api_root.size() - 1] == '/') {
-                rest_api_root.pop_back();
-            }
-        } else {
-            assert(false);
-            // i don't understand what is it.
-            // use it as-is.
-        }
-    } else {
-        // extract domain
-        if (pos_slash != std::string::npos) {
-            assert(pos_slash <= pos_dot + 4);
-            assert(pos_slash > pos_dot);
-            rest_api_root = domain_part.substr(pos_slash + 1);
-            domain_part = domain_part.substr(0, pos_slash);
-        } else {
-            //no rest api... weird .. but okay...
-            if (!domain_part.empty() && domain_part[rest_api_root.size() - 1] == '/') {
-                domain_part.pop_back();
-            }
-        }
-    }
-    if (domain_part == "github.com") {
-        //we need the api
-        domain_part = "api.github.com/repos";
-    }
-    http_part += domain_part;
-    assert(domain_part.empty() || domain_part.front() != '/');
-    assert(domain_part.empty() || domain_part.back() != '/');
-    assert(domain_part.empty() || domain_part.front() != '.');
-    assert(domain_part.empty() || domain_part.back() != '.');
-    if (!rest_api_root.empty()) {
-        assert(rest_api_root.front() != '/');
-        assert(rest_api_root.back() != '/');
-        http_part += "/";
-        http_part += rest_api_root;
-    }
-    return http_part;
+/*static*/ std::string VendorProfile::get_http_url_rest(const std::string &config_update_rest)
+{
+    // Keep this legacy entry point for GUI callers while repository updaters
+    // and vendor profiles share one URL normalization contract.
+    return RepositoryUpdater::normalize_repository_rest_url(config_update_rest);
 }
 
 const std::regex VP_FOR_FILENAME("[^0-9a-zA-Z_\\-. ]");
