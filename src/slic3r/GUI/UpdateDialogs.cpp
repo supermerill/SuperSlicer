@@ -613,7 +613,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
         bt_version->Enable(false);
     } else {
         bt_version->Bind(wxEVT_BUTTON, ([this, vendor_id](wxCommandEvent &e) {
-            m_data.download_logs(vendor_id, [this, vendor_id](bool ok) {
+            m_data.download_changelogs(vendor_id, [this, vendor_id](bool ok) {
                 wxCommandEvent *evt = new wxCommandEvent(EVT_VENDOR_VERSION_LAUNCH);
                 evt->SetString(vendor_id);
                 this->QueueEvent(evt);

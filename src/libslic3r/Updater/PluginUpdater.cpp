@@ -154,7 +154,7 @@ void PluginUpdater::reload_all_plugins()
     // HTTP callbacks retain references to entries in m_plugins. Do not erase
     // them while a refresh is in flight; the next dialog refresh will reload
     // descriptions once the callbacks have completed.
-    if (sync_in_progress())
+    if (sync_in_progress() || changelog_download_in_progress())
         return;
     m_plugins.clear();
     load_plugin_descriptions(resource_descriptions_directory(), m_plugins);
@@ -220,6 +220,79 @@ void PluginUpdater::update_plugin(PluginSync &plugin, bool force)
         });
 }
 
+void PluginUpdater::download_changelogs(const std::string &plugin_id,
+                                        std::function<void(bool)> callback_result,
+                                        bool force)
+{
+    std::vector<RepositoryChangelogRequest> requests;
+    std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
+    PluginSync *plugin = get_plugin(plugin_id);
+    if (plugin == nullptr) {
+        callback_result(false);
+        return;
+    }
+
+    const boost::filesystem::path log_directory = repositories_directory() / plugin_id / "logs";
+    const std::string repository_url = repository_rest_url(plugin->description.config_update_rest);
+    for (PluginAvailable &version : plugin->available_packages) {
+        if (version.commit_sha.empty())
+            continue;
+
+        const std::optional<Semver> package_version = Semver::parse(version.package_version);
+        const std::optional<Semver> slicer_version = Semver::parse(version.slicer_version);
+        if (!package_version || !slicer_version)
+            continue;
+
+        // Prefer the immediately preceding package built for the same
+        // slicer family. Its comparison contains the most relevant changes
+        // without mixing unrelated compatibility updates.
+        PluginAvailable *previous = nullptr;
+        std::optional<Semver> previous_package;
+        for (PluginAvailable &candidate : plugin->available_packages) {
+            const std::optional<Semver> candidate_package = Semver::parse(candidate.package_version);
+            const std::optional<Semver> candidate_slicer = Semver::parse(candidate.slicer_version);
+            if (candidate.commit_sha.empty() || !candidate_package || !candidate_slicer ||
+                *candidate_package >= *package_version)
+                continue;
+            if (candidate_slicer->no_patch() == slicer_version->no_patch() &&
+                (!previous_package || *candidate_package > *previous_package)) {
+                previous = &candidate;
+                previous_package = candidate_package;
+            }
+        }
+
+        // If this slicer family has no older package, compare against the
+        // nearest older package that did not target a newer slicer family.
+        if (previous == nullptr) {
+            for (PluginAvailable &candidate : plugin->available_packages) {
+                const std::optional<Semver> candidate_package = Semver::parse(candidate.package_version);
+                const std::optional<Semver> candidate_slicer = Semver::parse(candidate.slicer_version);
+                if (candidate.commit_sha.empty() || !candidate_package || !candidate_slicer ||
+                    *candidate_package >= *package_version ||
+                    candidate_slicer->no_patch() > slicer_version->no_patch())
+                    continue;
+                if (!previous_package || *candidate_package > *previous_package) {
+                    previous = &candidate;
+                    previous_package = candidate_package;
+                }
+            }
+        }
+
+        RepositoryChangelogRequest request;
+        // A comparison endpoint requires the repository REST URL. Repositories
+        // that only publish commit URLs still receive a useful single-commit
+        // changelog instead of producing an invalid relative compare URL.
+        request.compare = previous != nullptr && !repository_url.empty();
+        request.cache_file = log_directory /
+            (request.compare ? previous->tag + "..." + version.tag + ".json" : version.tag + ".json");
+        request.url = request.compare ? repository_url + "/compare/" + previous->tag + "..." + version.tag :
+                                        version.commit_url;
+        request.store_notes = [&version](std::string notes) { version.notes = std::move(notes); };
+        requests.emplace_back(std::move(request));
+    }
+    download_repository_changelogs(std::move(requests), std::move(callback_result), force);
+}
+
 void PluginUpdater::download_new_repo(const std::string &rest_url, std::function<void(UpdaterError)> callback_result)
 {
     const std::string normalized_rest_url = repository_rest_url(rest_url);
@@ -256,7 +329,7 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
         (version.package_version + "=" + version.slicer_version + ".zip");
     download_repository_file_async(
         version.url_zip, archive_path, 130 * 1024 * 1024,
-        [plugin_id, version, archive_path, callback_result](UpdaterError download_error) {
+        [this, plugin_id, version, archive_path, callback_result](UpdaterError download_error) {
             if (!download_error.succeeded()) {
                 callback_result(std::move(download_error));
                 return;
@@ -267,6 +340,22 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
                 !request_plugin_install(plugin_id, version.package_version, version.slicer_version, error_message)) {
                 callback_result(make_updater_error(UpdaterError::Code::Cache, std::move(error_message)));
                 return;
+            }
+
+            // The activation config now names the package that will be loaded
+            // at the next startup. Mirror that scheduled selection in the
+            // current updater model so the GUI can redraw without discarding
+            // the downloaded tag and changelog data.
+            {
+                std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
+                PluginSync *scheduled = get_plugin(plugin_id);
+                if (scheduled != nullptr) {
+                    scheduled->is_installed = true;
+                    scheduled->installed_version = PluginInstalledVersion{
+                        version.package_version, version.slicer_version};
+                    scheduled->has_cache = true;
+                    scheduled->sort_available();
+                }
             }
             callback_result(UpdaterError());
         });

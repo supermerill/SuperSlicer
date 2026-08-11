@@ -13,7 +13,6 @@
 #ifndef slic3r_Updater_PresetUpdater_hpp_
 #define slic3r_Updater_PresetUpdater_hpp_
 
-#include <atomic>
 #include <functional>
 #include <map>
 #include <mutex>
@@ -99,7 +98,13 @@ public:
     void set_installed_vendors(const PresetBundle *preset_bundle);
     void reload_all_vendors();
     void sync_async(std::function<void(int)> callback_result, bool force = false);
-    void download_logs(const std::string &vendor_id, std::function<void(bool)> callback_result, bool force = false);
+
+    // Load version notes before opening the detailed vendor selector. A false
+    // result means at least one note failed; other successfully loaded notes
+    // remain usable by the dialog.
+    void download_changelogs(const std::string &vendor_id,
+                             std::function<void(bool)> callback_result,
+                             bool force = false);
     void download_new_repo(const std::string &github_org_repo, std::function<void(UpdaterError)> callback_result);
 
     void uninstall_vendor(const std::string &vendor_id, std::function<void(UpdaterError)> callback_result);
@@ -135,7 +140,6 @@ private:
 
     mutable std::recursive_mutex m_vendors_mutex;
     std::map<std::string, VendorSync> m_vendors;
-    std::atomic_int m_pending_changelogs = 0;
     bool m_is_synchronized = false;
     PresetUpdaterHost *m_host = nullptr;
 };

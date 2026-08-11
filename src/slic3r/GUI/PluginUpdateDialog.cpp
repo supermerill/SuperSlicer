@@ -9,17 +9,23 @@
 
 #include "PluginUpdateDialog.hpp"
 
+#include <algorithm>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include <wx/busyinfo.h>
 #include <wx/button.h>
+#include <wx/gbsizer.h>
 #include <wx/msgdlg.h>
+#include <wx/scrolwin.h>
 #include <wx/sizer.h>
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
 
 #include "libslic3r/Updater/PluginUpdater.hpp"
+#include "libslic3r/Semver.hpp"
 
 #include "I18N.hpp"
 #include "GUI.hpp"
@@ -59,7 +65,7 @@ void PluginUpdateDialog::rebuild()
     grid->AddGrowableCol(1, 1);
     grid->Add(new wxStaticText(this, wxID_ANY, _L("Plugin")));
     grid->Add(new wxStaticText(this, wxID_ANY, _L("Description")));
-    grid->Add(new wxStaticText(this, wxID_ANY, _L("Installed version")));
+    grid->Add(new wxStaticText(this, wxID_ANY, _L("Selected version")));
     grid->AddSpacer(0);
     grid->AddSpacer(0);
 
@@ -70,7 +76,18 @@ void PluginUpdateDialog::rebuild()
             continue;
         const wxString display_name = from_u8(plugin->description.full_name.empty() ? id : plugin->description.full_name);
         const wxString description = from_u8(plugin->description.description);
-        const wxString installed = plugin->is_installed ? from_u8(plugin->installed_version.package_version) : _L("Not installed");
+        wxString version_label;
+        if (plugin->is_installed)
+            version_label = from_u8(plugin->installed_version.package_version);
+        else if (plugin->available_packages.size() > 1)
+            version_label = _L("Choose version");
+        else
+            version_label = _L("Not installed");
+        wxButton *version_button = new wxButton(this, wxID_ANY, version_label);
+        version_button->Enable(!plugin->available_packages.empty() &&
+                               (plugin->is_installed || plugin->available_packages.size() > 1));
+        version_button->SetToolTip(_L("Choose a plugin package version and review its changelog."));
+        version_button->Bind(wxEVT_BUTTON, [this, id](wxCommandEvent &) { choose_version(id); });
         wxButton *install_button = new wxButton(this, wxID_ANY,
             plugin->is_installed ? _L("Schedule update") : _L("Install"));
         install_button->Enable(plugin->best != nullptr && (!plugin->is_installed || plugin->can_upgrade));
@@ -80,7 +97,7 @@ void PluginUpdateDialog::rebuild()
 
         grid->Add(new wxStaticText(this, wxID_ANY, display_name), 0, wxALIGN_CENTER_VERTICAL);
         grid->Add(new wxStaticText(this, wxID_ANY, description), 0, wxALIGN_CENTER_VERTICAL | wxEXPAND);
-        grid->Add(new wxStaticText(this, wxID_ANY, installed), 0, wxALIGN_CENTER_VERTICAL);
+        grid->Add(version_button, 0, wxALIGN_CENTER_VERTICAL | wxEXPAND);
         grid->Add(install_button, 0, wxALIGN_CENTER_VERTICAL);
         grid->Add(clear_button, 0, wxALIGN_CENTER_VERTICAL);
     }
@@ -118,6 +135,19 @@ void PluginUpdateDialog::check_updates()
     m_updater.sync_async([this](int) { CallAfter([this] { rebuild(); }); }, true);
 }
 
+void PluginUpdateDialog::choose_version(const std::string &plugin_id)
+{
+    // Changelog failures do not hide otherwise usable packages. The chooser
+    // opens after every request has finished and leaves missing notes blank.
+    m_updater.download_changelogs(plugin_id, [this, plugin_id](bool) {
+        CallAfter([this, plugin_id] {
+            ChoosePluginVersionDialog dialog(this, m_updater, plugin_id);
+            dialog.ShowModal();
+            rebuild();
+        });
+    });
+}
+
 void PluginUpdateDialog::install_latest(const std::string &plugin_id)
 {
     PluginSync *plugin = m_updater.get_plugin(plugin_id);
@@ -131,7 +161,6 @@ void PluginUpdateDialog::install_latest(const std::string &plugin_id)
             else
                 wxMessageBox(_L("The selected plugin version will be installed after restarting the application."),
                              _L("Plugin updates"), wxICON_INFORMATION);
-            m_updater.reload_all_plugins();
             rebuild();
         });
     });
@@ -144,6 +173,103 @@ void PluginUpdateDialog::clear_cache(const std::string &plugin_id)
             if (!error.succeeded())
                 wxMessageBox(from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR);
             rebuild();
+        });
+    });
+}
+
+ChoosePluginVersionDialog::ChoosePluginVersionDialog(wxWindow *parent,
+                                                     PluginUpdater &updater,
+                                                     std::string plugin_id)
+    : wxDialog(parent, wxID_ANY, _L("Choose plugin version"), wxDefaultPosition, wxDefaultSize,
+               wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+    , m_updater(updater)
+    , m_plugin_id(std::move(plugin_id))
+{
+    build();
+    CentreOnParent();
+}
+
+ChoosePluginVersionDialog::~ChoosePluginVersionDialog() = default;
+
+void ChoosePluginVersionDialog::build()
+{
+    wxBoxSizer *main_sizer = new wxBoxSizer(wxVERTICAL);
+    main_sizer->Add(new wxStaticText(
+        this, wxID_ANY,
+        _L("Choose the plugin package to install after restarting the application.")),
+        0, wxALL, 10);
+
+    // The scrollable table keeps long changelogs usable without making the
+    // dialog taller than the screen. Its rows borrow no updater data: button
+    // callbacks retain a complete PluginAvailable value.
+    m_scroll = new wxScrolledWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxVSCROLL);
+    wxGridBagSizer *grid = new wxGridBagSizer(8, 16);
+    grid->AddGrowableCol(2, 1);
+    grid->Add(new wxStaticText(m_scroll, wxID_ANY, _L("Plugin version")), wxGBPosition(0, 0));
+    grid->Add(new wxStaticText(m_scroll, wxID_ANY, _L("Slicer version")), wxGBPosition(0, 1));
+    grid->Add(new wxStaticText(m_scroll, wxID_ANY, _L("Changelog")), wxGBPosition(0, 2));
+
+    PluginSync *plugin = m_updater.get_plugin(m_plugin_id);
+    const std::optional<Semver> current_slicer = Semver::parse(SLIC3R_VERSION_FULL);
+    int row = 1;
+    if (plugin != nullptr) {
+        for (const PluginAvailable &version : plugin->available_packages) {
+            const bool selected = plugin->is_installed &&
+                plugin->installed_version.package_version == version.package_version &&
+                plugin->installed_version.slicer_version == version.slicer_version;
+            const std::optional<Semver> target_slicer = Semver::parse(version.slicer_version);
+            const bool compatible = current_slicer && target_slicer && *target_slicer <= *current_slicer;
+
+            if (selected) {
+                wxStaticText *installed = new wxStaticText(m_scroll, wxID_ANY, from_u8(version.package_version));
+                installed->SetToolTip(_L("This plugin package is selected for the next application startup."));
+                grid->Add(installed, wxGBPosition(row, 0), wxDefaultSpan, wxALIGN_CENTER_VERTICAL);
+            } else {
+                wxButton *select = new wxButton(m_scroll, wxID_ANY, from_u8(version.package_version));
+                select->Enable(compatible);
+                select->SetToolTip(compatible ?
+                    _L("Download this package and install it after restarting the application.") :
+                    _L("This package requires a newer slicer version."));
+                select->Bind(wxEVT_BUTTON, [this, version](wxCommandEvent &) { schedule_version(version); });
+                grid->Add(select, wxGBPosition(row, 0), wxDefaultSpan, wxEXPAND);
+            }
+
+            wxStaticText *slicer = new wxStaticText(m_scroll, wxID_ANY, from_u8(version.slicer_version));
+            slicer->SetToolTip(format(_L("This package targets slicer version %1%. Current version: %2%."),
+                                      version.slicer_version, SLIC3R_VERSION_FULL));
+            grid->Add(slicer, wxGBPosition(row, 1), wxDefaultSpan, wxALIGN_CENTER_VERTICAL);
+
+            wxStaticText *notes = new wxStaticText(m_scroll, wxID_ANY, from_u8(version.notes));
+            notes->Wrap(450);
+            grid->Add(notes, wxGBPosition(row, 2), wxDefaultSpan, wxALIGN_CENTER_VERTICAL | wxEXPAND);
+            ++row;
+        }
+    }
+
+    m_scroll->SetScrollRate(0, 30);
+    m_scroll->SetSizer(grid);
+    grid->FitInside(m_scroll);
+    m_scroll->SetMinSize(wxSize(760, std::min(500, grid->GetMinSize().GetHeight() + 20)));
+    main_sizer->Add(m_scroll, 1, wxEXPAND | wxLEFT | wxRIGHT, 10);
+
+    wxStdDialogButtonSizer *buttons = CreateStdDialogButtonSizer(wxCLOSE);
+    main_sizer->Add(buttons, 0, wxEXPAND | wxALL, 10);
+    SetSizerAndFit(main_sizer);
+}
+
+void ChoosePluginVersionDialog::schedule_version(const PluginAvailable &version)
+{
+    m_wait_dialog = std::make_unique<wxBusyInfo>(_L("Downloading the plugin package. Please wait."), this);
+    m_updater.install_plugin(m_plugin_id, version, [this](UpdaterError error) {
+        CallAfter([this, error = std::move(error)] {
+            m_wait_dialog.reset();
+            if (!error.succeeded()) {
+                wxMessageBox(from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR, this);
+                return;
+            }
+            wxMessageBox(_L("The selected plugin version will be installed after restarting the application."),
+                         _L("Plugin updates"), wxICON_INFORMATION, this);
+            EndModal(wxID_OK);
         });
     });
 }

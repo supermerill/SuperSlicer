@@ -51,7 +51,7 @@ const char *plugin_library_filename();
 ScopedPluginRepositoryDirectories::ScopedPluginRepositoryDirectories(const boost::filesystem::path &resources_directory,
                                                                        const boost::filesystem::path &data_directory)
     : m_previous_resources_directory(Slic3r::resources_dir())
-    , m_previous_data_directory(Slic3r::data_dir())
+    , m_previous_data_directory(Slic3r::has_data_dir() ? Slic3r::data_dir() : std::string())
 {
     Slic3r::set_resources_dir(resources_directory.string());
     Slic3r::set_data_dir(data_directory.string());
@@ -261,21 +261,28 @@ TEST_CASE("Requesting a cached plugin version preserves activation settings", "[
     const std::string package_name = "example.plugin";
     const std::string package_version = "1.2.3.4";
     const std::string slicer_version = "2.7.63.0";
-    const boost::filesystem::path archive_directory = resources_directory / "plugins";
-    boost::filesystem::create_directories(archive_directory);
-    REQUIRE(write_zip(archive_directory / (package_name + "_" + package_version + "_" + slicer_version + ".zip"),
-                      {{plugin_library_filename(), "library"},
-                       {"description.ini", description_contents(package_name, package_version, slicer_version)}}));
-
-    const boost::filesystem::path default_config = archive_directory / "default_activated.ini";
+    const boost::filesystem::path default_config = resources_directory / "plugins" / "default_activated.ini";
+    boost::filesystem::create_directories(default_config.parent_path());
     {
         boost::nowide::ofstream stream(default_config.string());
         stream << "[activated]\nexample.plugin.id = 1\n";
     }
 
+    // request_plugin_install() accepts only packages that were fully validated
+    // before the current process loaded any DLL. Build that cache directly so
+    // this test isolates scheduling from archive extraction.
+    const boost::filesystem::path cached_package = data_directory / "cache" / "plugins" /
+        (package_name + "_" + package_version + "_" + slicer_version);
+    write_description(cached_package, package_name, package_version, slicer_version);
+    {
+        boost::nowide::ofstream stream((cached_package / plugin_library_filename()).string(), std::ios::binary);
+        stream << "library";
+    }
+
     ScopedPluginRepositoryDirectories directories(resources_directory, data_directory);
     std::string error_message;
     REQUIRE(Slic3r::request_plugin_install(package_name, package_version, slicer_version, error_message));
+    CHECK_FALSE(boost::filesystem::exists(data_directory / "plugins" / package_name));
 
     Slic3r::PluginActivationConfig config;
     REQUIRE(Slic3r::read_plugin_activation_config(data_directory / "plugins" / "activated.ini", config, error_message));

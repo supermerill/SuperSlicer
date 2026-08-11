@@ -58,6 +58,13 @@ public:
     // contact the network; sync_async() performs that work later.
     void reload_all_plugins();
     void sync_async(std::function<void(int)> callback_result, bool force = false);
+
+    // Load the notes for every known package of one plugin. Cached notes are
+    // reused unless force is true; the callback reports whether every version
+    // succeeded, while successfully loaded notes remain available on failure.
+    void download_changelogs(const std::string &plugin_id,
+                             std::function<void(bool)> callback_result,
+                             bool force = false);
     void download_new_repo(const std::string &rest_url, std::function<void(UpdaterError)> callback_result);
     void install_plugin(const std::string &plugin_id,
                         const PluginAvailable &version,

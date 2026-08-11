@@ -18,6 +18,7 @@
 #include <mutex>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <boost/filesystem/path.hpp>
 
@@ -40,6 +41,16 @@ public:
     virtual ~RepositoryUpdater() = default;
 
 protected:
+    // A derived updater creates one request per available package version.
+    // store_notes is invoked only after the JSON has been parsed successfully;
+    // every object captured by it must remain alive until the final callback.
+    struct RepositoryChangelogRequest {
+        boost::filesystem::path cache_file;
+        std::string url;
+        bool compare = false;
+        std::function<void(std::string)> store_notes;
+    };
+
     using ParseRepositoryTagsFn = std::function<bool(const std::string &)>;
     using RepositoryRefreshFinishedFn = std::function<void(bool)>;
     using RepositoryDescriptionConsumerFn =
@@ -87,7 +98,15 @@ protected:
                                                const boost::filesystem::path &destination,
                                                size_t size_limit);
 
+    // Loads all changelogs as one logical operation. Existing cache files are
+    // reused unless force is true. The callback runs once, after every request
+    // has either stored its notes or failed, and reports aggregate success.
+    void download_repository_changelogs(std::vector<RepositoryChangelogRequest> requests,
+                                        std::function<void(bool)> callback,
+                                        bool force);
+
     bool sync_in_progress() const { return m_sync_in_progress; }
+    bool changelog_download_in_progress() const { return m_pending_changelogs != 0; }
 
     // Derived updaters build every request through this accessor so tests can
     // observe and complete the operation without contacting the network.
@@ -102,6 +121,7 @@ private:
     virtual void on_sync_completed() {}
 
     std::atomic_int m_pending_syncs = 0;
+    std::atomic_int m_pending_changelogs = 0;
     std::atomic_bool m_sync_in_progress = false;
     std::mutex m_callback_mutex;
     std::function<void(int)> m_callback;

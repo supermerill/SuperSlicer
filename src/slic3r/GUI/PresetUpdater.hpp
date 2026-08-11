@@ -41,7 +41,9 @@ public:
     void set_installed_vendors(const Slic3r::PresetBundle *preset_bundle);
     void reload_all_vendors();
     void sync_async(std::function<void(int)> callback_result, bool force = false);
-    void download_logs(const std::string &vendor_id, std::function<void(bool)> callback_result, bool force = false);
+    void download_changelogs(const std::string &vendor_id,
+                             std::function<void(bool)> callback_result,
+                             bool force = false);
     void download_new_repo(const std::string &rest_url, std::function<void(bool)> callback_result);
 
     void uninstall_vendor(const std::string &vendor_id, std::function<void(bool)> callback_result);

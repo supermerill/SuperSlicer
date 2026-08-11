@@ -24,6 +24,7 @@
 #include "libslic3r/Updater/PresetUpdater.hpp"
 #include "libslic3r/Updater/UpdaterHttp.hpp"
 #include "libslic3r/Updater/UpdaterError.hpp"
+#include "libslic3r/Utils.hpp"
 
 namespace {
 
@@ -36,6 +37,7 @@ class FakeUpdaterHttpTransport final : public Slic3r::UpdaterHttpTransport
 public:
     size_t pending_count() const { return m_pending.size(); }
     const Slic3r::UpdaterHttpRequest &pending_front() const { return m_pending.front(); }
+    const Slic3r::UpdaterHttpRequest &pending_at(size_t idx) const { return m_pending.at(idx); }
 
     void succeed_front(std::string body, unsigned http_status)
     {
@@ -112,11 +114,14 @@ public:
     }
 
     using RepositoryUpdater::begin_sync;
+    using RepositoryUpdater::changelog_download_in_progress;
+    using RepositoryUpdater::download_repository_changelogs;
     using RepositoryUpdater::download_repository_description;
     using RepositoryUpdater::download_repository_file_async;
     using RepositoryUpdater::download_repository_file_sync;
     using RepositoryUpdater::has_api_request_slot;
     using RepositoryUpdater::refresh_repository_tags;
+    using RepositoryUpdater::RepositoryChangelogRequest;
 
 private:
     int update_count() override { return 7; }
@@ -146,10 +151,43 @@ private:
     boost::filesystem::path m_path;
 };
 
+// PluginUpdater discovers descriptions through the process data/resource
+// directories. This guard lets one test provide a complete isolated repository
+// and restores the application globals even if an assertion aborts the test.
+class ScopedUpdaterDirectories
+{
+public:
+    ScopedUpdaterDirectories(const boost::filesystem::path &resources_directory,
+                             const boost::filesystem::path &data_directory)
+        : m_previous_resources_directory(Slic3r::resources_dir())
+        , m_previous_data_directory(Slic3r::has_data_dir() ? Slic3r::data_dir() : std::string())
+    {
+        Slic3r::set_resources_dir(resources_directory.string());
+        Slic3r::set_data_dir(data_directory.string());
+    }
+
+    ~ScopedUpdaterDirectories()
+    {
+        Slic3r::set_resources_dir(m_previous_resources_directory);
+        Slic3r::set_data_dir(m_previous_data_directory);
+    }
+
+private:
+    std::string m_previous_resources_directory;
+    std::string m_previous_data_directory;
+};
+
 std::string read_test_file(const boost::filesystem::path &path)
 {
     boost::nowide::ifstream stream(path.string(), std::ios::in | std::ios::binary);
     return std::string((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+}
+
+void write_test_file(const boost::filesystem::path &path, const std::string &contents)
+{
+    boost::filesystem::create_directories(path.parent_path());
+    boost::nowide::ofstream stream(path.string(), std::ios::out | std::ios::trunc);
+    stream << contents;
 }
 
 } // namespace
@@ -287,6 +325,152 @@ TEST_CASE("RepositoryUpdater refuses tag refresh after the GitHub request limit"
     REQUIRE(refresh_succeeded.has_value());
     CHECK_FALSE(*refresh_succeeded);
     CHECK(sync_callback_count == 1);
+    CHECK(http.pending_count() == 0);
+}
+
+TEST_CASE("RepositoryUpdater downloads changelog batches through cache and transport", "[plugins][updater]")
+{
+    FakeUpdaterHttpTransport http;
+    TestRepositoryUpdater updater(http);
+    TemporaryDirectory temporary;
+    const boost::filesystem::path commit_cache = temporary.path() / "logs" / "commit.json";
+    const boost::filesystem::path compare_cache = temporary.path() / "logs" / "compare.json";
+    std::string commit_notes;
+    std::string compare_notes;
+    std::optional<bool> batch_succeeded;
+    int callback_count = 0;
+
+    TestRepositoryUpdater::RepositoryChangelogRequest commit;
+    commit.cache_file = commit_cache;
+    commit.url = "https://example.invalid/commit/one";
+    commit.store_notes = [&commit_notes](std::string notes) { commit_notes = std::move(notes); };
+
+    TestRepositoryUpdater::RepositoryChangelogRequest compare;
+    compare.cache_file = compare_cache;
+    compare.url = "https://example.invalid/compare/one...two";
+    compare.compare = true;
+    compare.store_notes = [&compare_notes](std::string notes) { compare_notes = std::move(notes); };
+
+    updater.download_repository_changelogs(
+        {commit, compare},
+        [&batch_succeeded, &callback_count](bool succeeded) {
+            batch_succeeded = succeeded;
+            ++callback_count;
+        },
+        false);
+
+    REQUIRE(updater.changelog_download_in_progress());
+    REQUIRE(http.pending_count() == 2);
+    CHECK(http.pending_at(0).response_size_limit() == 4 * 1024 * 1024);
+    CHECK(http.pending_at(1).response_size_limit() == 128 * 1024);
+    CHECK_FALSE(updater.begin_sync(1, [](int) {}));
+
+    const std::string commit_json = R"({"commit":{"message":"single commit"}})";
+    http.succeed_front(commit_json, 200);
+    CHECK(callback_count == 0);
+    CHECK(updater.changelog_download_in_progress());
+
+    const std::string compare_json =
+        R"({"commits":[{"commit":{"message":"older"}},{"commit":{"message":"newer"}}]})";
+    http.succeed_front(compare_json, 200);
+
+    REQUIRE(batch_succeeded.has_value());
+    CHECK(*batch_succeeded);
+    CHECK(callback_count == 1);
+    CHECK_FALSE(updater.changelog_download_in_progress());
+    CHECK(commit_notes == "single commit");
+    CHECK(compare_notes == "newer\nolder");
+    CHECK(read_test_file(commit_cache) == commit_json);
+    CHECK(read_test_file(compare_cache) == compare_json);
+
+    // Cached commit data is immutable. A second batch completes synchronously
+    // and restores the notes without consuming another HTTP request.
+    commit_notes.clear();
+    compare_notes.clear();
+    batch_succeeded.reset();
+    updater.download_repository_changelogs(
+        {commit, compare},
+        [&batch_succeeded, &callback_count](bool succeeded) {
+            batch_succeeded = succeeded;
+            ++callback_count;
+        },
+        false);
+    REQUIRE(batch_succeeded.has_value());
+    CHECK(*batch_succeeded);
+    CHECK(callback_count == 2);
+    CHECK(http.pending_count() == 0);
+    CHECK(commit_notes == "single commit");
+    CHECK(compare_notes == "newer\nolder");
+}
+
+TEST_CASE("RepositoryUpdater changelog failures complete one aggregate callback", "[plugins][updater]")
+{
+    FakeUpdaterHttpTransport http;
+    TestRepositoryUpdater updater(http);
+    TemporaryDirectory temporary;
+    std::optional<bool> batch_succeeded;
+    int callback_count = 0;
+
+    TestRepositoryUpdater::RepositoryChangelogRequest invalid;
+    invalid.cache_file = temporary.path() / "invalid.json";
+    invalid.url = "https://example.invalid/invalid";
+    invalid.store_notes = [](std::string) {};
+
+    TestRepositoryUpdater::RepositoryChangelogRequest offline;
+    offline.cache_file = temporary.path() / "offline.json";
+    offline.url = "https://example.invalid/offline";
+    offline.store_notes = [](std::string) {};
+
+    updater.download_repository_changelogs(
+        {invalid, offline},
+        [&batch_succeeded, &callback_count](bool succeeded) {
+            batch_succeeded = succeeded;
+            ++callback_count;
+        },
+        false);
+    REQUIRE(http.pending_count() == 2);
+
+    http.succeed_front("not JSON", 200);
+    CHECK(callback_count == 0);
+    http.fail_front(std::string(), "offline", 0);
+
+    REQUIRE(batch_succeeded.has_value());
+    CHECK_FALSE(*batch_succeeded);
+    CHECK(callback_count == 1);
+    CHECK_FALSE(updater.changelog_download_in_progress());
+}
+
+TEST_CASE("RepositoryUpdater force and rate limits apply to changelogs", "[plugins][updater]")
+{
+    FakeUpdaterHttpTransport http;
+    TestRepositoryUpdater updater(http);
+    TemporaryDirectory temporary;
+    const boost::filesystem::path cache_file = temporary.path() / "cached.json";
+    write_test_file(cache_file, R"({"commit":{"message":"cached"}})");
+
+    TestRepositoryUpdater::RepositoryChangelogRequest request;
+    request.cache_file = cache_file;
+    request.url = "https://example.invalid/forced";
+    request.store_notes = [](std::string) {};
+    std::optional<bool> forced_result;
+    updater.download_repository_changelogs(
+        {request}, [&forced_result](bool succeeded) { forced_result = succeeded; }, true);
+    REQUIRE(http.pending_count() == 1);
+    CHECK_FALSE(forced_result.has_value());
+    http.succeed_front(R"({"commit":{"message":"fresh"}})", 200);
+    REQUIRE(forced_result.has_value());
+    CHECK(*forced_result);
+
+    for (size_t request_idx = 0; request_idx < 24; ++request_idx)
+        REQUIRE(updater.has_api_request_slot("https://api.github.com/repos/example/repository"));
+
+    request.cache_file = temporary.path() / "limited.json";
+    request.url = "https://api.github.com/repos/example/repository/commits/one";
+    std::optional<bool> limited_result;
+    updater.download_repository_changelogs(
+        {request}, [&limited_result](bool succeeded) { limited_result = succeeded; }, true);
+    REQUIRE(limited_result.has_value());
+    CHECK_FALSE(*limited_result);
     CHECK(http.pending_count() == 0);
 }
 
@@ -442,6 +626,111 @@ TEST_CASE("PluginUpdater reports a transport failure without a real HTTP request
     CHECK(result->code == Slic3r::UpdaterError::Code::Network);
     CHECK(result->detail == "connection refused");
     CHECK(http.pending_count() == 0);
+}
+
+TEST_CASE("PluginUpdater selects comparable versions and caches their changelogs", "[plugins][updater]")
+{
+    FakeUpdaterHttpTransport http;
+    TemporaryDirectory temporary;
+    const boost::filesystem::path resources_directory = temporary.path() / "resources";
+    const boost::filesystem::path data_directory = temporary.path() / "data";
+    write_test_file(resources_directory / "plugins" / "default_activated.ini",
+                    "[installed]\n\n[activated]\n");
+    write_test_file(
+        resources_directory / "plugins" / "descriptions" / "example.ini",
+        "[plugin]\n"
+        "id = example.plugin\n"
+        "name = example.plugin\n"
+        "full_name = Example plugin\n"
+        "config_update_rest = example/repository\n");
+    ScopedUpdaterDirectories directories(resources_directory, data_directory);
+
+    Slic3r::PluginUpdater updater(http);
+    updater.reload_all_plugins();
+    REQUIRE(updater.count_available() == 1);
+    std::optional<int> update_count;
+    updater.sync_async([&update_count](int count) { update_count = count; }, true);
+    REQUIRE(http.pending_count() == 1);
+    CHECK(http.pending_front().url() ==
+          "https://api.github.com/repos/example/repository/tags?per_page=100;page=1");
+
+    const std::string tags =
+        "[{\"name\":\"3.0.0.0=2.8.0.0\",\"zipball_url\":\"zip3\","
+        "\"commit\":{\"sha\":\"sha3\",\"url\":\"commit3\"}},"
+        "{\"name\":\"2.0.0.0=2.7.64.0\",\"zipball_url\":\"zip2\","
+        "\"commit\":{\"sha\":\"sha2\",\"url\":\"commit2\"}},"
+        "{\"name\":\"1.5.0.0=2.7.64.0\",\"zipball_url\":\"zip15\","
+        "\"commit\":{\"sha\":\"sha15\",\"url\":\"commit15\"}},"
+        "{\"name\":\"1.0.0.0=2.7.63.0\",\"zipball_url\":\"zip1\","
+        "\"commit\":{\"sha\":\"sha1\",\"url\":\"commit1\"}}]";
+    http.succeed_front(tags, 200);
+    REQUIRE(update_count.has_value());
+
+    Slic3r::PluginSync *plugin = updater.get_plugin("example.plugin");
+    REQUIRE(plugin != nullptr);
+    REQUIRE(plugin->available_packages.size() == 4);
+    std::optional<bool> changelogs_succeeded;
+    int callback_count = 0;
+    updater.download_changelogs(
+        "example.plugin",
+        [&changelogs_succeeded, &callback_count](bool succeeded) {
+            changelogs_succeeded = succeeded;
+            ++callback_count;
+        });
+
+    REQUIRE(http.pending_count() == 4);
+    CHECK(http.pending_at(0).url() ==
+          "https://api.github.com/repos/example/repository/compare/2.0.0.0=2.7.64.0...3.0.0.0=2.8.0.0");
+    CHECK(http.pending_at(1).url() ==
+          "https://api.github.com/repos/example/repository/compare/1.5.0.0=2.7.64.0...2.0.0.0=2.7.64.0");
+    CHECK(http.pending_at(2).url() ==
+          "https://api.github.com/repos/example/repository/compare/1.0.0.0=2.7.63.0...1.5.0.0=2.7.64.0");
+    CHECK(http.pending_at(3).url() == "commit1");
+
+    // Reload is deliberately ignored while callbacks retain pointers into the
+    // plugin map. This is the lifetime guarantee used by store_notes.
+    updater.reload_all_plugins();
+    CHECK(updater.get_plugin("example.plugin") == plugin);
+    CHECK(plugin->available_packages.size() == 4);
+
+    const std::string compare_json =
+        R"({"commits":[{"commit":{"message":"older"}},{"commit":{"message":"newer"}}]})";
+    http.succeed_front(compare_json, 200);
+    http.succeed_front(compare_json, 200);
+    http.succeed_front(compare_json, 200);
+    http.succeed_front(R"({"commit":{"message":"initial"}})", 200);
+
+    REQUIRE(changelogs_succeeded.has_value());
+    CHECK(*changelogs_succeeded);
+    CHECK(callback_count == 1);
+    CHECK(plugin->available_packages[0].notes == "newer\nolder");
+    CHECK(plugin->available_packages[1].notes == "newer\nolder");
+    CHECK(plugin->available_packages[2].notes == "newer\nolder");
+    CHECK(plugin->available_packages[3].notes == "initial");
+
+    const boost::filesystem::path log_directory =
+        data_directory / "cache" / "plugins" / "repositories" / "example.plugin" / "logs";
+    CHECK(boost::filesystem::is_regular_file(
+        log_directory / "2.0.0.0=2.7.64.0...3.0.0.0=2.8.0.0.json"));
+    CHECK(boost::filesystem::is_regular_file(log_directory / "1.0.0.0=2.7.63.0.json"));
+
+    // A second request restores every note from the plugin cache and performs
+    // no HTTP work. This also verifies that cache filenames map back to the
+    // same package entries after the first batch.
+    for (Slic3r::PluginAvailable &version : plugin->available_packages)
+        version.notes.clear();
+    changelogs_succeeded.reset();
+    updater.download_changelogs(
+        "example.plugin",
+        [&changelogs_succeeded, &callback_count](bool succeeded) {
+            changelogs_succeeded = succeeded;
+            ++callback_count;
+        });
+    REQUIRE(changelogs_succeeded.has_value());
+    CHECK(*changelogs_succeeded);
+    CHECK(callback_count == 2);
+    CHECK(http.pending_count() == 0);
+    CHECK(plugin->available_packages[3].notes == "initial");
 }
 
 TEST_CASE("Updater HTTP progress remains controllable from a fake transport", "[plugins][updater]")

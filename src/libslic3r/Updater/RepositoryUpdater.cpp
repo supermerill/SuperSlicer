@@ -14,11 +14,13 @@
 #include <exception>
 #include <iterator>
 #include <memory>
+#include <sstream>
 #include <utility>
 
 #include <boost/filesystem.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/nowide/fstream.hpp>
+#include <boost/property_tree/json_parser.hpp>
 
 #include "libslic3r/Updater/UpdaterHttp.hpp"
 
@@ -27,6 +29,18 @@ namespace {
 
 const size_t k_repository_metadata_size_limit = 64 * 1024;
 const std::time_t k_repository_cache_lifetime = 24 * 3600;
+const size_t k_repository_compare_size_limit = 128 * 1024;
+const size_t k_repository_commit_size_limit = 4 * 1024 * 1024;
+
+// Tracks one batch of changelog requests. Several batches may run at once,
+// while the parent counter prevents derived updaters from replacing the data
+// captured by their store_notes callbacks.
+struct RepositoryChangelogState {
+    std::atomic_size_t pending = 0;
+    std::atomic_bool succeeded = true;
+    std::atomic_int *active_downloads = nullptr;
+    std::function<void(bool)> callback;
+};
 
 // Parsing belongs to the derived updater, but exceptions must not leave the
 // parent sync waiting forever. A parse exception is therefore reported as a
@@ -38,6 +52,16 @@ bool parse_repository_tags_safely(const std::string &repository_id,
 // Stores a fully downloaded response and reports local failures separately
 // from transport errors. Both sync and async archive paths use this function.
 UpdaterError write_repository_file(const boost::filesystem::path &destination, const std::string &contents);
+
+// Extracts either one commit message or the messages from a GitHub comparison.
+// Parsing into a temporary string prevents a malformed response from replacing
+// notes that were already available to the caller.
+bool parse_repository_changelog(const std::string &contents, bool compare, std::string &notes);
+
+// Releases one request from its batch and invokes the aggregate callback only
+// after the last cache read or network request has finished.
+void complete_repository_changelog_request(const std::shared_ptr<RepositoryChangelogState> &state,
+                                            bool succeeded);
 
 bool parse_repository_tags_safely(const std::string &repository_id,
                                   const std::function<bool(const std::string &)> &parse_tags,
@@ -71,6 +95,40 @@ UpdaterError write_repository_file(const boost::filesystem::path &destination, c
     }
 }
 
+bool parse_repository_changelog(const std::string &contents, bool compare, std::string &notes)
+{
+    try {
+        boost::property_tree::ptree root;
+        std::stringstream stream(contents);
+        boost::property_tree::read_json(stream, root);
+        if (!compare) {
+            notes = root.get<std::string>("commit.message");
+            return true;
+        }
+
+        notes.clear();
+        for (const boost::property_tree::ptree::value_type &entry : root.get_child("commits")) {
+            const std::string message = entry.second.get<std::string>("commit.message");
+            notes = notes.empty() ? message : message + "\n" + notes;
+        }
+        return true;
+    } catch (const std::exception &error) {
+        BOOST_LOG_TRIVIAL(warning) << "Cannot parse repository changelog: " << error.what();
+        return false;
+    }
+}
+
+void complete_repository_changelog_request(const std::shared_ptr<RepositoryChangelogState> &state,
+                                            bool succeeded)
+{
+    if (!succeeded)
+        state->succeeded = false;
+    if (--state->pending == 0) {
+        --*state->active_downloads;
+        state->callback(state->succeeded.load());
+    }
+}
+
 } // namespace
 
 RepositoryUpdater::RepositoryUpdater()
@@ -85,6 +143,11 @@ RepositoryUpdater::RepositoryUpdater(UpdaterHttpTransport &http_transport)
 
 bool RepositoryUpdater::begin_sync(size_t repository_count, std::function<void(int)> callback)
 {
+    // Tag parsing replaces the version vectors whose entries receive
+    // changelog notes. Refuse a refresh until those callbacks have released
+    // their references.
+    if (m_pending_changelogs != 0)
+        return false;
     if (m_sync_in_progress.exchange(true))
         return false;
 
@@ -313,6 +376,101 @@ UpdaterError RepositoryUpdater::download_repository_file_sync(const std::string 
             result = make_updater_error(UpdaterError::Code::Network, error.what());
     }
     return result;
+}
+
+void RepositoryUpdater::download_repository_changelogs(std::vector<RepositoryChangelogRequest> requests,
+                                                       std::function<void(bool)> callback,
+                                                       bool force)
+{
+    if (requests.empty()) {
+        callback(true);
+        return;
+    }
+    // A tag refresh may clear and rebuild the version records captured by
+    // store_notes. Let the caller retry after that refresh has completed.
+    if (sync_in_progress()) {
+        callback(false);
+        return;
+    }
+
+    const std::shared_ptr<RepositoryChangelogState> state = std::make_shared<RepositoryChangelogState>();
+    state->pending = requests.size();
+    state->active_downloads = &m_pending_changelogs;
+    state->callback = std::move(callback);
+    ++m_pending_changelogs;
+
+    // Each request stores its result through a callback supplied by the
+    // derived updater. Keeping parsing here gives vendors and plugins exactly
+    // the same JSON and failure semantics without sharing their public models.
+    const std::function<bool(const RepositoryChangelogRequest &, const std::string &)> consume =
+        [](const RepositoryChangelogRequest &request, const std::string &contents) {
+            std::string notes;
+            if (!parse_repository_changelog(contents, request.compare, notes))
+                return false;
+            try {
+                request.store_notes(std::move(notes));
+                return true;
+            } catch (const std::exception &error) {
+                BOOST_LOG_TRIVIAL(warning) << "Cannot store repository changelog: " << error.what();
+                return false;
+            }
+        };
+
+    for (const RepositoryChangelogRequest &request : requests) {
+        const std::shared_ptr<std::atomic_bool> terminal = std::make_shared<std::atomic_bool>(false);
+        const std::function<void(bool)> complete = [state, terminal](bool succeeded) {
+            if (!terminal->exchange(true))
+                complete_repository_changelog_request(state, succeeded);
+        };
+
+        // A cache entry represents immutable commit data, so it has no expiry.
+        // force bypasses it when the caller wants to repair or refresh files.
+        try {
+            if (!force && boost::filesystem::is_regular_file(request.cache_file)) {
+                boost::nowide::ifstream stream(request.cache_file.string());
+                if (!stream) {
+                    complete(false);
+                    continue;
+                }
+                const std::string contents((std::istreambuf_iterator<char>(stream)),
+                                           std::istreambuf_iterator<char>());
+                complete(consume(request, contents));
+                continue;
+            }
+        } catch (const std::exception &error) {
+            BOOST_LOG_TRIVIAL(warning) << "Cannot read repository changelog cache '"
+                                       << request.cache_file.string() << "': " << error.what();
+            complete(false);
+            continue;
+        }
+
+        if (request.url.empty() || !has_api_request_slot(request.url)) {
+            complete(false);
+            continue;
+        }
+
+        try {
+            http().get(request.url)
+                .size_limit(request.compare ? k_repository_compare_size_limit : k_repository_commit_size_limit)
+                .on_error([request, complete](std::string, std::string error, unsigned) {
+                    BOOST_LOG_TRIVIAL(warning) << "Cannot download repository changelog '"
+                                               << request.url << "': " << error;
+                    complete(false);
+                })
+                .on_complete([request, consume, complete](std::string contents, unsigned) {
+                    const UpdaterError cache_error = write_repository_file(request.cache_file, contents);
+                    if (!cache_error.succeeded())
+                        BOOST_LOG_TRIVIAL(warning) << "Cannot cache repository changelog '"
+                                                   << request.cache_file.string() << "': " << cache_error.detail;
+                    complete(consume(request, contents));
+                })
+                .perform();
+        } catch (const std::exception &error) {
+            BOOST_LOG_TRIVIAL(warning) << "Cannot start repository changelog request '"
+                                       << request.url << "': " << error.what();
+            complete(false);
+        }
+    }
 }
 
 void RepositoryUpdater::finish_repository_refresh(bool succeeded, const RepositoryRefreshFinishedFn &finished)

@@ -13,12 +13,10 @@
 #include "libslic3r/Updater/PresetUpdater.hpp"
 
 #include <algorithm>
-#include <atomic>
 #include <cstring>
 #include <ctime>
 #include <fstream>
 #include <iterator>
-#include <memory>
 #include <optional>
 #include <sstream>
 #include <utility>
@@ -27,7 +25,6 @@
 #include <boost/log/trivial.hpp>
 #include <boost/nowide/fstream.hpp>
 #include <boost/property_tree/ini_parser.hpp>
-#include <boost/property_tree/json_parser.hpp>
 
 #include "libslic3r/Plugins/PluginRepository.hpp"
 #include "libslic3r/PresetBundle.hpp"
@@ -50,7 +47,6 @@ UpdaterError extract_vendor_package(const boost::filesystem::path &archive_path,
                                     const boost::filesystem::path &package_root,
                                     const std::string &vendor_id);
 UpdaterError save_vendor_description(const std::string &contents, const std::string &fallback_id);
-bool read_changelog_notes(VendorAvailable &version, const std::string &contents, bool compare);
 
 boost::filesystem::path data_path()
 {
@@ -175,55 +171,6 @@ UpdaterError save_vendor_description(const std::string &contents, const std::str
     }
 }
 
-struct ChangelogState {
-    std::atomic_size_t pending = 0;
-    std::atomic_bool succeeded = true;
-    std::atomic_int *active_downloads = nullptr;
-    std::function<void(bool)> callback;
-};
-
-struct ChangelogRequest {
-    VendorAvailable *version = nullptr;
-    boost::filesystem::path cache_file;
-    std::string url;
-    bool compare = false;
-};
-
-// Changelogs are GitHub JSON for either one commit or a compare result. Keep
-// that parsing beside the transport code so the data-only VendorSync remains
-// independent from filesystem and HTTP implementation details.
-bool read_changelog_notes(VendorAvailable &version, const std::string &contents, bool compare)
-{
-    try {
-        boost::property_tree::ptree root;
-        std::stringstream stream(contents);
-        boost::property_tree::read_json(stream, root);
-        if (!compare) {
-            version.notes = root.get<std::string>("commit.message");
-            return true;
-        }
-        version.notes.clear();
-        for (const boost::property_tree::ptree::value_type &entry : root.get_child("commits")) {
-            const std::string message = entry.second.get<std::string>("commit.message");
-            version.notes = version.notes.empty() ? message : message + "\n" + version.notes;
-        }
-        return true;
-    } catch (const std::exception &error) {
-        BOOST_LOG_TRIVIAL(warning) << "Cannot parse vendor changelog: " << error.what();
-        return false;
-    }
-}
-
-void complete_changelog_request(const std::shared_ptr<ChangelogState> &state, bool succeeded)
-{
-    if (!succeeded)
-        state->succeeded = false;
-    if (--state->pending == 0) {
-        --*state->active_downloads;
-        state->callback(state->succeeded.load());
-    }
-}
-
 } // namespace
 
 PresetUpdater::PresetUpdater(PresetUpdaterHost *host)
@@ -321,7 +268,7 @@ void PresetUpdater::reload_all_vendors()
         std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
         // HTTP callbacks retain references to map entries. A reload while a
         // refresh is pending would invalidate those references.
-        if (sync_in_progress() || m_pending_changelogs != 0)
+        if (sync_in_progress() || changelog_download_in_progress())
             return;
         m_vendors.clear();
         m_is_synchronized = false;
@@ -396,94 +343,52 @@ void PresetUpdater::update_vendor(VendorSync &vendor, bool force)
         });
 }
 
-void PresetUpdater::download_logs(const std::string &vendor_id,
-                                  std::function<void(bool)> callback_result,
-                                  bool force)
+void PresetUpdater::download_changelogs(const std::string &vendor_id,
+                                        std::function<void(bool)> callback_result,
+                                        bool force)
 {
-    std::vector<ChangelogRequest> requests;
-    {
-        std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
-        VendorSync *vendor = get_vendor(vendor_id);
-        if (vendor == nullptr) {
-            callback_result(false);
-            return;
-        }
-
-        const boost::filesystem::path log_directory = vendor_cache_directory(vendor->profile) / "logs";
-        boost::filesystem::create_directories(log_directory);
-        const std::string repository_url = VendorProfile::get_http_url_rest(vendor->profile.config_update_rest);
-        for (VendorAvailable &version : vendor->available_profiles) {
-            if (version.commit_sha.empty())
-                continue;
-
-            VendorAvailable *previous = nullptr;
-            for (VendorAvailable &candidate : vendor->available_profiles) {
-                if (candidate.commit_sha.empty() || candidate.config_version >= version.config_version)
-                    continue;
-                if (candidate.slicer_version.no_patch() == version.slicer_version.no_patch() &&
-                    (previous == nullptr || candidate.config_version > previous->config_version))
-                    previous = &candidate;
-            }
-            if (previous == nullptr) {
-                for (VendorAvailable &candidate : vendor->available_profiles) {
-                    if (candidate.commit_sha.empty() || candidate.config_version >= version.config_version ||
-                        candidate.slicer_version.no_patch() > version.slicer_version.no_patch())
-                        continue;
-                    if (previous == nullptr || candidate.config_version > previous->config_version)
-                        previous = &candidate;
-                }
-            }
-
-            ChangelogRequest request;
-            request.version = &version;
-            request.compare = previous != nullptr;
-            request.cache_file = log_directory /
-                (request.compare ? previous->tag + "..." + version.tag + ".json" : version.tag + ".json");
-            request.url = request.compare ? repository_url + "/compare/" + previous->tag + "..." + version.tag :
-                                            version.commit_url;
-            requests.emplace_back(std::move(request));
-        }
-    }
-
-    if (requests.empty()) {
-        callback_result(true);
+    std::vector<RepositoryChangelogRequest> requests;
+    std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
+    VendorSync *vendor = get_vendor(vendor_id);
+    if (vendor == nullptr) {
+        callback_result(false);
         return;
     }
 
-    const std::shared_ptr<ChangelogState> state = std::make_shared<ChangelogState>();
-    state->pending = requests.size();
-    state->active_downloads = &m_pending_changelogs;
-    state->callback = std::move(callback_result);
-    ++m_pending_changelogs;
-    for (const ChangelogRequest &request : requests) {
-        if (!force && boost::filesystem::is_regular_file(request.cache_file)) {
-            boost::nowide::ifstream cache_file(request.cache_file.string());
-            const std::string contents((std::istreambuf_iterator<char>(cache_file)), std::istreambuf_iterator<char>());
-            complete_changelog_request(state, read_changelog_notes(*request.version, contents, request.compare));
+    const boost::filesystem::path log_directory = vendor_cache_directory(vendor->profile) / "logs";
+    const std::string repository_url = VendorProfile::get_http_url_rest(vendor->profile.config_update_rest);
+    for (VendorAvailable &version : vendor->available_profiles) {
+        if (version.commit_sha.empty())
             continue;
+
+        VendorAvailable *previous = nullptr;
+        for (VendorAvailable &candidate : vendor->available_profiles) {
+            if (candidate.commit_sha.empty() || candidate.config_version >= version.config_version)
+                continue;
+            if (candidate.slicer_version.no_patch() == version.slicer_version.no_patch() &&
+                (previous == nullptr || candidate.config_version > previous->config_version))
+                previous = &candidate;
         }
-        if (request.url.empty() || !has_api_request_slot(request.url)) {
-            complete_changelog_request(state, false);
-            continue;
+        if (previous == nullptr) {
+            for (VendorAvailable &candidate : vendor->available_profiles) {
+                if (candidate.commit_sha.empty() || candidate.config_version >= version.config_version ||
+                    candidate.slicer_version.no_patch() > version.slicer_version.no_patch())
+                    continue;
+                if (previous == nullptr || candidate.config_version > previous->config_version)
+                    previous = &candidate;
+            }
         }
-        http().get(request.url)
-            .size_limit(request.compare ? 1024 * 128 : 1024 * 1024 * 4)
-            .on_error([state, request](std::string, std::string error, unsigned) {
-                BOOST_LOG_TRIVIAL(warning) << "Cannot download vendor changelog '" << request.url << "': " << error;
-                complete_changelog_request(state, false);
-            })
-            .on_complete([state, request](std::string contents, unsigned) {
-                try {
-                    boost::nowide::ofstream cache_file(request.cache_file.string(), std::ios::out | std::ios::trunc);
-                    cache_file << contents;
-                } catch (const std::exception &error) {
-                    BOOST_LOG_TRIVIAL(warning) << "Cannot cache vendor changelog '" << request.cache_file.string()
-                                               << "': " << error.what();
-                }
-                complete_changelog_request(state, read_changelog_notes(*request.version, contents, request.compare));
-            })
-            .perform();
+
+        RepositoryChangelogRequest request;
+        request.compare = previous != nullptr;
+        request.cache_file = log_directory /
+            (request.compare ? previous->tag + "..." + version.tag + ".json" : version.tag + ".json");
+        request.url = request.compare ? repository_url + "/compare/" + previous->tag + "..." + version.tag :
+                                        version.commit_url;
+        request.store_notes = [&version](std::string notes) { version.notes = std::move(notes); };
+        requests.emplace_back(std::move(request));
     }
+    download_repository_changelogs(std::move(requests), std::move(callback_result), force);
 }
 
 void PresetUpdater::download_new_repo(const std::string &rest_url, std::function<void(UpdaterError)> callback_result)

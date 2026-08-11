@@ -51,11 +51,11 @@ void PresetUpdater::sync_async(std::function<void(int)> callback_result, bool fo
     }, force);
 }
 
-void PresetUpdater::download_logs(const std::string &vendor_id,
-                                  std::function<void(bool)> callback_result,
-                                  bool force)
+void PresetUpdater::download_changelogs(const std::string &vendor_id,
+                                        std::function<void(bool)> callback_result,
+                                        bool force)
 {
-    m_core.download_logs(vendor_id, [this, callback_result = std::move(callback_result)](bool succeeded) {
+    m_core.download_changelogs(vendor_id, [this, callback_result = std::move(callback_result)](bool succeeded) {
         m_app.CallAfter([callback_result, succeeded] { callback_result(succeeded); });
     }, force);
 }
