@@ -20,9 +20,9 @@
 #include "libslic3r/PresetBundle.hpp"
 
 #include "slic3r/Config/Snapshot.hpp"
-#include "slic3r/GUI/format.hpp"
 
 #include "GUI_App.hpp"
+#include "GUI.hpp"
 #include "I18N.hpp"
 #include "UpdateDialogs.hpp"
 #include "UpdaterErrorMessages.hpp"
@@ -253,7 +253,7 @@ void PresetUpdater::show_synch_window_internal()
     if (parent == nullptr)
         return;
 
-    UpdateConfigDialog dialog(parent, *this, GUI::from_u8(message));
+    UpdateConfigDialog dialog(parent, *this, Slic3r::GUI::from_u8(message));
     const int result = dialog.ShowModal();
     if (callback_dialog_closed)
         callback_dialog_closed(result == wxID_OK);
