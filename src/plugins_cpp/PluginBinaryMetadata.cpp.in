@@ -1,0 +1,30 @@
+///|/ Copyright (c) SuperSlicer 2026 Durand Remi @supermerill
+///|/
+///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
+///|/
+
+// This generated translation unit embeds one portable version record in the
+// plugin binary. The exported symbol prevents dead-code elimination, while the
+// named section makes the record easy to inspect with platform tooling. The
+// host still locates it by magic bytes, avoiding platform-specific parsers.
+
+#include "libslic3r/Plugins/PluginBinaryMetadata.hpp"
+
+#if defined(_MSC_VER)
+#pragma section(".s3meta", read)
+#define SLIC3R_PLUGIN_METADATA_STORAGE __declspec(dllexport) __declspec(allocate(".s3meta"))
+#elif defined(__APPLE__)
+#define SLIC3R_PLUGIN_METADATA_STORAGE \
+    __attribute__((used, visibility("default"), section("__DATA,__slic3r")))
+#else
+#define SLIC3R_PLUGIN_METADATA_STORAGE \
+    __attribute__((used, visibility("default"), section(".slic3r_plugin")))
+#endif
+
+extern "C" SLIC3R_PLUGIN_METADATA_STORAGE
+const Slic3r::PluginBinaryMetadata slic3r_plugin_binary_metadata = {
+    Slic3r::PLUGIN_BINARY_METADATA_MAGIC,
+    Slic3r::PLUGIN_BINARY_METADATA_FORMAT_VERSION,
+    "@PLUGIN_BINARY_PACKAGE_VERSION@",
+    "@PLUGIN_BINARY_SLICER_VERSION@"
+};

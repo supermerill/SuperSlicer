@@ -16,6 +16,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/nowide/fstream.hpp>
 
+#include "libslic3r/Plugins/PluginBinaryMetadata.hpp"
 #include "libslic3r/Plugins/PluginRepository.hpp"
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/host/Plugin.hpp"
@@ -647,6 +648,53 @@ TEST_CASE("Pure Python package is loaded with its own package root",
 }
 #endif
 
+TEST_CASE("Portable binary metadata supplies missing plugin package versions",
+          "[plugins][repository][cache-layout]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-portable-version-%%%%-%%%%");
+    const boost::filesystem::path package = root / "portable.example";
+    boost::filesystem::create_directories(package);
+    {
+        boost::nowide::ofstream description((package / "description.ini").string());
+        description << description_contents("portable.example");
+    }
+    {
+        const Slic3r::PluginBinaryMetadata metadata = {
+            Slic3r::PLUGIN_BINARY_METADATA_MAGIC,
+            Slic3r::PLUGIN_BINARY_METADATA_FORMAT_VERSION,
+            "4.5.6",
+            "2.7.63.0"
+        };
+        boost::nowide::ofstream library(
+            (package / plugin_library_filename()).string(), std::ios::out | std::ios::binary);
+        const std::string prefix(65500, 'x');
+        library.write(prefix.data(), std::streamsize(prefix.size()));
+        library.write(reinterpret_cast<const char *>(&metadata), sizeof(metadata));
+        library << "binary suffix";
+    }
+
+    Slic3r::RepositoryPackageCache cache(root / "data", Slic3r::plugin_repository_cache_adapter());
+    bool purged = false;
+    std::string error_message;
+    REQUIRE(cache.prepare_layout(purged, error_message));
+    Slic3r::RepositoryCachedVersion cached;
+    REQUIRE(cache.cache_simple(package, cached, error_message));
+    CHECK(cached.version.package_version == "4.5.6");
+    CHECK(cached.version.slicer_version == "2.7.63.0");
+
+    // The portable record remains a real provenance source: a contradictory
+    // sidecar must be rejected instead of silently replacing its values.
+    {
+        boost::nowide::ofstream version((package / "version.ini").string());
+        version << version_contents("4.5.7", "2.7.63.0");
+    }
+    CHECK_FALSE(cache.cache_simple(package, cached, error_message));
+    CHECK(error_message.find("native metadata") != std::string::npos);
+
+    boost::filesystem::remove_all(root);
+}
+
 #ifdef _WIN32
 TEST_CASE("Windows plugin VERSIONINFO supplies missing package versions",
           "[plugins][repository][cache-layout]")
@@ -679,6 +727,7 @@ TEST_CASE("Windows plugin VERSIONINFO supplies missing package versions",
 
     boost::filesystem::remove_all(root);
 }
+#endif
 
 #ifdef SLIC3R_TEST_POLYHOLES_PLUGIN_DLL
 TEST_CASE("Packaged C++ plugin DLL metadata matches its generated version file",
@@ -727,7 +776,6 @@ TEST_CASE("Packaged C++ plugin DLL metadata matches its generated version file",
 
     boost::filesystem::remove_all(root);
 }
-#endif
 #endif
 
 TEST_CASE("Repository package cache preserves versions and selects root metadata",

@@ -42,9 +42,9 @@ function(_slic3r_plugin_numeric_version output_variable package_version)
     set(${output_variable} "${_numeric_version}" PARENT_SCOPE)
 endfunction()
 
-# Escape user-facing package text before configure_file places it inside a
-# quoted Windows resource string.
-function(_slic3r_plugin_resource_string output_variable input_value)
+# Escape package text before configure_file places it inside a quoted C++ or
+# Windows resource string.
+function(_slic3r_plugin_quoted_string output_variable input_value)
     set(_escaped "${input_value}")
     string(REPLACE "\\" "\\\\" _escaped "${_escaped}")
     string(REPLACE "\"" "\\\"" _escaped "${_escaped}")
@@ -95,16 +95,34 @@ function(slic3r_package_plugin target package_name)
     file(GENERATE OUTPUT "${_version_file}" CONTENT
         "[plugin]\npackage_version = ${_package_version}\nslicer_version = ${SLIC3R_RC_VERSION_DOTS}\n")
 
+    # Every native platform receives the same searchable metadata record. It is
+    # an independent fallback when version.ini is missing and does not require
+    # the host to load untrusted plugin code.
+    string(LENGTH "${_package_version}" _package_version_length)
+    string(LENGTH "${SLIC3R_RC_VERSION_DOTS}" _slicer_version_length)
+    if (_package_version_length GREATER_EQUAL 64 OR _slicer_version_length GREATER_EQUAL 64)
+        message(FATAL_ERROR
+            "Plugin '${package_name}' versions must fit in the 63-byte binary metadata fields")
+    endif()
+    _slic3r_plugin_quoted_string(PLUGIN_BINARY_PACKAGE_VERSION "${_package_version}")
+    _slic3r_plugin_quoted_string(PLUGIN_BINARY_SLICER_VERSION "${SLIC3R_RC_VERSION_DOTS}")
+    set(_binary_metadata_source "${_plugin_binary_directory}/${package_name}-binary-metadata.cpp")
+    configure_file(
+        "${_SLIC3R_PLUGIN_PACKAGE_CMAKE_DIRECTORY}/PluginBinaryMetadata.cpp.in"
+        "${_binary_metadata_source}"
+        @ONLY)
+    target_sources(${target} PRIVATE "${_binary_metadata_source}")
+
     # The cache treats native metadata as an independent version source. Build
     # it from the same resolved values as version.ini to prevent disagreement
     # between the archive name, the sidecar file and the DLL itself.
     if (WIN32)
         _slic3r_plugin_numeric_version(PLUGIN_RC_NUMERIC_VERSION "${_package_version}")
-        _slic3r_plugin_resource_string(PLUGIN_RC_PACKAGE_VERSION "${_package_version}")
-        _slic3r_plugin_resource_string(PLUGIN_RC_SLICER_VERSION "${SLIC3R_RC_VERSION_DOTS}")
-        _slic3r_plugin_resource_string(PLUGIN_RC_PRODUCT_NAME "${_package_full_name}")
-        _slic3r_plugin_resource_string(PLUGIN_RC_FILE_DESCRIPTION "${_package_file_description}")
-        _slic3r_plugin_resource_string(PLUGIN_RC_INTERNAL_NAME "${package_name}")
+        set(PLUGIN_RC_PACKAGE_VERSION "${PLUGIN_BINARY_PACKAGE_VERSION}")
+        set(PLUGIN_RC_SLICER_VERSION "${PLUGIN_BINARY_SLICER_VERSION}")
+        _slic3r_plugin_quoted_string(PLUGIN_RC_PRODUCT_NAME "${_package_full_name}")
+        _slic3r_plugin_quoted_string(PLUGIN_RC_FILE_DESCRIPTION "${_package_file_description}")
+        _slic3r_plugin_quoted_string(PLUGIN_RC_INTERNAL_NAME "${package_name}")
         set(_resource_file "${_plugin_binary_directory}/${package_name}-version.rc")
         configure_file(
             "${_SLIC3R_PLUGIN_PACKAGE_CMAKE_DIRECTORY}/PluginVersion.rc.in"

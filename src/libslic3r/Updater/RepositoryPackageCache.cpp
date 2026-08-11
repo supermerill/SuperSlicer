@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <fstream>
 #include <iterator>
 #include <regex>
@@ -25,6 +26,7 @@
 #include <boost/property_tree/ini_parser.hpp>
 
 #include "libslic3r/Preset.hpp"
+#include "libslic3r/Plugins/PluginBinaryMetadata.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/libslic3r.h"
 
@@ -90,6 +92,10 @@ bool plugin_has_supported_payload(const boost::filesystem::path &source,
                                   std::string &error_message);
 bool read_python_plugin_version(const boost::filesystem::path &entry,
                                 RepositoryPackageVersion &version,
+                                std::string &error_message);
+bool read_plugin_binary_version(const boost::filesystem::path &library,
+                                RepositoryPackageVersion &version,
+                                bool &found,
                                 std::string &error_message);
 bool read_native_plugin_version(const boost::filesystem::path &library,
                                 RepositoryPackageVersion &version,
@@ -540,8 +546,75 @@ bool read_python_plugin_version(const boost::filesystem::path &entry,
     return true;
 }
 
-// Native metadata is optional. On Windows, VERSIONINFO strings provide the
-// plugin version without loading untrusted code into the slicer process.
+// Scan the binary in bounded chunks for the portable fixed-size record. The
+// overlap preserves a record split across two reads, while field terminators
+// and the format version reject accidental occurrences of the magic bytes.
+bool read_plugin_binary_version(const boost::filesystem::path &library,
+                                RepositoryPackageVersion &version,
+                                bool &found,
+                                std::string &error_message)
+{
+    found = false;
+    boost::nowide::ifstream stream(library.string(), std::ios::in | std::ios::binary);
+    if (!stream) {
+        error_message = "Cannot read embedded metadata from plugin library '" + library.string() + "'.";
+        return false;
+    }
+
+    constexpr size_t chunk_size = 64 * 1024;
+    constexpr size_t overlap_size = sizeof(PluginBinaryMetadata) - 1;
+    std::vector<unsigned char> bytes(chunk_size + overlap_size);
+    size_t carried = 0;
+    for (;;) {
+        stream.read(reinterpret_cast<char *>(bytes.data() + carried), std::streamsize(chunk_size));
+        const size_t read_size = size_t(stream.gcount());
+        const size_t available = carried + read_size;
+
+        for (size_t offset = 0; offset + sizeof(PluginBinaryMetadata) <= available; ++offset) {
+            if (std::memcmp(bytes.data() + offset, PLUGIN_BINARY_METADATA_MAGIC.data(),
+                            PLUGIN_BINARY_METADATA_MAGIC.size()) != 0)
+                continue;
+
+            PluginBinaryMetadata candidate;
+            std::memcpy(&candidate, bytes.data() + offset, sizeof(candidate));
+            if (candidate.format_version != PLUGIN_BINARY_METADATA_FORMAT_VERSION)
+                continue;
+            const char *package_end = static_cast<const char *>(std::memchr(
+                candidate.package_version, '\0', sizeof(candidate.package_version)));
+            const char *slicer_end = static_cast<const char *>(std::memchr(
+                candidate.slicer_version, '\0', sizeof(candidate.slicer_version)));
+            if (package_end == nullptr || slicer_end == nullptr)
+                continue;
+
+            RepositoryPackageVersion candidate_version;
+            candidate_version.package_version.assign(
+                candidate.package_version, size_t(package_end - candidate.package_version));
+            candidate_version.slicer_version.assign(
+                candidate.slicer_version, size_t(slicer_end - candidate.slicer_version));
+            if (candidate_version.package_version.empty() && candidate_version.slicer_version.empty())
+                continue;
+            if (!merge_plugin_version_source(version, candidate_version,
+                                             "embedded binary metadata", error_message))
+                return false;
+            found = true;
+        }
+
+        if (stream.bad()) {
+            error_message = "Cannot finish reading plugin library '" + library.string() + "'.";
+            return false;
+        }
+        if (read_size == 0)
+            break;
+
+        carried = std::min(available, overlap_size);
+        std::memmove(bytes.data(), bytes.data() + available - carried, carried);
+    }
+    return true;
+}
+
+// VERSIONINFO is the standard Windows source. The portable record is then
+// merged as a cross-platform fallback and as a consistency check when both are
+// present. Neither source requires loading or executing the plugin library.
 bool read_native_plugin_version(const boost::filesystem::path &library,
                                 RepositoryPackageVersion &version,
                                 std::string &error_message)
@@ -549,38 +622,42 @@ bool read_native_plugin_version(const boost::filesystem::path &library,
 #ifdef _WIN32
     DWORD ignored = 0;
     const DWORD size = GetFileVersionInfoSizeW(library.wstring().c_str(), &ignored);
-    if (size == 0)
-        return true;
-    std::vector<unsigned char> data(size);
-    if (!GetFileVersionInfoW(library.wstring().c_str(), 0, size, data.data())) {
-        error_message = "Cannot read VERSIONINFO from plugin library '" + library.string() + "'.";
-        return false;
-    }
+    if (size != 0) {
+        std::vector<unsigned char> data(size);
+        if (!GetFileVersionInfoW(library.wstring().c_str(), 0, size, data.data())) {
+            error_message = "Cannot read VERSIONINFO from plugin library '" + library.string() + "'.";
+            return false;
+        }
 
-    struct Translation { WORD language; WORD code_page; };
-    Translation *translations = nullptr;
-    UINT translation_bytes = 0;
-    if (!VerQueryValueW(data.data(), L"\\VarFileInfo\\Translation",
-                        reinterpret_cast<void **>(&translations), &translation_bytes) ||
-        translation_bytes < sizeof(Translation))
-        return true;
-
-    const wchar_t *keys[] = {L"ProductVersion", L"SlicerVersion"};
-    std::string *outputs[] = {&version.package_version, &version.slicer_version};
-    for (size_t idx = 0; idx < 2; ++idx) {
-        wchar_t query[128];
-        swprintf(query, sizeof(query) / sizeof(query[0]), L"\\StringFileInfo\\%04x%04x\\%ls",
-                 translations[0].language, translations[0].code_page, keys[idx]);
-        wchar_t *value = nullptr;
-        UINT value_size = 0;
-        if (VerQueryValueW(data.data(), query, reinterpret_cast<void **>(&value), &value_size) &&
-            value != nullptr && value_size > 1)
-            *outputs[idx] = boost::nowide::narrow(value);
+        struct Translation { WORD language; WORD code_page; };
+        Translation *translations = nullptr;
+        UINT translation_bytes = 0;
+        if (VerQueryValueW(data.data(), L"\\VarFileInfo\\Translation",
+                           reinterpret_cast<void **>(&translations), &translation_bytes) &&
+            translation_bytes >= sizeof(Translation)) {
+            const wchar_t *keys[] = {L"ProductVersion", L"SlicerVersion"};
+            std::string *outputs[] = {&version.package_version, &version.slicer_version};
+            for (size_t idx = 0; idx < 2; ++idx) {
+                wchar_t query[128];
+                swprintf(query, sizeof(query) / sizeof(query[0]), L"\\StringFileInfo\\%04x%04x\\%ls",
+                         translations[0].language, translations[0].code_page, keys[idx]);
+                wchar_t *value = nullptr;
+                UINT value_size = 0;
+                if (VerQueryValueW(data.data(), query, reinterpret_cast<void **>(&value), &value_size) &&
+                    value != nullptr && value_size > 1)
+                    *outputs[idx] = boost::nowide::narrow(value);
+            }
+        }
     }
-#else
-    (void) library;
-    (void) error_message;
 #endif
+
+    if (version.package_version.empty() || version.slicer_version.empty()) {
+        RepositoryPackageVersion binary_version;
+        bool binary_found = false;
+        return read_plugin_binary_version(library, binary_version, binary_found, error_message) &&
+               (!binary_found || merge_plugin_version_source(
+                    version, binary_version, "embedded binary metadata", error_message));
+    }
     return true;
 }
 
