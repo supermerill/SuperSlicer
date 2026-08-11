@@ -159,6 +159,23 @@ target_link_libraries(Slic3r PRIVATE libslic3r libcereal)
 add_subdirectory(plugins_cpp)
 add_subdirectory(plugins_python)
 
+# A new data directory copies this file before the plugin loader runs. Build
+# its [installed] section from the actual external package list while keeping
+# the independently maintained [activated] plugin ids in the template.
+get_property(_default_plugin_packages GLOBAL PROPERTY SLIC3R_DEFAULT_PLUGIN_PACKAGES)
+set(SLIC3R_DEFAULT_INSTALLED_PLUGIN_ENTRIES "")
+foreach(_default_plugin_package IN LISTS _default_plugin_packages)
+    string(REPLACE "|" ";" _default_plugin_fields "${_default_plugin_package}")
+    list(GET _default_plugin_fields 0 _default_plugin_id)
+    list(GET _default_plugin_fields 1 _default_plugin_version)
+    list(GET _default_plugin_fields 2 _default_plugin_slicer_version)
+    string(APPEND SLIC3R_DEFAULT_INSTALLED_PLUGIN_ENTRIES
+        "${_default_plugin_id} = ${_default_plugin_version}\n"
+        "${_default_plugin_id}.slicer_version = ${_default_plugin_slicer_version}\n")
+endforeach()
+configure_file("${CMAKE_SOURCE_DIR}/resources/plugins/default_activated.ini.in"
+               "${SLIC3R_RESOURCES_DIR}/plugins/default_activated.ini" @ONLY)
+
 if (APPLE)
 #    add_compile_options(-stdlib=libc++)
 #    add_definitions(-DBOOST_THREAD_DONT_USE_CHRONO -DBOOST_NO_CXX11_RVALUE_REFERENCES -DBOOST_THREAD_USES_MOVE)

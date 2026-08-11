@@ -6,9 +6,10 @@
 
 #include "PresetUpdater.hpp"
 
+#include "libslic3r/Plugins/PluginRepository.hpp"
+
 #include <algorithm>
 #include <ostream>
-#include <regex>
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
@@ -29,7 +30,6 @@
 
 #include "libslic3r/format.hpp"
 #include "libslic3r/libslic3r.h"
-#include "libslic3r/miniz_extension.hpp"
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/Utils.hpp"
 
@@ -221,13 +221,13 @@ void PresetUpdater::reload_all_vendors() {
             //if (vp.config_update_rest.empty()) 
             {
                 // copy to cache if not already in
-                boost::filesystem::path vendor_cache = GUI::into_path(data_dir()) / "cache" / "vendor" /
-                    vp.usable_id();
+                boost::filesystem::path vendor_cache = repository_package_cache_path(
+                    GUI::into_path(data_dir()), RepositoryPackageType::Vendor, vp.usable_id(),
+                    vp.config_version.to_string(), vp.slicer_version.to_string());
                 std::string vendor_file_id = vendor_entry.path().stem().string();
-                std::string dir_cache_name = vendor_entry.path().stem().string() + "_" + vp.config_version.to_string();
-                if (!boost::filesystem::exists(vendor_cache / dir_cache_name)) {
-                    boost::filesystem::create_directories(vendor_cache / dir_cache_name / "profiles");
-                    copy_file_and_icons(resources_path / "profiles", vendor_cache / dir_cache_name / "profiles", vendor_file_id, true);
+                if (!boost::filesystem::exists(vendor_cache)) {
+                    boost::filesystem::create_directories(vendor_cache / "profiles");
+                    copy_file_and_icons(resources_path / "profiles", vendor_cache / "profiles", vendor_file_id, true);
                 }
             }
         } catch (std::exception) {
@@ -238,6 +238,10 @@ void PresetUpdater::reload_all_vendors() {
     for (const boost::filesystem::directory_entry &vendor_entry :
          boost::filesystem::directory_iterator(configuration_path / "cache" / "vendor")) {
         if (vendor_entry.is_directory()) {
+            if (boost::filesystem::exists(vendor_entry.path() / "profiles")) {
+                load_unused_vendors(vendors_id, vendor_entry.path() / "profiles", /*is_installed=*/false);
+                continue;
+            }
             for (const boost::filesystem::directory_entry &config_entry :
                  boost::filesystem::directory_iterator(vendor_entry.path())) {
                 if (config_entry.is_directory() && boost::filesystem::exists(config_entry.path() / "profiles")) {
@@ -551,56 +555,40 @@ void VendorSync::reset(const VendorProfile &vprofile, bool installed, bool has_c
 }
 
 bool VendorSync::parse_tags(const std::string &json) {
-    boost::property_tree::ptree root;
-    std::stringstream json_stream(json);
-    boost::property_tree::read_json(json_stream, root);
-
+    std::vector<RepositoryPackageVersion> repository_versions;
+    std::string error_message;
+    if (!parse_repository_versions(json, repository_versions, error_message)) {
+        BOOST_LOG_TRIVIAL(warning) << error_message;
+        return false;
+    }
     std::map<std::string, size_t> versions_here;
     for (size_t idx = 0; idx < available_profiles.size(); ++idx) {
         VendorAvailable &version = available_profiles[idx];
         versions_here[version.config_version.to_string()+"="+version.slicer_version.to_string()] = idx;
     }
 
-    Semver current_version(SLIC3R_VERSION_FULL);
-    const std::regex reg_num("([0-9]+)");
-    for (auto json_version : root) {
-        const std::string tag = json_version.second.get<std::string>("name");
-        size_t equal_pos = tag.find('=');
-        assert(equal_pos != std::string::npos);
-        if (equal_pos == std::string::npos) {
+    for (const RepositoryPackageVersion &repository_version : repository_versions) {
+        const std::optional<Semver> config_version = Semver::parse(repository_version.package_version);
+        const std::optional<Semver> slicer_version = Semver::parse(repository_version.slicer_version);
+        if (!config_version || !slicer_version)
             continue;
-        }
-        std::optional<Semver> config_version = Semver::parse(tag.substr(0, equal_pos));
-        std::optional<Semver> slicer_version = Semver::parse(tag.substr(equal_pos+1));
-        if (!config_version || !slicer_version) {
-            assert(false);
-            continue;
-        }
-        // check if slicer_version is okay
-        std::string str_ver = slicer_version->to_string();
-        std::string str_curr_ver = SLIC3R_VERSION_FULL;
-        //if (slicer_version > *Semver::parse(SLIC3R_VERSION_FULL) || versions_here.find(config_version->to_string()) != versions_here.end()) {
-        bool already_here = false;
-        const boost::property_tree::ptree& commit_node = json_version.second.get_child("commit");
-        if(versions_here.find(tag) != versions_here.end()) {
-            assert(versions_here[tag] < available_profiles.size());
+        if (versions_here.find(repository_version.tag) != versions_here.end()) {
+            assert(versions_here[repository_version.tag] < available_profiles.size());
             //update the tag infos if not present
-            VendorAvailable &to_update = available_profiles[versions_here[tag]];
+            VendorAvailable &to_update = available_profiles[versions_here[repository_version.tag]];
             //assert(!to_update.url_zip.empty());
             if (to_update.tag.empty() || to_update.url_zip.empty()) {
-                to_update.tag = tag;
-                to_update.url_zip = json_version.second.get<std::string>("zipball_url");
-                to_update.commit_sha = commit_node.get<std::string>("sha");
-                to_update.commit_url = commit_node.get<std::string>("url");
+                to_update.tag = repository_version.tag;
+                to_update.url_zip = repository_version.url_zip;
+                to_update.commit_sha = repository_version.commit_sha;
+                to_update.commit_url = repository_version.commit_url;
             }
         } else {
             // okay, add it
-            versions_here[tag] = available_profiles.size();
-            available_profiles.emplace_back(VendorAvailable{*config_version, *slicer_version,
-                                                            /*local_file=*/std::string(),
-                                                            json_version.second.get<std::string>("zipball_url"),
-                                                            commit_node.get<std::string>("sha"),
-                                                            commit_node.get<std::string>("url"), tag, std::string()});
+            versions_here[repository_version.tag] = available_profiles.size();
+            available_profiles.emplace_back(VendorAvailable{*config_version, *slicer_version, std::string(),
+                                                            repository_version.url_zip, repository_version.commit_sha,
+                                                            repository_version.commit_url, repository_version.tag, std::string()});
         }
     }
 
@@ -896,11 +884,11 @@ std::string VendorSync::install_vendor_config(const VendorAvailable &to_install,
     } else {
         assert(!to_install.tag.empty());
         //test if already dowloaded
-        std::string directory_name = profile.id+"-"+to_install.tag;
-        directory_name = std::regex_replace(directory_name, std::regex("[^0-9a-zA-Z_\\-.]"), "-");
         // download zip
         boost::filesystem::path temp_dir = GUI::into_path(data_dir()) / "cache" / "vendor" / this->profile.usable_id();
-        boost::filesystem::path root_dir = temp_dir / directory_name;
+        boost::filesystem::path root_dir = repository_package_cache_path(
+            GUI::into_path(data_dir()), RepositoryPackageType::Vendor, this->profile.usable_id(),
+            to_install.config_version.to_string(), to_install.slicer_version.to_string());
         if (!boost::filesystem::exists(root_dir)) {
             boost::filesystem::create_directories(temp_dir);
             boost::filesystem::path download_zip_file(data_dir());
@@ -951,64 +939,35 @@ std::string VendorSync::install_vendor_config(const VendorAvailable &to_install,
                 // do it here, so we wait the result
                 .perform_sync();
             assert(done);
-            bool got_root_dir = false;
-            root_dir = temp_dir / directory_name;
             if (!res) {
                 return error_message;
             } else {
-                // unzip
-                // zip reader takes care of opening & closing
-                ZipReader zip(download_zip_file.string());
-                if (!zip.success()) {
-                    BOOST_LOG_TRIVIAL(error) << "Unable to open the preset zip. Maybe the download is corrupted.";
-                    return "Unable to open the preset zip. Maybe the download is corrupted.";
-                }
                 try {
-                    mz_uint num_entries = mz_zip_reader_get_num_files(&zip.archive);
-                    mz_zip_archive_file_stat file_stat;
-                    // we first loop the entries to read from the archive the .model file only, in order to extract
-                    // the version from it
-                    bool found_model = false;
-                    boost::filesystem::path zip_root_dir;
-                    for (mz_uint i = 0; i < num_entries; ++i) {
-                        if (mz_zip_reader_file_stat(&zip.archive, i, &file_stat)) {
-                            boost::filesystem::path zip_path = file_stat.m_filename;
-                            assert(zip_path.is_relative());
-                            if (!got_root_dir) {
-                                assert(file_stat.m_is_directory);
-                                if (boost::filesystem::exists(root_dir)) {
-                                    for (const boost::filesystem::directory_entry &path_entry :
-                                         boost::filesystem::directory_iterator(root_dir)) {
-                                        boost::filesystem::remove_all(path_entry.path());
-                                    }
-                                }
-                                zip_root_dir = zip_path.lexically_normal();
-                                got_root_dir = true;
-                                boost::filesystem::create_directories(root_dir);
-                            } else {
-                                boost::filesystem::path out_path = root_dir / zip_path.lexically_relative(zip_root_dir);
-                                if (file_stat.m_is_directory) {
-                                    boost::filesystem::create_directories(out_path);
-                                } else {
-                                    size_t uncompressed_size = file_stat.m_uncomp_size;
-                                    void *p = mz_zip_reader_extract_file_to_heap(&zip.archive, file_stat.m_filename,
-                                                                                 &uncompressed_size, 0);
-                                    if (!p) {
-                                        return _u8L("Unable to open the preset zip. Maybe the download is corrupted");
-                                    }
-                                    FILE *file_to_write = fopen(out_path.string().c_str(), "wb");
-                                    if (file_to_write == nullptr) {
-                                        BOOST_LOG_TRIVIAL(error) << "Fail to unzip downloaded config zip.";
-                                        return _u8L("Unable to write into the hard disk drive.");
-                                    }
-                                    fwrite((const char *) p, 1, uncompressed_size, file_to_write);
-                                    fclose(file_to_write);
-                                    mz_free(p);
-                                }
-                            }
+                    const boost::filesystem::path staging = root_dir.parent_path() /
+                        boost::filesystem::unique_path("." + this->profile.usable_id() + ".extract-%%%%-%%%%");
+                    if (!extract_repository_archive(download_zip_file, staging, error_message)) {
+                        boost::filesystem::remove_all(staging);
+                        return error_message;
+                    }
+                    boost::filesystem::path extracted_root = staging;
+                    if (!boost::filesystem::exists(extracted_root / "profiles")) {
+                        boost::filesystem::directory_iterator entry(staging);
+                        const boost::filesystem::directory_iterator end;
+                        if (entry == end || !boost::filesystem::is_directory(entry->path())) {
+                            boost::filesystem::remove_all(staging);
+                            return _u8L("The downloaded vendor archive has no profile directory.");
+                        }
+                        extracted_root = entry->path();
+                        ++entry;
+                        if (entry != end || !boost::filesystem::exists(extracted_root / "profiles")) {
+                            boost::filesystem::remove_all(staging);
+                            return _u8L("The downloaded vendor archive has an invalid root directory.");
                         }
                     }
-                } catch (const std::exception &) {
+                    boost::filesystem::rename(extracted_root, root_dir);
+                    if (extracted_root != staging)
+                        boost::filesystem::remove_all(staging);
+                } catch (const boost::filesystem::filesystem_error &) {
                     BOOST_LOG_TRIVIAL(error) << "Fail to upgrade current app by the content of the downloaded zip.";
                     return _u8L("Error while extracting the downloaded zip of the vendor bundle.");
                 }
@@ -1168,6 +1127,14 @@ void PresetUpdater::download_new_repo(const std::string &rest_url, std::function
                     std::stringstream body_stream(body);
                     boost::property_tree::read_ini(body_stream, root);
                     VendorProfile vp = VendorProfile::from_ini(root, id, false);
+                    RepositoryDescription description;
+                    std::string description_error;
+                    if (!parse_repository_description(body, RepositoryPackageType::Vendor, description, description_error) ||
+                        description.id != vp.id) {
+                        BOOST_LOG_TRIVIAL(warning) << description_error;
+                        callback_result(false);
+                        return;
+                    }
                     // save it
                     boost::filesystem::create_directories(GUI::into_path(data_dir()) / "cache" / "vendor" / vp.usable_id());
                     boost::filesystem::path file_path = GUI::into_path(data_dir()) / "cache" / "vendor" / vp.usable_id() / (vp.usable_id() + ".ini");
@@ -1219,6 +1186,15 @@ void PresetUpdater::download_new_repo(const std::string &rest_url, std::function
                     } else {
                         boost::property_tree::read_ini(body_stream, root);
                         vp = VendorProfile::from_ini(root, id, false);
+                    }
+                    if (!is_json) {
+                        RepositoryDescription description;
+                        std::string description_error;
+                        if (!parse_repository_description(body, RepositoryPackageType::Vendor, description, description_error) ||
+                            description.id != vp.id) {
+                            BOOST_LOG_TRIVIAL(warning) << description_error;
+                            no_error = false;
+                        }
                     }
                     // save it
                     boost::filesystem::create_directories(GUI::into_path(data_dir()) / "cache" / "vendor" / vp.usable_id());

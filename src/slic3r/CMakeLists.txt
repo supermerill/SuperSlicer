@@ -130,6 +130,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/Preferences.hpp
     GUI/PluginConfigDialog.cpp
     GUI/PluginConfigDialog.hpp
+    GUI/PluginUpdateDialog.cpp
+    GUI/PluginUpdateDialog.hpp
     GUI/PresetHints.cpp
     GUI/PresetHints.hpp
     GUI/GUI.cpp
@@ -360,8 +362,12 @@ set(SLIC3R_GUI_SOURCES
     Utils/PrintHost.hpp
     Utils/Bonjour.cpp
     Utils/Bonjour.hpp
+    Utils/PluginUpdater.cpp
+    Utils/PluginUpdater.hpp
     Utils/PresetUpdater.cpp
     Utils/PresetUpdater.hpp
+    Utils/PluginUpdater.cpp
+    Utils/PluginUpdater.hpp
     Utils/Process.cpp
     Utils/Process.hpp
     Utils/RaycastManager.cpp

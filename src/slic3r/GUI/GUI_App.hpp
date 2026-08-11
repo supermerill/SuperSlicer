@@ -39,6 +39,7 @@ namespace Slic3r {
 class AppConfig;
 class PresetBundle;
 class PresetUpdater;
+class PluginUpdater;
 class ModelObject;
 class PrintHostJobQueue;
 class Model;
@@ -102,6 +103,7 @@ enum ConfigMenuIDs {
     ConfigMenuUpdateApp,
     ConfigMenuDesktopIntegration,
     ConfigMenuPlugins,
+    ConfigMenuPluginUpdates,
     ConfigMenuPreferences,
     ConfigMenuLanguage,
     ConfigMenuFlashFirmware,
@@ -367,12 +369,14 @@ public:
     std::unique_ptr<wxBusyInfo>   wait_dialog;
 
     std::unique_ptr<PresetUpdater> preset_updater;
+    std::unique_ptr<PluginUpdater> plugin_updater;
     MainFrame*      mainframe{ nullptr };
     Plater*         plater_{ nullptr };
     std::mutex      not_modal_dialog_mutex;
     wxDialog*       not_modal_dialog = nullptr;
 
 	PresetUpdater*  get_preset_updater() { return preset_updater.get(); }
+    PluginUpdater *get_plugin_updater() { return plugin_updater.get(); }
     PrinterTechnology get_current_printer_technology() const;
 
     wxBookCtrlBase* tab_panel() const ;

@@ -1,16 +1,6 @@
 [installed]
 ; Package versions installed into a new profile before plugin activation.
-dense_infill = 2.7.63.0
-dense_infill.slicer_version = 2.7.63.0
-extra_perimeter_overhang_wave = 2.7.63.0
-extra_perimeter_overhang_wave.slicer_version = 2.7.63.0
-flat_area_layer_height = 2.7.63.0
-flat_area_layer_height.slicer_version = 2.7.63.0
-polyholes = 2.7.63.0
-polyholes.slicer_version = 2.7.63.0
-python = 2.7.63.0
-python.slicer_version = 2.7.63.0
-
+@SLIC3R_DEFAULT_INSTALLED_PLUGIN_ENTRIES@
 [activated]
 ; Plugin ids enabled on a fresh profile.
 standard_layer_height_generator = 1

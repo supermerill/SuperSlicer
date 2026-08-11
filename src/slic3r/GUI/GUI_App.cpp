@@ -82,6 +82,7 @@
 #include "GLCanvas3D.hpp"
 
 #include "slic3r/Utils/PresetUpdater.hpp"
+#include "slic3r/Utils/PluginUpdater.hpp"
 #include "slic3r/Utils/PrintHost.hpp"
 #include "slic3r/Utils/Process.hpp"
 #include "slic3r/Utils/MacDarkMode.hpp"
@@ -103,6 +104,7 @@
 #include "FreeCADDialog.hpp"
 #include "FirmwareDialog.hpp"
 #include "PluginConfigDialog.hpp"
+#include "PluginUpdateDialog.hpp"
 #include "Preferences.hpp"
 #include "Tab.hpp"
 #include "SysInfoDialog.hpp"
@@ -1666,6 +1668,8 @@ bool GUI_App::on_init_inner()
 #endif // __WXMSW__
 
         preset_updater.reset(new PresetUpdater(this));
+        plugin_updater.reset(new PluginUpdater());
+        plugin_updater->reload_all_plugins();
         Bind(EVT_SLIC3R_VERSION_ONLINE, &GUI_App::on_version_read, this);
         Bind(EVT_SLIC3R_EXPERIMENTAL_VERSION_ONLINE, [this](const wxCommandEvent& evt) {
             if (this->plater_ != nullptr && (m_app_updater->get_triggered_by_user() || app_config->get("notify_release") == "all")) {
@@ -3324,6 +3328,8 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
     if (is_editor()) {
         local_menu->Append(config_id_base + ConfigMenuPlugins, _L("Plugins") + dots,
                            _L("Choose which loaded plugins are active"));
+        local_menu->Append(config_id_base + ConfigMenuPluginUpdates, _L("Plugin updates") + dots,
+                           _L("Install and update plugin packages"));
     }
     local_menu->Append(config_id_base + ConfigMenuPreferences, _L("&Preferences") + dots +
 #ifdef __APPLE__
@@ -3426,6 +3432,15 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
             PluginConfigDialog dialog(mainframe);
             UpdateDlgDarkUI(&dialog);
             dialog.ShowModal();
+            break;
+        }
+        case ConfigMenuPluginUpdates:
+        {
+            if (plugin_updater != nullptr) {
+                PluginUpdateDialog dialog(mainframe, *plugin_updater);
+                UpdateDlgDarkUI(&dialog);
+                dialog.ShowModal();
+            }
             break;
         }
 #ifdef __linux__
