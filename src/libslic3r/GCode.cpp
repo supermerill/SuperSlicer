@@ -4292,6 +4292,43 @@ namespace ProcessLayer
 } // namespace ProcessLayer
 
 namespace Skirt {
+#ifndef NDEBUG
+    // Check the effective flow height on every printable leaf of a skirt loop.
+    // Parent properties are inherited through the visitor stack, just as they
+    // are when the generic extrusion tree is consumed by the G-code visitor.
+    class SkirtHeightValidator : public ExtrusionTreeConstVisitor<false>
+    {
+    public:
+        explicit SkirtHeightValidator(double expected_height) : m_expected_height(expected_height) {}
+
+        void visit_leaf(const ExtrusionEntity &entity) override
+        {
+            const ArcPolyline *polyline = entity.polyline_or_null();
+            if (polyline == nullptr || polyline->empty())
+                return;
+
+            m_has_printable_leaf = true;
+            const ExtrusionAttributes *attributes = this->current_property<ExtrusionAttributes>();
+            m_valid = m_valid && attributes != nullptr &&
+                      is_approx(double(attributes->height), m_expected_height);
+        }
+
+        bool valid() const { return m_has_printable_leaf && m_valid; }
+
+    private:
+        double m_expected_height = 0.;
+        bool m_has_printable_leaf = false;
+        bool m_valid = true;
+    };
+
+    static bool has_expected_height(const ExtrusionEntity &entity, double expected_height)
+    {
+        SkirtHeightValidator validator(expected_height);
+        validator.traverse(entity);
+        return validator.valid();
+    }
+#endif
+
 	static void skirt_loops_per_extruder_all_printing(const Print &print, const LayerTools &layer_tools, std::map<uint16_t, std::pair<size_t, size_t>> &skirt_loops_per_extruder_out)
 	{
         // Prime all extruders printing over the 1st layer over the skirt lines.
@@ -4897,19 +4934,15 @@ LayerResult GCodeGenerator::process_layer(
             const std::pair<size_t, size_t> loops = loops_it->second;
             this->set_origin(0., 0.);
             m_avoid_crossing_perimeters->use_external_mp();
-            Flow layer_skirt_flow = print.skirt_flow(extruder_id)
-                                        .with_height(float(unscaled(
-                                            m_skirt_done.back() -
-                                            (m_skirt_done.size() == 1 ? 0. : m_skirt_done[m_skirt_done.size() - 2]))));
-            double mm3_per_mm = layer_skirt_flow.mm3_per_mm();
+            assert(!m_skirt_done.empty());
+            const double layer_skirt_height = unscaled(
+                m_skirt_done.back() -
+                (m_skirt_done.size() == 1 ? 0 : m_skirt_done[m_skirt_done.size() - 2]));
             const ExtrusionEntityCollection& coll = first_layer && print.skirt_first_layer() ? *print.skirt_first_layer() : print.skirt();
             for (size_t i = loops.first; i < loops.second; ++i) {
                 m_region = nullptr;
                 set_region_for_extrude(print, nullptr, nullptr, gcode);
-                // Adjust flow according to this layer's layer height.
-                this->extrude_skirt(dynamic_cast<ExtrusionLoop&>(*coll.entities()[i]),
-                    // Override of skirt extrusion parameters. extrude_skirt() will fill in the extrusion width.
-                    ExtrusionFlow{ mm3_per_mm, 0., layer_skirt_flow.height() }, gcode, "skirt"sv);
+                this->extrude_skirt(*coll.entities()[i], layer_skirt_height, gcode, "skirt"sv);
             }
             m_last_too_small.polyline().clear();
             m_avoid_crossing_perimeters->use_external_mp(false);
@@ -8023,26 +8056,31 @@ void GCodeGenerator::extrude_ironing(const ExtrudeArgs &print_args, const LayerR
 }
 
 void GCodeGenerator::extrude_skirt(
-    ExtrusionLoop &loop_src, const ExtrusionFlow &extrusion_flow_override, std::string &gcode, const std::string_view description)
+    const ExtrusionEntity &loop_src,
+    const double expected_height,
+    std::string &gcode,
+    const std::string_view description)
 {
-
-    if (loop_src.paths().empty())
+    assert(!loop_src.empty());
+    assert(loop_src.is_loop());
+#ifndef NDEBUG
+    assert(Skirt::has_expected_height(loop_src, expected_height));
+#else
+    (void) expected_height;
+#endif
+    if (loop_src.empty() || !loop_src.is_loop())
         return;
 
-    for (ExtrusionPath &path : loop_src.paths()) {
-        // Override extrusion parameters.
-        assert(!std::isnan(extrusion_flow_override.mm3_per_mm));
-        assert(!std::isnan(extrusion_flow_override.height));
-        path.attributes_mutable().mm3_per_mm = extrusion_flow_override.mm3_per_mm;
-        path.attributes_mutable().height     = extrusion_flow_override.height;
-        //gcode += this->extrude_loop(loop_src, description, -1);
-        // use extrude_entity to init "visitor fields".
-        gcode += this->extrude_entity({loop_src, false}, description, -1);
-    }
+    // The skirt generator owns the flow stored on the extrusion tree. Passing
+    // the root directly also supports plugin-created loops without requiring
+    // the legacy ExtrusionLoop C++ subtype.
+    gcode += this->extrude_entity({loop_src, false}, description, -1);
 
-    if (m_wipe->is_enabled())
+    if (m_wipe->is_enabled()) {
         // Wipe will hide the seam.
-        m_wipe->set_path(loop_src.paths(), false, true);
+        const ArcPolyline wipe_path = loop_src.as_polyline();
+        m_wipe->set_path(wipe_path.get_arc(), true);
+    }
 
 }
 

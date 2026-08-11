@@ -407,7 +407,10 @@ private:
     void extrude_perimeters(const ExtrudeArgs &print_args, const LayerRegionIsland &island, std::string &gcode);
     void extrude_infill(const ExtrudeArgs &print_args, const LayerRegionIsland &island, bool is_infill_first, std::string &gcode);
     void extrude_ironing(const ExtrudeArgs &print_args, const LayerRegionIsland &island, std::string &gcode);
-    void extrude_skirt(ExtrusionLoop &loop_src, const ExtrusionFlow &extrusion_flow_override, std::string &gcode, const std::string_view description);
+    void extrude_skirt(const ExtrusionEntity &loop_src,
+                       double expected_height,
+                       std::string &gcode,
+                       const std::string_view description);
     std::string     extrude_support(const ExtrusionEntityReferences &support_fills);
     bool            shall_print_this_extrusion_collection(const ExtrudeArgs &              print_args,
                                                           const ExtrusionEntityCollection *eec,
