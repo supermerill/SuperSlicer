@@ -43,6 +43,9 @@ bool transfer_vendor_files(const boost::filesystem::path &input_directory,
                            const boost::filesystem::path &output_directory,
                            const std::string &vendor_id,
                            bool copy);
+bool resolve_vendor_archive_root(const boost::filesystem::path &staging,
+                                 boost::filesystem::path &archive_root,
+                                 std::string &error_message);
 UpdaterError extract_vendor_package(const boost::filesystem::path &archive_path,
                                     const boost::filesystem::path &package_root,
                                     const std::string &vendor_id);
@@ -98,6 +101,33 @@ bool transfer_vendor_files(const boost::filesystem::path &input_directory,
     return true;
 }
 
+// Accepts the two layouts produced by regular ZIP tools and GitHub source
+// archives. Restricting the wrapper to one directory keeps profile discovery
+// deterministic and prevents unrelated archive trees from entering the cache.
+bool resolve_vendor_archive_root(const boost::filesystem::path &staging,
+                                 boost::filesystem::path &archive_root,
+                                 std::string &error_message)
+{
+    archive_root = staging;
+    if (boost::filesystem::is_directory(archive_root / "profiles"))
+        return true;
+
+    boost::filesystem::directory_iterator entry(staging);
+    const boost::filesystem::directory_iterator end;
+    if (entry == end || !boost::filesystem::is_directory(entry->path())) {
+        error_message = "The archive has no profiles directory.";
+        return false;
+    }
+
+    archive_root = entry->path();
+    ++entry;
+    if (entry != end || !boost::filesystem::is_directory(archive_root / "profiles")) {
+        error_message = "The archive root directory is invalid.";
+        return false;
+    }
+    return true;
+}
+
 // The downloaded archive may either contain profiles/ directly or wrap it in
 // one top-level directory, as GitHub source archives do. Only those two
 // layouts are accepted so an archive cannot publish an unexpected tree.
@@ -114,20 +144,10 @@ UpdaterError extract_vendor_package(const boost::filesystem::path &archive_path,
             return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
         }
 
-        boost::filesystem::path extracted_root = staging;
-        if (!boost::filesystem::is_directory(extracted_root / "profiles")) {
-            boost::filesystem::directory_iterator entry(staging);
-            const boost::filesystem::directory_iterator end;
-            if (entry == end || !boost::filesystem::is_directory(entry->path())) {
-                boost::filesystem::remove_all(staging);
-                return make_updater_error(UpdaterError::Code::InvalidArchive, "The archive has no profiles directory.");
-            }
-            extracted_root = entry->path();
-            ++entry;
-            if (entry != end || !boost::filesystem::is_directory(extracted_root / "profiles")) {
-                boost::filesystem::remove_all(staging);
-                return make_updater_error(UpdaterError::Code::InvalidArchive, "The archive root directory is invalid.");
-            }
+        boost::filesystem::path extracted_root;
+        if (!resolve_vendor_archive_root(staging, extracted_root, error_message)) {
+            boost::filesystem::remove_all(staging);
+            return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
         }
 
         boost::filesystem::rename(extracted_root, package_root);
@@ -378,6 +398,96 @@ void PresetUpdater::download_new_repo(const std::string &rest_url, std::function
             return save_vendor_description(contents, fallback_id);
         },
         std::move(callback_result));
+}
+
+UpdaterError PresetUpdater::cache_vendor_archive(const boost::filesystem::path &archive_path)
+{
+    if (!boost::filesystem::is_regular_file(archive_path))
+        return make_updater_error(UpdaterError::Code::ArchiveUnavailable,
+                                  "The selected vendor archive does not exist.");
+
+    const boost::filesystem::path cache_directory = data_path() / k_vendor_cache_directory;
+    const boost::filesystem::path staging = cache_directory /
+        boost::filesystem::unique_path(".vendor-import-%%%%-%%%%");
+    std::string error_message;
+
+    try {
+        boost::filesystem::create_directories(cache_directory);
+        if (!extract_repository_archive(archive_path, staging, error_message)) {
+            boost::filesystem::remove_all(staging);
+            return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
+        }
+
+        // A local archive has no repository row telling us which vendor it
+        // contains. Discover exactly one profile before choosing its cache key.
+        boost::filesystem::path archive_root;
+        if (!resolve_vendor_archive_root(staging, archive_root, error_message)) {
+            boost::filesystem::remove_all(staging);
+            return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
+        }
+
+        boost::filesystem::path profile_path;
+        const boost::filesystem::path profiles_directory = archive_root / "profiles";
+        for (const boost::filesystem::directory_entry &entry :
+             boost::filesystem::directory_iterator(profiles_directory)) {
+            if (!boost::filesystem::is_regular_file(entry.path()) || entry.path().extension() != ".ini")
+                continue;
+            if (!profile_path.empty()) {
+                boost::filesystem::remove_all(staging);
+                return make_updater_error(UpdaterError::Code::InvalidArchive,
+                                          "A vendor archive must contain exactly one profile INI file.");
+            }
+            profile_path = entry.path();
+        }
+        if (profile_path.empty()) {
+            boost::filesystem::remove_all(staging);
+            return make_updater_error(UpdaterError::Code::InvalidArchive,
+                                      "The vendor archive profiles directory contains no INI file.");
+        }
+
+        // Parsing with load_all=true checks the version and complete vendor
+        // metadata now, before a malformed package can replace a cached one.
+        const VendorProfile profile = VendorProfile::from_ini(profile_path, true);
+        if (profile_path.filename() != profile.id + ".ini") {
+            boost::filesystem::remove_all(staging);
+            return make_updater_error(UpdaterError::Code::InvalidArchive,
+                                      "The vendor profile filename must match its vendor id.");
+        }
+
+        const boost::filesystem::path package_root = repository_package_cache_path(
+            data_path(), RepositoryPackageType::Vendor, profile.usable_id(),
+            profile.config_version.to_string(), profile.slicer_version.to_string());
+        const boost::filesystem::path previous_package = package_root.parent_path() /
+            boost::filesystem::unique_path("." + profile.usable_id() + ".previous-%%%%-%%%%");
+        const bool replace_existing = boost::filesystem::exists(package_root);
+
+        // Keep the previous package available until the validated replacement
+        // has been renamed into place. Both paths are on the cache filesystem,
+        // so the publication itself is an atomic directory rename.
+        if (replace_existing)
+            boost::filesystem::rename(package_root, previous_package);
+        try {
+            boost::filesystem::rename(archive_root, package_root);
+        } catch (...) {
+            if (replace_existing && !boost::filesystem::exists(package_root))
+                boost::filesystem::rename(previous_package, package_root);
+            throw;
+        }
+
+        boost::system::error_code ignored_error;
+        boost::filesystem::remove_all(staging, ignored_error);
+        if (replace_existing)
+            boost::filesystem::remove_all(previous_package, ignored_error);
+        return UpdaterError();
+    } catch (const boost::filesystem::filesystem_error &error) {
+        boost::system::error_code ignored_error;
+        boost::filesystem::remove_all(staging, ignored_error);
+        return make_updater_error(UpdaterError::Code::Filesystem, error.what());
+    } catch (const std::exception &error) {
+        boost::system::error_code ignored_error;
+        boost::filesystem::remove_all(staging, ignored_error);
+        return make_updater_error(UpdaterError::Code::InvalidArchive, error.what());
+    }
 }
 
 UpdaterError PresetUpdater::install_vendor_files(VendorSync &vendor, const VendorAvailable &version)

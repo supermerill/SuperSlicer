@@ -107,6 +107,12 @@ public:
                              bool force = false);
     void download_new_repo(const std::string &github_org_repo, std::function<void(UpdaterError)> callback_result);
 
+    // Import a downloaded vendor ZIP into the versioned cache. The archive
+    // must contain one profiles/<vendor-id>.ini file, either at its root or
+    // below one wrapper directory. Call reload_all_vendors() after success to
+    // expose the imported version through vendors().
+    UpdaterError cache_vendor_archive(const boost::filesystem::path &archive_path);
+
     void uninstall_vendor(const std::string &vendor_id, std::function<void(UpdaterError)> callback_result);
     void install_vendor(const std::string &vendor_id,
                         const VendorAvailable &version,

@@ -46,6 +46,12 @@ public:
                              bool force = false);
     void download_new_repo(const std::string &rest_url, std::function<void(bool)> callback_result);
 
+    // Cache a local vendor ZIP, reload the updater model after validation, and
+    // report an empty error string on success. The callback runs on the GUI
+    // thread so a dialog may rebuild its controls directly.
+    void cache_vendor_archive(const boost::filesystem::path &archive_path,
+                              std::function<void(const std::string &)> callback_result);
+
     void uninstall_vendor(const std::string &vendor_id, std::function<void(bool)> callback_result);
     void install_vendor(const std::string &vendor_id,
                         const Slic3r::VendorAvailable &version,

@@ -1396,6 +1396,42 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
 }
 
 TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
+                 "PresetUpdater caches a local vendor archive and exposes it to the dialog model",
+                 "[plugins][updater][preset-functional]")
+{
+    const std::string config_version = "1.5.0.0";
+    const boost::filesystem::path archive_path = temporary.path() / "local-vendor.zip";
+    REQUIRE(write_test_zip(
+        archive_path,
+        {{"description.ini", vendor_profile_contents(vendor_id, config_version, slicer_version)},
+         {"profiles/" + vendor_id + ".ini",
+          vendor_profile_contents(vendor_id, config_version, slicer_version)}}));
+
+    // The cache operation validates and publishes the package. The GUI adapter
+    // then reloads the model before asking UpdateConfigDialog to rebuild.
+    const Slic3r::UpdaterError import_result = updater.cache_vendor_archive(archive_path);
+    INFO("Updater error code: " << static_cast<int>(import_result.code));
+    INFO("Updater error detail: " << import_result.detail);
+    REQUIRE(import_result.succeeded());
+
+    const boost::filesystem::path package_root = Slic3r::repository_package_cache_path(
+        data_directory, Slic3r::RepositoryPackageType::Vendor, vendor_id,
+        config_version, slicer_version);
+    const boost::filesystem::path cached_profile = package_root / "profiles" / (vendor_id + ".ini");
+    REQUIRE(boost::filesystem::is_regular_file(cached_profile));
+
+    updater.reload_all_vendors();
+    const Slic3r::VendorSync *vendor = updater.get_vendor(vendor_id);
+    REQUIRE(vendor != nullptr);
+    CHECK_FALSE(vendor->is_installed);
+    REQUIRE(vendor->best != nullptr);
+    CHECK(vendor->best->config_version.to_string() == config_version);
+    CHECK(vendor->best->slicer_version.to_string() == slicer_version);
+    CHECK(boost::filesystem::equivalent(vendor->best->local_file, cached_profile));
+    CHECK(updater.count_available() == 1);
+}
+
+TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
                  "PresetUpdater functional dialog changes an installed vendor to a selected local version",
                  "[plugins][updater][preset-functional]")
 {

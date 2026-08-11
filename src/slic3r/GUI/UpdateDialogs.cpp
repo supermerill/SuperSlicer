@@ -860,8 +860,8 @@ void UpdateConfigDialog::build_ui() {
             }
         });
     }));
-    wxButton *bt_load = new wxButton(this, wxID_ANY, _L("Load vendor ini file"));
-        bt_load->Bind(wxEVT_BUTTON, ([this](wxCommandEvent& e) {
+    wxButton *bt_load_ini = new wxButton(this, wxID_ANY, _L("Load vendor ini file"));
+        bt_load_ini->Bind(wxEVT_BUTTON, ([this](wxCommandEvent& e) {
         
         wxFileDialog dlg(this, _L("Load vendor configuration bundle"), "", "", "*.ini",
                                        wxFD_OPEN | wxFD_FILE_MUST_EXIST);
@@ -904,13 +904,35 @@ void UpdateConfigDialog::build_ui() {
             msg_dlg.ShowModal();
         }
     }));
+    wxButton *bt_load_archive = new wxButton(this, wxID_ANY, _L("Load vendor archive"));
+    bt_load_archive->SetToolTip(_L("Load a ZIP vendor bundle into the local version cache."));
+    bt_load_archive->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) {
+        wxFileDialog dialog(this, _L("Load vendor bundle archive"), "", "",
+                            _L("Vendor bundle archives (*.zip)|*.zip"),
+                            wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+        wxGetApp().UpdateDarkUI(&dialog);
+        if (dialog.ShowModal() != wxID_OK)
+            return;
+
+        // Archive parsing and cache publication are owned by the core updater.
+        // The GUI only keeps the user informed and rebuilds from the new model.
+        wait_dialog.reset(new wxBusyInfo(_L("Loading the vendor archive, please wait")));
+        const boost::filesystem::path archive_path(into_path(dialog.GetPath()));
+        m_data.cache_vendor_archive(archive_path, [this](const std::string &error_msg) {
+            wait_dialog.reset();
+            request_show_error_msg(error_msg);
+            request_rebuild_ui();
+        });
+    });
     wxBoxSizer *github_add_sizer = new wxBoxSizer(wxHORIZONTAL);
     github_add_sizer->AddSpacer(5);
     github_add_sizer->Add(txt_new_repo);
     github_add_sizer->AddSpacer(5);
     github_add_sizer->Add(bt_add);
     github_add_sizer->AddSpacer(5);
-    github_add_sizer->Add(bt_load);
+    github_add_sizer->Add(bt_load_ini);
+    github_add_sizer->AddSpacer(5);
+    github_add_sizer->Add(bt_load_archive);
     github_add_sizer->AddSpacer(15);
     main_sizer->AddSpacer(5);
     main_sizer->Add(github_add_sizer);
@@ -998,8 +1020,8 @@ void UpdateConfigDialog::build_ui() {
         bt_uninstall_all->Enable(false);
         ++row_idx;
         wxStaticText *msg_name = new wxStaticText(hscroll, wxID_ANY, _L("No vendor bundle available. Please add one manually or by adding a repository."));
-        msg_name->SetToolTip(_L("There is no vendor bundle included with this version of the slicer. You can add a vendor bundle file using the 'Load Vendor INI File' button, "
-            "or you can add a vendor repository (for example, SuperSlicer-org/Voron-Profile) by entering the URL in the text field and then clicking the 'Add' button."));
+        msg_name->SetToolTip(_L("There is no vendor bundle included with this version of the slicer. You can load a vendor INI file or ZIP archive, "
+            "or add a vendor repository (for example, SuperSlicer-org/Voron-Profile) by entering the URL in the text field and then clicking the 'Add' button."));
         versions_sizer->Add(msg_name, wxGBPosition(row_idx, 1), wxGBSpan(1, 1), wxALIGN_RIGHT, 2);
     }
 
