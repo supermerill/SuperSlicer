@@ -1400,7 +1400,8 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
                  "[plugins][updater][preset-functional]")
 {
     const std::string config_version = "1.5.0.0";
-    const boost::filesystem::path archive_path = temporary.path() / "local-vendor.zip";
+    const boost::filesystem::path archive_path = temporary.path() /
+        (vendor_id + "_" + config_version + "_" + slicer_version + ".zip");
     REQUIRE(write_test_zip(
         archive_path,
         {{"description.ini", vendor_profile_contents(vendor_id, config_version, slicer_version)},
@@ -1419,6 +1420,9 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
         config_version, slicer_version);
     const boost::filesystem::path cached_profile = package_root / "profiles" / (vendor_id + ".ini");
     REQUIRE(boost::filesystem::is_regular_file(cached_profile));
+    CHECK(package_root.filename() == vendor_id);
+    CHECK_FALSE(boost::filesystem::exists(
+        data_directory / "cache" / "vendor" / archive_path.stem()));
 
     updater.reload_all_vendors();
     const Slic3r::VendorSync *vendor = updater.get_vendor(vendor_id);
@@ -1429,6 +1433,37 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     CHECK(vendor->best->slicer_version.to_string() == slicer_version);
     CHECK(boost::filesystem::equivalent(vendor->best->local_file, cached_profile));
     CHECK(updater.count_available() == 1);
+}
+
+TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
+                 "PresetUpdater replaces a vendor INI loaded twice from the dialog",
+                 "[plugins][updater][preset-functional]")
+{
+    const boost::filesystem::path local_profile = temporary.path() / (vendor_id + ".ini");
+    write_test_file(local_profile, vendor_profile_contents(vendor_id, "1.0.0.0", slicer_version));
+
+    const Slic3r::UpdaterError first_import = updater.cache_vendor_ini(local_profile);
+    INFO("First import error: " << first_import.detail);
+    REQUIRE(first_import.succeeded());
+
+    // Loading the same vendor again must overwrite its cached INI. Changing
+    // the source version proves that the second call did not merely ignore it.
+    write_test_file(local_profile, vendor_profile_contents(vendor_id, "2.0.0.0", slicer_version));
+    const Slic3r::UpdaterError second_import = updater.cache_vendor_ini(local_profile);
+    INFO("Second import error: " << second_import.detail);
+    REQUIRE(second_import.succeeded());
+
+    const boost::filesystem::path cached_profile = data_directory / "cache" / "vendor" /
+        vendor_id / "profiles" / (vendor_id + ".ini");
+    REQUIRE(boost::filesystem::is_regular_file(cached_profile));
+    CHECK(Slic3r::VendorProfile::from_ini(cached_profile, true).config_version.to_string() == "2.0.0.0");
+
+    updater.reload_all_vendors();
+    const Slic3r::VendorSync *vendor = updater.get_vendor(vendor_id);
+    REQUIRE(vendor != nullptr);
+    REQUIRE(vendor->best != nullptr);
+    CHECK(vendor->best->config_version.to_string() == "2.0.0.0");
+    CHECK(vendor->available_profiles.size() == 1);
 }
 
 TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
@@ -1499,7 +1534,7 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     CHECK(updater.count_installed() == 0);
     CHECK_FALSE(boost::filesystem::exists(data_directory / "vendor" / (vendor_id + ".ini")));
     CHECK(boost::filesystem::is_regular_file(
-        data_directory / "cache" / "vendor" / vendor_id / (vendor_id + ".ini")));
+        data_directory / "cache" / "vendor" / vendor_id / "profiles" / (vendor_id + ".ini")));
 
     const Slic3r::VendorSync *remaining_vendor = updater.get_vendor(vendor_id);
     REQUIRE(remaining_vendor != nullptr);

@@ -311,7 +311,7 @@ TEST_CASE("Repository descriptions and GitHub tags share one version protocol", 
     CHECK(vendor.config_update_rest == "SuperSlicer-org/Creality-Profile");
     CHECK(Slic3r::repository_package_cache_path("data", Slic3r::RepositoryPackageType::Vendor,
                                                  vendor.id, "1.2.3.4", "2.7.63.0") ==
-          boost::filesystem::path("data/cache/vendor/Creality_Example_1.2.3.4_2.7.63.0"));
+          boost::filesystem::path("data/cache/vendor/Creality_Example"));
 
     REQUIRE(Slic3r::parse_repository_description(
         "[plugin]\nid = postprocess.truc\nname = truc\nfull_name = Truc\n"
@@ -319,6 +319,9 @@ TEST_CASE("Repository descriptions and GitHub tags share one version protocol", 
         Slic3r::RepositoryPackageType::Plugin, plugin, error_message));
     CHECK(plugin.id == "postprocess.truc");
     CHECK(plugin.package_version == "1.0.0.0");
+    CHECK(Slic3r::repository_package_cache_path("data", Slic3r::RepositoryPackageType::Plugin,
+                                                 plugin.id, "1.0.0.0", "2.7.63.0") ==
+          boost::filesystem::path("data/cache/plugins/postprocess.truc_1.0.0.0_2.7.63.0"));
 
     CHECK_FALSE(Slic3r::parse_repository_description(
         "[vendor]\nid = vendor\n\n[plugin]\nid = plugin\n", Slic3r::RepositoryPackageType::Plugin,

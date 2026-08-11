@@ -58,7 +58,9 @@ bool parse_repository_versions(const std::string &json,
                                std::vector<RepositoryPackageVersion> &versions,
                                std::string &error_message);
 
-// Keep cache paths deterministic while preserving underscores in package ids.
+// Vendor packages share one directory per vendor because only their current
+// local profile tree is cached. Plugin packages keep a versioned directory so
+// an installation request can select an exact binary after restart.
 boost::filesystem::path repository_package_cache_path(const boost::filesystem::path &data_directory,
                                                       RepositoryPackageType type,
                                                       const std::string &package_name,

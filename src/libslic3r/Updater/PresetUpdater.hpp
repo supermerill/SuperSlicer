@@ -113,6 +113,11 @@ public:
     // expose the imported version through vendors().
     UpdaterError cache_vendor_archive(const boost::filesystem::path &archive_path);
 
+    // Cache one standalone vendor INI and its optional sibling icon directory.
+    // Importing the same vendor again replaces the cached profile, which makes
+    // repeated uses of the GUI load button safe.
+    UpdaterError cache_vendor_ini(const boost::filesystem::path &profile_path);
+
     void uninstall_vendor(const std::string &vendor_id, std::function<void(UpdaterError)> callback_result);
     void install_vendor(const std::string &vendor_id,
                         const VendorAvailable &version,

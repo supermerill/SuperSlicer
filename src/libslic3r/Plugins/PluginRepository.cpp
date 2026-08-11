@@ -375,8 +375,9 @@ boost::filesystem::path repository_package_cache_path(const boost::filesystem::p
                                                       const std::string &package_version,
                                                       const std::string &slicer_version)
 {
-    const char *directory_name = type == RepositoryPackageType::Vendor ? "vendor" : "plugins";
-    return data_directory / "cache" / directory_name /
+    if (type == RepositoryPackageType::Vendor)
+        return data_directory / "cache" / "vendor" / package_name;
+    return data_directory / "cache" / "plugins" /
            (package_name + "_" + package_version + "_" + slicer_version);
 }
 

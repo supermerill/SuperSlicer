@@ -9,6 +9,7 @@
 
 #include "UpdateDialogs.hpp"
 
+#include <algorithm>
 #include <cstring>
 
 #include <boost/algorithm/string/predicate.hpp>
@@ -19,6 +20,7 @@
 #include <wx/checkbox.h>
 #include <wx/dirdlg.h>
 #include <wx/event.h>
+#include <wx/panel.h>
 #include <wx/settings.h>
 #include <wx/sizer.h>
 #include <wx/statbmp.h>
@@ -592,6 +594,7 @@ void UpdateConfigDialog::request_show_error_msg(const std::string &error_msg) {
 
 void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor, wxGridBagSizer *versions_sizer, const int line_num) {
     const std::string vendor_id = vendor.profile.id;
+    const bool has_compatible_version = vendor.best != nullptr;
     const VendorAvailable best_version = vendor.best ? *vendor.best : VendorAvailable{};
     ////// name //////
     wxStaticText *msg_name = new wxStaticText(parent, wxID_ANY, vendor.profile.full_name);
@@ -608,9 +611,35 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
     } else {
         bt_version_msg = _L("Not installed");
     }
-    wxButton *bt_version = new wxButton(parent, wxID_ANY, bt_version_msg);
+    // The active panel remains able to receive mouse events when its native
+    // button is disabled, which lets Windows display the explanatory tooltip.
+    wxPanel *bt_version_panel = new wxPanel(parent, wxID_ANY);
+    wxBoxSizer *bt_version_sizer = new wxBoxSizer(wxHORIZONTAL);
+    wxButton *bt_version = new wxButton(bt_version_panel, wxID_ANY, bt_version_msg);
+    bt_version_sizer->Add(bt_version, 1, wxEXPAND);
+    bt_version_panel->SetSizer(bt_version_sizer);
     if ((!vendor.is_installed && vendor.available_profiles.size() <= 1)  || vendor.available_profiles.size() < 1) {
         bt_version->Enable(false);
+
+        // A disabled selector still explains whether there is no choice or
+        // whether the cached profile targets a different slicer version.
+        if (vendor.available_profiles.empty()) {
+            bt_version_panel->SetToolTip(
+                _L("No vendor profile version is available in the local cache or repository."));
+        } else if (!has_compatible_version) {
+            const std::vector<VendorAvailable>::const_iterator oldest_profile = std::min_element(
+                vendor.available_profiles.begin(), vendor.available_profiles.end(),
+                [](const VendorAvailable &left, const VendorAvailable &right) {
+                    return left.slicer_version < right.slicer_version;
+                });
+            bt_version_panel->SetToolTip(format(
+                _L("No compatible vendor profile is available. The oldest available profile targets slicer version "
+                   "%1%, while the current slicer version is %2%."),
+                oldest_profile->slicer_version.to_string(), SLIC3R_VERSION_FULL));
+        } else {
+            bt_version_panel->SetToolTip(
+                _L("Only one compatible vendor profile version is available. Use the Install button to install it."));
+        }
     } else {
         bt_version->Bind(wxEVT_BUTTON, ([this, vendor_id](wxCommandEvent &e) {
             m_data.download_changelogs(vendor_id, [this, vendor_id](bool ok) {
@@ -619,34 +648,33 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                 this->QueueEvent(evt);
             });
         }));
+        bt_version->SetToolTip(_L("Click this button to choose a different version from the one currently installed."));
     }
-    bt_version->SetToolTip(_L("Click this button to choose a different version from the one currently installed."));
-    versions_sizer->Add(bt_version, wxGBPosition(line_num, 2), wxGBSpan(1, 1), wxEXPAND, 2);
+    versions_sizer->Add(bt_version_panel, wxGBPosition(line_num, 2), wxGBSpan(1, 1), wxEXPAND, 2);
 
     ////// upgrade //////
     wxStaticText *msg_synch = nullptr;
-    if (vendor.profile.config_update_rest.empty()) {
-        if (!vendor.is_installed && !vendor.available_profiles.empty()) {
-            wxString config_version_str = vendor.best->config_version.to_string();
-            wxString msg = format(_L("Install %1% (local)"), config_version_str);
-            wxButton *bt_upgrade = new wxButton(parent, wxID_ANY, msg);
-            bt_upgrade->SetToolTip(
-                _L("Click this button to create a snapshot and install this vendor bundle to the locally available "
-                   "version bundled with the slicer, or copied by a user. "
-                   "\nTo upgrade it, since it doesn't have an online repository, you need to paste the new vendor "
-                   ".ini file in your configuration/cache/vendor directory. "
-                   "\nA new version of the slicer may also come bundled with a new version of the profile."));
-            versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
-            bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
-                this->wait_dialog.reset(new wxBusyInfo(_L("Installing the local preset, please wait")));
-                this->m_data.install_vendor(vendor_id, best_version, [this](std::string error_msg) {
-                    // end of waiting dialog (yes, it has to be called without any exception)
-                    this->wait_dialog.reset();
-                    this->request_show_error_msg(error_msg);
-                    this->request_rebuild_ui();
-                });
-            }));
-        } else if (vendor.can_upgrade) {
+    if (!vendor.is_installed && has_compatible_version && !vendor.best->local_file.empty()) {
+        // A manually imported or bundled profile is immediately installable.
+        // Repository synchronization must not hide a complete local package.
+        wxString config_version_str = vendor.best->config_version.to_string();
+        wxString msg = format(_L("Install %1% (local)"), config_version_str);
+        wxButton *bt_upgrade = new wxButton(parent, wxID_ANY, msg);
+        bt_upgrade->SetToolTip(
+            _L("Click this button to create a snapshot and install the compatible vendor bundle already available "
+               "in the local cache."));
+        versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
+        bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
+            this->wait_dialog.reset(new wxBusyInfo(_L("Installing the local preset, please wait")));
+            this->m_data.install_vendor(vendor_id, best_version, [this](std::string error_msg) {
+                // end of waiting dialog (yes, it has to be called without any exception)
+                this->wait_dialog.reset();
+                this->request_show_error_msg(error_msg);
+                this->request_rebuild_ui();
+            });
+        }));
+    } else if (vendor.profile.config_update_rest.empty()) {
+        if (vendor.can_upgrade && has_compatible_version) {
             assert(vendor.best->config_version > vendor.profile.config_version);
             wxString config_version_str = vendor.best->config_version.to_string();
             wxString msg = vendor.is_installed ? format(_L("Upgrade to %1%"), config_version_str) :
@@ -669,6 +697,10 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                                                                  this->request_rebuild_ui();
                                                              });
                              }));
+        } else if (!vendor.available_profiles.empty() && !has_compatible_version) {
+            msg_synch = new wxStaticText(parent, wxID_ANY, _L("No compatible profile"));
+            msg_synch->SetToolTip(
+                _L("The local cache contains vendor profiles, but none of them target this slicer version."));
         } else {
             msg_synch = new wxStaticText(parent, wxID_ANY, _L("Local bundle"));
             msg_synch->SetToolTip(
@@ -680,6 +712,10 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
             // weird
             msg_synch = new wxStaticText(parent, wxID_ANY, _L("No profile available"));
             msg_synch->SetToolTip(_L("This printer vendor doesn't have any available presets for this slicer."));
+        } else if (!has_compatible_version) {
+            msg_synch = new wxStaticText(parent, wxID_ANY, _L("No compatible profile"));
+            msg_synch->SetToolTip(
+                _L("The repository contains vendor profiles, but none of them target this slicer version."));
         } else if (!vendor.is_installed || vendor.can_upgrade) {
             assert(!vendor.is_installed || vendor.best->config_version > vendor.profile.config_version);
             wxString config_version_str = vendor.best->config_version.to_string();
@@ -707,7 +743,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
     } else if (vendor.synch_in_progress) {
         msg_synch = new wxStaticText(parent, wxID_ANY, _L("Synch with github ..."));
     } else if (vendor.synch_failed) {
-        if (vendor.available_profiles.size() > 0 && !vendor.is_installed) {
+        if (has_compatible_version && !vendor.is_installed) {
             wxString config_version_str = vendor.best->config_version.to_string();
             wxString msg = format(_L("Install %1% from cache"), config_version_str);
             wxButton *bt_upgrade = new wxButton(parent, wxID_ANY, msg);
@@ -726,9 +762,15 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                     this->request_rebuild_ui();
                 });
             }));
-        } else{
+        } else {
             msg_synch = new wxStaticText(parent, wxID_ANY, _L("Download failed"));
-            msg_synch->SetToolTip(_L("Download failed") + ": "+_L("The slicer failed to access the GitHub repository."));
+            if (!vendor.available_profiles.empty() && !has_compatible_version)
+                msg_synch->SetToolTip(
+                    _L("Download failed") + ": " +
+                    _L("The cached vendor profiles do not target this slicer version."));
+            else
+                msg_synch->SetToolTip(
+                    _L("Download failed") + ": " + _L("The slicer failed to access the GitHub repository."));
         }
     } else {
         msg_synch = new wxStaticText(parent, wxID_ANY, _L("Unchecked"));
@@ -861,49 +903,23 @@ void UpdateConfigDialog::build_ui() {
         });
     }));
     wxButton *bt_load_ini = new wxButton(this, wxID_ANY, _L("Load vendor ini file"));
-        bt_load_ini->Bind(wxEVT_BUTTON, ([this](wxCommandEvent& e) {
-        
-        wxFileDialog dlg(this, _L("Load vendor configuration bundle"), "", "", "*.ini",
-                                       wxFD_OPEN | wxFD_FILE_MUST_EXIST);
-        wxGetApp().UpdateDarkUI(&dlg);
-
-        if (dlg.ShowModal() != wxID_OK) {
+    bt_load_ini->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) {
+        wxFileDialog dialog(this, _L("Load vendor configuration bundle"), "", "", "*.ini",
+                            wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+        wxGetApp().UpdateDarkUI(&dialog);
+        if (dialog.ShowModal() != wxID_OK)
             return;
-        }
-        boost::filesystem::path path(into_path(dlg.GetPath()));
-        try {
-            // copy into cache
-            boost::filesystem::copy(path, into_path(data_dir()) / "cache" / "vendor" / path.filename());
-            //copy icons if found nearby
-            boost::filesystem::path cache_icon_dir = into_path(data_dir()) / "cache" / "vendor" / path.stem();
-            boost::filesystem::path local_icon_dir = path.parent_path() / path.stem();
-            if (boost::filesystem::exists(local_icon_dir)) {
-                // remove all old
-                if (boost::filesystem::exists(cache_icon_dir)) {
-                    for (const boost::filesystem::directory_entry &path_entry :
-                            boost::filesystem::directory_iterator(cache_icon_dir)) {
-                        assert(path_entry.status().type() == boost::filesystem::file_type::regular_file);
-                        boost::filesystem::remove_all(path_entry.path());
-                    }
-                }
-                boost::filesystem::create_directories(cache_icon_dir);
-                // copy all
-                for (const boost::filesystem::directory_entry &path_entry :
-                        boost::filesystem::directory_iterator(local_icon_dir)) {
-                    assert(path_entry.status().type() == boost::filesystem::file_type::regular_file);
-                    boost::filesystem::copy(path_entry.path(), cache_icon_dir / path_entry.path().lexically_relative(local_icon_dir));
-                }
-            }
 
-            this->m_data.reload_all_vendors();
-            this->request_rebuild_ui();
-        } catch (std::exception e) {
-            MessageDialog msg_dlg(this,
-                        format(_L("Failed to read this vendor bundle at '%1%'"), path.lexically_normal().string()),
-                _L("Fail to add a new vendor bundle"), wxICON_ERROR | wxOK);
-            msg_dlg.ShowModal();
-        }
-    }));
+        // The updater validates the profile and atomically replaces an older
+        // cached copy before rebuilding the dialog from the refreshed model.
+        wait_dialog.reset(new wxBusyInfo(_L("Loading the vendor profile, please wait")));
+        const boost::filesystem::path profile_path(into_path(dialog.GetPath()));
+        m_data.cache_vendor_ini(profile_path, [this](const std::string &error_msg) {
+            wait_dialog.reset();
+            request_show_error_msg(error_msg);
+            request_rebuild_ui();
+        });
+    });
     wxButton *bt_load_archive = new wxButton(this, wxID_ANY, _L("Load vendor archive"));
     bt_load_archive->SetToolTip(_L("Load a ZIP vendor bundle into the local version cache."));
     bt_load_archive->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) {

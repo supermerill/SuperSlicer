@@ -77,6 +77,15 @@ void PresetUpdater::cache_vendor_archive(const boost::filesystem::path &archive_
     dispatch_error_callback(callback_result, std::move(error));
 }
 
+void PresetUpdater::cache_vendor_ini(const boost::filesystem::path &profile_path,
+                                     std::function<void(const std::string &)> callback_result)
+{
+    Slic3r::UpdaterError error = m_core.cache_vendor_ini(profile_path);
+    if (error.succeeded())
+        m_core.reload_all_vendors();
+    dispatch_error_callback(callback_result, std::move(error));
+}
+
 void PresetUpdater::uninstall_vendor(const std::string &vendor_id, std::function<void(bool)> callback_result)
 {
     m_core.uninstall_vendor(vendor_id, [this, callback_result = std::move(callback_result)](Slic3r::UpdaterError error) {

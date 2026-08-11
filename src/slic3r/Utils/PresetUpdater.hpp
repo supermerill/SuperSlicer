@@ -52,6 +52,11 @@ public:
     void cache_vendor_archive(const boost::filesystem::path &archive_path,
                               std::function<void(const std::string &)> callback_result);
 
+    // Cache a standalone vendor profile, reload the model, then invoke the
+    // callback on the GUI thread with an empty string on success.
+    void cache_vendor_ini(const boost::filesystem::path &profile_path,
+                          std::function<void(const std::string &)> callback_result);
+
     void uninstall_vendor(const std::string &vendor_id, std::function<void(bool)> callback_result);
     void install_vendor(const std::string &vendor_id,
                         const Slic3r::VendorAvailable &version,
