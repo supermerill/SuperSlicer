@@ -77,7 +77,11 @@ bool write_zip(const boost::filesystem::path &archive_path, const std::vector<Zi
             break;
         }
     }
-    return Slic3r::close_zip_writer(&archive) && success;
+
+    // Finalization writes the central directory required by ZIP readers.
+    const bool finalized = success && mz_zip_writer_finalize_archive(&archive);
+    const bool closed = Slic3r::close_zip_writer(&archive);
+    return success && finalized && closed;
 }
 
 std::string description_contents(const std::string &package_name,
