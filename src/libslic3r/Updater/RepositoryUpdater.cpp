@@ -187,28 +187,27 @@ bool RepositoryUpdater::begin_sync(size_t repository_count, std::function<void(i
 {
     // Tag parsing replaces the version vectors whose entries receive
     // changelog notes. Refuse a refresh until those callbacks have released
-    // their references.
-    if (m_pending_changelogs != 0)
+    // their references, but still complete the caller's request immediately.
+    if (m_pending_changelogs != 0) {
+        if (callback)
+            callback(update_count());
         return false;
-    if (m_sync_in_progress.exchange(true))
-        return false;
+    }
 
     {
         std::lock_guard<std::mutex> guard(m_callback_mutex);
-        m_callback = std::move(callback);
+        if (m_sync_in_progress) {
+            if (callback)
+                m_sync_callbacks.emplace_back(std::move(callback));
+            return false;
+        }
+        m_sync_in_progress = true;
+        if (callback)
+            m_sync_callbacks.emplace_back(std::move(callback));
     }
     m_pending_syncs = static_cast<int>(repository_count);
-    if (repository_count == 0) {
-        m_sync_in_progress = false;
-        std::function<void(int)> empty_callback;
-        {
-            std::lock_guard<std::mutex> guard(m_callback_mutex);
-            empty_callback = std::move(m_callback);
-            m_callback = [](int) {};
-        }
-        if (empty_callback)
-            empty_callback(update_count());
-    }
+    if (repository_count == 0)
+        complete_sync();
     return true;
 }
 
@@ -217,16 +216,24 @@ void RepositoryUpdater::finish_sync()
     if (--m_pending_syncs != 0)
         return;
 
-    m_sync_in_progress = false;
+    complete_sync();
+}
+
+void RepositoryUpdater::complete_sync()
+{
+    // Derived models finalize their aggregate state before update_count() and
+    // before any GUI subscriber rebuilds itself from that model.
     on_sync_completed();
-    std::function<void(int)> callback;
+    const int final_update_count = update_count();
+
+    std::vector<std::function<void(int)>> callbacks;
     {
         std::lock_guard<std::mutex> guard(m_callback_mutex);
-        callback = std::move(m_callback);
-        m_callback = [](int) {};
+        m_sync_in_progress = false;
+        callbacks.swap(m_sync_callbacks);
     }
-    if (callback)
-        callback(update_count());
+    for (const std::function<void(int)> &callback : callbacks)
+        callback(final_update_count);
 }
 
 bool RepositoryUpdater::has_api_request_slot(const std::string &url)

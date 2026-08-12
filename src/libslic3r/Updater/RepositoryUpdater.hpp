@@ -85,8 +85,11 @@ protected:
         std::function<UpdaterError(const std::string &, const std::string &)>;
     using UpdaterErrorCallback = std::function<void(UpdaterError)>;
 
-    // Starts one logical refresh. Every repository must call finish_sync()
-    // exactly once, including malformed descriptions and HTTP failures.
+    // Starts one logical refresh. If another refresh is already running, the
+    // callback joins that operation and is called with its final update count.
+    // A false result means the caller must not start repository requests; the
+    // callback was either queued or invoked immediately when changelogs block
+    // synchronization.
     bool begin_sync(size_t repository_count, std::function<void(int)> callback);
 
     // Completes one repository refresh and calls update_count() only after
@@ -150,6 +153,10 @@ protected:
     UpdaterHttpTransport &http() { return m_http_transport; }
 
 private:
+    // Publishes one final model state to every caller that requested or joined
+    // the refresh. Callbacks run outside the mutex and may start a new refresh.
+    void complete_sync();
+
     // Completes the derived state transition and always releases this logical
     // repository from the enclosing sync, including when the callback throws.
     void finish_repository_refresh(UpdaterError error, const RepositoryRefreshFinishedFn &finished);
@@ -161,7 +168,7 @@ private:
     std::atomic_int m_pending_changelogs = 0;
     std::atomic_bool m_sync_in_progress = false;
     std::mutex m_callback_mutex;
-    std::function<void(int)> m_callback;
+    std::vector<std::function<void(int)>> m_sync_callbacks;
     std::atomic_int m_max_api_requests = 25;
     std::time_t m_next_api_window = 0;
     UpdaterHttpTransport &m_http_transport;

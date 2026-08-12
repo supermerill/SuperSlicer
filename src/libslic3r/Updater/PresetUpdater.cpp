@@ -290,10 +290,8 @@ void PresetUpdater::reload_all_vendors()
 void PresetUpdater::sync_async(std::function<void(int)> callback_result, bool force)
 {
     std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
-    if (!begin_sync(m_vendors.size(), callback_result)) {
-        callback_result(get_profile_count_to_update());
+    if (!begin_sync(m_vendors.size(), std::move(callback_result)))
         return;
-    }
     for (auto &[id, vendor] : m_vendors)
         update_vendor(vendor, force);
 }

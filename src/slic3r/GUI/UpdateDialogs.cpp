@@ -585,6 +585,18 @@ void UpdateConfigDialog::request_rebuild_ui() {
     this->QueueEvent(evt);
 }
 
+void UpdateConfigDialog::request_rebuild_after_vendor_change(bool change_succeeded)
+{
+    if (!change_succeeded) {
+        request_rebuild_ui();
+        return;
+    }
+
+    // The preset reload starts its own repository refresh. Joining it here
+    // guarantees that this dialog receives the terminal callback as well.
+    m_data.sync_async([this](int) { request_rebuild_ui(); });
+}
+
 void UpdateConfigDialog::request_show_error_msg(const std::string &error_msg) {
     if (!error_msg.empty()) {
         wxCommandEvent *evt = new wxCommandEvent(EVT_CONFIG_UPDATER_ERROR_MSG);
@@ -799,7 +811,8 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                                                  vendor_full_name),
                                           _L("Uninstall vendor bundle"), wxICON_WARNING | wxOK | wxCANCEL);
                     if (msg_dlg.ShowModal() == wxID_OK) {
-                        this->m_data.uninstall_vendor(vendor_id, [this](bool success) { this->request_rebuild_ui(); });
+                        this->m_data.uninstall_vendor(
+                            vendor_id, [this](bool success) { request_rebuild_after_vendor_change(success); });
                     }
                 } else if (vendor_has_cache) {
                     MessageDialog msg_dlg(this,
@@ -807,7 +820,8 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                                                  vendor_full_name),
                                           _L("Clear vendor bundle cache"), wxICON_WARNING | wxOK | wxCANCEL);
                     if (msg_dlg.ShowModal() == wxID_OK) {
-                        this->m_data.clear_cache_vendor(vendor_id, [this](bool success) { this->request_rebuild_ui(); });
+                        this->m_data.clear_cache_vendor(
+                            vendor_id, [this](bool success) { request_rebuild_after_vendor_change(success); });
                     }
                 }
         }));
@@ -995,7 +1009,7 @@ void UpdateConfigDialog::build_ui() {
             this->wait_dialog.reset(new wxBusyInfo(_L("Uninstalling the presets, please wait")));
             this->m_data.uninstall_all_vendors([this](bool ok) {
                 this->wait_dialog.reset();
-                this->request_rebuild_ui();
+                this->request_rebuild_after_vendor_change(ok);
             });
         }
     }));
@@ -1308,12 +1322,11 @@ void ChooseVendorVersionDialog::add_version_in_list(wxWindow *parent,
     wxStaticText *msg_slicer_version = new wxStaticText(parent, wxID_ANY, version.slicer_version.to_string());
     msg_slicer_version->SetToolTip(format(_L("This is the slicer version for which this bundle was built. Current version: %1%"), SLIC3R_VERSION_FULL));
     versions_sizer->Add(msg_slicer_version, wxGBPosition(line_num, 2), wxGBSpan(1, 1), wxEXPAND, 2);
-    Semver major_current = Semver::parse(SLIC3R_VERSION_FULL)->no_patch();
-    Semver major_version = version.slicer_version.no_patch();
-    if (major_version > major_current) {
+    const Semver current_slicer_version = *Semver::parse(SLIC3R_VERSION_FULL);
+    if (version.slicer_version > current_slicer_version) {
         // red
         red_foreground_color.push_back(msg_slicer_version);
-    } else if (major_version == major_current) {
+    } else if (version.slicer_version == current_slicer_version) {
         // green
         green_foreground_color.push_back(msg_slicer_version);
     } else {

@@ -208,10 +208,8 @@ void PluginUpdater::reload_all_plugins()
 void PluginUpdater::sync_async(std::function<void(int)> callback_result, bool force)
 {
     std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
-    if (!begin_sync(m_plugins.size(), callback_result)) {
-        callback_result(static_cast<int>(count_updates()));
+    if (!begin_sync(m_plugins.size(), std::move(callback_result)))
         return;
-    }
     if (m_plugins.empty())
         return;
     for (auto &[id, plugin] : m_plugins)

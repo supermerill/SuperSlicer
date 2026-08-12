@@ -709,6 +709,43 @@ TEST_CASE("RepositoryUpdater refuses tag refresh after the GitHub request limit"
     CHECK(http.pending_count() == 0);
 }
 
+TEST_CASE("RepositoryUpdater notifies callers that join an active refresh", "[plugins][updater]")
+{
+    FakeUpdaterHttpTransport http;
+    TestRepositoryUpdater updater(http);
+    TemporaryDirectory temporary;
+    int first_callback_count = 0;
+    int joined_callback_count = 0;
+    std::optional<Slic3r::UpdaterError> refresh_result;
+
+    REQUIRE(updater.begin_sync(1, [&first_callback_count](int count) {
+        CHECK(count == 7);
+        ++first_callback_count;
+    }));
+    updater.refresh_repository_tags(
+        "active", "https://example.invalid/active", temporary.path() / "tags.json", true,
+        [](const std::string &) { return Slic3r::UpdaterError(); },
+        [&refresh_result](Slic3r::UpdaterError error) { refresh_result = std::move(error); });
+    REQUIRE(http.pending_count() == 1);
+
+    // A dialog opened during this request must wait for the existing refresh;
+    // it must not rebuild immediately from the still-InProgress model.
+    CHECK_FALSE(updater.begin_sync(1, [&joined_callback_count](int count) {
+        CHECK(count == 7);
+        ++joined_callback_count;
+    }));
+    CHECK(http.pending_count() == 1);
+    CHECK(first_callback_count == 0);
+    CHECK(joined_callback_count == 0);
+
+    http.fail_front(std::string(), "offline", 0);
+
+    REQUIRE(refresh_result.has_value());
+    CHECK(refresh_result->code == Slic3r::UpdaterError::Code::Network);
+    CHECK(first_callback_count == 1);
+    CHECK(joined_callback_count == 1);
+}
+
 TEST_CASE("RepositoryUpdater reports precise tag refresh failures", "[plugins][updater]")
 {
     FakeUpdaterHttpTransport http;
@@ -826,7 +863,12 @@ TEST_CASE("RepositoryUpdater downloads changelog batches through cache and trans
     REQUIRE(http.pending_count() == 2);
     CHECK(http.pending_at(0).response_size_limit() == 4 * 1024 * 1024);
     CHECK(http.pending_at(1).response_size_limit() == 128 * 1024);
-    CHECK_FALSE(updater.begin_sync(1, [](int) {}));
+    int rejected_sync_callback_count = 0;
+    CHECK_FALSE(updater.begin_sync(1, [&rejected_sync_callback_count](int count) {
+        CHECK(count == 7);
+        ++rejected_sync_callback_count;
+    }));
+    CHECK(rejected_sync_callback_count == 1);
 
     const std::string commit_json = R"({"commit":{"message":"single commit"}})";
     http.succeed_front(commit_json, 200);
