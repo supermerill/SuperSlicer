@@ -4,16 +4,17 @@
 #/|/
 
 # Build one external plugin into a self-contained directory, then archive its
-# direct contents for resources/plugins. Both package and slicer versions are
-# embedded in the filename and version.ini because a plugin may evolve
-# independently from the application that can load it. On Windows the same
-# values are also embedded into the DLL VERSIONINFO, so the repository can
-# recover a package version even when version.ini is missing.
+# direct contents in the build tree's resources/plugins directory. Both package
+# and slicer versions are embedded in the filename and version.ini because a
+# plugin may evolve independently from the application that can load it. On
+# Windows the same values are also embedded into the DLL VERSIONINFO, so the
+# repository can recover a package version even when version.ini is missing.
 #
 # A plugin with its own release cycle declares everything in its CMakeLists:
 # slic3r_package_plugin(my_target my_id VERSION 1.2.0
 #     NAME "My plugin" DESCRIPTION "What the plugin does.")
-# VERSION is optional; omitting it keeps the historical slicer-version default.
+# VERSION is optional. Without it, the package uses the slicer's four-part
+# numeric version; compatibility always records the complete slicer SemVer.
 
 set(_SLIC3R_PLUGIN_PACKAGE_CMAKE_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}")
 
@@ -57,9 +58,9 @@ function(slic3r_package_plugin target package_name)
     cmake_parse_arguments(PACKAGE "" "VERSION;UPDATE_REST;NAME;FULL_NAME;DESCRIPTION" "FILES" ${ARGN})
     get_target_property(_plugin_source_directory ${target} SOURCE_DIR)
     get_target_property(_plugin_binary_directory ${target} BINARY_DIR)
-    set(_package_directory "${CMAKE_BINARY_DIR}/src/$<CONFIG>/plugin_packages/${package_name}")
     set(_description "${_plugin_binary_directory}/${package_name}-$<CONFIG>-description.ini")
     set(_version_file "${_plugin_binary_directory}/${package_name}-$<CONFIG>-version.ini")
+    set(_slicer_version "${SLIC3R_VERSION_FULL}")
     set(_package_version "${SLIC3R_RC_VERSION_DOTS}")
     if (PACKAGE_VERSION)
         set(_package_version "${PACKAGE_VERSION}")
@@ -76,12 +77,12 @@ function(slic3r_package_plugin target package_name)
     if (NOT _package_file_description)
         set(_package_file_description "${_package_full_name}")
     endif()
-    set(_archive "${SLIC3R_RESOURCES_DIR}/plugins/${package_name}_${_package_version}_${SLIC3R_RC_VERSION_DOTS}.zip")
+    set(_archive "${SLIC3R_BUILD_RESOURCES_DIR}/plugins/${package_name}_${_package_version}_${_slicer_version}.zip")
     set(_package_contents "$<TARGET_FILE_NAME:${target}>" "description.ini" "version.ini" ${PACKAGE_FILES} ${PACKAGE_UNPARSED_ARGUMENTS})
     # Keep the generated default profile aligned with the packages built by
     # this CMake configuration. Package and slicer versions are independent.
     set_property(GLOBAL APPEND PROPERTY SLIC3R_DEFAULT_PLUGIN_PACKAGES
-        "${package_name}|${_package_version}|${SLIC3R_RC_VERSION_DOTS}")
+        "${package_name}|${_package_version}|${_slicer_version}")
     set(_locale_commands)
     if (EXISTS "${_plugin_source_directory}/locale")
         list(APPEND _locale_commands
@@ -93,19 +94,19 @@ function(slic3r_package_plugin target package_name)
     file(GENERATE OUTPUT "${_description}" CONTENT
         "[plugin]\nid = ${package_name}\nname = ${_package_display_name}\nfull_name = ${_package_full_name}\ndescription = ${PACKAGE_DESCRIPTION}\nconfig_update_rest = ${PACKAGE_UPDATE_REST}\nslicer = SuperSlicer\n")
     file(GENERATE OUTPUT "${_version_file}" CONTENT
-        "[plugin]\npackage_version = ${_package_version}\nslicer_version = ${SLIC3R_RC_VERSION_DOTS}\n")
+        "[plugin]\npackage_version = ${_package_version}\nslicer_version = ${_slicer_version}\n")
 
     # Every native platform receives the same searchable metadata record. It is
     # an independent fallback when version.ini is missing and does not require
     # the host to load untrusted plugin code.
     string(LENGTH "${_package_version}" _package_version_length)
-    string(LENGTH "${SLIC3R_RC_VERSION_DOTS}" _slicer_version_length)
+    string(LENGTH "${_slicer_version}" _slicer_version_length)
     if (_package_version_length GREATER_EQUAL 64 OR _slicer_version_length GREATER_EQUAL 64)
         message(FATAL_ERROR
             "Plugin '${package_name}' versions must fit in the 63-byte binary metadata fields")
     endif()
     _slic3r_plugin_quoted_string(PLUGIN_BINARY_PACKAGE_VERSION "${_package_version}")
-    _slic3r_plugin_quoted_string(PLUGIN_BINARY_SLICER_VERSION "${SLIC3R_RC_VERSION_DOTS}")
+    _slic3r_plugin_quoted_string(PLUGIN_BINARY_SLICER_VERSION "${_slicer_version}")
     set(_binary_metadata_source "${_plugin_binary_directory}/${package_name}-binary-metadata.cpp")
     configure_file(
         "${_SLIC3R_PLUGIN_PACKAGE_CMAKE_DIRECTORY}/PluginBinaryMetadata.cpp.in"
@@ -134,15 +135,12 @@ function(slic3r_package_plugin target package_name)
     set_target_properties(${target} PROPERTIES
         OUTPUT_NAME "plugin"
         PREFIX ""
-        LIBRARY_OUTPUT_DIRECTORY "${_package_directory}"
-        RUNTIME_OUTPUT_DIRECTORY "${_package_directory}"
         SLIC3R_PLUGIN_PACKAGE_VERSION "${_package_version}"
-        SLIC3R_PLUGIN_SLICER_VERSION "${SLIC3R_RC_VERSION_DOTS}"
+        SLIC3R_PLUGIN_SLICER_VERSION "${_slicer_version}"
     )
 
     add_custom_command(TARGET ${target} POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "${SLIC3R_RESOURCES_DIR}/plugins"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "${SLIC3R_RESOURCES_DIR}/plugins/descriptions"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${SLIC3R_BUILD_RESOURCES_DIR}/plugins"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${_description}"
             "$<TARGET_FILE_DIR:${target}>/description.ini"
@@ -150,11 +148,9 @@ function(slic3r_package_plugin target package_name)
             "${_version_file}"
             "$<TARGET_FILE_DIR:${target}>/version.ini"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${_description}"
-            "${SLIC3R_RESOURCES_DIR}/plugins/descriptions/${package_name}.ini"
+            "${SLIC3R_GENERATED_DEFAULT_ACTIVATED_FILE}"
+            "${SLIC3R_BUILD_RESOURCES_DIR}/plugins/default_activated.ini"
         ${_locale_commands}
-        COMMAND "${CMAKE_COMMAND}" -E rm -f
-            "${SLIC3R_RESOURCES_DIR}/plugins/${package_name}_${SLIC3R_RC_VERSION_DOTS}.zip"
         COMMAND "${CMAKE_COMMAND}" -E tar cf "${_archive}" --format=zip --
             ${_package_contents}
         WORKING_DIRECTORY "$<TARGET_FILE_DIR:${target}>"

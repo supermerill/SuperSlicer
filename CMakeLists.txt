@@ -21,7 +21,15 @@ include(GNUInstallDirs)
 include(CMakeDependentOption)
 
 set(SLIC3R_RESOURCES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources")
-file(TO_NATIVE_PATH "${SLIC3R_RESOURCES_DIR}" SLIC3R_RESOURCES_DIR_WIN)
+if (WIN32 AND CMAKE_CONFIGURATION_TYPES)
+    set(SLIC3R_BUILD_RESOURCES_DIR "${CMAKE_BINARY_DIR}/src/$<CONFIG>/resources")
+elseif (WIN32)
+    set(SLIC3R_BUILD_RESOURCES_DIR "${CMAKE_BINARY_DIR}/src/resources")
+elseif (CMAKE_GENERATOR STREQUAL "Xcode")
+    set(SLIC3R_BUILD_RESOURCES_DIR "${CMAKE_BINARY_DIR}/src/resources")
+else ()
+    set(SLIC3R_BUILD_RESOURCES_DIR "${CMAKE_BINARY_DIR}/resources")
+endif ()
 
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "No build type selected, default to Release")
@@ -672,11 +680,11 @@ endif()
 
 # Resources install target, configure fhs.hpp on UNIX
 if (WIN32)
-    install(DIRECTORY "${SLIC3R_RESOURCES_DIR}/" DESTINATION "${CMAKE_INSTALL_PREFIX}/resources")
+    install(DIRECTORY "${SLIC3R_BUILD_RESOURCES_DIR}/" DESTINATION "${CMAKE_INSTALL_PREFIX}/resources")
 elseif (SLIC3R_FHS)
     # CMAKE_INSTALL_FULL_DATAROOTDIR: read-only architecture-independent data root (share)
     set(SLIC3R_FHS_RESOURCES "${CMAKE_INSTALL_FULL_DATAROOTDIR}/${SLIC3R_APP_KEY}")
-    install(DIRECTORY ${SLIC3R_RESOURCES_DIR}/ DESTINATION ${SLIC3R_FHS_RESOURCES}
+    install(DIRECTORY ${SLIC3R_BUILD_RESOURCES_DIR}/ DESTINATION ${SLIC3R_FHS_RESOURCES}
         PATTERN "*/udev" EXCLUDE
     )
     configure_file(${LIBDIR}/platform/unix/Slic3r.desktop.in ${LIBDIR_BIN}/${SLIC3R_APP_KEY}.desktop @ONLY)
@@ -697,7 +705,7 @@ else ()
     configure_file(${LIBDIR}/platform/unix/Gcodeviewer.desktop.in ${LIBDIR_BIN}/${SLIC3R_APP_KEY}-Gcodeviewer.desktop @ONLY)
     install(FILES ${LIBDIR_BIN}/${SLIC3R_APP_KEY}.desktop DESTINATION ${CMAKE_INSTALL_PREFIX}/resources/applications)
     install(FILES ${LIBDIR_BIN}/${SLIC3R_APP_KEY}-Gcodeviewer.desktop DESTINATION ${CMAKE_INSTALL_PREFIX}/resources/applications)
-    install(DIRECTORY "${SLIC3R_RESOURCES_DIR}/" DESTINATION "${CMAKE_INSTALL_PREFIX}/resources")
+    install(DIRECTORY "${SLIC3R_BUILD_RESOURCES_DIR}/" DESTINATION "${CMAKE_INSTALL_PREFIX}/resources")
 endif ()
 
 configure_file(${LIBDIR}/platform/unix/fhs.hpp.in ${LIBDIR_BIN}/platform/unix/fhs.hpp)

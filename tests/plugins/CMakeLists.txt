@@ -71,6 +71,19 @@ if (TARGET polyholes_plugin)
         SLIC3R_TEST_POLYHOLES_PLUGIN_DLL=R"\($<TARGET_FILE:polyholes_plugin>\)"
         SLIC3R_TEST_POLYHOLES_PACKAGE_VERSION=R"\(${_polyholes_package_version}\)"
         SLIC3R_TEST_POLYHOLES_SLICER_VERSION=R"\(${_polyholes_slicer_version}\)"
+        SLIC3R_TEST_BUILD_SLICER_VERSION=R"\(${SLIC3R_VERSION_FULL}\)"
+        SLIC3R_TEST_BUILD_RC_VERSION=R"\(${SLIC3R_RC_VERSION_DOTS}\)"
+    )
+endif()
+
+if (TARGET flat_area_layer_height_plugin)
+    get_target_property(_flat_area_package_version
+        flat_area_layer_height_plugin SLIC3R_PLUGIN_PACKAGE_VERSION)
+    get_target_property(_flat_area_slicer_version
+        flat_area_layer_height_plugin SLIC3R_PLUGIN_SLICER_VERSION)
+    target_compile_definitions(${_TEST_NAME}_tests PRIVATE
+        SLIC3R_TEST_FLAT_AREA_PACKAGE_VERSION=R"\(${_flat_area_package_version}\)"
+        SLIC3R_TEST_FLAT_AREA_SLICER_VERSION=R"\(${_flat_area_slicer_version}\)"
     )
 endif()
 

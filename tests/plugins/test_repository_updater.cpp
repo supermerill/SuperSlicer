@@ -278,7 +278,8 @@ const char *plugin_library_filename();
 std::string plugin_description_contents(const std::string &plugin_id,
                                         const std::string &package_version,
                                         const std::string &slicer_version,
-                                        bool include_repository);
+                                        bool include_repository,
+                                        const std::string &repository = "example/plugin");
 std::string plugin_repository_tags(const std::vector<TestPluginVersion> &versions);
 
 // This fixture reproduces the core portion of the GUI pipeline: discover local
@@ -313,7 +314,7 @@ class PluginUpdaterFunctionalFixture
 protected:
     PluginUpdaterFunctionalFixture();
 
-    void write_resource_plugin();
+    void write_plugin_repository();
     void write_installed_plugin(const std::string &package_version);
     boost::filesystem::path write_cached_plugin(const std::string &package_version);
     std::string make_plugin_archive(const std::string &package_version);
@@ -396,7 +397,8 @@ const char *plugin_library_filename()
 std::string plugin_description_contents(const std::string &plugin_id,
                                         const std::string &package_version,
                                         const std::string &slicer_version,
-                                        bool include_repository)
+                                        bool include_repository,
+                                        const std::string &repository)
 {
     (void) package_version;
     (void) slicer_version;
@@ -406,8 +408,27 @@ std::string plugin_description_contents(const std::string &plugin_id,
         "name = Functional plugin\n"
         "full_name = Functional plugin\n";
     if (include_repository)
-        contents += "config_update_rest = example/plugin\n";
+        contents += "config_update_rest = " + repository + "\n";
     return contents;
+}
+
+void save_test_plugin_repository(const boost::filesystem::path &data_directory,
+                                 const std::string &plugin_id,
+                                 const std::string &config_update_rest)
+{
+    Slic3r::RepositoryPackageCache cache(data_directory, Slic3r::plugin_repository_cache_adapter());
+    bool purged = false;
+    std::string error_message;
+    REQUIRE(cache.prepare_layout(purged, error_message));
+
+    Slic3r::RepositoryDescription description;
+    description.type = Slic3r::RepositoryPackageType::Plugin;
+    description.id = plugin_id;
+    description.name = plugin_id;
+    description.full_name = "Functional plugin";
+    description.config_update_rest = config_update_rest;
+    description.slicer = "SuperSlicer";
+    REQUIRE(cache.save_repository_description(description, error_message));
 }
 
 std::string plugin_repository_tags(const std::vector<TestPluginVersion> &versions)
@@ -485,10 +506,9 @@ PluginUpdaterFunctionalFixture::PluginUpdaterFunctionalFixture()
     REQUIRE(cache.prepare_layout(purged, error_message));
 }
 
-void PluginUpdaterFunctionalFixture::write_resource_plugin()
+void PluginUpdaterFunctionalFixture::write_plugin_repository()
 {
-    write_test_file(resources_directory / "plugins" / "descriptions" / (plugin_id + ".ini"),
-                    plugin_description_contents(plugin_id, std::string(), std::string(), true));
+    save_test_plugin_repository(data_directory, plugin_id, "example/plugin");
 }
 
 void PluginUpdaterFunctionalFixture::write_installed_plugin(const std::string &package_version)
@@ -1137,7 +1157,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
                  "PluginUpdater replaces a synchronization error after a successful retry",
                  "[plugins][updater][plugin-functional]")
 {
-    write_resource_plugin();
+    write_plugin_repository();
     updater.reload_all_plugins();
     Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
     REQUIRE(plugin != nullptr);
@@ -1180,13 +1200,11 @@ TEST_CASE("PluginUpdater selects comparable versions and caches their changelogs
     const boost::filesystem::path data_directory = temporary.path() / "data";
     write_test_file(resources_directory / "plugins" / "default_activated.ini",
                     "[installed]\n\n[activated]\n");
-    write_test_file(
-        resources_directory / "plugins" / "descriptions" / "example.ini",
-        "[plugin]\n"
-        "id = example.plugin\n"
-        "name = example.plugin\n"
-        "full_name = Example plugin\n"
-        "config_update_rest = example/repository\n");
+    REQUIRE(write_test_zip(
+        resources_directory / "plugins" / "example.plugin_1.0.0.0_2.7.63.0.zip",
+        {{"description.ini", plugin_description_contents(
+                                 "example.plugin", "1.0.0.0", "2.7.63.0", true, "example/repository")},
+         {plugin_library_filename(), "embedded library"}}));
     ScopedUpdaterDirectories directories(resources_directory, data_directory);
 
     Slic3r::PluginUpdater updater(http);
@@ -1281,7 +1299,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
                  "PluginUpdater functional version dialog schedules a non-latest plugin",
                  "[plugins][updater][plugin-functional]")
 {
-    write_resource_plugin();
+    write_plugin_repository();
     updater.reload_all_plugins();
     synchronize({
         {"3.0.0.0", slicer_version, "https://example.invalid/plugin-3.zip"},
@@ -1450,7 +1468,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
                  "PluginUpdater schedules a valid cached package without HTTP",
                  "[plugins][updater][plugin-functional]")
 {
-    write_resource_plugin();
+    write_plugin_repository();
     write_cached_plugin("2.0.0.0");
     Slic3r::PluginActivationConfig removal_config;
     removal_config.removed.insert(plugin_id);
@@ -1503,7 +1521,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
                  "PluginUpdater reuses recent changelogs and refreshes stale files",
                  "[plugins][updater][plugin-functional]")
 {
-    write_resource_plugin();
+    write_plugin_repository();
     updater.reload_all_plugins();
     synchronize({{"1.0.0.0", slicer_version, "https://example.invalid/plugin-1.zip"}});
 

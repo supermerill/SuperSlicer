@@ -156,6 +156,9 @@ endif ()
 
 target_link_libraries(Slic3r PRIVATE libslic3r libcereal)
 
+set(SLIC3R_GENERATED_DEFAULT_ACTIVATED_FILE
+    "${CMAKE_CURRENT_BINARY_DIR}/generated-resources/plugins/default_activated.ini")
+
 add_subdirectory(plugins_cpp)
 add_subdirectory(plugins_python)
 
@@ -173,8 +176,9 @@ foreach(_default_plugin_package IN LISTS _default_plugin_packages)
         "${_default_plugin_id} = ${_default_plugin_version}\n"
         "${_default_plugin_id}.slicer_version = ${_default_plugin_slicer_version}\n")
 endforeach()
-configure_file("${CMAKE_SOURCE_DIR}/resources/plugins/default_activated.ini.in"
-               "${SLIC3R_RESOURCES_DIR}/plugins/default_activated.ini" @ONLY)
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated-resources/plugins")
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/plugins/default_activated.ini.in"
+               "${SLIC3R_GENERATED_DEFAULT_ACTIVATED_FILE}" @ONLY)
 
 if (APPLE)
 #    add_compile_options(-stdlib=libc++)
@@ -263,31 +267,47 @@ if (WIN32)
     target_link_libraries(PrusaSlicer_app_gcodeviewer PRIVATE boost_headeronly)
 endif ()
 
-# Link the resources dir to where Slic3r GUI expects it
+# Older Windows build trees used a directory junction for resources. A plain
+# rmdir removes that junction, but deliberately cannot remove a populated real
+# directory created by the new copy-based layout.
 if (WIN32)
     if (CMAKE_CONFIGURATION_TYPES)
         foreach (CONF ${CMAKE_CONFIGURATION_TYPES})
-            file(TO_NATIVE_PATH "${CMAKE_CURRENT_BINARY_DIR}/${CONF}" WIN_CONF_OUTPUT_DIR)
-            file(TO_NATIVE_PATH "${CMAKE_CURRENT_BINARY_DIR}/${CONF}/resources" WIN_RESOURCES_SYMLINK)
-            add_custom_command(TARGET Slic3r POST_BUILD
-                COMMAND if exist "${WIN_CONF_OUTPUT_DIR}" "("
-                        if not exist "${WIN_RESOURCES_SYMLINK}" "("
-                            mklink /J "${WIN_RESOURCES_SYMLINK}" "${SLIC3R_RESOURCES_DIR_WIN}"
-                        ")"
-                    ")"
-                COMMENT "Symlinking the resources directory into the build tree"
-                VERBATIM
-            )
+            file(TO_NATIVE_PATH "${CMAKE_CURRENT_BINARY_DIR}/${CONF}/resources" WIN_RESOURCES_DIRECTORY)
+            if (EXISTS "${WIN_RESOURCES_DIRECTORY}")
+                execute_process(
+                    COMMAND cmd.exe /C rmdir "${WIN_RESOURCES_DIRECTORY}"
+                    OUTPUT_QUIET ERROR_QUIET)
+            endif ()
         endforeach ()
     else ()
-        file(TO_NATIVE_PATH "${CMAKE_CURRENT_BINARY_DIR}/resources" WIN_RESOURCES_SYMLINK)
-        add_custom_command(TARGET Slic3r POST_BUILD
-            COMMAND if not exist "${WIN_RESOURCES_SYMLINK}" "(" mklink /J "${WIN_RESOURCES_SYMLINK}" "${SLIC3R_RESOURCES_DIR_WIN}" ")"
-            COMMENT "Symlinking the resources directory into the build tree"
-            VERBATIM
-        )
+        file(TO_NATIVE_PATH "${CMAKE_CURRENT_BINARY_DIR}/resources" WIN_RESOURCES_DIRECTORY)
+        if (EXISTS "${WIN_RESOURCES_DIRECTORY}")
+            execute_process(
+                COMMAND cmd.exe /C rmdir "${WIN_RESOURCES_DIRECTORY}"
+                OUTPUT_QUIET ERROR_QUIET)
+        endif ()
     endif ()
+endif ()
 
+# Copy static resources first, then replace the checked-in default plugin file
+# with the one generated from the packages enabled by this CMake configuration.
+# copy_directory merges into an existing real directory, so plugin archives
+# produced by an earlier target build are not discarded when Slic3r relinks.
+add_custom_command(TARGET Slic3r POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory
+        "${SLIC3R_RESOURCES_DIR}" "${SLIC3R_BUILD_RESOURCES_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory
+        "${SLIC3R_BUILD_RESOURCES_DIR}/plugins"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${SLIC3R_GENERATED_DEFAULT_ACTIVATED_FILE}"
+        "${SLIC3R_BUILD_RESOURCES_DIR}/plugins/default_activated.ini"
+    COMMAND "${CMAKE_COMMAND}" -E remove_directory
+        "${SLIC3R_BUILD_RESOURCES_DIR}/plugins/descriptions"
+    COMMENT "Copying the resources directory into the build tree"
+    VERBATIM)
+
+if (WIN32)
     # This has to be a separate target due to the windows command line lenght limits
     add_custom_target(slic3rDllsCopy ALL DEPENDS Slic3r)
     prusaslicer_copy_dlls(slic3rDllsCopy)
@@ -315,17 +335,6 @@ else ()
             COMMENT "Symlinking the G-code viewer to Slic3r"
             VERBATIM)
     endif ()
-    if (XCODE)
-        # Because of Debug/Release/etc. configurations (similar to MSVC) the Slic3r binary is located in an extra level
-        set(BIN_RESOURCES_DIR "${CMAKE_CURRENT_BINARY_DIR}/resources")
-    else ()
-        set(BIN_RESOURCES_DIR "${CMAKE_CURRENT_BINARY_DIR}/../resources")
-    endif ()
-    add_custom_command(TARGET Slic3r POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E remove_directory "${BIN_RESOURCES_DIR}"
-        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${SLIC3R_RESOURCES_DIR}" "${BIN_RESOURCES_DIR}"
-        COMMENT "Copying the resources directory into the build tree"
-        VERBATIM)
 endif ()
 
 # Slic3r binary install target

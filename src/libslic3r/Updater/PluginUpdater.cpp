@@ -32,15 +32,9 @@ namespace {
 
 const char *const DESCRIPTION_FILENAME = "description.ini";
 
-boost::filesystem::path resource_descriptions_directory();
 bool read_plugin_description(const boost::filesystem::path &path,
                              RepositoryDescription &description,
                              std::string &error_message);
-
-boost::filesystem::path resource_descriptions_directory()
-{
-    return boost::filesystem::path(resources_dir()) / "plugins/descriptions";
-}
 
 bool read_plugin_description(const boost::filesystem::path &path,
                              RepositoryDescription &description,
@@ -129,38 +123,6 @@ void PluginUpdater::reload_all_plugins()
         BOOST_LOG_TRIVIAL(warning) << error_message;
 
     RepositoryPackageCache cache(configuration_directory, plugin_repository_cache_adapter());
-    const boost::filesystem::path descriptions = resource_descriptions_directory();
-    if (boost::filesystem::is_directory(descriptions)) {
-        for (boost::filesystem::directory_iterator it(descriptions), end; it != end; ++it) {
-            if (!boost::filesystem::is_regular_file(it->path()) || it->path().extension() != ".ini")
-                continue;
-            RepositoryDescription description;
-            if (!read_plugin_description(it->path(), description, error_message)) {
-                BOOST_LOG_TRIVIAL(warning) << error_message;
-                continue;
-            }
-            // A package manifest is the source for display metadata, while an
-            // embedded repository descriptor may supply the URL omitted by a
-            // local bundle. Preserve package metadata and fill only that
-            // missing repository field.
-            const boost::filesystem::path cached_description =
-                cache.repository_description_path(description.id);
-            RepositoryDescription merged = description;
-            if (boost::filesystem::is_regular_file(cached_description)) {
-                RepositoryDescription existing;
-                if (!read_plugin_description(cached_description, existing, error_message)) {
-                    BOOST_LOG_TRIVIAL(warning) << error_message;
-                    continue;
-                }
-                merged = std::move(existing);
-                if (merged.config_update_rest.empty())
-                    merged.config_update_rest = description.config_update_rest;
-            }
-            if (!cache.save_repository_description(merged, error_message))
-                BOOST_LOG_TRIVIAL(warning) << error_message;
-        }
-    }
-
     for (const RepositoryCachedEntry &repository : cache.scan()) {
         PluginSync &plugin = m_plugins[repository.description.id];
         plugin.description = repository.description;

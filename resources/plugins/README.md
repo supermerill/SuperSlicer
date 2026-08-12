@@ -1,0 +1,1 @@
+here will go plugins archive bundled with the slicer once it's compiled.
