@@ -369,6 +369,7 @@ bool parse_repository_description(const std::string &contents,
         description.description = section.get<std::string>("description", std::string());
         description.config_update_rest = section.get<std::string>("config_update_rest", std::string());
         description.slicer = section.get<std::string>("slicer", std::string());
+        description.is_internal = ini_value_is_enabled(section.get<std::string>("internal", "0"));
         // Version-looking keys are accepted for compatibility with packages
         // produced before versions were separated, but are intentionally not
         // copied into the generic repository description.

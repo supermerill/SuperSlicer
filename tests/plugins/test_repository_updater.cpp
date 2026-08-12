@@ -1517,6 +1517,50 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     CHECK(http.pending_count() == 0);
 }
 
+TEST_CASE("PluginUpdater lists Python packages but hides runtime infrastructure",
+          "[plugins][updater][python]")
+{
+    TemporaryDirectory temporary;
+    const boost::filesystem::path resources_directory = temporary.path() / "resources";
+    const boost::filesystem::path data_directory = temporary.path() / "data";
+    ScopedUpdaterDirectories directories(resources_directory, data_directory);
+    write_test_file(resources_directory / "plugins" / "default_activated.ini",
+                    "[installed]\n[removed]\n[activated]\n");
+
+    Slic3r::RepositoryPackageCache cache(data_directory, Slic3r::plugin_repository_cache_adapter());
+    bool purged = false;
+    std::string error_message;
+    REQUIRE(cache.prepare_layout(purged, error_message));
+
+    // Both packages use the normal pure-Python payload. Only the descriptor's
+    // internal marker determines whether the package belongs in the manager.
+    const boost::filesystem::path visible_package = temporary.path() / "python.visible";
+    write_test_file(visible_package / "description.ini",
+                    "[plugin]\nid = python.visible\nname = Visible Python plugin\ninternal = 0\n");
+    write_test_file(visible_package / "version.ini",
+                    "[plugin]\npackage_version = 1.0.0\nslicer_version = 2.7.0.0\n");
+    write_test_file(visible_package / "plugin.py", "def register_plugin(api):\n    return None\n");
+    Slic3r::RepositoryCachedVersion visible_cached;
+    REQUIRE(cache.cache_simple(visible_package, visible_cached, error_message));
+
+    const boost::filesystem::path internal_package = temporary.path() / "python.runtime";
+    write_test_file(internal_package / "description.ini",
+                    "[plugin]\nid = python.runtime\nname = Python runtime\ninternal = 1\n");
+    write_test_file(internal_package / "version.ini",
+                    "[plugin]\npackage_version = 1.0.0\nslicer_version = 2.7.0.0\n");
+    write_test_file(internal_package / "plugin.py", "def register_plugin(api):\n    return None\n");
+    Slic3r::RepositoryCachedVersion internal_cached;
+    REQUIRE(cache.cache_simple(internal_package, internal_cached, error_message));
+    CHECK(internal_cached.description.is_internal);
+
+    FakeUpdaterHttpTransport http;
+    Slic3r::PluginUpdater updater(http);
+    updater.reload_all_plugins();
+    const std::vector<std::string> plugin_ids = updater.plugin_ids();
+    CHECK(std::find(plugin_ids.begin(), plugin_ids.end(), "python.visible") != plugin_ids.end());
+    CHECK(std::find(plugin_ids.begin(), plugin_ids.end(), "python.runtime") == plugin_ids.end());
+}
+
 TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
                  "PluginUpdater reuses recent changelogs and refreshes stale files",
                  "[plugins][updater][plugin-functional]")

@@ -45,13 +45,8 @@ if (Python3_FOUND)
     add_dependencies(python_plugin_loader slic3r_python_api_generated)
 
     add_custom_command(TARGET python_plugin_loader POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:python_plugin_loader>/python/plugins"
+        COMMAND "${CMAKE_COMMAND}" -E remove_directory "$<TARGET_FILE_DIR:python_plugin_loader>/python/plugins"
         COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:python_plugin_loader>/python/steps"
-        COMMAND "${CMAKE_COMMAND}" -E rm -f
-            "$<TARGET_FILE_DIR:python_plugin_loader>/python/plugins/polyholes_python.py"
-            "$<TARGET_FILE_DIR:python_plugin_loader>/python/plugins/polyholes_views.py"
-            "$<TARGET_FILE_DIR:python_plugin_loader>/python/plugins/default_surface_generator.py"
-            "$<TARGET_FILE_DIR:python_plugin_loader>/python/plugins/simple_perimeter_generator2.py"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${CMAKE_CURRENT_SOURCE_DIR}/../libslic3r/Api/plugin/python/slic3r_api.py"
             "$<TARGET_FILE_DIR:python_plugin_loader>/python/slic3r_api.py"
@@ -100,29 +95,72 @@ if (Python3_FOUND)
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${SLIC3R_PYTHON_API_GENERATED}"
             "$<TARGET_FILE_DIR:python_plugin_loader>/python/slic3r_api_generated.py"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/examples/example_python_plugin.py"
-            "$<TARGET_FILE_DIR:python_plugin_loader>/python/plugins/example_python_plugin.py"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/polyholes/polyholes_low_level.py"
-            "$<TARGET_FILE_DIR:python_plugin_loader>/python/plugins/polyholes_low_level.py"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/polyholes/polyholes_high_level.py"
-            "$<TARGET_FILE_DIR:python_plugin_loader>/python/plugins/polyholes_high_level.py"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/perimeter/simple_perimeter_generator.py"
-            "$<TARGET_FILE_DIR:python_plugin_loader>/python/plugins/simple_perimeter_generator.py"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/perimeter/hairy_object.py"
-            "$<TARGET_FILE_DIR:python_plugin_loader>/python/plugins/hairy_object.py"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/surface/initial_typed_surface_builder.py"
-            "$<TARGET_FILE_DIR:python_plugin_loader>/python/plugins/initial_typed_surface_builder.py"
-        COMMENT "Copying Python plugin helper and examples"
+        COMMENT "Copying the Python plugin API runtime"
         VERBATIM
     )
 
-    slic3r_package_plugin(python_plugin_loader python python)
+    # The bridge is runtime infrastructure shared by every pure Python package.
+    # It is installed automatically but hidden from the package manager.
+    slic3r_package_plugin(
+        python_plugin_loader
+        python
+        INTERNAL
+        NAME "Python plugin support"
+        DESCRIPTION "Runtime support for plugins implemented in Python."
+        FILES python
+    )
+
+    # Each script is its own package. Its package id matches the plugin id
+    # registered at runtime, which keeps installation and activation names easy
+    # to correlate in both plugin dialogs.
+    slic3r_package_python_plugin(
+        python_example_noop_package
+        python.example.noop
+        examples/example_python_plugin.py
+        VERSION 1.0.0
+        NAME "Python no-op example"
+        DESCRIPTION "Minimal Python plugin example that does not change print data."
+    )
+    slic3r_package_python_plugin(
+        python_polyholes_package
+        python.polyholes
+        polyholes/polyholes_low_level.py
+        VERSION 1.0.0
+        NAME "Python polyholes"
+        DESCRIPTION "Low-level Python version of the polyholes post-slicing plugin."
+    )
+    slic3r_package_python_plugin(
+        python_polyholes_high_level_package
+        python.polyholes.high_level
+        polyholes/polyholes_high_level.py
+        VERSION 1.0.0
+        NAME "Python polyholes high-level"
+        DESCRIPTION "High-level Python version of the polyholes post-slicing plugin."
+    )
+    slic3r_package_python_plugin(
+        python_simple_perimeter_generator_package
+        python.perimeter.generator.simple
+        perimeter/simple_perimeter_generator.py
+        VERSION 1.0.0
+        NAME "Python simple perimeter generator"
+        DESCRIPTION "Python implementation of the simple perimeter generator."
+    )
+    slic3r_package_python_plugin(
+        python_hairy_object_package
+        python.perimeter.post_process.hairy_object
+        perimeter/hairy_object.py
+        VERSION 1.0.0
+        NAME "HairyObject"
+        DESCRIPTION "Adds painted decorative hair strokes after normal perimeter extrusion."
+    )
+    slic3r_package_python_plugin(
+        python_initial_typed_surface_builder_package
+        python.surface.initial_typed_surface_builder
+        surface/initial_typed_surface_builder.py
+        VERSION 1.0.0
+        NAME "Python initial typed surface builder"
+        DESCRIPTION "Python example that creates initial bottom, internal, and top infill surfaces."
+    )
 else()
     message(STATUS "Python3 development files were not found; python_plugin_loader will not be built.")
 endif()

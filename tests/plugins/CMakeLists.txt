@@ -88,27 +88,77 @@ if (TARGET flat_area_layer_height_plugin)
 endif()
 
 if (TARGET python_plugin_loader)
-    add_dependencies(${_TEST_NAME}_tests python_plugin_loader)
+    set(_python_plugin_package_targets
+        python_example_noop_package
+        python_hairy_object_package
+        python_initial_typed_surface_builder_package
+        python_polyholes_high_level_package
+        python_polyholes_package
+        python_simple_perimeter_generator_package
+    )
     target_compile_definitions(${_TEST_NAME}_tests PRIVATE SLIC3R_TEST_PYTHON_PLUGINS)
-    add_custom_command(TARGET ${_TEST_NAME}_tests POST_BUILD
+
+    # The production loader discovers pure Python packages as siblings of its
+    # own package. Recreate that installed layout around the test executable so
+    # tests exercise the same path instead of relying on scripts embedded in
+    # the bridge package.
+    set(_python_test_runtime_directory "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>")
+    set(_python_plugin_package_ids
+        python.example.noop
+        python.perimeter.post_process.hairy_object
+        python.surface.initial_typed_surface_builder
+        python.polyholes.high_level
+        python.polyholes
+        python.perimeter.generator.simple
+    )
+    set(_python_plugin_copy_commands)
+    list(LENGTH _python_plugin_package_targets _python_plugin_package_count)
+    math(EXPR _python_plugin_package_last "${_python_plugin_package_count} - 1")
+    foreach(_python_plugin_package_idx RANGE ${_python_plugin_package_last})
+        list(GET _python_plugin_package_targets ${_python_plugin_package_idx} _python_plugin_package_target)
+        list(GET _python_plugin_package_ids ${_python_plugin_package_idx} _python_plugin_package_id)
+        get_target_property(_python_plugin_package_directory
+            ${_python_plugin_package_target} SLIC3R_PLUGIN_PACKAGE_DIRECTORY)
+        list(APPEND _python_plugin_copy_commands
+            COMMAND "${CMAKE_COMMAND}" -E remove_directory
+                "${_python_test_runtime_directory}/plugins/${_python_plugin_package_id}"
+            COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                "${_python_plugin_package_directory}"
+                "${_python_test_runtime_directory}/plugins/${_python_plugin_package_id}"
+        )
+    endforeach()
+
+    add_custom_target(${_TEST_NAME}_python_runtime
+        COMMAND "${CMAKE_COMMAND}" -E remove_directory
+            "${_python_test_runtime_directory}/plugins/python"
         COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python"
+            "${_python_test_runtime_directory}/plugins/python"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "$<TARGET_FILE:python_plugin_loader>"
-            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python/$<TARGET_FILE_NAME:python_plugin_loader>"
+            "${_python_test_runtime_directory}/plugins/python/$<TARGET_FILE_NAME:python_plugin_loader>"
+        COMMAND "${CMAKE_COMMAND}" -E remove_directory
+            "${_python_test_runtime_directory}/plugins/python/python"
         COMMAND "${CMAKE_COMMAND}" -E copy_directory
             "$<TARGET_FILE_DIR:python_plugin_loader>/python"
-            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python/python"
+            "${_python_test_runtime_directory}/plugins/python/python"
+        COMMAND "${CMAKE_COMMAND}" -E remove_directory
+            "${_python_test_runtime_directory}/plugins/python.external.package_root"
         COMMAND "${CMAKE_COMMAND}" -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/pure_python_package"
-            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python.external.package_root"
-        COMMAND "${CMAKE_COMMAND}" -E rm -f
-            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python/python/plugins/default_surface_generator.py"
-        COMMAND "${CMAKE_COMMAND}" -E rm -f
-            "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/plugins/python/python/plugins/simple_perimeter_generator2.py"
+            "${_python_test_runtime_directory}/plugins/python.external.package_root"
+        ${_python_plugin_copy_commands}
+        COMMENT "Copy Python plugin runtime to plugin tests"
+        VERBATIM
+    )
+    add_dependencies(${_TEST_NAME}_python_runtime python_plugin_loader ${_python_plugin_package_targets})
+    add_dependencies(${_TEST_NAME}_tests ${_TEST_NAME}_python_runtime)
+
+    # The test executable exports the host ABI itself. Remove the application
+    # DLL after the normal runtime-copy commands so the Python bridge resolves
+    # registration functions from the test process.
+    add_custom_command(TARGET ${_TEST_NAME}_tests POST_BUILD
         COMMAND "${CMAKE_COMMAND}" -E rm -f
             "$<TARGET_FILE_DIR:${_TEST_NAME}_tests>/Slic3r.dll"
-        COMMENT "Copy Python plugin runtime to plugin tests"
         VERBATIM
     )
 endif()

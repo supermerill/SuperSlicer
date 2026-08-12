@@ -55,7 +55,7 @@ function(_slic3r_plugin_quoted_string output_variable input_value)
 endfunction()
 
 function(slic3r_package_plugin target package_name)
-    cmake_parse_arguments(PACKAGE "" "VERSION;UPDATE_REST;NAME;FULL_NAME;DESCRIPTION" "FILES" ${ARGN})
+    cmake_parse_arguments(PACKAGE "INTERNAL" "VERSION;UPDATE_REST;NAME;FULL_NAME;DESCRIPTION" "FILES" ${ARGN})
     get_target_property(_plugin_source_directory ${target} SOURCE_DIR)
     get_target_property(_plugin_binary_directory ${target} BINARY_DIR)
     set(_description "${_plugin_binary_directory}/${package_name}-$<CONFIG>-description.ini")
@@ -77,6 +77,11 @@ function(slic3r_package_plugin target package_name)
     if (NOT _package_file_description)
         set(_package_file_description "${_package_full_name}")
     endif()
+    if (PACKAGE_INTERNAL)
+        set(_package_internal 1)
+    else()
+        set(_package_internal 0)
+    endif()
     set(_archive "${SLIC3R_BUILD_RESOURCES_DIR}/plugins/${package_name}_${_package_version}_${_slicer_version}.zip")
     set(_package_contents "$<TARGET_FILE_NAME:${target}>" "description.ini" "version.ini" ${PACKAGE_FILES} ${PACKAGE_UNPARSED_ARGUMENTS})
     # Keep the generated default profile aligned with the packages built by
@@ -92,7 +97,7 @@ function(slic3r_package_plugin target package_name)
     endif()
 
     file(GENERATE OUTPUT "${_description}" CONTENT
-        "[plugin]\nid = ${package_name}\nname = ${_package_display_name}\nfull_name = ${_package_full_name}\ndescription = ${PACKAGE_DESCRIPTION}\nconfig_update_rest = ${PACKAGE_UPDATE_REST}\nslicer = SuperSlicer\n")
+        "[plugin]\nid = ${package_name}\nname = ${_package_display_name}\nfull_name = ${_package_full_name}\ndescription = ${PACKAGE_DESCRIPTION}\nconfig_update_rest = ${PACKAGE_UPDATE_REST}\nslicer = SuperSlicer\ninternal = ${_package_internal}\n")
     file(GENERATE OUTPUT "${_version_file}" CONTENT
         "[plugin]\npackage_version = ${_package_version}\nslicer_version = ${_slicer_version}\n")
 
@@ -157,4 +162,73 @@ function(slic3r_package_plugin target package_name)
         COMMENT "Packaging plugin ${package_name}"
         VERBATIM
     )
+endfunction()
+
+# Package one Python entry point exactly like a native plugin package, except
+# that plugin.py is the executable payload instead of a shared library. The
+# Python bridge discovers the installed package beside native packages, so the
+# package remains independently installable, removable and visible to the
+# updater without embedding it inside the bridge DLL.
+function(slic3r_package_python_plugin target package_name entry_file)
+    cmake_parse_arguments(PACKAGE "INTERNAL" "VERSION;UPDATE_REST;NAME;FULL_NAME;DESCRIPTION" "" ${ARGN})
+    get_filename_component(_entry_file "${entry_file}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+    if (NOT EXISTS "${_entry_file}")
+        message(FATAL_ERROR "Python plugin '${package_name}' entry '${_entry_file}' does not exist")
+    endif()
+
+    set(_slicer_version "${SLIC3R_VERSION_FULL}")
+    set(_package_version "${SLIC3R_RC_VERSION_DOTS}")
+    if (PACKAGE_VERSION)
+        set(_package_version "${PACKAGE_VERSION}")
+    endif()
+    set(_package_display_name "${package_name}")
+    if (PACKAGE_NAME)
+        set(_package_display_name "${PACKAGE_NAME}")
+    endif()
+    set(_package_full_name "${_package_display_name}")
+    if (PACKAGE_FULL_NAME)
+        set(_package_full_name "${PACKAGE_FULL_NAME}")
+    endif()
+    if (PACKAGE_INTERNAL)
+        set(_package_internal 1)
+    else()
+        set(_package_internal 0)
+    endif()
+
+    set(_description "${CMAKE_CURRENT_BINARY_DIR}/${package_name}-$<CONFIG>-description.ini")
+    set(_version_file "${CMAKE_CURRENT_BINARY_DIR}/${package_name}-$<CONFIG>-version.ini")
+    set(_package_directory "${CMAKE_CURRENT_BINARY_DIR}/${package_name}-$<CONFIG>-package")
+    set(_archive "${SLIC3R_BUILD_RESOURCES_DIR}/plugins/${package_name}_${_package_version}_${_slicer_version}.zip")
+    file(GENERATE OUTPUT "${_description}" CONTENT
+        "[plugin]\nid = ${package_name}\nname = ${_package_display_name}\nfull_name = ${_package_full_name}\ndescription = ${PACKAGE_DESCRIPTION}\nconfig_update_rest = ${PACKAGE_UPDATE_REST}\nslicer = SuperSlicer\ninternal = ${_package_internal}\n")
+    file(GENERATE OUTPUT "${_version_file}" CONTENT
+        "[plugin]\npackage_version = ${_package_version}\nslicer_version = ${_slicer_version}\n")
+
+    # Recreate the staging directory on every package build. This prevents a
+    # renamed or removed source file from surviving in a later archive.
+    add_custom_target(${target} ALL
+        COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_package_directory}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${_package_directory}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${SLIC3R_BUILD_RESOURCES_DIR}/plugins"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_entry_file}" "${_package_directory}/plugin.py"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_description}" "${_package_directory}/description.ini"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_version_file}" "${_package_directory}/version.ini"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${SLIC3R_GENERATED_DEFAULT_ACTIVATED_FILE}"
+            "${SLIC3R_BUILD_RESOURCES_DIR}/plugins/default_activated.ini"
+        COMMAND "${CMAKE_COMMAND}" -E chdir "${_package_directory}"
+            "${CMAKE_COMMAND}" -E tar cf "${_archive}" --format=zip --
+                plugin.py description.ini version.ini
+        COMMENT "Packaging Python plugin ${package_name}"
+        VERBATIM
+    )
+    add_dependencies(${target} Slic3r)
+    set_target_properties(${target} PROPERTIES
+        FOLDER "plugins"
+        SLIC3R_PLUGIN_PACKAGE_VERSION "${_package_version}"
+        SLIC3R_PLUGIN_SLICER_VERSION "${_slicer_version}"
+        SLIC3R_PLUGIN_PACKAGE_DIRECTORY "${_package_directory}"
+    )
+    set_property(GLOBAL APPEND PROPERTY SLIC3R_DEFAULT_PLUGIN_PACKAGES
+        "${package_name}|${_package_version}|${_slicer_version}")
 endfunction()

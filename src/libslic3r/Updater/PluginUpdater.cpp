@@ -14,6 +14,7 @@
 #include <cstring>
 #include <ctime>
 #include <iterator>
+#include <set>
 #include <sstream>
 #include <utility>
 
@@ -123,7 +124,12 @@ void PluginUpdater::reload_all_plugins()
         BOOST_LOG_TRIVIAL(warning) << error_message;
 
     RepositoryPackageCache cache(configuration_directory, plugin_repository_cache_adapter());
+    std::set<std::string> internal_package_ids;
     for (const RepositoryCachedEntry &repository : cache.scan()) {
+        if (repository.description.is_internal) {
+            internal_package_ids.insert(repository.description.id);
+            continue;
+        }
         PluginSync &plugin = m_plugins[repository.description.id];
         plugin.description = repository.description;
         plugin.has_cache = !repository.versions.empty();
@@ -146,11 +152,19 @@ void PluginUpdater::reload_all_plugins()
         return;
     }
     for (const auto &[id, version] : config.installed) {
-        PluginSync &plugin = m_plugins[id];
+        if (internal_package_ids.find(id) != internal_package_ids.end())
+            continue;
+
         const boost::filesystem::path package_root = boost::filesystem::path(data_dir()) / "plugins" / id;
         RepositoryDescription description;
-        if (plugin.description.id.empty() &&
-            read_plugin_description(package_root / DESCRIPTION_FILENAME, description, error_message))
+        const std::map<std::string, PluginSync>::iterator existing = m_plugins.find(id);
+        if (existing == m_plugins.end() &&
+            read_plugin_description(package_root / DESCRIPTION_FILENAME, description, error_message) &&
+            description.is_internal)
+            continue;
+
+        PluginSync &plugin = m_plugins[id];
+        if (plugin.description.id.empty() && !description.id.empty())
             plugin.description = std::move(description);
         if (plugin.description.id.empty()) {
             plugin.description.type = RepositoryPackageType::Plugin;

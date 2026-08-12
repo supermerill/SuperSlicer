@@ -38,6 +38,10 @@ struct RepositoryDescription {
     std::string description;
     std::string config_update_rest;
     std::string slicer;
+    // Internal packages provide runtime support to other packages. They are
+    // installed through the normal package lifecycle but are not offered as
+    // independently manageable plugins in the updater dialog.
+    bool is_internal = false;
 };
 
 struct RepositoryPackageVersion {

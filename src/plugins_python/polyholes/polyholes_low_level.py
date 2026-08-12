@@ -174,6 +174,7 @@ class PythonPolyholesPlugin(PluginBase):
             full_label="Convert round holes to polyholes",
             category=RAW_OPTION_CATEGORY_SLICING,
             invalidates_step=STEP_SLICING,
+            translation_domain="Slic3r",
             tooltip=(
                 "Search for almost-circular holes that span more than one layer and convert the geometry to polyholes."
                 " Use the nozzle size and the (biggest) diameter to compute the polyhole."
@@ -192,6 +193,7 @@ class PythonPolyholesPlugin(PluginBase):
             full_label="Polyhole detection margin",
             category=RAW_OPTION_CATEGORY_SLICING,
             invalidates_step=STEP_SLICING,
+            translation_domain="Slic3r",
             tooltip=(
                 "Maximum deflection of a point to the estimated radius of the circle."
                 "\nAs cylinders are often exported as triangles of varying size, points may not be on the circle circumference."
@@ -215,6 +217,7 @@ class PythonPolyholesPlugin(PluginBase):
             full_label="Polyhole twist",
             category=RAW_OPTION_CATEGORY_SLICING,
             invalidates_step=STEP_SLICING,
+            translation_domain="Slic3r",
             tooltip="Rotate the polyhole every layer.",
             mode=RAW_CONFIG_OPTION_MODE_EXPERT | RAW_CONFIG_OPTION_MODE_SUSI,
             default_serialized_value="1",
@@ -229,6 +232,7 @@ class PythonPolyholesPlugin(PluginBase):
             full_label="Polyhole start angle",
             category=RAW_OPTION_CATEGORY_SLICING,
             invalidates_step=STEP_SLICING,
+            translation_domain="Slic3r",
             tooltip="Initial rotation angle applied to Python-generated polyholes.",
             sidetext="deg",
             mode=RAW_CONFIG_OPTION_MODE_EXPERT | RAW_CONFIG_OPTION_MODE_SUSI,
