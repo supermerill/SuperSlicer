@@ -127,9 +127,16 @@ bool ensure_plugin_activation_config(const boost::filesystem::path &data_directo
                                      bool &from_user_config,
                                      std::string &error_message);
 
-// Prepare the current cache layout and extract shipped ZIP bundles. After a
-// layout purge, live packages are recached and requests whose only copy was in
-// the obsolete cache are removed before the loader applies package changes.
+// Prepare the current cache layout without importing shipped bundles. Runtime
+// repository operations use this entry point so clearing a bundled plugin
+// remains effective until the application starts again.
+bool prepare_plugin_cache(const boost::filesystem::path &data_directory,
+                          std::string &error_message);
+
+// Prepare the current cache layout and extract shipped ZIP bundles. The plugin
+// loader calls this once during application startup. After a layout purge,
+// live packages are recached and requests whose only copy was in the obsolete
+// cache are removed before the loader applies package changes.
 bool prepare_plugin_bundle_cache(const boost::filesystem::path &resources_directory,
                                  const boost::filesystem::path &data_directory,
                                  std::string &error_message);

@@ -34,6 +34,8 @@ struct PluginSync {
     RepositoryDescription description;
     PluginInstalledVersion installed_version;
     bool is_installed = false;
+    // True when the repository cache contains this plugin description. The
+    // entry may exist before any package version has been downloaded.
     bool has_cache = false;
     // sync_error is populated only for Failed. Starting a new attempt clears
     // it before exposing InProgress to callers and dialog copies.

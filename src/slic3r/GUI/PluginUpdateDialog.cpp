@@ -31,6 +31,7 @@
 
 #include "I18N.hpp"
 #include "GUI.hpp"
+#include "GUI_App.hpp"
 #include "UpdaterErrorMessages.hpp"
 
 namespace Slic3r::GUI {
@@ -47,10 +48,13 @@ PluginUpdateDialog::PluginUpdateDialog(wxWindow *parent, PluginUpdater &updater)
 void PluginUpdateDialog::rebuild()
 {
     Freeze();
-    if (m_main_sizer != nullptr)
+    const bool first_build = m_main_sizer == nullptr;
+    if (m_main_sizer != nullptr) {
         m_main_sizer->Clear(true);
-    else
+    } else {
         m_main_sizer = new wxBoxSizer(wxVERTICAL);
+        SetSizer(m_main_sizer);
+    }
 
     wxBoxSizer *repository_sizer = new wxBoxSizer(wxHORIZONTAL);
     m_repository_url = new wxTextCtrl(this, wxID_ANY);
@@ -71,40 +75,15 @@ void PluginUpdateDialog::rebuild()
     grid->Add(new wxStaticText(this, wxID_ANY, _L("Plugin")));
     grid->Add(new wxStaticText(this, wxID_ANY, _L("Description")));
     grid->Add(new wxStaticText(this, wxID_ANY, _L("Selected version")));
-    grid->AddSpacer(0);
-    grid->AddSpacer(0);
+    grid->Add(new wxStaticText(this, wxID_ANY, _L("Upgrade")));
+    grid->Add(new wxStaticText(this, wxID_ANY, _L("Uninstall")));
 
     const std::vector<std::string> plugin_ids = m_updater.plugin_ids();
     for (const std::string &id : plugin_ids) {
         PluginSync *plugin = m_updater.get_plugin(id);
         if (plugin == nullptr)
             continue;
-        const wxString display_name = from_u8(plugin->description.full_name.empty() ? id : plugin->description.full_name);
-        const wxString description = from_u8(plugin->description.description);
-        wxString version_label;
-        if (plugin->is_installed)
-            version_label = from_u8(plugin->installed_version.package_version);
-        else if (plugin->available_packages.size() > 1)
-            version_label = _L("Choose version");
-        else
-            version_label = _L("Not installed");
-        wxButton *version_button = new wxButton(this, wxID_ANY, version_label);
-        version_button->Enable(!plugin->available_packages.empty() &&
-                               (plugin->is_installed || plugin->available_packages.size() > 1));
-        version_button->SetToolTip(_L("Choose a plugin package version and review its changelog."));
-        version_button->Bind(wxEVT_BUTTON, [this, id](wxCommandEvent &) { choose_version(id); });
-        wxButton *install_button = new wxButton(this, wxID_ANY,
-            plugin->is_installed ? _L("Schedule update") : _L("Install"));
-        install_button->Enable(plugin->best != nullptr && (!plugin->is_installed || plugin->can_upgrade));
-        wxButton *clear_button = new wxButton(this, wxID_ANY, _L("Clear cache"));
-        install_button->Bind(wxEVT_BUTTON, [this, id](wxCommandEvent &) { install_latest(id); });
-        clear_button->Bind(wxEVT_BUTTON, [this, id](wxCommandEvent &) { clear_cache(id); });
-
-        grid->Add(new wxStaticText(this, wxID_ANY, display_name), 0, wxALIGN_CENTER_VERTICAL);
-        grid->Add(new wxStaticText(this, wxID_ANY, description), 0, wxALIGN_CENTER_VERTICAL | wxEXPAND);
-        grid->Add(version_button, 0, wxALIGN_CENTER_VERTICAL | wxEXPAND);
-        grid->Add(install_button, 0, wxALIGN_CENTER_VERTICAL);
-        grid->Add(clear_button, 0, wxALIGN_CENTER_VERTICAL);
+        add_plugin_row(id, *plugin, *grid);
     }
     if (plugin_ids.empty()) {
         grid->Add(new wxStaticText(this, wxID_ANY, _L("No plugin repository is configured.")));
@@ -115,8 +94,140 @@ void PluginUpdateDialog::rebuild()
 
     wxStdDialogButtonSizer *buttons = CreateStdDialogButtonSizer(wxCLOSE);
     m_main_sizer->Add(buttons, 0, wxEXPAND | wxALL, 10);
-    SetSizerAndFit(m_main_sizer);
+    wxGetApp().UpdateDlgDarkUI(this);
+    if (first_build)
+        m_main_sizer->Fit(this);
+    Layout();
     Thaw();
+    Refresh();
+}
+
+void PluginUpdateDialog::add_plugin_row(const std::string &plugin_id,
+                                        PluginSync &plugin,
+                                        wxFlexGridSizer &grid)
+{
+    const bool has_compatible_version = plugin.best != nullptr;
+    const wxString display_name = from_u8(
+        plugin.description.full_name.empty() ? plugin_id : plugin.description.full_name);
+
+    grid.Add(new wxStaticText(this, wxID_ANY, display_name), 0, wxALIGN_CENTER_VERTICAL);
+    grid.Add(new wxStaticText(this, wxID_ANY, from_u8(plugin.description.description)),
+             0, wxALIGN_CENTER_VERTICAL | wxEXPAND);
+
+    // Keep the panel enabled when no package is available. On Windows a
+    // disabled native button does not receive mouse events, while its parent
+    // panel can still display the reason through a tooltip.
+    wxString version_label;
+    if (plugin.is_installed)
+        version_label = from_u8(plugin.installed_version.package_version);
+    else if (!plugin.available_packages.empty())
+        version_label = _L("Choose version");
+    else
+        version_label = _L("Not installed");
+    wxPanel *version_panel = new wxPanel(this, wxID_ANY);
+    wxBoxSizer *version_sizer = new wxBoxSizer(wxHORIZONTAL);
+    wxButton *version_button = new wxButton(version_panel, wxID_ANY, version_label);
+    version_sizer->Add(version_button, 1, wxEXPAND);
+    version_panel->SetSizer(version_sizer);
+    if (plugin.available_packages.empty()) {
+        version_button->Enable(false);
+        version_panel->SetToolTip(
+            _L("No plugin package version is available in the local cache or repository."));
+    } else {
+        version_button->SetToolTip(_L("Choose a plugin package version and review its changelog."));
+        version_button->Bind(wxEVT_BUTTON, [this, plugin_id](wxCommandEvent &) { choose_version(plugin_id); });
+    }
+    grid.Add(version_panel, 0, wxALIGN_CENTER_VERTICAL | wxEXPAND);
+
+    // The upgrade cell reports repository state when there is no immediate
+    // install action. This avoids presenting a permanently disabled command as
+    // if an update were available.
+    wxWindow *upgrade_control = nullptr;
+    if (!plugin.is_installed && has_compatible_version && !plugin.best->local_directory.empty()) {
+        wxButton *install = new wxButton(
+            this, wxID_ANY, format(_L("Install %1% (local)"), plugin.best->package_version));
+        install->SetToolTip(
+            _L("Install the compatible plugin package already available in the local cache after restarting the application."));
+        install->Bind(wxEVT_BUTTON, [this, plugin_id](wxCommandEvent &) { install_latest(plugin_id); });
+        upgrade_control = install;
+    } else if (plugin.description.config_update_rest.empty()) {
+        if (plugin.can_upgrade && has_compatible_version) {
+            wxButton *upgrade = new wxButton(
+                this, wxID_ANY, format(_L("Upgrade to %1%"), plugin.best->package_version));
+            upgrade->SetToolTip(
+                _L("Download this plugin version and install it after restarting the application."));
+            upgrade->Bind(wxEVT_BUTTON, [this, plugin_id](wxCommandEvent &) { install_latest(plugin_id); });
+            upgrade_control = upgrade;
+        } else if (!plugin.available_packages.empty() && !has_compatible_version) {
+            upgrade_control = new wxStaticText(this, wxID_ANY, _L("No compatible plugin"));
+            upgrade_control->SetToolTip(
+                _L("The local cache contains plugin packages, but none target this slicer version."));
+        } else {
+            upgrade_control = new wxStaticText(this, wxID_ANY, _L("Local plugin"));
+            upgrade_control->SetToolTip(
+                _L("This plugin has no repository and therefore cannot be checked for online updates."));
+        }
+    } else if (plugin.sync_state == RepositorySyncState::Succeeded) {
+        if (plugin.available_packages.empty()) {
+            upgrade_control = new wxStaticText(this, wxID_ANY, _L("No package available"));
+            upgrade_control->SetToolTip(
+                _L("This plugin repository does not provide any package version."));
+        } else if (!has_compatible_version) {
+            upgrade_control = new wxStaticText(this, wxID_ANY, _L("No compatible plugin"));
+            upgrade_control->SetToolTip(
+                _L("The repository contains plugin packages, but none target this slicer version."));
+        } else if (!plugin.is_installed || plugin.can_upgrade) {
+            wxButton *upgrade = new wxButton(
+                this, wxID_ANY,
+                plugin.is_installed ? format(_L("Upgrade to %1%"), plugin.best->package_version) :
+                                      format(_L("Install %1%"), plugin.best->package_version));
+            upgrade->SetToolTip(
+                _L("Download this plugin version and install it after restarting the application."));
+            upgrade->Bind(wxEVT_BUTTON, [this, plugin_id](wxCommandEvent &) { install_latest(plugin_id); });
+            upgrade_control = upgrade;
+        } else {
+            upgrade_control = new wxStaticText(this, wxID_ANY, _L("Up to date"));
+        }
+    } else if (plugin.sync_state == RepositorySyncState::InProgress) {
+        upgrade_control = new wxStaticText(this, wxID_ANY, _L("Synch with github ..."));
+    } else if (plugin.sync_state == RepositorySyncState::Failed) {
+        wxString label = from_u8(updater_error_short_label(plugin.sync_error));
+        if (label.empty())
+            label = _L("Synchronization failed");
+        upgrade_control = new wxStaticText(this, wxID_ANY, label);
+        wxString tooltip = from_u8(format_updater_error(plugin.sync_error));
+        if (!plugin.available_packages.empty() && !has_compatible_version) {
+            tooltip += "\n\n";
+            tooltip += _L("The local cache also contains no plugin package compatible with this slicer version.");
+        }
+        upgrade_control->SetToolTip(tooltip);
+    } else {
+        upgrade_control = new wxStaticText(this, wxID_ANY, _L("Unchecked"));
+        upgrade_control->SetToolTip(
+            _L("This plugin may have a new package available online. Click 'Check for updates' to check."));
+    }
+    grid.Add(upgrade_control, 0, wxALIGN_CENTER_VERTICAL | wxEXPAND);
+
+    wxString remove_label;
+    if (plugin.is_installed)
+        remove_label = _L("Uninstall");
+    else if (plugin.has_cache)
+        remove_label = _L("Clear cache");
+    else
+        remove_label = _L("Not installed");
+    wxButton *remove_button = new wxButton(this, wxID_ANY, remove_label);
+    if (plugin.is_installed) {
+        remove_button->SetToolTip(
+            _L("Schedule this plugin for removal when the application next starts."));
+        remove_button->Bind(wxEVT_BUTTON, [this, plugin_id](wxCommandEvent &) { uninstall(plugin_id); });
+    } else if (plugin.has_cache) {
+        remove_button->SetToolTip(
+            _L("Remove every cached package and repository file for this plugin."));
+        remove_button->Bind(wxEVT_BUTTON, [this, plugin_id](wxCommandEvent &) { clear_cache(plugin_id); });
+    } else {
+        remove_button->Enable(false);
+    }
+    grid.Add(remove_button, 0, wxALIGN_CENTER_VERTICAL | wxEXPAND);
 }
 
 void PluginUpdateDialog::add_repository()
@@ -154,6 +265,7 @@ void PluginUpdateDialog::load_package_directory()
 void PluginUpdateDialog::check_updates()
 {
     m_updater.sync_async([this](int) { CallAfter([this] { rebuild(); }); }, true);
+    rebuild();
 }
 
 void PluginUpdateDialog::choose_version(const std::string &plugin_id)
@@ -187,8 +299,43 @@ void PluginUpdateDialog::install_latest(const std::string &plugin_id)
     });
 }
 
+void PluginUpdateDialog::uninstall(const std::string &plugin_id)
+{
+    PluginSync *plugin = m_updater.get_plugin(plugin_id);
+    if (plugin == nullptr || !plugin->is_installed)
+        return;
+    const wxString display_name = from_u8(
+        plugin->description.full_name.empty() ? plugin_id : plugin->description.full_name);
+    if (wxMessageBox(
+            format(_L("Are you sure you want to uninstall this plugin:\n%1%?"), display_name),
+            _L("Uninstall plugin"), wxYES_NO | wxNO_DEFAULT | wxICON_WARNING, this) != wxYES)
+        return;
+
+    m_updater.uninstall_plugin(plugin_id, [this](UpdaterError error) {
+        CallAfter([this, error = std::move(error)] {
+            if (!error.succeeded()) {
+                wxMessageBox(from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR, this);
+            } else {
+                wxMessageBox(_L("The plugin will be uninstalled after restarting the application."),
+                             _L("Plugin updates"), wxICON_INFORMATION, this);
+            }
+            rebuild();
+        });
+    });
+}
+
 void PluginUpdateDialog::clear_cache(const std::string &plugin_id)
 {
+    PluginSync *plugin = m_updater.get_plugin(plugin_id);
+    if (plugin == nullptr || plugin->is_installed || !plugin->has_cache)
+        return;
+    const wxString display_name = from_u8(
+        plugin->description.full_name.empty() ? plugin_id : plugin->description.full_name);
+    if (wxMessageBox(
+            format(_L("Are you sure you want to remove all cached files for this plugin:\n%1%?"), display_name),
+            _L("Clear plugin cache"), wxYES_NO | wxNO_DEFAULT | wxICON_WARNING, this) != wxYES)
+        return;
+
     m_updater.clear_cache_plugin(plugin_id, [this](UpdaterError error) {
         CallAfter([this, error = std::move(error)] {
             if (!error.succeeded())

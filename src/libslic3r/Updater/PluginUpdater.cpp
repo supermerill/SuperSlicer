@@ -21,6 +21,8 @@
 #include <boost/filesystem.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/nowide/fstream.hpp>
+#include <boost/property_tree/ini_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
 
 #include "libslic3r/Semver.hpp"
 #include "libslic3r/Updater/RepositoryPackageCache.hpp"
@@ -36,6 +38,9 @@ const char *const DESCRIPTION_FILENAME = "description.ini";
 bool read_plugin_description(const boost::filesystem::path &path,
                              RepositoryDescription &description,
                              std::string &error_message);
+bool read_live_plugin_version(const boost::filesystem::path &package_root,
+                              std::optional<PluginInstalledVersion> &version,
+                              std::string &error_message);
 
 bool read_plugin_description(const boost::filesystem::path &path,
                              RepositoryDescription &description,
@@ -48,6 +53,37 @@ bool read_plugin_description(const boost::filesystem::path &path,
     }
     const std::string contents((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
     return parse_repository_description(contents, RepositoryPackageType::Plugin, description, error_message);
+}
+
+bool read_live_plugin_version(const boost::filesystem::path &package_root,
+                              std::optional<PluginInstalledVersion> &version,
+                              std::string &error_message)
+{
+    version.reset();
+    if (!boost::filesystem::exists(package_root))
+        return true;
+    if (!boost::filesystem::is_directory(package_root)) {
+        error_message = "The live plugin package path is not a directory.";
+        return false;
+    }
+
+    try {
+        boost::property_tree::ptree tree;
+        boost::property_tree::read_ini((package_root / "version.ini").string(), tree);
+        const boost::property_tree::ptree &plugin = tree.get_child("plugin");
+        PluginInstalledVersion parsed;
+        parsed.package_version = plugin.get<std::string>("package_version", std::string());
+        parsed.slicer_version = plugin.get<std::string>("slicer_version", std::string());
+        if (!Semver::parse(parsed.package_version) || !Semver::parse(parsed.slicer_version)) {
+            error_message = "The live plugin version.ini contains an invalid package or slicer version.";
+            return false;
+        }
+        version = std::move(parsed);
+        return true;
+    } catch (const std::exception &error) {
+        error_message = "Cannot read the live plugin version.ini: " + std::string(error.what());
+        return false;
+    }
 }
 
 } // namespace
@@ -119,8 +155,7 @@ void PluginUpdater::reload_all_plugins()
 
     const boost::filesystem::path configuration_directory(data_dir());
     std::string error_message;
-    if (!prepare_plugin_bundle_cache(boost::filesystem::path(resources_dir()),
-                                     configuration_directory, error_message))
+    if (!prepare_plugin_cache(configuration_directory, error_message))
         BOOST_LOG_TRIVIAL(warning) << error_message;
 
     RepositoryPackageCache cache(configuration_directory, plugin_repository_cache_adapter());
@@ -132,7 +167,7 @@ void PluginUpdater::reload_all_plugins()
         }
         PluginSync &plugin = m_plugins[repository.description.id];
         plugin.description = repository.description;
-        plugin.has_cache = !repository.versions.empty();
+        plugin.has_cache = true;
         for (const RepositoryCachedVersion &cached : repository.versions) {
             PluginAvailable available;
             available.package_version = cached.version.package_version;
@@ -256,8 +291,7 @@ void PluginUpdater::download_new_repo(const std::string &rest_url, std::function
             }
             RepositoryPackageCache cache(boost::filesystem::path(data_dir()),
                                          plugin_repository_cache_adapter());
-            if (!prepare_plugin_bundle_cache(boost::filesystem::path(resources_dir()),
-                                             boost::filesystem::path(data_dir()), error_message) ||
+            if (!prepare_plugin_cache(boost::filesystem::path(data_dir()), error_message) ||
                 !cache.save_repository_description(description, error_message))
                 return make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message));
             return UpdaterError();
@@ -274,8 +308,7 @@ UpdaterError PluginUpdater::cache_plugin_directory(const boost::filesystem::path
     RepositoryPackageCache cache(boost::filesystem::path(data_dir()), plugin_repository_cache_adapter());
     std::string error_message;
     RepositoryCachedVersion cached;
-    if (!prepare_plugin_bundle_cache(boost::filesystem::path(resources_dir()),
-                                     boost::filesystem::path(data_dir()), error_message))
+    if (!prepare_plugin_cache(boost::filesystem::path(data_dir()), error_message))
         return make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message));
     if (!cache.cache_simple(package_directory, cached, error_message))
         return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
@@ -328,13 +361,13 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
 UpdaterError PluginUpdater::schedule_cached_plugin_install(const std::string &plugin_id,
                                                             const PluginAvailable &version)
 {
+    std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
     std::string error_message;
     if (!request_plugin_install(plugin_id, version.package_version, version.slicer_version, error_message))
         return make_updater_error(UpdaterError::Code::Cache, std::move(error_message));
 
     // The activation config names the package loaded on the next startup. The
     // current model mirrors that selection so the dialog updates immediately.
-    std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
     PluginSync *scheduled = get_plugin(plugin_id);
     if (scheduled != nullptr) {
         scheduled->is_installed = true;
@@ -375,21 +408,107 @@ void PluginUpdater::uninstall_plugin(const std::string &plugin_id,
 
 void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::function<void(UpdaterError)> callback_result)
 {
+    if (sync_in_progress() || changelog_download_in_progress()) {
+        callback_result(make_updater_error(
+            UpdaterError::Code::PreparationRejected,
+            "Cannot clear a plugin cache while repository data is being updated."));
+        return;
+    }
+
+    UpdaterError result;
     try {
-        boost::filesystem::remove_all(repository_cache_root_path(
-            boost::filesystem::path(data_dir()), RepositoryPackageType::Plugin, plugin_id));
         std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
+        const boost::filesystem::path data_directory(data_dir());
+
+        // [installed] describes both the live package and a version selected
+        // for the next startup. Preserve the live version when it exists;
+        // otherwise remove the request before deleting its only package copy.
+        std::optional<PluginInstalledVersion> live_version;
+        std::string error_message;
+        if (!read_live_plugin_version(data_directory / "plugins" / plugin_id,
+                                      live_version, error_message)) {
+            callback_result(make_updater_error(UpdaterError::Code::Cache, std::move(error_message)));
+            return;
+        }
+        PluginActivationConfig config;
+        bool from_user_config = false;
+        if (!ensure_plugin_activation_config(data_directory, config, from_user_config, error_message)) {
+            callback_result(make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message)));
+            return;
+        }
+        const bool removal_requested = config.removed.count(plugin_id) != 0;
+        if (live_version && !removal_requested)
+            config.installed[plugin_id] = *live_version;
+        else
+            config.installed.erase(plugin_id);
+        if (!write_plugin_activation_config(plugin_activation_config_path(data_directory), config, error_message)) {
+            callback_result(make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message)));
+            return;
+        }
+
+        boost::filesystem::remove_all(repository_cache_root_path(
+            data_directory, RepositoryPackageType::Plugin, plugin_id));
+
+        // The activation model keeps the currently installed version selected
+        // across restarts. Re-cache that live package after removing downloaded
+        // versions so the retained selection remains self-contained.
+        std::optional<RepositoryCachedVersion> live_cached_version;
+        if (live_version && !removal_requested) {
+            RepositoryPackageCache cache(data_directory, plugin_repository_cache_adapter());
+            live_cached_version.emplace();
+            if (!cache.cache_simple(data_directory / "plugins" / plugin_id,
+                                    *live_cached_version, error_message)) {
+                callback_result(make_updater_error(UpdaterError::Code::Cache, std::move(error_message)));
+                return;
+            }
+        }
+
         PluginSync *plugin = get_plugin(plugin_id);
-        if (plugin != nullptr) {
-            plugin->has_cache = false;
+        if (!live_cached_version) {
+            // The cache description was the only source for this uninstalled
+            // plugin. Remove the model entry together with that source so the
+            // dialog cannot display a row which no longer exists on disk.
+            m_plugins.erase(plugin_id);
+        } else if (plugin != nullptr) {
+            // Keep repository versions for an installed plugin, but discard
+            // local-only versions removed with the old cache. The recached
+            // live package is then restored as the selected local version.
+            plugin->has_cache = live_cached_version.has_value();
             for (PluginAvailable &version : plugin->available_packages)
                 version.local_directory.clear();
+            plugin->available_packages.erase(
+                std::remove_if(plugin->available_packages.begin(), plugin->available_packages.end(),
+                    [](const PluginAvailable &version) { return version.url_zip.empty(); }),
+                plugin->available_packages.end());
+            if (live_cached_version) {
+                const RepositoryPackageVersion &cached_version = live_cached_version->version;
+                const std::vector<PluginAvailable>::iterator matching = std::find_if(
+                    plugin->available_packages.begin(), plugin->available_packages.end(),
+                    [&cached_version](const PluginAvailable &version) {
+                        return version.package_version == cached_version.package_version &&
+                               version.slicer_version == cached_version.slicer_version;
+                    });
+                if (matching != plugin->available_packages.end()) {
+                    matching->local_directory = live_cached_version->directory.string();
+                } else {
+                    PluginAvailable available;
+                    available.package_version = cached_version.package_version;
+                    available.slicer_version = cached_version.slicer_version;
+                    available.tag = RepositoryPackageCache::version_directory_name(
+                        available.package_version, available.slicer_version);
+                    available.local_directory = live_cached_version->directory.string();
+                    plugin->available_packages.emplace_back(std::move(available));
+                }
+            }
+            plugin->is_installed = live_version.has_value() && !removal_requested;
+            plugin->installed_version = plugin->is_installed ? *live_version : PluginInstalledVersion();
+            plugin->sort_available();
         }
-        callback_result(UpdaterError());
     } catch (const boost::filesystem::filesystem_error &error) {
         BOOST_LOG_TRIVIAL(warning) << error.what();
-        callback_result(make_updater_error(UpdaterError::Code::Filesystem, error.what()));
+        result = make_updater_error(UpdaterError::Code::Filesystem, error.what());
     }
+    callback_result(std::move(result));
 }
 
 size_t PluginUpdater::count_available() const

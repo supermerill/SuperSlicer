@@ -17,6 +17,7 @@
 
 class wxBoxSizer;
 class wxBusyInfo;
+class wxFlexGridSizer;
 class wxGridBagSizer;
 class wxScrolledWindow;
 class wxTextCtrl;
@@ -24,6 +25,7 @@ class wxTextCtrl;
 namespace Slic3r {
 class PluginUpdater;
 struct PluginAvailable;
+struct PluginSync;
 }
 
 namespace Slic3r::GUI {
@@ -34,11 +36,13 @@ public:
 
 private:
     void rebuild();
+    void add_plugin_row(const std::string &plugin_id, PluginSync &plugin, wxFlexGridSizer &grid);
     void add_repository();
     void load_package_directory();
     void check_updates();
     void choose_version(const std::string &plugin_id);
     void install_latest(const std::string &plugin_id);
+    void uninstall(const std::string &plugin_id);
     void clear_cache(const std::string &plugin_id);
 
     PluginUpdater &m_updater;

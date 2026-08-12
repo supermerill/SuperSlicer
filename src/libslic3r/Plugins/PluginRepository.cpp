@@ -658,37 +658,39 @@ bool plugin_package_cache_is_valid(const boost::filesystem::path &data_directory
     return validate_plugin_package(package_root, package_name, version, error_message);
 }
 
-bool prepare_plugin_bundle_cache(const boost::filesystem::path &resources_directory,
-                                 const boost::filesystem::path &data_directory,
-                                 std::string &error_message)
+static bool prepare_plugin_cache_impl(const boost::filesystem::path *resources_directory,
+                                      const boost::filesystem::path &data_directory,
+                                      std::string &error_message)
 {
     RepositoryPackageCache cache(data_directory, plugin_repository_cache_adapter());
     bool purged = false;
     if (!cache.prepare_layout(purged, error_message))
         return false;
 
-    const boost::filesystem::path bundles_directory = resources_directory / PLUGIN_DIRECTORY;
     try {
-        // Embedded bundles are valid installation sources after a purge, so
-        // publish them before deciding whether a pending request was lost with
-        // the old cache layout.
-        if (boost::filesystem::is_directory(bundles_directory)) {
-            for (boost::filesystem::directory_iterator it(bundles_directory), end; it != end; ++it) {
-                if (!boost::filesystem::is_regular_file(it->path()))
-                    continue;
-                std::string package_name;
-                PluginInstalledVersion version;
-                if (!parse_bundle_filename(it->path(), package_name, version)) {
-                    if (boost::algorithm::iequals(it->path().extension().string(), ".zip"))
-                        BOOST_LOG_TRIVIAL(warning) << "Ignoring invalid plugin archive name '"
-                                                   << it->path().filename().string() << "'.";
-                    continue;
-                }
+        // Only application startup republishes embedded bundles. Runtime cache
+        // operations deliberately omit this source so Clear cache remains
+        // effective for the rest of the current process.
+        if (resources_directory != nullptr) {
+            const boost::filesystem::path bundles_directory = *resources_directory / PLUGIN_DIRECTORY;
+            if (boost::filesystem::is_directory(bundles_directory)) {
+                for (boost::filesystem::directory_iterator it(bundles_directory), end; it != end; ++it) {
+                    if (!boost::filesystem::is_regular_file(it->path()))
+                        continue;
+                    std::string package_name;
+                    PluginInstalledVersion version;
+                    if (!parse_bundle_filename(it->path(), package_name, version)) {
+                        if (boost::algorithm::iequals(it->path().extension().string(), ".zip"))
+                            BOOST_LOG_TRIVIAL(warning) << "Ignoring invalid plugin archive name '"
+                                                       << it->path().filename().string() << "'.";
+                        continue;
+                    }
 
-                if (!cache_plugin_package_archive(data_directory, it->path(), package_name,
-                                                  version.package_version, version.slicer_version,
-                                                  error_message))
-                    return false;
+                    if (!cache_plugin_package_archive(data_directory, it->path(), package_name,
+                                                       version.package_version, version.slicer_version,
+                                                       error_message))
+                        return false;
+                }
             }
         }
 
@@ -753,6 +755,19 @@ bool prepare_plugin_bundle_cache(const boost::filesystem::path &resources_direct
     return true;
 }
 
+bool prepare_plugin_cache(const boost::filesystem::path &data_directory,
+                          std::string &error_message)
+{
+    return prepare_plugin_cache_impl(nullptr, data_directory, error_message);
+}
+
+bool prepare_plugin_bundle_cache(const boost::filesystem::path &resources_directory,
+                                 const boost::filesystem::path &data_directory,
+                                 std::string &error_message)
+{
+    return prepare_plugin_cache_impl(&resources_directory, data_directory, error_message);
+}
+
 bool apply_requested_plugin_package_changes(const boost::filesystem::path &data_directory,
                                             PluginActivationConfig &config,
                                             std::vector<std::string> &warnings,
@@ -808,7 +823,7 @@ bool request_plugin_install(const std::string &package_name,
     }
     PluginInstalledVersion version{package_version, slicer_version};
     const boost::filesystem::path data_directory(data_dir());
-    if (!prepare_plugin_bundle_cache(boost::filesystem::path(resources_dir()), data_directory, error_message) ||
+    if (!prepare_plugin_cache(data_directory, error_message) ||
         !plugin_package_cache_is_valid(data_directory, package_name, version, error_message))
         return false;
 
