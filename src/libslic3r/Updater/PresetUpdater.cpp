@@ -302,13 +302,14 @@ void PresetUpdater::update_vendor(VendorSync &vendor, bool force)
 {
     const RepositoryPackageCache cache(data_path(), vendor_repository_cache_adapter());
     const boost::filesystem::path cache_file = cache.repository_tags_path(vendor.profile.id);
-    vendor.synch_in_progress = true;
+    vendor.sync_state = RepositorySyncState::InProgress;
+    vendor.sync_error = UpdaterError();
     refresh_repository_tags(
         vendor.profile.id, vendor.profile.config_update_rest, cache_file, force,
         [&vendor](const std::string &tags) { return vendor.parse_tags(tags); },
-        [&vendor](bool succeeded) {
-            vendor.synch_failed = !succeeded;
-            vendor.synch_in_progress = false;
+        [&vendor](UpdaterError error) {
+            vendor.sync_state = error.succeeded() ? RepositorySyncState::Succeeded : RepositorySyncState::Failed;
+            vendor.sync_error = std::move(error);
         });
 }
 
@@ -450,7 +451,8 @@ UpdaterError PresetUpdater::uninstall_vendor_files(VendorSync &vendor)
         boost::filesystem::remove_all(data_path() / "vendor" / vendor.profile.id);
         vendor.is_installed = false;
         vendor.has_cache = true;
-        vendor.is_synch = false;
+        vendor.sync_state = RepositorySyncState::Unchecked;
+        vendor.sync_error = UpdaterError();
         vendor.can_upgrade = false;
         return UpdaterError();
     } catch (const boost::filesystem::filesystem_error &error) {
@@ -718,19 +720,17 @@ void VendorSync::reset(const VendorProfile &new_profile, bool installed, bool ca
     profile = new_profile;
     is_installed = installed;
     has_cache = cache_present;
-    synch_in_progress = false;
-    synch_failed = false;
+    sync_state = RepositorySyncState::Unchecked;
+    sync_error = UpdaterError();
     can_upgrade = best != nullptr && best->config_version > profile.config_version;
 }
 
-bool VendorSync::parse_tags(const std::string &json)
+UpdaterError VendorSync::parse_tags(const std::string &json)
 {
     std::vector<RepositoryPackageVersion> versions;
     std::string error_message;
-    if (!parse_repository_versions(json, versions, error_message)) {
-        BOOST_LOG_TRIVIAL(warning) << error_message;
-        return false;
-    }
+    if (!parse_repository_versions(json, versions, error_message))
+        return make_updater_error(UpdaterError::Code::InvalidRepositoryMetadata, std::move(error_message));
     for (const RepositoryPackageVersion &version : versions) {
         const std::optional<Semver> package_version = Semver::parse(version.package_version);
         const std::optional<Semver> slicer_version = Semver::parse(version.slicer_version);
@@ -751,8 +751,7 @@ bool VendorSync::parse_tags(const std::string &json)
         }
     }
     sort_available();
-    is_synch = true;
-    return true;
+    return UpdaterError();
 }
 
 void VendorSync::sort_available()

@@ -35,13 +35,15 @@ struct PluginSync {
     PluginInstalledVersion installed_version;
     bool is_installed = false;
     bool has_cache = false;
-    bool sync_in_progress = false;
-    bool sync_failed = false;
+    // sync_error is populated only for Failed. Starting a new attempt clears
+    // it before exposing InProgress to callers and dialog copies.
+    RepositorySyncState sync_state = RepositorySyncState::Unchecked;
+    UpdaterError sync_error;
     bool can_upgrade = false;
     std::vector<PluginAvailable> available_packages;
     PluginAvailable *best = nullptr;
 
-    bool parse_tags(const std::string &json, std::string &error_message);
+    UpdaterError parse_tags(const std::string &json);
     void sort_available();
 };
 

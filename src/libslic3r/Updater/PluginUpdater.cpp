@@ -57,11 +57,12 @@ bool read_plugin_description(const boost::filesystem::path &path,
 
 } // namespace
 
-bool PluginSync::parse_tags(const std::string &json, std::string &error_message)
+UpdaterError PluginSync::parse_tags(const std::string &json)
 {
     std::vector<RepositoryPackageVersion> parsed;
+    std::string error_message;
     if (!parse_repository_versions(json, parsed, error_message))
-        return false;
+        return make_updater_error(UpdaterError::Code::InvalidRepositoryMetadata, std::move(error_message));
     for (const RepositoryPackageVersion &version : parsed) {
         const std::vector<PluginAvailable>::iterator existing = std::find_if(
             available_packages.begin(), available_packages.end(),
@@ -79,7 +80,7 @@ bool PluginSync::parse_tags(const std::string &json, std::string &error_message)
         }
     }
     sort_available();
-    return true;
+    return UpdaterError();
 }
 
 void PluginSync::sort_available()
@@ -222,19 +223,14 @@ void PluginUpdater::update_plugin(PluginSync &plugin, bool force)
     const RepositoryPackageCache cache(boost::filesystem::path(data_dir()),
                                        plugin_repository_cache_adapter());
     const boost::filesystem::path cache_path = cache.repository_tags_path(plugin.description.id);
-    plugin.sync_in_progress = true;
+    plugin.sync_state = RepositorySyncState::InProgress;
+    plugin.sync_error = UpdaterError();
     refresh_repository_tags(
         plugin.description.id, plugin.description.config_update_rest, cache_path, force,
-        [&plugin](const std::string &contents) {
-            std::string error_message;
-            const bool succeeded = plugin.parse_tags(contents, error_message);
-            if (!succeeded)
-                BOOST_LOG_TRIVIAL(warning) << error_message;
-            return succeeded;
-        },
-        [&plugin](bool succeeded) {
-            plugin.sync_failed = !succeeded;
-            plugin.sync_in_progress = false;
+        [&plugin](const std::string &contents) { return plugin.parse_tags(contents); },
+        [&plugin](UpdaterError error) {
+            plugin.sync_state = error.succeeded() ? RepositorySyncState::Succeeded : RepositorySyncState::Failed;
+            plugin.sync_error = std::move(error);
         });
 }
 

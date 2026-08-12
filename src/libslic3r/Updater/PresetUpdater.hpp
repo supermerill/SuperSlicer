@@ -55,14 +55,15 @@ struct VendorSync {
     VendorProfile profile;
     bool is_installed = false;
     bool has_cache = false;
-    bool is_synch = false;
-    bool synch_in_progress = false;
-    bool synch_failed = false;
+    // sync_error is populated only for Failed. Starting a new attempt clears
+    // it before exposing InProgress to callers and dialog copies.
+    RepositorySyncState sync_state = RepositorySyncState::Unchecked;
+    UpdaterError sync_error;
     bool can_upgrade = false;
     std::vector<VendorAvailable> available_profiles;
     VendorAvailable *best = nullptr;
 
-    bool parse_tags(const std::string &json);
+    UpdaterError parse_tags(const std::string &json);
     void sort_available();
     void reset(const VendorProfile &profile, bool installed, bool has_cache);
 };

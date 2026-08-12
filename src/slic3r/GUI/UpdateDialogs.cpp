@@ -34,6 +34,7 @@
 #include "GUI.hpp"
 #include "GUI_App.hpp"
 #include "I18N.hpp"
+#include "UpdaterErrorMessages.hpp"
 #include "slic3r/Config/Snapshot.hpp"
 #include "slic3r/Utils/AppUpdater.hpp"
 #include "libslic3r/Updater/Http.hpp"
@@ -689,7 +690,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                 _L("This printer vendor bundle doesn't have a repository and therefore cannot be updated. "
                    "\nA future slicer version may include an updated static profile."));
         }
-    } else if (vendor.is_synch) {
+    } else if (vendor.sync_state == RepositorySyncState::Succeeded) {
         if (vendor.available_profiles.empty()) {
             // weird
             msg_synch = new wxStaticText(parent, wxID_ANY, _L("No profile available"));
@@ -722,18 +723,22 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
         } else {
             msg_synch = new wxStaticText(parent, wxID_ANY, _L("Up to date"));
         }
-    } else if (vendor.synch_in_progress) {
+    } else if (vendor.sync_state == RepositorySyncState::InProgress) {
         msg_synch = new wxStaticText(parent, wxID_ANY, _L("Synch with github ..."));
-    } else if (vendor.synch_failed) {
+    } else if (vendor.sync_state == RepositorySyncState::Failed) {
+        assert(!vendor.sync_error.succeeded());
         if (has_compatible_version && !vendor.is_installed) {
             wxString config_version_str = vendor.best->config_version.to_string();
             wxString msg = format(_L("Install %1% from cache"), config_version_str);
             wxButton *bt_upgrade = new wxButton(parent, wxID_ANY, msg);
-            bt_upgrade->SetToolTip(_L("Download failed") + ": "+_L("The slicer failed to access the GitHub repository."));
             if (vendor.is_installed) {
                 bts_green_color.push_back(bt_upgrade);
             }
-            bt_upgrade->SetToolTip(_L("Click this button to create a snapshot and install this vendor bundle available in the local repository."));
+            wxString tooltip = from_u8(format_updater_error(vendor.sync_error));
+            tooltip += "\n\n";
+            tooltip += _L("A compatible vendor bundle remains available in the local cache. Click this button to "
+                          "create a snapshot and install it.");
+            bt_upgrade->SetToolTip(tooltip);
             versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
             bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
                 this->wait_dialog.reset(new wxBusyInfo(_L("Installing the preset, please wait")));
@@ -745,14 +750,17 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                 });
             }));
         } else {
-            msg_synch = new wxStaticText(parent, wxID_ANY, _L("Download failed"));
-            if (!vendor.available_profiles.empty() && !has_compatible_version)
-                msg_synch->SetToolTip(
-                    _L("Download failed") + ": " +
-                    _L("The cached vendor profiles do not target this slicer version."));
-            else
-                msg_synch->SetToolTip(
-                    _L("Download failed") + ": " + _L("The slicer failed to access the GitHub repository."));
+            wxString label = from_u8(updater_error_short_label(vendor.sync_error));
+            if (label.empty())
+                label = _L("Synchronization failed");
+            msg_synch = new wxStaticText(parent, wxID_ANY, label);
+
+            wxString tooltip = from_u8(format_updater_error(vendor.sync_error));
+            if (!vendor.available_profiles.empty() && !has_compatible_version) {
+                tooltip += "\n\n";
+                tooltip += _L("The local cache also contains no vendor profile compatible with this slicer version.");
+            }
+            msg_synch->SetToolTip(tooltip);
         }
     } else {
         msg_synch = new wxStaticText(parent, wxID_ANY, _L("Unchecked"));

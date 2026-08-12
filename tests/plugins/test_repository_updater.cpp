@@ -15,6 +15,7 @@
 #include <ctime>
 #include <deque>
 #include <fstream>
+#include <functional>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -49,6 +50,13 @@ public:
     const Slic3r::UpdaterHttpRequest &pending_at(size_t idx) const { return m_pending.at(idx); }
     size_t sync_request_count() const { return m_sync_request_urls.size(); }
     const std::string &sync_request_url(size_t idx) const { return m_sync_request_urls.at(idx); }
+
+    // The common updater catches failures raised while an asynchronous request
+    // is being started. This hook exercises that path without a network thread.
+    void throw_on_next_async_request(std::string message)
+    {
+        m_async_exception = std::move(message);
+    }
 
     void succeed_front(std::string body, unsigned http_status)
     {
@@ -92,6 +100,11 @@ private:
     // Async requests remain pending until the test selects their outcome.
     void perform_request(Slic3r::UpdaterHttpRequest request) override
     {
+        if (m_async_exception) {
+            const std::string message = std::move(*m_async_exception);
+            m_async_exception.reset();
+            throw std::runtime_error(message);
+        }
         m_pending.emplace_back(std::move(request));
     }
 
@@ -113,6 +126,7 @@ private:
 
     std::deque<Slic3r::UpdaterHttpRequest> m_pending;
     std::optional<SyncResponse> m_sync_response;
+    std::optional<std::string> m_async_exception;
     std::vector<std::string> m_sync_request_urls;
 };
 
@@ -450,6 +464,10 @@ PresetDialogSnapshot PresetUpdaterFunctionalFixture::synchronize_and_open_dialog
 
     REQUIRE(update_count.has_value());
     CHECK(updater.is_synchronized());
+    const Slic3r::VendorSync *synchronized_vendor = updater.get_vendor(vendor_id);
+    REQUIRE(synchronized_vendor != nullptr);
+    CHECK(synchronized_vendor->sync_state == Slic3r::RepositorySyncState::Succeeded);
+    CHECK(synchronized_vendor->sync_error.succeeded());
     return {updater.vendors(), *update_count};
 }
 
@@ -574,7 +592,7 @@ TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plug
     TemporaryDirectory temporary;
     const boost::filesystem::path cache_file = temporary.path() / "tags.json";
     std::string parsed_contents;
-    std::optional<bool> refresh_succeeded;
+    std::optional<Slic3r::UpdaterError> refresh_result;
     int sync_callback_count = 0;
 
     SECTION("a recent cache avoids HTTP") {
@@ -590,14 +608,14 @@ TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plug
             "cached", "https://example.invalid/cached", cache_file, false,
             [&parsed_contents](const std::string &contents) {
                 parsed_contents = contents;
-                return true;
+                return Slic3r::UpdaterError();
             },
-            [&refresh_succeeded](bool succeeded) { refresh_succeeded = succeeded; });
+            [&refresh_result](Slic3r::UpdaterError error) { refresh_result = std::move(error); });
 
         CHECK(http.pending_count() == 0);
         CHECK(parsed_contents == "cached tags");
-        REQUIRE(refresh_succeeded.has_value());
-        CHECK(*refresh_succeeded);
+        REQUIRE(refresh_result.has_value());
+        CHECK(refresh_result->succeeded());
         CHECK(sync_callback_count == 1);
     }
 
@@ -609,11 +627,15 @@ TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plug
         REQUIRE(updater.begin_sync(1, [&sync_callback_count](int) { ++sync_callback_count; }));
         updater.refresh_repository_tags(
             "invalid", "https://example.invalid/invalid", cache_file, false,
-            [](const std::string &) { return false; },
-            [&refresh_succeeded](bool succeeded) { refresh_succeeded = succeeded; });
+            [](const std::string &) {
+                return Slic3r::make_updater_error(Slic3r::UpdaterError::Code::InvalidRepositoryMetadata,
+                                                  "invalid tags");
+            },
+            [&refresh_result](Slic3r::UpdaterError error) { refresh_result = std::move(error); });
 
-        REQUIRE(refresh_succeeded.has_value());
-        CHECK_FALSE(*refresh_succeeded);
+        REQUIRE(refresh_result.has_value());
+        CHECK(refresh_result->code == Slic3r::UpdaterError::Code::InvalidRepositoryMetadata);
+        CHECK(refresh_result->detail == "invalid tags");
         CHECK(sync_callback_count == 1);
     }
 
@@ -627,9 +649,9 @@ TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plug
             "forced", "https://example.invalid/forced", cache_file, true,
             [&parsed_contents](const std::string &contents) {
                 parsed_contents = contents;
-                return true;
+                return Slic3r::UpdaterError();
             },
-            [&refresh_succeeded](bool succeeded) { refresh_succeeded = succeeded; });
+            [&refresh_result](Slic3r::UpdaterError error) { refresh_result = std::move(error); });
 
         REQUIRE(http.pending_count() == 1);
         CHECK(http.pending_front().url() ==
@@ -641,8 +663,8 @@ TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plug
 
         CHECK(parsed_contents == "fresh tags");
         CHECK(read_test_file(cache_file) == "fresh tags");
-        REQUIRE(refresh_succeeded.has_value());
-        CHECK(*refresh_succeeded);
+        REQUIRE(refresh_result.has_value());
+        CHECK(refresh_result->succeeded());
         CHECK(sync_callback_count == 1);
     }
 
@@ -650,14 +672,15 @@ TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plug
         REQUIRE(updater.begin_sync(1, [&sync_callback_count](int) { ++sync_callback_count; }));
         updater.refresh_repository_tags(
             "offline", "https://example.invalid/offline", cache_file, false,
-            [](const std::string &) { return true; },
-            [&refresh_succeeded](bool succeeded) { refresh_succeeded = succeeded; });
+            [](const std::string &) { return Slic3r::UpdaterError(); },
+            [&refresh_result](Slic3r::UpdaterError error) { refresh_result = std::move(error); });
 
         REQUIRE(http.pending_count() == 1);
         http.fail_front(std::string(), "offline", 0);
 
-        REQUIRE(refresh_succeeded.has_value());
-        CHECK_FALSE(*refresh_succeeded);
+        REQUIRE(refresh_result.has_value());
+        CHECK(refresh_result->code == Slic3r::UpdaterError::Code::Network);
+        CHECK(refresh_result->detail == "offline");
         CHECK(sync_callback_count == 1);
         CHECK(http.pending_count() == 0);
     }
@@ -668,7 +691,7 @@ TEST_CASE("RepositoryUpdater refuses tag refresh after the GitHub request limit"
     FakeUpdaterHttpTransport http;
     TestRepositoryUpdater updater(http);
     TemporaryDirectory temporary;
-    std::optional<bool> refresh_succeeded;
+    std::optional<Slic3r::UpdaterError> refresh_result;
     int sync_callback_count = 0;
 
     for (size_t request = 0; request < 24; ++request)
@@ -677,13 +700,95 @@ TEST_CASE("RepositoryUpdater refuses tag refresh after the GitHub request limit"
     REQUIRE(updater.begin_sync(1, [&sync_callback_count](int) { ++sync_callback_count; }));
     updater.refresh_repository_tags(
         "limited", "https://api.github.com/repos/example/repository", temporary.path() / "tags.json", true,
-        [](const std::string &) { return true; },
-        [&refresh_succeeded](bool succeeded) { refresh_succeeded = succeeded; });
+        [](const std::string &) { return Slic3r::UpdaterError(); },
+        [&refresh_result](Slic3r::UpdaterError error) { refresh_result = std::move(error); });
 
-    REQUIRE(refresh_succeeded.has_value());
-    CHECK_FALSE(*refresh_succeeded);
+    REQUIRE(refresh_result.has_value());
+    CHECK(refresh_result->code == Slic3r::UpdaterError::Code::RateLimited);
     CHECK(sync_callback_count == 1);
     CHECK(http.pending_count() == 0);
+}
+
+TEST_CASE("RepositoryUpdater reports precise tag refresh failures", "[plugins][updater]")
+{
+    FakeUpdaterHttpTransport http;
+    TestRepositoryUpdater updater(http);
+    TemporaryDirectory temporary;
+    std::optional<Slic3r::UpdaterError> result;
+
+    // Each section starts one logical repository refresh. The terminal result
+    // must preserve enough information for a GUI to distinguish configuration,
+    // transport, parsing and local filesystem failures.
+    const std::function<void(Slic3r::UpdaterError)> store_result =
+        [&result](Slic3r::UpdaterError error) { result = std::move(error); };
+    const std::function<Slic3r::UpdaterError(const std::string &)> accept_tags =
+        [](const std::string &) { return Slic3r::UpdaterError(); };
+
+    SECTION("an empty URL is a repository error") {
+        REQUIRE(updater.begin_sync(1, [](int) {}));
+        updater.refresh_repository_tags("missing", std::string(), temporary.path() / "missing.json", true,
+                                        accept_tags, store_result);
+
+        REQUIRE(result.has_value());
+        CHECK(result->code == Slic3r::UpdaterError::Code::RepositoryNotFound);
+        CHECK_FALSE(result->detail.empty());
+        CHECK(http.pending_count() == 0);
+    }
+
+    SECTION("an HTTP 404 is a repository error") {
+        REQUIRE(updater.begin_sync(1, [](int) {}));
+        updater.refresh_repository_tags("missing", "https://example.invalid/missing",
+                                        temporary.path() / "missing.json", true, accept_tags, store_result);
+        REQUIRE(http.pending_count() == 1);
+        http.fail_front(std::string(), "not found", 404);
+
+        REQUIRE(result.has_value());
+        CHECK(result->code == Slic3r::UpdaterError::Code::RepositoryNotFound);
+        CHECK(result->detail == "not found");
+    }
+
+    SECTION("an exception while starting HTTP is a network error") {
+        http.throw_on_next_async_request("transport unavailable");
+        REQUIRE(updater.begin_sync(1, [](int) {}));
+        updater.refresh_repository_tags("throwing", "https://example.invalid/throwing",
+                                        temporary.path() / "throwing.json", true, accept_tags, store_result);
+
+        REQUIRE(result.has_value());
+        CHECK(result->code == Slic3r::UpdaterError::Code::Network);
+        CHECK(result->detail == "transport unavailable");
+        CHECK(http.pending_count() == 0);
+    }
+
+    SECTION("a cache directory failure is a filesystem error") {
+        const boost::filesystem::path blocking_file = temporary.path() / "not-a-directory";
+        write_test_file(blocking_file, "file");
+
+        REQUIRE(updater.begin_sync(1, [](int) {}));
+        updater.refresh_repository_tags("filesystem", "https://example.invalid/filesystem",
+                                        blocking_file / "tags.json", true, accept_tags, store_result);
+
+        REQUIRE(result.has_value());
+        CHECK(result->code == Slic3r::UpdaterError::Code::Filesystem);
+        CHECK_FALSE(result->detail.empty());
+        CHECK(http.pending_count() == 0);
+    }
+
+    SECTION("invalid downloaded tags preserve the parser detail") {
+        REQUIRE(updater.begin_sync(1, [](int) {}));
+        updater.refresh_repository_tags(
+            "invalid", "https://example.invalid/invalid", temporary.path() / "invalid.json", true,
+            [](const std::string &) {
+                return Slic3r::make_updater_error(Slic3r::UpdaterError::Code::InvalidRepositoryMetadata,
+                                                  "tag name has no slicer version");
+            },
+            store_result);
+        REQUIRE(http.pending_count() == 1);
+        http.succeed_front("invalid tags", 200);
+
+        REQUIRE(result.has_value());
+        CHECK(result->code == Slic3r::UpdaterError::Code::InvalidRepositoryMetadata);
+        CHECK(result->detail == "tag name has no slicer version");
+    }
 }
 
 TEST_CASE("RepositoryUpdater downloads changelog batches through cache and transport", "[plugins][updater]")
@@ -954,7 +1059,7 @@ TEST_CASE("VendorSync enriches matching cached versions from repository tags", "
 
     REQUIRE(vendor.parse_tags(
         "[{\"name\":\"1.2.3.4=2.7.63.0\",\"zipball_url\":\"zip\","
-        "\"commit\":{\"sha\":\"sha\",\"url\":\"commit\"}}]"));
+        "\"commit\":{\"sha\":\"sha\",\"url\":\"commit\"}}]").succeeded());
     REQUIRE(vendor.available_profiles.size() == 1);
     CHECK(vendor.available_profiles.front().local_file == "cached.ini");
     CHECK(vendor.available_profiles.front().url_zip == "zip");
@@ -984,6 +1089,45 @@ TEST_CASE("PluginUpdater reports a transport failure without a real HTTP request
     CHECK(result->code == Slic3r::UpdaterError::Code::Network);
     CHECK(result->detail == "connection refused");
     CHECK(http.pending_count() == 0);
+}
+
+TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
+                 "PluginUpdater replaces a synchronization error after a successful retry",
+                 "[plugins][updater][plugin-functional]")
+{
+    write_resource_plugin();
+    updater.reload_all_plugins();
+    Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
+    REQUIRE(plugin != nullptr);
+    CHECK(plugin->sync_state == Slic3r::RepositorySyncState::Unchecked);
+    CHECK(plugin->sync_error.succeeded());
+
+    std::optional<int> first_count;
+    updater.sync_async([&first_count](int count) { first_count = count; }, true);
+    CHECK(plugin->sync_state == Slic3r::RepositorySyncState::InProgress);
+    CHECK(plugin->sync_error.succeeded());
+    REQUIRE(http.pending_count() == 1);
+    http.fail_front(std::string(), "offline", 0);
+
+    REQUIRE(first_count.has_value());
+    CHECK(plugin->sync_state == Slic3r::RepositorySyncState::Failed);
+    CHECK(plugin->sync_error.code == Slic3r::UpdaterError::Code::Network);
+    CHECK(plugin->sync_error.detail == "offline");
+
+    // Starting a retry immediately clears the stale error. Its successful
+    // terminal callback then leaves one unambiguous completed state.
+    std::optional<int> retry_count;
+    updater.sync_async([&retry_count](int count) { retry_count = count; }, true);
+    CHECK(plugin->sync_state == Slic3r::RepositorySyncState::InProgress);
+    CHECK(plugin->sync_error.succeeded());
+    REQUIRE(http.pending_count() == 1);
+    http.succeed_front(plugin_repository_tags({
+        {"1.0.0.0", slicer_version, "https://example.invalid/plugin.zip"}
+    }), 200);
+
+    REQUIRE(retry_count.has_value());
+    CHECK(plugin->sync_state == Slic3r::RepositorySyncState::Succeeded);
+    CHECK(plugin->sync_error.succeeded());
 }
 
 TEST_CASE("PluginUpdater selects comparable versions and caches their changelogs", "[plugins][updater]")

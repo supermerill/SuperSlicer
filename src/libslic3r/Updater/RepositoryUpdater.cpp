@@ -47,9 +47,9 @@ struct RepositoryChangelogState {
 // Parsing belongs to the derived updater, but exceptions must not leave the
 // parent sync waiting forever. A parse exception is therefore reported as a
 // failed repository refresh and logged with the repository id.
-bool parse_repository_tags_safely(const std::string &repository_id,
-                                  const std::function<bool(const std::string &)> &parse_tags,
-                                  const std::string &contents);
+UpdaterError parse_repository_tags_safely(const std::string &repository_id,
+                                          const std::function<UpdaterError(const std::string &)> &parse_tags,
+                                          const std::string &contents);
 
 // Stores a fully downloaded response and reports local failures separately
 // from transport errors. Both sync and async archive paths use this function.
@@ -65,15 +65,19 @@ bool parse_repository_changelog(const std::string &contents, bool compare, std::
 void complete_repository_changelog_request(const std::shared_ptr<RepositoryChangelogState> &state,
                                             bool succeeded);
 
-bool parse_repository_tags_safely(const std::string &repository_id,
-                                  const std::function<bool(const std::string &)> &parse_tags,
-                                  const std::string &contents)
+UpdaterError parse_repository_tags_safely(const std::string &repository_id,
+                                          const std::function<UpdaterError(const std::string &)> &parse_tags,
+                                          const std::string &contents)
 {
     try {
-        return parse_tags(contents);
+        UpdaterError error = parse_tags(contents);
+        if (!error.succeeded())
+            BOOST_LOG_TRIVIAL(warning) << "Cannot parse repository tags for '" << repository_id << "': "
+                                       << error.detail;
+        return error;
     } catch (const std::exception &error) {
         BOOST_LOG_TRIVIAL(warning) << "Cannot parse repository tags for '" << repository_id << "': " << error.what();
-        return false;
+        return make_updater_error(UpdaterError::Code::InvalidRepositoryMetadata, error.what());
     }
 }
 
@@ -249,29 +253,40 @@ void RepositoryUpdater::refresh_repository_tags(const std::string &repository_id
     // this guard. A transport must not release the enclosing sync twice, even
     // if it reports a terminal callback and then throws while unwinding.
     const std::shared_ptr<std::atomic_bool> terminal = std::make_shared<std::atomic_bool>(false);
-    const RepositoryRefreshFinishedFn complete = [this, terminal, finished](bool succeeded) {
+    const RepositoryRefreshFinishedFn complete = [this, terminal, finished](UpdaterError error) {
         if (!terminal->exchange(true))
-            finish_repository_refresh(succeeded, finished);
+            finish_repository_refresh(std::move(error), finished);
     };
 
     try {
         if (boost::filesystem::is_regular_file(cache_file) && !force &&
             boost::filesystem::last_write_time(cache_file) + k_repository_cache_lifetime > std::time(nullptr)) {
             boost::nowide::ifstream stream(cache_file.string());
+            if (!stream) {
+                complete(make_updater_error(UpdaterError::Code::Filesystem,
+                                            "Cannot read repository cache '" + cache_file.string() + "'."));
+                return;
+            }
             const std::string contents((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
             complete(parse_repository_tags_safely(repository_id, parse_tags, contents));
             return;
         }
     } catch (const std::exception &error) {
         BOOST_LOG_TRIVIAL(warning) << "Cannot read repository cache for '" << repository_id << "': " << error.what();
-        complete(false);
+        complete(make_updater_error(UpdaterError::Code::Filesystem, error.what()));
         return;
     }
 
     const std::string repository_url = normalize_repository_rest_url(rest_url);
     const std::string tags_url = repository_url + "/tags?per_page=100;page=1";
-    if (repository_url.empty() || !has_api_request_slot(tags_url)) {
-        complete(false);
+    if (repository_url.empty()) {
+        complete(make_updater_error(UpdaterError::Code::RepositoryNotFound,
+                                    "The repository URL is empty or malformed."));
+        return;
+    }
+    if (!has_api_request_slot(tags_url)) {
+        complete(make_updater_error(UpdaterError::Code::RateLimited,
+                                    "The GitHub API request limit has been reached."));
         return;
     }
 
@@ -280,16 +295,18 @@ void RepositoryUpdater::refresh_repository_tags(const std::string &repository_id
             boost::filesystem::create_directories(cache_file.parent_path());
     } catch (const std::exception &error) {
         BOOST_LOG_TRIVIAL(warning) << "Cannot create repository cache for '" << repository_id << "': " << error.what();
-        complete(false);
+        complete(make_updater_error(UpdaterError::Code::Filesystem, error.what()));
         return;
     }
 
     try {
         http().get(tags_url)
             .size_limit(k_repository_metadata_size_limit)
-            .on_error([repository_id, complete](std::string, std::string error, unsigned) {
+            .on_error([repository_id, complete](std::string, std::string error, unsigned status) {
                 BOOST_LOG_TRIVIAL(warning) << "Cannot update repository '" << repository_id << "': " << error;
-                complete(false);
+                const UpdaterError::Code code = status == 404 ? UpdaterError::Code::RepositoryNotFound :
+                                                               UpdaterError::Code::Network;
+                complete(make_updater_error(code, std::move(error)));
             })
             .on_complete([repository_id, cache_file, parse_tags, complete](std::string contents, unsigned) {
                 try {
@@ -307,7 +324,7 @@ void RepositoryUpdater::refresh_repository_tags(const std::string &repository_id
     } catch (const std::exception &error) {
         BOOST_LOG_TRIVIAL(warning) << "Cannot start repository refresh for '" << repository_id
                                    << "': " << error.what();
-        complete(false);
+        complete(make_updater_error(UpdaterError::Code::Network, error.what()));
     }
 }
 
@@ -566,10 +583,10 @@ void RepositoryUpdater::download_repository_version_changelogs(
     download_repository_changelogs(std::move(requests), std::move(callback), force);
 }
 
-void RepositoryUpdater::finish_repository_refresh(bool succeeded, const RepositoryRefreshFinishedFn &finished)
+void RepositoryUpdater::finish_repository_refresh(UpdaterError error, const RepositoryRefreshFinishedFn &finished)
 {
     try {
-        finished(succeeded);
+        finished(std::move(error));
     } catch (...) {
         finish_sync();
         throw;

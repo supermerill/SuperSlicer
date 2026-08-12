@@ -29,6 +29,16 @@ namespace Slic3r {
 
 class UpdaterHttpTransport;
 
+// A repository has one synchronization state at a time. Keeping progress and
+// completion in one enum prevents stale success and failure flags from being
+// visible together after a retry.
+enum class RepositorySyncState {
+    Unchecked,
+    InProgress,
+    Succeeded,
+    Failed
+};
+
 class RepositoryUpdater {
 public:
     // The default constructor uses the application's Http backend. Tests pass
@@ -69,8 +79,8 @@ protected:
         std::function<void(std::string)> store_notes;
     };
 
-    using ParseRepositoryTagsFn = std::function<bool(const std::string &)>;
-    using RepositoryRefreshFinishedFn = std::function<void(bool)>;
+    using ParseRepositoryTagsFn = std::function<UpdaterError(const std::string &)>;
+    using RepositoryRefreshFinishedFn = std::function<void(UpdaterError)>;
     using RepositoryDescriptionConsumerFn =
         std::function<UpdaterError(const std::string &, const std::string &)>;
     using UpdaterErrorCallback = std::function<void(UpdaterError)>;
@@ -89,8 +99,8 @@ protected:
 
     // Refreshes one repository's tags. A recent cache is parsed immediately;
     // otherwise the common GitHub tags endpoint is downloaded and cached. The
-    // finished callback updates derived state before this method calls
-    // finish_sync(), so update_count() observes the final result.
+    // terminal callback receives a precise transport, filesystem or parsing
+    // error and updates derived state before update_count() is evaluated.
     void refresh_repository_tags(const std::string &repository_id,
                                  const std::string &rest_url,
                                  const boost::filesystem::path &cache_file,
@@ -142,7 +152,7 @@ protected:
 private:
     // Completes the derived state transition and always releases this logical
     // repository from the enclosing sync, including when the callback throws.
-    void finish_repository_refresh(bool succeeded, const RepositoryRefreshFinishedFn &finished);
+    void finish_repository_refresh(UpdaterError error, const RepositoryRefreshFinishedFn &finished);
 
     virtual int update_count() = 0;
     virtual void on_sync_completed() {}

@@ -24,6 +24,7 @@ struct UpdaterError {
         RateLimited,
         Network,
         Cache,
+        InvalidRepositoryMetadata,
         InvalidArchive,
         Filesystem,
         PreparationRejected

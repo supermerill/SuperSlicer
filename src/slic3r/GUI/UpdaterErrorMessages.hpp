@@ -15,6 +15,10 @@
 
 namespace Slic3r::GUI {
 
+// Returns the short status used in compact controls such as an updater table.
+// Call format_updater_error() for the explanatory tooltip or error dialog.
+std::string updater_error_short_label(const UpdaterError &error);
+
 std::string format_updater_error(const UpdaterError &error);
 
 } // namespace Slic3r::GUI
