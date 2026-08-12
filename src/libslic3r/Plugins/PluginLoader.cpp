@@ -25,13 +25,17 @@
 #endif
 
 #include <chrono>
+#include <iterator>
 #include <set>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include <boost/filesystem.hpp>
 #include <boost/log/trivial.hpp>
+#include <boost/nowide/convert.hpp>
+#include <boost/nowide/fstream.hpp>
 
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/plugin/c/slic3r_plugin.h"
@@ -81,10 +85,85 @@ using RegisterPluginFn = void (*)(orchestrator_handle *);
 using PluginAbiVersionFn = uint32_t (*)();
 using PluginLoadClock = std::chrono::steady_clock;
 
+// Read the package descriptor before loading executable code. The loader uses
+// its internal flag to accept runtime-support packages that intentionally
+// register no plugin instance of their own.
+bool read_plugin_package_description(const boost::filesystem::path &manifest,
+                                     RepositoryDescription &description,
+                                     std::string &error_message);
+
+// Store one issue in the process report and mirror the same detail to logs.
+void report_plugin_package_issue(Orchestrator &orchestrator,
+                                 const std::string &package_id,
+                                 PluginPackageLoadIssue issue);
+
+// A pure Python package is loaded by the Python runtime package rather than by
+// the native dynamic-library branch.
+bool is_python_plugin_package(const boost::filesystem::path &package_root);
+
+#ifdef _WIN32
+// Convert a Windows loader code to the text shown by the operating system.
+std::string windows_error_message(DWORD error_code);
+#endif
+
 std::chrono::milliseconds elapsed_ms(const PluginLoadClock::time_point &start)
 {
     return std::chrono::duration_cast<std::chrono::milliseconds>(PluginLoadClock::now() - start);
 }
+
+bool read_plugin_package_description(const boost::filesystem::path &manifest,
+                                     RepositoryDescription &description,
+                                     std::string &error_message)
+{
+    boost::nowide::ifstream stream(manifest.string(), std::ios::in | std::ios::binary);
+    if (!stream) {
+        error_message = "Cannot read package description '" + manifest.string() + "'.";
+        return false;
+    }
+    const std::string contents((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+    return parse_repository_description(contents, RepositoryPackageType::Plugin, description, error_message);
+}
+
+void report_plugin_package_issue(Orchestrator &orchestrator,
+                                 const std::string &package_id,
+                                 PluginPackageLoadIssue issue)
+{
+    BOOST_LOG_TRIVIAL(warning) << "Plugin package '" << package_id << "' failed to load: " << issue.detail;
+    orchestrator.report_plugin_package_load_issue(package_id, std::move(issue));
+}
+
+bool is_python_plugin_package(const boost::filesystem::path &package_root)
+{
+    const std::string package_id = package_root.filename().string();
+    if (boost::filesystem::is_regular_file(package_root / "plugin.py") ||
+        boost::filesystem::is_regular_file(package_root / (package_id + ".py")))
+        return true;
+
+    size_t python_file_count = 0;
+    for (boost::filesystem::directory_iterator it(package_root), end; it != end; ++it)
+        if (boost::filesystem::is_regular_file(it->path()) && it->path().extension() == ".py")
+            ++python_file_count;
+    return python_file_count == 1;
+}
+
+#ifdef _WIN32
+std::string windows_error_message(DWORD error_code)
+{
+    wchar_t *message = nullptr;
+    const DWORD flags = FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+                        FORMAT_MESSAGE_IGNORE_INSERTS;
+    const DWORD length = FormatMessageW(flags, nullptr, error_code, 0,
+                                        reinterpret_cast<wchar_t *>(&message), 0, nullptr);
+    if (length == 0 || message == nullptr)
+        return "Windows error " + std::to_string(error_code) + ".";
+
+    std::wstring text(message, length);
+    LocalFree(message);
+    while (!text.empty() && (text.back() == L'\r' || text.back() == L'\n' || text.back() == L' '))
+        text.pop_back();
+    return boost::nowide::narrow(text);
+}
+#endif
 
 void activate_plugins_from_ids(Orchestrator &orchestrator,
                                const std::vector<std::string> &plugin_ids,
@@ -119,97 +198,175 @@ const char *plugin_package_library_filename()
 
 void load_plugin_library(const boost::filesystem::path &plugin_path,
                          const boost::filesystem::path &package_root,
+                         const std::string &package_id,
+                         bool internal_package,
                          orchestrator_handle *orchestrator)
 {
     const PluginLoadClock::time_point start = PluginLoadClock::now();
+    Orchestrator &host = *reinterpret_cast<Orchestrator *>(orchestrator);
+    host.begin_plugin_package_load(package_id, package_root.string(), internal_package);
 #ifdef _WIN32
     static std::vector<HMODULE> loaded_modules;
     HMODULE module = LoadLibraryW(plugin_path.wstring().c_str());
     if (module == NULL) {
-        BOOST_LOG_TRIVIAL(warning) << "Cannot load plugin DLL '" << plugin_path.string()
-                                   << "': error " << GetLastError();
+        const DWORD error_code = GetLastError();
+        PluginPackageLoadIssue issue;
+        issue.code = error_code == ERROR_MOD_NOT_FOUND || error_code == ERROR_DLL_NOT_FOUND ?
+                         PluginPackageLoadErrorCode::DependencyMissing :
+                         PluginPackageLoadErrorCode::LibraryOpenFailed;
+        issue.system_error = uint32_t(error_code);
+        issue.detail = "Cannot load '" + plugin_path.string() + "': " + windows_error_message(error_code);
+        report_plugin_package_issue(host, package_id, std::move(issue));
+        host.finish_plugin_package_load(package_id);
         return;
     }
 
     FARPROC abi_farproc = GetProcAddress(module, "slic3r_plugin_abi_version");
     if (abi_farproc == NULL) {
-        BOOST_LOG_TRIVIAL(warning) << "Plugin DLL '" << plugin_path.string()
-                                   << "' does not export slic3r_plugin_abi_version(); skipping stale or incompatible plugin.";
+        PluginPackageLoadIssue issue;
+        issue.code = PluginPackageLoadErrorCode::MissingAbiExport;
+        issue.detail = "The library does not export slic3r_plugin_abi_version().";
+        report_plugin_package_issue(host, package_id, std::move(issue));
         FreeLibrary(module);
+        host.finish_plugin_package_load(package_id);
         return;
     }
 
     PluginAbiVersionFn abi_version_fn = reinterpret_cast<PluginAbiVersionFn>(abi_farproc);
     const uint32_t abi_version = abi_version_fn();
     if (abi_version != SLIC3R_PLUGIN_ABI_VERSION) {
-        BOOST_LOG_TRIVIAL(warning) << "Plugin DLL '" << plugin_path.string() << "' ABI mismatch: plugin ABI "
-                                   << abi_version << ", host ABI " << SLIC3R_PLUGIN_ABI_VERSION
-                                   << "; skipping incompatible plugin.";
+        PluginPackageLoadIssue issue;
+        issue.code = PluginPackageLoadErrorCode::AbiMismatch;
+        issue.plugin_abi = abi_version;
+        issue.host_abi = SLIC3R_PLUGIN_ABI_VERSION;
+        issue.detail = "Plugin API version " + std::to_string(abi_version) +
+                       " does not match host API version " + std::to_string(SLIC3R_PLUGIN_ABI_VERSION) + ".";
+        report_plugin_package_issue(host, package_id, std::move(issue));
         FreeLibrary(module);
+        host.finish_plugin_package_load(package_id);
         return;
     }
 
     FARPROC farproc = GetProcAddress(module, "register_plugin");
     if (farproc == NULL) {
-        BOOST_LOG_TRIVIAL(warning) << "Plugin DLL '" << plugin_path.string()
-                                   << "' does not export register_plugin().";
+        PluginPackageLoadIssue issue;
+        issue.code = PluginPackageLoadErrorCode::MissingRegistrationExport;
+        issue.detail = "The library does not export register_plugin().";
+        report_plugin_package_issue(host, package_id, std::move(issue));
         FreeLibrary(module);
+        host.finish_plugin_package_load(package_id);
         return;
     }
 
     RegisterPluginFn register_plugin_fn = reinterpret_cast<RegisterPluginFn>(farproc);
-    Orchestrator::PluginRegistrationScope registration_scope(
-        reinterpret_cast<Orchestrator *>(orchestrator)->plugin_registration_scope(package_root.string(), true));
-    register_plugin_fn(orchestrator);
-    loaded_modules.push_back(module);
+    try {
+        Orchestrator::PluginRegistrationScope registration_scope(
+            host.plugin_registration_scope(package_root.string(), true));
+        register_plugin_fn(orchestrator);
+    } catch (const std::exception &error) {
+        PluginPackageLoadIssue issue;
+        issue.code = PluginPackageLoadErrorCode::RegistrationFailed;
+        issue.detail = error.what();
+        report_plugin_package_issue(host, package_id, std::move(issue));
+    } catch (...) {
+        PluginPackageLoadIssue issue;
+        issue.code = PluginPackageLoadErrorCode::RegistrationFailed;
+        issue.detail = "register_plugin() threw an unknown exception.";
+        report_plugin_package_issue(host, package_id, std::move(issue));
+    }
+    host.finish_plugin_package_load(package_id);
+    const PluginPackageLoadReport *report = host.plugin_package_load_report(package_id);
+    if (!internal_package && report != nullptr && report->registered_plugin_ids.empty())
+        FreeLibrary(module);
+    else
+        loaded_modules.push_back(module);
     BOOST_LOG_TRIVIAL(debug) << "Loaded plugin DLL '" << plugin_path.string() << "' in "
                              << elapsed_ms(start).count() << " ms.";
 #else
     static std::vector<void *> loaded_modules;
     void *module = dlopen(plugin_path.string().c_str(), RTLD_NOW | RTLD_GLOBAL);
     if (module == nullptr) {
-        BOOST_LOG_TRIVIAL(warning) << "Cannot load plugin library '" << plugin_path.string()
-                                   << "': " << dlerror();
+        const char *loader_error = dlerror();
+        const std::string detail = loader_error == nullptr ? "Unknown dynamic loader error." : loader_error;
+        PluginPackageLoadIssue issue;
+        issue.code = detail.find("not found") != std::string::npos ||
+                     detail.find("No such file") != std::string::npos ?
+                         PluginPackageLoadErrorCode::DependencyMissing :
+                         PluginPackageLoadErrorCode::LibraryOpenFailed;
+        issue.detail = "Cannot load '" + plugin_path.string() + "': " + detail;
+        report_plugin_package_issue(host, package_id, std::move(issue));
+        host.finish_plugin_package_load(package_id);
         return;
     }
 
     void *abi_symbol = dlsym(module, "slic3r_plugin_abi_version");
     if (abi_symbol == nullptr) {
-        BOOST_LOG_TRIVIAL(warning) << "Plugin library '" << plugin_path.string()
-                                   << "' does not export slic3r_plugin_abi_version(); skipping stale or incompatible plugin.";
+        PluginPackageLoadIssue issue;
+        issue.code = PluginPackageLoadErrorCode::MissingAbiExport;
+        issue.detail = "The library does not export slic3r_plugin_abi_version().";
+        report_plugin_package_issue(host, package_id, std::move(issue));
         dlclose(module);
+        host.finish_plugin_package_load(package_id);
         return;
     }
 
     PluginAbiVersionFn abi_version_fn = reinterpret_cast<PluginAbiVersionFn>(abi_symbol);
     const uint32_t abi_version = abi_version_fn();
     if (abi_version != SLIC3R_PLUGIN_ABI_VERSION) {
-        BOOST_LOG_TRIVIAL(warning) << "Plugin library '" << plugin_path.string() << "' ABI mismatch: plugin ABI "
-                                   << abi_version << ", host ABI " << SLIC3R_PLUGIN_ABI_VERSION
-                                   << "; skipping incompatible plugin.";
+        PluginPackageLoadIssue issue;
+        issue.code = PluginPackageLoadErrorCode::AbiMismatch;
+        issue.plugin_abi = abi_version;
+        issue.host_abi = SLIC3R_PLUGIN_ABI_VERSION;
+        issue.detail = "Plugin API version " + std::to_string(abi_version) +
+                       " does not match host API version " + std::to_string(SLIC3R_PLUGIN_ABI_VERSION) + ".";
+        report_plugin_package_issue(host, package_id, std::move(issue));
         dlclose(module);
+        host.finish_plugin_package_load(package_id);
         return;
     }
 
     void *symbol = dlsym(module, "register_plugin");
     if (symbol == nullptr) {
-        BOOST_LOG_TRIVIAL(warning) << "Plugin library '" << plugin_path.string()
-                                   << "' does not export register_plugin(): " << dlerror();
+        const char *symbol_error = dlerror();
+        PluginPackageLoadIssue issue;
+        issue.code = PluginPackageLoadErrorCode::MissingRegistrationExport;
+        issue.detail = "The library does not export register_plugin()";
+        if (symbol_error != nullptr)
+            issue.detail += ": " + std::string(symbol_error);
+        report_plugin_package_issue(host, package_id, std::move(issue));
         dlclose(module);
+        host.finish_plugin_package_load(package_id);
         return;
     }
 
     RegisterPluginFn register_plugin_fn = reinterpret_cast<RegisterPluginFn>(symbol);
-    Orchestrator::PluginRegistrationScope registration_scope(
-        reinterpret_cast<Orchestrator *>(orchestrator)->plugin_registration_scope(package_root.string(), true));
-    register_plugin_fn(orchestrator);
-    loaded_modules.push_back(module);
+    try {
+        Orchestrator::PluginRegistrationScope registration_scope(
+            host.plugin_registration_scope(package_root.string(), true));
+        register_plugin_fn(orchestrator);
+    } catch (const std::exception &error) {
+        PluginPackageLoadIssue issue;
+        issue.code = PluginPackageLoadErrorCode::RegistrationFailed;
+        issue.detail = error.what();
+        report_plugin_package_issue(host, package_id, std::move(issue));
+    } catch (...) {
+        PluginPackageLoadIssue issue;
+        issue.code = PluginPackageLoadErrorCode::RegistrationFailed;
+        issue.detail = "register_plugin() threw an unknown exception.";
+        report_plugin_package_issue(host, package_id, std::move(issue));
+    }
+    host.finish_plugin_package_load(package_id);
+    const PluginPackageLoadReport *report = host.plugin_package_load_report(package_id);
+    if (!internal_package && report != nullptr && report->registered_plugin_ids.empty())
+        dlclose(module);
+    else
+        loaded_modules.push_back(module);
     BOOST_LOG_TRIVIAL(debug) << "Loaded plugin library '" << plugin_path.string() << "' in "
                              << elapsed_ms(start).count() << " ms.";
 #endif
 }
 
-void load_plugins_from_repository(const boost::filesystem::path &repository, orchestrator_handle *orchestrator)
+void load_plugins_from_repository_impl(const boost::filesystem::path &repository, orchestrator_handle *orchestrator)
 {
     if (!boost::filesystem::exists(repository)) {
         BOOST_LOG_TRIVIAL(trace) << "Plugin repository '" << repository.string() << "' does not exist.";
@@ -220,6 +377,7 @@ void load_plugins_from_repository(const boost::filesystem::path &repository, orc
         return;
     }
 
+    Orchestrator &host = *reinterpret_cast<Orchestrator *>(orchestrator);
     for (boost::filesystem::directory_iterator it(repository), end; it != end; ++it) {
         const boost::filesystem::path plugin_path = it->path();
         if (boost::filesystem::is_directory(plugin_path)) {
@@ -233,13 +391,69 @@ void load_plugins_from_repository(const boost::filesystem::path &repository, orc
             const boost::filesystem::path package_library = plugin_path / plugin_package_library_filename();
             const boost::filesystem::path package_manifest = plugin_path / "description.ini";
             const boost::filesystem::path package_version = plugin_path / "version.ini";
-            if (boost::filesystem::is_regular_file(package_library) &&
-                boost::filesystem::is_regular_file(package_manifest) &&
-                boost::filesystem::is_regular_file(package_version)) {
+            if (!boost::filesystem::is_regular_file(package_manifest) ||
+                !boost::filesystem::is_regular_file(package_version)) {
+                host.begin_plugin_package_load(package_name, plugin_path.string());
+                PluginPackageLoadIssue issue;
+                issue.code = PluginPackageLoadErrorCode::InvalidPackage;
+                issue.detail = "The installed package must contain description.ini and version.ini.";
+                report_plugin_package_issue(host, package_name, std::move(issue));
+                host.finish_plugin_package_load(package_name);
+                continue;
+            }
+
+            RepositoryDescription description;
+            std::string description_error;
+            if (!read_plugin_package_description(package_manifest, description, description_error) ||
+                description.id != package_name) {
+                host.begin_plugin_package_load(package_name, plugin_path.string());
+                PluginPackageLoadIssue issue;
+                issue.code = PluginPackageLoadErrorCode::InvalidPackage;
+                issue.detail = description_error.empty() ?
+                    "description.ini does not match the installed package directory." : description_error;
+                report_plugin_package_issue(host, package_name, std::move(issue));
+                host.finish_plugin_package_load(package_name);
+                continue;
+            }
+
+            if (boost::filesystem::is_regular_file(package_library)) {
                 BOOST_LOG_TRIVIAL(info) << "Loading plugin package '" << plugin_path.string() << "'.";
-                load_plugin_library(package_library, plugin_path, orchestrator);
+                load_plugin_library(package_library, plugin_path, package_name,
+                                    description.is_internal, orchestrator);
+            } else if (!is_python_plugin_package(plugin_path)) {
+                host.begin_plugin_package_load(package_name, plugin_path.string());
+                PluginPackageLoadIssue issue;
+                issue.code = PluginPackageLoadErrorCode::InvalidPackage;
+                issue.detail = "The installed package contains neither a native plugin library nor a Python entry point.";
+                report_plugin_package_issue(host, package_name, std::move(issue));
+                host.finish_plugin_package_load(package_name);
             }
         }
+    }
+
+    // The Python runtime reports each package it attempted. Anything still
+    // absent after native loading could not reach that runtime at all.
+    const PluginPackageLoadReport *python_runtime = host.plugin_package_load_report("python");
+    for (boost::filesystem::directory_iterator it(repository), end; it != end; ++it) {
+        const boost::filesystem::path package_root = it->path();
+        if (!boost::filesystem::is_directory(package_root) ||
+            boost::filesystem::is_regular_file(package_root / plugin_package_library_filename()) ||
+            !is_python_plugin_package(package_root))
+            continue;
+        const std::string package_id = package_root.filename().string();
+        if (host.plugin_package_load_report(package_id) != nullptr)
+            continue;
+        host.begin_plugin_package_load(package_id, package_root.string());
+        PluginPackageLoadIssue issue;
+        if (python_runtime == nullptr || python_runtime->state == PluginPackageLoadState::Failed) {
+            issue.code = PluginPackageLoadErrorCode::PythonRuntimeUnavailable;
+            issue.detail = "The Python plugin runtime package is not installed or did not load.";
+        } else {
+            issue.code = PluginPackageLoadErrorCode::PythonRegistrationFailed;
+            issue.detail = "The Python runtime did not load this package.";
+        }
+        report_plugin_package_issue(host, package_id, std::move(issue));
+        host.finish_plugin_package_load(package_id);
     }
 }
 
@@ -487,6 +701,13 @@ void register_exclusive_step_group_options(Orchestrator &orchestrator)
     register_exclusive_step_group_options_impl(orchestrator);
 }
 
+void load_plugin_packages_from_repository(const boost::filesystem::path &repository,
+                                          Orchestrator &orchestrator)
+{
+    load_plugins_from_repository_impl(repository,
+        reinterpret_cast<orchestrator_handle *>(&orchestrator));
+}
+
 void register_exclusive_step_group_ui_fragments(Orchestrator &orchestrator)
 {
     register_exclusive_step_group_ui_fragments_impl(orchestrator);
@@ -502,6 +723,7 @@ void load_plugins()
 {
     const PluginLoadClock::time_point start = PluginLoadClock::now();
     Orchestrator &orchestrator = Orchestrator::instance();
+    orchestrator.clear_plugin_package_load_reports();
     orchestrator_handle *orchestrator_handle_ptr = reinterpret_cast<orchestrator_handle *>(&orchestrator);
 
     // Package installation happens before any external DLL is loaded. This
@@ -520,11 +742,17 @@ void load_plugins()
         // up the new default unless it explicitly keeps that id disabled.
         PluginActivationConfig default_plugin_config;
         bool ignored_from_user_config = false;
+        bool activation_config_changed = false;
         if (ensure_plugin_activation_config(boost::filesystem::path(), default_plugin_config,
                                             ignored_from_user_config, plugin_config_error)) {
             for (const auto &[plugin_id, enabled] : default_plugin_config.activated)
-                if (enabled && plugin_config.activated.find(plugin_id) == plugin_config.activated.end())
+                if (enabled && plugin_config.activated.find(plugin_id) == plugin_config.activated.end()) {
                     plugin_config.activated.emplace(plugin_id, true);
+                    activation_config_changed = true;
+                }
+            for (const auto &[plugin_id, package_id] : default_plugin_config.plugin_packages)
+                if (plugin_config.plugin_packages.emplace(plugin_id, package_id).second)
+                    activation_config_changed = true;
         } else {
             BOOST_LOG_TRIVIAL(warning) << plugin_config_error;
         }
@@ -537,11 +765,35 @@ void load_plugins()
             BOOST_LOG_TRIVIAL(warning) << warning;
         if (!packages_applied)
             BOOST_LOG_TRIVIAL(warning) << plugin_config_error;
+        if (activation_config_changed &&
+            !write_plugin_activation_config(plugin_activation_config_path(config_dir),
+                                            plugin_config, plugin_config_error))
+            BOOST_LOG_TRIVIAL(warning) << plugin_config_error;
     }
 
     register_builtin_plugins(orchestrator_handle_ptr);
     if (!config_dir.empty())
-        load_plugins_from_repository(config_dir / "plugins", orchestrator_handle_ptr);
+        load_plugin_packages_from_repository(config_dir / "plugins", orchestrator);
+
+    // A successfully registered external plugin is the authoritative source
+    // for its provider association. Backfill old profiles when that relation
+    // was not yet persisted, without replacing an explicit existing mapping.
+    bool learned_package_association = false;
+    for (const Plugin *plugin : orchestrator.registered_plugins()) {
+        if (plugin->get_package_root().empty() ||
+            plugin_config.activated.find(plugin->get_id()) == plugin_config.activated.end() ||
+            plugin_config.plugin_packages.find(plugin->get_id()) != plugin_config.plugin_packages.end())
+            continue;
+        const std::string package_id = boost::filesystem::path(plugin->get_package_root()).filename().string();
+        if (!package_id.empty()) {
+            plugin_config.plugin_packages[plugin->get_id()] = package_id;
+            learned_package_association = true;
+        }
+    }
+    if (learned_package_association && !config_dir.empty() &&
+        !write_plugin_activation_config(plugin_activation_config_path(config_dir),
+                                        plugin_config, plugin_config_error))
+        BOOST_LOG_TRIVIAL(warning) << plugin_config_error;
 
     // Loading and activation are intentionally separate. A disabled plugin is
     // still registered so the configuration dialog can show it, but it cannot

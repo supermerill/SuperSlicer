@@ -39,6 +39,20 @@
 
 namespace Slic3r {
 
+// Derive the public report state from registrations and issues after every
+// mutation. A package may register useful plugins before a later registration
+// fails, which is reported as LoadedWithErrors instead of hiding those plugins.
+static void update_plugin_package_load_state(PluginPackageLoadReport &report)
+{
+    if (report.issues.empty()) {
+        report.state = PluginPackageLoadState::Loaded;
+    } else if (report.registered_plugin_ids.empty()) {
+        report.state = PluginPackageLoadState::Failed;
+    } else {
+        report.state = PluginPackageLoadState::LoadedWithErrors;
+    }
+}
+
 Orchestrator *orchestrator_from_handle(orchestrator_handle *me) {
     return me == nullptr ? &Orchestrator::instance() : reinterpret_cast<Orchestrator *>(me);
 }
@@ -498,6 +512,13 @@ bool Orchestrator::register_plugin(plugin_instance plugin) {
                                     source != nullptr ? source->package_root : std::string()));
     } catch (const std::exception &error) {
         BOOST_LOG_TRIVIAL(error) << "Cannot register plugin: " << error.what() << std::endl;
+        if (!m_plugin_registration_sources.empty() &&
+            m_plugin_registration_sources.back().external_plugin) {
+            PluginPackageLoadIssue issue;
+            issue.code = PluginPackageLoadErrorCode::RegistrationFailed;
+            issue.detail = error.what();
+            report_plugin_package_load_issue(m_plugin_registration_sources.back().package_id, std::move(issue));
+        }
         return false;
     }
 
@@ -506,11 +527,80 @@ bool Orchestrator::register_plugin(plugin_instance plugin) {
     if (check_exists) {
         BOOST_LOG_TRIVIAL(error) << "Plugin with id " << new_id << " already exists, cannot register plugin"
                                  << std::endl;
+        if (!m_plugin_registration_sources.empty() &&
+            m_plugin_registration_sources.back().external_plugin) {
+            PluginPackageLoadIssue issue;
+            issue.code = PluginPackageLoadErrorCode::RegistrationFailed;
+            issue.plugin_id = new_id;
+            issue.detail = "A plugin with this id is already registered.";
+            report_plugin_package_load_issue(m_plugin_registration_sources.back().package_id, std::move(issue));
+        }
         return false;
     }
     m_registered_plugins.emplace_back(std::move(new_plugin));
+    if (!m_plugin_registration_sources.empty() &&
+        m_plugin_registration_sources.back().external_plugin) {
+        PluginPackageLoadReport &report = m_plugin_package_load_reports[
+            m_plugin_registration_sources.back().package_id];
+        if (std::find(report.registered_plugin_ids.begin(), report.registered_plugin_ids.end(), new_id) ==
+            report.registered_plugin_ids.end())
+            report.registered_plugin_ids.push_back(new_id);
+    }
     BOOST_LOG_TRIVIAL(debug) << "Registered plugin '" << new_id << "' in " << elapsed_ms(start).count() << " ms.";
     return true;
+}
+
+void Orchestrator::begin_plugin_package_load(const std::string &package_id,
+                                             const std::string &package_path,
+                                             bool allows_no_plugins)
+{
+    if (package_id.empty())
+        return;
+    PluginPackageLoadReport report;
+    report.package_id = package_id;
+    report.package_path = package_path;
+    report.allows_no_plugins = allows_no_plugins;
+    m_plugin_package_load_reports[package_id] = std::move(report);
+}
+
+void Orchestrator::report_plugin_package_load_issue(const std::string &package_id,
+                                                    PluginPackageLoadIssue issue)
+{
+    if (package_id.empty())
+        return;
+    PluginPackageLoadReport &report = m_plugin_package_load_reports[package_id];
+    report.package_id = package_id;
+    report.issues.push_back(std::move(issue));
+    update_plugin_package_load_state(report);
+}
+
+void Orchestrator::finish_plugin_package_load(const std::string &package_id)
+{
+    const std::map<std::string, PluginPackageLoadReport>::iterator found =
+        m_plugin_package_load_reports.find(package_id);
+    if (found == m_plugin_package_load_reports.end())
+        return;
+
+    PluginPackageLoadReport &report = found->second;
+    if (report.issues.empty() && report.registered_plugin_ids.empty() && !report.allows_no_plugins) {
+        PluginPackageLoadIssue issue;
+        issue.code = PluginPackageLoadErrorCode::NoPluginsRegistered;
+        issue.detail = "The package completed registration without registering a plugin instance.";
+        report.issues.push_back(std::move(issue));
+    }
+    update_plugin_package_load_state(report);
+}
+
+void Orchestrator::clear_plugin_package_load_reports()
+{
+    m_plugin_package_load_reports.clear();
+}
+
+const PluginPackageLoadReport *Orchestrator::plugin_package_load_report(const std::string &package_id) const
+{
+    const std::map<std::string, PluginPackageLoadReport>::const_iterator found =
+        m_plugin_package_load_reports.find(package_id);
+    return found == m_plugin_package_load_reports.end() ? nullptr : &found->second;
 }
 
 Orchestrator::PluginRegistrationScope::PluginRegistrationScope(PluginRegistrationScope &&other) noexcept
@@ -538,10 +628,12 @@ Orchestrator::PluginRegistrationScope Orchestrator::plugin_registration_scope(st
                                                                                 bool external_plugin)
 {
     PluginRegistrationSource source;
-    if (!package_root.empty())
+    if (!package_root.empty()) {
         source.package_root = boost::filesystem::absolute(boost::filesystem::path(package_root))
                                   .lexically_normal()
                                   .generic_string();
+        source.package_id = boost::filesystem::path(source.package_root).filename().string();
+    }
     source.external_plugin = external_plugin;
     m_plugin_registration_sources.emplace_back(std::move(source));
     return PluginRegistrationScope(this);

@@ -638,6 +638,7 @@ TEST_CASE("Pure Python package is loaded with its own package root",
 {
     Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
     REQUIRE(Slic3r::Test::Plugins::python_plugin_test_runtime_available());
+    CHECK(Slic3r::Orchestrator::instance().get_plugin("python") == nullptr);
     const Slic3r::Plugin *plugin =
         Slic3r::Orchestrator::instance().get_plugin("python.external.package_root");
     REQUIRE(plugin != nullptr);
@@ -983,6 +984,51 @@ TEST_CASE("Legacy installed plugin version is read as both package and slicer ve
     CHECK(config.installed["example.plugin"].package_version == "1.2.3.4");
     CHECK(config.installed["example.plugin"].slicer_version == "1.2.3.4");
     CHECK(config.activated["example.id"]);
+    boost::filesystem::remove_all(root);
+}
+
+TEST_CASE("Plugin activation configuration preserves package providers",
+          "[plugins][repository][activation]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-plugin-activation-%%%%-%%%%");
+    const boost::filesystem::path config_path = root / "activated.ini";
+    Slic3r::PluginActivationConfig written;
+    written.activated["example.first"] = true;
+    written.activated["example.second"] = true;
+    written.plugin_packages["example.first"] = "example.package";
+    written.plugin_packages["example.second"] = "example.package";
+
+    std::string error_message;
+    REQUIRE(Slic3r::write_plugin_activation_config(config_path, written, error_message));
+    Slic3r::PluginActivationConfig read;
+    REQUIRE(Slic3r::read_plugin_activation_config(config_path, read, error_message));
+    CHECK(read.activated == written.activated);
+    CHECK(read.plugin_packages == written.plugin_packages);
+
+    const std::string contents = read_text_file(config_path);
+    CHECK(contents.find("[plugin_packages]") != std::string::npos);
+    CHECK(contents.find("example.first = example.package") != std::string::npos);
+    boost::filesystem::remove_all(root);
+}
+
+TEST_CASE("Plugin activation configuration accepts files without package providers",
+          "[plugins][repository][activation]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-plugin-activation-%%%%-%%%%");
+    const boost::filesystem::path config_path = root / "activated.ini";
+    boost::filesystem::create_directories(root);
+    {
+        boost::nowide::ofstream stream(config_path.string());
+        stream << "[activated]\nlegacy.plugin = 1\n";
+    }
+
+    Slic3r::PluginActivationConfig config;
+    std::string error_message;
+    REQUIRE(Slic3r::read_plugin_activation_config(config_path, config, error_message));
+    CHECK(config.activated["legacy.plugin"]);
+    CHECK(config.plugin_packages.empty());
     boost::filesystem::remove_all(root);
 }
 

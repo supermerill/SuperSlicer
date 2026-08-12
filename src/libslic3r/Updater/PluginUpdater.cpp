@@ -14,7 +14,6 @@
 #include <cstring>
 #include <ctime>
 #include <iterator>
-#include <set>
 #include <sstream>
 #include <utility>
 
@@ -41,6 +40,15 @@ bool read_plugin_description(const boost::filesystem::path &path,
 bool read_live_plugin_version(const boost::filesystem::path &package_root,
                               std::optional<PluginInstalledVersion> &version,
                               std::string &error_message);
+// Keep reports shown by the package manager limited to failures caused while
+// loading package contents. Missing configured plugin ids belong to the
+// activation dialog, which can reason about them using activated.ini.
+std::optional<PluginPackageLoadReport> package_manager_load_report(
+    const PluginPackageLoadReport &report);
+// Build the package-level diagnostic used when activated.ini selects an
+// installed package whose live directory is no longer present.
+PluginPackageLoadReport missing_live_package_report(
+    const std::string &package_id, const boost::filesystem::path &package_root);
 
 bool read_plugin_description(const boost::filesystem::path &path,
                              RepositoryDescription &description,
@@ -84,6 +92,39 @@ bool read_live_plugin_version(const boost::filesystem::path &package_root,
         error_message = "Cannot read the live plugin version.ini: " + std::string(error.what());
         return false;
     }
+}
+
+std::optional<PluginPackageLoadReport> package_manager_load_report(
+    const PluginPackageLoadReport &report)
+{
+    PluginPackageLoadReport filtered = report;
+    filtered.issues.erase(
+        std::remove_if(filtered.issues.begin(), filtered.issues.end(),
+            [](const PluginPackageLoadIssue &issue) {
+                return issue.code == PluginPackageLoadErrorCode::ConfiguredPluginMissing ||
+                       (issue.code == PluginPackageLoadErrorCode::PackageMissing && !issue.plugin_id.empty());
+            }),
+        filtered.issues.end());
+    if (filtered.issues.empty())
+        return std::nullopt;
+
+    filtered.state = filtered.registered_plugin_ids.empty() ?
+        PluginPackageLoadState::Failed : PluginPackageLoadState::LoadedWithErrors;
+    return filtered;
+}
+
+PluginPackageLoadReport missing_live_package_report(
+    const std::string &package_id, const boost::filesystem::path &package_root)
+{
+    PluginPackageLoadReport report;
+    report.package_id = package_id;
+    report.package_path = package_root.string();
+    report.state = PluginPackageLoadState::Failed;
+    PluginPackageLoadIssue issue;
+    issue.code = PluginPackageLoadErrorCode::PackageMissing;
+    issue.detail = "The package is selected as installed, but its live plugin directory is missing.";
+    report.issues.emplace_back(std::move(issue));
+    return report;
 }
 
 } // namespace
@@ -159,12 +200,7 @@ void PluginUpdater::reload_all_plugins()
         BOOST_LOG_TRIVIAL(warning) << error_message;
 
     RepositoryPackageCache cache(configuration_directory, plugin_repository_cache_adapter());
-    std::set<std::string> internal_package_ids;
     for (const RepositoryCachedEntry &repository : cache.scan()) {
-        if (repository.description.is_internal) {
-            internal_package_ids.insert(repository.description.id);
-            continue;
-        }
         PluginSync &plugin = m_plugins[repository.description.id];
         plugin.description = repository.description;
         plugin.has_cache = true;
@@ -187,16 +223,11 @@ void PluginUpdater::reload_all_plugins()
         return;
     }
     for (const auto &[id, version] : config.installed) {
-        if (internal_package_ids.find(id) != internal_package_ids.end())
-            continue;
-
         const boost::filesystem::path package_root = boost::filesystem::path(data_dir()) / "plugins" / id;
         RepositoryDescription description;
         const std::map<std::string, PluginSync>::iterator existing = m_plugins.find(id);
-        if (existing == m_plugins.end() &&
-            read_plugin_description(package_root / DESCRIPTION_FILENAME, description, error_message) &&
-            description.is_internal)
-            continue;
+        if (existing == m_plugins.end())
+            read_plugin_description(package_root / DESCRIPTION_FILENAME, description, error_message);
 
         PluginSync &plugin = m_plugins[id];
         if (plugin.description.id.empty() && !description.id.empty())
@@ -209,10 +240,32 @@ void PluginUpdater::reload_all_plugins()
         }
         plugin.is_installed = true;
         plugin.installed_version = version;
+        // The installed section is the package manager's source of truth. A
+        // missing live directory is therefore a package failure even when no
+        // activated plugin id currently refers to this package.
+        if (!boost::filesystem::is_directory(package_root))
+            plugin.load_report = missing_live_package_report(id, package_root);
         plugin.has_cache = plugin.has_cache || boost::filesystem::is_directory(repository_package_cache_path(
             boost::filesystem::path(data_dir()), RepositoryPackageType::Plugin, id,
             version.package_version, version.slicer_version));
         plugin.sort_available();
+    }
+
+    // A failed or missing live package may have no cache descriptor to create
+    // its row. The startup report still has a stable package id, so expose a
+    // minimal model entry and let Plugin updates present the repair controls.
+    for (const auto &[package_id, report] : Orchestrator::instance().plugin_package_load_reports()) {
+        std::optional<PluginPackageLoadReport> filtered_report = package_manager_load_report(report);
+        if (!filtered_report.has_value())
+            continue;
+        PluginSync &plugin = m_plugins[package_id];
+        if (plugin.description.id.empty()) {
+            plugin.description.type = RepositoryPackageType::Plugin;
+            plugin.description.id = package_id;
+            plugin.description.name = package_id;
+            plugin.description.full_name = package_id;
+        }
+        plugin.load_report = std::move(filtered_report);
     }
 }
 

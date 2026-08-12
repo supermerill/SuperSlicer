@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <boost/log/trivial.hpp>
+#include <boost/filesystem/path.hpp>
 
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/c/slic3r_extrusion_property.h"
@@ -71,6 +72,41 @@ const Slic3r::Orchestrator *to_orchestrator(const orchestrator_handle *orch)
                              reinterpret_cast<const Slic3r::Orchestrator *>(orch);
 }
 
+Slic3r::PluginPackageLoadErrorCode plugin_package_load_error_code(raw_plugin_package_load_error_code code)
+{
+    switch (code) {
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_PACKAGE_MISSING:
+        return Slic3r::PluginPackageLoadErrorCode::PackageMissing;
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_LIBRARY_OPEN_FAILED:
+        return Slic3r::PluginPackageLoadErrorCode::LibraryOpenFailed;
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_MISSING_ABI_EXPORT:
+        return Slic3r::PluginPackageLoadErrorCode::MissingAbiExport;
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_ABI_MISMATCH:
+        return Slic3r::PluginPackageLoadErrorCode::AbiMismatch;
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_MISSING_REGISTRATION_EXPORT:
+        return Slic3r::PluginPackageLoadErrorCode::MissingRegistrationExport;
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_REGISTRATION_FAILED:
+        return Slic3r::PluginPackageLoadErrorCode::RegistrationFailed;
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_NO_PLUGINS_REGISTERED:
+        return Slic3r::PluginPackageLoadErrorCode::NoPluginsRegistered;
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_RUNTIME_UNAVAILABLE:
+        return Slic3r::PluginPackageLoadErrorCode::PythonRuntimeUnavailable;
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_READ_FAILED:
+        return Slic3r::PluginPackageLoadErrorCode::PythonReadFailed;
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_COMPILE_FAILED:
+        return Slic3r::PluginPackageLoadErrorCode::PythonCompileFailed;
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_IMPORT_FAILED:
+        return Slic3r::PluginPackageLoadErrorCode::PythonImportFailed;
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_REGISTRATION_FAILED:
+        return Slic3r::PluginPackageLoadErrorCode::PythonRegistrationFailed;
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_CONFIGURED_PLUGIN_MISSING:
+        return Slic3r::PluginPackageLoadErrorCode::ConfiguredPluginMissing;
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_INVALID_PACKAGE:
+    default:
+        return Slic3r::PluginPackageLoadErrorCode::InvalidPackage;
+    }
+}
+
 } // namespace
 
 extern "C" {
@@ -96,6 +132,46 @@ void orchestrator_register_plugin_from_package(orchestrator_handle *orch,
     Slic3r::Orchestrator::PluginRegistrationScope registration_scope(
         orchestrator->plugin_registration_scope(package_root, true));
     orchestrator->register_plugin(plugin);
+}
+
+void orchestrator_begin_plugin_package_load(orchestrator_handle *orch, const char *package_root)
+{
+    if (package_root == nullptr || package_root[0] == '\0')
+        return;
+    try {
+        const boost::filesystem::path root(package_root);
+        to_orchestrator(orch)->begin_plugin_package_load(root.filename().string(), root.string());
+    } catch (...) {
+    }
+}
+
+void orchestrator_report_plugin_package_load_error(orchestrator_handle *orch,
+                                                   const char *package_root,
+                                                   raw_plugin_package_load_error_code code,
+                                                   const char *detail)
+{
+    if (package_root == nullptr || package_root[0] == '\0')
+        return;
+    try {
+        const boost::filesystem::path root(package_root);
+        Slic3r::PluginPackageLoadIssue issue;
+        issue.code = plugin_package_load_error_code(code);
+        if (detail != nullptr)
+            issue.detail = detail;
+        to_orchestrator(orch)->report_plugin_package_load_issue(root.filename().string(), std::move(issue));
+    } catch (...) {
+    }
+}
+
+void orchestrator_finish_plugin_package_load(orchestrator_handle *orch, const char *package_root)
+{
+    if (package_root == nullptr || package_root[0] == '\0')
+        return;
+    try {
+        const boost::filesystem::path root(package_root);
+        to_orchestrator(orch)->finish_plugin_package_load(root.filename().string());
+    } catch (...) {
+    }
 }
 
 int32_t orchestrator_register_translation_catalog(orchestrator_handle *orch,

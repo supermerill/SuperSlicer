@@ -12,6 +12,7 @@ add_executable(${_TEST_NAME}_tests
     test_clipper_views.cpp
     test_extrusion_continuity.cpp
     test_plugin_property.cpp
+    test_plugin_loader_diagnostics.cpp
     test_plugin_repository.cpp
     test_repository_updater.cpp
     test_plugin_translation_catalogs.cpp
@@ -48,6 +49,45 @@ add_executable(${_TEST_NAME}_tests
     test_surface_top_surface_expansion.cpp
     test_vase_multi_island_connector.cpp
     )
+
+add_library(plugin_loader_bad_abi_fixture SHARED plugin_loader_fixture.cpp)
+target_compile_definitions(plugin_loader_bad_abi_fixture PRIVATE
+    SLIC3R_PLUGIN_EXPORTS
+    SLIC3R_TEST_PLUGIN_BAD_ABI)
+target_include_directories(plugin_loader_bad_abi_fixture PRIVATE ../..)
+set_target_properties(plugin_loader_bad_abi_fixture PROPERTIES FOLDER "tests/plugins")
+
+add_library(plugin_loader_missing_register_fixture SHARED plugin_loader_fixture.cpp)
+target_compile_definitions(plugin_loader_missing_register_fixture PRIVATE
+    SLIC3R_PLUGIN_EXPORTS
+    SLIC3R_TEST_PLUGIN_MISSING_REGISTER)
+target_include_directories(plugin_loader_missing_register_fixture PRIVATE ../..)
+set_target_properties(plugin_loader_missing_register_fixture PROPERTIES FOLDER "tests/plugins")
+
+add_library(plugin_loader_missing_abi_fixture SHARED plugin_loader_fixture.cpp)
+target_compile_definitions(plugin_loader_missing_abi_fixture PRIVATE
+    SLIC3R_PLUGIN_EXPORTS
+    SLIC3R_TEST_PLUGIN_MISSING_ABI)
+target_include_directories(plugin_loader_missing_abi_fixture PRIVATE ../..)
+set_target_properties(plugin_loader_missing_abi_fixture PROPERTIES FOLDER "tests/plugins")
+
+add_library(plugin_loader_throw_register_fixture SHARED plugin_loader_fixture.cpp)
+target_compile_definitions(plugin_loader_throw_register_fixture PRIVATE
+    SLIC3R_PLUGIN_EXPORTS
+    SLIC3R_TEST_PLUGIN_THROW_REGISTER)
+target_include_directories(plugin_loader_throw_register_fixture PRIVATE ../..)
+set_target_properties(plugin_loader_throw_register_fixture PROPERTIES FOLDER "tests/plugins")
+
+add_dependencies(${_TEST_NAME}_tests
+    plugin_loader_bad_abi_fixture
+    plugin_loader_missing_register_fixture
+    plugin_loader_missing_abi_fixture
+    plugin_loader_throw_register_fixture)
+target_compile_definitions(${_TEST_NAME}_tests PRIVATE
+    SLIC3R_TEST_PLUGIN_BAD_ABI_DLL=R"\($<TARGET_FILE:plugin_loader_bad_abi_fixture>\)"
+    SLIC3R_TEST_PLUGIN_MISSING_REGISTER_DLL=R"\($<TARGET_FILE:plugin_loader_missing_register_fixture>\)"
+    SLIC3R_TEST_PLUGIN_MISSING_ABI_DLL=R"\($<TARGET_FILE:plugin_loader_missing_abi_fixture>\)"
+    SLIC3R_TEST_PLUGIN_THROW_REGISTER_DLL=R"\($<TARGET_FILE:plugin_loader_throw_register_fixture>\)")
 
 target_link_libraries(${_TEST_NAME}_tests test_common test_common_data libslic3r)
 set_property(TARGET ${_TEST_NAME}_tests PROPERTY FOLDER "tests")

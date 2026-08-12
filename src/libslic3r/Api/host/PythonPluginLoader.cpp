@@ -41,6 +41,7 @@
 #include <cstdint>
 #include <iterator>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -55,8 +56,32 @@ namespace {
 
 using OrchestratorRegisterPluginFn = void (*)(orchestrator_handle *, plugin_instance);
 using OrchestratorRegisterPluginFromPackageFn = void (*)(orchestrator_handle *, plugin_instance, const char *);
+using OrchestratorBeginPackageLoadFn = void (*)(orchestrator_handle *, const char *);
+using OrchestratorReportPackageErrorFn = void (*)(orchestrator_handle *, const char *,
+                                                  raw_plugin_package_load_error_code, const char *);
+using OrchestratorFinishPackageLoadFn = void (*)(orchestrator_handle *, const char *);
+
+struct OrchestratorFunctions
+{
+    OrchestratorRegisterPluginFn register_plugin = nullptr;
+    OrchestratorRegisterPluginFromPackageFn register_package_plugin = nullptr;
+    OrchestratorBeginPackageLoadFn begin_package_load = nullptr;
+    OrchestratorReportPackageErrorFn report_package_error = nullptr;
+    OrchestratorFinishPackageLoadFn finish_package_load = nullptr;
+};
 
 std::vector<std::unique_ptr<class PythonPlugin>> s_python_plugins;
+
+// Consume the active Python exception and format its complete traceback. The
+// returned string is safe to retain after the GIL is released.
+std::string take_python_error();
+
+// Publish a package-specific Python failure when loading an external script.
+void report_python_package_error(const OrchestratorFunctions &functions,
+                                 orchestrator_handle *orchestrator,
+                                 const boost::filesystem::path &package_root,
+                                 raw_plugin_package_load_error_code code,
+                                 const std::string &detail);
 
 struct PythonUsedConfigKey
 {
@@ -145,6 +170,95 @@ boost::filesystem::path current_executable_path()
     }
 #endif
 #endif
+}
+
+boost::filesystem::path host_library_path()
+{
+    const boost::filesystem::path executable = current_executable_path();
+    if (executable.empty())
+        return {};
+
+#ifdef _WIN32
+    /*
+    The installed Python runtime lives under the user data directory, not next
+    to the application binaries. The host API is exported by Slic3r.dll beside
+    the executable, so it cannot be located relative to the plugin package.
+
+    Plugin tests deliberately omit Slic3r.dll and export the API from their
+    executable instead. Returning the executable is therefore the required
+    fallback rather than an error.
+    */
+    const boost::filesystem::path host_library = executable.parent_path() / "Slic3r.dll";
+    if (boost::filesystem::is_regular_file(host_library))
+        return host_library;
+#endif
+
+    return executable;
+}
+
+std::string take_python_error()
+{
+    PyObject *exception_type = nullptr;
+    PyObject *exception_value = nullptr;
+    PyObject *exception_traceback = nullptr;
+    PyErr_Fetch(&exception_type, &exception_value, &exception_traceback);
+    PyErr_NormalizeException(&exception_type, &exception_value, &exception_traceback);
+
+    std::string result;
+    PyObject *traceback_module = PyImport_ImportModule("traceback");
+    PyObject *format_exception = traceback_module == nullptr ? nullptr :
+        PyObject_GetAttrString(traceback_module, "format_exception");
+    PyObject *formatted = format_exception == nullptr ? nullptr :
+        PyObject_CallFunctionObjArgs(format_exception,
+                                     exception_type == nullptr ? Py_None : exception_type,
+                                     exception_value == nullptr ? Py_None : exception_value,
+                                     exception_traceback == nullptr ? Py_None : exception_traceback,
+                                     nullptr);
+    PyObject *separator = formatted == nullptr ? nullptr : PyUnicode_FromString("");
+    PyObject *joined = separator == nullptr ? nullptr : PyUnicode_Join(separator, formatted);
+    if (joined != nullptr) {
+        const char *utf8 = PyUnicode_AsUTF8(joined);
+        if (utf8 != nullptr)
+            result = utf8;
+    }
+
+    // Formatting may itself fail when the Python runtime is only partially
+    // initialized. Fall back to the exception value rather than losing the
+    // original reason entirely.
+    if (result.empty() && exception_value != nullptr) {
+        PyErr_Clear();
+        PyObject *value_text = PyObject_Str(exception_value);
+        if (value_text != nullptr) {
+            const char *utf8 = PyUnicode_AsUTF8(value_text);
+            if (utf8 != nullptr)
+                result = utf8;
+        }
+        Py_XDECREF(value_text);
+    }
+    if (result.empty())
+        result = "Unknown Python error.";
+
+    Py_XDECREF(joined);
+    Py_XDECREF(separator);
+    Py_XDECREF(formatted);
+    Py_XDECREF(format_exception);
+    Py_XDECREF(traceback_module);
+    Py_XDECREF(exception_traceback);
+    Py_XDECREF(exception_value);
+    Py_XDECREF(exception_type);
+    PyErr_Clear();
+    return result;
+}
+
+void report_python_package_error(const OrchestratorFunctions &functions,
+                                 orchestrator_handle *orchestrator,
+                                 const boost::filesystem::path &package_root,
+                                 raw_plugin_package_load_error_code code,
+                                 const std::string &detail)
+{
+    if (package_root.empty() || functions.report_package_error == nullptr)
+        return;
+    functions.report_package_error(orchestrator, package_root.string().c_str(), code, detail.c_str());
 }
 
 PyObject *python_path_from_boost(const boost::filesystem::path &path)
@@ -619,11 +733,9 @@ private:
 };
 
 bool resolve_registration_functions(const boost::filesystem::path &host_library_path,
-                                    OrchestratorRegisterPluginFn &register_plugin_fn,
-                                    OrchestratorRegisterPluginFromPackageFn &register_package_plugin_fn)
+                                    OrchestratorFunctions &functions)
 {
-    register_plugin_fn = nullptr;
-    register_package_plugin_fn = nullptr;
+    functions = {};
 #ifdef _WIN32
     static std::vector<HMODULE> loaded_modules;
     HMODULE module = LoadLibraryW(host_library_path.wstring().c_str());
@@ -646,14 +758,32 @@ bool resolve_registration_functions(const boost::filesystem::path &host_library_
                                  << "' does not export orchestrator_register_plugin_from_package.";
         return false;
     }
-    register_plugin_fn = reinterpret_cast<OrchestratorRegisterPluginFn>(farproc);
-    register_package_plugin_fn = reinterpret_cast<OrchestratorRegisterPluginFromPackageFn>(package_farproc);
+    FARPROC begin_farproc = GetProcAddress(module, "orchestrator_begin_plugin_package_load");
+    FARPROC report_farproc = GetProcAddress(module, "orchestrator_report_plugin_package_load_error");
+    FARPROC finish_farproc = GetProcAddress(module, "orchestrator_finish_plugin_package_load");
+    if (begin_farproc == NULL || report_farproc == NULL || finish_farproc == NULL) {
+        BOOST_LOG_TRIVIAL(error) << "Host library '" << host_library_path.string()
+                                 << "' does not export plugin package diagnostic functions.";
+        return false;
+    }
+    functions.register_plugin = reinterpret_cast<OrchestratorRegisterPluginFn>(farproc);
+    functions.register_package_plugin = reinterpret_cast<OrchestratorRegisterPluginFromPackageFn>(package_farproc);
+    functions.begin_package_load = reinterpret_cast<OrchestratorBeginPackageLoadFn>(begin_farproc);
+    functions.report_package_error = reinterpret_cast<OrchestratorReportPackageErrorFn>(report_farproc);
+    functions.finish_package_load = reinterpret_cast<OrchestratorFinishPackageLoadFn>(finish_farproc);
 #else
     void *symbol = dlsym(RTLD_DEFAULT, "orchestrator_register_plugin");
     void *package_symbol = dlsym(RTLD_DEFAULT, "orchestrator_register_plugin_from_package");
-    if (symbol != nullptr && package_symbol != nullptr) {
-        register_plugin_fn = reinterpret_cast<OrchestratorRegisterPluginFn>(symbol);
-        register_package_plugin_fn = reinterpret_cast<OrchestratorRegisterPluginFromPackageFn>(package_symbol);
+    void *begin_symbol = dlsym(RTLD_DEFAULT, "orchestrator_begin_plugin_package_load");
+    void *report_symbol = dlsym(RTLD_DEFAULT, "orchestrator_report_plugin_package_load_error");
+    void *finish_symbol = dlsym(RTLD_DEFAULT, "orchestrator_finish_plugin_package_load");
+    if (symbol != nullptr && package_symbol != nullptr && begin_symbol != nullptr &&
+        report_symbol != nullptr && finish_symbol != nullptr) {
+        functions.register_plugin = reinterpret_cast<OrchestratorRegisterPluginFn>(symbol);
+        functions.register_package_plugin = reinterpret_cast<OrchestratorRegisterPluginFromPackageFn>(package_symbol);
+        functions.begin_package_load = reinterpret_cast<OrchestratorBeginPackageLoadFn>(begin_symbol);
+        functions.report_package_error = reinterpret_cast<OrchestratorReportPackageErrorFn>(report_symbol);
+        functions.finish_package_load = reinterpret_cast<OrchestratorFinishPackageLoadFn>(finish_symbol);
         return true;
     }
 
@@ -676,15 +806,25 @@ bool resolve_registration_functions(const boost::filesystem::path &host_library_
                                  << "' does not export orchestrator_register_plugin_from_package: " << dlerror();
         return false;
     }
-    register_plugin_fn = reinterpret_cast<OrchestratorRegisterPluginFn>(symbol);
-    register_package_plugin_fn = reinterpret_cast<OrchestratorRegisterPluginFromPackageFn>(package_symbol);
+    begin_symbol = dlsym(module, "orchestrator_begin_plugin_package_load");
+    report_symbol = dlsym(module, "orchestrator_report_plugin_package_load_error");
+    finish_symbol = dlsym(module, "orchestrator_finish_plugin_package_load");
+    if (begin_symbol == nullptr || report_symbol == nullptr || finish_symbol == nullptr) {
+        BOOST_LOG_TRIVIAL(error) << "Host library '" << host_library_path.string()
+                                 << "' does not export plugin package diagnostic functions.";
+        return false;
+    }
+    functions.register_plugin = reinterpret_cast<OrchestratorRegisterPluginFn>(symbol);
+    functions.register_package_plugin = reinterpret_cast<OrchestratorRegisterPluginFromPackageFn>(package_symbol);
+    functions.begin_package_load = reinterpret_cast<OrchestratorBeginPackageLoadFn>(begin_symbol);
+    functions.report_package_error = reinterpret_cast<OrchestratorReportPackageErrorFn>(report_symbol);
+    functions.finish_package_load = reinterpret_cast<OrchestratorFinishPackageLoadFn>(finish_symbol);
 #endif
     return true;
 }
 
 void register_python_plugin_object(PyObject *plugin_object,
-                                   OrchestratorRegisterPluginFn register_plugin_fn,
-                                   OrchestratorRegisterPluginFromPackageFn register_package_plugin_fn,
+                                   const OrchestratorFunctions &functions,
                                    orchestrator_handle *orchestrator,
                                    const boost::filesystem::path &package_root)
 {
@@ -694,16 +834,15 @@ void register_python_plugin_object(PyObject *plugin_object,
     std::unique_ptr<PythonPlugin> plugin(new PythonPlugin(plugin_object));
     plugin_instance instance = plugin->c_instance();
     if (package_root.empty())
-        register_plugin_fn(orchestrator, instance);
+        functions.register_plugin(orchestrator, instance);
     else
-        register_package_plugin_fn(orchestrator, instance, package_root.string().c_str());
+        functions.register_package_plugin(orchestrator, instance, package_root.string().c_str());
     BOOST_LOG_TRIVIAL(info) << "Registered Python plugin '" << plugin->c_instance().vt->get_id(plugin.get()) << "'.";
     s_python_plugins.emplace_back(std::move(plugin));
 }
 
 void register_python_plugin_result(PyObject *result,
-                                   OrchestratorRegisterPluginFn register_plugin_fn,
-                                   OrchestratorRegisterPluginFromPackageFn register_package_plugin_fn,
+                                   const OrchestratorFunctions &functions,
                                    orchestrator_handle *orchestrator,
                                    const boost::filesystem::path &package_root)
 {
@@ -714,31 +853,25 @@ void register_python_plugin_result(PyObject *result,
         const Py_ssize_t count = PySequence_Size(result);
         for (Py_ssize_t idx = 0; idx < count; ++idx) {
             PyObject *item = PySequence_GetItem(result, idx);
-            register_python_plugin_object(item, register_plugin_fn, register_package_plugin_fn,
-                                          orchestrator, package_root);
+            register_python_plugin_object(item, functions, orchestrator, package_root);
             Py_XDECREF(item);
         }
         return;
     }
 
-    register_python_plugin_object(result, register_plugin_fn, register_package_plugin_fn,
-                                  orchestrator, package_root);
+    register_python_plugin_object(result, functions, orchestrator, package_root);
 }
 
 PyObject *create_python_api(orchestrator_handle *orchestrator, const boost::filesystem::path &host_library_path)
 {
     PyObject *api_module = PyImport_ImportModule("slic3r_api");
-    if (api_module == nullptr) {
-        PyErr_Print();
+    if (api_module == nullptr)
         return nullptr;
-    }
 
     PyObject *api_class = PyObject_GetAttrString(api_module, "Slic3rAPI");
     Py_DECREF(api_module);
-    if (api_class == nullptr) {
-        PyErr_Print();
+    if (api_class == nullptr)
         return nullptr;
-    }
 
     PyObject *py_orchestrator = pointer_to_python_uint(orchestrator);
     PyObject *py_host_library = python_path_from_boost(host_library_path);
@@ -749,15 +882,12 @@ PyObject *create_python_api(orchestrator_handle *orchestrator, const boost::file
     Py_XDECREF(py_orchestrator);
     Py_XDECREF(py_host_library);
 
-    if (api == nullptr)
-        PyErr_Print();
     return api;
 }
 
 void call_python_register(PyObject *module,
                           PyObject *api,
-                          OrchestratorRegisterPluginFn register_plugin_fn,
-                          OrchestratorRegisterPluginFromPackageFn register_package_plugin_fn,
+                          const OrchestratorFunctions &functions,
                           orchestrator_handle *orchestrator,
                           const boost::filesystem::path &plugin_path,
                           const boost::filesystem::path &package_root)
@@ -765,14 +895,20 @@ void call_python_register(PyObject *module,
     PyObject *register_fn = PyObject_GetAttrString(module, "register_plugin");
     if (register_fn == nullptr) {
         PyErr_Clear();
-        BOOST_LOG_TRIVIAL(warning) << "Python plugin '" << plugin_path.string()
-                                   << "' does not define register_plugin(api).";
+        const std::string detail = "Python plugin '" + plugin_path.string() +
+                                   "' does not define register_plugin(api).";
+        BOOST_LOG_TRIVIAL(warning) << detail;
+        report_python_package_error(functions, orchestrator, package_root,
+                                    RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_REGISTRATION_FAILED, detail);
         return;
     }
 
     if (!PyCallable_Check(register_fn)) {
-        BOOST_LOG_TRIVIAL(warning) << "Python plugin '" << plugin_path.string()
-                                   << "' has a non-callable register_plugin attribute.";
+        const std::string detail = "Python plugin '" + plugin_path.string() +
+                                   "' has a non-callable register_plugin attribute.";
+        BOOST_LOG_TRIVIAL(warning) << detail;
+        report_python_package_error(functions, orchestrator, package_root,
+                                    RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_REGISTRATION_FAILED, detail);
         Py_DECREF(register_fn);
         return;
     }
@@ -781,34 +917,42 @@ void call_python_register(PyObject *module,
     Py_DECREF(register_fn);
 
     if (result == nullptr) {
-        PyErr_Print();
-        BOOST_LOG_TRIVIAL(error) << "Python plugin '" << plugin_path.string() << "' failed during registration.";
+        const std::string detail = take_python_error();
+        BOOST_LOG_TRIVIAL(error) << "Python plugin '" << plugin_path.string()
+                                 << "' failed during registration: " << detail;
+        report_python_package_error(functions, orchestrator, package_root,
+                                    RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_REGISTRATION_FAILED, detail);
         return;
     }
 
-    register_python_plugin_result(result, register_plugin_fn, register_package_plugin_fn,
-                                  orchestrator, package_root);
+    try {
+        register_python_plugin_result(result, functions, orchestrator, package_root);
+    } catch (const std::exception &error) {
+        report_python_package_error(functions, orchestrator, package_root,
+                                    RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_REGISTRATION_FAILED,
+                                    error.what());
+    }
     Py_DECREF(result);
     BOOST_LOG_TRIVIAL(info) << "Loaded Python plugin module '" << plugin_path.string() << "'.";
 }
 
 void load_python_plugin(const boost::filesystem::path &plugin_path,
                         PyObject *api,
-                        OrchestratorRegisterPluginFn register_plugin_fn,
-                        OrchestratorRegisterPluginFromPackageFn register_package_plugin_fn,
+                        const OrchestratorFunctions &functions,
                         orchestrator_handle *orchestrator,
                         const boost::filesystem::path &package_root)
 {
     const std::string module_name = plugin_path.stem().string();
     PyObject *module = PyImport_ImportModule(module_name.c_str());
     if (module == nullptr) {
-        PyErr_Print();
-        BOOST_LOG_TRIVIAL(error) << "Cannot import Python plugin '" << plugin_path.string() << "'.";
+        const std::string detail = take_python_error();
+        BOOST_LOG_TRIVIAL(error) << "Cannot import Python plugin '" << plugin_path.string() << "': " << detail;
+        report_python_package_error(functions, orchestrator, package_root,
+                                    RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_IMPORT_FAILED, detail);
         return;
     }
 
-    call_python_register(module, api, register_plugin_fn, register_package_plugin_fn,
-                         orchestrator, plugin_path, package_root);
+    call_python_register(module, api, functions, orchestrator, plugin_path, package_root);
     Py_DECREF(module);
 }
 
@@ -817,14 +961,16 @@ void load_python_plugin(const boost::filesystem::path &plugin_path,
 // return the first package from Python's module cache.
 void load_python_plugin_from_path(const boost::filesystem::path &plugin_path,
                                   PyObject *api,
-                                  OrchestratorRegisterPluginFn register_plugin_fn,
-                                  OrchestratorRegisterPluginFromPackageFn register_package_plugin_fn,
+                                  const OrchestratorFunctions &functions,
                                   orchestrator_handle *orchestrator,
                                   const boost::filesystem::path &package_root)
 {
     boost::nowide::ifstream stream(plugin_path.string(), std::ios::in | std::ios::binary);
     if (!stream) {
-        BOOST_LOG_TRIVIAL(error) << "Cannot read Python plugin '" << plugin_path.string() << "'.";
+        const std::string detail = "Cannot read Python plugin '" + plugin_path.string() + "'.";
+        BOOST_LOG_TRIVIAL(error) << detail;
+        report_python_package_error(functions, orchestrator, package_root,
+                                    RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_READ_FAILED, detail);
         return;
     }
     const std::string source((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
@@ -832,21 +978,24 @@ void load_python_plugin_from_path(const boost::filesystem::path &plugin_path,
     const std::string module_name = "_slic3r_package_" + std::to_string(++next_module_id);
     PyObject *code = Py_CompileString(source.c_str(), plugin_path.string().c_str(), Py_file_input);
     if (code == nullptr) {
-        PyErr_Print();
-        BOOST_LOG_TRIVIAL(error) << "Cannot compile Python plugin '" << plugin_path.string() << "'.";
+        const std::string detail = take_python_error();
+        BOOST_LOG_TRIVIAL(error) << "Cannot compile Python plugin '" << plugin_path.string() << "': " << detail;
+        report_python_package_error(functions, orchestrator, package_root,
+                                    RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_COMPILE_FAILED, detail);
         return;
     }
     PyObject *module = PyImport_ExecCodeModuleEx(
         module_name.c_str(), code, plugin_path.string().c_str());
     Py_DECREF(code);
     if (module == nullptr) {
-        PyErr_Print();
-        BOOST_LOG_TRIVIAL(error) << "Cannot load Python plugin '" << plugin_path.string() << "'.";
+        const std::string detail = take_python_error();
+        BOOST_LOG_TRIVIAL(error) << "Cannot load Python plugin '" << plugin_path.string() << "': " << detail;
+        report_python_package_error(functions, orchestrator, package_root,
+                                    RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_IMPORT_FAILED, detail);
         return;
     }
 
-    call_python_register(module, api, register_plugin_fn, register_package_plugin_fn,
-                         orchestrator, plugin_path, package_root);
+    call_python_register(module, api, functions, orchestrator, plugin_path, package_root);
     Py_DECREF(module);
 }
 
@@ -893,31 +1042,21 @@ void load_python_plugins(orchestrator_handle *orchestrator)
     const boost::filesystem::path plugin_repository = loader_path.parent_path();
     const boost::filesystem::path python_root = plugin_repository / "python";
     const boost::filesystem::path python_plugins = python_root / "plugins";
-#ifdef _WIN32
-    boost::filesystem::path host_library_path = plugin_repository.parent_path() / "Slic3r.dll";
-    if (!boost::filesystem::exists(host_library_path))
-        host_library_path = current_executable_path();
-#else
-    boost::filesystem::path host_library_path = plugin_repository.parent_path() / "Slic3r";
-    if (!boost::filesystem::exists(host_library_path))
-        host_library_path = current_executable_path();
-#endif
+    const boost::filesystem::path host_path = host_library_path();
 
-    OrchestratorRegisterPluginFn register_plugin_fn = nullptr;
-    OrchestratorRegisterPluginFromPackageFn register_package_plugin_fn = nullptr;
-    if (!resolve_registration_functions(host_library_path, register_plugin_fn, register_package_plugin_fn))
-        return;
+    OrchestratorFunctions functions;
+    if (!resolve_registration_functions(host_path, functions))
+        throw std::runtime_error("Cannot resolve the host functions required by the Python plugin runtime.");
 
     if (!ensure_python_initialized_for_plugins()) {
-        BOOST_LOG_TRIVIAL(error) << "Cannot initialize Python runtime for plugins.";
-        return;
+        throw std::runtime_error("Cannot initialize Python runtime for plugins.");
     }
 
     PyGILState_STATE gil_state = PyGILState_Ensure();
     append_python_path(python_root);
     append_python_path(python_plugins);
 
-    PyObject *api = create_python_api(orchestrator, host_library_path);
+    PyObject *api = create_python_api(orchestrator, host_path);
     if (api != nullptr) {
         // Scripts bundled with the Python loader keep the loader package scope
         // supplied by the native PluginLoader.
@@ -925,8 +1064,7 @@ void load_python_plugins(orchestrator_handle *orchestrator)
             for (boost::filesystem::directory_iterator it(python_plugins), end; it != end; ++it) {
                 const boost::filesystem::path plugin_path = it->path();
                 if (boost::filesystem::is_regular_file(plugin_path) && plugin_path.extension() == ".py")
-                    load_python_plugin(plugin_path, api, register_plugin_fn, register_package_plugin_fn,
-                                       orchestrator, {});
+                    load_python_plugin(plugin_path, api, functions, orchestrator, {});
             }
         }
 
@@ -946,10 +1084,25 @@ void load_python_plugins(orchestrator_handle *orchestrator)
             if (plugin_path.empty())
                 continue;
             append_python_path(package_root);
-            load_python_plugin_from_path(plugin_path, api, register_plugin_fn, register_package_plugin_fn,
-                                         orchestrator, package_root);
+            functions.begin_package_load(orchestrator, package_root.string().c_str());
+            try {
+                load_python_plugin_from_path(plugin_path, api, functions, orchestrator, package_root);
+            } catch (const std::exception &error) {
+                report_python_package_error(functions, orchestrator, package_root,
+                                            RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_REGISTRATION_FAILED,
+                                            error.what());
+            } catch (...) {
+                report_python_package_error(functions, orchestrator, package_root,
+                                            RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_REGISTRATION_FAILED,
+                                            "The Python package loader threw an unknown exception.");
+            }
+            functions.finish_package_load(orchestrator, package_root.string().c_str());
         }
         Py_DECREF(api);
+    } else {
+        const std::string detail = "Cannot create the Python plugin API: " + take_python_error();
+        PyGILState_Release(gil_state);
+        throw std::runtime_error(detail);
     }
 
     PyGILState_Release(gil_state);

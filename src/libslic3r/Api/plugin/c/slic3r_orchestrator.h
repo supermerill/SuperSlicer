@@ -46,6 +46,46 @@ SLIC3R_HOST_API void orchestrator_register_plugin_from_package(
 );
 
 /*
+Report a package-loading failure discovered by a secondary loader.
+
+The main native loader records its failures directly. A runtime loader such as
+the Python bridge runs in another shared library and uses these functions to
+publish the same package-level diagnostics. package_root identifies the live
+package directory containing description.ini and version.ini.
+*/
+typedef enum raw_plugin_package_load_error_code {
+    RAW_PLUGIN_PACKAGE_LOAD_ERROR_PACKAGE_MISSING = 0,
+    RAW_PLUGIN_PACKAGE_LOAD_ERROR_INVALID_PACKAGE = 1,
+    RAW_PLUGIN_PACKAGE_LOAD_ERROR_LIBRARY_OPEN_FAILED = 2,
+    RAW_PLUGIN_PACKAGE_LOAD_ERROR_MISSING_ABI_EXPORT = 3,
+    RAW_PLUGIN_PACKAGE_LOAD_ERROR_ABI_MISMATCH = 4,
+    RAW_PLUGIN_PACKAGE_LOAD_ERROR_MISSING_REGISTRATION_EXPORT = 5,
+    RAW_PLUGIN_PACKAGE_LOAD_ERROR_REGISTRATION_FAILED = 6,
+    RAW_PLUGIN_PACKAGE_LOAD_ERROR_NO_PLUGINS_REGISTERED = 7,
+    RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_RUNTIME_UNAVAILABLE = 8,
+    RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_READ_FAILED = 9,
+    RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_COMPILE_FAILED = 10,
+    RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_IMPORT_FAILED = 11,
+    RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_REGISTRATION_FAILED = 12,
+    RAW_PLUGIN_PACKAGE_LOAD_ERROR_CONFIGURED_PLUGIN_MISSING = 13
+} raw_plugin_package_load_error_code;
+
+SLIC3R_HOST_API void orchestrator_begin_plugin_package_load(
+    orchestrator_handle *orch,
+    const char *package_root
+);
+SLIC3R_HOST_API void orchestrator_report_plugin_package_load_error(
+    orchestrator_handle *orch,
+    const char *package_root,
+    raw_plugin_package_load_error_code code,
+    const char *detail
+);
+SLIC3R_HOST_API void orchestrator_finish_plugin_package_load(
+    orchestrator_handle *orch,
+    const char *package_root
+);
+
+/*
 Register one gettext catalog domain provided by the plugin package currently
 being loaded. locale_directory is relative to that package root and contains
 one subdirectory per language, for example:

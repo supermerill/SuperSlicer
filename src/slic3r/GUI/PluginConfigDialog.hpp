@@ -7,6 +7,7 @@
 #define slic3r_GUI_PluginConfigDialog_hpp_
 
 #include <string>
+#include <map>
 #include <set>
 #include <vector>
 
@@ -29,6 +30,7 @@ private:
     {
         std::string id;
         wxCheckBox *checkbox { nullptr };
+        bool preserve_unavailable_activation { false };
     };
 
     void build();
@@ -38,6 +40,7 @@ private:
     void on_dpi_changed(const wxRect &suggested_rect) override;
 
     std::set<std::string> m_original_active_plugin_ids;
+    std::map<std::string, std::string> m_plugin_packages;
     std::vector<PluginRow> m_rows;
 };
 

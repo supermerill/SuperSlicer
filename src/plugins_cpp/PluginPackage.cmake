@@ -15,6 +15,8 @@
 #     NAME "My plugin" DESCRIPTION "What the plugin does.")
 # VERSION is optional. Without it, the package uses the slicer's four-part
 # numeric version; compatibility always records the complete slicer SemVer.
+# INTERNAL marks runtime infrastructure that may register no user-selectable
+# plugin id. It does not hide the package from installation or update tools.
 
 set(_SLIC3R_PLUGIN_PACKAGE_CMAKE_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}")
 

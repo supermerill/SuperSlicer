@@ -38,9 +38,9 @@ struct RepositoryDescription {
     std::string description;
     std::string config_update_rest;
     std::string slicer;
-    // Internal packages provide runtime support to other packages. They are
-    // installed through the normal package lifecycle but are not offered as
-    // independently manageable plugins in the updater dialog.
+    // Internal packages provide runtime support to other packages and may
+    // legitimately register no plugin id of their own. They still use the
+    // normal package lifecycle and remain visible in the package updater.
     bool is_internal = false;
 };
 
@@ -101,6 +101,11 @@ struct PluginInstalledVersion {
 // Individual plugin ids remain independently enabled in [activated].
 struct PluginActivationConfig {
     std::map<std::string, bool> activated;
+    // External plugin ids are associated with the package that registered
+    // them. The activation dialog can then explain which installed package is
+    // unavailable without requiring package metadata to predict runtime ids.
+    // Built-in plugins have no entry in this map.
+    std::map<std::string, std::string> plugin_packages;
     std::map<std::string, PluginInstalledVersion> installed;
     std::set<std::string> removed;
 };
@@ -109,9 +114,10 @@ struct PluginActivationConfig {
 // plugin ids.
 boost::filesystem::path plugin_activation_config_path(const boost::filesystem::path &data_directory);
 
-// Read or write the [installed], [removed] and [activated] sections. Callers
-// load the complete value before changing one concern, so unrelated package
-// requests and activation choices remain present when the file is rewritten.
+// Read or write the [installed], [removed], [activated] and [plugin_packages]
+// sections. Callers load the complete value before changing one concern, so
+// unrelated package requests and activation choices remain present when the
+// file is rewritten. Older files without [plugin_packages] remain valid.
 bool read_plugin_activation_config(const boost::filesystem::path &config_path,
                                    PluginActivationConfig &config,
                                    std::string &error_message);

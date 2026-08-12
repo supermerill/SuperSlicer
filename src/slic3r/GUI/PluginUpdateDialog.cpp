@@ -36,6 +36,62 @@
 
 namespace Slic3r::GUI {
 
+namespace {
+
+// Choose the compact status shown in the Upgrade column. The complete reason
+// stays in the tooltip so the table remains easy to scan.
+wxString plugin_package_load_label(const PluginPackageLoadReport &report);
+
+// Format every issue recorded during startup, including the package path and
+// plugin id when available. Multiple failures are kept because one package may
+// register several plugin instances independently.
+wxString plugin_package_load_tooltip(const PluginPackageLoadReport &report);
+
+wxString plugin_package_load_label(const PluginPackageLoadReport &report)
+{
+    if (report.issues.empty())
+        return _L("Loaded");
+    switch (report.issues.front().code) {
+    case PluginPackageLoadErrorCode::PackageMissing:             return _L("Package missing");
+    case PluginPackageLoadErrorCode::DependencyMissing:          return _L("Missing dependency");
+    case PluginPackageLoadErrorCode::MissingAbiExport:
+    case PluginPackageLoadErrorCode::AbiMismatch:                return _L("Plugin API mismatch");
+    case PluginPackageLoadErrorCode::PythonRuntimeUnavailable:   return _L("Python runtime missing");
+    case PluginPackageLoadErrorCode::PythonReadFailed:
+    case PluginPackageLoadErrorCode::PythonCompileFailed:
+    case PluginPackageLoadErrorCode::PythonImportFailed:
+    case PluginPackageLoadErrorCode::PythonRegistrationFailed:   return _L("Python error");
+    case PluginPackageLoadErrorCode::InvalidPackage:             return _L("Invalid package");
+    case PluginPackageLoadErrorCode::LibraryOpenFailed:          return _L("Load failed");
+    case PluginPackageLoadErrorCode::MissingRegistrationExport:
+    case PluginPackageLoadErrorCode::RegistrationFailed:
+    case PluginPackageLoadErrorCode::NoPluginsRegistered:
+    case PluginPackageLoadErrorCode::ConfiguredPluginMissing:    return _L("Registration failed");
+    }
+    return _L("Load failed");
+}
+
+wxString plugin_package_load_tooltip(const PluginPackageLoadReport &report)
+{
+    wxString tooltip = format(_L("Package: %1%\nPath: %2%"),
+                              from_u8(report.package_id), from_u8(report.package_path));
+    for (const PluginPackageLoadIssue &issue : report.issues) {
+        tooltip += "\n\n";
+        if (!issue.plugin_id.empty())
+            tooltip += format(_L("Plugin: %1%\n"), from_u8(issue.plugin_id));
+        tooltip += from_u8(issue.detail);
+        if (issue.plugin_abi != 0 || issue.host_abi != 0)
+            tooltip += format(_L("\nPlugin API: %1%; host API: %2%."), issue.plugin_abi, issue.host_abi);
+        if (issue.system_error != 0)
+            tooltip += format(_L("\nSystem error code: %1%."), issue.system_error);
+    }
+    tooltip += "\n\n";
+    tooltip += _L("Choose another version or reinstall the package to repair it.");
+    return tooltip;
+}
+
+} // namespace
+
 PluginUpdateDialog::PluginUpdateDialog(wxWindow *parent, PluginUpdater &updater)
     : RepositoryUpdatesDialogBase(parent, _L("Plugin updates"))
     , m_updater(updater)
@@ -143,7 +199,11 @@ void PluginUpdateDialog::add_plugin_row(const std::string &plugin_id,
     // install action. This avoids presenting a permanently disabled command as
     // if an update were available.
     wxWindow *upgrade_control = nullptr;
-    if (!plugin.is_installed && has_compatible_version && !plugin.best->local_directory.empty()) {
+    if (plugin.load_report.has_value() && !plugin.load_report->issues.empty()) {
+        upgrade_control = new wxStaticText(this, wxID_ANY,
+                                           plugin_package_load_label(*plugin.load_report));
+        upgrade_control->SetToolTip(plugin_package_load_tooltip(*plugin.load_report));
+    } else if (!plugin.is_installed && has_compatible_version && !plugin.best->local_directory.empty()) {
         wxButton *install = new wxButton(
             this, wxID_ANY, format(_L("Install %1% (local)"), plugin.best->package_version));
         install->SetToolTip(

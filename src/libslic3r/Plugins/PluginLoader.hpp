@@ -16,6 +16,13 @@ namespace Slic3r {
 
 class Orchestrator;
 
+// Load every installed package found directly below repository and retain one
+// PluginPackageLoadReport per attempted package in orchestrator. The normal
+// startup uses this after applying package changes; tests and small host tools
+// may use it to validate an isolated repository.
+void load_plugin_packages_from_repository(const boost::filesystem::path &repository,
+                                          Orchestrator &orchestrator);
+
 // Register built-in plugins, load plugin libraries from the runtime plugin
 // repository, activate the configured subset, then initialize active plugins.
 void load_plugins();

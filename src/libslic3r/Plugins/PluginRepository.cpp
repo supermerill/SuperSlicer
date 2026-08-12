@@ -35,7 +35,6 @@ namespace Slic3r {
 namespace {
 
 const char *const PLUGIN_DIRECTORY = "plugins";
-const char *const LEGACY_PLUGIN_DIRECTORY = "plugin";
 const char *const ACTIVATED_PLUGINS_FILENAME = "activated.ini";
 const char *const DEFAULT_ACTIVATED_PLUGINS_FILENAME = "default_activated.ini";
 const char *const DESCRIPTION_FILENAME = "description.ini";
@@ -509,6 +508,19 @@ bool read_plugin_activation_config(const boost::filesystem::path &config_path,
                     config.activated[plugin_id] = ini_value_is_enabled(entry.second.get_value<std::string>());
             }
 
+        // This optional section was added after plugin activation already
+        // existed. It is deliberately independent from [activated], so old
+        // profiles and manually maintained files keep their original meaning.
+        if (const boost::optional<boost::property_tree::ptree&> packages = tree.get_child_optional("plugin_packages"))
+            for (const boost::property_tree::ptree::value_type &entry : *packages) {
+                const std::string plugin_id = boost::algorithm::trim_copy(entry.first);
+                const std::string package_name = boost::algorithm::trim_copy(entry.second.get_value<std::string>());
+                if (!plugin_id.empty() && is_safe_package_name(package_name))
+                    config.plugin_packages[plugin_id] = package_name;
+                else
+                    BOOST_LOG_TRIVIAL(warning) << "Ignoring invalid plugin package association for '" << plugin_id << "'.";
+            }
+
         std::map<std::string, std::string> requested_slicer_versions;
         if (const boost::optional<boost::property_tree::ptree&> installed = tree.get_child_optional("installed"))
             for (const boost::property_tree::ptree::value_type &entry : *installed) {
@@ -579,6 +591,10 @@ bool write_plugin_activation_config(const boost::filesystem::path &config_path,
         stream << "\n[activated]\n";
         for (const auto &[plugin_id, enabled] : config.activated)
             stream << plugin_id << " = " << (enabled ? "1" : "0") << "\n";
+        stream << "\n[plugin_packages]\n";
+        for (const auto &[plugin_id, package_name] : config.plugin_packages)
+            if (!plugin_id.empty() && is_safe_package_name(package_name))
+                stream << plugin_id << " = " << package_name << "\n";
         if (!stream.good()) {
             error_message = "Cannot finish writing plugin configuration '" + config_path.string() + "'.";
             return false;
@@ -600,14 +616,10 @@ bool ensure_plugin_activation_config(const boost::filesystem::path &data_directo
         return read_plugin_activation_config(default_plugin_activation_config_path(), config, error_message);
 
     const boost::filesystem::path config_path = plugin_activation_config_path(data_directory);
-    const boost::filesystem::path legacy_config_path = data_directory / LEGACY_PLUGIN_DIRECTORY / ACTIVATED_PLUGINS_FILENAME;
     try {
         if (!boost::filesystem::exists(config_path)) {
             boost::filesystem::create_directories(config_path.parent_path());
-            if (boost::filesystem::exists(legacy_config_path))
-                boost::filesystem::copy_file(legacy_config_path, config_path);
-            else
-                boost::filesystem::copy_file(default_plugin_activation_config_path(), config_path);
+            boost::filesystem::copy_file(default_plugin_activation_config_path(), config_path);
         }
     } catch (const boost::filesystem::filesystem_error &error) {
         error_message = "Cannot prepare plugin configuration '" + config_path.string() + "': " + error.what();
@@ -854,6 +866,15 @@ bool request_plugin_uninstall(const std::string &package_name, std::string &erro
         return false;
     config.installed.erase(package_name);
     config.removed.insert(package_name);
+    for (std::map<std::string, std::string>::iterator it = config.plugin_packages.begin();
+         it != config.plugin_packages.end();) {
+        if (it->second != package_name) {
+            ++it;
+            continue;
+        }
+        config.activated.erase(it->first);
+        it = config.plugin_packages.erase(it);
+    }
     return write_plugin_activation_config(plugin_activation_config_path(data_directory), config, error_message);
 }
 

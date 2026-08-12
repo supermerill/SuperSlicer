@@ -98,6 +98,56 @@ inline GenericFacetsAnnotationDefinition builtin_seam_facets_annotation_definiti
     return def;
 }
 
+// Package loading happens before plugin activation. These values describe the
+// package-level result retained for the current process, so updater UI can
+// explain why installed code is unavailable without parsing log files.
+enum class PluginPackageLoadState
+{
+    Loading,
+    Loaded,
+    LoadedWithErrors,
+    Failed
+};
+
+enum class PluginPackageLoadErrorCode
+{
+    PackageMissing,
+    InvalidPackage,
+    LibraryOpenFailed,
+    DependencyMissing,
+    MissingAbiExport,
+    AbiMismatch,
+    MissingRegistrationExport,
+    RegistrationFailed,
+    NoPluginsRegistered,
+    PythonRuntimeUnavailable,
+    PythonReadFailed,
+    PythonCompileFailed,
+    PythonImportFailed,
+    PythonRegistrationFailed,
+    ConfiguredPluginMissing
+};
+
+struct PluginPackageLoadIssue
+{
+    PluginPackageLoadErrorCode code = PluginPackageLoadErrorCode::InvalidPackage;
+    std::string detail;
+    std::string plugin_id;
+    uint32_t system_error = 0;
+    uint32_t plugin_abi = 0;
+    uint32_t host_abi = 0;
+};
+
+struct PluginPackageLoadReport
+{
+    std::string package_id;
+    std::string package_path;
+    PluginPackageLoadState state = PluginPackageLoadState::Loading;
+    bool allows_no_plugins = false;
+    std::vector<std::string> registered_plugin_ids;
+    std::vector<PluginPackageLoadIssue> issues;
+};
+
 class Orchestrator
 {
 public:
@@ -222,6 +272,20 @@ public:
 
     bool register_plugin(plugin_instance plugin);
 
+    // Start and complete one installed package load. Loaders add precise
+    // issues as they encounter them; successful registrations are associated
+    // automatically through plugin_registration_scope().
+    void begin_plugin_package_load(const std::string &package_id,
+                                   const std::string &package_path,
+                                   bool allows_no_plugins = false);
+    void report_plugin_package_load_issue(const std::string &package_id,
+                                          PluginPackageLoadIssue issue);
+    void finish_plugin_package_load(const std::string &package_id);
+    void clear_plugin_package_load_reports();
+    const PluginPackageLoadReport *plugin_package_load_report(const std::string &package_id) const;
+    const std::map<std::string, PluginPackageLoadReport> &plugin_package_load_reports() const
+        { return m_plugin_package_load_reports; }
+
     // The dynamic library loader establishes this scope while it calls a
     // plugin's register_plugin() export. It gives catalog registration a
     // package-relative root without exposing filesystem details through C.
@@ -300,6 +364,7 @@ private:
     struct PluginRegistrationSource
     {
         std::string package_root;
+        std::string package_id;
         bool external_plugin = false;
     };
 
@@ -318,6 +383,7 @@ private:
     std::map<std::string, ConfigOptionOwner> m_config_option_owners;
     std::vector<TranslationCatalog> m_translation_catalogs;
     std::vector<PluginRegistrationSource> m_plugin_registration_sources;
+    std::map<std::string, PluginPackageLoadReport> m_plugin_package_load_reports;
     std::vector<PropertyInfo> m_custom_property_infos;
     slic3r_property_type m_next_custom_property_type { SLIC3R_PROPERTY_TYPE_CUSTOM_BEGIN };
     std::vector<GenericFacetsAnnotationDefinition> m_generic_facets_annotations;

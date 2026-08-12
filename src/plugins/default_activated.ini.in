@@ -68,3 +68,11 @@ surface.top_surface_expansion = 1
 surface.clean_infill_surfaces = 1
 surface.infill_region_compatibility_splitter = 1
 support.demand.bridge_removal = 1
+
+[plugin_packages]
+; External plugin ids enabled above and the package that provides them.
+polyholes = polyholes
+dense_infill.surface_marker = dense_infill
+dense_infill.recipe_modifier = dense_infill
+dense_infill.post_infill_order = dense_infill
+perimeter.post_process.extra_perimeter_overhang_wave = extra_perimeter_overhang_wave

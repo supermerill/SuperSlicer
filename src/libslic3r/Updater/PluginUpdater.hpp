@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "libslic3r/Plugins/PluginRepository.hpp"
+#include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Updater/RepositoryUpdater.hpp"
 #include "libslic3r/Updater/UpdaterError.hpp"
 
@@ -41,6 +42,10 @@ struct PluginSync {
     // it before exposing InProgress to callers and dialog copies.
     RepositorySyncState sync_state = RepositorySyncState::Unchecked;
     UpdaterError sync_error;
+    // Startup package diagnostics are copied from Orchestrator when this model
+    // is rebuilt. They describe executable loading, independently from the
+    // repository synchronization state above.
+    std::optional<PluginPackageLoadReport> load_report;
     bool can_upgrade = false;
     std::vector<PluginAvailable> available_packages;
     PluginAvailable *best = nullptr;

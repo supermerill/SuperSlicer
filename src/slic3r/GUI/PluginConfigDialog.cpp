@@ -36,24 +36,65 @@ namespace Slic3r::GUI {
 
 namespace {
 
-std::set<std::string> read_active_plugin_ids()
+PluginActivationConfig read_plugin_configuration()
 {
-    std::set<std::string> out;
-    if (!has_data_dir())
-        return out;
-
     PluginActivationConfig config;
+    if (!has_data_dir())
+        return config;
+
     std::string error_message;
     const boost::filesystem::path config_path = plugin_activation_config_path(boost::filesystem::path(data_dir()));
     if (!read_plugin_activation_config(config_path, config, error_message)) {
         BOOST_LOG_TRIVIAL(warning) << error_message;
-        return out;
+        return {};
+    }
+    return config;
+}
+
+// Explain why an activated id has no registered Plugin instance. Package
+// installation and loading are separate from id activation, so the message
+// distinguishes a package that is absent, broken, or simply does not provide
+// the configured id.
+wxString unavailable_plugin_tooltip(const std::string &plugin_id,
+                                    const PluginActivationConfig &config)
+{
+    const std::map<std::string, std::string>::const_iterator provider =
+        config.plugin_packages.find(plugin_id);
+    if (provider == config.plugin_packages.end()) {
+        return format_wxstr(
+            _L("Plugin '%1%' is enabled in the configuration file, but it was not loaded and its package is unknown. "
+               "Saving this dialog removes the orphaned id from the active plugin list."),
+            from_u8(plugin_id));
     }
 
-    for (const auto &[plugin_id, enabled] : config.activated)
-        if (enabled)
-            out.insert(plugin_id);
-    return out;
+    const std::string &package_id = provider->second;
+    const PluginPackageLoadReport *report =
+        Orchestrator::instance().plugin_package_load_report(package_id);
+    if (report != nullptr && !report->issues.empty()) {
+        return format_wxstr(
+            _L("Plugin '%1%' is enabled, but package '%2%' failed to load correctly. "
+               "Open Plugin updates to inspect the package error or choose another version. "
+               "Saving this dialog keeps the activation request."),
+            from_u8(plugin_id), from_u8(package_id));
+    }
+    if (report != nullptr && report->state == PluginPackageLoadState::Loaded) {
+        return format_wxstr(
+            _L("Plugin '%1%' is enabled, but the loaded package '%2%' did not register this id. "
+               "Disable the id or install a package version that provides it. "
+               "Saving this dialog keeps the activation request."),
+            from_u8(plugin_id), from_u8(package_id));
+    }
+    if (config.installed.find(package_id) == config.installed.end()) {
+        return format_wxstr(
+            _L("Plugin '%1%' is enabled, but package '%2%' is not installed. "
+               "Install the package from Plugin updates or disable this id. "
+               "Saving this dialog keeps the activation request."),
+            from_u8(plugin_id), from_u8(package_id));
+    }
+    return format_wxstr(
+        _L("Plugin '%1%' is enabled and package '%2%' is selected as installed, but it was not loaded. "
+           "Open Plugin updates to repair the package. Saving this dialog keeps the activation request."),
+        from_u8(plugin_id), from_u8(package_id));
 }
 
 wxString step_name(slicing_step_t step)
@@ -99,7 +140,11 @@ PluginConfigDialog::PluginConfigDialog(wxWindow *parent)
 
 void PluginConfigDialog::build()
 {
-    m_original_active_plugin_ids = read_active_plugin_ids();
+    const PluginActivationConfig activation_config = read_plugin_configuration();
+    m_plugin_packages = activation_config.plugin_packages;
+    for (const auto &[plugin_id, enabled] : activation_config.activated)
+        if (enabled)
+            m_original_active_plugin_ids.insert(plugin_id);
 
     wxBoxSizer *main_sizer = new wxBoxSizer(wxVERTICAL);
 
@@ -153,22 +198,20 @@ void PluginConfigDialog::build()
         grid->Add(step_label, 0, wxALIGN_CENTER_VERTICAL);
         grid->Add(priority_label, 0, wxALIGN_CENTER_VERTICAL);
 
-        m_rows.push_back({ plugin->get_id(), checkbox });
+        m_rows.push_back({ plugin->get_id(), checkbox, false });
     }
 
     for (const std::string &plugin_id : m_original_active_plugin_ids) {
         if (loaded_plugin_ids.find(plugin_id) != loaded_plugin_ids.end())
             continue;
 
-        // activated.ini may name a plugin whose DLL failed to load, for example
-        // after an ABI bump. Show it as a disabled, unchecked row so saving the
-        // dialog removes the stale id instead of trapping the user behind a
-        // validation error for a plugin that cannot be unchecked elsewhere.
-        const wxString plugin_tooltip = format_wxstr(
-            _L("Plugin '%1%' is enabled in the configuration file, but it was not loaded. "
-               "This usually means the plugin file is missing or was built for another plugin API version. "
-               "Saving this dialog will remove it from the active plugin list."),
-            from_u8(plugin_id));
+        // Keep unavailable configured ids visible even though there is no
+        // Plugin instance from which to build a normal row. Known package
+        // associations are preserved so repairing or installing the package
+        // can satisfy the same activation request after restart.
+        const std::map<std::string, std::string>::const_iterator provider = m_plugin_packages.find(plugin_id);
+        const bool provider_known = provider != m_plugin_packages.end();
+        const wxString plugin_tooltip = unavailable_plugin_tooltip(plugin_id, activation_config);
 
         wxCheckBox *checkbox = new wxCheckBox(scrolled, wxID_ANY, wxEmptyString);
         checkbox->SetValue(false);
@@ -188,7 +231,7 @@ void PluginConfigDialog::build()
         grid->Add(step_label, 0, wxALIGN_CENTER_VERTICAL);
         grid->Add(priority_label, 0, wxALIGN_CENTER_VERTICAL);
 
-        m_rows.push_back({ plugin_id, checkbox });
+        m_rows.push_back({ plugin_id, checkbox, provider_known });
     }
 
     if (m_rows.empty()) {
@@ -227,12 +270,17 @@ bool PluginConfigDialog::write_active_plugins(std::string &error_message) const
     try {
         std::set<std::string> active_ids = m_original_active_plugin_ids;
         for (const PluginRow &row : m_rows) {
+            if (row.preserve_unavailable_activation)
+                continue;
             active_ids.erase(row.id);
             if (row.checkbox != nullptr && row.checkbox->GetValue())
                 active_ids.insert(row.id);
         }
 
-        std::vector<std::string> selected_plugin_ids(active_ids.begin(), active_ids.end());
+        std::vector<std::string> selected_plugin_ids;
+        for (const std::string &plugin_id : active_ids)
+            if (Orchestrator::instance().get_plugin(plugin_id) != nullptr)
+                selected_plugin_ids.push_back(plugin_id);
         if (!Orchestrator::instance().validate_plugin_activation(selected_plugin_ids, error_message))
             return false;
 
@@ -240,8 +288,19 @@ bool PluginConfigDialog::write_active_plugins(std::string &error_message) const
         if (!read_plugin_activation_config(config_path, config, error_message))
             return false;
 
-        for (const PluginRow &row : m_rows)
-            config.activated[row.id] = row.checkbox != nullptr && row.checkbox->GetValue();
+        for (const PluginRow &row : m_rows) {
+            if (!row.preserve_unavailable_activation) {
+                config.activated[row.id] = row.checkbox != nullptr && row.checkbox->GetValue();
+                if (row.checkbox == nullptr || !row.checkbox->GetValue())
+                    config.plugin_packages.erase(row.id);
+            }
+            if (row.checkbox != nullptr && row.checkbox->GetValue()) {
+                const Plugin *plugin = Orchestrator::instance().get_plugin(row.id);
+                if (plugin != nullptr && !plugin->get_package_root().empty())
+                    config.plugin_packages[row.id] =
+                        boost::filesystem::path(plugin->get_package_root()).filename().string();
+            }
+        }
         if (!write_plugin_activation_config(config_path, config, error_message))
             return false;
     } catch (const std::exception &error) {

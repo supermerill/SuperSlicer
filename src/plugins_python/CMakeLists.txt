@@ -100,7 +100,8 @@ if (Python3_FOUND)
     )
 
     # The bridge is runtime infrastructure shared by every pure Python package.
-    # It is installed automatically but hidden from the package manager.
+    # INTERNAL lets it load successfully without registering a user-selectable
+    # plugin id; the package itself remains manageable in Plugin updates.
     slic3r_package_plugin(
         python_plugin_loader
         python

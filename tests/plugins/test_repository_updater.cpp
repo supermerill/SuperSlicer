@@ -313,6 +313,7 @@ class PluginUpdaterFunctionalFixture
 {
 protected:
     PluginUpdaterFunctionalFixture();
+    ~PluginUpdaterFunctionalFixture();
 
     void write_plugin_repository();
     void write_bundled_plugin(const std::string &package_version);
@@ -499,12 +500,18 @@ PluginUpdaterFunctionalFixture::PluginUpdaterFunctionalFixture()
     , directories(resources_directory, data_directory)
     , updater(http)
 {
+    Slic3r::Orchestrator::instance().clear_plugin_package_load_reports();
     write_test_file(resources_directory / "plugins" / "default_activated.ini",
                     "[installed]\n\n[removed]\n\n[activated]\n");
     Slic3r::RepositoryPackageCache cache(data_directory, Slic3r::plugin_repository_cache_adapter());
     bool purged = false;
     std::string error_message;
     REQUIRE(cache.prepare_layout(purged, error_message));
+}
+
+PluginUpdaterFunctionalFixture::~PluginUpdaterFunctionalFixture()
+{
+    Slic3r::Orchestrator::instance().clear_plugin_package_load_reports();
 }
 
 void PluginUpdaterFunctionalFixture::write_plugin_repository()
@@ -1419,6 +1426,14 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
 {
     write_installed_plugin("1.0.0.0");
     const boost::filesystem::path cache_root = write_cached_plugin("1.0.0.0");
+    Slic3r::PluginActivationConfig configured = read_activation_config();
+    configured.activated["example.first"] = true;
+    configured.activated["example.second"] = true;
+    configured.plugin_packages["example.first"] = plugin_id;
+    configured.plugin_packages["example.second"] = plugin_id;
+    std::string configuration_error;
+    REQUIRE(Slic3r::write_plugin_activation_config(
+        Slic3r::plugin_activation_config_path(data_directory), configured, configuration_error));
     updater.reload_all_plugins();
     Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
     REQUIRE(plugin != nullptr);
@@ -1435,9 +1450,135 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     const Slic3r::PluginActivationConfig config = read_activation_config();
     CHECK(config.installed.count(plugin_id) == 0);
     CHECK(config.removed.count(plugin_id) == 1);
+    CHECK(config.activated.count("example.first") == 0);
+    CHECK(config.activated.count("example.second") == 0);
+    CHECK(config.plugin_packages.count("example.first") == 0);
+    CHECK(config.plugin_packages.count("example.second") == 0);
     CHECK_FALSE(plugin->is_installed);
     CHECK(plugin->has_cache);
     CHECK(boost::filesystem::is_directory(cache_root));
+}
+
+TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
+                 "PluginUpdater exposes the startup package load report",
+                 "[plugins][updater][plugin-functional][loader]")
+{
+    Slic3r::Orchestrator &orchestrator = Slic3r::Orchestrator::instance();
+    orchestrator.begin_plugin_package_load(plugin_id,
+        (data_directory / "plugins" / plugin_id).string());
+    Slic3r::PluginPackageLoadIssue issue;
+    issue.code = Slic3r::PluginPackageLoadErrorCode::DependencyMissing;
+    issue.detail = "The dependent runtime library was not found.";
+    issue.system_error = 126;
+    orchestrator.report_plugin_package_load_issue(plugin_id, std::move(issue));
+    orchestrator.finish_plugin_package_load(plugin_id);
+
+    updater.reload_all_plugins();
+    const Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
+    REQUIRE(plugin != nullptr);
+    REQUIRE(plugin->load_report.has_value());
+    REQUIRE(plugin->load_report->issues.size() == 1);
+    CHECK(plugin->load_report->issues.front().code ==
+          Slic3r::PluginPackageLoadErrorCode::DependencyMissing);
+    CHECK(plugin->load_report->issues.front().system_error == 126);
+}
+
+TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
+                 "PluginUpdater keeps activation diagnostics out of package state",
+                 "[plugins][updater][plugin-functional][loader]")
+{
+    write_plugin_repository();
+    write_cached_plugin("1.0.0.0");
+    Slic3r::PluginActivationConfig config;
+    config.activated["functional.plugin.instance"] = true;
+    config.plugin_packages["functional.plugin.instance"] = plugin_id;
+    std::string error_message;
+    REQUIRE(Slic3r::write_plugin_activation_config(
+        Slic3r::plugin_activation_config_path(data_directory), config, error_message));
+
+    // A cache-only package remains installable even when activated.ini still
+    // requests one of its plugin ids from an earlier installation.
+    updater.reload_all_plugins();
+    const Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
+    REQUIRE(plugin != nullptr);
+    CHECK_FALSE(plugin->is_installed);
+    REQUIRE(plugin->best != nullptr);
+    CHECK_FALSE(plugin->best->local_directory.empty());
+    CHECK_FALSE(plugin->load_report.has_value());
+
+    Slic3r::Orchestrator &orchestrator = Slic3r::Orchestrator::instance();
+    orchestrator.begin_plugin_package_load(plugin_id,
+        (data_directory / "plugins" / plugin_id).string());
+    Slic3r::PluginPackageLoadIssue issue;
+    issue.code = Slic3r::PluginPackageLoadErrorCode::ConfiguredPluginMissing;
+    issue.plugin_id = "functional.plugin.instance";
+    issue.detail = "The configured plugin id was not registered.";
+    orchestrator.report_plugin_package_load_issue(plugin_id, std::move(issue));
+    Slic3r::PluginPackageLoadIssue legacy_missing_issue;
+    legacy_missing_issue.code = Slic3r::PluginPackageLoadErrorCode::PackageMissing;
+    legacy_missing_issue.plugin_id = "functional.plugin.instance";
+    legacy_missing_issue.detail = "The configured plugin package is not present.";
+    orchestrator.report_plugin_package_load_issue(plugin_id, std::move(legacy_missing_issue));
+    orchestrator.finish_plugin_package_load(plugin_id);
+
+    updater.reload_all_plugins();
+    plugin = updater.get_plugin(plugin_id);
+    REQUIRE(plugin != nullptr);
+    CHECK_FALSE(plugin->load_report.has_value());
+}
+
+TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
+                 "PluginUpdater removes activation issues from mixed package reports",
+                 "[plugins][updater][plugin-functional][loader]")
+{
+    write_plugin_repository();
+    write_cached_plugin("1.0.0.0");
+    Slic3r::Orchestrator &orchestrator = Slic3r::Orchestrator::instance();
+    orchestrator.begin_plugin_package_load(plugin_id,
+        (data_directory / "plugins" / plugin_id).string());
+
+    Slic3r::PluginPackageLoadIssue activation_issue;
+    activation_issue.code = Slic3r::PluginPackageLoadErrorCode::ConfiguredPluginMissing;
+    activation_issue.plugin_id = "functional.plugin.instance";
+    activation_issue.detail = "The configured plugin id was not registered.";
+    orchestrator.report_plugin_package_load_issue(plugin_id, std::move(activation_issue));
+
+    Slic3r::PluginPackageLoadIssue package_issue;
+    package_issue.code = Slic3r::PluginPackageLoadErrorCode::DependencyMissing;
+    package_issue.detail = "The dependent runtime library was not found.";
+    package_issue.system_error = 126;
+    orchestrator.report_plugin_package_load_issue(plugin_id, std::move(package_issue));
+    orchestrator.finish_plugin_package_load(plugin_id);
+
+    updater.reload_all_plugins();
+    const Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
+    REQUIRE(plugin != nullptr);
+    REQUIRE(plugin->load_report.has_value());
+    REQUIRE(plugin->load_report->issues.size() == 1);
+    CHECK(plugin->load_report->issues.front().code ==
+          Slic3r::PluginPackageLoadErrorCode::DependencyMissing);
+}
+
+TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
+                 "PluginUpdater reports a selected installed package with no live directory",
+                 "[plugins][updater][plugin-functional][loader]")
+{
+    write_plugin_repository();
+    Slic3r::PluginActivationConfig config;
+    config.installed[plugin_id] = {"1.0.0.0", slicer_version};
+    std::string error_message;
+    REQUIRE(Slic3r::write_plugin_activation_config(
+        Slic3r::plugin_activation_config_path(data_directory), config, error_message));
+
+    updater.reload_all_plugins();
+    const Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
+    REQUIRE(plugin != nullptr);
+    CHECK(plugin->is_installed);
+    REQUIRE(plugin->load_report.has_value());
+    REQUIRE(plugin->load_report->issues.size() == 1);
+    CHECK(plugin->load_report->issues.front().code ==
+          Slic3r::PluginPackageLoadErrorCode::PackageMissing);
+    CHECK(plugin->load_report->issues.front().plugin_id.empty());
 }
 
 TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
@@ -1729,7 +1870,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     CHECK(http.pending_count() == 0);
 }
 
-TEST_CASE("PluginUpdater lists Python packages but hides runtime infrastructure",
+TEST_CASE("PluginUpdater lists and manages Python runtime infrastructure",
           "[plugins][updater][python]")
 {
     TemporaryDirectory temporary;
@@ -1744,8 +1885,9 @@ TEST_CASE("PluginUpdater lists Python packages but hides runtime infrastructure"
     std::string error_message;
     REQUIRE(cache.prepare_layout(purged, error_message));
 
-    // Both packages use the normal pure-Python payload. Only the descriptor's
-    // internal marker determines whether the package belongs in the manager.
+    // Both packages use the normal package cache. The internal marker allows
+    // runtime infrastructure to register no plugin id, but does not change
+    // whether users can install or remove its package.
     const boost::filesystem::path visible_package = temporary.path() / "python.visible";
     write_test_file(visible_package / "description.ini",
                     "[plugin]\nid = python.visible\nname = Visible Python plugin\ninternal = 0\n");
@@ -1755,9 +1897,9 @@ TEST_CASE("PluginUpdater lists Python packages but hides runtime infrastructure"
     Slic3r::RepositoryCachedVersion visible_cached;
     REQUIRE(cache.cache_simple(visible_package, visible_cached, error_message));
 
-    const boost::filesystem::path internal_package = temporary.path() / "python.runtime";
+    const boost::filesystem::path internal_package = temporary.path() / "python";
     write_test_file(internal_package / "description.ini",
-                    "[plugin]\nid = python.runtime\nname = Python runtime\ninternal = 1\n");
+                    "[plugin]\nid = python\nname = Python runtime\ninternal = 1\n");
     write_test_file(internal_package / "version.ini",
                     "[plugin]\npackage_version = 1.0.0\nslicer_version = 2.7.0.0\n");
     write_test_file(internal_package / "plugin.py", "def register_plugin(api):\n    return None\n");
@@ -1770,7 +1912,44 @@ TEST_CASE("PluginUpdater lists Python packages but hides runtime infrastructure"
     updater.reload_all_plugins();
     const std::vector<std::string> plugin_ids = updater.plugin_ids();
     CHECK(std::find(plugin_ids.begin(), plugin_ids.end(), "python.visible") != plugin_ids.end());
-    CHECK(std::find(plugin_ids.begin(), plugin_ids.end(), "python.runtime") == plugin_ids.end());
+    CHECK(std::find(plugin_ids.begin(), plugin_ids.end(), "python") != plugin_ids.end());
+
+    Slic3r::PluginSync *runtime = updater.get_plugin("python");
+    REQUIRE(runtime != nullptr);
+    REQUIRE(runtime->best != nullptr);
+    std::optional<Slic3r::UpdaterError> install_result;
+    updater.install_plugin("python", *runtime->best, [&install_result](Slic3r::UpdaterError error) {
+        install_result = std::move(error);
+    });
+    REQUIRE(install_result.has_value());
+    REQUIRE(install_result->succeeded());
+    CHECK(runtime->is_installed);
+
+    // Package installation must not create a fake activatable plugin id. The
+    // runtime remains absent from Plugin configuration because that dialog
+    // enumerates registered plugin instances, not package installation rows.
+    Slic3r::PluginActivationConfig activation;
+    REQUIRE(Slic3r::read_plugin_activation_config(
+        Slic3r::plugin_activation_config_path(data_directory), activation, error_message));
+    CHECK(activation.installed.count("python") == 1);
+    CHECK(activation.activated.count("python") == 0);
+    CHECK(activation.plugin_packages.count("python") == 0);
+
+    std::optional<Slic3r::UpdaterError> uninstall_result;
+    updater.uninstall_plugin("python", [&uninstall_result](Slic3r::UpdaterError error) {
+        uninstall_result = std::move(error);
+    });
+    REQUIRE(uninstall_result.has_value());
+    REQUIRE(uninstall_result->succeeded());
+    CHECK_FALSE(runtime->is_installed);
+    CHECK(runtime->has_cache);
+
+    REQUIRE(Slic3r::read_plugin_activation_config(
+        Slic3r::plugin_activation_config_path(data_directory), activation, error_message));
+    CHECK(activation.installed.count("python") == 0);
+    CHECK(activation.removed.count("python") == 1);
+    CHECK(activation.activated.count("python") == 0);
+    CHECK(activation.plugin_packages.count("python") == 0);
 }
 
 TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
