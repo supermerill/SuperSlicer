@@ -6,6 +6,9 @@
 #ifndef plugins_pluginloader_hpp_
 #define plugins_pluginloader_hpp_
 
+#include <optional>
+#include <string>
+
 namespace boost {
 namespace filesystem {
 class path;
@@ -15,6 +18,31 @@ class path;
 namespace Slic3r {
 
 class Orchestrator;
+struct PluginActivationConfig;
+
+// Describes a recoverable failure of the user activation file. The loader has
+// already switched to resource defaults when this value is published, while
+// package changes remain untouched because their desired state was unreadable.
+struct PluginActivationStartupError {
+    std::string config_path;
+    std::string detail;
+    bool default_activations_used = false;
+    bool package_changes_skipped = false;
+};
+
+// Resolve the activation file used during startup. A valid user file keeps its
+// complete package state. If that file cannot be read, resource defaults are
+// returned for activation only and a deferred startup error is recorded. False
+// means that neither source was usable and error_message explains both errors.
+bool resolve_plugin_startup_activation_config(const boost::filesystem::path &data_directory,
+                                              PluginActivationConfig &config,
+                                              bool &from_user_config,
+                                              std::string &error_message);
+
+// Return and clear the deferred fallback diagnostic. GUI applications consume
+// it once after their main window exists; command-line applications rely on the
+// startup log and may leave it unconsumed.
+std::optional<PluginActivationStartupError> take_plugin_activation_startup_error();
 
 // Load every installed package found directly below repository and retain one
 // PluginPackageLoadReport per attempted package in orchestrator. The normal

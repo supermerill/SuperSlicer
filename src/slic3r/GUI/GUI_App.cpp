@@ -33,6 +33,7 @@
 #include <iterator>
 #include <exception>
 #include <cstdlib>
+#include <optional>
 #include <regex>
 #include <set>
 #include <string_view>
@@ -73,6 +74,8 @@
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/Color.hpp"
 #include "libslic3r/Format/SLAArchiveFormatRegistry.hpp"
+#include "libslic3r/Plugins/PluginLoader.hpp"
+#include "libslic3r/Plugins/PluginRepository.hpp"
 
 #include "GUI.hpp"
 #include "GUI_Utils.hpp"
@@ -881,6 +884,50 @@ void GUI_App::post_init()
     assert(initialized());
     if (! this->initialized())
         throw Slic3r::RuntimeError("Calling post_init() while not yet initialized");
+
+    // Plugin loading happens before wx creates the main frame. Report a
+    // recoverable activation-file failure now, when a modal dialog can safely
+    // be parented to the fully initialized application window.
+    std::optional<PluginActivationStartupError> plugin_startup_error =
+        take_plugin_activation_startup_error();
+    if (plugin_startup_error.has_value()) {
+        CallAfter([this, error = std::move(*plugin_startup_error)]() {
+            wxString message = format_wxstr(
+                _L("The plugin activation configuration could not be read:\n%1%\n\n%2%"),
+                from_u8(error.config_path), from_u8(error.detail));
+            if (error.default_activations_used) {
+                message += "\n\n";
+                message += _L("Default plugin activations are being used for this session only. "
+                              "The current session will not change if you replace the file.");
+            }
+            if (error.package_changes_skipped) {
+                message += "\n\n";
+                message += _L("Scheduled plugin installations and removals were not applied.");
+            }
+            message += "\n\n";
+            message += _L("You may keep the current file unchanged or replace it with the complete default "
+                          "plugin configuration. A replacement will be used at the next startup.");
+
+            RichMessageDialog dialog(mainframe, message, _L("Plugin configuration error"),
+                                     wxYES_NO | wxNO_DEFAULT | wxICON_ERROR);
+            dialog.SetYesNoLabels(_L("Replace with defaults"), _L("Keep current file"));
+            if (dialog.ShowModal() != wxID_YES)
+                return;
+
+            // Repair only the durable configuration. The plugin set already
+            // loaded for this process remains untouched until the next start.
+            std::string replacement_error;
+            if (!replace_plugin_activation_config_with_defaults(
+                    boost::filesystem::path(error.config_path), replacement_error)) {
+                MessageDialog failure_dialog(
+                    mainframe,
+                    format_wxstr(_L("The plugin configuration could not be replaced:\n%1%"),
+                                 from_u8(replacement_error)),
+                    _L("Plugin configuration error"), wxOK | wxICON_ERROR);
+                failure_dialog.ShowModal();
+            }
+        });
+    }
 
     if (this->is_gcode_viewer()) {
         if (! this->init_params->input_files.empty())

@@ -26,8 +26,10 @@
 
 #include <chrono>
 #include <iterator>
+#include <optional>
 #include <set>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -84,6 +86,10 @@ namespace {
 using RegisterPluginFn = void (*)(orchestrator_handle *);
 using PluginAbiVersionFn = uint32_t (*)();
 using PluginLoadClock = std::chrono::steady_clock;
+
+// Startup runs before the GUI exists. Preserve a recoverable activation error
+// until GUI_App can present it after creating its main frame.
+std::optional<PluginActivationStartupError> g_plugin_activation_startup_error;
 
 // Read the package descriptor before loading executable code. The loader uses
 // its internal flag to accept runtime-support packages that intentionally
@@ -696,6 +702,59 @@ void register_exclusive_step_group_ui_fragments_impl(Orchestrator &orchestrator)
 
 } // namespace
 
+bool resolve_plugin_startup_activation_config(const boost::filesystem::path &data_directory,
+                                              PluginActivationConfig &config,
+                                              bool &from_user_config,
+                                              std::string &error_message)
+{
+    g_plugin_activation_startup_error.reset();
+    config = {};
+    from_user_config = false;
+
+    std::string user_error;
+    if (ensure_plugin_activation_config(data_directory, config, from_user_config, user_error)) {
+        error_message.clear();
+        return true;
+    }
+
+    // An empty data directory already selects the resource file, so there is
+    // no independent source left to use as a fallback.
+    if (data_directory.empty()) {
+        config = {};
+        error_message = std::move(user_error);
+        return false;
+    }
+
+    PluginActivationConfig default_config;
+    bool ignored_from_user_config = false;
+    std::string default_error;
+    if (!ensure_plugin_activation_config(boost::filesystem::path(), default_config,
+                                         ignored_from_user_config, default_error)) {
+        config = {};
+        from_user_config = false;
+        error_message = user_error + " Default plugin activations are also unavailable: " + default_error;
+        return false;
+    }
+
+    // Copy only [activated]. Omitting the default package sections makes it
+    // impossible for this fallback value to become a desired installation
+    // state, even if a future caller forgets to inspect the source flag.
+    config = {};
+    config.activated = std::move(default_config.activated);
+    from_user_config = false;
+    g_plugin_activation_startup_error = PluginActivationStartupError{
+        plugin_activation_config_path(data_directory).string(), std::move(user_error), true, true};
+    error_message.clear();
+    return true;
+}
+
+std::optional<PluginActivationStartupError> take_plugin_activation_startup_error()
+{
+    std::optional<PluginActivationStartupError> error = std::move(g_plugin_activation_startup_error);
+    g_plugin_activation_startup_error.reset();
+    return error;
+}
+
 void register_exclusive_step_group_options(Orchestrator &orchestrator)
 {
     register_exclusive_step_group_options_impl(orchestrator);
@@ -734,10 +793,19 @@ void load_plugins()
                                                                 boost::filesystem::path();
     PluginActivationConfig plugin_config;
     std::string plugin_config_error;
-    if (!ensure_plugin_activation_config(config_dir, plugin_config, active_plugins_loaded_from_user_config,
-                                         plugin_config_error)) {
-        BOOST_LOG_TRIVIAL(warning) << plugin_config_error;
-    } else if (!config_dir.empty()) {
+    if (!resolve_plugin_startup_activation_config(config_dir, plugin_config,
+                                                  active_plugins_loaded_from_user_config,
+                                                  plugin_config_error))
+        throw std::runtime_error(plugin_config_error);
+
+    if (const std::optional<PluginActivationStartupError> startup_error =
+            g_plugin_activation_startup_error; startup_error.has_value()) {
+        BOOST_LOG_TRIVIAL(error) << startup_error->detail << " Using default plugin activations for this "
+                                 << "session. The user configuration remains unchanged and package changes "
+                                 << "were not applied.";
+    }
+
+    if (!config_dir.empty() && active_plugins_loaded_from_user_config) {
         // A profile created before a later built-in plugin existed should pick
         // up the new default unless it explicitly keeps that id disabled.
         PluginActivationConfig default_plugin_config;
@@ -776,15 +844,17 @@ void load_plugins()
     // for its provider association. Backfill old profiles when that relation
     // was not yet persisted, without replacing an explicit existing mapping.
     bool learned_package_association = false;
-    for (const Plugin *plugin : orchestrator.registered_plugins()) {
-        if (plugin->get_package_root().empty() ||
-            plugin_config.activated.find(plugin->get_id()) == plugin_config.activated.end() ||
-            plugin_config.plugin_packages.find(plugin->get_id()) != plugin_config.plugin_packages.end())
-            continue;
-        const std::string package_id = boost::filesystem::path(plugin->get_package_root()).filename().string();
-        if (!package_id.empty()) {
-            plugin_config.plugin_packages[plugin->get_id()] = package_id;
-            learned_package_association = true;
+    if (active_plugins_loaded_from_user_config) {
+        for (const Plugin *plugin : orchestrator.registered_plugins()) {
+            if (plugin->get_package_root().empty() ||
+                plugin_config.activated.find(plugin->get_id()) == plugin_config.activated.end() ||
+                plugin_config.plugin_packages.find(plugin->get_id()) != plugin_config.plugin_packages.end())
+                continue;
+            const std::string package_id = boost::filesystem::path(plugin->get_package_root()).filename().string();
+            if (!package_id.empty()) {
+                plugin_config.plugin_packages[plugin->get_id()] = package_id;
+                learned_package_association = true;
+            }
         }
     }
     if (learned_package_association && !config_dir.empty() &&

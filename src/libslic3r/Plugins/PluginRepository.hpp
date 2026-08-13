@@ -124,6 +124,13 @@ bool write_plugin_activation_config(const boost::filesystem::path &config_path,
                                     const PluginActivationConfig &config,
                                     std::string &error_message);
 
+// Replace a damaged user activation file with the complete resource default.
+// The copy is validated and staged beside config_path before publication, so a
+// failure leaves the previous user file in place. This function only changes
+// the configuration file; package reconciliation happens at the next startup.
+bool replace_plugin_activation_config_with_defaults(const boost::filesystem::path &config_path,
+                                                    std::string &error_message);
+
 // Create data_dir/plugins/activated.ini from resources when needed. The old
 // data_dir/plugin location is copied once so existing profiles keep both
 // their activation state and their desired package versions.

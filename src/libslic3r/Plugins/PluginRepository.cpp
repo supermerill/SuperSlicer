@@ -69,6 +69,11 @@ bool replace_installed_package(const boost::filesystem::path &data_directory,
                                const PluginInstalledVersion &version,
                                std::string &error_message);
 boost::filesystem::path default_plugin_activation_config_path();
+// Copy a complete file through sibling staging and backup paths. The previous
+// destination remains recoverable until the staged copy is published.
+bool replace_file_with_copy(const boost::filesystem::path &source,
+                            const boost::filesystem::path &destination,
+                            std::string &error_message);
 
 const char *plugin_package_library_filename()
 {
@@ -342,6 +347,82 @@ boost::filesystem::path default_plugin_activation_config_path()
     return boost::filesystem::path(resources_dir()) / PLUGIN_DIRECTORY / DEFAULT_ACTIVATED_PLUGINS_FILENAME;
 }
 
+bool replace_file_with_copy(const boost::filesystem::path &source,
+                            const boost::filesystem::path &destination,
+                            std::string &error_message)
+{
+    const boost::filesystem::path parent = destination.parent_path();
+    const std::string filename = destination.filename().string();
+    const boost::filesystem::path staging = parent /
+        boost::filesystem::unique_path("." + filename + ".replacement-%%%%-%%%%");
+    const boost::filesystem::path backup = parent /
+        boost::filesystem::unique_path("." + filename + ".previous-%%%%-%%%%");
+    bool previous_moved = false;
+
+    try {
+        if (!parent.empty())
+            boost::filesystem::create_directories(parent);
+        boost::filesystem::copy_file(source, staging);
+
+        // Windows cannot rename over an existing file. Keep the invalid file
+        // beside the staging copy until the replacement has reached its final
+        // path, so a failed publication can restore the original bytes.
+        if (boost::filesystem::exists(destination)) {
+            if (!boost::filesystem::is_regular_file(destination)) {
+                boost::system::error_code cleanup_error;
+                boost::filesystem::remove(staging, cleanup_error);
+                error_message = "Cannot replace plugin configuration '" + destination.string() +
+                                "' because it is not a regular file.";
+                return false;
+            }
+            boost::filesystem::rename(destination, backup);
+            previous_moved = true;
+        }
+
+        try {
+            boost::filesystem::rename(staging, destination);
+        } catch (const boost::filesystem::filesystem_error &error) {
+            std::string detail = error.what();
+            if (previous_moved && !boost::filesystem::exists(destination)) {
+                boost::system::error_code restore_error;
+                boost::filesystem::rename(backup, destination, restore_error);
+                if (restore_error)
+                    detail += "; restoring the previous plugin configuration also failed: " +
+                              restore_error.message();
+            }
+            boost::system::error_code cleanup_error;
+            boost::filesystem::remove(staging, cleanup_error);
+            error_message = "Cannot replace plugin configuration '" + destination.string() + "': " + detail;
+            return false;
+        }
+
+        // The destination now contains the complete default file. Backup
+        // cleanup cannot invalidate that published configuration.
+        if (previous_moved) {
+            boost::system::error_code cleanup_error;
+            boost::filesystem::remove(backup, cleanup_error);
+            if (cleanup_error)
+                BOOST_LOG_TRIVIAL(warning) << "Cannot remove previous plugin configuration '"
+                                           << backup.string() << "': " << cleanup_error.message();
+        }
+        error_message.clear();
+        return true;
+    } catch (const boost::filesystem::filesystem_error &error) {
+        boost::system::error_code cleanup_error;
+        boost::filesystem::remove(staging, cleanup_error);
+        std::string detail = error.what();
+        if (previous_moved && !boost::filesystem::exists(destination)) {
+            boost::system::error_code restore_error;
+            boost::filesystem::rename(backup, destination, restore_error);
+            if (restore_error)
+                detail += "; restoring the previous plugin configuration also failed: " +
+                          restore_error.message();
+        }
+        error_message = "Cannot replace plugin configuration '" + destination.string() + "': " + detail;
+        return false;
+    }
+}
+
 } // namespace
 
 bool parse_repository_description(const std::string &contents,
@@ -588,6 +669,24 @@ bool write_plugin_activation_config(const boost::filesystem::path &config_path,
         return false;
     }
     return true;
+}
+
+bool replace_plugin_activation_config_with_defaults(const boost::filesystem::path &config_path,
+                                                    std::string &error_message)
+{
+    const boost::filesystem::path default_config_path = default_plugin_activation_config_path();
+    PluginActivationConfig default_config;
+    std::string validation_error;
+
+    // Validate the resource file before touching the user's invalid file. The
+    // staged copy remains byte-identical to the shipped default, including its
+    // installed-package and provider-association sections.
+    if (!read_plugin_activation_config(default_config_path, default_config, validation_error)) {
+        error_message = "Cannot use default plugin configuration '" + default_config_path.string() + "': " +
+                        validation_error;
+        return false;
+    }
+    return replace_file_with_copy(default_config_path, config_path, error_message);
 }
 
 bool ensure_plugin_activation_config(const boost::filesystem::path &data_directory,
