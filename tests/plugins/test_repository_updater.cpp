@@ -566,7 +566,7 @@ PluginUpdaterFunctionalFixture::PluginUpdaterFunctionalFixture()
 {
     Slic3r::Orchestrator::instance().clear_plugin_package_load_reports();
     write_test_file(resources_directory / "plugins" / "default_activated.ini",
-                    "[installed]\n\n[removed]\n\n[activated]\n");
+                    "[installed]\n\n[activated]\n");
     Slic3r::RepositoryPackageCache cache(data_directory, Slic3r::plugin_repository_cache_adapter());
     bool purged = false;
     std::string error_message;
@@ -1540,14 +1540,13 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     REQUIRE(config.installed.count(plugin_id) == 1);
     CHECK(config.installed.at(plugin_id).package_version == "2.0.0.0");
     CHECK(config.installed.at(plugin_id).slicer_version == slicer_version);
-    CHECK(config.removed.count(plugin_id) == 0);
     const std::string activation_contents = read_test_file(Slic3r::plugin_activation_config_path(data_directory));
     CHECK(activation_contents.find(plugin_id + " = 2.0.0.0") != std::string::npos);
     CHECK(activation_contents.find(plugin_id + ".slicer_version = " + slicer_version) != std::string::npos);
 }
 
 TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
-                 "Plugin package requests are applied safely at startup",
+                 "Desired plugin packages are reconciled safely at startup",
                  "[plugins][updater][plugin-functional]")
 {
     SECTION("a cached request is installed") {
@@ -1558,10 +1557,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
         REQUIRE(Slic3r::write_plugin_activation_config(
             Slic3r::plugin_activation_config_path(data_directory), config, error_message));
 
-        std::vector<std::string> warnings;
-        REQUIRE(Slic3r::apply_requested_plugin_package_changes(
-            data_directory, config, warnings, error_message));
-        CHECK(warnings.empty());
+        REQUIRE(Slic3r::reconcile_installed_plugin_packages(
+            data_directory, config, error_message));
         CHECK(boost::filesystem::is_regular_file(data_directory / "plugins" / plugin_id / plugin_library_filename()));
         CHECK(read_test_file(data_directory / "plugins" / plugin_id / plugin_library_filename()) ==
               "cached library 1.0.0.0");
@@ -1575,10 +1572,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
         REQUIRE(Slic3r::write_plugin_activation_config(
             Slic3r::plugin_activation_config_path(data_directory), config, error_message));
 
-        std::vector<std::string> warnings;
-        CHECK_FALSE(Slic3r::apply_requested_plugin_package_changes(
-            data_directory, config, warnings, error_message));
-        CHECK(warnings.empty());
+        CHECK_FALSE(Slic3r::reconcile_installed_plugin_packages(
+            data_directory, config, error_message));
         CHECK(error_message.find("not cached") != std::string::npos);
         CHECK(read_test_file(data_directory / "plugins" / plugin_id / plugin_library_filename()) ==
               "installed library 1.0.0.0");
@@ -1614,7 +1609,6 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     CHECK(boost::filesystem::is_directory(data_directory / "plugins" / plugin_id));
     const Slic3r::PluginActivationConfig config = read_activation_config();
     CHECK(config.installed.count(plugin_id) == 0);
-    CHECK(config.removed.count(plugin_id) == 1);
     CHECK(config.activated.count("example.first") == 0);
     CHECK(config.activated.count("example.second") == 0);
     CHECK(config.plugin_packages.count("example.first") == 0);
@@ -1750,42 +1744,33 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
 }
 
 TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
-                 "Plugin removals are consumed at startup without deleting their cache",
+                 "Plugin reconciliation removes packages outside the desired set without deleting their cache",
                  "[plugins][updater][plugin-functional]")
 {
     SECTION("an installed package is removed") {
         write_installed_plugin("1.0.0.0");
         const boost::filesystem::path cache_root = write_cached_plugin("1.0.0.0");
         Slic3r::PluginActivationConfig config;
-        config.removed.insert(plugin_id);
         std::string error_message;
         REQUIRE(Slic3r::write_plugin_activation_config(
             Slic3r::plugin_activation_config_path(data_directory), config, error_message));
 
-        std::vector<std::string> warnings;
-        REQUIRE(Slic3r::apply_requested_plugin_package_changes(
-            data_directory, config, warnings, error_message));
-        CHECK(warnings.empty());
+        REQUIRE(Slic3r::reconcile_installed_plugin_packages(
+            data_directory, config, error_message));
         CHECK_FALSE(boost::filesystem::exists(data_directory / "plugins" / plugin_id));
         CHECK(boost::filesystem::is_directory(cache_root));
-        CHECK(read_activation_config().removed.count(plugin_id) == 0);
     }
 
-    SECTION("an already absent package emits a non-fatal warning") {
+    SECTION("an already absent package is already reconciled") {
         const boost::filesystem::path cache_root = write_cached_plugin("1.0.0.0");
         Slic3r::PluginActivationConfig config;
-        config.removed.insert(plugin_id);
         std::string error_message;
         REQUIRE(Slic3r::write_plugin_activation_config(
             Slic3r::plugin_activation_config_path(data_directory), config, error_message));
 
-        std::vector<std::string> warnings;
-        REQUIRE(Slic3r::apply_requested_plugin_package_changes(
-            data_directory, config, warnings, error_message));
-        REQUIRE(warnings.size() == 1);
-        CHECK(warnings.front().find(plugin_id) != std::string::npos);
+        REQUIRE(Slic3r::reconcile_installed_plugin_packages(
+            data_directory, config, error_message));
         CHECK(boost::filesystem::is_directory(cache_root));
-        CHECK(read_activation_config().removed.count(plugin_id) == 0);
     }
 }
 
@@ -1795,11 +1780,10 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
 {
     write_plugin_repository();
     write_cached_plugin("2.0.0.0");
-    Slic3r::PluginActivationConfig removal_config;
-    removal_config.removed.insert(plugin_id);
+    Slic3r::PluginActivationConfig activation_config;
     std::string config_error;
     REQUIRE(Slic3r::write_plugin_activation_config(
-        Slic3r::plugin_activation_config_path(data_directory), removal_config, config_error));
+        Slic3r::plugin_activation_config_path(data_directory), activation_config, config_error));
     updater.reload_all_plugins();
 
     Slic3r::PluginAvailable version;
@@ -1818,7 +1802,6 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     const Slic3r::PluginActivationConfig config = read_activation_config();
     REQUIRE(config.installed.count(plugin_id) == 1);
     CHECK(config.installed.at(plugin_id).package_version == "2.0.0.0");
-    CHECK(config.removed.count(plugin_id) == 0);
 }
 
 TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
@@ -1868,11 +1851,9 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
 
     // Exercise the next-startup stage as well. Clearing the cache must leave a
     // self-contained activation file which does not refer to deleted content.
-    Slic3r::PluginActivationConfig startup_config = config;
-    std::vector<std::string> warnings;
     std::string startup_error;
-    const bool startup_succeeded = Slic3r::apply_requested_plugin_package_changes(
-        data_directory, startup_config, warnings, startup_error);
+    const bool startup_succeeded = Slic3r::reconcile_installed_plugin_packages(
+        data_directory, config, startup_error);
     INFO(startup_error);
     CHECK(startup_succeeded);
 }
@@ -2014,11 +1995,9 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     // The current live version remains a valid startup source, while the
     // downloaded update selected before Clear cache has disappeared.
     std::string startup_error;
-    Slic3r::PluginActivationConfig startup_config = config;
-    std::vector<std::string> warnings;
     INFO(startup_error);
-    CHECK(Slic3r::apply_requested_plugin_package_changes(
-        data_directory, startup_config, warnings, startup_error));
+    CHECK(Slic3r::reconcile_installed_plugin_packages(
+        data_directory, config, startup_error));
 }
 
 TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
@@ -2050,7 +2029,7 @@ TEST_CASE("PluginUpdater lists and manages Python runtime infrastructure",
     const boost::filesystem::path data_directory = temporary.path() / "data";
     ScopedUpdaterDirectories directories(resources_directory, data_directory);
     write_test_file(resources_directory / "plugins" / "default_activated.ini",
-                    "[installed]\n[removed]\n[activated]\n");
+                    "[installed]\n[activated]\n");
 
     Slic3r::RepositoryPackageCache cache(data_directory, Slic3r::plugin_repository_cache_adapter());
     bool purged = false;
@@ -2124,7 +2103,6 @@ TEST_CASE("PluginUpdater lists and manages Python runtime infrastructure",
     REQUIRE(Slic3r::read_plugin_activation_config(
         Slic3r::plugin_activation_config_path(data_directory), activation, error_message));
     CHECK(activation.installed.count("python") == 0);
-    CHECK(activation.removed.count("python") == 1);
     CHECK(activation.activated.count("python") == 0);
     CHECK(activation.plugin_packages.count("python") == 0);
 }

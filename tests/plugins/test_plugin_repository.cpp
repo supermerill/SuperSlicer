@@ -279,31 +279,59 @@ TEST_CASE("Plugin installation is deferred and preserves the previous package on
 
     Slic3r::PluginActivationConfig config;
     config.installed[package_name] = {first_version, slicer_version};
-    std::vector<std::string> warnings;
     std::string error_message;
-    REQUIRE(Slic3r::apply_requested_plugin_package_changes(data_directory, config, warnings, error_message));
+    REQUIRE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
     CHECK(boost::filesystem::exists(data_directory / "plugins" / package_name / "description.ini"));
     const boost::filesystem::path installed_package = data_directory / "plugins" / package_name;
     {
         boost::nowide::ofstream stream((installed_package / "local-marker.txt").string());
         stream << "preserved";
     }
-    REQUIRE(Slic3r::apply_requested_plugin_package_changes(data_directory, config, warnings, error_message));
+    REQUIRE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
     CHECK(boost::filesystem::exists(installed_package / "local-marker.txt"));
 
     config.installed[package_name] = {second_version, slicer_version};
-    REQUIRE(Slic3r::apply_requested_plugin_package_changes(data_directory, config, warnings, error_message));
+    REQUIRE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
     const std::string installed_version = read_text_file(
         data_directory / "plugins" / package_name / "version.ini");
     CHECK(installed_version.find("package_version = " + second_version) != std::string::npos);
     CHECK(installed_version.find("slicer_version = " + slicer_version) != std::string::npos);
 
+    // A failed validation must stop the complete reconciliation, including
+    // removal of unrelated live directories outside the desired set.
+    const boost::filesystem::path unmanaged_package = data_directory / "plugins" / "unmanaged.plugin";
+    boost::filesystem::create_directories(unmanaged_package);
     config.installed[package_name] = {"9.9.9.9", slicer_version};
-    CHECK_FALSE(Slic3r::apply_requested_plugin_package_changes(data_directory, config, warnings, error_message));
+    CHECK_FALSE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
     CHECK(boost::filesystem::exists(installed_package / "description.ini"));
+    CHECK(boost::filesystem::is_directory(unmanaged_package));
     const std::string preserved_version = read_text_file(installed_package / "version.ini");
     CHECK(preserved_version.find("package_version = " + second_version) != std::string::npos);
     CHECK(preserved_version.find("slicer_version = " + slicer_version) != std::string::npos);
+
+    boost::filesystem::remove_all(root);
+}
+
+TEST_CASE("Plugin reconciliation removes unmanaged live package directories", "[plugins][repository]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-plugin-reconcile-%%%%-%%%%");
+    const boost::filesystem::path data_directory = root / "data";
+    const boost::filesystem::path plugin_directory = data_directory / "plugins";
+    const boost::filesystem::path unmanaged_package = plugin_directory / "manually.copied";
+    boost::filesystem::create_directories(unmanaged_package);
+    {
+        boost::nowide::ofstream marker((unmanaged_package / "plugin.dll").string());
+        marker << "unmanaged";
+        boost::nowide::ofstream activation((plugin_directory / "activated.ini").string());
+        activation << "[installed]\n";
+    }
+
+    Slic3r::PluginActivationConfig config;
+    std::string error_message;
+    REQUIRE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
+    CHECK_FALSE(boost::filesystem::exists(unmanaged_package));
+    CHECK(boost::filesystem::is_regular_file(plugin_directory / "activated.ini"));
 
     boost::filesystem::remove_all(root);
 }
@@ -614,18 +642,16 @@ TEST_CASE("Pure Python plugin packages install and remove through the normal lif
 
     Slic3r::PluginActivationConfig config;
     config.installed["lifecycle.python"] = {"1.0.0.0", "2.7.63.0"};
-    std::vector<std::string> warnings;
-    REQUIRE(Slic3r::apply_requested_plugin_package_changes(
-        data_directory, config, warnings, error_message));
+    REQUIRE(Slic3r::reconcile_installed_plugin_packages(
+        data_directory, config, error_message));
     const boost::filesystem::path installed = data_directory / "plugins" / "lifecycle.python";
     CHECK(boost::filesystem::is_regular_file(installed / "plugin.py"));
     CHECK(boost::filesystem::is_regular_file(installed / "description.ini"));
     CHECK(boost::filesystem::is_regular_file(installed / "version.ini"));
 
     config.installed.clear();
-    config.removed.insert("lifecycle.python");
-    REQUIRE(Slic3r::apply_requested_plugin_package_changes(
-        data_directory, config, warnings, error_message));
+    REQUIRE(Slic3r::reconcile_installed_plugin_packages(
+        data_directory, config, error_message));
     CHECK_FALSE(boost::filesystem::exists(installed));
     CHECK(boost::filesystem::is_directory(cached.directory));
 
@@ -912,7 +938,7 @@ TEST_CASE("Repository package cache purges an obsolete layout once",
     boost::filesystem::remove_all(root);
 }
 
-TEST_CASE("Plugin cache purge restores live packages and cancels lost requests",
+TEST_CASE("Plugin cache purge restores desired live packages and preserves lost selections",
           "[plugins][repository][cache-layout]")
 {
     const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
@@ -933,7 +959,7 @@ TEST_CASE("Plugin cache purge restores live packages and cancels lost requests",
         {
             boost::nowide::ofstream config(config_path.string());
             config << "[installed]\n" << package_name << " = 1.2.0-beta.1\n"
-                   << package_name << ".slicer_version = 2.7.0.0\n\n[removed]\n\n[activated]\n";
+                   << package_name << ".slicer_version = 2.7.0.0\n\n[activated]\n";
         }
 
         std::string error_message;
@@ -947,12 +973,12 @@ TEST_CASE("Plugin cache purge restores live packages and cancels lost requests",
         CHECK(config.installed.count(package_name) == 1);
     }
 
-    SECTION("a request available only in the purged cache is removed") {
+    SECTION("a desired package unavailable after purge remains selected") {
         const std::string package_name = "lost.plugin";
         {
             boost::nowide::ofstream config(config_path.string());
             config << "[installed]\n" << package_name << " = 1.0.0.0\n"
-                   << package_name << ".slicer_version = 2.7.0.0\n\n[removed]\n\n[activated]\n";
+                   << package_name << ".slicer_version = 2.7.0.0\n\n[activated]\n";
         }
         const boost::filesystem::path obsolete = data_directory / "cache" / "plugins" / "old-package";
         boost::filesystem::create_directories(obsolete);
@@ -961,8 +987,10 @@ TEST_CASE("Plugin cache purge restores live packages and cancels lost requests",
         REQUIRE(Slic3r::prepare_plugin_bundle_cache(resources_directory, data_directory, error_message));
         Slic3r::PluginActivationConfig config;
         REQUIRE(Slic3r::read_plugin_activation_config(config_path, config, error_message));
-        CHECK(config.installed.count(package_name) == 0);
+        CHECK(config.installed.count(package_name) == 1);
         CHECK_FALSE(boost::filesystem::exists(obsolete));
+        CHECK_FALSE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
+        CHECK(error_message.find("not cached") != std::string::npos);
     }
 
     boost::filesystem::remove_all(root);
@@ -1032,7 +1060,7 @@ TEST_CASE("Plugin activation configuration accepts files without package provide
     boost::filesystem::remove_all(root);
 }
 
-TEST_CASE("Plugin removal requests override conflicting installation entries", "[plugins][repository]")
+TEST_CASE("Plugin activation configuration writes no removal section", "[plugins][repository]")
 {
     const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
                                          boost::filesystem::unique_path("slic3r-plugin-removal-%%%%-%%%%");
@@ -1043,15 +1071,15 @@ TEST_CASE("Plugin removal requests override conflicting installation entries", "
         stream << "[installed]\n"
                << "example.plugin = 1.2.3.4\n"
                << "example.plugin.slicer_version = 2.7.0.0\n\n"
-               << "[removed]\nexample.plugin = 1\n\n"
                << "[activated]\nexample.id = 1\n";
     }
 
     Slic3r::PluginActivationConfig config;
     std::string error_message;
     REQUIRE(Slic3r::read_plugin_activation_config(config_path, config, error_message));
-    CHECK(config.installed.count("example.plugin") == 0);
-    CHECK(config.removed.count("example.plugin") == 1);
+    CHECK(config.installed.count("example.plugin") == 1);
     CHECK(config.activated["example.id"]);
+    REQUIRE(Slic3r::write_plugin_activation_config(config_path, config, error_message));
+    CHECK(read_text_file(config_path).find("[removed]") == std::string::npos);
     boost::filesystem::remove_all(root);
 }

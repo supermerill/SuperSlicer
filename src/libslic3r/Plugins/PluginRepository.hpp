@@ -14,7 +14,6 @@
 #define plugins_pluginrepository_hpp_
 
 #include <map>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -95,10 +94,11 @@ struct PluginInstalledVersion {
     std::string slicer_version;
 };
 
-// The activation file separates package lifecycle from plugin activation. A
-// package version selected in [installed] is copied into the live directory on
-// the next launch. A package listed in [removed] is deleted on that launch.
-// Individual plugin ids remain independently enabled in [activated].
+// The activation file separates package lifecycle from plugin activation.
+// [installed] is the complete desired package set: selected versions are
+// copied into the live directory and live packages absent from the section are
+// removed at the next launch. Individual plugin ids remain independently
+// enabled in [activated].
 struct PluginActivationConfig {
     std::map<std::string, bool> activated;
     // External plugin ids are associated with the package that registered
@@ -107,17 +107,16 @@ struct PluginActivationConfig {
     // Built-in plugins have no entry in this map.
     std::map<std::string, std::string> plugin_packages;
     std::map<std::string, PluginInstalledVersion> installed;
-    std::set<std::string> removed;
 };
 
 // Return the user configuration file which records package changes and enabled
 // plugin ids.
 boost::filesystem::path plugin_activation_config_path(const boost::filesystem::path &data_directory);
 
-// Read or write the [installed], [removed], [activated] and [plugin_packages]
-// sections. Callers load the complete value before changing one concern, so
-// unrelated package requests and activation choices remain present when the
-// file is rewritten. Older files without [plugin_packages] remain valid.
+// Read or write the [installed], [activated] and [plugin_packages] sections.
+// Callers load the complete value before changing one concern, so unrelated
+// desired packages and activation choices remain present when the file is
+// rewritten. Files without [plugin_packages] remain valid.
 bool read_plugin_activation_config(const boost::filesystem::path &config_path,
                                    PluginActivationConfig &config,
                                    std::string &error_message);
@@ -127,7 +126,7 @@ bool write_plugin_activation_config(const boost::filesystem::path &config_path,
 
 // Create data_dir/plugins/activated.ini from resources when needed. The old
 // data_dir/plugin location is copied once so existing profiles keep both
-// their activation state and their requested package versions.
+// their activation state and their desired package versions.
 bool ensure_plugin_activation_config(const boost::filesystem::path &data_directory,
                                      PluginActivationConfig &config,
                                      bool &from_user_config,
@@ -141,8 +140,8 @@ bool prepare_plugin_cache(const boost::filesystem::path &data_directory,
 
 // Prepare the current cache layout and extract shipped ZIP bundles. The plugin
 // loader calls this once during application startup. After a layout purge,
-// live packages are recached and requests whose only copy was in the obsolete
-// cache are removed before the loader applies package changes.
+// desired live packages are recached before startup reconciliation validates
+// the complete [installed] set.
 bool prepare_plugin_bundle_cache(const boost::filesystem::path &resources_directory,
                                  const boost::filesystem::path &data_directory,
                                  std::string &error_message);
@@ -165,13 +164,13 @@ bool plugin_package_cache_is_valid(const boost::filesystem::path &data_directory
                                    const PluginInstalledVersion &version,
                                    std::string &error_message);
 
-// Apply the package requests read from activated.ini before loading any DLL.
-// Missing removal targets are non-fatal and returned through warnings. Fatal
-// validation or filesystem failures return false through error_message.
-bool apply_requested_plugin_package_changes(const boost::filesystem::path &data_directory,
-                                            PluginActivationConfig &config,
-                                            std::vector<std::string> &warnings,
-                                            std::string &error_message);
+// Reconcile data/plugins with the complete desired package set from
+// activated.ini before loading any DLL. Every desired cache entry is validated
+// before the live directory is changed. Missing cache data or filesystem
+// failures return false through error_message.
+bool reconcile_installed_plugin_packages(const boost::filesystem::path &data_directory,
+                                         const PluginActivationConfig &config,
+                                         std::string &error_message);
 
 // Schedule a cached package version for installation on the next process
 // start. The current process never replaces a loaded plugin library.

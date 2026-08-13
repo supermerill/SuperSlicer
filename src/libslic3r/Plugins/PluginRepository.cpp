@@ -549,19 +549,6 @@ bool read_plugin_activation_config(const boost::filesystem::path &config_path,
             }
         }
 
-        if (const boost::optional<boost::property_tree::ptree&> removed = tree.get_child_optional("removed"))
-            for (const boost::property_tree::ptree::value_type &entry : *removed) {
-                const std::string package_name = boost::algorithm::trim_copy(entry.first);
-                if (is_safe_package_name(package_name) &&
-                    ini_value_is_enabled(entry.second.get_value<std::string>())) {
-                    config.removed.insert(package_name);
-                    // A removal request wins over a stale or manually merged
-                    // installation request for the same package.
-                    config.installed.erase(package_name);
-                } else {
-                    BOOST_LOG_TRIVIAL(warning) << "Ignoring invalid removed plugin package '" << package_name << "'.";
-                }
-            }
     } catch (const std::exception &error) {
         error_message = "Cannot parse plugin configuration '" + config_path.string() + "': " + error.what();
         return false;
@@ -585,9 +572,6 @@ bool write_plugin_activation_config(const boost::filesystem::path &config_path,
             stream << package_name << " = " << version.package_version << "\n";
             stream << package_name << ".slicer_version = " << version.slicer_version << "\n";
         }
-        stream << "\n[removed]\n";
-        for (const std::string &package_name : config.removed)
-            stream << package_name << " = 1\n";
         stream << "\n[activated]\n";
         for (const auto &[plugin_id, enabled] : config.activated)
             stream << plugin_id << " = " << (enabled ? "1" : "0") << "\n";
@@ -715,51 +699,26 @@ static bool prepare_plugin_cache_impl(const boost::filesystem::path *resources_d
         if (has_activation_config && !read_plugin_activation_config(activation_path, config, error_message))
             return false;
 
-        // Every live plugin directory is a durable package source, including
-        // manually installed packages not listed in [installed]. A matching
-        // request supplies exact versions when an older live package has no
-        // description.ini yet.
+        // Only packages selected in [installed] are durable live sources. Any
+        // other live directory is outside the desired package set and will be
+        // removed by startup reconciliation instead of being imported again.
         const boost::filesystem::path live_plugins = data_directory / PLUGIN_DIRECTORY;
-        if (boost::filesystem::is_directory(live_plugins)) {
-            for (boost::filesystem::directory_iterator it(live_plugins), end; it != end; ++it) {
-                if (!boost::filesystem::is_directory(it->path()))
+        if (boost::filesystem::is_directory(live_plugins))
+            for (const auto &[package_name, version] : config.installed) {
+                const boost::filesystem::path live_package = live_plugins / package_name;
+                if (!boost::filesystem::is_directory(live_package))
                     continue;
-                const std::string package_name = it->path().filename().string();
-                std::optional<RepositoryPackageExpectation> expected;
-                const std::map<std::string, PluginInstalledVersion>::const_iterator requested =
-                    config.installed.find(package_name);
-                if (requested != config.installed.end()) {
-                    expected.emplace();
-                    expected->type = RepositoryPackageType::Plugin;
-                    expected->id = package_name;
-                    expected->version.package_version = requested->second.package_version;
-                    expected->version.slicer_version = requested->second.slicer_version;
-                }
+                RepositoryPackageExpectation expected;
+                expected.type = RepositoryPackageType::Plugin;
+                expected.id = package_name;
+                expected.version.package_version = version.package_version;
+                expected.version.slicer_version = version.slicer_version;
                 RepositoryCachedVersion cached;
                 std::string cache_error;
-                if (!cache.cache_package_directory(it->path(), expected, cached, cache_error))
+                if (!cache.cache_package_directory(live_package, expected, cached, cache_error))
                     BOOST_LOG_TRIVIAL(warning) << "Cannot restore live plugin package '" << package_name
                                                << "': " << cache_error;
             }
-        }
-
-        bool config_changed = false;
-        for (std::map<std::string, PluginInstalledVersion>::iterator it = config.installed.begin();
-             it != config.installed.end();) {
-            std::string validation_error;
-            if (plugin_package_cache_is_valid(data_directory, it->first, it->second, validation_error)) {
-                ++it;
-                continue;
-            }
-
-            BOOST_LOG_TRIVIAL(warning) << "Cancelled pending installation of plugin package '" << it->first
-                                       << "' because its old cached package is no longer available.";
-            it = config.installed.erase(it);
-            config_changed = true;
-        }
-        if (config_changed && has_activation_config &&
-            !write_plugin_activation_config(activation_path, config, error_message))
-            return false;
     } catch (const boost::filesystem::filesystem_error &error) {
         error_message = "Cannot prepare plugin bundle cache: " + std::string(error.what());
         return false;
@@ -780,12 +739,10 @@ bool prepare_plugin_bundle_cache(const boost::filesystem::path &resources_direct
     return prepare_plugin_cache_impl(&resources_directory, data_directory, error_message);
 }
 
-bool apply_requested_plugin_package_changes(const boost::filesystem::path &data_directory,
-                                            PluginActivationConfig &config,
-                                            std::vector<std::string> &warnings,
-                                            std::string &error_message)
+bool reconcile_installed_plugin_packages(const boost::filesystem::path &data_directory,
+                                         const PluginActivationConfig &config,
+                                         std::string &error_message)
 {
-    warnings.clear();
     error_message.clear();
 
     // Validate every requested installation before changing a live package.
@@ -798,28 +755,28 @@ bool apply_requested_plugin_package_changes(const boost::filesystem::path &data_
         if (!replace_installed_package(data_directory, package_name, version, error_message))
             return false;
 
-    PluginActivationConfig updated_config = config;
-    for (const std::string &package_name : config.removed) {
-        const boost::filesystem::path package_root = data_directory / PLUGIN_DIRECTORY / package_name;
-        try {
-            if (!boost::filesystem::exists(package_root)) {
-                warnings.emplace_back("Plugin package '" + package_name + "' was already absent from the live plugin directory.");
-            } else {
-                boost::filesystem::remove_all(package_root);
+    // Every remaining direct subdirectory is a package that is no longer in
+    // the desired set. Files such as activated.ini are deliberately ignored.
+    const boost::filesystem::path plugin_directory = data_directory / PLUGIN_DIRECTORY;
+    try {
+        std::vector<boost::filesystem::path> packages_to_remove;
+        if (boost::filesystem::is_directory(plugin_directory)) {
+            for (boost::filesystem::directory_iterator it(plugin_directory), end; it != end; ++it) {
+                if (!boost::filesystem::is_directory(it->path()))
+                    continue;
+                const std::string package_name = it->path().filename().string();
+                if (config.installed.count(package_name) == 0)
+                    packages_to_remove.emplace_back(it->path());
             }
-        } catch (const boost::filesystem::filesystem_error &error) {
-            error_message = "Cannot remove plugin package '" + package_name + "': " + error.what();
-            return false;
         }
-        updated_config.removed.erase(package_name);
-    }
 
-    // Removal markers are one-shot startup requests. Persist their consumption
-    // only after every requested filesystem operation has completed.
-    if (updated_config.removed != config.removed) {
-        if (!write_plugin_activation_config(plugin_activation_config_path(data_directory), updated_config, error_message))
-            return false;
-        config = std::move(updated_config);
+        // Finish directory enumeration before deleting entries. Removing the
+        // current entry may invalidate platform-specific directory iterators.
+        for (const boost::filesystem::path &package_path : packages_to_remove)
+            boost::filesystem::remove_all(package_path);
+    } catch (const boost::filesystem::filesystem_error &error) {
+        error_message = "Cannot reconcile live plugin packages: " + std::string(error.what());
+        return false;
     }
     return true;
 }
@@ -843,7 +800,6 @@ bool request_plugin_install(const std::string &package_name,
     bool from_user_config = false;
     if (!ensure_plugin_activation_config(data_directory, config, from_user_config, error_message))
         return false;
-    config.removed.erase(package_name);
     config.installed[package_name] = version;
     return write_plugin_activation_config(plugin_activation_config_path(data_directory), config, error_message);
 }
@@ -865,7 +821,6 @@ bool request_plugin_uninstall(const std::string &package_name, std::string &erro
     if (!ensure_plugin_activation_config(data_directory, config, from_user_config, error_message))
         return false;
     config.installed.erase(package_name);
-    config.removed.insert(package_name);
     for (std::map<std::string, std::string>::iterator it = config.plugin_packages.begin();
          it != config.plugin_packages.end();) {
         if (it->second != package_name) {

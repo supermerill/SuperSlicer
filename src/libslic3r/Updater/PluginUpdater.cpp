@@ -526,9 +526,9 @@ void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::functi
     try {
         const boost::filesystem::path data_directory(data_dir());
 
-        // [installed] describes both the live package and a version selected
-        // for the next startup. Preserve the live version when it exists;
-        // otherwise remove the request before deleting its only package copy.
+        // Clearing an installed package's cache must not remove it from the
+        // desired set. Preserve and recache its live version. A package already
+        // removed from [installed] must stay scheduled for deletion instead.
         std::optional<PluginInstalledVersion> live_version;
         std::string error_message;
         if (!read_live_plugin_version(data_directory / "plugins" / plugin_id,
@@ -542,8 +542,8 @@ void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::functi
             callback_result(make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message)));
             return;
         }
-        const bool removal_requested = config.removed.count(plugin_id) != 0;
-        if (live_version && !removal_requested)
+        const bool package_is_desired = config.installed.count(plugin_id) != 0;
+        if (live_version && package_is_desired)
             config.installed[plugin_id] = *live_version;
         else
             config.installed.erase(plugin_id);
@@ -559,7 +559,7 @@ void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::functi
         // across restarts. Re-cache that live package after removing downloaded
         // versions so the retained selection remains self-contained.
         std::optional<RepositoryCachedVersion> live_cached_version;
-        if (live_version && !removal_requested) {
+        if (live_version && package_is_desired) {
             RepositoryPackageCache cache(data_directory, plugin_repository_cache_adapter());
             live_cached_version.emplace();
             if (!cache.cache_simple(data_directory / "plugins" / plugin_id,
@@ -605,7 +605,7 @@ void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::functi
                     available.local_directory = live_cached_version->directory.string();
                     current->available_packages.emplace_back(std::move(available));
                 }
-                current->is_installed = live_version.has_value() && !removal_requested;
+                current->is_installed = live_version.has_value() && package_is_desired;
                 current->installed_version = current->is_installed ? *live_version : PluginInstalledVersion();
                 current->sort_available();
             }
