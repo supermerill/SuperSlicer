@@ -51,6 +51,12 @@ UpdaterError parse_repository_tags_safely(const std::string &repository_id,
                                           const std::function<UpdaterError(const std::string &)> &parse_tags,
                                           const std::string &contents);
 
+// Publishes validated metadata through a sibling temporary file. The previous
+// cache remains available until the completed temporary file is renamed into
+// place, and is restored if that rename fails.
+UpdaterError publish_repository_cache_atomically(const boost::filesystem::path &destination,
+                                                  const std::string &contents);
+
 // Stores a fully downloaded response and reports local failures separately
 // from transport errors. Both sync and async archive paths use this function.
 UpdaterError write_repository_file(const boost::filesystem::path &destination, const std::string &contents);
@@ -59,6 +65,12 @@ UpdaterError write_repository_file(const boost::filesystem::path &destination, c
 // Parsing into a temporary string prevents a malformed response from replacing
 // notes that were already available to the caller.
 bool parse_repository_changelog(const std::string &contents, bool compare, std::string &notes);
+
+// Publishes validated notes through the callback owned by the derived updater.
+// Callback failures belong to this changelog request and must not escape its
+// caller or prevent the batch from completing.
+bool store_repository_changelog_notes(const std::function<void(std::string)> &store_notes,
+                                      std::string notes);
 
 // Releases one request from its batch and invokes the aggregate callback only
 // after the last cache read or network request has finished.
@@ -81,6 +93,79 @@ UpdaterError parse_repository_tags_safely(const std::string &repository_id,
     }
 }
 
+UpdaterError publish_repository_cache_atomically(const boost::filesystem::path &destination,
+                                                  const std::string &contents)
+{
+    const boost::filesystem::path parent = destination.parent_path();
+    const std::string filename = destination.filename().string();
+    const boost::filesystem::path staging = parent /
+        boost::filesystem::unique_path("." + filename + ".download-%%%%-%%%%");
+    const boost::filesystem::path backup = parent /
+        boost::filesystem::unique_path("." + filename + ".previous-%%%%-%%%%");
+    bool previous_moved = false;
+
+    try {
+        if (!parent.empty())
+            boost::filesystem::create_directories(parent);
+
+        const UpdaterError write_error = write_repository_file(staging, contents);
+        if (!write_error.succeeded()) {
+            boost::system::error_code cleanup_error;
+            boost::filesystem::remove(staging, cleanup_error);
+            return write_error;
+        }
+
+        // Windows cannot rename a file over an existing destination. Keep the
+        // previous cache beside the staging file until publication succeeds.
+        if (boost::filesystem::exists(destination)) {
+            if (!boost::filesystem::is_regular_file(destination)) {
+                boost::system::error_code cleanup_error;
+                boost::filesystem::remove(staging, cleanup_error);
+                return make_updater_error(UpdaterError::Code::Filesystem,
+                                          "The repository cache destination is not a regular file.");
+            }
+            boost::filesystem::rename(destination, backup);
+            previous_moved = true;
+        }
+
+        try {
+            boost::filesystem::rename(staging, destination);
+        } catch (const boost::filesystem::filesystem_error &error) {
+            std::string detail = error.what();
+            if (previous_moved && !boost::filesystem::exists(destination)) {
+                boost::system::error_code restore_error;
+                boost::filesystem::rename(backup, destination, restore_error);
+                if (restore_error)
+                    detail += "; restoring the previous cache also failed: " + restore_error.message();
+            }
+            boost::system::error_code cleanup_error;
+            boost::filesystem::remove(staging, cleanup_error);
+            return make_updater_error(UpdaterError::Code::Filesystem, std::move(detail));
+        }
+
+        if (previous_moved) {
+            boost::system::error_code cleanup_error;
+            boost::filesystem::remove(backup, cleanup_error);
+            if (cleanup_error)
+                BOOST_LOG_TRIVIAL(warning) << "Cannot remove previous repository cache '"
+                                           << backup.string() << "': " << cleanup_error.message();
+        }
+        return UpdaterError();
+    } catch (const std::exception &error) {
+        boost::system::error_code cleanup_error;
+        boost::filesystem::remove(staging, cleanup_error);
+        if (previous_moved && !boost::filesystem::exists(destination)) {
+            boost::system::error_code restore_error;
+            boost::filesystem::rename(backup, destination, restore_error);
+            if (restore_error)
+                return make_updater_error(UpdaterError::Code::Filesystem,
+                    std::string(error.what()) + "; restoring the previous cache also failed: " +
+                    restore_error.message());
+        }
+        return make_updater_error(UpdaterError::Code::Filesystem, error.what());
+    }
+}
+
 UpdaterError write_repository_file(const boost::filesystem::path &destination, const std::string &contents)
 {
     try {
@@ -95,6 +180,14 @@ UpdaterError write_repository_file(const boost::filesystem::path &destination, c
         if (!stream)
             return make_updater_error(UpdaterError::Code::Filesystem,
                                       "Cannot write the downloaded repository file.");
+        stream.flush();
+        if (!stream)
+            return make_updater_error(UpdaterError::Code::Filesystem,
+                                      "Cannot flush the downloaded repository file.");
+        stream.close();
+        if (!stream)
+            return make_updater_error(UpdaterError::Code::Filesystem,
+                                      "Cannot close the downloaded repository file.");
         return UpdaterError();
     } catch (const std::exception &error) {
         return make_updater_error(UpdaterError::Code::Filesystem, error.what());
@@ -120,6 +213,18 @@ bool parse_repository_changelog(const std::string &contents, bool compare, std::
         return true;
     } catch (const std::exception &error) {
         BOOST_LOG_TRIVIAL(warning) << "Cannot parse repository changelog: " << error.what();
+        return false;
+    }
+}
+
+bool store_repository_changelog_notes(const std::function<void(std::string)> &store_notes,
+                                      std::string notes)
+{
+    try {
+        store_notes(std::move(notes));
+        return true;
+    } catch (const std::exception &error) {
+        BOOST_LOG_TRIVIAL(warning) << "Cannot store repository changelog: " << error.what();
         return false;
     }
 }
@@ -316,16 +421,17 @@ void RepositoryUpdater::refresh_repository_tags(const std::string &repository_id
                 complete(make_updater_error(code, std::move(error)));
             })
             .on_complete([repository_id, cache_file, parse_tags, complete](std::string contents, unsigned) {
-                try {
-                    boost::nowide::ofstream stream(cache_file.string(), std::ios::out | std::ios::trunc);
-                    stream << contents;
-                    if (!stream)
-                        BOOST_LOG_TRIVIAL(warning) << "Cannot write repository cache for '" << repository_id << "'.";
-                } catch (const std::exception &error) {
-                    BOOST_LOG_TRIVIAL(warning) << "Cannot write repository cache for '" << repository_id
-                                               << "': " << error.what();
+                UpdaterError parse_error = parse_repository_tags_safely(repository_id, parse_tags, contents);
+                if (!parse_error.succeeded()) {
+                    complete(std::move(parse_error));
+                    return;
                 }
-                complete(parse_repository_tags_safely(repository_id, parse_tags, contents));
+
+                const UpdaterError cache_error = publish_repository_cache_atomically(cache_file, contents);
+                if (!cache_error.succeeded())
+                    BOOST_LOG_TRIVIAL(warning) << "Cannot write repository cache for '" << repository_id
+                                               << "': " << cache_error.detail;
+                complete(std::move(parse_error));
             })
             .perform();
     } catch (const std::exception &error) {
@@ -464,23 +570,6 @@ void RepositoryUpdater::download_repository_changelogs(std::vector<RepositoryCha
     state->callback = std::move(callback);
     ++m_pending_changelogs;
 
-    // Each request stores its result through a callback supplied by the
-    // derived updater. Keeping parsing here gives vendors and plugins exactly
-    // the same JSON and failure semantics without sharing their public models.
-    const std::function<bool(const RepositoryChangelogRequest &, const std::string &)> consume =
-        [](const RepositoryChangelogRequest &request, const std::string &contents) {
-            std::string notes;
-            if (!parse_repository_changelog(contents, request.compare, notes))
-                return false;
-            try {
-                request.store_notes(std::move(notes));
-                return true;
-            } catch (const std::exception &error) {
-                BOOST_LOG_TRIVIAL(warning) << "Cannot store repository changelog: " << error.what();
-                return false;
-            }
-        };
-
     for (const RepositoryChangelogRequest &request : requests) {
         const std::shared_ptr<std::atomic_bool> terminal = std::make_shared<std::atomic_bool>(false);
         const std::function<void(bool)> complete = [state, terminal](bool succeeded) {
@@ -501,7 +590,15 @@ void RepositoryUpdater::download_repository_changelogs(std::vector<RepositoryCha
                 }
                 const std::string contents((std::istreambuf_iterator<char>(stream)),
                                            std::istreambuf_iterator<char>());
-                complete(consume(request, contents));
+
+                // Cache contents still pass through the common parser before
+                // their notes are exposed to the derived updater's model.
+                std::string notes;
+                if (!parse_repository_changelog(contents, request.compare, notes)) {
+                    complete(false);
+                    continue;
+                }
+                complete(store_repository_changelog_notes(request.store_notes, std::move(notes)));
                 continue;
             }
         } catch (const std::exception &error) {
@@ -524,12 +621,21 @@ void RepositoryUpdater::download_repository_changelogs(std::vector<RepositoryCha
                                                << request.url << "': " << error;
                     complete(false);
                 })
-                .on_complete([request, consume, complete](std::string contents, unsigned) {
-                    const UpdaterError cache_error = write_repository_file(request.cache_file, contents);
+                .on_complete([request, complete](std::string contents, unsigned) {
+                    std::string notes;
+                    if (!parse_repository_changelog(contents, request.compare, notes)) {
+                        complete(false);
+                        return;
+                    }
+
+                    // Keep the validated notes usable even if the optional
+                    // local cache cannot be replaced on this machine.
+                    const UpdaterError cache_error = publish_repository_cache_atomically(
+                        request.cache_file, contents);
                     if (!cache_error.succeeded())
                         BOOST_LOG_TRIVIAL(warning) << "Cannot cache repository changelog '"
                                                    << request.cache_file.string() << "': " << cache_error.detail;
-                    complete(consume(request, contents));
+                    complete(store_repository_changelog_notes(request.store_notes, std::move(notes)));
                 })
                 .perform();
         } catch (const std::exception &error) {

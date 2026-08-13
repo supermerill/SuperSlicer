@@ -107,9 +107,10 @@ protected:
     bool has_api_request_slot(const std::string &url);
 
     // Refreshes one repository's tags. A recent cache is parsed immediately;
-    // otherwise the common GitHub tags endpoint is downloaded and cached. The
-    // terminal callback receives a precise transport, filesystem or parsing
-    // error and updates derived state before update_count() is evaluated.
+    // otherwise the common GitHub tags endpoint is downloaded, parsed and
+    // atomically cached in that order. Invalid metadata never replaces the
+    // previous cache. The terminal callback updates derived state before
+    // update_count() is evaluated.
     void refresh_repository_tags(const std::string &repository_id,
                                  const std::string &rest_url,
                                  const boost::filesystem::path &cache_file,
@@ -136,8 +137,9 @@ protected:
                                                size_t size_limit);
 
     // Loads all changelogs as one logical operation. Existing cache files are
-    // reused unless force is true. The callback runs once, after every request
-    // has either stored its notes or failed, and reports aggregate success.
+    // reused unless force is true. Downloaded JSON is parsed before its cache
+    // is atomically replaced, then the validated notes are stored. The callback
+    // runs once after every request and reports aggregate success.
     void download_repository_changelogs(std::vector<RepositoryChangelogRequest> requests,
                                         std::function<void(bool)> callback,
                                         bool force);

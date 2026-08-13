@@ -768,6 +768,53 @@ TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plug
         REQUIRE(refresh_result.has_value());
         CHECK(refresh_result->succeeded());
         CHECK(sync_callback_count == 1);
+
+        bool temporary_file_found = false;
+        for (boost::filesystem::directory_iterator it(cache_file.parent_path()), end; it != end; ++it) {
+            const std::string filename = it->path().filename().string();
+            temporary_file_found = temporary_file_found ||
+                filename.find(".download-") != std::string::npos ||
+                filename.find(".previous-") != std::string::npos;
+        }
+        CHECK_FALSE(temporary_file_found);
+    }
+
+    SECTION("an invalid download preserves and reuses the previous cache") {
+        const std::string cached_tags = "valid cached tags";
+        write_test_file(cache_file, cached_tags);
+        const std::function<Slic3r::UpdaterError(const std::string &)> parse =
+            [&parsed_contents, &cached_tags](const std::string &contents) {
+                if (contents != cached_tags)
+                    return Slic3r::make_updater_error(
+                        Slic3r::UpdaterError::Code::InvalidRepositoryMetadata, "invalid downloaded tags");
+                parsed_contents = contents;
+                return Slic3r::UpdaterError();
+            };
+
+        REQUIRE(updater.begin_sync(1, [&sync_callback_count](int) { ++sync_callback_count; }));
+        updater.refresh_repository_tags(
+            "invalid", "https://example.invalid/invalid", cache_file, true, parse,
+            [&refresh_result](Slic3r::UpdaterError error) { refresh_result = std::move(error); });
+        REQUIRE(http.pending_count() == 1);
+        http.succeed_front("invalid downloaded tags", 200);
+
+        REQUIRE(refresh_result.has_value());
+        CHECK(refresh_result->code == Slic3r::UpdaterError::Code::InvalidRepositoryMetadata);
+        CHECK(read_test_file(cache_file) == cached_tags);
+        CHECK(sync_callback_count == 1);
+
+        // The rejected response did not refresh the cache timestamp or body,
+        // so the next normal refresh can still consume the valid local copy.
+        refresh_result.reset();
+        REQUIRE(updater.begin_sync(1, [&sync_callback_count](int) { ++sync_callback_count; }));
+        updater.refresh_repository_tags(
+            "cached", "https://example.invalid/cached", cache_file, false, parse,
+            [&refresh_result](Slic3r::UpdaterError error) { refresh_result = std::move(error); });
+        CHECK(http.pending_count() == 0);
+        REQUIRE(refresh_result.has_value());
+        CHECK(refresh_result->succeeded());
+        CHECK(parsed_contents == cached_tags);
+        CHECK(sync_callback_count == 2);
     }
 
     SECTION("a transport failure completes once") {
@@ -913,9 +960,10 @@ TEST_CASE("RepositoryUpdater reports precise tag refresh failures", "[plugins][u
     }
 
     SECTION("invalid downloaded tags preserve the parser detail") {
+        const boost::filesystem::path invalid_cache = temporary.path() / "invalid.json";
         REQUIRE(updater.begin_sync(1, [](int) {}));
         updater.refresh_repository_tags(
-            "invalid", "https://example.invalid/invalid", temporary.path() / "invalid.json", true,
+            "invalid", "https://example.invalid/invalid", invalid_cache, true,
             [](const std::string &) {
                 return Slic3r::make_updater_error(Slic3r::UpdaterError::Code::InvalidRepositoryMetadata,
                                                   "tag name has no slicer version");
@@ -927,6 +975,7 @@ TEST_CASE("RepositoryUpdater reports precise tag refresh failures", "[plugins][u
         REQUIRE(result.has_value());
         CHECK(result->code == Slic3r::UpdaterError::Code::InvalidRepositoryMetadata);
         CHECK(result->detail == "tag name has no slicer version");
+        CHECK_FALSE(boost::filesystem::exists(invalid_cache));
     }
 }
 
@@ -990,6 +1039,15 @@ TEST_CASE("RepositoryUpdater downloads changelog batches through cache and trans
     CHECK(read_test_file(commit_cache) == commit_json);
     CHECK(read_test_file(compare_cache) == compare_json);
 
+    bool temporary_file_found = false;
+    for (boost::filesystem::directory_iterator it(commit_cache.parent_path()), end; it != end; ++it) {
+        const std::string filename = it->path().filename().string();
+        temporary_file_found = temporary_file_found ||
+            filename.find(".download-") != std::string::npos ||
+            filename.find(".previous-") != std::string::npos;
+    }
+    CHECK_FALSE(temporary_file_found);
+
     // Cached commit data is immutable. A second batch completes synchronously
     // and restores the notes without consuming another HTTP request.
     commit_notes.clear();
@@ -1039,12 +1097,63 @@ TEST_CASE("RepositoryUpdater changelog failures complete one aggregate callback"
 
     http.succeed_front("not JSON", 200);
     CHECK(callback_count == 0);
+    CHECK_FALSE(boost::filesystem::exists(invalid.cache_file));
     http.fail_front(std::string(), "offline", 0);
 
     REQUIRE(batch_succeeded.has_value());
     CHECK_FALSE(*batch_succeeded);
     CHECK(callback_count == 1);
     CHECK_FALSE(updater.changelog_download_in_progress());
+}
+
+TEST_CASE("RepositoryUpdater invalid changelogs preserve and reuse recent caches", "[plugins][updater]")
+{
+    FakeUpdaterHttpTransport http;
+    TestRepositoryUpdater updater(http);
+    TemporaryDirectory temporary;
+    const boost::filesystem::path cache_file = temporary.path() / "logs" / "commit.json";
+    const std::string cached_json = R"({"commit":{"message":"cached notes"}})";
+    write_test_file(cache_file, cached_json);
+
+    std::string notes = "unchanged";
+    TestRepositoryUpdater::RepositoryChangelogRequest request;
+    request.cache_file = cache_file;
+    request.url = "https://example.invalid/commit/one";
+    request.store_notes = [&notes](std::string value) { notes = std::move(value); };
+
+    std::optional<bool> result;
+    int callback_count = 0;
+    updater.download_repository_changelogs(
+        {request},
+        [&result, &callback_count](bool succeeded) {
+            result = succeeded;
+            ++callback_count;
+        },
+        true);
+    REQUIRE(http.pending_count() == 1);
+    http.succeed_front("not JSON", 200);
+
+    REQUIRE(result.has_value());
+    CHECK_FALSE(*result);
+    CHECK(callback_count == 1);
+    CHECK(notes == "unchanged");
+    CHECK(read_test_file(cache_file) == cached_json);
+
+    // A normal refresh now consumes the unmodified recent cache and does not
+    // retry HTTP until that cache expires.
+    result.reset();
+    updater.download_repository_changelogs(
+        {request},
+        [&result, &callback_count](bool succeeded) {
+            result = succeeded;
+            ++callback_count;
+        },
+        false);
+    CHECK(http.pending_count() == 0);
+    REQUIRE(result.has_value());
+    CHECK(*result);
+    CHECK(callback_count == 2);
+    CHECK(notes == "cached notes");
 }
 
 TEST_CASE("RepositoryUpdater force and rate limits apply to changelogs", "[plugins][updater]")
@@ -1079,6 +1188,32 @@ TEST_CASE("RepositoryUpdater force and rate limits apply to changelogs", "[plugi
     REQUIRE(limited_result.has_value());
     CHECK_FALSE(*limited_result);
     CHECK(http.pending_count() == 0);
+}
+
+TEST_CASE("RepositoryUpdater consumes valid changelogs when cache publication fails", "[plugins][updater]")
+{
+    FakeUpdaterHttpTransport http;
+    TestRepositoryUpdater updater(http);
+    TemporaryDirectory temporary;
+    const boost::filesystem::path blocking_file = temporary.path() / "not-a-directory";
+    write_test_file(blocking_file, "file");
+
+    std::string notes;
+    TestRepositoryUpdater::RepositoryChangelogRequest request;
+    request.cache_file = blocking_file / "commit.json";
+    request.url = "https://example.invalid/commit/one";
+    request.store_notes = [&notes](std::string value) { notes = std::move(value); };
+
+    std::optional<bool> result;
+    updater.download_repository_changelogs(
+        {request}, [&result](bool succeeded) { result = succeeded; }, true);
+    REQUIRE(http.pending_count() == 1);
+    http.succeed_front(R"({"commit":{"message":"validated notes"}})", 200);
+
+    REQUIRE(result.has_value());
+    CHECK(*result);
+    CHECK(notes == "validated notes");
+    CHECK_FALSE(boost::filesystem::exists(request.cache_file));
 }
 
 TEST_CASE("RepositoryUpdater downloads repository descriptions", "[plugins][updater]")
