@@ -15,6 +15,7 @@
 #include <atomic>
 #include <ctime>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <utility>
@@ -28,6 +29,42 @@
 namespace Slic3r {
 
 class UpdaterHttpTransport;
+
+namespace RepositoryUpdaterInternal {
+
+class RepositoryTagService;
+class RepositoryChangelogService;
+
+// The kind controls both JSON parsing and request limits. Compare is kept
+// explicit so its future multi-page implementation remains isolated inside
+// RepositoryChangelogService instead of leaking pagination into the facade.
+enum class RepositoryChangelogKind {
+    Commit,
+    Compare
+};
+
+// Vendor and plugin models convert their version records into this neutral
+// input before asking the changelog service to choose comparison bases.
+struct RepositoryChangelogVersion {
+    Semver content_version;
+    Semver slicer_version;
+    std::string tag;
+    std::string commit_sha;
+    std::string commit_url;
+    std::function<void(std::string)> store_notes;
+};
+
+// One request identifies its cache, endpoint and parser kind. store_notes is
+// called only with validated content and must remain valid until the aggregate
+// completion callback runs.
+struct RepositoryChangelogRequest {
+    boost::filesystem::path cache_file;
+    std::string url;
+    RepositoryChangelogKind kind = RepositoryChangelogKind::Commit;
+    std::function<void(std::string)> store_notes;
+};
+
+} // namespace RepositoryUpdaterInternal
 
 // A repository has one synchronization state at a time. Keeping progress and
 // completion in one enum prevents stale success and failure flags from being
@@ -49,7 +86,7 @@ public:
     RepositoryUpdater(RepositoryUpdater &&) = delete;
     RepositoryUpdater &operator=(const RepositoryUpdater &) = delete;
     RepositoryUpdater &operator=(RepositoryUpdater &&) = delete;
-    virtual ~RepositoryUpdater() = default;
+    virtual ~RepositoryUpdater();
 
     // Convert the repository spellings accepted by the GUI and configuration
     // files into one REST URL. Short "owner/repository" and github.com URLs
@@ -63,27 +100,9 @@ protected:
     // filesystem work and user callbacks must run after releasing it.
     mutable std::mutex m_model_mutex;
 
-    // Vendor and plugin models expose different version types. Each derived
-    // updater converts one package into this common description, after which
-    // RepositoryUpdater can select comparison bases and build cache paths.
-    struct RepositoryChangelogVersion {
-        Semver content_version;
-        Semver slicer_version;
-        std::string tag;
-        std::string commit_sha;
-        std::string commit_url;
-        std::function<void(std::string)> store_notes;
-    };
-
-    // A derived updater creates one request per available package version.
-    // store_notes is invoked only after the JSON has been parsed successfully;
-    // every object captured by it must remain alive until the final callback.
-    struct RepositoryChangelogRequest {
-        boost::filesystem::path cache_file;
-        std::string url;
-        bool compare = false;
-        std::function<void(std::string)> store_notes;
-    };
+    using RepositoryChangelogKind = RepositoryUpdaterInternal::RepositoryChangelogKind;
+    using RepositoryChangelogVersion = RepositoryUpdaterInternal::RepositoryChangelogVersion;
+    using RepositoryChangelogRequest = RepositoryUpdaterInternal::RepositoryChangelogRequest;
 
     using ParseRepositoryTagsFn = std::function<UpdaterError(const std::string &)>;
     using RepositoryRefreshFinishedFn = std::function<void(UpdaterError)>;
@@ -106,11 +125,13 @@ protected:
     // unrestricted because they may implement their own rate policy.
     bool has_api_request_slot(const std::string &url);
 
-    // Refreshes one repository's tags. A recent cache is parsed immediately;
-    // otherwise the common GitHub tags endpoint is downloaded, parsed and
-    // atomically cached in that order. Invalid metadata never replaces the
-    // previous cache. The terminal callback updates derived state before
-    // update_count() is evaluated.
+    // Refreshes one repository's tags. GitHub advances by one historical page
+    // per 24 hours and rereads page one immediately when an overlap indicates
+    // new releases; force bypasses only the daily delay. Other hosts fetch all
+    // pages in one operation. tags.json remains one deduplicated array and a
+    // sibling pagination INI stores the GitHub cursor. Invalid metadata never
+    // replaces the previous cache. The terminal callback updates derived state
+    // before update_count() is evaluated.
     void refresh_repository_tags(const std::string &repository_id,
                                  const std::string &rest_url,
                                  const boost::filesystem::path &cache_file,
@@ -157,7 +178,7 @@ protected:
                                                 bool force);
 
     bool sync_in_progress() const { return m_sync_in_progress; }
-    bool changelog_download_in_progress() const { return m_pending_changelogs != 0; }
+    bool changelog_download_in_progress() const;
 
     // Derived updaters build every request through this accessor so tests can
     // observe and complete the operation without contacting the network.
@@ -176,13 +197,14 @@ private:
     virtual void on_sync_completed() {}
 
     std::atomic_int m_pending_syncs = 0;
-    std::atomic_int m_pending_changelogs = 0;
     std::atomic_bool m_sync_in_progress = false;
     std::mutex m_callback_mutex;
     std::vector<std::function<void(int)>> m_sync_callbacks;
     std::atomic_int m_max_api_requests = 25;
     std::time_t m_next_api_window = 0;
     UpdaterHttpTransport &m_http_transport;
+    std::unique_ptr<RepositoryUpdaterInternal::RepositoryTagService> m_tag_service;
+    std::unique_ptr<RepositoryUpdaterInternal::RepositoryChangelogService> m_changelog_service;
 };
 
 } // namespace Slic3r

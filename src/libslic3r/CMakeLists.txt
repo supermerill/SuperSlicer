@@ -293,8 +293,14 @@ set(SLIC3R_SOURCES
 	Updater/PluginUpdater.hpp
 	Updater/PresetUpdater.cpp
 	Updater/PresetUpdater.hpp
+	Updater/RepositoryCacheIO.cpp
+	Updater/RepositoryCacheIO.hpp
+	Updater/RepositoryChangelogService.cpp
+	Updater/RepositoryChangelogService.hpp
 	Updater/RepositoryPackageCache.cpp
 	Updater/RepositoryPackageCache.hpp
+	Updater/RepositoryTagService.cpp
+	Updater/RepositoryTagService.hpp
 	Updater/RepositoryUpdater.cpp
 	Updater/RepositoryUpdater.hpp
 	Updater/UpdaterHttp.cpp

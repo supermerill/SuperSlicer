@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdint>
 #include <ctime>
 #include <deque>
 #include <fstream>
@@ -29,6 +30,8 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/nowide/fstream.hpp>
+#include <boost/property_tree/ini_parser.hpp>
+#include <boost/property_tree/json_parser.hpp>
 
 #include "libslic3r/ContainerUtils.hpp"
 #include "libslic3r/Plugins/PluginRepository.hpp"
@@ -242,6 +245,7 @@ public:
     using RepositoryUpdater::download_repository_file_sync;
     using RepositoryUpdater::has_api_request_slot;
     using RepositoryUpdater::refresh_repository_tags;
+    using RepositoryUpdater::RepositoryChangelogKind;
     using RepositoryUpdater::RepositoryChangelogRequest;
 
 private:
@@ -345,6 +349,14 @@ std::string plugin_description_contents(const std::string &plugin_id,
                                         bool include_repository,
                                         const std::string &repository = "example/plugin");
 std::string plugin_repository_tags(const std::vector<TestPluginVersion> &versions);
+std::string paginated_repository_tags(size_t first_index, size_t count,
+                                      const std::string &prefix = "release-");
+std::vector<std::string> repository_tag_names(const std::string &json);
+void write_tag_pagination(const boost::filesystem::path &cache_file,
+                          uint32_t next_page,
+                          bool history_complete,
+                          std::time_t last_request);
+boost::property_tree::ptree read_tag_pagination(const boost::filesystem::path &cache_file);
 
 // This fixture reproduces the core portion of the GUI pipeline: discover local
 // vendors, synchronize the repository, copy the dialog model, then apply the
@@ -449,6 +461,56 @@ std::string vendor_repository_tags(const std::vector<TestVendorVersion> &version
     return json.str();
 }
 
+std::string paginated_repository_tags(size_t first_index, size_t count, const std::string &prefix)
+{
+    std::ostringstream json;
+    json << '[';
+    for (size_t offset = 0; offset < count; ++offset) {
+        if (offset != 0)
+            json << ',';
+        json << "{\"name\":\"" << prefix << first_index + offset << "\","
+             << "\"zipball_url\":\"archive-" << first_index + offset << "\","
+             << "\"commit\":{\"sha\":\"sha-" << first_index + offset << "\"}}";
+    }
+    json << ']';
+    return json.str();
+}
+
+std::vector<std::string> repository_tag_names(const std::string &json)
+{
+    boost::property_tree::ptree root;
+    std::stringstream stream(json);
+    boost::property_tree::read_json(stream, root);
+    std::vector<std::string> names;
+    for (const boost::property_tree::ptree::value_type &entry : root)
+        names.emplace_back(entry.second.get<std::string>("name"));
+    return names;
+}
+
+void write_tag_pagination(const boost::filesystem::path &cache_file,
+                          uint32_t next_page,
+                          bool history_complete,
+                          std::time_t last_request)
+{
+    boost::property_tree::ptree root;
+    root.put("pagination.next_page", next_page);
+    root.put("pagination.history_complete", history_complete);
+    root.put("pagination.last_request", static_cast<int64_t>(last_request));
+    const boost::filesystem::path path =
+        cache_file.parent_path() / (cache_file.stem().string() + ".pagination.ini");
+    boost::filesystem::create_directories(path.parent_path());
+    boost::property_tree::write_ini(path.string(), root);
+}
+
+boost::property_tree::ptree read_tag_pagination(const boost::filesystem::path &cache_file)
+{
+    boost::property_tree::ptree root;
+    const boost::filesystem::path path =
+        cache_file.parent_path() / (cache_file.stem().string() + ".pagination.ini");
+    boost::property_tree::read_ini(path.string(), root);
+    return root;
+}
+
 const char *plugin_library_filename()
 {
 #ifdef _WIN32
@@ -546,7 +608,7 @@ PresetDialogSnapshot PresetUpdaterFunctionalFixture::synchronize_and_open_dialog
     // Completing the retained request here reproduces that asynchronous edge.
     REQUIRE(http.pending_count() == 1);
     CHECK(http.pending_front().url() ==
-          "https://api.github.com/repos/example/vendor/tags?per_page=100;page=1");
+          "https://api.github.com/repos/example/vendor/tags?per_page=100&page=1");
     http.succeed_front(vendor_repository_tags(versions), 200);
 
     REQUIRE(update_count.has_value());
@@ -639,7 +701,7 @@ void PluginUpdaterFunctionalFixture::synchronize(const std::vector<TestPluginVer
     updater.sync_async([&update_count](int count) { update_count = count; }, true);
     REQUIRE(http.pending_count() == 1);
     CHECK(http.pending_front().url() ==
-          "https://api.github.com/repos/example/plugin/tags?per_page=100;page=1");
+          "https://api.github.com/repos/example/plugin/tags?per_page=100&page=1");
     http.succeed_front(plugin_repository_tags(versions), 200);
     REQUIRE(update_count.has_value());
 }
@@ -698,16 +760,15 @@ TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plug
     int sync_callback_count = 0;
 
     SECTION("a recent cache avoids HTTP") {
-        boost::nowide::ofstream stream(cache_file.string());
-        stream << "cached tags";
-        stream.close();
+        const std::string cached_tags = paginated_repository_tags(0, 1);
+        write_test_file(cache_file, cached_tags);
 
         REQUIRE(updater.begin_sync(1, [&sync_callback_count](int count) {
             CHECK(count == 7);
             ++sync_callback_count;
         }));
         updater.refresh_repository_tags(
-            "cached", "https://example.invalid/cached", cache_file, false,
+            "cached", "https://api.github.com/repos/example/cached", cache_file, false,
             [&parsed_contents](const std::string &contents) {
                 parsed_contents = contents;
                 return Slic3r::UpdaterError();
@@ -715,7 +776,7 @@ TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plug
             [&refresh_result](Slic3r::UpdaterError error) { refresh_result = std::move(error); });
 
         CHECK(http.pending_count() == 0);
-        CHECK(parsed_contents == "cached tags");
+        CHECK(parsed_contents == cached_tags);
         REQUIRE(refresh_result.has_value());
         CHECK(refresh_result->succeeded());
         CHECK(sync_callback_count == 1);
@@ -728,7 +789,7 @@ TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plug
 
         REQUIRE(updater.begin_sync(1, [&sync_callback_count](int) { ++sync_callback_count; }));
         updater.refresh_repository_tags(
-            "invalid", "https://example.invalid/invalid", cache_file, false,
+            "invalid", "https://api.github.com/repos/example/invalid", cache_file, false,
             [](const std::string &) {
                 return Slic3r::make_updater_error(Slic3r::UpdaterError::Code::InvalidRepositoryMetadata,
                                                   "invalid tags");
@@ -737,14 +798,12 @@ TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plug
 
         REQUIRE(refresh_result.has_value());
         CHECK(refresh_result->code == Slic3r::UpdaterError::Code::InvalidRepositoryMetadata);
-        CHECK(refresh_result->detail == "invalid tags");
+        CHECK_FALSE(refresh_result->detail.empty());
         CHECK(sync_callback_count == 1);
     }
 
     SECTION("force downloads and replaces the cache") {
-        boost::nowide::ofstream stream(cache_file.string());
-        stream << "old tags";
-        stream.close();
+        write_test_file(cache_file, paginated_repository_tags(0, 1, "old-"));
 
         REQUIRE(updater.begin_sync(1, [&sync_callback_count](int) { ++sync_callback_count; }));
         updater.refresh_repository_tags(
@@ -757,14 +816,14 @@ TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plug
 
         REQUIRE(http.pending_count() == 1);
         CHECK(http.pending_front().url() ==
-              "https://example.invalid/forced/tags?per_page=100;page=1");
+              "https://example.invalid/forced/tags?per_page=100&page=1");
         CHECK(http.pending_front().response_size_limit() == 64 * 1024);
         CHECK(sync_callback_count == 0);
 
-        http.succeed_front("fresh tags", 200);
+        http.succeed_front(paginated_repository_tags(0, 1, "fresh-"), 200);
 
-        CHECK(parsed_contents == "fresh tags");
-        CHECK(read_test_file(cache_file) == "fresh tags");
+        CHECK(repository_tag_names(parsed_contents) == std::vector<std::string>{"fresh-0"});
+        CHECK(read_test_file(cache_file) == parsed_contents);
         REQUIRE(refresh_result.has_value());
         CHECK(refresh_result->succeeded());
         CHECK(sync_callback_count == 1);
@@ -780,7 +839,7 @@ TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plug
     }
 
     SECTION("an invalid download preserves and reuses the previous cache") {
-        const std::string cached_tags = "valid cached tags";
+        const std::string cached_tags = paginated_repository_tags(0, 1, "cached-");
         write_test_file(cache_file, cached_tags);
         const std::function<Slic3r::UpdaterError(const std::string &)> parse =
             [&parsed_contents, &cached_tags](const std::string &contents) {
@@ -793,22 +852,22 @@ TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plug
 
         REQUIRE(updater.begin_sync(1, [&sync_callback_count](int) { ++sync_callback_count; }));
         updater.refresh_repository_tags(
-            "invalid", "https://example.invalid/invalid", cache_file, true, parse,
+            "invalid", "https://api.github.com/repos/example/invalid", cache_file, true, parse,
             [&refresh_result](Slic3r::UpdaterError error) { refresh_result = std::move(error); });
         REQUIRE(http.pending_count() == 1);
-        http.succeed_front("invalid downloaded tags", 200);
+        http.succeed_front("not JSON", 200);
 
         REQUIRE(refresh_result.has_value());
         CHECK(refresh_result->code == Slic3r::UpdaterError::Code::InvalidRepositoryMetadata);
         CHECK(read_test_file(cache_file) == cached_tags);
         CHECK(sync_callback_count == 1);
 
-        // The rejected response did not refresh the cache timestamp or body,
-        // so the next normal refresh can still consume the valid local copy.
+        // The failed body did not replace the aggregate, but the persisted
+        // attempt prevents another normal GitHub request during this window.
         refresh_result.reset();
         REQUIRE(updater.begin_sync(1, [&sync_callback_count](int) { ++sync_callback_count; }));
         updater.refresh_repository_tags(
-            "cached", "https://example.invalid/cached", cache_file, false, parse,
+            "cached", "https://api.github.com/repos/example/invalid", cache_file, false, parse,
             [&refresh_result](Slic3r::UpdaterError error) { refresh_result = std::move(error); });
         CHECK(http.pending_count() == 0);
         REQUIRE(refresh_result.has_value());
@@ -832,6 +891,286 @@ TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plug
         CHECK(refresh_result->detail == "offline");
         CHECK(sync_callback_count == 1);
         CHECK(http.pending_count() == 0);
+    }
+}
+
+TEST_CASE("RepositoryUpdater advances GitHub tag pagination once per day", "[plugins][updater]")
+{
+    FakeUpdaterHttpTransport http;
+    TestRepositoryUpdater updater(http);
+    TemporaryDirectory temporary;
+    const boost::filesystem::path cache_file = temporary.path() / "tags.json";
+    std::optional<Slic3r::UpdaterError> result;
+    std::vector<std::string> parsed_names;
+    const std::function<Slic3r::UpdaterError(const std::string &)> parse =
+        [&parsed_names](const std::string &contents) {
+            parsed_names = repository_tag_names(contents);
+            return Slic3r::UpdaterError();
+        };
+    const std::function<void(Slic3r::UpdaterError)> finish =
+        [&result](Slic3r::UpdaterError error) { result = std::move(error); };
+
+    // The first page fills the GitHub page size, so the next daily request is
+    // scheduled for page two and the legacy-compatible aggregate is cached.
+    REQUIRE(updater.begin_sync(1, [](int) {}));
+    updater.refresh_repository_tags("daily", "example/daily", cache_file, false, parse, finish);
+    REQUIRE(http.pending_count() == 1);
+    CHECK(http.pending_front().url() ==
+          "https://api.github.com/repos/example/daily/tags?per_page=100&page=1");
+    http.succeed_front(paginated_repository_tags(0, 100), 200);
+
+    REQUIRE(result.has_value());
+    CHECK(result->succeeded());
+    REQUIRE(parsed_names.size() == 100);
+    boost::property_tree::ptree pagination = read_tag_pagination(cache_file);
+    CHECK(pagination.get<uint32_t>("pagination.next_page") == 2);
+    CHECK_FALSE(pagination.get<bool>("pagination.history_complete"));
+    CHECK(pagination.get<int64_t>("pagination.last_request") > 0);
+
+    // A second normal synchronization inside the 24-hour window consumes the
+    // aggregate without creating another HTTP request.
+    result.reset();
+    parsed_names.clear();
+    REQUIRE(updater.begin_sync(1, [](int) {}));
+    updater.refresh_repository_tags("daily", "example/daily", cache_file, false, parse, finish);
+    CHECK(http.pending_count() == 0);
+    REQUIRE(result.has_value());
+    INFO(result->detail);
+    CHECK(result->succeeded());
+    CHECK(parsed_names.size() == 100);
+
+    // Age only the request marker. The next normal synchronization advances
+    // to page two and a short response marks the historical crawl complete.
+    write_tag_pagination(cache_file, 2, false, 0);
+    result.reset();
+    REQUIRE(updater.begin_sync(1, [](int) {}));
+    updater.refresh_repository_tags("daily", "example/daily", cache_file, false, parse, finish);
+    REQUIRE(http.pending_count() == 1);
+    CHECK(http.pending_front().url() ==
+          "https://api.github.com/repos/example/daily/tags?per_page=100&page=2");
+    http.succeed_front(paginated_repository_tags(100, 2), 200);
+
+    REQUIRE(result.has_value());
+    CHECK(result->succeeded());
+    REQUIRE(parsed_names.size() == 102);
+    pagination = read_tag_pagination(cache_file);
+    CHECK(pagination.get<uint32_t>("pagination.next_page") == 1);
+    CHECK(pagination.get<bool>("pagination.history_complete"));
+
+    // Once complete, page one is merged in front instead of replacing the
+    // collected history, so an old release remains selectable.
+    write_tag_pagination(cache_file, 1, true, 0);
+    result.reset();
+    REQUIRE(updater.begin_sync(1, [](int) {}));
+    updater.refresh_repository_tags("daily", "example/daily", cache_file, false, parse, finish);
+    REQUIRE(http.pending_count() == 1);
+    CHECK(http.pending_front().url() ==
+          "https://api.github.com/repos/example/daily/tags?per_page=100&page=1");
+    http.succeed_front(paginated_repository_tags(0, 1, "new-"), 200);
+
+    REQUIRE(result.has_value());
+    CHECK(result->succeeded());
+    REQUIRE(parsed_names.size() == 103);
+    CHECK(parsed_names.front() == "new-0");
+    CHECK(std::find(parsed_names.begin(), parsed_names.end(), "release-101") != parsed_names.end());
+}
+
+TEST_CASE("RepositoryUpdater restarts GitHub pagination when its aggregate is missing", "[plugins][updater]")
+{
+    FakeUpdaterHttpTransport http;
+    TestRepositoryUpdater updater(http);
+    TemporaryDirectory temporary;
+    const boost::filesystem::path cache_file = temporary.path() / "tags.json";
+    write_tag_pagination(cache_file, 4, false, 0);
+
+    std::optional<Slic3r::UpdaterError> result;
+    std::vector<std::string> parsed_names;
+    const std::function<Slic3r::UpdaterError(const std::string &)> parse =
+        [&parsed_names](const std::string &contents) {
+            parsed_names = repository_tag_names(contents);
+            return Slic3r::UpdaterError();
+        };
+
+    // A cursor without its aggregate cannot identify already collected tags.
+    // The next request therefore rebuilds the history from page one.
+    REQUIRE(updater.begin_sync(1, [](int) {}));
+    updater.refresh_repository_tags(
+        "orphaned", "example/orphaned", cache_file, false, parse,
+        [&result](Slic3r::UpdaterError error) { result = std::move(error); });
+    REQUIRE(http.pending_count() == 1);
+    CHECK(http.pending_front().url() ==
+          "https://api.github.com/repos/example/orphaned/tags?per_page=100&page=1");
+    http.succeed_front(paginated_repository_tags(0, 1), 200);
+
+    REQUIRE(result.has_value());
+    CHECK(result->succeeded());
+    CHECK(parsed_names == std::vector<std::string>{"release-0"});
+    const boost::property_tree::ptree pagination = read_tag_pagination(cache_file);
+    CHECK(pagination.get<uint32_t>("pagination.next_page") == 1);
+    CHECK(pagination.get<bool>("pagination.history_complete"));
+}
+
+TEST_CASE("RepositoryUpdater refreshes the GitHub front page after historical overlap", "[plugins][updater]")
+{
+    FakeUpdaterHttpTransport http;
+    TestRepositoryUpdater updater(http);
+    TemporaryDirectory temporary;
+    const boost::filesystem::path cache_file = temporary.path() / "tags.json";
+    write_test_file(cache_file, paginated_repository_tags(0, 100));
+    write_tag_pagination(cache_file, 2, false, 0);
+
+    std::optional<Slic3r::UpdaterError> result;
+    std::vector<std::string> parsed_names;
+    const std::function<Slic3r::UpdaterError(const std::string &)> parse =
+        [&parsed_names](const std::string &contents) {
+            parsed_names = repository_tag_names(contents);
+            return Slic3r::UpdaterError();
+        };
+    const std::function<void(Slic3r::UpdaterError)> finish =
+        [&result](Slic3r::UpdaterError error) { result = std::move(error); };
+
+    REQUIRE(updater.begin_sync(1, [](int) {}));
+    updater.refresh_repository_tags("overlap", "example/overlap", cache_file, false, parse, finish);
+    REQUIRE(http.pending_count() == 1);
+    CHECK(http.pending_front().url() ==
+          "https://api.github.com/repos/example/overlap/tags?per_page=100&page=2");
+
+    // release-99 appears on both sides of the old page boundary. The updater
+    // detects the shift and spends its explicit exception on page one now.
+    http.succeed_front(paginated_repository_tags(99, 100), 200);
+    REQUIRE(http.pending_count() == 1);
+    CHECK_FALSE(result.has_value());
+    CHECK(http.pending_front().url() ==
+          "https://api.github.com/repos/example/overlap/tags?per_page=100&page=1");
+    std::string refreshed_front = paginated_repository_tags(0, 99);
+    refreshed_front.insert(1, "{\"name\":\"new-release\"},");
+    http.succeed_front(refreshed_front, 200);
+
+    REQUIRE(result.has_value());
+    CHECK(result->succeeded());
+    REQUIRE(parsed_names.size() == 200);
+    CHECK(parsed_names.front() == "new-release");
+    CHECK(parsed_names.back() == "release-198");
+    boost::property_tree::ptree pagination = read_tag_pagination(cache_file);
+    CHECK(pagination.get<uint32_t>("pagination.next_page") == 3);
+    CHECK_FALSE(pagination.get<bool>("pagination.history_complete"));
+
+    // The next eligible synchronization resumes after the historical page
+    // already validated before the immediate page-one refresh.
+    write_tag_pagination(cache_file, 3, false, 0);
+    result.reset();
+    REQUIRE(updater.begin_sync(1, [](int) {}));
+    updater.refresh_repository_tags("overlap", "example/overlap", cache_file, false, parse, finish);
+    REQUIRE(http.pending_count() == 1);
+    CHECK(http.pending_front().url() ==
+          "https://api.github.com/repos/example/overlap/tags?per_page=100&page=3");
+    http.succeed_front(paginated_repository_tags(199, 1), 200);
+    REQUIRE(result.has_value());
+    CHECK(result->succeeded());
+}
+
+TEST_CASE("RepositoryUpdater counts failed GitHub tag attempts for one day", "[plugins][updater]")
+{
+    FakeUpdaterHttpTransport http;
+    TestRepositoryUpdater updater(http);
+    TemporaryDirectory temporary;
+    const boost::filesystem::path cache_file = temporary.path() / "tags.json";
+    std::optional<Slic3r::UpdaterError> result;
+    const std::function<Slic3r::UpdaterError(const std::string &)> parse =
+        [](const std::string &) { return Slic3r::UpdaterError(); };
+    const std::function<void(Slic3r::UpdaterError)> finish =
+        [&result](Slic3r::UpdaterError error) { result = std::move(error); };
+
+    REQUIRE(updater.begin_sync(1, [](int) {}));
+    updater.refresh_repository_tags("failed", "example/failed", cache_file, false, parse, finish);
+    REQUIRE(http.pending_count() == 1);
+    http.fail_front(std::string(), "offline", 0);
+    REQUIRE(result.has_value());
+    CHECK(result->code == Slic3r::UpdaterError::Code::Network);
+
+    result.reset();
+    REQUIRE(updater.begin_sync(1, [](int) {}));
+    updater.refresh_repository_tags("failed", "example/failed", cache_file, false, parse, finish);
+    CHECK(http.pending_count() == 0);
+    REQUIRE(result.has_value());
+    CHECK(result->code == Slic3r::UpdaterError::Code::Cache);
+
+    // A deliberate force bypasses the persisted attempt and may repair the
+    // repository immediately.
+    result.reset();
+    REQUIRE(updater.begin_sync(1, [](int) {}));
+    updater.refresh_repository_tags("failed", "example/failed", cache_file, true, parse, finish);
+    REQUIRE(http.pending_count() == 1);
+    http.succeed_front("[]", 200);
+    REQUIRE(result.has_value());
+    CHECK(result->succeeded());
+}
+
+TEST_CASE("RepositoryUpdater downloads every non-GitHub tag page transactionally", "[plugins][updater]")
+{
+    FakeUpdaterHttpTransport http;
+    TestRepositoryUpdater updater(http);
+    TemporaryDirectory temporary;
+    const boost::filesystem::path cache_file = temporary.path() / "tags.json";
+    std::optional<Slic3r::UpdaterError> result;
+    const std::function<Slic3r::UpdaterError(const std::string &)> parse =
+        [](const std::string &contents) {
+            repository_tag_names(contents);
+            return Slic3r::UpdaterError();
+        };
+    const std::function<void(Slic3r::UpdaterError)> finish =
+        [&result](Slic3r::UpdaterError error) { result = std::move(error); };
+
+    SECTION("all pages are collected in one synchronization") {
+        REQUIRE(updater.begin_sync(1, [](int) {}));
+        updater.refresh_repository_tags(
+            "external", "https://updates.example.invalid/external", cache_file, false, parse, finish);
+        REQUIRE(http.pending_count() == 1);
+        CHECK(http.pending_front().url() ==
+              "https://updates.example.invalid/external/tags?per_page=100&page=1");
+        http.succeed_front(paginated_repository_tags(0, 100), 200);
+        REQUIRE(http.pending_count() == 1);
+        CHECK_FALSE(result.has_value());
+        CHECK(http.pending_front().url() ==
+              "https://updates.example.invalid/external/tags?per_page=100&page=2");
+        http.succeed_front(paginated_repository_tags(100, 2), 200);
+
+        REQUIRE(result.has_value());
+        CHECK(result->succeeded());
+        CHECK(repository_tag_names(read_test_file(cache_file)).size() == 102);
+    }
+
+    SECTION("a repeated full page is rejected without replacing the cache") {
+        const std::string previous_cache = paginated_repository_tags(500, 1, "cached-");
+        write_test_file(cache_file, previous_cache);
+        REQUIRE(updater.begin_sync(1, [](int) {}));
+        updater.refresh_repository_tags(
+            "repeated", "https://updates.example.invalid/repeated", cache_file, false, parse, finish);
+        REQUIRE(http.pending_count() == 1);
+        const std::string repeated_page = paginated_repository_tags(0, 100);
+        http.succeed_front(repeated_page, 200);
+        REQUIRE(http.pending_count() == 1);
+        http.succeed_front(repeated_page, 200);
+
+        REQUIRE(result.has_value());
+        CHECK(result->code == Slic3r::UpdaterError::Code::InvalidRepositoryMetadata);
+        CHECK(read_test_file(cache_file) == previous_cache);
+    }
+
+    SECTION("an intermediate transport failure preserves the previous cache") {
+        const std::string previous_cache = paginated_repository_tags(700, 1, "cached-");
+        write_test_file(cache_file, previous_cache);
+        REQUIRE(updater.begin_sync(1, [](int) {}));
+        updater.refresh_repository_tags(
+            "offline", "https://updates.example.invalid/offline", cache_file, false, parse, finish);
+        REQUIRE(http.pending_count() == 1);
+        http.succeed_front(paginated_repository_tags(0, 100), 200);
+        REQUIRE(http.pending_count() == 1);
+        http.fail_front(std::string(), "offline", 0);
+
+        REQUIRE(result.has_value());
+        CHECK(result->code == Slic3r::UpdaterError::Code::Network);
+        CHECK(read_test_file(cache_file) == previous_cache);
     }
 }
 
@@ -970,7 +1309,7 @@ TEST_CASE("RepositoryUpdater reports precise tag refresh failures", "[plugins][u
             },
             store_result);
         REQUIRE(http.pending_count() == 1);
-        http.succeed_front("invalid tags", 200);
+        http.succeed_front(paginated_repository_tags(0, 1), 200);
 
         REQUIRE(result.has_value());
         CHECK(result->code == Slic3r::UpdaterError::Code::InvalidRepositoryMetadata);
@@ -999,7 +1338,7 @@ TEST_CASE("RepositoryUpdater downloads changelog batches through cache and trans
     TestRepositoryUpdater::RepositoryChangelogRequest compare;
     compare.cache_file = compare_cache;
     compare.url = "https://example.invalid/compare/one...two";
-    compare.compare = true;
+    compare.kind = TestRepositoryUpdater::RepositoryChangelogKind::Compare;
     compare.store_notes = [&compare_notes](std::string notes) { compare_notes = std::move(notes); };
 
     updater.download_repository_changelogs(
@@ -1743,7 +2082,7 @@ TEST_CASE("PluginUpdater selects comparable versions and caches their changelogs
     updater.sync_async([&update_count](int count) { update_count = count; }, true);
     REQUIRE(http.pending_count() == 1);
     CHECK(http.pending_front().url() ==
-          "https://api.github.com/repos/example/repository/tags?per_page=100;page=1");
+          "https://api.github.com/repos/example/repository/tags?per_page=100&page=1");
 
     const std::string tags =
         "[{\"name\":\"3.0.0.0=2.8.0.0\",\"zipball_url\":\"zip3\","
