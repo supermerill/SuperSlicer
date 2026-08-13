@@ -13,8 +13,10 @@
 #ifndef slic3r_Updater_PresetUpdater_hpp_
 #define slic3r_Updater_PresetUpdater_hpp_
 
+#include <atomic>
 #include <functional>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <set>
@@ -89,6 +91,12 @@ public:
     // updater reports the error to its caller.
     virtual UpdaterError rollback_vendor_change(const std::string &token) = 0;
 
+    // Run the live-file transaction on the thread that owns application
+    // configuration and preset state. GUI hosts enqueue the operation on the
+    // wx thread; non-GUI hosts may execute it immediately. The host must run
+    // every accepted operation exactly once.
+    virtual void dispatch_vendor_change(std::function<void()> operation) = 0;
+
     // Called after a successful filesystem operation. The host owns AppConfig,
     // preset reloads and any UI refresh; the core never accesses them directly.
     virtual void vendor_files_changed(PresetUpdater &updater,
@@ -151,6 +159,15 @@ public:
     std::optional<VendorSync> vendor(const std::string &id) const;
 
 private:
+    // One entry owns the detached model snapshot and prepared cache source
+    // needed to publish a single vendor inside an install transaction.
+    struct PendingVendorInstall {
+        std::string vendor_id;
+        VendorAvailable version;
+        VendorSync vendor;
+        boost::filesystem::path source_directory;
+    };
+
     void load_unused_vendors(std::map<std::string, VendorSync> &vendors,
                              bool &is_synchronized,
                              std::set<std::string> &vendors_id,
@@ -162,15 +179,38 @@ private:
     int update_count() override;
     void on_sync_completed() override;
 
-    UpdaterError prepare_vendor_install_source(const VendorSync &vendor,
-                                               const VendorAvailable &version,
-                                               boost::filesystem::path &source_directory);
+    // Resolve a local cache source immediately or download and validate its
+    // archive asynchronously. The callback runs exactly once and no live
+    // vendor file has changed when it is called.
+    void prepare_vendor_install_source_async(
+        const VendorSync &vendor,
+        const VendorAvailable &version,
+        std::function<void(UpdaterError, boost::filesystem::path)> callback_result);
     UpdaterError install_vendor_files(VendorSync &vendor, const boost::filesystem::path &source_directory);
     UpdaterError uninstall_vendor_files(VendorSync &vendor);
     UpdaterError clear_cache_vendor_files(VendorSync &vendor);
+    // Prepare batch sources sequentially, then publish them under one host
+    // snapshot on the thread selected by PresetUpdaterHost.
     void install_vendor_batch(VendorChange change,
                               const std::vector<std::pair<std::string, VendorAvailable>> &installs,
                               std::function<void(UpdaterErrors)> callback_result);
+    void prepare_vendor_install_batch(
+        VendorChange change,
+        std::shared_ptr<std::vector<PendingVendorInstall>> installs,
+        size_t install_idx,
+        std::function<void(UpdaterErrors)> callback_result);
+    void publish_vendor_install_batch(
+        VendorChange change,
+        std::shared_ptr<std::vector<PendingVendorInstall>> installs,
+        std::function<void(UpdaterErrors)> callback_result);
+    // Only one cache/live vendor mutation may own the snapshot transaction at
+    // a time. Async operations retain this gate until their terminal callback.
+    bool begin_vendor_change_operation();
+    void finish_vendor_change_operation();
+
+    // Non-GUI use executes inline; GUI use hands the transaction to wx without
+    // exposing wxWidgets in libslic3r.
+    void dispatch_vendor_change(std::function<void()> operation);
     std::optional<std::string> prepare_vendor_change(VendorChange change,
                                                      const std::vector<std::string> &vendor_ids);
     UpdaterError rollback_vendor_change(const std::string &token, UpdaterError operation_error);
@@ -179,6 +219,7 @@ private:
     std::map<std::string, VendorSync> m_vendors;
     bool m_is_synchronized = false;
     PresetUpdaterHost *m_host = nullptr;
+    std::atomic_bool m_vendor_change_in_progress = false;
 };
 
 } // namespace Slic3r

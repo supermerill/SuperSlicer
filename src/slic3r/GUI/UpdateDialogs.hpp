@@ -15,7 +15,6 @@
 
 #include <boost/filesystem/path.hpp>
 
-#include <wx/busyinfo.h>
 #include <wx/gbsizer.h>
 #include <wx/hyperlink.h>
 
@@ -209,7 +208,7 @@ protected:
     wxTextCtrl *txt_new_repo;
     wxBoxSizer *main_sizer;
     std::vector<wxButton*> bts_green_color;
-    std::unique_ptr<wxBusyInfo> wait_dialog;
+    std::vector<wxWindow*> m_repository_action_controls;
     wxString m_message;
 public:
 
@@ -230,6 +229,12 @@ protected://bool install_vendor_config(VendorSync &vendor_synch, VendorAvailable
     // displays its final success or error instead of remaining InProgress.
     void request_rebuild_after_vendor_change(bool change_succeeded);
     void request_show_error_msg(const std::string &error_msg);
+
+    // Disable every vendor action while preserving the independent OK button,
+    // so the window can still repaint and close during background work.
+    void begin_vendor_operation(const wxString &message);
+    void finish_vendor_operation();
+    void apply_vendor_operation_state();
 };
 
 wxDECLARE_EVENT(EVT_CONFIG_UPDATER_ERROR_MSG, wxCommandEvent);
@@ -248,7 +253,6 @@ protected:
     std::vector<wxWindow*> green_foreground_color;
     //std::vector<wxWindow*> yellow_foreground_color;
     std::vector<wxWindow*> red_foreground_color;
-    std::unique_ptr<wxBusyInfo> wait_dialog;
 
 public:
 

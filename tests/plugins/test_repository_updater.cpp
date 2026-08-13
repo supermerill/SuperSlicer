@@ -184,6 +184,21 @@ public:
         return Slic3r::UpdaterError();
     }
 
+    void dispatch_vendor_change(std::function<void()> operation) override
+    {
+        dispatched_changes.emplace_back(std::move(operation));
+        if (dispatch_immediately)
+            run_next_dispatched_change();
+    }
+
+    void run_next_dispatched_change()
+    {
+        REQUIRE_FALSE(dispatched_changes.empty());
+        std::function<void()> operation = std::move(dispatched_changes.front());
+        dispatched_changes.pop_front();
+        operation();
+    }
+
     void vendor_files_changed(Slic3r::PresetUpdater &,
                               Slic3r::VendorChange change,
                               const std::vector<std::string> &vendor_ids) override
@@ -193,9 +208,11 @@ public:
 
     bool accept_changes = true;
     bool rollback_succeeds = true;
+    bool dispatch_immediately = true;
     std::vector<VendorChangeCall> prepared_changes;
     std::vector<VendorChangeCall> completed_changes;
     std::vector<std::string> rollback_tokens;
+    std::deque<std::function<void()>> dispatched_changes;
 
 private:
     // Keep a small in-memory equivalent of the GUI configuration snapshot so
@@ -3204,15 +3221,15 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     CHECK(dialog_best->config_version.to_string() == "2.0.0.0");
     CHECK(dialog_best->local_file.empty());
 
-    // The remote branch receives the archive through perform_sync(), extracts
-    // its profiles directory, then atomically publishes the selected INI into
-    // the normal installed-vendor directory.
+    // The remote branch downloads and validates the archive before dispatching
+    // the live publication to the host-owned thread.
     const boost::filesystem::path archive_file = temporary.path() / "vendor-2.zip";
     REQUIRE(write_test_zip(
         archive_file,
         {{"profiles/" + vendor_id + ".ini",
           vendor_profile_contents(vendor_id, "2.0.0.0", slicer_version)}}));
-    http.script_sync_success(read_test_file(archive_file));
+    const std::string archive_contents = read_test_file(archive_file);
+    host.dispatch_immediately = false;
 
     std::optional<Slic3r::UpdaterError> upgrade_result;
     updater.install_vendor(vendor_id, *dialog_best,
@@ -3220,12 +3237,35 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
                                upgrade_result = std::move(error);
                            });
 
+    CHECK_FALSE(upgrade_result.has_value());
+    REQUIRE(http.pending_count() == 1);
+    CHECK(http.pending_front().url() == remote_archive_url);
+    CHECK(host.prepared_changes.empty());
+    CHECK(Slic3r::VendorProfile::from_ini(
+        data_directory / "vendor" / (vendor_id + ".ini"), true).config_version.to_string() == "1.0.0.0");
+
+    // A second mutation cannot overlap the download that owns the future
+    // snapshot and live-file transaction.
+    std::optional<Slic3r::UpdaterError> overlapping_result;
+    updater.install_vendor(vendor_id, *dialog_best,
+                           [&overlapping_result](Slic3r::UpdaterError error) {
+                               overlapping_result = std::move(error);
+                           });
+    REQUIRE(overlapping_result.has_value());
+    CHECK(overlapping_result->code == Slic3r::UpdaterError::Code::PreparationRejected);
+    CHECK(http.pending_count() == 1);
+
+    http.succeed_front(archive_contents, 200);
+    CHECK_FALSE(upgrade_result.has_value());
+    CHECK(host.prepared_changes.empty());
+    REQUIRE(host.dispatched_changes.size() == 1);
+    host.run_next_dispatched_change();
+
     REQUIRE(upgrade_result.has_value());
     INFO("Updater error code: " << static_cast<int>(upgrade_result->code));
     INFO("Updater error detail: " << upgrade_result->detail);
     CHECK(upgrade_result->succeeded());
-    REQUIRE(http.sync_request_count() == 1);
-    CHECK(http.sync_request_url(0) == remote_archive_url);
+    CHECK(http.sync_request_count() == 0);
     const boost::filesystem::path installed_file = data_directory / "vendor" / (vendor_id + ".ini");
     REQUIRE(boost::filesystem::is_regular_file(installed_file));
     CHECK(Slic3r::VendorProfile::from_ini(installed_file, true).config_version.to_string() == "2.0.0.0");
@@ -3236,6 +3276,127 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     CHECK_FALSE(updated_vendor->can_upgrade);
     REQUIRE(host.completed_changes.size() == 1);
     CHECK(host.completed_changes.front().change == Slic3r::VendorChange::Install);
+}
+
+TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
+                 "PresetUpdater releases an asynchronous vendor operation after preparation errors",
+                 "[plugins][updater][preset-functional]")
+{
+    write_installed_vendor("1.0.0.0");
+    updater.reload_all_vendors();
+
+    const std::string remote_archive_url = "https://example.invalid/vendor-broken.zip";
+    const PresetDialogSnapshot dialog = synchronize_and_open_dialog({
+        {"2.0.0.0", slicer_version, remote_archive_url}
+    });
+    const Slic3r::VendorAvailable *best = dialog.vendors.front().best_available();
+    REQUIRE(best != nullptr);
+
+    SECTION("network failure") {
+        std::optional<Slic3r::UpdaterError> result;
+        updater.install_vendor(vendor_id, *best, [&result](Slic3r::UpdaterError error) {
+            result = std::move(error);
+        });
+        REQUIRE(http.pending_count() == 1);
+        http.fail_front(std::string(), "connection refused", 0);
+
+        REQUIRE(result.has_value());
+        CHECK(result->code == Slic3r::UpdaterError::Code::Network);
+        CHECK(host.prepared_changes.empty());
+        CHECK(host.dispatched_changes.empty());
+
+        // The terminal error releases the operation gate, so a retry starts a
+        // fresh HTTP request instead of being rejected as overlapping work.
+        result.reset();
+        updater.install_vendor(vendor_id, *best, [&result](Slic3r::UpdaterError error) {
+            result = std::move(error);
+        });
+        CHECK_FALSE(result.has_value());
+        REQUIRE(http.pending_count() == 1);
+        http.fail_front(std::string(), "retry stopped", 0);
+        REQUIRE(result.has_value());
+    }
+
+    SECTION("invalid archive") {
+        std::optional<Slic3r::UpdaterError> result;
+        updater.install_vendor(vendor_id, *best, [&result](Slic3r::UpdaterError error) {
+            result = std::move(error);
+        });
+        REQUIRE(http.pending_count() == 1);
+        http.succeed_front("not a zip archive", 200);
+
+        REQUIRE(result.has_value());
+        CHECK(result->code == Slic3r::UpdaterError::Code::InvalidArchive);
+        CHECK(host.prepared_changes.empty());
+        const boost::filesystem::path transfer_archive = Slic3r::repository_cache_root_path(
+            data_directory, Slic3r::RepositoryPackageType::Vendor, vendor_id) /
+            (Slic3r::RepositoryPackageCache::version_directory_name(
+                best->config_version.to_string(), best->slicer_version.to_string()) + ".zip");
+        CHECK_FALSE(boost::filesystem::exists(transfer_archive));
+    }
+}
+
+TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
+                 "PresetUpdater prepares remote install batches sequentially before one snapshot",
+                 "[plugins][updater][preset-functional]")
+{
+    const std::string first_id = "async_vendor_a";
+    const std::string second_id = "async_vendor_b";
+    write_test_file(data_directory / "vendor" / (first_id + ".ini"),
+                    vendor_profile_contents(first_id, "1.0.0.0", slicer_version));
+    write_test_file(data_directory / "vendor" / (second_id + ".ini"),
+                    vendor_profile_contents(second_id, "1.0.0.0", slicer_version));
+    updater.reload_all_vendors();
+
+    std::optional<int> sync_result;
+    updater.sync_async([&sync_result](int count) { sync_result = count; }, true);
+    REQUIRE(http.pending_count() == 2);
+    http.succeed_front(vendor_repository_tags({
+        {"2.0.0.0", slicer_version, "https://example.invalid/vendor-a.zip"}
+    }), 200);
+    http.succeed_front(vendor_repository_tags({
+        {"2.0.0.0", slicer_version, "https://example.invalid/vendor-b.zip"}
+    }), 200);
+    REQUIRE(sync_result.has_value());
+
+    const boost::filesystem::path first_archive = temporary.path() / "vendor-a.zip";
+    const boost::filesystem::path second_archive = temporary.path() / "vendor-b.zip";
+    REQUIRE(write_test_zip(
+        first_archive,
+        {{"profiles/" + first_id + ".ini",
+          vendor_profile_contents(first_id, "2.0.0.0", slicer_version)}}));
+    REQUIRE(write_test_zip(
+        second_archive,
+        {{"profiles/" + second_id + ".ini",
+          vendor_profile_contents(second_id, "2.0.0.0", slicer_version)}}));
+
+    host.dispatch_immediately = false;
+    std::optional<Slic3r::UpdaterErrors> install_result;
+    updater.upgrade_all_installed_vendors([&install_result](Slic3r::UpdaterErrors errors) {
+        install_result = std::move(errors);
+    });
+
+    REQUIRE(http.pending_count() == 1);
+    CHECK(host.prepared_changes.empty());
+    http.succeed_front(read_test_file(first_archive), 200);
+    REQUIRE(http.pending_count() == 1);
+    CHECK(host.dispatched_changes.empty());
+    http.succeed_front(read_test_file(second_archive), 200);
+
+    CHECK_FALSE(install_result.has_value());
+    REQUIRE(host.dispatched_changes.size() == 1);
+    CHECK(host.prepared_changes.empty());
+    host.run_next_dispatched_change();
+
+    REQUIRE(install_result.has_value());
+    CHECK(install_result->empty());
+    REQUIRE(host.prepared_changes.size() == 1);
+    CHECK(host.prepared_changes.front().change == Slic3r::VendorChange::UpgradeAll);
+    CHECK(host.prepared_changes.front().vendor_ids == std::vector<std::string>{first_id, second_id});
+    CHECK(Slic3r::VendorProfile::from_ini(
+        data_directory / "vendor" / (first_id + ".ini"), true).config_version.to_string() == "2.0.0.0");
+    CHECK(Slic3r::VendorProfile::from_ini(
+        data_directory / "vendor" / (second_id + ".ini"), true).config_version.to_string() == "2.0.0.0");
 }
 
 TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
@@ -3308,15 +3469,14 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     REQUIRE(installed_version != version_dialog.available_profiles.end());
     CHECK(installed_version->notes == "initial profiles");
 
-    // Selecting the changelog row starts the normal remote installation path.
-    // The archive response therefore uses the synchronous side of the same
-    // fake transport that supplied the asynchronous changelog responses.
+    // Selecting the changelog row starts the normal asynchronous archive
+    // request after the changelog requests have completed.
     const boost::filesystem::path archive_file = temporary.path() / "vendor-2-with-logs.zip";
     REQUIRE(write_test_zip(
         archive_file,
         {{"profiles/" + vendor_id + ".ini",
           vendor_profile_contents(vendor_id, "2.0.0.0", slicer_version)}}));
-    http.script_sync_success(read_test_file(archive_file));
+    const std::string archive_contents = read_test_file(archive_file);
 
     std::optional<Slic3r::UpdaterError> install_result;
     updater.install_vendor(vendor_id, *selected,
@@ -3324,12 +3484,17 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
                                install_result = std::move(error);
                            });
 
+    CHECK_FALSE(install_result.has_value());
+    REQUIRE(http.pending_count() == 1);
+    CHECK(http.pending_front().url() == remote_archive_url);
+    CHECK(host.prepared_changes.empty());
+    http.succeed_front(archive_contents, 200);
+
     REQUIRE(install_result.has_value());
     INFO("Updater error code: " << static_cast<int>(install_result->code));
     INFO("Updater error detail: " << install_result->detail);
     CHECK(install_result->succeeded());
-    REQUIRE(http.sync_request_count() == 1);
-    CHECK(http.sync_request_url(0) == remote_archive_url);
+    CHECK(http.sync_request_count() == 0);
 
     const boost::filesystem::path installed_file = data_directory / "vendor" / (vendor_id + ".ini");
     REQUIRE(boost::filesystem::is_regular_file(installed_file));

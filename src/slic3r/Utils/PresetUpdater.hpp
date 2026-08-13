@@ -85,6 +85,7 @@ private:
     std::optional<std::string> prepare_vendor_change(
         Slic3r::VendorChange change, const std::vector<std::string> &vendor_ids) override;
     Slic3r::UpdaterError rollback_vendor_change(const std::string &token) override;
+    void dispatch_vendor_change(std::function<void()> operation) override;
     void vendor_files_changed(Slic3r::PresetUpdater &updater,
                               Slic3r::VendorChange change,
                               const std::vector<std::string> &vendor_ids) override;

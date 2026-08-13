@@ -20,6 +20,8 @@
 #include <wx/app.h>
 #include <wx/dialog.h>
 
+class wxBusyInfo;
+
 namespace Slic3r::GUI {
 
 class RepositoryUpdatesDialogBase : public wxDialog {
@@ -50,6 +52,13 @@ protected:
         };
     }
 
+    // Keep the dialog responsive while preventing another repository mutation
+    // from starting through the same action area. Rebuilt controls consult
+    // repository_operation_in_progress() to preserve this disabled state.
+    void begin_repository_operation(wxWindow *action_area, const wxString &message);
+    void finish_repository_operation(wxWindow *action_area);
+    bool repository_operation_in_progress() const;
+
     void show_repository_error(const std::string &message);
 
 private:
@@ -58,6 +67,8 @@ private:
     struct RepositoryOperationLifetime {};
     std::shared_ptr<RepositoryOperationLifetime> m_operation_lifetime =
         std::make_shared<RepositoryOperationLifetime>();
+    std::unique_ptr<wxBusyInfo> m_wait_dialog;
+    bool m_repository_operation_in_progress = false;
 };
 
 } // namespace Slic3r::GUI

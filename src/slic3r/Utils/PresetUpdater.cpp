@@ -213,12 +213,19 @@ Slic3r::UpdaterError PresetUpdater::rollback_vendor_change(const std::string &to
     }
 }
 
+void PresetUpdater::dispatch_vendor_change(std::function<void()> operation)
+{
+    // Snapshot creation and preset publication touch GUI-owned application
+    // state. Queue the complete transaction instead of running it in the HTTP
+    // completion thread that prepared the package cache.
+    m_app.CallAfter([operation = std::move(operation)]() mutable { operation(); });
+}
+
 void PresetUpdater::vendor_files_changed(Slic3r::PresetUpdater &,
                                          Slic3r::VendorChange change,
                                          const std::vector<std::string> &vendor_ids)
 {
-    // Core callbacks can come from HTTP workers. Post the expensive reload to
-    // wx, and queue it before the operation callback so the dialog sees the
+    // Queue the reload before the operation callback so the dialog sees the
     // refreshed state when it rebuilds its controls.
     m_app.CallAfter([this, change, vendor_ids] { reload_application_presets(change, vendor_ids); });
 }
