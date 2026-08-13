@@ -39,8 +39,7 @@ boost::filesystem::path vendor_cache_directory(const VendorProfile &profile);
 bool prepare_vendor_cache(RepositoryPackageCache &cache, bool &purged, std::string &error_message);
 bool transfer_vendor_files(const boost::filesystem::path &input_directory,
                            const boost::filesystem::path &output_directory,
-                           const std::string &vendor_id,
-                           bool copy);
+                           const std::string &vendor_id);
 UpdaterError save_vendor_description(const std::string &contents, const std::string &fallback_id);
 
 boost::filesystem::path data_path()
@@ -93,12 +92,12 @@ bool prepare_vendor_cache(RepositoryPackageCache &cache, bool &purged, std::stri
     return true;
 }
 
-// Copies or moves one vendor INI and its icon directory. The temporary INI
-// avoids publishing a partially copied profile when an update is interrupted.
+// Publish one cached vendor profile and its complete resource directory. The
+// caller owns rollback through its configuration snapshot, so this function
+// writes directly to the live vendor directory.
 bool transfer_vendor_files(const boost::filesystem::path &input_directory,
                            const boost::filesystem::path &output_directory,
-                           const std::string &vendor_id,
-                           bool copy)
+                           const std::string &vendor_id)
 {
     const boost::filesystem::path input_ini = input_directory / (vendor_id + ".ini");
     const boost::filesystem::path output_ini = output_directory / (vendor_id + ".ini");
@@ -106,30 +105,17 @@ bool transfer_vendor_files(const boost::filesystem::path &input_directory,
         return false;
 
     boost::filesystem::create_directories(output_directory);
-    if (copy) {
-        std::string copy_error;
-        if (copy_file(input_ini.string(), output_ini.string(), copy_error, true) != CopyFileResult::SUCCESS)
-            return false;
-    } else {
-        boost::filesystem::rename(input_ini, output_ini);
-    }
+    std::string copy_error;
+    if (copy_file(input_ini.string(), output_ini.string(), copy_error, true) != CopyFileResult::SUCCESS)
+        return false;
 
     const boost::filesystem::path input_icons = input_directory / vendor_id;
     const boost::filesystem::path output_icons = output_directory / vendor_id;
-    if (!boost::filesystem::is_directory(input_icons))
-        return true;
-
+    // Removing this directory is also required when the new version has no
+    // resources; otherwise images from an older package would survive.
     boost::filesystem::remove_all(output_icons);
-    boost::filesystem::create_directories(output_icons);
-    for (const boost::filesystem::directory_entry &entry : boost::filesystem::directory_iterator(input_icons)) {
-        const boost::filesystem::path output = output_icons / entry.path().filename();
-        if (copy)
-            boost::filesystem::copy_file(entry.path(), output, boost::filesystem::copy_option::overwrite_if_exists);
-        else
-            boost::filesystem::rename(entry.path(), output);
-    }
-    if (!copy)
-        boost::filesystem::remove_all(input_icons);
+    if (boost::filesystem::is_directory(input_icons))
+        boost::filesystem::copy(input_icons, output_icons, boost::filesystem::copy_options::recursive);
     return true;
 }
 
@@ -442,44 +428,64 @@ UpdaterError PresetUpdater::cache_vendor_ini(const boost::filesystem::path &prof
     return UpdaterError();
 }
 
-UpdaterError PresetUpdater::install_vendor_files(VendorSync &vendor, const VendorAvailable &version)
+UpdaterError PresetUpdater::prepare_vendor_install_source(const VendorSync &vendor,
+                                                          const VendorAvailable &version,
+                                                          boost::filesystem::path &source_directory)
 {
-    const boost::filesystem::path vendor_directory = data_path() / "vendor";
     boost::filesystem::path package_root = repository_package_cache_path(
         data_path(), RepositoryPackageType::Vendor, vendor.profile.id,
         version.config_version.to_string(), version.slicer_version.to_string());
     try {
         if (!version.local_file.empty()) {
-            if (!transfer_vendor_files(boost::filesystem::path(version.local_file).parent_path(), vendor_directory,
-                                       vendor.profile.id, true))
-                return make_updater_error(UpdaterError::Code::Filesystem);
-        } else {
-            if (!boost::filesystem::is_regular_file(package_root / "profiles" / (vendor.profile.id + ".ini"))) {
-                const boost::filesystem::path archive_path = vendor_cache_directory(vendor.profile) /
-                    (RepositoryPackageCache::version_directory_name(
-                        version.config_version.to_string(), version.slicer_version.to_string()) + ".zip");
-                UpdaterError download_error = download_repository_file_sync(
-                    version.url_zip, archive_path, 130 * 1024 * 1024);
-                if (!download_error.succeeded())
-                    return download_error;
-
-                RepositoryPackageExpectation expected;
-                expected.type = RepositoryPackageType::Vendor;
-                expected.id = vendor.profile.id;
-                expected.version.package_version = version.config_version.to_string();
-                expected.version.slicer_version = version.slicer_version.to_string();
-                RepositoryPackageCache cache(data_path(), vendor_repository_cache_adapter());
-                RepositoryCachedVersion cached;
-                std::string error_message;
-                if (!cache.cache_archive(archive_path, expected, cached, error_message))
-                    return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
-                boost::system::error_code cleanup_error;
-                boost::filesystem::remove(archive_path, cleanup_error);
-                package_root = cached.directory;
-            }
-            if (!transfer_vendor_files(package_root / "profiles", vendor_directory, vendor.profile.id, true))
-                return make_updater_error(UpdaterError::Code::Filesystem, "Cannot copy the vendor profile from the package cache.");
+            source_directory = boost::filesystem::path(version.local_file).parent_path();
+            return boost::filesystem::is_regular_file(source_directory / (vendor.profile.id + ".ini")) ?
+                UpdaterError() : make_updater_error(UpdaterError::Code::ArchiveUnavailable,
+                                                    "The selected vendor profile is not available in the package cache.");
         }
+
+        // Network and archive validation finish before the application creates
+        // its rollback snapshot. Once this function succeeds, publication is
+        // only a copy from the versioned package cache.
+        if (!boost::filesystem::is_regular_file(package_root / "profiles" / (vendor.profile.id + ".ini"))) {
+            const boost::filesystem::path archive_path = vendor_cache_directory(vendor.profile) /
+                (RepositoryPackageCache::version_directory_name(
+                    version.config_version.to_string(), version.slicer_version.to_string()) + ".zip");
+            UpdaterError download_error = download_repository_file_sync(
+                version.url_zip, archive_path, 130 * 1024 * 1024);
+            if (!download_error.succeeded())
+                return download_error;
+
+            RepositoryPackageExpectation expected;
+            expected.type = RepositoryPackageType::Vendor;
+            expected.id = vendor.profile.id;
+            expected.version.package_version = version.config_version.to_string();
+            expected.version.slicer_version = version.slicer_version.to_string();
+            RepositoryPackageCache cache(data_path(), vendor_repository_cache_adapter());
+            RepositoryCachedVersion cached;
+            std::string error_message;
+            if (!cache.cache_archive(archive_path, expected, cached, error_message))
+                return make_updater_error(UpdaterError::Code::InvalidArchive, std::move(error_message));
+            boost::system::error_code cleanup_error;
+            boost::filesystem::remove(archive_path, cleanup_error);
+            package_root = cached.directory;
+        }
+        source_directory = package_root / "profiles";
+        return UpdaterError();
+    } catch (const boost::filesystem::filesystem_error &error) {
+        return make_updater_error(UpdaterError::Code::Filesystem, error.what());
+    } catch (const std::exception &error) {
+        return make_updater_error(UpdaterError::Code::InvalidArchive, error.what());
+    }
+}
+
+UpdaterError PresetUpdater::install_vendor_files(VendorSync &vendor,
+                                                 const boost::filesystem::path &source_directory)
+{
+    const boost::filesystem::path vendor_directory = data_path() / "vendor";
+    try {
+        if (!transfer_vendor_files(source_directory, vendor_directory, vendor.profile.id))
+            return make_updater_error(UpdaterError::Code::Filesystem,
+                                      "Cannot copy the vendor profile from the package cache.");
         vendor.profile = VendorProfile::from_ini(vendor_directory / (vendor.profile.id + ".ini"), true);
         vendor.is_installed = true;
         vendor.has_cache = boost::filesystem::is_directory(vendor_cache_directory(vendor.profile));
@@ -528,9 +534,27 @@ UpdaterError PresetUpdater::clear_cache_vendor_files(VendorSync &vendor)
     }
 }
 
-bool PresetUpdater::prepare_vendor_change(VendorChange change, const std::vector<std::string> &vendor_ids)
+std::optional<std::string> PresetUpdater::prepare_vendor_change(
+    VendorChange change, const std::vector<std::string> &vendor_ids)
 {
-    return m_host == nullptr || m_host->prepare_vendor_change(change, vendor_ids);
+    return m_host == nullptr ? std::optional<std::string>(std::string()) :
+                               m_host->prepare_vendor_change(change, vendor_ids);
+}
+
+UpdaterError PresetUpdater::rollback_vendor_change(const std::string &token, UpdaterError operation_error)
+{
+    if (m_host == nullptr || token.empty())
+        return operation_error;
+
+    const UpdaterError rollback_error = m_host->rollback_vendor_change(token);
+    if (!rollback_error.succeeded()) {
+        if (!operation_error.detail.empty())
+            operation_error.detail += '\n';
+        operation_error.detail += "The vendor operation also failed to restore its configuration snapshot.";
+        if (!rollback_error.detail.empty())
+            operation_error.detail += " " + rollback_error.detail;
+    }
+    return operation_error;
 }
 
 void PresetUpdater::notify_vendor_files_changed(VendorChange change, const std::vector<std::string> &vendor_ids)
@@ -547,12 +571,15 @@ void PresetUpdater::uninstall_vendor(const std::string &vendor_id, std::function
         callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
         return;
     }
-    if (!prepare_vendor_change(VendorChange::Uninstall, ids)) {
+    const std::optional<std::string> rollback_token = prepare_vendor_change(VendorChange::Uninstall, ids);
+    if (!rollback_token.has_value()) {
         callback_result(make_updater_error(UpdaterError::Code::PreparationRejected));
         return;
     }
 
     UpdaterError error = uninstall_vendor_files(*vendor_snapshot);
+    if (!error.succeeded())
+        error = rollback_vendor_change(*rollback_token, std::move(error));
     if (error.succeeded()) {
         {
             std::lock_guard<std::mutex> guard(m_model_mutex);
@@ -580,12 +607,23 @@ void PresetUpdater::install_vendor(const std::string &vendor_id,
         callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
         return;
     }
-    if (!prepare_vendor_change(VendorChange::Install, ids)) {
+
+    boost::filesystem::path source_directory;
+    UpdaterError error = prepare_vendor_install_source(*vendor_snapshot, version, source_directory);
+    if (!error.succeeded()) {
+        callback_result(std::move(error));
+        return;
+    }
+
+    const std::optional<std::string> rollback_token = prepare_vendor_change(VendorChange::Install, ids);
+    if (!rollback_token.has_value()) {
         callback_result(make_updater_error(UpdaterError::Code::PreparationRejected));
         return;
     }
 
-    UpdaterError error = install_vendor_files(*vendor_snapshot, version);
+    error = install_vendor_files(*vendor_snapshot, source_directory);
+    if (!error.succeeded())
+        error = rollback_vendor_change(*rollback_token, std::move(error));
     if (error.succeeded()) {
         {
             std::lock_guard<std::mutex> guard(m_model_mutex);
@@ -610,10 +648,12 @@ void PresetUpdater::clear_cache_vendor(const std::string &vendor_id, std::functi
         callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
         return;
     }
-    if (!prepare_vendor_change(VendorChange::ClearCache, ids)) {
+    const std::optional<std::string> rollback_token = prepare_vendor_change(VendorChange::ClearCache, ids);
+    if (!rollback_token.has_value()) {
         callback_result(make_updater_error(UpdaterError::Code::PreparationRejected));
         return;
     }
+    (void) rollback_token;
 
     UpdaterError error = clear_cache_vendor_files(*vendor_snapshot);
     if (error.succeeded()) {
@@ -637,13 +677,14 @@ void PresetUpdater::uninstall_all_vendors(std::function<void(UpdaterError)> call
             if (vendor.is_installed)
                 ids.emplace_back(id);
     }
-    if (!prepare_vendor_change(VendorChange::Uninstall, ids)) {
+    const std::optional<std::string> rollback_token = prepare_vendor_change(VendorChange::Uninstall, ids);
+    if (!rollback_token.has_value()) {
         callback_result(make_updater_error(UpdaterError::Code::PreparationRejected));
         return;
     }
 
     UpdaterError error;
-    std::vector<std::string> changed_ids;
+    std::vector<std::pair<std::string, VendorSync>> changed_vendors;
     for (const std::string &id : ids) {
         std::optional<VendorSync> vendor_snapshot = vendor(id);
         if (!vendor_snapshot)
@@ -651,21 +692,32 @@ void PresetUpdater::uninstall_all_vendors(std::function<void(UpdaterError)> call
         error = uninstall_vendor_files(*vendor_snapshot);
         if (!error.succeeded())
             break;
-        {
-            std::lock_guard<std::mutex> guard(m_model_mutex);
-            VendorSync *current = find_vendor_unlocked(id);
+        changed_vendors.emplace_back(id, std::move(*vendor_snapshot));
+    }
+    if (!error.succeeded()) {
+        error = rollback_vendor_change(*rollback_token, std::move(error));
+        callback_result(std::move(error));
+        return;
+    }
+
+    // Publish model changes only after every filesystem removal succeeds. A
+    // failed batch therefore leaves both the model and live files at the
+    // state represented by the snapshot.
+    {
+        std::lock_guard<std::mutex> guard(m_model_mutex);
+        for (const std::pair<std::string, VendorSync> &changed : changed_vendors) {
+            VendorSync *current = find_vendor_unlocked(changed.first);
             if (current != nullptr) {
-                current->is_installed = false;
-                current->has_cache = true;
-                current->sync_state = RepositorySyncState::Unchecked;
-                current->sync_error = UpdaterError();
-                current->can_upgrade = false;
+                current->is_installed = changed.second.is_installed;
+                current->has_cache = changed.second.has_cache;
+                current->sync_state = changed.second.sync_state;
+                current->sync_error = changed.second.sync_error;
+                current->can_upgrade = changed.second.can_upgrade;
             }
         }
-        changed_ids.emplace_back(id);
     }
-    if (!changed_ids.empty())
-        notify_vendor_files_changed(VendorChange::Uninstall, changed_ids);
+    if (!ids.empty())
+        notify_vendor_files_changed(VendorChange::Uninstall, ids);
     callback_result(std::move(error));
 }
 
@@ -680,41 +732,7 @@ void PresetUpdater::install_all_vendors(std::function<void(UpdaterErrors)> callb
                 installs.emplace_back(id, *best);
         }
     }
-    std::vector<std::string> ids;
-    ids.reserve(installs.size());
-    for (const std::pair<std::string, VendorAvailable> &install : installs)
-        ids.emplace_back(install.first);
-    if (!prepare_vendor_change(VendorChange::InstallAll, ids)) {
-        callback_result({make_updater_error(UpdaterError::Code::PreparationRejected)});
-        return;
-    }
-
-    UpdaterErrors errors;
-    std::vector<std::string> changed_ids;
-    for (const std::pair<std::string, VendorAvailable> &install : installs) {
-        std::optional<VendorSync> vendor_snapshot = vendor(install.first);
-        if (!vendor_snapshot)
-            continue;
-        UpdaterError error = install_vendor_files(*vendor_snapshot, install.second);
-        if (error.succeeded()) {
-            {
-                std::lock_guard<std::mutex> guard(m_model_mutex);
-                VendorSync *current = find_vendor_unlocked(install.first);
-                if (current != nullptr) {
-                    current->profile = vendor_snapshot->profile;
-                    current->is_installed = true;
-                    current->has_cache = vendor_snapshot->has_cache;
-                    current->sort_available();
-                }
-            }
-            changed_ids.emplace_back(install.first);
-        } else {
-            errors.emplace_back(std::move(error));
-        }
-    }
-    if (!changed_ids.empty())
-        notify_vendor_files_changed(VendorChange::InstallAll, changed_ids);
-    callback_result(std::move(errors));
+    install_vendor_batch(VendorChange::InstallAll, installs, std::move(callback_result));
 }
 
 void PresetUpdater::upgrade_all_installed_vendors(std::function<void(UpdaterErrors)> callback_result)
@@ -728,41 +746,75 @@ void PresetUpdater::upgrade_all_installed_vendors(std::function<void(UpdaterErro
                 upgrades.emplace_back(id, *best);
         }
     }
+    install_vendor_batch(VendorChange::UpgradeAll, upgrades, std::move(callback_result));
+}
+
+void PresetUpdater::install_vendor_batch(
+    VendorChange change,
+    const std::vector<std::pair<std::string, VendorAvailable>> &installs,
+    std::function<void(UpdaterErrors)> callback_result)
+{
     std::vector<std::string> ids;
-    ids.reserve(upgrades.size());
-    for (const std::pair<std::string, VendorAvailable> &upgrade : upgrades)
-        ids.emplace_back(upgrade.first);
-    if (!prepare_vendor_change(VendorChange::UpgradeAll, ids)) {
+    std::vector<boost::filesystem::path> source_directories;
+    std::vector<VendorSync> changed_vendors;
+    ids.reserve(installs.size());
+    source_directories.reserve(installs.size());
+    changed_vendors.reserve(installs.size());
+
+    // Resolve downloads and validate every cache source before taking the one
+    // snapshot that protects this batch. Network failure cannot therefore
+    // trigger a pointless restore of untouched live files.
+    for (const std::pair<std::string, VendorAvailable> &install : installs) {
+        std::optional<VendorSync> vendor_snapshot = vendor(install.first);
+        if (!vendor_snapshot.has_value()) {
+            callback_result({make_updater_error(UpdaterError::Code::RepositoryNotFound)});
+            return;
+        }
+        boost::filesystem::path source_directory;
+        UpdaterError source_error = prepare_vendor_install_source(
+            *vendor_snapshot, install.second, source_directory);
+        if (!source_error.succeeded()) {
+            callback_result({std::move(source_error)});
+            return;
+        }
+        ids.emplace_back(install.first);
+        source_directories.emplace_back(std::move(source_directory));
+        changed_vendors.emplace_back(std::move(*vendor_snapshot));
+    }
+
+    const std::optional<std::string> rollback_token = prepare_vendor_change(change, ids);
+    if (!rollback_token.has_value()) {
         callback_result({make_updater_error(UpdaterError::Code::PreparationRejected)});
         return;
     }
 
-    UpdaterErrors errors;
-    std::vector<std::string> changed_ids;
-    for (const std::pair<std::string, VendorAvailable> &upgrade : upgrades) {
-        std::optional<VendorSync> vendor_snapshot = vendor(upgrade.first);
-        if (!vendor_snapshot)
-            continue;
-        UpdaterError error = install_vendor_files(*vendor_snapshot, upgrade.second);
-        if (error.succeeded()) {
-            {
-                std::lock_guard<std::mutex> guard(m_model_mutex);
-                VendorSync *current = find_vendor_unlocked(upgrade.first);
-                if (current != nullptr) {
-                    current->profile = vendor_snapshot->profile;
-                    current->is_installed = true;
-                    current->has_cache = vendor_snapshot->has_cache;
-                    current->sort_available();
-                }
-            }
-            changed_ids.emplace_back(upgrade.first);
-        } else {
-            errors.emplace_back(std::move(error));
+    for (size_t idx = 0; idx < changed_vendors.size(); ++idx) {
+        UpdaterError error = install_vendor_files(changed_vendors[idx], source_directories[idx]);
+        if (!error.succeeded()) {
+            error = rollback_vendor_change(*rollback_token, std::move(error));
+            callback_result({std::move(error)});
+            return;
         }
     }
-    if (!changed_ids.empty())
-        notify_vendor_files_changed(VendorChange::UpgradeAll, changed_ids);
-    callback_result(std::move(errors));
+
+    // No model entry is changed until every live package has been published.
+    // Readers therefore observe either the complete old batch or the complete
+    // new batch, matching the filesystem restored by the snapshot.
+    {
+        std::lock_guard<std::mutex> guard(m_model_mutex);
+        for (size_t idx = 0; idx < changed_vendors.size(); ++idx) {
+            VendorSync *current = find_vendor_unlocked(ids[idx]);
+            if (current != nullptr) {
+                current->profile = changed_vendors[idx].profile;
+                current->is_installed = changed_vendors[idx].is_installed;
+                current->has_cache = changed_vendors[idx].has_cache;
+                current->sort_available();
+            }
+        }
+    }
+    if (!ids.empty())
+        notify_vendor_files_changed(change, ids);
+    callback_result(UpdaterErrors());
 }
 
 int PresetUpdater::get_profile_count_to_update() const

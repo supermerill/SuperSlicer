@@ -180,17 +180,37 @@ void PresetUpdater::show_synch_window(wxWindow *parent,
     m_app.CallAfter([this] { show_synch_window_internal(); });
 }
 
-bool PresetUpdater::prepare_vendor_change(Slic3r::VendorChange change, const std::vector<std::string> &vendor_ids)
+std::optional<std::string> PresetUpdater::prepare_vendor_change(
+    Slic3r::VendorChange change, const std::vector<std::string> &vendor_ids)
 {
     if (vendor_ids.empty())
-        return true;
+        return std::string();
 
     const Config::Snapshot::Reason reason = change == Slic3r::VendorChange::Uninstall ||
                                                      change == Slic3r::VendorChange::ClearCache ?
         Config::Snapshot::SNAPSHOT_DOWNGRADE : Config::Snapshot::SNAPSHOT_UPGRADE;
     const std::string comment = change == Slic3r::VendorChange::Uninstall ?
         _u8L("Before removing vendor bundles") : _u8L("Before changing vendor bundles");
-    return Config::take_config_snapshot_report_error(*m_app.app_config, reason, comment) != nullptr;
+    const Config::Snapshot *snapshot = Config::take_config_snapshot_report_error(
+        *m_app.app_config, reason, comment);
+    return snapshot == nullptr ? std::nullopt : std::optional<std::string>(snapshot->id);
+}
+
+Slic3r::UpdaterError PresetUpdater::rollback_vendor_change(const std::string &token)
+{
+    try {
+        // Snapshot restoration puts both the complete vendor directory and the
+        // user's preset selections back into their pre-operation state.
+        const Config::Snapshot &snapshot = Config::SnapshotDB::singleton().restore_snapshot(
+            token, *m_app.app_config);
+        m_app.app_config->set("on_snapshot", snapshot.id);
+        m_app.preset_bundle->load_presets(
+            *m_app.app_config, ForwardCompatibilitySubstitutionRule::EnableSystemSilent);
+        m_app.load_current_presets();
+        return Slic3r::UpdaterError();
+    } catch (const std::exception &error) {
+        return Slic3r::make_updater_error(Slic3r::UpdaterError::Code::Filesystem, error.what());
+    }
 }
 
 void PresetUpdater::vendor_files_changed(Slic3r::PresetUpdater &,

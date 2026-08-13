@@ -17,7 +17,9 @@
 #include <deque>
 #include <fstream>
 #include <functional>
+#include <map>
 #include <optional>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -143,11 +145,40 @@ struct VendorChangeCall {
 class FakePresetUpdaterHost final : public Slic3r::PresetUpdaterHost
 {
 public:
-    bool prepare_vendor_change(Slic3r::VendorChange change,
-                               const std::vector<std::string> &vendor_ids) override
+    std::optional<std::string> prepare_vendor_change(
+        Slic3r::VendorChange change, const std::vector<std::string> &vendor_ids) override
     {
         prepared_changes.push_back({change, vendor_ids});
-        return accept_changes;
+        if (!accept_changes)
+            return std::nullopt;
+
+        capture_vendor_directory();
+        return "test-snapshot-" + std::to_string(prepared_changes.size());
+    }
+
+    Slic3r::UpdaterError rollback_vendor_change(const std::string &token) override
+    {
+        rollback_tokens.emplace_back(token);
+        if (!rollback_succeeds)
+            return Slic3r::make_updater_error(Slic3r::UpdaterError::Code::Filesystem,
+                                              "The fake snapshot restore failed.");
+
+        const boost::filesystem::path vendor_directory =
+            boost::filesystem::path(Slic3r::data_dir()) / "vendor";
+        boost::filesystem::remove_all(vendor_directory);
+        if (!snapshot_vendor_existed)
+            return Slic3r::UpdaterError();
+
+        boost::filesystem::create_directories(vendor_directory);
+        for (const std::string &directory : snapshot_directories)
+            boost::filesystem::create_directories(vendor_directory / directory);
+        for (const std::pair<const std::string, std::string> &file : snapshot_files) {
+            const boost::filesystem::path destination = vendor_directory / file.first;
+            boost::filesystem::create_directories(destination.parent_path());
+            boost::nowide::ofstream stream(destination.string(), std::ios::binary | std::ios::trunc);
+            stream.write(file.second.data(), static_cast<std::streamsize>(file.second.size()));
+        }
+        return Slic3r::UpdaterError();
     }
 
     void vendor_files_changed(Slic3r::PresetUpdater &,
@@ -158,8 +189,39 @@ public:
     }
 
     bool accept_changes = true;
+    bool rollback_succeeds = true;
     std::vector<VendorChangeCall> prepared_changes;
     std::vector<VendorChangeCall> completed_changes;
+    std::vector<std::string> rollback_tokens;
+
+private:
+    // Keep a small in-memory equivalent of the GUI configuration snapshot so
+    // functional tests can verify physical rollback without linking wxWidgets.
+    void capture_vendor_directory()
+    {
+        snapshot_files.clear();
+        snapshot_directories.clear();
+        const boost::filesystem::path vendor_directory =
+            boost::filesystem::path(Slic3r::data_dir()) / "vendor";
+        snapshot_vendor_existed = boost::filesystem::is_directory(vendor_directory);
+        if (!snapshot_vendor_existed)
+            return;
+
+        for (boost::filesystem::recursive_directory_iterator it(vendor_directory), end; it != end; ++it) {
+            const std::string relative = it->path().lexically_relative(vendor_directory).generic_string();
+            if (boost::filesystem::is_directory(it->status())) {
+                snapshot_directories.emplace(relative);
+            } else if (boost::filesystem::is_regular_file(it->status())) {
+                boost::nowide::ifstream stream(it->path().string(), std::ios::binary);
+                snapshot_files.emplace(relative, std::string(std::istreambuf_iterator<char>(stream),
+                                                             std::istreambuf_iterator<char>()));
+            }
+        }
+    }
+
+    bool snapshot_vendor_existed = false;
+    std::map<std::string, std::string> snapshot_files;
+    std::set<std::string> snapshot_directories;
 };
 
 // Exposes the common protocol to focused unit tests. Real updaters use the same
@@ -2180,6 +2242,7 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     CHECK(host.prepared_changes.front().vendor_ids == std::vector<std::string>{vendor_id});
     REQUIRE(host.completed_changes.size() == 1);
     CHECK(host.completed_changes.front().change == Slic3r::VendorChange::Install);
+    CHECK(host.rollback_tokens.empty());
 }
 
 TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
@@ -2300,6 +2363,117 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     CHECK(http.sync_request_count() == 0);
     REQUIRE(host.completed_changes.size() == 1);
     CHECK(host.completed_changes.front().change == Slic3r::VendorChange::Install);
+}
+
+TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
+                 "PresetUpdater restores vendor files and resources when publication fails",
+                 "[plugins][updater][preset-functional][rollback]")
+{
+    write_installed_vendor("1.0.0.0");
+    write_test_file(data_directory / "vendor" / vendor_id / "icons" / "old.svg", "old icon");
+    write_resource_vendor("2.0.0.0");
+    updater.reload_all_vendors();
+
+    const std::optional<Slic3r::VendorSync> before = updater.vendor(vendor_id);
+    REQUIRE(before.has_value());
+    const Slic3r::VendorAvailable *best = before->best_available();
+    REQUIRE(best != nullptr);
+    Slic3r::VendorAvailable broken = *best;
+    REQUIRE_FALSE(broken.local_file.empty());
+
+    // Corrupt the already selected cache source after discovery. Publication
+    // copies it and its replacement resources before profile parsing fails,
+    // which exercises rollback after the live tree was partially changed.
+    write_test_file(broken.local_file, "this is not a vendor profile");
+    const boost::filesystem::path broken_resources =
+        boost::filesystem::path(broken.local_file).parent_path() / vendor_id;
+    write_test_file(broken_resources / "icons" / "new.svg", "new icon");
+
+    std::optional<Slic3r::UpdaterError> result;
+    updater.install_vendor(vendor_id, broken, [&result](Slic3r::UpdaterError error) {
+        result = std::move(error);
+    });
+
+    REQUIRE(result.has_value());
+    CHECK_FALSE(result->succeeded());
+    REQUIRE(host.rollback_tokens.size() == 1);
+    CHECK(host.completed_changes.empty());
+    const boost::filesystem::path installed_profile = data_directory / "vendor" / (vendor_id + ".ini");
+    REQUIRE(boost::filesystem::is_regular_file(installed_profile));
+    CHECK(Slic3r::VendorProfile::from_ini(installed_profile, true).config_version.to_string() == "1.0.0.0");
+    CHECK(read_test_file(data_directory / "vendor" / vendor_id / "icons" / "old.svg") == "old icon");
+    CHECK_FALSE(boost::filesystem::exists(data_directory / "vendor" / vendor_id / "icons" / "new.svg"));
+
+    const std::optional<Slic3r::VendorSync> after = updater.vendor(vendor_id);
+    REQUIRE(after.has_value());
+    CHECK(after->profile.config_version.to_string() == "1.0.0.0");
+}
+
+TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
+                 "PresetUpdater reports both publication and snapshot restore failures",
+                 "[plugins][updater][preset-functional][rollback]")
+{
+    write_installed_vendor("1.0.0.0");
+    write_resource_vendor("2.0.0.0");
+    updater.reload_all_vendors();
+
+    const std::optional<Slic3r::VendorSync> vendor = updater.vendor(vendor_id);
+    REQUIRE(vendor.has_value());
+    const Slic3r::VendorAvailable *best = vendor->best_available();
+    REQUIRE(best != nullptr);
+    Slic3r::VendorAvailable broken = *best;
+    write_test_file(broken.local_file, "this is not a vendor profile");
+    host.rollback_succeeds = false;
+
+    std::optional<Slic3r::UpdaterError> result;
+    updater.install_vendor(vendor_id, broken, [&result](Slic3r::UpdaterError error) {
+        result = std::move(error);
+    });
+
+    REQUIRE(result.has_value());
+    CHECK_FALSE(result->succeeded());
+    CHECK(result->detail.find("failed to restore") != std::string::npos);
+    CHECK(result->detail.find("fake snapshot restore failed") != std::string::npos);
+    REQUIRE(host.rollback_tokens.size() == 1);
+    CHECK(host.completed_changes.empty());
+}
+
+TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
+                 "PresetUpdater rolls back a complete install batch after one publication fails",
+                 "[plugins][updater][preset-functional][rollback]")
+{
+    const std::string first_id = "batch_vendor_a";
+    const std::string second_id = "batch_vendor_b";
+    write_test_file(resources_directory / "profiles" / (first_id + ".ini"),
+                    vendor_profile_contents(first_id, "1.0.0.0", slicer_version));
+    write_test_file(resources_directory / "profiles" / (second_id + ".ini"),
+                    vendor_profile_contents(second_id, "1.0.0.0", slicer_version));
+    updater.reload_all_vendors();
+
+    const std::optional<Slic3r::VendorSync> second = updater.vendor(second_id);
+    REQUIRE(second.has_value());
+    const Slic3r::VendorAvailable *second_best = second->best_available();
+    REQUIRE(second_best != nullptr);
+    REQUIRE_FALSE(second_best->local_file.empty());
+    write_test_file(second_best->local_file, "this is not a vendor profile");
+
+    std::optional<Slic3r::UpdaterErrors> result;
+    updater.install_all_vendors([&result](Slic3r::UpdaterErrors errors) {
+        result = std::move(errors);
+    });
+
+    REQUIRE(result.has_value());
+    REQUIRE(result->size() == 1);
+    REQUIRE(host.rollback_tokens.size() == 1);
+    CHECK(host.completed_changes.empty());
+    CHECK_FALSE(boost::filesystem::exists(data_directory / "vendor" / (first_id + ".ini")));
+    CHECK_FALSE(boost::filesystem::exists(data_directory / "vendor" / (second_id + ".ini")));
+    const std::optional<Slic3r::VendorSync> first_after = updater.vendor(first_id);
+    const std::optional<Slic3r::VendorSync> second_after = updater.vendor(second_id);
+    REQUIRE(first_after.has_value());
+    REQUIRE(second_after.has_value());
+    CHECK_FALSE(first_after->is_installed);
+    CHECK_FALSE(second_after->is_installed);
 }
 
 TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,

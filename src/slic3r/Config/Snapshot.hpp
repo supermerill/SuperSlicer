@@ -36,6 +36,7 @@ namespace Config {
 //		sla_material
 //		printer/
 // 		physical_printer/
+//      plugins/activated.ini
 class Snapshot
 {
 public:

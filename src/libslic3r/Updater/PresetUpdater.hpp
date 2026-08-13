@@ -77,10 +77,17 @@ class PresetUpdaterHost {
 public:
     virtual ~PresetUpdaterHost() = default;
 
-    // Called synchronously before the core changes vendor files. Returning
-    // false leaves the filesystem untouched, for example after a failed GUI
-    // snapshot or when a user cancelled a confirmation.
-    virtual bool prepare_vendor_change(VendorChange change, const std::vector<std::string> &vendor_ids) = 0;
+    // Create the application backup used if publication fails. The returned
+    // string is an opaque token understood only by the host. nullopt rejects
+    // the operation and guarantees that the core leaves live vendor files
+    // untouched.
+    virtual std::optional<std::string> prepare_vendor_change(
+        VendorChange change, const std::vector<std::string> &vendor_ids) = 0;
+
+    // Restore the backup identified by prepare_vendor_change(). This is called
+    // synchronously after a live vendor-file operation fails, before the
+    // updater reports the error to its caller.
+    virtual UpdaterError rollback_vendor_change(const std::string &token) = 0;
 
     // Called after a successful filesystem operation. The host owns AppConfig,
     // preset reloads and any UI refresh; the core never accesses them directly.
@@ -155,10 +162,18 @@ private:
     int update_count() override;
     void on_sync_completed() override;
 
-    UpdaterError install_vendor_files(VendorSync &vendor, const VendorAvailable &version);
+    UpdaterError prepare_vendor_install_source(const VendorSync &vendor,
+                                               const VendorAvailable &version,
+                                               boost::filesystem::path &source_directory);
+    UpdaterError install_vendor_files(VendorSync &vendor, const boost::filesystem::path &source_directory);
     UpdaterError uninstall_vendor_files(VendorSync &vendor);
     UpdaterError clear_cache_vendor_files(VendorSync &vendor);
-    bool prepare_vendor_change(VendorChange change, const std::vector<std::string> &vendor_ids);
+    void install_vendor_batch(VendorChange change,
+                              const std::vector<std::pair<std::string, VendorAvailable>> &installs,
+                              std::function<void(UpdaterErrors)> callback_result);
+    std::optional<std::string> prepare_vendor_change(VendorChange change,
+                                                     const std::vector<std::string> &vendor_ids);
+    UpdaterError rollback_vendor_change(const std::string &token, UpdaterError operation_error);
     void notify_vendor_files_changed(VendorChange change, const std::vector<std::string> &vendor_ids);
 
     std::map<std::string, VendorSync> m_vendors;

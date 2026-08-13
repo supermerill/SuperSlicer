@@ -39,6 +39,21 @@ namespace Slic3r {
 namespace GUI {
 namespace Config {
 
+static void copy_config_dir_single_level(const boost::filesystem::path &path_src,
+                                         const boost::filesystem::path &path_dst);
+static void copy_directory_recursively(const boost::filesystem::path &path_src,
+                                       const boost::filesystem::path &path_dst);
+static void copy_file_if_exists(const boost::filesystem::path &path_src,
+                                const boost::filesystem::path &path_dst);
+static bool files_equal(const boost::filesystem::path &path1, const boost::filesystem::path &path2);
+static bool optional_files_equal(const boost::filesystem::path &path1,
+                                 const boost::filesystem::path &path2);
+static bool ini_directories_equal(const boost::filesystem::path &path1,
+                                  const boost::filesystem::path &path2);
+static bool directories_equal_recursively(const boost::filesystem::path &path1,
+                                          const boost::filesystem::path &path2);
+static void delete_existing_ini_files(const boost::filesystem::path &path);
+
 void Snapshot::clear()
 {
 	this->id.clear();
@@ -253,7 +268,9 @@ void Snapshot::export_vendor_configs(AppConfig &config) const
     config.set_vendors(std::move(vendors));
 }
 
-static constexpr auto snapshot_subdirs = { "print", "sla_print", "filament", "sla_material", "printer", "physical_printer", "vendor" };
+static constexpr auto snapshot_ini_subdirs = { "print", "sla_print", "filament", "sla_material", "printer", "physical_printer" };
+static constexpr const char *snapshot_plugin_directory = "plugins";
+static constexpr const char *snapshot_plugin_activation_filename = "activated.ini";
 
 // Perform a deep compare of the active print / sla_print / filament / sla_material / printer / physical_printer / vendor directories.
 // Return true if the content of the current print / sla_print / filament / sla_material / printer / physical_printer / vendor directories
@@ -279,51 +296,24 @@ bool Snapshot::equal_to_active(const AppConfig &app_config) const
                 return false;
     }
 
-    // 2) Check, whether this snapshot references the same set of ini files as the current state.
+    // Ordinary preset directories contain only top-level INI files, so their
+    // historical comparison remains sufficient.
     boost::filesystem::path data_dir     = boost::filesystem::path(Slic3r::data_dir());
     boost::filesystem::path snapshot_dir = boost::filesystem::path(Slic3r::data_dir()) / SLIC3R_SNAPSHOTS_DIR / this->id;
-    for (const char *subdir : snapshot_subdirs) {
-        boost::filesystem::path path1 = data_dir / subdir;
-        boost::filesystem::path path2 = snapshot_dir / subdir;
-        std::vector<std::string> files1, files2;
-        if (boost::filesystem::is_directory(path1))
-            for (auto &dir_entry : boost::filesystem::directory_iterator(path1))
-                if (Slic3r::is_ini_file(dir_entry))
-                    files1.emplace_back(dir_entry.path().filename().string());
-        if (boost::filesystem::is_directory(path2))
-            for (auto &dir_entry : boost::filesystem::directory_iterator(path2))
-                if (Slic3r::is_ini_file(dir_entry))
-                    files2.emplace_back(dir_entry.path().filename().string());
-        std::sort(files1.begin(), files1.end());
-        std::sort(files2.begin(), files2.end());
-        if (files1 != files2)
+    for (const char *subdir : snapshot_ini_subdirs)
+        if (!ini_directories_equal(data_dir / subdir, snapshot_dir / subdir))
             return false;
-        for (const std::string &filename : files1) {
-            FILE *f1 = boost::nowide::fopen((path1 / filename).string().c_str(), "rb");
-            FILE *f2 = boost::nowide::fopen((path2 / filename).string().c_str(), "rb");
-            bool same = true;
-            if (f1 && f2) {
-                char buf1[4096];
-                char buf2[4096];
-                do {
-                    size_t r1 = fread(buf1, 1, 4096, f1);
-                    size_t r2 = fread(buf2, 1, 4096, f2);
-                    if (r1 != r2 || memcmp(buf1, buf2, r1)) {
-                        same = false;
-                        break;
-                    }
-                } while (! feof(f1) || ! feof(f2));
-            } else
-                same = false;
-            if (f1)
-                fclose(f1);
-            if (f2)
-                fclose(f2);
-            if (! same)
-                return false;
-        }
-    }
-    return true;
+
+    // Vendor profiles own nested images and other package resources, so their
+    // complete directory trees participate in snapshot equality.
+    if (!directories_equal_recursively(data_dir / "vendor", snapshot_dir / "vendor"))
+        return false;
+
+    // Plugin binaries stay outside snapshots. Only the activation file affects
+    // equality, including the distinction between a missing and an empty file.
+    return optional_files_equal(
+        data_dir / snapshot_plugin_directory / snapshot_plugin_activation_filename,
+        snapshot_dir / snapshot_plugin_directory / snapshot_plugin_activation_filename);
 }
 
 size_t SnapshotDB::load_db()
@@ -388,6 +378,133 @@ static void copy_config_dir_single_level(const boost::filesystem::path &path_src
                 throw Slic3r::RuntimeError(format("Failed copying \"%1%\" to \"%2%\": %3%", path_src.string(), path_dst.string(), error_message));
 }
 
+// Copy the complete vendor tree into or out of a snapshot. Relative paths are
+// preserved so profile images and any future package resources are restored
+// together with their owning INI.
+static void copy_directory_recursively(const boost::filesystem::path &path_src,
+                                       const boost::filesystem::path &path_dst)
+{
+    if (!boost::filesystem::is_directory(path_src))
+        return;
+
+    boost::filesystem::create_directories(path_dst);
+    for (boost::filesystem::recursive_directory_iterator it(path_src), end; it != end; ++it) {
+        const boost::filesystem::path relative = it->path().lexically_relative(path_src);
+        const boost::filesystem::path destination = path_dst / relative;
+        if (boost::filesystem::is_directory(it->status())) {
+            boost::filesystem::create_directories(destination);
+        } else if (boost::filesystem::is_regular_file(it->status())) {
+            boost::filesystem::create_directories(destination.parent_path());
+            boost::filesystem::copy_file(it->path(), destination,
+                                         boost::filesystem::copy_options::overwrite_existing);
+        } else if (boost::filesystem::is_symlink(it->symlink_status())) {
+            boost::filesystem::create_directories(destination.parent_path());
+            boost::filesystem::copy_symlink(it->path(), destination);
+        } else {
+            throw Slic3r::RuntimeError("Unsupported file in vendor directory: " + it->path().string());
+        }
+    }
+}
+
+// Copy one optional configuration file without walking its parent directory.
+// This keeps large plugin packages outside snapshots while preserving their
+// small activation manifest.
+static void copy_file_if_exists(const boost::filesystem::path &path_src,
+                                const boost::filesystem::path &path_dst)
+{
+    if (!boost::filesystem::is_regular_file(path_src))
+        return;
+
+    boost::filesystem::create_directories(path_dst.parent_path());
+    boost::filesystem::copy_file(path_src, path_dst, boost::filesystem::copy_options::overwrite_existing);
+}
+
+// Compare file contents without loading complete vendor resources into memory.
+static bool files_equal(const boost::filesystem::path &path1, const boost::filesystem::path &path2)
+{
+    FILE *file1 = boost::nowide::fopen(path1.string().c_str(), "rb");
+    FILE *file2 = boost::nowide::fopen(path2.string().c_str(), "rb");
+    bool same = file1 != nullptr && file2 != nullptr;
+    char buffer1[4096];
+    char buffer2[4096];
+    while (same) {
+        const size_t read1 = fread(buffer1, 1, sizeof(buffer1), file1);
+        const size_t read2 = fread(buffer2, 1, sizeof(buffer2), file2);
+        if (read1 != read2 || memcmp(buffer1, buffer2, read1) != 0)
+            same = false;
+        if (read1 == 0 || read2 == 0)
+            break;
+    }
+    if (file1 != nullptr)
+        fclose(file1);
+    if (file2 != nullptr)
+        fclose(file2);
+    return same;
+}
+
+// Missing optional files are part of snapshot state: two absent files match,
+// while presence on only one side means the active configuration changed.
+static bool optional_files_equal(const boost::filesystem::path &path1,
+                                 const boost::filesystem::path &path2)
+{
+    const bool exists1 = boost::filesystem::is_regular_file(path1);
+    const bool exists2 = boost::filesystem::is_regular_file(path2);
+    if (exists1 != exists2)
+        return false;
+    return !exists1 || files_equal(path1, path2);
+}
+
+// Ordinary preset directories store their INI files directly at the root, so
+// comparing their names and bytes fully describes their snapshot state.
+static bool ini_directories_equal(const boost::filesystem::path &path1,
+                                  const boost::filesystem::path &path2)
+{
+    std::vector<std::string> files1;
+    std::vector<std::string> files2;
+    if (boost::filesystem::is_directory(path1))
+        for (const boost::filesystem::directory_entry &entry : boost::filesystem::directory_iterator(path1))
+            if (Slic3r::is_ini_file(entry))
+                files1.emplace_back(entry.path().filename().string());
+    if (boost::filesystem::is_directory(path2))
+        for (const boost::filesystem::directory_entry &entry : boost::filesystem::directory_iterator(path2))
+            if (Slic3r::is_ini_file(entry))
+                files2.emplace_back(entry.path().filename().string());
+    std::sort(files1.begin(), files1.end());
+    std::sort(files2.begin(), files2.end());
+    if (files1 != files2)
+        return false;
+    for (const std::string &filename : files1)
+        if (!files_equal(path1 / filename, path2 / filename))
+            return false;
+    return true;
+}
+
+// Vendor snapshots compare every regular file by relative path and bytes.
+// Directory timestamps are intentionally ignored because restoration changes
+// them without changing the package content.
+static bool directories_equal_recursively(const boost::filesystem::path &path1,
+                                          const boost::filesystem::path &path2)
+{
+    std::vector<std::string> files1;
+    std::vector<std::string> files2;
+    if (boost::filesystem::is_directory(path1))
+        for (boost::filesystem::recursive_directory_iterator it(path1), end; it != end; ++it)
+            if (boost::filesystem::is_regular_file(it->status()))
+                files1.emplace_back(it->path().lexically_relative(path1).generic_string());
+    if (boost::filesystem::is_directory(path2))
+        for (boost::filesystem::recursive_directory_iterator it(path2), end; it != end; ++it)
+            if (boost::filesystem::is_regular_file(it->status()))
+                files2.emplace_back(it->path().lexically_relative(path2).generic_string());
+    std::sort(files1.begin(), files1.end());
+    std::sort(files2.begin(), files2.end());
+    if (files1 != files2)
+        return false;
+    for (const std::string &filename : files1)
+        if (!files_equal(path1 / filename, path2 / filename))
+            return false;
+    return true;
+}
+
 static void delete_existing_ini_files(const boost::filesystem::path &path)
 {
     if (! boost::filesystem::is_directory(path))
@@ -407,9 +524,9 @@ const Snapshot&	SnapshotDB::take_snapshot(const AppConfig &app_config, Snapshot:
 	// Snapshot header.
 	snapshot.time_captured 			 = Slic3r::Utils::get_current_time_utc();
 	snapshot.id 					 = Slic3r::Utils::iso_utc_timestamp(snapshot.time_captured);
-	snapshot.slic3r_version_captured = Slic3r::SEMVER;
-	snapshot.comment 				 = comment;
-	snapshot.reason 				 = reason;
+    snapshot.slic3r_version_captured = Slic3r::SEMVER;
+    snapshot.comment 				 = comment;
+    snapshot.reason 				 = reason;
 	// Active presets at the time of the snapshot.
     snapshot.print                   = app_config.get("presets", "print");
     snapshot.sla_print               = app_config.get("presets", "sla_print");
@@ -463,9 +580,15 @@ const Snapshot&	SnapshotDB::take_snapshot(const AppConfig &app_config, Snapshot:
     try {
 	    boost::filesystem::create_directory(snapshot_dir);
 
-        // Backup the presets.
-        for (const char *subdir : snapshot_subdirs)
+        // Preset directories remain compact flat INI snapshots. The vendor
+        // directory is copied recursively because its images are part of a
+        // usable vendor installation and must participate in rollback.
+        for (const char *subdir : snapshot_ini_subdirs)
     	    copy_config_dir_single_level(data_dir / subdir, snapshot_dir / subdir);
+        copy_directory_recursively(data_dir / "vendor", snapshot_dir / "vendor");
+        copy_file_if_exists(
+            data_dir / snapshot_plugin_directory / snapshot_plugin_activation_filename,
+            snapshot_dir / snapshot_plugin_directory / snapshot_plugin_activation_filename);
         snapshot.save_ini((snapshot_dir / "snapshot.ini").string());
         assert(m_snapshots.empty() || m_snapshots.back().time_captured <= snapshot.time_captured);
         m_snapshots.emplace_back(std::move(snapshot));
@@ -498,14 +621,30 @@ void SnapshotDB::restore_snapshot(const Snapshot &snapshot, AppConfig &app_confi
 	boost::filesystem::path data_dir        = boost::filesystem::path(Slic3r::data_dir());
 	boost::filesystem::path snapshot_db_dir = SnapshotDB::create_db_dir();
     boost::filesystem::path snapshot_dir 	= snapshot_db_dir / snapshot.id;
-    // Remove existing ini files and restore the ini files from the snapshot.
-    for (const char *subdir : snapshot_subdirs) {
+    // Restore ordinary preset directories using their historical flat format.
+    for (const char *subdir : snapshot_ini_subdirs) {
         boost::filesystem::path src = snapshot_dir / subdir;
         boost::filesystem::path dst = data_dir / subdir;
 		delete_existing_ini_files(dst);
         if (boost::filesystem::is_directory(src))
     	    copy_config_dir_single_level(src, dst);
     }
+
+    const boost::filesystem::path vendor_src = snapshot_dir / "vendor";
+    const boost::filesystem::path vendor_dst = data_dir / "vendor";
+    // The snapshot owns the complete vendor state. Removing the live tree
+    // first also removes files introduced by a failed installation.
+    boost::filesystem::remove_all(vendor_dst);
+    copy_directory_recursively(vendor_src, vendor_dst);
+
+    // Restore only the activation manifest. Installed plugin directories stay
+    // untouched because changing loaded binaries during a process is unsafe.
+    const boost::filesystem::path plugin_activation_src =
+        snapshot_dir / snapshot_plugin_directory / snapshot_plugin_activation_filename;
+    const boost::filesystem::path plugin_activation_dst =
+        data_dir / snapshot_plugin_directory / snapshot_plugin_activation_filename;
+    boost::filesystem::remove(plugin_activation_dst);
+    copy_file_if_exists(plugin_activation_src, plugin_activation_dst);
     // Update AppConfig with the selections of the print / sla_print / filament / sla_material / printer profiles
     // and about the installed printer types and variants.
     snapshot.export_selections(app_config);
