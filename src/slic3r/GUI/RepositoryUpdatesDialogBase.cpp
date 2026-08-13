@@ -21,9 +21,11 @@ RepositoryUpdatesDialogBase::RepositoryUpdatesDialogBase(wxWindow *parent, const
 {
 }
 
-void RepositoryUpdatesDialogBase::call_after_repository_operation(std::function<void()> operation)
+RepositoryUpdatesDialogBase::~RepositoryUpdatesDialogBase()
 {
-    CallAfter(std::move(operation));
+    // Repository operations continue updating their model after this window
+    // closes, but none of their queued continuations may touch its controls.
+    m_operation_lifetime.reset();
 }
 
 void RepositoryUpdatesDialogBase::show_repository_error(const std::string &message)

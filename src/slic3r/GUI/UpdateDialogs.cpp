@@ -594,7 +594,8 @@ void UpdateConfigDialog::request_rebuild_after_vendor_change(bool change_succeed
 
     // The preset reload starts its own repository refresh. Joining it here
     // guarantees that this dialog receives the terminal callback as well.
-    m_data.sync_async([this](int) { request_rebuild_ui(); });
+    m_data.sync_async(repository_operation_callback<int>(
+        *this, [](UpdateConfigDialog &dialog, int) { dialog.request_rebuild_ui(); }));
 }
 
 void UpdateConfigDialog::request_show_error_msg(const std::string &error_msg) {
@@ -638,11 +639,14 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
             _L("No vendor profile version is available in the local cache or repository."));
     } else {
         bt_version->Bind(wxEVT_BUTTON, ([this, vendor_id](wxCommandEvent &e) {
-            m_data.download_changelogs(vendor_id, [this, vendor_id](bool ok) {
-                wxCommandEvent *evt = new wxCommandEvent(EVT_VENDOR_VERSION_LAUNCH);
-                evt->SetString(vendor_id);
-                this->QueueEvent(evt);
-            });
+            m_data.download_changelogs(
+                vendor_id,
+                repository_operation_callback<bool>(
+                    *this, [vendor_id](UpdateConfigDialog &dialog, bool) {
+                        wxCommandEvent *evt = new wxCommandEvent(EVT_VENDOR_VERSION_LAUNCH);
+                        evt->SetString(vendor_id);
+                        dialog.QueueEvent(evt);
+                    }));
         }));
         bt_version->SetToolTip(_L("Click this button to choose a vendor bundle version to install."));
     }
@@ -662,12 +666,14 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
         versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
         bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
             this->wait_dialog.reset(new wxBusyInfo(_L("Installing the local preset, please wait")));
-            this->m_data.install_vendor(vendor_id, best_version, [this](std::string error_msg) {
-                // end of waiting dialog (yes, it has to be called without any exception)
-                this->wait_dialog.reset();
-                this->request_show_error_msg(error_msg);
-                this->request_rebuild_ui();
-            });
+            this->m_data.install_vendor(
+                vendor_id, best_version,
+                repository_operation_callback<std::string>(
+                    *this, [](UpdateConfigDialog &dialog, std::string error_msg) {
+                        dialog.wait_dialog.reset();
+                        dialog.request_show_error_msg(error_msg);
+                        dialog.request_rebuild_ui();
+                    }));
         }));
     } else if (vendor.profile.config_update_rest.empty()) {
         if (vendor.can_upgrade && has_compatible_version) {
@@ -684,14 +690,14 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
             versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
             bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
                                  this->wait_dialog.reset(new wxBusyInfo(_L("Upgrading the preset, please wait")));
-                                 this->m_data.install_vendor(vendor_id, best_version,
-                                                             [this](const std::string &error_msg) {
-                                                                 // end of waiting dialog (yes, it has to be called
-                                                                 // without any exception)
-                                                                 this->wait_dialog.reset();
-                                                                 this->request_show_error_msg(error_msg);
-                                                                 this->request_rebuild_ui();
-                                                             });
+                                 this->m_data.install_vendor(
+                                     vendor_id, best_version,
+                                     repository_operation_callback<std::string>(
+                                         *this, [](UpdateConfigDialog &dialog, std::string error_msg) {
+                                             dialog.wait_dialog.reset();
+                                             dialog.request_show_error_msg(error_msg);
+                                             dialog.request_rebuild_ui();
+                                         }));
                              }));
         } else if (!vendor.available_profiles.empty() && !has_compatible_version) {
             msg_synch = new wxStaticText(parent, wxID_ANY, _L("No compatible profile"));
@@ -726,12 +732,14 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
             versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
             bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
                 this->wait_dialog.reset(new wxBusyInfo(_L("Upgrading the preset, please wait")));
-                this->m_data.install_vendor(vendor_id, best_version, [this](const std::string &error_msg) {
-                    // end of waiting dialog (yes, it has to be called without any exception)
-                    this->wait_dialog.reset();
-                    this->request_show_error_msg(error_msg);
-                    this->request_rebuild_ui();
-                });
+                this->m_data.install_vendor(
+                    vendor_id, best_version,
+                    repository_operation_callback<std::string>(
+                        *this, [](UpdateConfigDialog &dialog, std::string error_msg) {
+                            dialog.wait_dialog.reset();
+                            dialog.request_show_error_msg(error_msg);
+                            dialog.request_rebuild_ui();
+                        }));
             }));
         } else {
             msg_synch = new wxStaticText(parent, wxID_ANY, _L("Up to date"));
@@ -755,12 +763,14 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
             versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
             bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
                 this->wait_dialog.reset(new wxBusyInfo(_L("Installing the preset, please wait")));
-                this->m_data.install_vendor(vendor_id, best_version, [this](const std::string &error_msg) {
-                    // end of waiting dialog (yes, it has to be called without any exception)
-                    this->wait_dialog.reset();
-                    this->request_show_error_msg(error_msg);
-                    this->request_rebuild_ui();
-                });
+                this->m_data.install_vendor(
+                    vendor_id, best_version,
+                    repository_operation_callback<std::string>(
+                        *this, [](UpdateConfigDialog &dialog, std::string error_msg) {
+                            dialog.wait_dialog.reset();
+                            dialog.request_show_error_msg(error_msg);
+                            dialog.request_rebuild_ui();
+                        }));
             }));
         } else {
             wxString label = from_u8(updater_error_short_label(vendor.sync_error));
@@ -813,7 +823,11 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                                           _L("Uninstall vendor bundle"), wxICON_WARNING | wxOK | wxCANCEL);
                     if (msg_dlg.ShowModal() == wxID_OK) {
                         this->m_data.uninstall_vendor(
-                            vendor_id, [this](bool success) { request_rebuild_after_vendor_change(success); });
+                            vendor_id,
+                            repository_operation_callback<bool>(
+                                *this, [](UpdateConfigDialog &dialog, bool success) {
+                                    dialog.request_rebuild_after_vendor_change(success);
+                                }));
                     }
                 } else if (vendor_has_cache) {
                     MessageDialog msg_dlg(this,
@@ -822,7 +836,11 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                                           _L("Clear vendor bundle cache"), wxICON_WARNING | wxOK | wxCANCEL);
                     if (msg_dlg.ShowModal() == wxID_OK) {
                         this->m_data.clear_cache_vendor(
-                            vendor_id, [this](bool success) { request_rebuild_after_vendor_change(success); });
+                            vendor_id,
+                            repository_operation_callback<bool>(
+                                *this, [](UpdateConfigDialog &dialog, bool success) {
+                                    dialog.request_rebuild_after_vendor_change(success);
+                                }));
                     }
                 }
         }));
@@ -859,11 +877,13 @@ void UpdateConfigDialog::build_ui() {
     bt_synch->Bind(wxEVT_BUTTON, ([this](wxCommandEvent &e) {
         this->wait_dialog.reset(new wxBusyInfo(_L("Updating the presets, please wait")));
         this->m_data.reload_all_vendors();
-        this->m_data.sync_async([this](int update_count) {
-            // end of waiting dialog (yes, it has to be called without any exception)
-            this->wait_dialog.reset();
-            this->request_rebuild_ui();
-        }, true);
+        this->m_data.sync_async(
+            repository_operation_callback<int>(
+                *this, [](UpdateConfigDialog &dialog, int) {
+                    dialog.wait_dialog.reset();
+                    dialog.request_rebuild_ui();
+                }),
+            true);
     }));
     wxBoxSizer *bt_synch_sizer = new wxBoxSizer(wxHORIZONTAL);
     bt_synch_sizer->AddSpacer(5);
@@ -879,33 +899,40 @@ void UpdateConfigDialog::build_ui() {
     bt_add->Bind(wxEVT_BUTTON, ([this](wxCommandEvent& e) {
         std::string rest_url = txt_new_repo->GetValue().utf8_string();
         rest_url = VendorProfile::get_http_url_rest(rest_url);
-        this->m_data.download_new_repo(rest_url, [this, rest_url](bool result) {
-            if (result) {
-                this->m_data.reload_all_vendors();
-                this->m_data.sync_async([this](int){
-                    this->request_rebuild_ui();
-                });
-            } else {
-                if (rest_url.find("https://api.github.com/repos/") != std::string::npos) {
-                    std::string org_repo_part = rest_url.substr(strlen("https://api.github.com/repos/"));
-                    MessageDialog msg_dlg(this,
-                                format(_L("Failed to read this vendor bundle at the url '%1%': the url is malformed, "
-                                          "the repository doesn't have a correct description.ini or your ip adress has "
-                                          "already uses its quota of request to github (max 60/hours)\n"),
-                                       (std::string("https://raw.githubusercontent.com/") + org_repo_part +
-                                              "/refs/heads/main/description.ini")),
-                        _L("Fail to add a new vendor bundle"), wxICON_WARNING | wxOK);
-                    msg_dlg.ShowModal();
-                } else {
-                    MessageDialog msg_dlg(this,
-                                format(_L("Failed to read this vendor bundle at the url '%1%': the url is malformed, "
-                                          "the repository doesn't have a correct description.ini\n"),
-                                       (rest_url + "/description")),
-                        _L("Fail to add a new vendor bundle"), wxICON_WARNING | wxOK);
-                    msg_dlg.ShowModal();
-                }
-            }
-        });
+        this->m_data.download_new_repo(
+            rest_url,
+            repository_operation_callback<bool>(
+                *this, [rest_url](UpdateConfigDialog &dialog, bool result) {
+                    if (result) {
+                        dialog.m_data.reload_all_vendors();
+                        dialog.m_data.sync_async(dialog.repository_operation_callback<int>(
+                            dialog, [](UpdateConfigDialog &alive_dialog, int) {
+                                alive_dialog.request_rebuild_ui();
+                            }));
+                    } else if (rest_url.find("https://api.github.com/repos/") != std::string::npos) {
+                        const std::string org_repo_part =
+                            rest_url.substr(strlen("https://api.github.com/repos/"));
+                        MessageDialog msg_dlg(
+                            &dialog,
+                            format(_L("Failed to read this vendor bundle at the url '%1%': the url is malformed, "
+                                      "the repository doesn't have a correct description.ini or your ip adress has "
+                                      "already uses its quota of request to github (max 60/hours)\n"),
+                                   std::string("https://raw.githubusercontent.com/") + org_repo_part +
+                                       "/refs/heads/main/description.ini"),
+                            _L("Fail to add a new vendor bundle"),
+                            wxICON_WARNING | wxOK);
+                        msg_dlg.ShowModal();
+                    } else {
+                        MessageDialog msg_dlg(
+                            &dialog,
+                            format(_L("Failed to read this vendor bundle at the url '%1%': the url is malformed, "
+                                      "the repository doesn't have a correct description.ini\n"),
+                                   rest_url + "/description"),
+                            _L("Fail to add a new vendor bundle"),
+                            wxICON_WARNING | wxOK);
+                        msg_dlg.ShowModal();
+                    }
+                }));
     }));
     wxButton *bt_load_ini = new wxButton(this, wxID_ANY, _L("Load vendor ini file"));
     bt_load_ini->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) {
@@ -919,11 +946,14 @@ void UpdateConfigDialog::build_ui() {
         // cached copy before rebuilding the dialog from the refreshed model.
         wait_dialog.reset(new wxBusyInfo(_L("Loading the vendor profile, please wait")));
         const boost::filesystem::path profile_path(into_path(dialog.GetPath()));
-        m_data.cache_vendor_ini(profile_path, [this](const std::string &error_msg) {
-            wait_dialog.reset();
-            request_show_error_msg(error_msg);
-            request_rebuild_ui();
-        });
+        m_data.cache_vendor_ini(
+            profile_path,
+            repository_operation_callback<std::string>(
+                *this, [](UpdateConfigDialog &dialog, std::string error_msg) {
+                    dialog.wait_dialog.reset();
+                    dialog.request_show_error_msg(error_msg);
+                    dialog.request_rebuild_ui();
+                }));
     });
     wxButton *bt_load_archive = new wxButton(this, wxID_ANY, _L("Load vendor archive"));
     bt_load_archive->SetToolTip(_L("Load a ZIP vendor bundle into the local version cache."));
@@ -939,11 +969,14 @@ void UpdateConfigDialog::build_ui() {
         // The GUI only keeps the user informed and rebuilds from the new model.
         wait_dialog.reset(new wxBusyInfo(_L("Loading the vendor archive, please wait")));
         const boost::filesystem::path archive_path(into_path(dialog.GetPath()));
-        m_data.cache_vendor_archive(archive_path, [this](const std::string &error_msg) {
-            wait_dialog.reset();
-            request_show_error_msg(error_msg);
-            request_rebuild_ui();
-        });
+        m_data.cache_vendor_archive(
+            archive_path,
+            repository_operation_callback<std::string>(
+                *this, [](UpdateConfigDialog &dialog, std::string error_msg) {
+                    dialog.wait_dialog.reset();
+                    dialog.request_show_error_msg(error_msg);
+                    dialog.request_rebuild_ui();
+                }));
     });
     wxBoxSizer *github_add_sizer = new wxBoxSizer(wxHORIZONTAL);
     github_add_sizer->AddSpacer(5);
@@ -987,19 +1020,21 @@ void UpdateConfigDialog::build_ui() {
     versions_sizer->Add(bt_uninstall_all, wxGBPosition(row_idx, 4), wxGBSpan(1, 1), wxEXPAND, 2);
     bt_install_all->Bind(wxEVT_BUTTON, ([this](wxCommandEvent &e) {
         this->wait_dialog.reset(new wxBusyInfo(_L("Installing the presets, please wait")));
-        this->m_data.install_all_vendors([this](const std::string &error_msg) {
-            this->wait_dialog.reset();
-            this->request_show_error_msg(error_msg);
-            this->request_rebuild_ui();
-        });
+        this->m_data.install_all_vendors(repository_operation_callback<std::string>(
+            *this, [](UpdateConfigDialog &dialog, std::string error_msg) {
+                dialog.wait_dialog.reset();
+                dialog.request_show_error_msg(error_msg);
+                dialog.request_rebuild_ui();
+            }));
     }));
     bt_upgrade_all->Bind(wxEVT_BUTTON, ([this](wxCommandEvent &e) {
         this->wait_dialog.reset(new wxBusyInfo(_L("Updating the presets, please wait")));
-        this->m_data.upgrade_all_installed_vendors([this](const std::string &error_msg) {
-            this->wait_dialog.reset();
-            this->request_show_error_msg(error_msg);
-            this->request_rebuild_ui();
-        });
+        this->m_data.upgrade_all_installed_vendors(repository_operation_callback<std::string>(
+            *this, [](UpdateConfigDialog &dialog, std::string error_msg) {
+                dialog.wait_dialog.reset();
+                dialog.request_show_error_msg(error_msg);
+                dialog.request_rebuild_ui();
+            }));
     }));
     bt_uninstall_all->Bind(wxEVT_BUTTON, ([this](wxCommandEvent &e) {
         MessageDialog msg_dlg(this,
@@ -1008,10 +1043,11 @@ void UpdateConfigDialog::build_ui() {
             _L("Uninstall vendor bundle"), wxICON_WARNING | wxOK |wxCANCEL);
         if (msg_dlg.ShowModal() == wxID_OK) {
             this->wait_dialog.reset(new wxBusyInfo(_L("Uninstalling the presets, please wait")));
-            this->m_data.uninstall_all_vendors([this](bool ok) {
-                this->wait_dialog.reset();
-                this->request_rebuild_after_vendor_change(ok);
-            });
+            this->m_data.uninstall_all_vendors(repository_operation_callback<bool>(
+                *this, [](UpdateConfigDialog &dialog, bool ok) {
+                    dialog.wait_dialog.reset();
+                    dialog.request_rebuild_after_vendor_change(ok);
+                }));
         }
     }));
 
@@ -1089,8 +1125,8 @@ UpdateConfigDialog::UpdateConfigDialog(wxWindow *parent, PresetUpdater &data, co
         const std::optional<VendorSync> vendor = m_data.vendor(vendor_id);
         assert(vendor.has_value());
         if (vendor.has_value()) {
-            ChooseVendorVersionDialog *choose_version = new ChooseVendorVersionDialog(this, m_data, *vendor);
-            choose_version->ShowModal();
+            ChooseVendorVersionDialog choose_version(this, m_data, *vendor);
+            choose_version.ShowModal();
             this->rebuild_ui();
         }
     });
@@ -1159,14 +1195,11 @@ void ChooseVendorVersionDialog::request_show_error_msg(const std::string &error_
 }
 
 ChooseVendorVersionDialog::ChooseVendorVersionDialog(wxWindow *parent, PresetUpdater &data, const VendorSync &vendor)
-    : m_data(data)
+    : RepositoryUpdatesDialogBase(
+          parent, format(_L("Available versions for the %1% vendor bundle."), vendor.profile.full_name))
+    , m_data(data)
     , m_vendor(vendor)
-    , wxDialog(parent,
-               wxID_ANY,
-               format(_L("Available versions for the %1% vendor bundle."), vendor.profile.full_name),
-               wxDefaultPosition,
-               wxDefaultSize,
-               wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER) {
+{
 
     this->Bind(EVT_VENDOR_VERSION_REDRAW, [this](const wxCommandEvent& evt) {
         this->rebuild_ui();
@@ -1306,14 +1339,17 @@ void ChooseVendorVersionDialog::add_version_in_list(wxWindow *parent,
         versions_sizer->Add(installed_panel, wxGBPosition(line_num, 1), wxGBSpan(1, 1), wxEXPAND, 2);
     } else {
         wxButton *bt_version = new wxButton(parent, wxID_ANY, version.config_version.to_string());
-        bt_version->Bind(wxEVT_BUTTON, ([this, &version](wxCommandEvent &e) {
+        bt_version->Bind(wxEVT_BUTTON, ([this, version](wxCommandEvent &e) {
             this->wait_dialog.reset(new wxBusyInfo(_L("Installing the local preset. Please wait.")));
             // install_vendor can work with copies passed as parameter, no worry.
-            this->m_data.install_vendor(m_vendor.profile.id, version, [this](std::string error_msg) {
-                this->wait_dialog.reset();
-                this->request_show_error_msg(error_msg);
-                this->request_rebuild_ui();
-            });
+            this->m_data.install_vendor(
+                m_vendor.profile.id, version,
+                repository_operation_callback<std::string>(
+                    *this, [](ChooseVendorVersionDialog &dialog, std::string error_msg) {
+                        dialog.wait_dialog.reset();
+                        dialog.request_show_error_msg(error_msg);
+                        dialog.request_rebuild_ui();
+                    }));
         }));
         bt_version->SetToolTip(_L("Click this button to install this version of the vendor bundle."));
         versions_sizer->Add(bt_version, wxGBPosition(line_num, 1), wxGBSpan(1, 1), wxEXPAND, 2);

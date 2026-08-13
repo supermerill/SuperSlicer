@@ -237,7 +237,7 @@ wxDECLARE_EVENT(EVT_CONFIG_UPDATER_REDRAW, wxCommandEvent);
 wxDECLARE_EVENT(EVT_VENDOR_VERSION_LAUNCH, wxCommandEvent);
 
 // Dialog informing about a vendor version available.
-class ChooseVendorVersionDialog : public wxDialog
+class ChooseVendorVersionDialog : public RepositoryUpdatesDialogBase
 {
 protected:
     PresetUpdater &m_data;

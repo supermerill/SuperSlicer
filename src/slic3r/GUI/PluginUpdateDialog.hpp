@@ -53,7 +53,7 @@ private:
 // Lists every package version after its changelog has been loaded. Selecting a
 // row downloads and validates that package immediately, but only records the
 // requested version for installation during the next application startup.
-class ChoosePluginVersionDialog : public wxDialog {
+class ChoosePluginVersionDialog : public RepositoryUpdatesDialogBase {
 public:
     ChoosePluginVersionDialog(wxWindow *parent, PluginUpdater &updater, std::string plugin_id);
     ~ChoosePluginVersionDialog() override;
