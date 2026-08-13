@@ -45,7 +45,10 @@ public:
     void download_changelogs(const std::string &vendor_id,
                              std::function<void(bool)> callback_result,
                              bool force = false);
-    void download_new_repo(const std::string &rest_url, std::function<void(bool)> callback_result);
+    // Download and validate a repository description, then return the complete
+    // updater result on the GUI thread so callers can report the exact failure.
+    void download_new_repo(const std::string &rest_url,
+                           std::function<void(Slic3r::UpdaterError)> callback_result);
 
     // Cache a local vendor ZIP, reload the updater model after validation, and
     // report an empty error string on success. The callback runs on the GUI

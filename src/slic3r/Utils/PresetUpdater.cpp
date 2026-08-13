@@ -61,10 +61,13 @@ void PresetUpdater::download_changelogs(const std::string &vendor_id,
     }, force);
 }
 
-void PresetUpdater::download_new_repo(const std::string &rest_url, std::function<void(bool)> callback_result)
+void PresetUpdater::download_new_repo(const std::string &rest_url,
+                                      std::function<void(Slic3r::UpdaterError)> callback_result)
 {
     m_core.download_new_repo(rest_url, [this, callback_result = std::move(callback_result)](Slic3r::UpdaterError error) {
-        m_app.CallAfter([callback_result, error = std::move(error)] { callback_result(error.succeeded()); });
+        m_app.CallAfter([callback_result, error = std::move(error)]() mutable {
+            callback_result(std::move(error));
+        });
     });
 }
 

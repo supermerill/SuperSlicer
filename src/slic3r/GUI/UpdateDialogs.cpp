@@ -922,32 +922,18 @@ void UpdateConfigDialog::build_ui() {
         rest_url = VendorProfile::get_http_url_rest(rest_url);
         this->m_data.download_new_repo(
             rest_url,
-            repository_operation_callback<bool>(
-                *this, [rest_url](UpdateConfigDialog &dialog, bool result) {
-                    if (result) {
+            repository_operation_callback<UpdaterError>(
+                *this, [](UpdateConfigDialog &dialog, UpdaterError error) {
+                    if (error.succeeded()) {
                         dialog.m_data.reload_all_vendors();
                         dialog.m_data.sync_async(dialog.repository_operation_callback<int>(
                             dialog, [](UpdateConfigDialog &alive_dialog, int) {
                                 alive_dialog.request_rebuild_ui();
                             }));
-                    } else if (rest_url.find("https://api.github.com/repos/") != std::string::npos) {
-                        const std::string org_repo_part =
-                            rest_url.substr(strlen("https://api.github.com/repos/"));
-                        MessageDialog msg_dlg(
-                            &dialog,
-                            format(_L("Failed to read this vendor bundle at the url '%1%': the url is malformed, "
-                                      "or the repository doesn't have a correct description.ini\n"),
-                                   std::string("https://raw.githubusercontent.com/") + org_repo_part +
-                                       "/HEAD/description.ini"),
-                            _L("Fail to add a new vendor bundle"),
-                            wxICON_WARNING | wxOK);
-                        msg_dlg.ShowModal();
                     } else {
                         MessageDialog msg_dlg(
                             &dialog,
-                            format(_L("Failed to read this vendor bundle at the url '%1%': the url is malformed, "
-                                      "the repository doesn't have a correct description.ini\n"),
-                                   rest_url + "/description"),
+                            from_u8(format_updater_error(error)),
                             _L("Fail to add a new vendor bundle"),
                             wxICON_WARNING | wxOK);
                         msg_dlg.ShowModal();
