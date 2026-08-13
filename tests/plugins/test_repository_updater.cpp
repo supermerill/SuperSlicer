@@ -1326,24 +1326,173 @@ TEST_CASE("RepositoryUpdater writes asynchronous and synchronous repository file
     }
 }
 
-TEST_CASE("VendorSync enriches matching cached versions from repository tags", "[plugins][updater]")
+TEST_CASE("VendorSync rebuilds remote versions while preserving cached profiles", "[plugins][updater]")
 {
     Slic3r::VendorSync vendor;
+    vendor.is_installed = true;
+    vendor.profile.config_version = *Slic3r::Semver::parse("1.2.3.4");
+
     Slic3r::VendorAvailable cached;
     cached.config_version = *Slic3r::Semver::parse("1.2.3.4");
-    cached.slicer_version = *Slic3r::Semver::parse("2.7.63.0");
+    cached.slicer_version = *Slic3r::Semver::parse("2.7.62.0");
     cached.local_file = "cached.ini";
-    cached.tag = "1.2.3.4=2.7.63.0";
+    cached.url_zip = "stale-local-zip";
+    cached.commit_sha = "stale-local-sha";
+    cached.commit_url = "stale-local-commit";
+    cached.tag = "1.2.3.4=2.7.62.0";
+    cached.notes = "cached notes";
     vendor.available_profiles.emplace_back(cached);
 
+    Slic3r::VendorAvailable retained_remote;
+    retained_remote.config_version = *Slic3r::Semver::parse("2.0.0.0");
+    retained_remote.slicer_version = *Slic3r::Semver::parse("2.7.62.0");
+    retained_remote.tag = "2.0.0.0=2.7.62.0";
+    retained_remote.notes = "retained notes";
+    vendor.available_profiles.emplace_back(retained_remote);
+
+    Slic3r::VendorAvailable removed_remote;
+    removed_remote.config_version = *Slic3r::Semver::parse("3.0.0.0");
+    removed_remote.slicer_version = *Slic3r::Semver::parse("2.7.62.0");
+    removed_remote.tag = "3.0.0.0=2.7.62.0";
+    vendor.available_profiles.emplace_back(removed_remote);
+
     REQUIRE(vendor.parse_tags(
-        "[{\"name\":\"1.2.3.4=2.7.63.0\",\"zipball_url\":\"zip\","
-        "\"commit\":{\"sha\":\"sha\",\"url\":\"commit\"}}]").succeeded());
+        "[{\"name\":\"1.2.3.4=2.7.62.0\",\"zipball_url\":\"local-zip\","
+        "\"commit\":{\"sha\":\"local-sha\",\"url\":\"local-commit\"}},"
+        "{\"name\":\"2.0.0.0=2.7.62.0\",\"zipball_url\":\"retained-zip\","
+        "\"commit\":{\"sha\":\"retained-sha\",\"url\":\"retained-commit\"}},"
+        "{\"name\":\"2.5.0.0=2.7.62.0\",\"zipball_url\":\"new-zip\","
+        "\"commit\":{\"sha\":\"new-sha\",\"url\":\"new-commit\"}}]").succeeded());
+    REQUIRE(vendor.available_profiles.size() == 3);
+    CHECK(std::none_of(vendor.available_profiles.begin(), vendor.available_profiles.end(),
+        [](const Slic3r::VendorAvailable &available) { return available.tag == "3.0.0.0=2.7.62.0"; }));
+
+    const std::vector<Slic3r::VendorAvailable>::const_iterator local = std::find_if(
+        vendor.available_profiles.begin(), vendor.available_profiles.end(),
+        [](const Slic3r::VendorAvailable &available) { return available.tag == "1.2.3.4=2.7.62.0"; });
+    REQUIRE(local != vendor.available_profiles.end());
+    CHECK(local->local_file == "cached.ini");
+    CHECK(local->notes == "cached notes");
+    CHECK(local->url_zip == "local-zip");
+    CHECK(local->commit_sha == "local-sha");
+    CHECK(local->commit_url == "local-commit");
+
+    const std::vector<Slic3r::VendorAvailable>::const_iterator retained = std::find_if(
+        vendor.available_profiles.begin(), vendor.available_profiles.end(),
+        [](const Slic3r::VendorAvailable &available) { return available.tag == "2.0.0.0=2.7.62.0"; });
+    REQUIRE(retained != vendor.available_profiles.end());
+    CHECK(retained->notes == "retained notes");
+    CHECK(retained->url_zip == "retained-zip");
+    const std::vector<Slic3r::VendorAvailable>::const_iterator added = std::find_if(
+        vendor.available_profiles.begin(), vendor.available_profiles.end(),
+        [](const Slic3r::VendorAvailable &available) { return available.tag == "2.5.0.0=2.7.62.0"; });
+    REQUIRE(added != vendor.available_profiles.end());
+    CHECK(added->local_file.empty());
+    CHECK(added->url_zip == "new-zip");
+    CHECK(vendor.can_upgrade);
+
+    // An empty successful response removes every remote-only version. The
+    // cached profile remains usable without retaining stale repository links.
+    REQUIRE(vendor.parse_tags("[]").succeeded());
     REQUIRE(vendor.available_profiles.size() == 1);
     CHECK(vendor.available_profiles.front().local_file == "cached.ini");
-    CHECK(vendor.available_profiles.front().url_zip == "zip");
-    CHECK(vendor.available_profiles.front().commit_sha == "sha");
-    CHECK(vendor.available_profiles.front().commit_url == "commit");
+    CHECK(vendor.available_profiles.front().notes == "cached notes");
+    CHECK(vendor.available_profiles.front().url_zip.empty());
+    CHECK(vendor.available_profiles.front().commit_sha.empty());
+    CHECK(vendor.available_profiles.front().commit_url.empty());
+    CHECK_FALSE(vendor.can_upgrade);
+
+    const Slic3r::VendorAvailable preserved = vendor.available_profiles.front();
+    CHECK_FALSE(vendor.parse_tags("not JSON").succeeded());
+    REQUIRE(vendor.available_profiles.size() == 1);
+    CHECK(vendor.available_profiles.front().tag == preserved.tag);
+    CHECK(vendor.available_profiles.front().local_file == preserved.local_file);
+    CHECK(vendor.available_profiles.front().notes == preserved.notes);
+    CHECK_FALSE(vendor.can_upgrade);
+}
+
+TEST_CASE("PluginSync rebuilds remote versions while preserving cached packages", "[plugins][updater]")
+{
+    Slic3r::PluginSync plugin;
+    plugin.is_installed = true;
+    plugin.installed_version.package_version = "1.2.3.4";
+    plugin.installed_version.slicer_version = "2.7.62.0";
+
+    Slic3r::PluginAvailable cached;
+    cached.package_version = "1.2.3.4";
+    cached.slicer_version = "2.7.62.0";
+    cached.local_directory = "cached-package";
+    cached.url_zip = "stale-local-zip";
+    cached.commit_sha = "stale-local-sha";
+    cached.commit_url = "stale-local-commit";
+    cached.tag = "1.2.3.4=2.7.62.0";
+    cached.notes = "cached notes";
+    plugin.available_packages.emplace_back(cached);
+
+    Slic3r::PluginAvailable retained_remote;
+    retained_remote.package_version = "2.0.0.0";
+    retained_remote.slicer_version = "2.7.62.0";
+    retained_remote.tag = "2.0.0.0=2.7.62.0";
+    retained_remote.notes = "retained notes";
+    plugin.available_packages.emplace_back(retained_remote);
+
+    Slic3r::PluginAvailable removed_remote;
+    removed_remote.package_version = "3.0.0.0";
+    removed_remote.slicer_version = "2.7.62.0";
+    removed_remote.tag = "3.0.0.0=2.7.62.0";
+    plugin.available_packages.emplace_back(removed_remote);
+
+    REQUIRE(plugin.parse_tags(
+        "[{\"name\":\"1.2.3.4=2.7.62.0\",\"zipball_url\":\"local-zip\","
+        "\"commit\":{\"sha\":\"local-sha\",\"url\":\"local-commit\"}},"
+        "{\"name\":\"2.0.0.0=2.7.62.0\",\"zipball_url\":\"retained-zip\","
+        "\"commit\":{\"sha\":\"retained-sha\",\"url\":\"retained-commit\"}},"
+        "{\"name\":\"2.5.0.0=2.7.62.0\",\"zipball_url\":\"new-zip\","
+        "\"commit\":{\"sha\":\"new-sha\",\"url\":\"new-commit\"}}]").succeeded());
+    REQUIRE(plugin.available_packages.size() == 3);
+    CHECK(std::none_of(plugin.available_packages.begin(), plugin.available_packages.end(),
+        [](const Slic3r::PluginAvailable &available) { return available.tag == "3.0.0.0=2.7.62.0"; }));
+
+    const std::vector<Slic3r::PluginAvailable>::const_iterator local = std::find_if(
+        plugin.available_packages.begin(), plugin.available_packages.end(),
+        [](const Slic3r::PluginAvailable &available) { return available.tag == "1.2.3.4=2.7.62.0"; });
+    REQUIRE(local != plugin.available_packages.end());
+    CHECK(local->local_directory == "cached-package");
+    CHECK(local->notes == "cached notes");
+    CHECK(local->url_zip == "local-zip");
+    CHECK(local->commit_sha == "local-sha");
+    CHECK(local->commit_url == "local-commit");
+
+    const std::vector<Slic3r::PluginAvailable>::const_iterator retained = std::find_if(
+        plugin.available_packages.begin(), plugin.available_packages.end(),
+        [](const Slic3r::PluginAvailable &available) { return available.tag == "2.0.0.0=2.7.62.0"; });
+    REQUIRE(retained != plugin.available_packages.end());
+    CHECK(retained->notes == "retained notes");
+    CHECK(retained->url_zip == "retained-zip");
+    const std::vector<Slic3r::PluginAvailable>::const_iterator added = std::find_if(
+        plugin.available_packages.begin(), plugin.available_packages.end(),
+        [](const Slic3r::PluginAvailable &available) { return available.tag == "2.5.0.0=2.7.62.0"; });
+    REQUIRE(added != plugin.available_packages.end());
+    CHECK(added->local_directory.empty());
+    CHECK(added->url_zip == "new-zip");
+    CHECK(plugin.can_upgrade);
+
+    REQUIRE(plugin.parse_tags("[]").succeeded());
+    REQUIRE(plugin.available_packages.size() == 1);
+    CHECK(plugin.available_packages.front().local_directory == "cached-package");
+    CHECK(plugin.available_packages.front().notes == "cached notes");
+    CHECK(plugin.available_packages.front().url_zip.empty());
+    CHECK(plugin.available_packages.front().commit_sha.empty());
+    CHECK(plugin.available_packages.front().commit_url.empty());
+    CHECK_FALSE(plugin.can_upgrade);
+
+    const Slic3r::PluginAvailable preserved = plugin.available_packages.front();
+    CHECK_FALSE(plugin.parse_tags("not JSON").succeeded());
+    REQUIRE(plugin.available_packages.size() == 1);
+    CHECK(plugin.available_packages.front().tag == preserved.tag);
+    CHECK(plugin.available_packages.front().local_directory == preserved.local_directory);
+    CHECK(plugin.available_packages.front().notes == preserved.notes);
+    CHECK_FALSE(plugin.can_upgrade);
 }
 
 TEST_CASE("PluginUpdater reports a transport failure without a real HTTP request", "[plugins][updater]")

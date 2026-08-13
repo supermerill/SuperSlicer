@@ -135,22 +135,44 @@ UpdaterError PluginSync::parse_tags(const std::string &json)
     std::string error_message;
     if (!parse_repository_versions(json, parsed, error_message))
         return make_updater_error(UpdaterError::Code::InvalidRepositoryMetadata, std::move(error_message));
+
+    // Start the replacement model with versions that physically exist in the
+    // cache. Clear their repository fields so a removed tag cannot leave a
+    // stale download or changelog link on an otherwise valid local package.
+    std::vector<PluginAvailable> refreshed;
+    refreshed.reserve(available_packages.size() + parsed.size());
+    for (const PluginAvailable &available : available_packages) {
+        if (available.local_directory.empty())
+            continue;
+        PluginAvailable local = available;
+        local.url_zip.clear();
+        local.commit_sha.clear();
+        local.commit_url.clear();
+        refreshed.emplace_back(std::move(local));
+    }
+
+    // The parsed response is the complete remote projection. Matching local
+    // entries keep their cache path and notes, while every remote-only entry is
+    // recreated so tags omitted by this response disappear from the model.
     for (const RepositoryPackageVersion &version : parsed) {
         const std::vector<PluginAvailable>::iterator existing = std::find_if(
-            available_packages.begin(), available_packages.end(),
+            refreshed.begin(), refreshed.end(),
             [&version](const PluginAvailable &candidate) { return candidate.tag == version.tag; });
-        if (existing == available_packages.end()) {
+        if (existing == refreshed.end()) {
             PluginAvailable available;
             static_cast<RepositoryPackageVersion &>(available) = version;
-            available_packages.emplace_back(std::move(available));
+            const std::vector<PluginAvailable>::const_iterator previous = std::find_if(
+                available_packages.begin(), available_packages.end(),
+                [&version](const PluginAvailable &candidate) { return candidate.tag == version.tag; });
+            if (previous != available_packages.end())
+                available.notes = previous->notes;
+            refreshed.emplace_back(std::move(available));
         } else {
-            // A local package already owns its cache path and notes. Refresh
-            // only the network fields supplied by the repository tag.
-            existing->url_zip = version.url_zip;
-            existing->commit_sha = version.commit_sha;
-            existing->commit_url = version.commit_url;
+            static_cast<RepositoryPackageVersion &>(*existing) = version;
         }
     }
+
+    available_packages.swap(refreshed);
     sort_available();
     return UpdaterError();
 }

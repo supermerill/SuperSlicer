@@ -874,25 +874,53 @@ UpdaterError VendorSync::parse_tags(const std::string &json)
     std::string error_message;
     if (!parse_repository_versions(json, versions, error_message))
         return make_updater_error(UpdaterError::Code::InvalidRepositoryMetadata, std::move(error_message));
+
+    // Local profiles remain selectable when their repository tag disappears.
+    // Their network fields are reset before applying the new remote projection
+    // so a cached profile never retains a stale archive or changelog URL.
+    std::vector<VendorAvailable> refreshed;
+    refreshed.reserve(available_profiles.size() + versions.size());
+    for (const VendorAvailable &available : available_profiles) {
+        if (available.local_file.empty())
+            continue;
+        VendorAvailable local = available;
+        local.url_zip.clear();
+        local.commit_sha.clear();
+        local.commit_url.clear();
+        refreshed.emplace_back(std::move(local));
+    }
+
+    // Recreate every remote-only entry from this response. A matching local
+    // entry keeps its file and notes, while receiving all repository metadata
+    // from the current tag rather than from a previous synchronization.
     for (const RepositoryPackageVersion &version : versions) {
         const std::optional<Semver> package_version = Semver::parse(version.package_version);
         const std::optional<Semver> slicer_version = Semver::parse(version.slicer_version);
         if (!package_version || !slicer_version)
             continue;
         const std::vector<VendorAvailable>::iterator existing = std::find_if(
-            available_profiles.begin(), available_profiles.end(),
+            refreshed.begin(), refreshed.end(),
             [&version](const VendorAvailable &candidate) { return candidate.tag == version.tag; });
-        if (existing == available_profiles.end()) {
-            available_profiles.push_back({*package_version, *slicer_version, "", version.url_zip, version.commit_sha,
-                                           version.commit_url, version.tag, ""});
+        if (existing == refreshed.end()) {
+            VendorAvailable available{*package_version, *slicer_version, "", version.url_zip, version.commit_sha,
+                                      version.commit_url, version.tag, ""};
+            const std::vector<VendorAvailable>::const_iterator previous = std::find_if(
+                available_profiles.begin(), available_profiles.end(),
+                [&version](const VendorAvailable &candidate) { return candidate.tag == version.tag; });
+            if (previous != available_profiles.end())
+                available.notes = previous->notes;
+            refreshed.emplace_back(std::move(available));
         } else {
-            // A local profile may already have created this version entry.
-            // Enrich it with remote download and changelog information.
+            existing->config_version = *package_version;
+            existing->slicer_version = *slicer_version;
             existing->url_zip = version.url_zip;
             existing->commit_sha = version.commit_sha;
             existing->commit_url = version.commit_url;
+            existing->tag = version.tag;
         }
     }
+
+    available_profiles.swap(refreshed);
     sort_available();
     return UpdaterError();
 }
