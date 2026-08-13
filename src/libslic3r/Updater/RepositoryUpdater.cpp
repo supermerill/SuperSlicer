@@ -466,13 +466,15 @@ void RepositoryUpdater::download_repository_description(const std::string &rest_
         repository_url + "/description" :
         "https://raw.githubusercontent.com/" +
             repository_url.substr(github_marker + std::strlen("https://api.github.com/repos/")) +
-            "/refs/heads/main/description.ini";
+            "/HEAD/description.ini";
 
     try {
         http().get(description_url)
             .size_limit(k_repository_metadata_size_limit)
-            .on_error([complete](std::string, std::string error, unsigned) {
-                complete(make_updater_error(UpdaterError::Code::Network, std::move(error)));
+            .on_error([complete](std::string, std::string error, unsigned status) {
+                const UpdaterError::Code code = status == 404 ? UpdaterError::Code::RepositoryNotFound :
+                                                               UpdaterError::Code::Network;
+                complete(make_updater_error(code, std::move(error)));
             })
             .on_complete([consume, complete, fallback_id](std::string contents, unsigned) {
                 complete(consume(contents, fallback_id));

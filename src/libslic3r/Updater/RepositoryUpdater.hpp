@@ -119,8 +119,11 @@ protected:
                                  RepositoryRefreshFinishedFn finished);
 
     // Downloads description.ini and gives its contents plus the repository
-    // name from the URL to the derived updater. The consumer owns parsing and
-    // persistence; this helper owns URL conversion and network errors.
+    // name from the URL to the derived updater. GitHub repositories use the
+    // raw HEAD ref so the download follows their default branch without using
+    // the rate-limited REST API. Other hosts keep their /description endpoint.
+    // The consumer owns parsing and persistence; this helper owns URL
+    // conversion and network errors.
     void download_repository_description(const std::string &rest_url,
                                          RepositoryDescriptionConsumerFn consume,
                                          UpdaterErrorCallback callback);

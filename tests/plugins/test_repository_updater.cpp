@@ -1235,7 +1235,7 @@ TEST_CASE("RepositoryUpdater downloads repository descriptions", "[plugins][upda
 
     REQUIRE(http.pending_count() == 1);
     CHECK(http.pending_front().url() ==
-          "https://raw.githubusercontent.com/example/repository/refs/heads/main/description.ini");
+          "https://raw.githubusercontent.com/example/repository/HEAD/description.ini");
     CHECK(http.pending_front().response_size_limit() == 64 * 1024);
     http.succeed_front("repository description", 200);
 
@@ -1243,6 +1243,74 @@ TEST_CASE("RepositoryUpdater downloads repository descriptions", "[plugins][upda
     CHECK(result->succeeded());
     CHECK(consumed_contents == "repository description");
     CHECK(consumed_fallback_id == "repository");
+}
+
+TEST_CASE("RepositoryUpdater preserves description endpoint errors", "[plugins][updater]")
+{
+    FakeUpdaterHttpTransport http;
+    TestRepositoryUpdater updater(http);
+    size_t consumer_calls = 0;
+    std::optional<Slic3r::UpdaterError> result;
+
+    SECTION("non-GitHub repositories keep their direct description endpoint") {
+        updater.download_repository_description(
+            "https://packages.example.invalid/repository",
+            [&consumer_calls](const std::string &contents, const std::string &fallback_id) {
+                ++consumer_calls;
+                CHECK(contents == "direct description");
+                CHECK(fallback_id == "repository");
+                return Slic3r::UpdaterError();
+            },
+            [&result](Slic3r::UpdaterError error) { result = std::move(error); });
+
+        REQUIRE(http.pending_count() == 1);
+        CHECK(http.pending_front().url() ==
+              "https://packages.example.invalid/repository/description");
+        http.succeed_front("direct description", 200);
+
+        REQUIRE(result.has_value());
+        CHECK(result->succeeded());
+        CHECK(consumer_calls == 1);
+    }
+
+    SECTION("a missing GitHub description is a missing repository") {
+        updater.download_repository_description(
+            "example/repository",
+            [&consumer_calls](const std::string &, const std::string &) {
+                ++consumer_calls;
+                return Slic3r::UpdaterError();
+            },
+            [&result](Slic3r::UpdaterError error) { result = std::move(error); });
+
+        REQUIRE(http.pending_count() == 1);
+        CHECK(http.pending_front().url() ==
+              "https://raw.githubusercontent.com/example/repository/HEAD/description.ini");
+        http.fail_front(std::string(), "description not found", 404);
+
+        REQUIRE(result.has_value());
+        CHECK(result->code == Slic3r::UpdaterError::Code::RepositoryNotFound);
+        CHECK(result->detail == "description not found");
+        CHECK(consumer_calls == 0);
+    }
+
+    SECTION("the consumer keeps ownership of description validation") {
+        updater.download_repository_description(
+            "example/repository",
+            [&consumer_calls](const std::string &, const std::string &) {
+                ++consumer_calls;
+                return Slic3r::make_updater_error(Slic3r::UpdaterError::Code::InvalidArchive,
+                                                  "invalid description");
+            },
+            [&result](Slic3r::UpdaterError error) { result = std::move(error); });
+
+        REQUIRE(http.pending_count() == 1);
+        http.succeed_front("invalid repository description", 200);
+
+        REQUIRE(result.has_value());
+        CHECK(result->code == Slic3r::UpdaterError::Code::InvalidArchive);
+        CHECK(result->detail == "invalid description");
+        CHECK(consumer_calls == 1);
+    }
 }
 
 TEST_CASE("RepositoryUpdater writes asynchronous and synchronous repository files", "[plugins][updater]")
@@ -1507,7 +1575,7 @@ TEST_CASE("PluginUpdater reports a transport failure without a real HTTP request
 
     REQUIRE(http.pending_count() == 1);
     CHECK(http.pending_front().url() ==
-          "https://raw.githubusercontent.com/example/plugin/refs/heads/main/description.ini");
+          "https://raw.githubusercontent.com/example/plugin/HEAD/description.ini");
     CHECK(http.pending_front().response_size_limit() == 64 * 1024);
     CHECK_FALSE(result.has_value());
 
@@ -2949,7 +3017,7 @@ TEST_CASE("PresetUpdater processes a controlled successful HTTP response", "[plu
 
     REQUIRE(http.pending_count() == 1);
     CHECK(http.pending_front().url() ==
-          "https://raw.githubusercontent.com/example/vendor/refs/heads/main/description.ini");
+          "https://raw.githubusercontent.com/example/vendor/HEAD/description.ini");
     CHECK_FALSE(result.has_value());
 
     // A successful transport response still has to pass the repository parser.

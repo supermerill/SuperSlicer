@@ -915,10 +915,9 @@ void UpdateConfigDialog::build_ui() {
                         MessageDialog msg_dlg(
                             &dialog,
                             format(_L("Failed to read this vendor bundle at the url '%1%': the url is malformed, "
-                                      "the repository doesn't have a correct description.ini or your ip adress has "
-                                      "already uses its quota of request to github (max 60/hours)\n"),
+                                      "or the repository doesn't have a correct description.ini\n"),
                                    std::string("https://raw.githubusercontent.com/") + org_repo_part +
-                                       "/refs/heads/main/description.ini"),
+                                       "/HEAD/description.ini"),
                             _L("Fail to add a new vendor bundle"),
                             wxICON_WARNING | wxOK);
                         msg_dlg.ShowModal();
