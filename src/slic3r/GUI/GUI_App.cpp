@@ -4076,8 +4076,9 @@ bool GUI_App::run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage
             for (const VendorSync &vendor : vendors) {
                 if (vendor.profile.id == ALLOW_PRUSA_FIRST) {
                     found = true;
-                    if (vendor.best != nullptr) {
-                        this->preset_updater->install_vendor(ALLOW_PRUSA_FIRST, *vendor.best,
+                    const VendorAvailable *best = vendor.best_available();
+                    if (best != nullptr) {
+                        this->preset_updater->install_vendor(ALLOW_PRUSA_FIRST, *best,
                                                              [this, reason, start_page](const std::string &error_msg) {
                                                                  run_wizard(reason, start_page,
                                                                             RunVendorBundleManage::RVBM_NEVER);

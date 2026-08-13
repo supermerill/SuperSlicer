@@ -16,6 +16,7 @@
 #include <functional>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -61,11 +62,15 @@ struct VendorSync {
     UpdaterError sync_error;
     bool can_upgrade = false;
     std::vector<VendorAvailable> available_profiles;
-    VendorAvailable *best = nullptr;
 
     UpdaterError parse_tags(const std::string &json);
     void sort_available();
     void reset(const VendorProfile &profile, bool installed, bool has_cache);
+
+    // Return the first slicer-compatible entry from the sorted version list.
+    // The result belongs to this VendorSync, so copied snapshots never retain
+    // a pointer into the updater's internal model.
+    const VendorAvailable *best_available() const;
 };
 
 class PresetUpdaterHost {
@@ -132,15 +137,21 @@ public:
     size_t count_available() const;
     size_t count_installed() const;
     bool is_synchronized() const;
+
+    // Return detached model copies for dialogs and other readers. HTTP
+    // callbacks may safely replace the updater's internal versions afterwards.
     std::vector<VendorSync> vendors() const;
-    VendorSync *get_vendor(const std::string &id);
-    const VendorSync *get_vendor(const std::string &id) const;
+    std::optional<VendorSync> vendor(const std::string &id) const;
 
 private:
-    void load_unused_vendors(std::set<std::string> &vendors_id,
+    void load_unused_vendors(std::map<std::string, VendorSync> &vendors,
+                             bool &is_synchronized,
+                             std::set<std::string> &vendors_id,
                              const boost::filesystem::path &vendor_dir,
                              bool is_installed);
-    void update_vendor(VendorSync &vendor, bool force);
+    void update_vendor(const std::string &vendor_id, bool force);
+    VendorSync *find_vendor_unlocked(const std::string &id);
+    const VendorSync *find_vendor_unlocked(const std::string &id) const;
     int update_count() override;
     void on_sync_completed() override;
 
@@ -150,7 +161,6 @@ private:
     bool prepare_vendor_change(VendorChange change, const std::vector<std::string> &vendor_ids);
     void notify_vendor_files_changed(VendorChange change, const std::vector<std::string> &vendor_ids);
 
-    mutable std::recursive_mutex m_vendors_mutex;
     std::map<std::string, VendorSync> m_vendors;
     bool m_is_synchronized = false;
     PresetUpdaterHost *m_host = nullptr;

@@ -134,14 +134,10 @@ void PluginUpdateDialog::rebuild()
     grid->Add(new wxStaticText(this, wxID_ANY, _L("Upgrade")));
     grid->Add(new wxStaticText(this, wxID_ANY, _L("Uninstall")));
 
-    const std::vector<std::string> plugin_ids = m_updater.plugin_ids();
-    for (const std::string &id : plugin_ids) {
-        PluginSync *plugin = m_updater.get_plugin(id);
-        if (plugin == nullptr)
-            continue;
-        add_plugin_row(id, *plugin, *grid);
-    }
-    if (plugin_ids.empty()) {
+    const std::vector<PluginSync> plugins = m_updater.plugins();
+    for (const PluginSync &plugin : plugins)
+        add_plugin_row(plugin, *grid);
+    if (plugins.empty()) {
         grid->Add(new wxStaticText(this, wxID_ANY, _L("No plugin repository is configured.")));
         for (int index = 0; index < 4; ++index)
             grid->AddSpacer(0);
@@ -158,11 +154,12 @@ void PluginUpdateDialog::rebuild()
     Refresh();
 }
 
-void PluginUpdateDialog::add_plugin_row(const std::string &plugin_id,
-                                        PluginSync &plugin,
+void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
                                         wxFlexGridSizer &grid)
 {
-    const bool has_compatible_version = plugin.best != nullptr;
+    const std::string &plugin_id = plugin.description.id;
+    const PluginAvailable *best = plugin.best_available();
+    const bool has_compatible_version = best != nullptr;
     const wxString display_name = from_u8(
         plugin.description.full_name.empty() ? plugin_id : plugin.description.full_name);
 
@@ -203,9 +200,9 @@ void PluginUpdateDialog::add_plugin_row(const std::string &plugin_id,
         upgrade_control = new wxStaticText(this, wxID_ANY,
                                            plugin_package_load_label(*plugin.load_report));
         upgrade_control->SetToolTip(plugin_package_load_tooltip(*plugin.load_report));
-    } else if (!plugin.is_installed && has_compatible_version && !plugin.best->local_directory.empty()) {
+    } else if (!plugin.is_installed && has_compatible_version && !best->local_directory.empty()) {
         wxButton *install = new wxButton(
-            this, wxID_ANY, format(_L("Install %1% (local)"), plugin.best->package_version));
+            this, wxID_ANY, format(_L("Install %1% (local)"), best->package_version));
         install->SetToolTip(
             _L("Install the compatible plugin package already available in the local cache after restarting the application."));
         install->Bind(wxEVT_BUTTON, [this, plugin_id](wxCommandEvent &) { install_latest(plugin_id); });
@@ -213,7 +210,7 @@ void PluginUpdateDialog::add_plugin_row(const std::string &plugin_id,
     } else if (plugin.description.config_update_rest.empty()) {
         if (plugin.can_upgrade && has_compatible_version) {
             wxButton *upgrade = new wxButton(
-                this, wxID_ANY, format(_L("Upgrade to %1%"), plugin.best->package_version));
+                this, wxID_ANY, format(_L("Upgrade to %1%"), best->package_version));
             upgrade->SetToolTip(
                 _L("Download this plugin version and install it after restarting the application."));
             upgrade->Bind(wxEVT_BUTTON, [this, plugin_id](wxCommandEvent &) { install_latest(plugin_id); });
@@ -239,8 +236,8 @@ void PluginUpdateDialog::add_plugin_row(const std::string &plugin_id,
         } else if (!plugin.is_installed || plugin.can_upgrade) {
             wxButton *upgrade = new wxButton(
                 this, wxID_ANY,
-                plugin.is_installed ? format(_L("Upgrade to %1%"), plugin.best->package_version) :
-                                      format(_L("Install %1%"), plugin.best->package_version));
+                plugin.is_installed ? format(_L("Upgrade to %1%"), best->package_version) :
+                                      format(_L("Install %1%"), best->package_version));
             upgrade->SetToolTip(
                 _L("Download this plugin version and install it after restarting the application."));
             upgrade->Bind(wxEVT_BUTTON, [this, plugin_id](wxCommandEvent &) { install_latest(plugin_id); });
@@ -343,10 +340,11 @@ void PluginUpdateDialog::choose_version(const std::string &plugin_id)
 
 void PluginUpdateDialog::install_latest(const std::string &plugin_id)
 {
-    PluginSync *plugin = m_updater.get_plugin(plugin_id);
-    if (plugin == nullptr || plugin->best == nullptr)
+    const std::optional<PluginSync> plugin = m_updater.plugin(plugin_id);
+    const PluginAvailable *best = plugin ? plugin->best_available() : nullptr;
+    if (best == nullptr)
         return;
-    const PluginAvailable version = *plugin->best;
+    const PluginAvailable version = *best;
     m_updater.install_plugin(plugin_id, version, [this](UpdaterError error) {
         CallAfter([this, error = std::move(error)] {
             if (!error.succeeded())
@@ -361,8 +359,8 @@ void PluginUpdateDialog::install_latest(const std::string &plugin_id)
 
 void PluginUpdateDialog::uninstall(const std::string &plugin_id)
 {
-    PluginSync *plugin = m_updater.get_plugin(plugin_id);
-    if (plugin == nullptr || !plugin->is_installed)
+    const std::optional<PluginSync> plugin = m_updater.plugin(plugin_id);
+    if (!plugin || !plugin->is_installed)
         return;
     const wxString display_name = from_u8(
         plugin->description.full_name.empty() ? plugin_id : plugin->description.full_name);
@@ -386,8 +384,8 @@ void PluginUpdateDialog::uninstall(const std::string &plugin_id)
 
 void PluginUpdateDialog::clear_cache(const std::string &plugin_id)
 {
-    PluginSync *plugin = m_updater.get_plugin(plugin_id);
-    if (plugin == nullptr || plugin->is_installed || !plugin->has_cache)
+    const std::optional<PluginSync> plugin = m_updater.plugin(plugin_id);
+    if (!plugin || plugin->is_installed || !plugin->has_cache)
         return;
     const wxString display_name = from_u8(
         plugin->description.full_name.empty() ? plugin_id : plugin->description.full_name);
@@ -437,10 +435,10 @@ void ChoosePluginVersionDialog::build()
     grid->Add(new wxStaticText(m_scroll, wxID_ANY, _L("Slicer version")), wxGBPosition(0, 1));
     grid->Add(new wxStaticText(m_scroll, wxID_ANY, _L("Changelog")), wxGBPosition(0, 2));
 
-    PluginSync *plugin = m_updater.get_plugin(m_plugin_id);
+    const std::optional<PluginSync> plugin = m_updater.plugin(m_plugin_id);
     const std::optional<Semver> current_slicer = Semver::parse(SLIC3R_VERSION_FULL);
     int row = 1;
-    if (plugin != nullptr) {
+    if (plugin) {
         for (const PluginAvailable &version : plugin->available_packages) {
             const bool selected = plugin->is_installed &&
                 plugin->installed_version.package_version == version.package_version &&

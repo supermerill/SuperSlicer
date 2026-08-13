@@ -164,13 +164,13 @@ PresetUpdater::PresetUpdater(PresetUpdaterHost *host, UpdaterHttpTransport &http
 {
 }
 
-VendorSync *PresetUpdater::get_vendor(const std::string &id)
+VendorSync *PresetUpdater::find_vendor_unlocked(const std::string &id)
 {
     const std::map<std::string, VendorSync>::iterator it = m_vendors.find(id);
     return it == m_vendors.end() ? nullptr : &it->second;
 }
 
-const VendorSync *PresetUpdater::get_vendor(const std::string &id) const
+const VendorSync *PresetUpdater::find_vendor_unlocked(const std::string &id) const
 {
     const std::map<std::string, VendorSync>::const_iterator it = m_vendors.find(id);
     return it == m_vendors.end() ? nullptr : &it->second;
@@ -178,16 +178,19 @@ const VendorSync *PresetUpdater::get_vendor(const std::string &id) const
 
 std::vector<VendorSync> PresetUpdater::vendors() const
 {
-    std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
+    std::lock_guard<std::mutex> guard(m_model_mutex);
     std::vector<VendorSync> result;
     result.reserve(m_vendors.size());
-    for (const auto &[id, vendor] : m_vendors) {
+    for (const auto &[id, vendor] : m_vendors)
         result.emplace_back(vendor);
-        // best points into available_profiles, so each copied view needs to
-        // rebuild that pointer for its own vector storage.
-        result.back().sort_available();
-    }
     return result;
+}
+
+std::optional<VendorSync> PresetUpdater::vendor(const std::string &id) const
+{
+    std::lock_guard<std::mutex> guard(m_model_mutex);
+    const VendorSync *found = find_vendor_unlocked(id);
+    return found == nullptr ? std::nullopt : std::optional<VendorSync>(*found);
 }
 
 void PresetUpdater::set_installed_vendors(const PresetBundle *preset_bundle)
@@ -195,30 +198,40 @@ void PresetUpdater::set_installed_vendors(const PresetBundle *preset_bundle)
     if (preset_bundle == nullptr)
         return;
 
-    std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
+    std::vector<std::pair<VendorProfile, bool>> installed_vendors;
+    installed_vendors.reserve(preset_bundle->vendors.size());
     for (const auto &[id, installed_vendor] : preset_bundle->vendors) {
-        VendorSync &vendor = m_vendors[installed_vendor.id];
-        vendor.reset(installed_vendor, true, boost::filesystem::is_directory(
-            repository_cache_root_path(data_path(), RepositoryPackageType::Vendor, installed_vendor.id)));
-        if (!installed_vendor.config_update_rest.empty())
+        const bool has_cache = boost::filesystem::is_directory(
+            repository_cache_root_path(data_path(), RepositoryPackageType::Vendor, installed_vendor.id));
+        installed_vendors.emplace_back(installed_vendor, has_cache);
+    }
+
+    std::lock_guard<std::mutex> guard(m_model_mutex);
+    for (const std::pair<VendorProfile, bool> &installed_vendor : installed_vendors) {
+        const VendorProfile &profile = installed_vendor.first;
+        const bool has_cache = installed_vendor.second;
+        VendorSync &vendor = m_vendors[profile.id];
+        vendor.reset(profile, true, has_cache);
+        if (!profile.config_update_rest.empty())
             m_is_synchronized = false;
     }
 }
 
-void PresetUpdater::load_unused_vendors(std::set<std::string> &vendor_ids,
+void PresetUpdater::load_unused_vendors(std::map<std::string, VendorSync> &vendors,
+                                        bool &is_synchronized,
+                                        std::set<std::string> &vendor_ids,
                                         const boost::filesystem::path &vendor_directory,
                                         bool is_installed)
 {
     if (!boost::filesystem::is_directory(vendor_directory))
         return;
 
-    std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
     for (const boost::filesystem::directory_entry &entry : boost::filesystem::directory_iterator(vendor_directory)) {
         if (entry.path().extension() != ".ini")
             continue;
         try {
             VendorProfile profile = VendorProfile::from_ini(entry.path(), false);
-            VendorSync &vendor = m_vendors[profile.id];
+            VendorSync &vendor = vendors[profile.id];
             if (vendor.profile.id.empty())
                 vendor.reset(profile, is_installed, boost::filesystem::is_directory(vendor_cache_directory(profile)));
             if (profile.config_version != Semver()) {
@@ -232,7 +245,7 @@ void PresetUpdater::load_unused_vendors(std::set<std::string> &vendor_ids,
             }
             vendor_ids.insert(profile.id);
             if (!profile.config_update_rest.empty())
-                m_is_synchronized = false;
+                is_synchronized = false;
         } catch (const std::exception &error) {
             BOOST_LOG_TRIVIAL(warning) << "Cannot read vendor profile '" << entry.path().string() << "': " << error.what();
         }
@@ -245,16 +258,11 @@ void PresetUpdater::reload_all_vendors()
     RepositoryPackageCache cache(configuration_directory, vendor_repository_cache_adapter());
     const boost::filesystem::path profiles_directory = boost::filesystem::path(resources_dir()) / "profiles";
     std::set<std::string> vendor_ids;
+    std::map<std::string, VendorSync> vendors;
+    bool is_synchronized = false;
 
-    {
-        std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
-        // HTTP callbacks retain references to map entries. A reload while a
-        // refresh is pending would invalidate those references.
-        if (sync_in_progress() || changelog_download_in_progress())
-            return;
-        m_vendors.clear();
-        m_is_synchronized = false;
-    }
+    if (sync_in_progress() || changelog_download_in_progress())
+        return;
     std::string cache_error;
     bool purged = false;
     if (!prepare_vendor_cache(cache, purged, cache_error)) {
@@ -277,37 +285,67 @@ void PresetUpdater::reload_all_vendors()
         }
     }
 
-    load_unused_vendors(vendor_ids, installed_directory, true);
+    load_unused_vendors(vendors, is_synchronized, vendor_ids, installed_directory, true);
     for (const RepositoryCachedEntry &repository : cache.scan()) {
         // The root descriptor makes a local-only or newly configured remote
         // repository visible before it has any downloaded version.
-        load_unused_vendors(vendor_ids, repository.directory, false);
+        load_unused_vendors(vendors, is_synchronized, vendor_ids, repository.directory, false);
         for (const RepositoryCachedVersion &version : repository.versions)
-            load_unused_vendors(vendor_ids, version.directory / "profiles", false);
+            load_unused_vendors(vendors, is_synchronized, vendor_ids, version.directory / "profiles", false);
     }
+
+    std::lock_guard<std::mutex> guard(m_model_mutex);
+    m_vendors.swap(vendors);
+    m_is_synchronized = is_synchronized;
 }
 
 void PresetUpdater::sync_async(std::function<void(int)> callback_result, bool force)
 {
-    std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
-    if (!begin_sync(m_vendors.size(), std::move(callback_result)))
+    std::vector<std::string> vendor_ids;
+    {
+        std::lock_guard<std::mutex> guard(m_model_mutex);
+        vendor_ids.reserve(m_vendors.size());
+        for (const auto &[vendor_id, vendor] : m_vendors)
+            vendor_ids.emplace_back(vendor_id);
+    }
+    if (!begin_sync(vendor_ids.size(), std::move(callback_result)))
         return;
-    for (auto &[id, vendor] : m_vendors)
-        update_vendor(vendor, force);
+    for (const std::string &vendor_id : vendor_ids)
+        update_vendor(vendor_id, force);
 }
 
-void PresetUpdater::update_vendor(VendorSync &vendor, bool force)
+void PresetUpdater::update_vendor(const std::string &vendor_id, bool force)
 {
+    std::string rest_url;
+    {
+        std::lock_guard<std::mutex> guard(m_model_mutex);
+        VendorSync *vendor = find_vendor_unlocked(vendor_id);
+        if (vendor == nullptr) {
+            finish_sync();
+            return;
+        }
+        vendor->sync_state = RepositorySyncState::InProgress;
+        vendor->sync_error = UpdaterError();
+        rest_url = vendor->profile.config_update_rest;
+    }
+
     const RepositoryPackageCache cache(data_path(), vendor_repository_cache_adapter());
-    const boost::filesystem::path cache_file = cache.repository_tags_path(vendor.profile.id);
-    vendor.sync_state = RepositorySyncState::InProgress;
-    vendor.sync_error = UpdaterError();
+    const boost::filesystem::path cache_file = cache.repository_tags_path(vendor_id);
     refresh_repository_tags(
-        vendor.profile.id, vendor.profile.config_update_rest, cache_file, force,
-        [&vendor](const std::string &tags) { return vendor.parse_tags(tags); },
-        [&vendor](UpdaterError error) {
-            vendor.sync_state = error.succeeded() ? RepositorySyncState::Succeeded : RepositorySyncState::Failed;
-            vendor.sync_error = std::move(error);
+        vendor_id, rest_url, cache_file, force,
+        [this, vendor_id](const std::string &tags) {
+            std::lock_guard<std::mutex> guard(m_model_mutex);
+            VendorSync *vendor = find_vendor_unlocked(vendor_id);
+            return vendor == nullptr ?
+                make_updater_error(UpdaterError::Code::RepositoryNotFound) : vendor->parse_tags(tags);
+        },
+        [this, vendor_id](UpdaterError error) {
+            std::lock_guard<std::mutex> guard(m_model_mutex);
+            VendorSync *vendor = find_vendor_unlocked(vendor_id);
+            if (vendor == nullptr)
+                return;
+            vendor->sync_state = error.succeeded() ? RepositorySyncState::Succeeded : RepositorySyncState::Failed;
+            vendor->sync_error = std::move(error);
         });
 }
 
@@ -316,27 +354,47 @@ void PresetUpdater::download_changelogs(const std::string &vendor_id,
                                         bool force)
 {
     std::vector<RepositoryChangelogVersion> versions;
-    std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
-    VendorSync *vendor = get_vendor(vendor_id);
-    if (vendor == nullptr) {
+    std::string rest_url;
+    bool found = false;
+    {
+        std::lock_guard<std::mutex> guard(m_model_mutex);
+        VendorSync *vendor = find_vendor_unlocked(vendor_id);
+        if (vendor != nullptr) {
+            found = true;
+            rest_url = vendor->profile.config_update_rest;
+            versions.reserve(vendor->available_profiles.size());
+            for (const VendorAvailable &version : vendor->available_profiles) {
+                RepositoryChangelogVersion common_version;
+                common_version.content_version = version.config_version;
+                common_version.slicer_version = version.slicer_version;
+                common_version.tag = version.tag;
+                common_version.commit_sha = version.commit_sha;
+                common_version.commit_url = version.commit_url;
+                common_version.store_notes = [this, vendor_id, tag = version.tag](std::string notes) {
+                    std::lock_guard<std::mutex> notes_guard(m_model_mutex);
+                    VendorSync *current = find_vendor_unlocked(vendor_id);
+                    if (current == nullptr)
+                        return;
+                    const std::vector<VendorAvailable>::iterator matching = std::find_if(
+                        current->available_profiles.begin(), current->available_profiles.end(),
+                        [&tag](const VendorAvailable &candidate) { return candidate.tag == tag; });
+                    if (matching != current->available_profiles.end())
+                        matching->notes = std::move(notes);
+                };
+                versions.emplace_back(std::move(common_version));
+            }
+        }
+    }
+
+    if (!found) {
         callback_result(false);
         return;
     }
 
     const RepositoryPackageCache cache(data_path(), vendor_repository_cache_adapter());
-    const boost::filesystem::path log_directory = cache.repository_logs_directory(vendor->profile.id);
-    for (VendorAvailable &version : vendor->available_profiles) {
-        RepositoryChangelogVersion common_version;
-        common_version.content_version = version.config_version;
-        common_version.slicer_version = version.slicer_version;
-        common_version.tag = version.tag;
-        common_version.commit_sha = version.commit_sha;
-        common_version.commit_url = version.commit_url;
-        common_version.store_notes = [&version](std::string notes) { version.notes = std::move(notes); };
-        versions.emplace_back(std::move(common_version));
-    }
+    const boost::filesystem::path log_directory = cache.repository_logs_directory(vendor_id);
     download_repository_version_changelogs(std::move(versions), log_directory,
-                                           vendor->profile.config_update_rest,
+                                           rest_url,
                                            std::move(callback_result), force);
 }
 
@@ -425,7 +483,8 @@ UpdaterError PresetUpdater::install_vendor_files(VendorSync &vendor, const Vendo
         vendor.profile = VendorProfile::from_ini(vendor_directory / (vendor.profile.id + ".ini"), true);
         vendor.is_installed = true;
         vendor.has_cache = boost::filesystem::is_directory(vendor_cache_directory(vendor.profile));
-        vendor.can_upgrade = vendor.best != nullptr && vendor.best->config_version > vendor.profile.config_version;
+        const VendorAvailable *best = vendor.best_available();
+        vendor.can_upgrade = best != nullptr && best->config_version > vendor.profile.config_version;
         return UpdaterError();
     } catch (const boost::filesystem::filesystem_error &error) {
         return make_updater_error(UpdaterError::Code::Filesystem, error.what());
@@ -483,30 +542,31 @@ void PresetUpdater::notify_vendor_files_changed(VendorChange change, const std::
 void PresetUpdater::uninstall_vendor(const std::string &vendor_id, std::function<void(UpdaterError)> callback_result)
 {
     const std::vector<std::string> ids{vendor_id};
-    {
-        std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
-        if (get_vendor(vendor_id) == nullptr) {
-            callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
-            return;
-        }
+    std::optional<VendorSync> vendor_snapshot = vendor(vendor_id);
+    if (!vendor_snapshot) {
+        callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
+        return;
     }
     if (!prepare_vendor_change(VendorChange::Uninstall, ids)) {
         callback_result(make_updater_error(UpdaterError::Code::PreparationRejected));
         return;
     }
 
-    UpdaterError error;
-    {
-        std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
-        VendorSync *vendor = get_vendor(vendor_id);
-        if (vendor == nullptr) {
-            callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
-            return;
+    UpdaterError error = uninstall_vendor_files(*vendor_snapshot);
+    if (error.succeeded()) {
+        {
+            std::lock_guard<std::mutex> guard(m_model_mutex);
+            VendorSync *current = find_vendor_unlocked(vendor_id);
+            if (current != nullptr) {
+                current->is_installed = vendor_snapshot->is_installed;
+                current->has_cache = vendor_snapshot->has_cache;
+                current->sync_state = vendor_snapshot->sync_state;
+                current->sync_error = vendor_snapshot->sync_error;
+                current->can_upgrade = vendor_snapshot->can_upgrade;
+            }
         }
-        error = uninstall_vendor_files(*vendor);
-    }
-    if (error.succeeded())
         notify_vendor_files_changed(VendorChange::Uninstall, ids);
+    }
     callback_result(std::move(error));
 }
 
@@ -515,60 +575,56 @@ void PresetUpdater::install_vendor(const std::string &vendor_id,
                                    std::function<void(UpdaterError)> callback_result)
 {
     const std::vector<std::string> ids{vendor_id};
-    {
-        std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
-        if (get_vendor(vendor_id) == nullptr) {
-            callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
-            return;
-        }
+    std::optional<VendorSync> vendor_snapshot = vendor(vendor_id);
+    if (!vendor_snapshot) {
+        callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
+        return;
     }
     if (!prepare_vendor_change(VendorChange::Install, ids)) {
         callback_result(make_updater_error(UpdaterError::Code::PreparationRejected));
         return;
     }
 
-    UpdaterError error;
-    {
-        std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
-        VendorSync *vendor = get_vendor(vendor_id);
-        if (vendor == nullptr) {
-            callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
-            return;
+    UpdaterError error = install_vendor_files(*vendor_snapshot, version);
+    if (error.succeeded()) {
+        {
+            std::lock_guard<std::mutex> guard(m_model_mutex);
+            VendorSync *current = find_vendor_unlocked(vendor_id);
+            if (current != nullptr) {
+                current->profile = vendor_snapshot->profile;
+                current->is_installed = vendor_snapshot->is_installed;
+                current->has_cache = vendor_snapshot->has_cache;
+                current->sort_available();
+            }
         }
-        error = install_vendor_files(*vendor, version);
-    }
-    if (error.succeeded())
         notify_vendor_files_changed(VendorChange::Install, ids);
+    }
     callback_result(std::move(error));
 }
 
 void PresetUpdater::clear_cache_vendor(const std::string &vendor_id, std::function<void(UpdaterError)> callback_result)
 {
     const std::vector<std::string> ids{vendor_id};
-    {
-        std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
-        if (get_vendor(vendor_id) == nullptr) {
-            callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
-            return;
-        }
+    std::optional<VendorSync> vendor_snapshot = vendor(vendor_id);
+    if (!vendor_snapshot) {
+        callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
+        return;
     }
     if (!prepare_vendor_change(VendorChange::ClearCache, ids)) {
         callback_result(make_updater_error(UpdaterError::Code::PreparationRejected));
         return;
     }
 
-    UpdaterError error;
-    {
-        std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
-        VendorSync *vendor = get_vendor(vendor_id);
-        if (vendor == nullptr) {
-            callback_result(make_updater_error(UpdaterError::Code::RepositoryNotFound));
-            return;
+    UpdaterError error = clear_cache_vendor_files(*vendor_snapshot);
+    if (error.succeeded()) {
+        {
+            std::lock_guard<std::mutex> guard(m_model_mutex);
+            VendorSync *current = find_vendor_unlocked(vendor_id);
+            if (current != nullptr)
+                current->has_cache = vendor_snapshot->has_cache;
         }
-        error = clear_cache_vendor_files(*vendor);
-    }
-    if (error.succeeded())
         notify_vendor_files_changed(VendorChange::ClearCache, ids);
+    }
     callback_result(std::move(error));
 }
 
@@ -576,7 +632,7 @@ void PresetUpdater::uninstall_all_vendors(std::function<void(UpdaterError)> call
 {
     std::vector<std::string> ids;
     {
-        std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
+        std::lock_guard<std::mutex> guard(m_model_mutex);
         for (const auto &[id, vendor] : m_vendors)
             if (vendor.is_installed)
                 ids.emplace_back(id);
@@ -588,17 +644,25 @@ void PresetUpdater::uninstall_all_vendors(std::function<void(UpdaterError)> call
 
     UpdaterError error;
     std::vector<std::string> changed_ids;
-    {
-        std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
-        for (const std::string &id : ids) {
-            const std::map<std::string, VendorSync>::iterator vendor = m_vendors.find(id);
-            if (vendor == m_vendors.end())
-                continue;
-            error = uninstall_vendor_files(vendor->second);
-            if (!error.succeeded())
-                break;
-            changed_ids.emplace_back(id);
+    for (const std::string &id : ids) {
+        std::optional<VendorSync> vendor_snapshot = vendor(id);
+        if (!vendor_snapshot)
+            continue;
+        error = uninstall_vendor_files(*vendor_snapshot);
+        if (!error.succeeded())
+            break;
+        {
+            std::lock_guard<std::mutex> guard(m_model_mutex);
+            VendorSync *current = find_vendor_unlocked(id);
+            if (current != nullptr) {
+                current->is_installed = false;
+                current->has_cache = true;
+                current->sync_state = RepositorySyncState::Unchecked;
+                current->sync_error = UpdaterError();
+                current->can_upgrade = false;
+            }
         }
+        changed_ids.emplace_back(id);
     }
     if (!changed_ids.empty())
         notify_vendor_files_changed(VendorChange::Uninstall, changed_ids);
@@ -607,13 +671,19 @@ void PresetUpdater::uninstall_all_vendors(std::function<void(UpdaterError)> call
 
 void PresetUpdater::install_all_vendors(std::function<void(UpdaterErrors)> callback_result)
 {
-    std::vector<std::string> ids;
+    std::vector<std::pair<std::string, VendorAvailable>> installs;
     {
-        std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
-        for (const auto &[id, vendor] : m_vendors)
-            if (!vendor.is_installed && vendor.best != nullptr)
-                ids.emplace_back(id);
+        std::lock_guard<std::mutex> guard(m_model_mutex);
+        for (const auto &[id, vendor] : m_vendors) {
+            const VendorAvailable *best = vendor.best_available();
+            if (!vendor.is_installed && best != nullptr)
+                installs.emplace_back(id, *best);
+        }
     }
+    std::vector<std::string> ids;
+    ids.reserve(installs.size());
+    for (const std::pair<std::string, VendorAvailable> &install : installs)
+        ids.emplace_back(install.first);
     if (!prepare_vendor_change(VendorChange::InstallAll, ids)) {
         callback_result({make_updater_error(UpdaterError::Code::PreparationRejected)});
         return;
@@ -621,17 +691,25 @@ void PresetUpdater::install_all_vendors(std::function<void(UpdaterErrors)> callb
 
     UpdaterErrors errors;
     std::vector<std::string> changed_ids;
-    {
-        std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
-        for (const std::string &id : ids) {
-            const std::map<std::string, VendorSync>::iterator vendor = m_vendors.find(id);
-            if (vendor == m_vendors.end() || vendor->second.best == nullptr)
-                continue;
-            UpdaterError error = install_vendor_files(vendor->second, *vendor->second.best);
-            if (error.succeeded())
-                changed_ids.emplace_back(id);
-            else
-                errors.emplace_back(std::move(error));
+    for (const std::pair<std::string, VendorAvailable> &install : installs) {
+        std::optional<VendorSync> vendor_snapshot = vendor(install.first);
+        if (!vendor_snapshot)
+            continue;
+        UpdaterError error = install_vendor_files(*vendor_snapshot, install.second);
+        if (error.succeeded()) {
+            {
+                std::lock_guard<std::mutex> guard(m_model_mutex);
+                VendorSync *current = find_vendor_unlocked(install.first);
+                if (current != nullptr) {
+                    current->profile = vendor_snapshot->profile;
+                    current->is_installed = true;
+                    current->has_cache = vendor_snapshot->has_cache;
+                    current->sort_available();
+                }
+            }
+            changed_ids.emplace_back(install.first);
+        } else {
+            errors.emplace_back(std::move(error));
         }
     }
     if (!changed_ids.empty())
@@ -641,13 +719,19 @@ void PresetUpdater::install_all_vendors(std::function<void(UpdaterErrors)> callb
 
 void PresetUpdater::upgrade_all_installed_vendors(std::function<void(UpdaterErrors)> callback_result)
 {
-    std::vector<std::string> ids;
+    std::vector<std::pair<std::string, VendorAvailable>> upgrades;
     {
-        std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
-        for (const auto &[id, vendor] : m_vendors)
-            if (vendor.is_installed && vendor.can_upgrade && vendor.best != nullptr)
-                ids.emplace_back(id);
+        std::lock_guard<std::mutex> guard(m_model_mutex);
+        for (const auto &[id, vendor] : m_vendors) {
+            const VendorAvailable *best = vendor.best_available();
+            if (vendor.is_installed && vendor.can_upgrade && best != nullptr)
+                upgrades.emplace_back(id, *best);
+        }
     }
+    std::vector<std::string> ids;
+    ids.reserve(upgrades.size());
+    for (const std::pair<std::string, VendorAvailable> &upgrade : upgrades)
+        ids.emplace_back(upgrade.first);
     if (!prepare_vendor_change(VendorChange::UpgradeAll, ids)) {
         callback_result({make_updater_error(UpdaterError::Code::PreparationRejected)});
         return;
@@ -655,17 +739,25 @@ void PresetUpdater::upgrade_all_installed_vendors(std::function<void(UpdaterErro
 
     UpdaterErrors errors;
     std::vector<std::string> changed_ids;
-    {
-        std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
-        for (const std::string &id : ids) {
-            const std::map<std::string, VendorSync>::iterator vendor = m_vendors.find(id);
-            if (vendor == m_vendors.end() || vendor->second.best == nullptr)
-                continue;
-            UpdaterError error = install_vendor_files(vendor->second, *vendor->second.best);
-            if (error.succeeded())
-                changed_ids.emplace_back(id);
-            else
-                errors.emplace_back(std::move(error));
+    for (const std::pair<std::string, VendorAvailable> &upgrade : upgrades) {
+        std::optional<VendorSync> vendor_snapshot = vendor(upgrade.first);
+        if (!vendor_snapshot)
+            continue;
+        UpdaterError error = install_vendor_files(*vendor_snapshot, upgrade.second);
+        if (error.succeeded()) {
+            {
+                std::lock_guard<std::mutex> guard(m_model_mutex);
+                VendorSync *current = find_vendor_unlocked(upgrade.first);
+                if (current != nullptr) {
+                    current->profile = vendor_snapshot->profile;
+                    current->is_installed = true;
+                    current->has_cache = vendor_snapshot->has_cache;
+                    current->sort_available();
+                }
+            }
+            changed_ids.emplace_back(upgrade.first);
+        } else {
+            errors.emplace_back(std::move(error));
         }
     }
     if (!changed_ids.empty())
@@ -676,7 +768,7 @@ void PresetUpdater::upgrade_all_installed_vendors(std::function<void(UpdaterErro
 int PresetUpdater::get_profile_count_to_update() const
 {
     int count = 0;
-    std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
+    std::lock_guard<std::mutex> guard(m_model_mutex);
     for (const auto &[id, vendor] : m_vendors)
         if (vendor.can_upgrade)
             ++count;
@@ -685,13 +777,13 @@ int PresetUpdater::get_profile_count_to_update() const
 
 size_t PresetUpdater::count_available() const
 {
-    std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
+    std::lock_guard<std::mutex> guard(m_model_mutex);
     return m_vendors.size();
 }
 
 size_t PresetUpdater::count_installed() const
 {
-    std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
+    std::lock_guard<std::mutex> guard(m_model_mutex);
     return static_cast<size_t>(std::count_if(m_vendors.begin(), m_vendors.end(),
         [](const std::pair<const std::string, VendorSync> &entry) { return entry.second.is_installed; }));
 }
@@ -703,13 +795,13 @@ int PresetUpdater::update_count()
 
 bool PresetUpdater::is_synchronized() const
 {
-    std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
+    std::lock_guard<std::mutex> guard(m_model_mutex);
     return m_is_synchronized;
 }
 
 void PresetUpdater::on_sync_completed()
 {
-    std::lock_guard<std::recursive_mutex> guard(m_vendors_mutex);
+    std::lock_guard<std::mutex> guard(m_model_mutex);
     m_is_synchronized = true;
 }
 
@@ -720,6 +812,7 @@ void VendorSync::reset(const VendorProfile &new_profile, bool installed, bool ca
     has_cache = cache_present;
     sync_state = RepositorySyncState::Unchecked;
     sync_error = UpdaterError();
+    const VendorAvailable *best = best_available();
     can_upgrade = best != nullptr && best->config_version > profile.config_version;
 }
 
@@ -759,17 +852,20 @@ void VendorSync::sort_available()
             return left.slicer_version > right.slicer_version;
         return left.config_version > right.config_version;
     });
-    best = nullptr;
+    const VendorAvailable *best = best_available();
+    can_upgrade = is_installed && best != nullptr && best->config_version > profile.config_version;
+}
+
+const VendorAvailable *VendorSync::best_available() const
+{
     const std::optional<Semver> current_slicer_version = Semver::parse(SLIC3R_VERSION_FULL);
     if (!current_slicer_version)
-        return;
-    for (VendorAvailable &available : available_profiles) {
-        if (available.slicer_version <= *current_slicer_version) {
-            best = &available;
-            break;
-        }
-    }
-    can_upgrade = is_installed && best != nullptr && best->config_version > profile.config_version;
+        return nullptr;
+
+    for (const VendorAvailable &available : available_profiles)
+        if (available.slicer_version <= *current_slicer_version)
+            return &available;
+    return nullptr;
 }
 
 } // namespace Slic3r

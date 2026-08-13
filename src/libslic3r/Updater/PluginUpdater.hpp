@@ -48,10 +48,13 @@ struct PluginSync {
     std::optional<PluginPackageLoadReport> load_report;
     bool can_upgrade = false;
     std::vector<PluginAvailable> available_packages;
-    PluginAvailable *best = nullptr;
 
     UpdaterError parse_tags(const std::string &json);
     void sort_available();
+
+    // Return the first slicer-compatible entry from the sorted version list.
+    // The pointer refers to this snapshot rather than to updater-owned data.
+    const PluginAvailable *best_available() const;
 };
 
 class PluginUpdater : public RepositoryUpdater {
@@ -93,15 +96,20 @@ public:
 
     size_t count_available() const;
     size_t count_updates() const;
+
+    // These accessors return detached copies. A caller may keep or move them
+    // while HTTP workers publish newer data without invalidating the copy.
     std::vector<std::string> plugin_ids() const;
-    PluginSync *get_plugin(const std::string &id);
+    std::vector<PluginSync> plugins() const;
+    std::optional<PluginSync> plugin(const std::string &id) const;
 
 private:
-    void update_plugin(PluginSync &plugin, bool force);
+    void update_plugin(const std::string &plugin_id, bool force);
+    PluginSync *find_plugin_unlocked(const std::string &id);
+    const PluginSync *find_plugin_unlocked(const std::string &id) const;
     UpdaterError schedule_cached_plugin_install(const std::string &plugin_id, const PluginAvailable &version);
     int update_count() override;
 
-    std::recursive_mutex m_plugins_mutex;
     std::map<std::string, PluginSync> m_plugins;
 };
 

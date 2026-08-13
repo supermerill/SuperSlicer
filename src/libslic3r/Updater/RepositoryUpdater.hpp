@@ -57,6 +57,12 @@ public:
     static std::string normalize_repository_rest_url(const std::string &configured_url);
 
 protected:
+    // Repository callbacks run on Http worker threads while callers may read
+    // the model from the GUI or another application thread. Derived updaters
+    // use this mutex for their complete vendor or plugin model; network,
+    // filesystem work and user callbacks must run after releasing it.
+    mutable std::mutex m_model_mutex;
+
     // Vendor and plugin models expose different version types. Each derived
     // updater converts one package into this common description, after which
     // RepositoryUpdater can select comparison bases and build cache paths.

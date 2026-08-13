@@ -607,8 +607,9 @@ void UpdateConfigDialog::request_show_error_msg(const std::string &error_msg) {
 
 void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor, wxGridBagSizer *versions_sizer, const int line_num) {
     const std::string vendor_id = vendor.profile.id;
-    const bool has_compatible_version = vendor.best != nullptr;
-    const VendorAvailable best_version = vendor.best ? *vendor.best : VendorAvailable{};
+    const VendorAvailable *best = vendor.best_available();
+    const bool has_compatible_version = best != nullptr;
+    const VendorAvailable best_version = best != nullptr ? *best : VendorAvailable{};
     ////// name //////
     wxStaticText *msg_name = new wxStaticText(parent, wxID_ANY, vendor.profile.full_name);
     msg_name->SetToolTip(vendor.profile.description);
@@ -649,10 +650,10 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
 
     ////// upgrade //////
     wxStaticText *msg_synch = nullptr;
-    if (!vendor.is_installed && has_compatible_version && !vendor.best->local_file.empty()) {
+    if (!vendor.is_installed && has_compatible_version && !best->local_file.empty()) {
         // A manually imported or bundled profile is immediately installable.
         // Repository synchronization must not hide a complete local package.
-        wxString config_version_str = vendor.best->config_version.to_string();
+        wxString config_version_str = best->config_version.to_string();
         wxString msg = format(_L("Install %1% (local)"), config_version_str);
         wxButton *bt_upgrade = new wxButton(parent, wxID_ANY, msg);
         bt_upgrade->SetToolTip(
@@ -670,8 +671,8 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
         }));
     } else if (vendor.profile.config_update_rest.empty()) {
         if (vendor.can_upgrade && has_compatible_version) {
-            assert(vendor.best->config_version > vendor.profile.config_version);
-            wxString config_version_str = vendor.best->config_version.to_string();
+            assert(best->config_version > vendor.profile.config_version);
+            wxString config_version_str = best->config_version.to_string();
             wxString msg = vendor.is_installed ? format(_L("Upgrade to %1%"), config_version_str) :
                                                  format(_L("Install %1%"), config_version_str);
             wxButton *bt_upgrade = new wxButton(parent, wxID_ANY, msg);
@@ -712,8 +713,8 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
             msg_synch->SetToolTip(
                 _L("The repository contains vendor profiles, but none of them target this slicer version."));
         } else if (!vendor.is_installed || vendor.can_upgrade) {
-            assert(!vendor.is_installed || vendor.best->config_version > vendor.profile.config_version);
-            wxString config_version_str = vendor.best->config_version.to_string();
+            assert(!vendor.is_installed || best->config_version > vendor.profile.config_version);
+            wxString config_version_str = best->config_version.to_string();
             wxString msg = vendor.is_installed ? format(_L("Upgrade to %1%"), config_version_str) :
                                                  format(_L("Install %1%"), config_version_str);
             wxButton *bt_upgrade = new wxButton(parent, wxID_ANY, msg);
@@ -740,7 +741,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
     } else if (vendor.sync_state == RepositorySyncState::Failed) {
         assert(!vendor.sync_error.succeeded());
         if (has_compatible_version && !vendor.is_installed) {
-            wxString config_version_str = vendor.best->config_version.to_string();
+            wxString config_version_str = best->config_version.to_string();
             wxString msg = format(_L("Install %1% from cache"), config_version_str);
             wxButton *bt_upgrade = new wxButton(parent, wxID_ANY, msg);
             if (vendor.is_installed) {
@@ -1085,9 +1086,9 @@ UpdateConfigDialog::UpdateConfigDialog(wxWindow *parent, PresetUpdater &data, co
         // create new dialog/expand current to select choosen version.
         std::string vendor_id = evt.GetString().ToStdString();
         assert(!vendor_id.empty());
-        VendorSync *vendor = m_data.get_vendor(vendor_id);
-        assert(vendor);
-        if (vendor) {
+        const std::optional<VendorSync> vendor = m_data.vendor(vendor_id);
+        assert(vendor.has_value());
+        if (vendor.has_value()) {
             ChooseVendorVersionDialog *choose_version = new ChooseVendorVersionDialog(this, m_data, *vendor);
             choose_version->ShowModal();
             this->rebuild_ui();
@@ -1208,9 +1209,9 @@ ChooseVendorVersionDialog::ChooseVendorVersionDialog(wxWindow *parent, PresetUpd
 void ChooseVendorVersionDialog::rebuild_ui() {
     Freeze();
     main_sizer->Clear(true);
-    VendorSync *vendor = m_data.get_vendor(this->m_vendor.profile.id);
-    assert(vendor);
-    if (vendor) {
+    const std::optional<VendorSync> vendor = m_data.vendor(this->m_vendor.profile.id);
+    assert(vendor.has_value());
+    if (vendor.has_value()) {
         this->m_vendor = *vendor;
     }
     this->build_ui();

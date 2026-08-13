@@ -155,9 +155,9 @@ std::vector<Slic3r::VendorSync> PresetUpdater::vendors() const
     return m_core.vendors();
 }
 
-Slic3r::VendorSync *PresetUpdater::get_vendor(const std::string &id)
+std::optional<Slic3r::VendorSync> PresetUpdater::vendor(const std::string &id) const
 {
-    return m_core.get_vendor(id);
+    return m_core.vendor(id);
 }
 
 void PresetUpdater::show_synch_window(wxWindow *parent,
@@ -212,9 +212,9 @@ void PresetUpdater::reload_application_presets(Slic3r::VendorChange change, cons
             continue;
         }
 
-        const Slic3r::VendorSync *vendor = m_core.get_vendor(vendor_id);
+        const std::optional<Slic3r::VendorSync> vendor = m_core.vendor(vendor_id);
         AppConfig::VendorMap::iterator configured_vendor = configured_vendors.find(vendor_id);
-        if (vendor == nullptr || configured_vendor == configured_vendors.end())
+        if (!vendor.has_value() || configured_vendor == configured_vendors.end())
             continue;
 
         // Updating a bundle can remove models or variants. Drop only stale

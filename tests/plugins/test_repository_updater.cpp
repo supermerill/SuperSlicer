@@ -12,6 +12,7 @@
 #include <catch2/catch.hpp>
 
 #include <algorithm>
+#include <atomic>
 #include <ctime>
 #include <deque>
 #include <fstream>
@@ -20,6 +21,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -487,8 +489,8 @@ PresetDialogSnapshot PresetUpdaterFunctionalFixture::synchronize_and_open_dialog
 
     REQUIRE(update_count.has_value());
     CHECK(updater.is_synchronized());
-    const Slic3r::VendorSync *synchronized_vendor = updater.get_vendor(vendor_id);
-    REQUIRE(synchronized_vendor != nullptr);
+    const std::optional<Slic3r::VendorSync> synchronized_vendor = updater.vendor(vendor_id);
+    REQUIRE(synchronized_vendor.has_value());
     CHECK(synchronized_vendor->sync_state == Slic3r::RepositorySyncState::Succeeded);
     CHECK(synchronized_vendor->sync_error.succeeded());
     return {updater.vendors(), *update_count};
@@ -1177,19 +1179,23 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
 {
     write_plugin_repository();
     updater.reload_all_plugins();
-    Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
-    REQUIRE(plugin != nullptr);
+    std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     CHECK(plugin->sync_state == Slic3r::RepositorySyncState::Unchecked);
     CHECK(plugin->sync_error.succeeded());
 
     std::optional<int> first_count;
     updater.sync_async([&first_count](int count) { first_count = count; }, true);
+    plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     CHECK(plugin->sync_state == Slic3r::RepositorySyncState::InProgress);
     CHECK(plugin->sync_error.succeeded());
     REQUIRE(http.pending_count() == 1);
     http.fail_front(std::string(), "offline", 0);
 
     REQUIRE(first_count.has_value());
+    plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     CHECK(plugin->sync_state == Slic3r::RepositorySyncState::Failed);
     CHECK(plugin->sync_error.code == Slic3r::UpdaterError::Code::Network);
     CHECK(plugin->sync_error.detail == "offline");
@@ -1198,6 +1204,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     // terminal callback then leaves one unambiguous completed state.
     std::optional<int> retry_count;
     updater.sync_async([&retry_count](int count) { retry_count = count; }, true);
+    plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     CHECK(plugin->sync_state == Slic3r::RepositorySyncState::InProgress);
     CHECK(plugin->sync_error.succeeded());
     REQUIRE(http.pending_count() == 1);
@@ -1206,8 +1214,95 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     }), 200);
 
     REQUIRE(retry_count.has_value());
+    plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     CHECK(plugin->sync_state == Slic3r::RepositorySyncState::Succeeded);
     CHECK(plugin->sync_error.succeeded());
+}
+
+TEST_CASE("Updater snapshots calculate their best version after copy and move", "[plugins][updater][snapshot]")
+{
+    Slic3r::PluginSync plugin;
+    Slic3r::PluginAvailable older_plugin;
+    older_plugin.package_version = "1.0.0.0";
+    older_plugin.slicer_version = "1.0.0.0";
+    Slic3r::PluginAvailable newer_plugin = older_plugin;
+    newer_plugin.package_version = "2.0.0.0";
+    plugin.available_packages = {older_plugin, newer_plugin};
+    plugin.sort_available();
+
+    Slic3r::PluginSync plugin_copy = plugin;
+    Slic3r::PluginSync plugin_move = std::move(plugin_copy);
+    const Slic3r::PluginAvailable *plugin_best = plugin_move.best_available();
+    REQUIRE(plugin_best != nullptr);
+    CHECK(plugin_best == &plugin_move.available_packages.front());
+    CHECK(plugin_best->package_version == "2.0.0.0");
+
+    Slic3r::VendorSync vendor;
+    Slic3r::VendorAvailable older;
+    older.config_version = *Slic3r::Semver::parse("1.0.0.0");
+    older.slicer_version = *Slic3r::Semver::parse("1.0.0.0");
+    Slic3r::VendorAvailable newer = older;
+    newer.config_version = *Slic3r::Semver::parse("2.0.0.0");
+    vendor.available_profiles = {older, newer};
+    vendor.sort_available();
+
+    Slic3r::VendorSync vendor_copy = vendor;
+    Slic3r::VendorSync vendor_move = std::move(vendor_copy);
+    const Slic3r::VendorAvailable *vendor_best = vendor_move.best_available();
+    REQUIRE(vendor_best != nullptr);
+    CHECK(vendor_best == &vendor_move.available_profiles.front());
+    CHECK(vendor_best->config_version.to_string() == "2.0.0.0");
+}
+
+TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
+                 "PluginUpdater publishes worker results while snapshots are read",
+                 "[plugins][updater][plugin-functional][snapshot]")
+{
+    write_plugin_repository();
+    updater.reload_all_plugins();
+    const std::optional<Slic3r::PluginSync> old_snapshot = updater.plugin(plugin_id);
+    REQUIRE(old_snapshot.has_value());
+    REQUIRE(old_snapshot->sync_state == Slic3r::RepositorySyncState::Unchecked);
+
+    bool callback_read_model = false;
+    updater.sync_async([this, &callback_read_model](int) {
+        // A terminal callback runs after the updater releases its model lock.
+        // Reading a snapshot here would deadlock if that contract regressed.
+        callback_read_model = updater.plugin(plugin_id).has_value();
+    }, true);
+    REQUIRE(http.pending_count() == 1);
+
+    std::atomic_bool keep_reading{true};
+    std::atomic_bool reader_started{false};
+    std::atomic_bool observed_missing_model{false};
+    std::thread reader([this, &keep_reading, &reader_started, &observed_missing_model] {
+        reader_started = true;
+        while (keep_reading) {
+            if (!updater.plugin(plugin_id).has_value() || updater.plugins().empty() ||
+                updater.plugin_ids().empty() || updater.count_available() == 0)
+                observed_missing_model = true;
+        }
+    });
+    while (!reader_started)
+        std::this_thread::yield();
+
+    http.succeed_front(plugin_repository_tags({
+        {"2.0.0.0", slicer_version, "https://example.invalid/plugin-2.zip"}
+    }), 200);
+    keep_reading = false;
+    reader.join();
+
+    CHECK_FALSE(observed_missing_model);
+    CHECK(callback_read_model);
+    CHECK(old_snapshot->sync_state == Slic3r::RepositorySyncState::Unchecked);
+    CHECK(old_snapshot->available_packages.empty());
+
+    const std::optional<Slic3r::PluginSync> new_snapshot = updater.plugin(plugin_id);
+    REQUIRE(new_snapshot.has_value());
+    CHECK(new_snapshot->sync_state == Slic3r::RepositorySyncState::Succeeded);
+    REQUIRE(new_snapshot->available_packages.size() == 1);
+    CHECK(new_snapshot->available_packages.front().package_version == "2.0.0.0");
 }
 
 TEST_CASE("PluginUpdater selects comparable versions and caches their changelogs", "[plugins][updater]")
@@ -1248,8 +1343,8 @@ TEST_CASE("PluginUpdater selects comparable versions and caches their changelogs
     http.succeed_front(tags, 200);
     REQUIRE(update_count.has_value());
 
-    Slic3r::PluginSync *plugin = updater.get_plugin("example.plugin");
-    REQUIRE(plugin != nullptr);
+    std::optional<Slic3r::PluginSync> plugin = updater.plugin("example.plugin");
+    REQUIRE(plugin.has_value());
     REQUIRE(plugin->available_packages.size() == 4);
     std::optional<bool> changelogs_succeeded;
     int callback_count = 0;
@@ -1269,11 +1364,12 @@ TEST_CASE("PluginUpdater selects comparable versions and caches their changelogs
           "https://api.github.com/repos/example/repository/compare/1.0.0.0=2.7.63.0...1.5.0.0=2.7.64.0");
     CHECK(http.pending_at(3).url() == "commit1");
 
-    // Reload is deliberately ignored while callbacks retain pointers into the
-    // plugin map. This is the lifetime guarantee used by store_notes.
+    // Reload is deliberately ignored while changelog requests are active. The
+    // detached snapshot remains valid either way and cannot alias the model.
+    const Slic3r::PluginSync snapshot_before_reload = *plugin;
     updater.reload_all_plugins();
-    CHECK(updater.get_plugin("example.plugin") == plugin);
-    CHECK(plugin->available_packages.size() == 4);
+    CHECK(snapshot_before_reload.available_packages.size() == 4);
+    REQUIRE(updater.plugin("example.plugin").has_value());
 
     const std::string compare_json =
         R"({"commits":[{"commit":{"message":"older"}},{"commit":{"message":"newer"}}]})";
@@ -1285,6 +1381,9 @@ TEST_CASE("PluginUpdater selects comparable versions and caches their changelogs
     REQUIRE(changelogs_succeeded.has_value());
     CHECK(*changelogs_succeeded);
     CHECK(callback_count == 1);
+    CHECK(snapshot_before_reload.available_packages.front().notes.empty());
+    plugin = updater.plugin("example.plugin");
+    REQUIRE(plugin.has_value());
     CHECK(plugin->available_packages[0].notes == "newer\nolder");
     CHECK(plugin->available_packages[1].notes == "newer\nolder");
     CHECK(plugin->available_packages[2].notes == "newer\nolder");
@@ -1299,8 +1398,6 @@ TEST_CASE("PluginUpdater selects comparable versions and caches their changelogs
     // A second request restores every note from the plugin cache and performs
     // no HTTP work. This also verifies that cache filenames map back to the
     // same package entries after the first batch.
-    for (Slic3r::PluginAvailable &version : plugin->available_packages)
-        version.notes.clear();
     changelogs_succeeded.reset();
     updater.download_changelogs(
         "example.plugin",
@@ -1312,6 +1409,8 @@ TEST_CASE("PluginUpdater selects comparable versions and caches their changelogs
     CHECK(*changelogs_succeeded);
     CHECK(callback_count == 2);
     CHECK(http.pending_count() == 0);
+    plugin = updater.plugin("example.plugin");
+    REQUIRE(plugin.has_value());
     CHECK(plugin->available_packages[3].notes == "initial");
 }
 
@@ -1327,10 +1426,11 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
         {"1.0.0.0", slicer_version, "https://example.invalid/plugin-1.zip"}
     });
 
-    Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
-    REQUIRE(plugin != nullptr);
-    REQUIRE(plugin->best != nullptr);
-    CHECK(plugin->best->package_version == "3.0.0.0");
+    std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
+    const Slic3r::PluginAvailable *best = plugin->best_available();
+    REQUIRE(best != nullptr);
+    CHECK(best->package_version == "3.0.0.0");
 
     std::optional<bool> changelogs_succeeded;
     int changelog_callback_count = 0;
@@ -1350,6 +1450,9 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     REQUIRE(changelogs_succeeded.has_value());
     CHECK(*changelogs_succeeded);
     CHECK(changelog_callback_count == 1);
+
+    plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
 
     const std::vector<Slic3r::PluginAvailable>::const_iterator selected = std::find_if(
         plugin->available_packages.begin(), plugin->available_packages.end(),
@@ -1435,8 +1538,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     REQUIRE(Slic3r::write_plugin_activation_config(
         Slic3r::plugin_activation_config_path(data_directory), configured, configuration_error));
     updater.reload_all_plugins();
-    Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
-    REQUIRE(plugin != nullptr);
+    std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     REQUIRE(plugin->is_installed);
 
     std::optional<Slic3r::UpdaterError> uninstall_result;
@@ -1454,6 +1557,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     CHECK(config.activated.count("example.second") == 0);
     CHECK(config.plugin_packages.count("example.first") == 0);
     CHECK(config.plugin_packages.count("example.second") == 0);
+    plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     CHECK_FALSE(plugin->is_installed);
     CHECK(plugin->has_cache);
     CHECK(boost::filesystem::is_directory(cache_root));
@@ -1474,8 +1579,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     orchestrator.finish_plugin_package_load(plugin_id);
 
     updater.reload_all_plugins();
-    const Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
-    REQUIRE(plugin != nullptr);
+    const std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     REQUIRE(plugin->load_report.has_value());
     REQUIRE(plugin->load_report->issues.size() == 1);
     CHECK(plugin->load_report->issues.front().code ==
@@ -1499,11 +1604,12 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     // A cache-only package remains installable even when activated.ini still
     // requests one of its plugin ids from an earlier installation.
     updater.reload_all_plugins();
-    const Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
-    REQUIRE(plugin != nullptr);
+    std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     CHECK_FALSE(plugin->is_installed);
-    REQUIRE(plugin->best != nullptr);
-    CHECK_FALSE(plugin->best->local_directory.empty());
+    const Slic3r::PluginAvailable *best = plugin->best_available();
+    REQUIRE(best != nullptr);
+    CHECK_FALSE(best->local_directory.empty());
     CHECK_FALSE(plugin->load_report.has_value());
 
     Slic3r::Orchestrator &orchestrator = Slic3r::Orchestrator::instance();
@@ -1522,8 +1628,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     orchestrator.finish_plugin_package_load(plugin_id);
 
     updater.reload_all_plugins();
-    plugin = updater.get_plugin(plugin_id);
-    REQUIRE(plugin != nullptr);
+    plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     CHECK_FALSE(plugin->load_report.has_value());
 }
 
@@ -1551,8 +1657,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     orchestrator.finish_plugin_package_load(plugin_id);
 
     updater.reload_all_plugins();
-    const Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
-    REQUIRE(plugin != nullptr);
+    const std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     REQUIRE(plugin->load_report.has_value());
     REQUIRE(plugin->load_report->issues.size() == 1);
     CHECK(plugin->load_report->issues.front().code ==
@@ -1571,8 +1677,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
         Slic3r::plugin_activation_config_path(data_directory), config, error_message));
 
     updater.reload_all_plugins();
-    const Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
-    REQUIRE(plugin != nullptr);
+    const std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     CHECK(plugin->is_installed);
     REQUIRE(plugin->load_report.has_value());
     REQUIRE(plugin->load_report->issues.size() == 1);
@@ -1661,8 +1767,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     write_cached_plugin("2.0.0.0");
     updater.reload_all_plugins();
 
-    Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
-    REQUIRE(plugin != nullptr);
+    const std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     const std::vector<Slic3r::PluginAvailable>::const_iterator selected = std::find_if(
         plugin->available_packages.begin(), plugin->available_packages.end(),
         [](const Slic3r::PluginAvailable &version) { return version.package_version == "2.0.0.0"; });
@@ -1686,7 +1792,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     });
     REQUIRE(clear_result.has_value());
     REQUIRE(clear_result->succeeded());
-    CHECK(updater.get_plugin(plugin_id) == nullptr);
+    CHECK_FALSE(updater.plugin(plugin_id).has_value());
     const std::vector<std::string> remaining_plugin_ids = updater.plugin_ids();
     CHECK(std::find(remaining_plugin_ids.begin(), remaining_plugin_ids.end(), plugin_id) ==
           remaining_plugin_ids.end());
@@ -1717,8 +1823,9 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     std::string error_message;
     REQUIRE(Slic3r::prepare_plugin_bundle_cache(resources_directory, data_directory, error_message));
     updater.reload_all_plugins();
-    REQUIRE(updater.get_plugin(plugin_id) != nullptr);
-    CHECK(updater.get_plugin(plugin_id)->has_cache);
+    const std::optional<Slic3r::PluginSync> bundled_plugin = updater.plugin(plugin_id);
+    REQUIRE(bundled_plugin.has_value());
+    CHECK(bundled_plugin->has_cache);
 
     std::optional<Slic3r::UpdaterError> clear_result;
     updater.clear_cache_plugin(plugin_id, [&clear_result](Slic3r::UpdaterError error) {
@@ -1726,30 +1833,30 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     });
     REQUIRE(clear_result.has_value());
     REQUIRE(clear_result->succeeded());
-    CHECK(updater.get_plugin(plugin_id) == nullptr);
+    CHECK_FALSE(updater.plugin(plugin_id).has_value());
     CHECK_FALSE(boost::filesystem::exists(Slic3r::repository_cache_root_path(
         data_directory, Slic3r::RepositoryPackageType::Plugin, plugin_id)));
 
     // Reload and unrelated runtime imports prepare the cache layout but must
     // not republish archives shipped in resources/plugins.
     updater.reload_all_plugins();
-    CHECK(updater.get_plugin(plugin_id) == nullptr);
+    CHECK_FALSE(updater.plugin(plugin_id).has_value());
     const boost::filesystem::path other_package = temporary.path() / "another.plugin";
     write_test_file(other_package / plugin_library_filename(), "another plugin");
     REQUIRE(updater.cache_plugin_directory(other_package).succeeded());
     updater.reload_all_plugins();
-    CHECK(updater.get_plugin(plugin_id) == nullptr);
-    CHECK(updater.get_plugin("another.plugin") != nullptr);
+    CHECK_FALSE(updater.plugin(plugin_id).has_value());
+    CHECK(updater.plugin("another.plugin").has_value());
 
     // The PluginLoader performs this startup-only preparation, making bundled
     // packages available again in the next application process.
     REQUIRE(Slic3r::prepare_plugin_bundle_cache(resources_directory, data_directory, error_message));
     updater.reload_all_plugins();
-    REQUIRE(updater.get_plugin(plugin_id) != nullptr);
+    REQUIRE(updater.plugin(plugin_id).has_value());
 }
 
 TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
-                 "PluginUpdater refuses cache removal while synchronization retains model references",
+                 "PluginUpdater refuses cache removal while synchronization is active",
                  "[plugins][updater][plugin-functional][clear-cache]")
 {
     write_plugin_repository();
@@ -1766,7 +1873,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     });
     REQUIRE(clear_result.has_value());
     CHECK(clear_result->code == Slic3r::UpdaterError::Code::PreparationRejected);
-    CHECK(updater.get_plugin(plugin_id) != nullptr);
+    CHECK(updater.plugin(plugin_id).has_value());
     CHECK(boost::filesystem::exists(Slic3r::repository_cache_root_path(
         data_directory, Slic3r::RepositoryPackageType::Plugin, plugin_id)));
 
@@ -1783,17 +1890,18 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     updater.reload_all_plugins();
 
     synchronize({{"1.0.0.0", slicer_version, "https://example.invalid/plugin-1.zip"}});
-    Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
-    REQUIRE(plugin != nullptr);
+    std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     CHECK(plugin->is_installed);
     CHECK(plugin->sync_state == Slic3r::RepositorySyncState::Succeeded);
     CHECK_FALSE(plugin->can_upgrade);
 
     synchronize({{"2.0.0.0", slicer_version, "https://example.invalid/plugin-2.zip"}});
-    plugin = updater.get_plugin(plugin_id);
-    REQUIRE(plugin != nullptr);
-    REQUIRE(plugin->best != nullptr);
-    CHECK(plugin->best->package_version == "2.0.0.0");
+    plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
+    const Slic3r::PluginAvailable *best = plugin->best_available();
+    REQUIRE(best != nullptr);
+    CHECK(best->package_version == "2.0.0.0");
     CHECK(plugin->can_upgrade);
 }
 
@@ -1806,8 +1914,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     write_cached_plugin("2.0.0.0");
     updater.reload_all_plugins();
 
-    Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
-    REQUIRE(plugin != nullptr);
+    std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     const std::vector<Slic3r::PluginAvailable>::const_iterator update = std::find_if(
         plugin->available_packages.begin(), plugin->available_packages.end(),
         [](const Slic3r::PluginAvailable &version) { return version.package_version == "2.0.0.0"; });
@@ -1836,6 +1944,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
         data_directory, plugin_id, {"1.0.0.0", slicer_version}, cache_error));
     CHECK_FALSE(Slic3r::plugin_package_cache_is_valid(
         data_directory, plugin_id, {"2.0.0.0", slicer_version}, cache_error));
+    plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     CHECK(plugin->is_installed);
     CHECK(plugin->installed_version.package_version == "1.0.0.0");
 
@@ -1860,8 +1970,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     REQUIRE(import_error.succeeded());
     updater.reload_all_plugins();
 
-    Slic3r::PluginSync *plugin = updater.get_plugin("local_only_plugin");
-    REQUIRE(plugin != nullptr);
+    const std::optional<Slic3r::PluginSync> plugin = updater.plugin("local_only_plugin");
+    REQUIRE(plugin.has_value());
     CHECK(plugin->description.config_update_rest.empty());
     REQUIRE(plugin->available_packages.size() == 1);
     CHECK(plugin->available_packages.front().package_version == "1.0.0.0");
@@ -1914,15 +2024,18 @@ TEST_CASE("PluginUpdater lists and manages Python runtime infrastructure",
     CHECK(std::find(plugin_ids.begin(), plugin_ids.end(), "python.visible") != plugin_ids.end());
     CHECK(std::find(plugin_ids.begin(), plugin_ids.end(), "python") != plugin_ids.end());
 
-    Slic3r::PluginSync *runtime = updater.get_plugin("python");
-    REQUIRE(runtime != nullptr);
-    REQUIRE(runtime->best != nullptr);
+    std::optional<Slic3r::PluginSync> runtime = updater.plugin("python");
+    REQUIRE(runtime.has_value());
+    const Slic3r::PluginAvailable *runtime_best = runtime->best_available();
+    REQUIRE(runtime_best != nullptr);
     std::optional<Slic3r::UpdaterError> install_result;
-    updater.install_plugin("python", *runtime->best, [&install_result](Slic3r::UpdaterError error) {
+    updater.install_plugin("python", *runtime_best, [&install_result](Slic3r::UpdaterError error) {
         install_result = std::move(error);
     });
     REQUIRE(install_result.has_value());
     REQUIRE(install_result->succeeded());
+    runtime = updater.plugin("python");
+    REQUIRE(runtime.has_value());
     CHECK(runtime->is_installed);
 
     // Package installation must not create a fake activatable plugin id. The
@@ -1941,6 +2054,8 @@ TEST_CASE("PluginUpdater lists and manages Python runtime infrastructure",
     });
     REQUIRE(uninstall_result.has_value());
     REQUIRE(uninstall_result->succeeded());
+    runtime = updater.plugin("python");
+    REQUIRE(runtime.has_value());
     CHECK_FALSE(runtime->is_installed);
     CHECK(runtime->has_cache);
 
@@ -1960,8 +2075,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     updater.reload_all_plugins();
     synchronize({{"1.0.0.0", slicer_version, "https://example.invalid/plugin-1.zip"}});
 
-    Slic3r::PluginSync *plugin = updater.get_plugin(plugin_id);
-    REQUIRE(plugin != nullptr);
+    std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     REQUIRE(plugin->available_packages.size() == 1);
     const std::string tag = "1.0.0.0=" + slicer_version;
     const boost::filesystem::path cache_file = Slic3r::repository_cache_root_path(
@@ -1978,10 +2093,11 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     CHECK(*changelogs_succeeded);
     CHECK(callback_count == 1);
     CHECK(http.pending_count() == 0);
+    plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     CHECK(plugin->available_packages.front().notes == "cached notes");
 
     boost::filesystem::last_write_time(cache_file, std::time(nullptr) - 24 * 3600 - 1);
-    plugin->available_packages.front().notes.clear();
     changelogs_succeeded.reset();
     updater.download_changelogs(plugin_id, [&changelogs_succeeded, &callback_count](bool succeeded) {
         changelogs_succeeded = succeeded;
@@ -1994,6 +2110,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     REQUIRE(changelogs_succeeded.has_value());
     CHECK(*changelogs_succeeded);
     CHECK(callback_count == 2);
+    plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
     CHECK(plugin->available_packages.front().notes == "refreshed notes");
     CHECK(read_test_file(cache_file).find("refreshed notes") != std::string::npos);
 }
@@ -2034,17 +2152,17 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     REQUIRE(dialog.vendors.size() == 1);
     CHECK(dialog.profile_count_to_update == 0);
 
-    // vendors() is the detached model read by the selection dialog. Installing
-    // through its best pointer verifies that copied models rebuild that pointer
-    // correctly instead of retaining an address from the updater's map.
+    // vendors() is the detached model read by the selection dialog. Its best
+    // entry is calculated from the copied vector, so the snapshot is autonomous.
     const Slic3r::VendorSync &dialog_vendor = dialog.vendors.front();
     CHECK_FALSE(dialog_vendor.is_installed);
-    REQUIRE(dialog_vendor.best != nullptr);
-    CHECK(dialog_vendor.best->config_version.to_string() == "1.0.0.0");
-    CHECK_FALSE(dialog_vendor.best->local_file.empty());
+    const Slic3r::VendorAvailable *dialog_best = dialog_vendor.best_available();
+    REQUIRE(dialog_best != nullptr);
+    CHECK(dialog_best->config_version.to_string() == "1.0.0.0");
+    CHECK_FALSE(dialog_best->local_file.empty());
 
     std::optional<Slic3r::UpdaterError> install_result;
-    updater.install_vendor(vendor_id, *dialog_vendor.best,
+    updater.install_vendor(vendor_id, *dialog_best,
                            [&install_result](Slic3r::UpdaterError error) {
                                install_result = std::move(error);
                            });
@@ -2096,13 +2214,14 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
         data_directory / "cache" / "vendor" / archive_path.stem()));
 
     updater.reload_all_vendors();
-    const Slic3r::VendorSync *vendor = updater.get_vendor(vendor_id);
-    REQUIRE(vendor != nullptr);
+    const std::optional<Slic3r::VendorSync> vendor = updater.vendor(vendor_id);
+    REQUIRE(vendor.has_value());
     CHECK_FALSE(vendor->is_installed);
-    REQUIRE(vendor->best != nullptr);
-    CHECK(vendor->best->config_version.to_string() == config_version);
-    CHECK(vendor->best->slicer_version.to_string() == slicer_version);
-    CHECK(boost::filesystem::equivalent(vendor->best->local_file, cached_profile));
+    const Slic3r::VendorAvailable *best = vendor->best_available();
+    REQUIRE(best != nullptr);
+    CHECK(best->config_version.to_string() == config_version);
+    CHECK(best->slicer_version.to_string() == slicer_version);
+    CHECK(boost::filesystem::equivalent(best->local_file, cached_profile));
     CHECK(updater.count_available() == 1);
 }
 
@@ -2131,10 +2250,11 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     CHECK(Slic3r::VendorProfile::from_ini(cached_profile, true).config_version.to_string() == "2.0.0.0");
 
     updater.reload_all_vendors();
-    const Slic3r::VendorSync *vendor = updater.get_vendor(vendor_id);
-    REQUIRE(vendor != nullptr);
-    REQUIRE(vendor->best != nullptr);
-    CHECK(vendor->best->config_version.to_string() == "2.0.0.0");
+    const std::optional<Slic3r::VendorSync> vendor = updater.vendor(vendor_id);
+    REQUIRE(vendor.has_value());
+    const Slic3r::VendorAvailable *best = vendor->best_available();
+    REQUIRE(best != nullptr);
+    CHECK(best->config_version.to_string() == "2.0.0.0");
     CHECK(vendor->available_profiles.size() == 2);
 }
 
@@ -2209,8 +2329,8 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
         data_directory, Slic3r::RepositoryPackageType::Vendor, vendor_id,
         "1.0.0.0", slicer_version) / "profiles" / (vendor_id + ".ini")));
 
-    const Slic3r::VendorSync *remaining_vendor = updater.get_vendor(vendor_id);
-    REQUIRE(remaining_vendor != nullptr);
+    const std::optional<Slic3r::VendorSync> remaining_vendor = updater.vendor(vendor_id);
+    REQUIRE(remaining_vendor.has_value());
     CHECK_FALSE(remaining_vendor->is_installed);
     CHECK(remaining_vendor->has_cache);
     REQUIRE(host.prepared_changes.size() == 1);
@@ -2236,9 +2356,10 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     const Slic3r::VendorSync &dialog_vendor = dialog.vendors.front();
     CHECK(dialog_vendor.is_installed);
     CHECK(dialog_vendor.can_upgrade);
-    REQUIRE(dialog_vendor.best != nullptr);
-    CHECK(dialog_vendor.best->config_version.to_string() == "2.0.0.0");
-    CHECK(dialog_vendor.best->local_file.empty());
+    const Slic3r::VendorAvailable *dialog_best = dialog_vendor.best_available();
+    REQUIRE(dialog_best != nullptr);
+    CHECK(dialog_best->config_version.to_string() == "2.0.0.0");
+    CHECK(dialog_best->local_file.empty());
 
     // The remote branch receives the archive through perform_sync(), extracts
     // its profiles directory, then atomically publishes the selected INI into
@@ -2251,7 +2372,7 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     http.script_sync_success(read_test_file(archive_file));
 
     std::optional<Slic3r::UpdaterError> upgrade_result;
-    updater.install_vendor(vendor_id, *dialog_vendor.best,
+    updater.install_vendor(vendor_id, *dialog_best,
                            [&upgrade_result](Slic3r::UpdaterError error) {
                                upgrade_result = std::move(error);
                            });
@@ -2266,8 +2387,8 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     REQUIRE(boost::filesystem::is_regular_file(installed_file));
     CHECK(Slic3r::VendorProfile::from_ini(installed_file, true).config_version.to_string() == "2.0.0.0");
 
-    const Slic3r::VendorSync *updated_vendor = updater.get_vendor(vendor_id);
-    REQUIRE(updated_vendor != nullptr);
+    const std::optional<Slic3r::VendorSync> updated_vendor = updater.vendor(vendor_id);
+    REQUIRE(updated_vendor.has_value());
     CHECK(updated_vendor->is_installed);
     CHECK_FALSE(updated_vendor->can_upgrade);
     REQUIRE(host.completed_changes.size() == 1);
@@ -2288,8 +2409,9 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     });
     REQUIRE(main_dialog.vendors.size() == 1);
     CHECK(main_dialog.profile_count_to_update == 1);
-    REQUIRE(main_dialog.vendors.front().best != nullptr);
-    CHECK(main_dialog.vendors.front().best->config_version.to_string() == "2.0.0.0");
+    const Slic3r::VendorAvailable *main_best = main_dialog.vendors.front().best_available();
+    REQUIRE(main_best != nullptr);
+    CHECK(main_best->config_version.to_string() == "2.0.0.0");
 
     // Clicking the installed-version button downloads all notes before the
     // detailed selector is created. The recent version uses a GitHub compare;
@@ -2320,11 +2442,9 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     CHECK(changelog_callback_count == 1);
     CHECK(http.pending_count() == 0);
 
-    // ChooseVendorVersionDialog copies the now-enriched internal VendorSync.
-    // sort_available() is required after that copy so best points into the
-    // copied available_profiles vector rather than into the updater's model.
-    const Slic3r::VendorSync *enriched_vendor = updater.get_vendor(vendor_id);
-    REQUIRE(enriched_vendor != nullptr);
+    // ChooseVendorVersionDialog receives the now-enriched detached snapshot.
+    const std::optional<Slic3r::VendorSync> enriched_vendor = updater.vendor(vendor_id);
+    REQUIRE(enriched_vendor.has_value());
     Slic3r::VendorSync version_dialog = *enriched_vendor;
     version_dialog.sort_available();
     const std::vector<Slic3r::VendorAvailable>::const_iterator selected = std::find_if(
@@ -2371,8 +2491,8 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     const boost::filesystem::path installed_file = data_directory / "vendor" / (vendor_id + ".ini");
     REQUIRE(boost::filesystem::is_regular_file(installed_file));
     CHECK(Slic3r::VendorProfile::from_ini(installed_file, true).config_version.to_string() == "2.0.0.0");
-    const Slic3r::VendorSync *updated_vendor = updater.get_vendor(vendor_id);
-    REQUIRE(updated_vendor != nullptr);
+    const std::optional<Slic3r::VendorSync> updated_vendor = updater.vendor(vendor_id);
+    REQUIRE(updated_vendor.has_value());
     CHECK(updated_vendor->is_installed);
     CHECK_FALSE(updated_vendor->can_upgrade);
 

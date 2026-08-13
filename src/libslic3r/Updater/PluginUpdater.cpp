@@ -157,10 +157,6 @@ UpdaterError PluginSync::parse_tags(const std::string &json)
 
 void PluginSync::sort_available()
 {
-    best = nullptr;
-    const std::optional<Semver> current_slicer_version = Semver::parse(SLIC3R_VERSION_FULL);
-    if (!current_slicer_version)
-        return;
     std::sort(available_packages.begin(), available_packages.end(), [](const PluginAvailable &lhs, const PluginAvailable &rhs) {
         const std::optional<Semver> lhs_slicer = Semver::parse(lhs.slicer_version);
         const std::optional<Semver> rhs_slicer = Semver::parse(rhs.slicer_version);
@@ -168,13 +164,8 @@ void PluginSync::sort_available()
             return *lhs_slicer > *rhs_slicer;
         return *Semver::parse(lhs.package_version) > *Semver::parse(rhs.package_version);
     });
-    for (PluginAvailable &version : available_packages) {
-        const std::optional<Semver> slicer_version = Semver::parse(version.slicer_version);
-        if (*slicer_version <= *current_slicer_version) {
-            best = &version;
-            break;
-        }
-    }
+
+    const PluginAvailable *best = best_available();
     if (best != nullptr && is_installed) {
         const std::optional<Semver> installed = Semver::parse(installed_version.package_version);
         const std::optional<Semver> available = Semver::parse(best->package_version);
@@ -184,15 +175,29 @@ void PluginSync::sort_available()
     }
 }
 
+const PluginAvailable *PluginSync::best_available() const
+{
+    const std::optional<Semver> current_slicer_version = Semver::parse(SLIC3R_VERSION_FULL);
+    if (!current_slicer_version)
+        return nullptr;
+
+    for (const PluginAvailable &version : available_packages) {
+        const std::optional<Semver> slicer_version = Semver::parse(version.slicer_version);
+        if (slicer_version && *slicer_version <= *current_slicer_version)
+            return &version;
+    }
+    return nullptr;
+}
+
 void PluginUpdater::reload_all_plugins()
 {
-    std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
-    // HTTP callbacks retain references to entries in m_plugins. Do not erase
-    // them while a refresh is in flight; the next dialog refresh will reload
-    // descriptions once the callbacks have completed.
+    // Avoid replacing the model while a repository operation is publishing
+    // results. The new model is otherwise built off-lock and swapped in as one
+    // coherent snapshot after all filesystem reads have completed.
     if (sync_in_progress() || changelog_download_in_progress())
         return;
-    m_plugins.clear();
+
+    std::map<std::string, PluginSync> plugins;
 
     const boost::filesystem::path configuration_directory(data_dir());
     std::string error_message;
@@ -201,7 +206,7 @@ void PluginUpdater::reload_all_plugins()
 
     RepositoryPackageCache cache(configuration_directory, plugin_repository_cache_adapter());
     for (const RepositoryCachedEntry &repository : cache.scan()) {
-        PluginSync &plugin = m_plugins[repository.description.id];
+        PluginSync &plugin = plugins[repository.description.id];
         plugin.description = repository.description;
         plugin.has_cache = true;
         for (const RepositoryCachedVersion &cached : repository.versions) {
@@ -225,11 +230,11 @@ void PluginUpdater::reload_all_plugins()
     for (const auto &[id, version] : config.installed) {
         const boost::filesystem::path package_root = boost::filesystem::path(data_dir()) / "plugins" / id;
         RepositoryDescription description;
-        const std::map<std::string, PluginSync>::iterator existing = m_plugins.find(id);
-        if (existing == m_plugins.end())
+        const std::map<std::string, PluginSync>::iterator existing = plugins.find(id);
+        if (existing == plugins.end())
             read_plugin_description(package_root / DESCRIPTION_FILENAME, description, error_message);
 
-        PluginSync &plugin = m_plugins[id];
+        PluginSync &plugin = plugins[id];
         if (plugin.description.id.empty() && !description.id.empty())
             plugin.description = std::move(description);
         if (plugin.description.id.empty()) {
@@ -258,7 +263,7 @@ void PluginUpdater::reload_all_plugins()
         std::optional<PluginPackageLoadReport> filtered_report = package_manager_load_report(report);
         if (!filtered_report.has_value())
             continue;
-        PluginSync &plugin = m_plugins[package_id];
+        PluginSync &plugin = plugins[package_id];
         if (plugin.description.id.empty()) {
             plugin.description.type = RepositoryPackageType::Plugin;
             plugin.description.id = package_id;
@@ -267,32 +272,60 @@ void PluginUpdater::reload_all_plugins()
         }
         plugin.load_report = std::move(filtered_report);
     }
+
+    std::lock_guard<std::mutex> guard(m_model_mutex);
+    m_plugins.swap(plugins);
 }
 
 void PluginUpdater::sync_async(std::function<void(int)> callback_result, bool force)
 {
-    std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
-    if (!begin_sync(m_plugins.size(), std::move(callback_result)))
+    std::vector<std::string> plugin_ids;
+    {
+        std::lock_guard<std::mutex> guard(m_model_mutex);
+        plugin_ids.reserve(m_plugins.size());
+        for (const auto &[plugin_id, plugin] : m_plugins)
+            plugin_ids.emplace_back(plugin_id);
+    }
+
+    if (!begin_sync(plugin_ids.size(), std::move(callback_result)))
         return;
-    if (m_plugins.empty())
-        return;
-    for (auto &[id, plugin] : m_plugins)
-        update_plugin(plugin, force);
+    for (const std::string &plugin_id : plugin_ids)
+        update_plugin(plugin_id, force);
 }
 
-void PluginUpdater::update_plugin(PluginSync &plugin, bool force)
+void PluginUpdater::update_plugin(const std::string &plugin_id, bool force)
 {
+    std::string rest_url;
+    {
+        std::lock_guard<std::mutex> guard(m_model_mutex);
+        PluginSync *plugin = find_plugin_unlocked(plugin_id);
+        if (plugin == nullptr) {
+            finish_sync();
+            return;
+        }
+        plugin->sync_state = RepositorySyncState::InProgress;
+        plugin->sync_error = UpdaterError();
+        rest_url = plugin->description.config_update_rest;
+    }
+
     const RepositoryPackageCache cache(boost::filesystem::path(data_dir()),
                                        plugin_repository_cache_adapter());
-    const boost::filesystem::path cache_path = cache.repository_tags_path(plugin.description.id);
-    plugin.sync_state = RepositorySyncState::InProgress;
-    plugin.sync_error = UpdaterError();
+    const boost::filesystem::path cache_path = cache.repository_tags_path(plugin_id);
     refresh_repository_tags(
-        plugin.description.id, plugin.description.config_update_rest, cache_path, force,
-        [&plugin](const std::string &contents) { return plugin.parse_tags(contents); },
-        [&plugin](UpdaterError error) {
-            plugin.sync_state = error.succeeded() ? RepositorySyncState::Succeeded : RepositorySyncState::Failed;
-            plugin.sync_error = std::move(error);
+        plugin_id, rest_url, cache_path, force,
+        [this, plugin_id](const std::string &contents) {
+            std::lock_guard<std::mutex> guard(m_model_mutex);
+            PluginSync *plugin = find_plugin_unlocked(plugin_id);
+            return plugin == nullptr ?
+                make_updater_error(UpdaterError::Code::RepositoryNotFound) : plugin->parse_tags(contents);
+        },
+        [this, plugin_id](UpdaterError error) {
+            std::lock_guard<std::mutex> guard(m_model_mutex);
+            PluginSync *plugin = find_plugin_unlocked(plugin_id);
+            if (plugin == nullptr)
+                return;
+            plugin->sync_state = error.succeeded() ? RepositorySyncState::Succeeded : RepositorySyncState::Failed;
+            plugin->sync_error = std::move(error);
         });
 }
 
@@ -301,9 +334,44 @@ void PluginUpdater::download_changelogs(const std::string &plugin_id,
                                         bool force)
 {
     std::vector<RepositoryChangelogVersion> versions;
-    std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
-    PluginSync *plugin = get_plugin(plugin_id);
-    if (plugin == nullptr) {
+    std::string rest_url;
+    bool found = false;
+    {
+        std::lock_guard<std::mutex> guard(m_model_mutex);
+        PluginSync *plugin = find_plugin_unlocked(plugin_id);
+        if (plugin != nullptr) {
+            found = true;
+            rest_url = plugin->description.config_update_rest;
+            versions.reserve(plugin->available_packages.size());
+            for (const PluginAvailable &version : plugin->available_packages) {
+                const std::optional<Semver> package_version = Semver::parse(version.package_version);
+                const std::optional<Semver> slicer_version = Semver::parse(version.slicer_version);
+                if (!package_version || !slicer_version)
+                    continue;
+
+                RepositoryChangelogVersion common_version;
+                common_version.content_version = *package_version;
+                common_version.slicer_version = *slicer_version;
+                common_version.tag = version.tag;
+                common_version.commit_sha = version.commit_sha;
+                common_version.commit_url = version.commit_url;
+                common_version.store_notes = [this, plugin_id, tag = version.tag](std::string notes) {
+                    std::lock_guard<std::mutex> notes_guard(m_model_mutex);
+                    PluginSync *current = find_plugin_unlocked(plugin_id);
+                    if (current == nullptr)
+                        return;
+                    const std::vector<PluginAvailable>::iterator matching = std::find_if(
+                        current->available_packages.begin(), current->available_packages.end(),
+                        [&tag](const PluginAvailable &candidate) { return candidate.tag == tag; });
+                    if (matching != current->available_packages.end())
+                        matching->notes = std::move(notes);
+                };
+                versions.emplace_back(std::move(common_version));
+            }
+        }
+    }
+
+    if (!found) {
         callback_result(false);
         return;
     }
@@ -311,23 +379,8 @@ void PluginUpdater::download_changelogs(const std::string &plugin_id,
     const RepositoryPackageCache cache(boost::filesystem::path(data_dir()),
                                        plugin_repository_cache_adapter());
     const boost::filesystem::path log_directory = cache.repository_logs_directory(plugin_id);
-    for (PluginAvailable &version : plugin->available_packages) {
-        const std::optional<Semver> package_version = Semver::parse(version.package_version);
-        const std::optional<Semver> slicer_version = Semver::parse(version.slicer_version);
-        if (!package_version || !slicer_version)
-            continue;
-
-        RepositoryChangelogVersion common_version;
-        common_version.content_version = *package_version;
-        common_version.slicer_version = *slicer_version;
-        common_version.tag = version.tag;
-        common_version.commit_sha = version.commit_sha;
-        common_version.commit_url = version.commit_url;
-        common_version.store_notes = [&version](std::string notes) { version.notes = std::move(notes); };
-        versions.emplace_back(std::move(common_version));
-    }
     download_repository_version_changelogs(std::move(versions), log_directory,
-                                           plugin->description.config_update_rest,
+                                           rest_url,
                                            std::move(callback_result), force);
 }
 
@@ -372,8 +425,7 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
                                    const PluginAvailable &version,
                                    std::function<void(UpdaterError)> callback_result)
 {
-    PluginSync *plugin = get_plugin(plugin_id);
-    if (plugin == nullptr) {
+    if (!plugin(plugin_id).has_value()) {
         callback_result(make_updater_error(UpdaterError::Code::ArchiveUnavailable));
         return;
     }
@@ -414,14 +466,14 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
 UpdaterError PluginUpdater::schedule_cached_plugin_install(const std::string &plugin_id,
                                                             const PluginAvailable &version)
 {
-    std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
     std::string error_message;
     if (!request_plugin_install(plugin_id, version.package_version, version.slicer_version, error_message))
         return make_updater_error(UpdaterError::Code::Cache, std::move(error_message));
 
     // The activation config names the package loaded on the next startup. The
     // current model mirrors that selection so the dialog updates immediately.
-    PluginSync *scheduled = get_plugin(plugin_id);
+    std::lock_guard<std::mutex> guard(m_model_mutex);
+    PluginSync *scheduled = find_plugin_unlocked(plugin_id);
     if (scheduled != nullptr) {
         scheduled->is_installed = true;
         scheduled->installed_version = PluginInstalledVersion{
@@ -435,8 +487,8 @@ UpdaterError PluginUpdater::schedule_cached_plugin_install(const std::string &pl
 void PluginUpdater::uninstall_plugin(const std::string &plugin_id,
                                      std::function<void(UpdaterError)> callback_result)
 {
-    PluginSync *plugin = get_plugin(plugin_id);
-    if (plugin == nullptr || !plugin->is_installed) {
+    const std::optional<PluginSync> plugin_snapshot = plugin(plugin_id);
+    if (!plugin_snapshot || !plugin_snapshot->is_installed) {
         callback_result(make_updater_error(UpdaterError::Code::ArchiveUnavailable));
         return;
     }
@@ -449,12 +501,14 @@ void PluginUpdater::uninstall_plugin(const std::string &plugin_id,
 
     // The DLL remains loaded until restart, but the updater presents the
     // package state requested for that restart just as it does for installs.
-    std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
-    PluginSync *scheduled = get_plugin(plugin_id);
-    if (scheduled != nullptr) {
-        scheduled->is_installed = false;
-        scheduled->installed_version = {};
-        scheduled->can_upgrade = false;
+    {
+        std::lock_guard<std::mutex> guard(m_model_mutex);
+        PluginSync *scheduled = find_plugin_unlocked(plugin_id);
+        if (scheduled != nullptr) {
+            scheduled->is_installed = false;
+            scheduled->installed_version = {};
+            scheduled->can_upgrade = false;
+        }
     }
     callback_result(UpdaterError());
 }
@@ -470,7 +524,6 @@ void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::functi
 
     UpdaterError result;
     try {
-        std::lock_guard<std::recursive_mutex> guard(m_plugins_mutex);
         const boost::filesystem::path data_directory(data_dir());
 
         // [installed] describes both the live package and a version selected
@@ -516,32 +569,32 @@ void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::functi
             }
         }
 
-        PluginSync *plugin = get_plugin(plugin_id);
-        if (!live_cached_version) {
-            // The cache description was the only source for this uninstalled
-            // plugin. Remove the model entry together with that source so the
-            // dialog cannot display a row which no longer exists on disk.
-            m_plugins.erase(plugin_id);
-        } else if (plugin != nullptr) {
-            // Keep repository versions for an installed plugin, but discard
-            // local-only versions removed with the old cache. The recached
-            // live package is then restored as the selected local version.
-            plugin->has_cache = live_cached_version.has_value();
-            for (PluginAvailable &version : plugin->available_packages)
-                version.local_directory.clear();
-            plugin->available_packages.erase(
-                std::remove_if(plugin->available_packages.begin(), plugin->available_packages.end(),
-                    [](const PluginAvailable &version) { return version.url_zip.empty(); }),
-                plugin->available_packages.end());
-            if (live_cached_version) {
+        {
+            std::lock_guard<std::mutex> guard(m_model_mutex);
+            PluginSync *current = find_plugin_unlocked(plugin_id);
+            if (!live_cached_version) {
+                // The cache description was the only source for this
+                // uninstalled plugin, so its model row disappears as well.
+                m_plugins.erase(plugin_id);
+            } else if (current != nullptr) {
+                // Keep remote versions, discard removed local-only entries and
+                // restore the validated live version as the selected package.
+                current->has_cache = true;
+                for (PluginAvailable &version : current->available_packages)
+                    version.local_directory.clear();
+                current->available_packages.erase(
+                    std::remove_if(current->available_packages.begin(), current->available_packages.end(),
+                        [](const PluginAvailable &version) { return version.url_zip.empty(); }),
+                    current->available_packages.end());
+
                 const RepositoryPackageVersion &cached_version = live_cached_version->version;
                 const std::vector<PluginAvailable>::iterator matching = std::find_if(
-                    plugin->available_packages.begin(), plugin->available_packages.end(),
+                    current->available_packages.begin(), current->available_packages.end(),
                     [&cached_version](const PluginAvailable &version) {
                         return version.package_version == cached_version.package_version &&
                                version.slicer_version == cached_version.slicer_version;
                     });
-                if (matching != plugin->available_packages.end()) {
+                if (matching != current->available_packages.end()) {
                     matching->local_directory = live_cached_version->directory.string();
                 } else {
                     PluginAvailable available;
@@ -550,12 +603,12 @@ void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::functi
                     available.tag = RepositoryPackageCache::version_directory_name(
                         available.package_version, available.slicer_version);
                     available.local_directory = live_cached_version->directory.string();
-                    plugin->available_packages.emplace_back(std::move(available));
+                    current->available_packages.emplace_back(std::move(available));
                 }
+                current->is_installed = live_version.has_value() && !removal_requested;
+                current->installed_version = current->is_installed ? *live_version : PluginInstalledVersion();
+                current->sort_available();
             }
-            plugin->is_installed = live_version.has_value() && !removal_requested;
-            plugin->installed_version = plugin->is_installed ? *live_version : PluginInstalledVersion();
-            plugin->sort_available();
         }
     } catch (const boost::filesystem::filesystem_error &error) {
         BOOST_LOG_TRIVIAL(warning) << error.what();
@@ -566,11 +619,13 @@ void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::functi
 
 size_t PluginUpdater::count_available() const
 {
+    std::lock_guard<std::mutex> guard(m_model_mutex);
     return m_plugins.size();
 }
 
 size_t PluginUpdater::count_updates() const
 {
+    std::lock_guard<std::mutex> guard(m_model_mutex);
     size_t count = 0;
     for (const auto &[id, plugin] : m_plugins)
         if (plugin.can_upgrade)
@@ -585,6 +640,7 @@ int PluginUpdater::update_count()
 
 std::vector<std::string> PluginUpdater::plugin_ids() const
 {
+    std::lock_guard<std::mutex> guard(m_model_mutex);
     std::vector<std::string> ids;
     ids.reserve(m_plugins.size());
     for (const auto &[id, plugin] : m_plugins)
@@ -592,9 +648,32 @@ std::vector<std::string> PluginUpdater::plugin_ids() const
     return ids;
 }
 
-PluginSync *PluginUpdater::get_plugin(const std::string &id)
+std::vector<PluginSync> PluginUpdater::plugins() const
+{
+    std::lock_guard<std::mutex> guard(m_model_mutex);
+    std::vector<PluginSync> result;
+    result.reserve(m_plugins.size());
+    for (const auto &[id, plugin] : m_plugins)
+        result.emplace_back(plugin);
+    return result;
+}
+
+std::optional<PluginSync> PluginUpdater::plugin(const std::string &id) const
+{
+    std::lock_guard<std::mutex> guard(m_model_mutex);
+    const PluginSync *found = find_plugin_unlocked(id);
+    return found == nullptr ? std::nullopt : std::optional<PluginSync>(*found);
+}
+
+PluginSync *PluginUpdater::find_plugin_unlocked(const std::string &id)
 {
     const std::map<std::string, PluginSync>::iterator it = m_plugins.find(id);
+    return it == m_plugins.end() ? nullptr : &it->second;
+}
+
+const PluginSync *PluginUpdater::find_plugin_unlocked(const std::string &id) const
+{
+    const std::map<std::string, PluginSync>::const_iterator it = m_plugins.find(id);
     return it == m_plugins.end() ? nullptr : &it->second;
 }
 

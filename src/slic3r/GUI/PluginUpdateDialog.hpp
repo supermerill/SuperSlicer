@@ -36,7 +36,7 @@ public:
 
 private:
     void rebuild();
-    void add_plugin_row(const std::string &plugin_id, PluginSync &plugin, wxFlexGridSizer &grid);
+    void add_plugin_row(const PluginSync &plugin, wxFlexGridSizer &grid);
     void add_repository();
     void load_package_directory();
     void check_updates();

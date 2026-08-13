@@ -17,6 +17,7 @@
 
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -71,7 +72,7 @@ public:
     size_t count_installed() const;
     bool is_synchronized() const;
     std::vector<Slic3r::VendorSync> vendors() const;
-    Slic3r::VendorSync *get_vendor(const std::string &id);
+    std::optional<Slic3r::VendorSync> vendor(const std::string &id) const;
 
     // The dialog may be requested while a background refresh is pending. It
     // waits for that refresh when possible, then creates the modal window on
