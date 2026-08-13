@@ -1,27 +1,47 @@
-///|/ Copyright (c) SuperSlicer 2026 Durand Rémi @supermerill
+///|/ Copyright (c) SuperSlicer 2026 Durand Remi @supermerill
 ///|/
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 
+/*
+Plugin activation is intentionally separate from package installation and from
+the per-print selection of one implementation inside an exclusive group. This
+dialog builds a stable catalog when it opens, then projects that catalog through
+navigation, search and filters. Toggle state therefore survives every rebuild
+of the visible list and is written to activated.ini only when the user saves.
+*/
+
 #include "PluginConfigDialog.hpp"
 
 #include <algorithm>
+#include <array>
+#include <limits>
+#include <map>
+#include <memory>
+#include <optional>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <boost/filesystem.hpp>
 #include <boost/log/trivial.hpp>
 
 #include <wx/button.h>
-#include <wx/checkbox.h>
+#include <wx/choice.h>
+#include <wx/dataview.h>
+#include <wx/panel.h>
 #include <wx/scrolwin.h>
+#include <wx/srchctrl.h>
 #include <wx/sizer.h>
+#include <wx/statline.h>
 #include <wx/stattext.h>
+#include <wx/treectrl.h>
 
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/host/Plugin.hpp"
 #include "libslic3r/Plugins/PluginRepository.hpp"
+#include "libslic3r/Steps/StepPipeline.hpp"
 #include "libslic3r/Utils.hpp"
 
 #include "format.hpp"
@@ -33,6 +53,191 @@
 #include "slic3r/Utils/Process.hpp"
 
 namespace Slic3r::GUI {
+
+namespace {
+
+enum class PluginPhase {
+    Slicing,
+    Perimeters,
+    SurfacesInfill,
+    SupportAdhesion,
+    Output
+};
+
+enum class PluginNavigationKind {
+    All,
+    Phase,
+    Step,
+    Extensions,
+    Problems
+};
+
+struct NavigationScope {
+    PluginNavigationKind kind { PluginNavigationKind::All };
+    PluginPhase phase { PluginPhase::Slicing };
+    slicing_step_t step { STEP_NONE };
+};
+
+struct PluginCatalogEntry {
+    std::string id;
+    std::string package_id;
+    std::string exclusive_group;
+    wxString name;
+    wxString description;
+    wxString step_label;
+    wxString exclusive_group_label;
+    wxString exclusive_group_tooltip;
+    wxString diagnostic;
+    std::vector<std::string> dependencies;
+    slicing_step_t step { STEP_NONE };
+    int priority { 0 };
+    size_t registration_index { 0 };
+    bool loaded { false };
+    bool external { false };
+    bool active { false };
+    bool modifiable { false };
+    bool preserve_unavailable_activation { false };
+};
+
+class NavigationItemData final : public wxTreeItemData
+{
+public:
+    explicit NavigationItemData(NavigationScope scope) : m_scope(scope) {}
+    const NavigationScope &scope() const { return m_scope; }
+
+private:
+    NavigationScope m_scope;
+};
+
+struct NavigationRecord {
+    wxTreeItemId item;
+    NavigationScope scope;
+    wxString label;
+};
+
+struct PluginListNode {
+    enum class Kind {
+        Container,
+        Plugin
+    };
+
+    Kind kind { Kind::Container };
+    PluginListNode *parent { nullptr };
+    PluginCatalogEntry *entry { nullptr };
+    wxString label;
+    wxString status;
+    wxString detail;
+    std::vector<std::unique_ptr<PluginListNode>> children;
+};
+
+class PluginListModel final : public wxDataViewModel
+{
+public:
+    enum Column {
+        Active,
+        Name,
+        Status,
+        Count
+    };
+
+    PluginListModel() = default;
+    ~PluginListModel() override = default;
+
+    unsigned int GetColumnCount() const override;
+    wxString GetColumnType(unsigned int column) const override;
+    void GetValue(wxVariant &value, const wxDataViewItem &item, unsigned int column) const override;
+    bool SetValue(const wxVariant &value, const wxDataViewItem &item, unsigned int column) override;
+    wxDataViewItem GetParent(const wxDataViewItem &item) const override;
+    unsigned int GetChildren(const wxDataViewItem &parent, wxDataViewItemArray &children) const override;
+    bool IsContainer(const wxDataViewItem &item) const override;
+    bool HasContainerColumns(const wxDataViewItem &) const override;
+    bool IsEnabled(const wxDataViewItem &item, unsigned int column) const override;
+    bool GetAttr(const wxDataViewItem &item, unsigned int column, wxDataViewItemAttr &attr) const override;
+
+    void clear();
+    void notify_rebuilt();
+    PluginListNode *add_container(PluginListNode *parent,
+                                  const wxString &label,
+                                  const wxString &status,
+                                  const wxString &detail);
+    PluginListNode *add_plugin(PluginListNode *parent, PluginCatalogEntry &entry);
+    PluginListNode *node(const wxDataViewItem &item) const;
+    wxDataViewItem item_for_entry(const PluginCatalogEntry *entry) const;
+    const std::vector<wxDataViewItem> &container_items() const;
+
+private:
+    std::vector<std::unique_ptr<PluginListNode>> m_roots;
+    std::map<const PluginCatalogEntry *, PluginListNode *> m_entry_nodes;
+    std::vector<wxDataViewItem> m_container_items;
+};
+
+struct DetailWidgets {
+    wxStaticText *title { nullptr };
+    wxStaticText *description { nullptr };
+    wxStaticText *status { nullptr };
+    wxStaticText *id { nullptr };
+    wxStaticText *package { nullptr };
+    wxStaticText *step { nullptr };
+    wxStaticText *priority { nullptr };
+    wxStaticText *group { nullptr };
+    wxStaticText *dependencies { nullptr };
+    wxStaticText *diagnostic_label { nullptr };
+    wxStaticText *diagnostic { nullptr };
+};
+
+struct GroupBucket {
+    std::string id;
+    wxString label;
+    wxString tooltip;
+    std::vector<PluginCatalogEntry *> entries;
+    int minimum_priority { std::numeric_limits<int>::max() };
+    size_t registration_index { std::numeric_limits<size_t>::max() };
+};
+
+struct StepBucket {
+    slicing_step_t step { STEP_NONE };
+    bool problems { false };
+    wxString label;
+    std::vector<PluginCatalogEntry *> entries;
+};
+
+PluginActivationConfig read_plugin_configuration();
+wxString unavailable_plugin_tooltip(const std::string &plugin_id,
+                                    const PluginActivationConfig &config);
+wxString plugin_package_load_diagnostic(const PluginPackageLoadReport &report);
+wxString step_name(slicing_step_t step);
+wxString phase_name(PluginPhase phase);
+std::optional<PluginPhase> phase_for_step(slicing_step_t step);
+std::optional<size_t> pipeline_step_index(slicing_step_t step);
+bool is_pipeline_step(slicing_step_t step);
+bool is_extension_step(slicing_step_t step);
+bool navigation_matches(const PluginCatalogEntry &entry, const NavigationScope &scope);
+wxString plugin_status(const PluginCatalogEntry &entry);
+wxString join_dependencies(const std::vector<std::string> &dependencies);
+wxString searchable_plugin_text(const PluginCatalogEntry &entry);
+bool plugin_less(const PluginCatalogEntry *left, const PluginCatalogEntry *right);
+bool step_bucket_less(const StepBucket &left, const StepBucket &right);
+void set_detail_value(wxStaticText *widget, const wxString &value);
+
+} // namespace
+
+class PluginConfigDialogState
+{
+public:
+    PluginActivationConfig activation_config;
+    std::set<std::string> original_active_plugin_ids;
+    std::vector<PluginCatalogEntry> entries;
+    std::vector<NavigationRecord> navigation_records;
+
+    wxSearchCtrl *search { nullptr };
+    wxChoice *state_filter { nullptr };
+    wxChoice *origin_filter { nullptr };
+    wxTreeCtrl *navigation { nullptr };
+    wxDataViewCtrl *plugin_list { nullptr };
+    PluginListModel *plugin_list_model { nullptr };
+    wxScrolledWindow *details_panel { nullptr };
+    DetailWidgets details;
+};
 
 namespace {
 
@@ -51,10 +256,30 @@ PluginActivationConfig read_plugin_configuration()
     return config;
 }
 
+// Preserve every loader detail in the activation dialog. A package may fail
+// for several plugin ids, so reducing the report to its first issue would hide
+// the information needed to repair a partially loaded package.
+wxString plugin_package_load_diagnostic(const PluginPackageLoadReport &report)
+{
+    wxString diagnostic = format_wxstr(_L("Package: %1%\nPath: %2%"),
+                                       from_u8(report.package_id), from_u8(report.package_path));
+    for (const PluginPackageLoadIssue &issue : report.issues) {
+        diagnostic += "\n\n";
+        if (!issue.plugin_id.empty())
+            diagnostic += format_wxstr(_L("Plugin: %1%\n"), from_u8(issue.plugin_id));
+        diagnostic += from_u8(issue.detail);
+        if (issue.plugin_abi != 0 || issue.host_abi != 0)
+            diagnostic += format_wxstr(_L("\nPlugin API: %1%; host API: %2%."),
+                                       issue.plugin_abi, issue.host_abi);
+        if (issue.system_error != 0)
+            diagnostic += format_wxstr(_L("\nSystem error code: %1%."), issue.system_error);
+    }
+    return diagnostic;
+}
+
 // Explain why an activated id has no registered Plugin instance. Package
 // installation and loading are separate from id activation, so the message
-// distinguishes a package that is absent, broken, or simply does not provide
-// the configured id.
+// distinguishes a package that is absent, broken, or incomplete.
 wxString unavailable_plugin_tooltip(const std::string &plugin_id,
                                     const PluginActivationConfig &config)
 {
@@ -71,11 +296,9 @@ wxString unavailable_plugin_tooltip(const std::string &plugin_id,
     const PluginPackageLoadReport *report =
         Orchestrator::instance().plugin_package_load_report(package_id);
     if (report != nullptr && !report->issues.empty()) {
-        return format_wxstr(
-            _L("Plugin '%1%' is enabled, but package '%2%' failed to load correctly. "
-               "Open Plugin updates to inspect the package error or choose another version. "
-               "Saving this dialog keeps the activation request."),
-            from_u8(plugin_id), from_u8(package_id));
+        return plugin_package_load_diagnostic(*report) + "\n\n" +
+               _L("The activation request is kept when this dialog is saved. Use Plugin updates to repair "
+                  "the package or choose another version.");
     }
     if (report != nullptr && report->state == PluginPackageLoadState::Loaded) {
         return format_wxstr(
@@ -100,33 +323,336 @@ wxString unavailable_plugin_tooltip(const std::string &plugin_id,
 wxString step_name(slicing_step_t step)
 {
     switch (step) {
-    case STEP_LAYER_HEIGHT:         return "Choose Layer Height";
-    case STEP_SLICING:              return "Slice the 3d model";
-    case STEP_POST_SLICING:         return "Post-process slices";
-    case STEP_PRE_PERIMETER:        return "Prepare perimeter generation";
-    case STEP_PERIMETER:            return "Perimeter generation";
-    case STEP_POST_PERIMETER:       return "Post-process perimeters";
-    case STEP_SURFACE_GENERATION:   return "Generate surfaces";
-    case STEP_SKIRT_BRIM:           return "Skirt and brim";
-    case STEP_PRE_INFILL:           return "Prepare filling";
-    case STEP_INFILL:               return "Fill surfaces";
-    case STEP_POST_INFILL:          return "Post-process infill";
-    case STEP_SUPPORT_DEMAND:       return "Detect support areas";
-    case STEP_SUPPORT:              return "Create support extrusions";
-    case STEP_PRE_GCODE:            return "Prepare gcode creation";
-    case STEP_CHECK_CONFLICT:       return "Check extrusions conflicts";
-    case STEP_ORDERING:             return "Ordering iland extrusions";
-    case STEP_WIPETOWER:            return "Create wipetower";
-    case STEP_SUPPORT_SPOT:         return "Detect curling areas";
-    case STEP_LAYER_EXTRUSION_EDIT: return "Edit extrusions";
-    case STEP_EXTRUSION_SIMPLIFICATION: return "Create arcs";
-    case STEP_GCODE:                return "Create output file";
-    case STEP_NONE:                 return "Nothing";
-    case STEP_ANY:                  return "Many steps";
-    case BRIDGE_DETECTOR:           return "Detect bridges areas";
-    case INFILL_PATTERN:            return "Fill a surface";
-    default:                        return wxString::Format("STEP_%u", unsigned(step));
+    case STEP_LAYER_HEIGHT:              return _L("Layer height");
+    case STEP_SLICING:                   return _L("Slicing");
+    case STEP_POST_SLICING:              return _L("Post-slicing");
+    case STEP_ALERT_SUPPORTS_NEEDED:     return _L("Support alert");
+    case STEP_PRE_PERIMETER:             return _L("Perimeter preparation");
+    case STEP_PERIMETER:                 return _L("Perimeter generation");
+    case STEP_POST_PERIMETER:            return _L("Perimeter post-processing");
+    case STEP_SURFACE_GENERATION:        return _L("Surface generation");
+    case STEP_SKIRT_BRIM:                return _L("Skirt and brim");
+    case STEP_PRE_INFILL:                return _L("Infill preparation");
+    case STEP_INFILL_GROUP:              return _L("Infill grouping");
+    case STEP_INFILL:                    return _L("Infill generation");
+    case STEP_POST_INFILL:               return _L("Infill post-processing");
+    case STEP_SUPPORT_DEMAND:            return _L("Support demand");
+    case STEP_SUPPORT:                   return _L("Support generation");
+    case STEP_PRE_GCODE:                 return _L("G-code preparation");
+    case STEP_CHECK_CONFLICT:            return _L("Conflict detection");
+    case STEP_ORDERING:                  return _L("Extrusion ordering");
+    case STEP_WIPETOWER:                 return _L("Wipe tower");
+    case STEP_SUPPORT_SPOT:              return _L("Support spot detection");
+    case STEP_LAYER_EXTRUSION_EDIT:      return _L("Layer extrusion editing");
+    case STEP_LAYER_STICHING:            return _L("Layer stitching");
+    case STEP_EXTRUSION_EDIT:            return _L("Extrusion editing");
+    case STEP_EXTRUSION_SIMPLIFICATION:  return _L("Extrusion simplification");
+    case STEP_GCODE:                     return _L("G-code generation");
+    case INFILL_PATTERN:                 return _L("Infill patterns");
+    case INFILL_SURFACE_RECIPE_MODIFIER: return _L("Infill surface recipes");
+    case BRIDGE_DETECTOR:                return _L("Bridge detectors");
+    case PERIMETER_GENERATION_MODULE:    return _L("Perimeter generation modules");
+    case STEP_NONE:                      return _L("No pipeline step");
+    case STEP_ANY:                       return _L("Multiple pipeline steps");
+    default:                             return wxString::Format("STEP_%u", unsigned(step));
     }
+}
+
+wxString phase_name(PluginPhase phase)
+{
+    switch (phase) {
+    case PluginPhase::Slicing:          return _L("Slicing");
+    case PluginPhase::Perimeters:       return _L("Perimeters");
+    case PluginPhase::SurfacesInfill:   return _L("Surfaces & infill");
+    case PluginPhase::SupportAdhesion:  return _L("Support & adhesion");
+    case PluginPhase::Output:           return _L("Output");
+    }
+    return wxEmptyString;
+}
+
+std::optional<PluginPhase> phase_for_step(slicing_step_t step)
+{
+    switch (step) {
+    case STEP_LAYER_HEIGHT:
+    case STEP_SLICING:
+    case STEP_POST_SLICING:
+        return PluginPhase::Slicing;
+    case STEP_PRE_PERIMETER:
+    case STEP_PERIMETER:
+    case STEP_POST_PERIMETER:
+        return PluginPhase::Perimeters;
+    case STEP_SURFACE_GENERATION:
+    case STEP_PRE_INFILL:
+    case STEP_INFILL_GROUP:
+    case STEP_INFILL:
+    case STEP_POST_INFILL:
+        return PluginPhase::SurfacesInfill;
+    case STEP_SUPPORT_DEMAND:
+    case STEP_SUPPORT:
+    case STEP_SKIRT_BRIM:
+        return PluginPhase::SupportAdhesion;
+    case STEP_PRE_GCODE:
+    case STEP_ORDERING:
+    case STEP_WIPETOWER:
+    case STEP_SUPPORT_SPOT:
+    case STEP_LAYER_EXTRUSION_EDIT:
+    case STEP_LAYER_STICHING:
+    case STEP_EXTRUSION_EDIT:
+    case STEP_EXTRUSION_SIMPLIFICATION:
+    case STEP_GCODE:
+        return PluginPhase::Output;
+    default:
+        return std::nullopt;
+    }
+}
+
+std::optional<size_t> pipeline_step_index(slicing_step_t step)
+{
+    const std::vector<slicing_step_t> &order = Steps::execution_order();
+    const std::vector<slicing_step_t>::const_iterator found = std::find(order.begin(), order.end(), step);
+    if (found == order.end())
+        return std::nullopt;
+    return size_t(std::distance(order.begin(), found));
+}
+
+bool is_pipeline_step(slicing_step_t step)
+{
+    return pipeline_step_index(step).has_value();
+}
+
+bool is_extension_step(slicing_step_t step)
+{
+    return !is_pipeline_step(step) || !phase_for_step(step).has_value();
+}
+
+bool navigation_matches(const PluginCatalogEntry &entry, const NavigationScope &scope)
+{
+    switch (scope.kind) {
+    case PluginNavigationKind::All:
+        return true;
+    case PluginNavigationKind::Phase: {
+        const std::optional<PluginPhase> phase = entry.loaded ? phase_for_step(entry.step) : std::nullopt;
+        return phase.has_value() && *phase == scope.phase;
+    }
+    case PluginNavigationKind::Step:
+        return entry.loaded && entry.step == scope.step;
+    case PluginNavigationKind::Extensions:
+        return entry.loaded && is_extension_step(entry.step);
+    case PluginNavigationKind::Problems:
+        return !entry.loaded;
+    }
+    return false;
+}
+
+wxString plugin_status(const PluginCatalogEntry &entry)
+{
+    if (!entry.loaded)
+        return entry.preserve_unavailable_activation ? _L("Not loaded - kept") : _L("Not loaded - orphaned");
+    return entry.active ? _L("Active") : _L("Inactive");
+}
+
+wxString join_dependencies(const std::vector<std::string> &dependencies)
+{
+    if (dependencies.empty())
+        return _L("None");
+
+    wxString result;
+    for (const std::string &dependency : dependencies) {
+        if (!result.empty())
+            result += ", ";
+        result += from_u8(dependency);
+    }
+    return result;
+}
+
+wxString searchable_plugin_text(const PluginCatalogEntry &entry)
+{
+    return (entry.name + " " + from_u8(entry.id) + " " + entry.description + " " + entry.step_label + " " +
+            entry.exclusive_group_label + " " + from_u8(entry.exclusive_group) + " " + from_u8(entry.package_id))
+        .Lower();
+}
+
+bool plugin_less(const PluginCatalogEntry *left, const PluginCatalogEntry *right)
+{
+    if (left->priority != right->priority)
+        return left->priority < right->priority;
+    return left->registration_index < right->registration_index;
+}
+
+bool step_bucket_less(const StepBucket &left, const StepBucket &right)
+{
+    if (left.problems != right.problems)
+        return !left.problems;
+
+    const std::optional<size_t> left_index = pipeline_step_index(left.step);
+    const std::optional<size_t> right_index = pipeline_step_index(right.step);
+    if (left_index.has_value() != right_index.has_value())
+        return left_index.has_value();
+    if (left_index.has_value() && right_index.has_value())
+        return *left_index < *right_index;
+    return left.step < right.step;
+}
+
+void set_detail_value(wxStaticText *widget, const wxString &value)
+{
+    if (widget == nullptr)
+        return;
+    widget->SetLabel(value);
+    widget->SetToolTip(value);
+}
+
+unsigned int PluginListModel::GetColumnCount() const
+{
+    return Column::Count;
+}
+
+wxString PluginListModel::GetColumnType(unsigned int column) const
+{
+    return column == Column::Active ? "bool" : "string";
+}
+
+void PluginListModel::GetValue(wxVariant &value, const wxDataViewItem &item, unsigned int column) const
+{
+    PluginListNode *list_node = node(item);
+    assert(list_node != nullptr);
+    if (list_node == nullptr)
+        return;
+
+    if (column == Column::Active)
+        value = list_node->entry != nullptr && list_node->entry->active;
+    else if (column == Column::Name)
+        value = list_node->entry != nullptr ? list_node->entry->name : list_node->label;
+    else if (column == Column::Status)
+        value = list_node->entry != nullptr ? plugin_status(*list_node->entry) : list_node->status;
+}
+
+bool PluginListModel::SetValue(const wxVariant &value, const wxDataViewItem &item, unsigned int column)
+{
+    PluginListNode *list_node = node(item);
+    if (column != Column::Active || list_node == nullptr || list_node->entry == nullptr ||
+        !list_node->entry->modifiable)
+        return false;
+
+    list_node->entry->active = value.GetBool();
+    return true;
+}
+
+wxDataViewItem PluginListModel::GetParent(const wxDataViewItem &item) const
+{
+    PluginListNode *list_node = node(item);
+    return list_node != nullptr && list_node->parent != nullptr ?
+        wxDataViewItem(list_node->parent) : wxDataViewItem();
+}
+
+unsigned int PluginListModel::GetChildren(const wxDataViewItem &parent, wxDataViewItemArray &children) const
+{
+    if (!parent.IsOk()) {
+        for (const std::unique_ptr<PluginListNode> &root : m_roots)
+            children.push_back(wxDataViewItem(root.get()));
+        return unsigned(m_roots.size());
+    }
+
+    PluginListNode *list_node = node(parent);
+    if (list_node == nullptr)
+        return 0;
+    for (const std::unique_ptr<PluginListNode> &child : list_node->children)
+        children.push_back(wxDataViewItem(child.get()));
+    return unsigned(list_node->children.size());
+}
+
+bool PluginListModel::IsContainer(const wxDataViewItem &item) const
+{
+    return !item.IsOk() || (node(item) != nullptr && node(item)->kind == PluginListNode::Kind::Container);
+}
+
+bool PluginListModel::HasContainerColumns(const wxDataViewItem &) const
+{
+    return true;
+}
+
+bool PluginListModel::IsEnabled(const wxDataViewItem &item, unsigned int column) const
+{
+    PluginListNode *list_node = node(item);
+    if (list_node == nullptr)
+        return false;
+    if (column != Column::Active)
+        return true;
+    return list_node->entry != nullptr && list_node->entry->modifiable;
+}
+
+bool PluginListModel::GetAttr(const wxDataViewItem &item,
+                              unsigned int,
+                              wxDataViewItemAttr &attr) const
+{
+    PluginListNode *list_node = node(item);
+    if (list_node != nullptr && list_node->kind == PluginListNode::Kind::Container) {
+        attr.SetBold(true);
+        return true;
+    }
+    return false;
+}
+
+void PluginListModel::clear()
+{
+    m_roots.clear();
+    m_entry_nodes.clear();
+    m_container_items.clear();
+}
+
+void PluginListModel::notify_rebuilt()
+{
+    // One reset after the complete hierarchy has been assembled is both less
+    // noisy and safer than publishing child nodes before their parents exist.
+    Cleared();
+}
+
+PluginListNode *PluginListModel::add_container(PluginListNode *parent,
+                                               const wxString &label,
+                                               const wxString &status,
+                                               const wxString &detail)
+{
+    std::unique_ptr<PluginListNode> created = std::make_unique<PluginListNode>();
+    created->kind = PluginListNode::Kind::Container;
+    created->parent = parent;
+    created->label = label;
+    created->status = status;
+    created->detail = detail;
+    PluginListNode *result = created.get();
+    if (parent == nullptr)
+        m_roots.push_back(std::move(created));
+    else
+        parent->children.push_back(std::move(created));
+    m_container_items.emplace_back(result);
+    return result;
+}
+
+PluginListNode *PluginListModel::add_plugin(PluginListNode *parent, PluginCatalogEntry &entry)
+{
+    assert(parent != nullptr);
+    std::unique_ptr<PluginListNode> created = std::make_unique<PluginListNode>();
+    created->kind = PluginListNode::Kind::Plugin;
+    created->parent = parent;
+    created->entry = &entry;
+    PluginListNode *result = created.get();
+    parent->children.push_back(std::move(created));
+    m_entry_nodes[&entry] = result;
+    return result;
+}
+
+PluginListNode *PluginListModel::node(const wxDataViewItem &item) const
+{
+    return item.IsOk() ? static_cast<PluginListNode *>(item.GetID()) : nullptr;
+}
+
+wxDataViewItem PluginListModel::item_for_entry(const PluginCatalogEntry *entry) const
+{
+    const std::map<const PluginCatalogEntry *, PluginListNode *>::const_iterator found = m_entry_nodes.find(entry);
+    return found == m_entry_nodes.end() ? wxDataViewItem() : wxDataViewItem(found->second);
+}
+
+const std::vector<wxDataViewItem> &PluginListModel::container_items() const
+{
+    return m_container_items;
 }
 
 } // namespace
@@ -134,115 +660,519 @@ wxString step_name(slicing_step_t step)
 PluginConfigDialog::PluginConfigDialog(wxWindow *parent)
     : DPIDialog(parent, wxID_ANY, _L("Plugin configuration"), wxDefaultPosition, wxDefaultSize,
                 wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER, "plugin_config")
+    , m_state(std::make_unique<PluginConfigDialogState>())
 {
+    build_catalog();
     build();
+}
+
+PluginConfigDialog::~PluginConfigDialog()
+{
+    // A native tree control may report a final selection change while its
+    // window is being destroyed. The handler captures this dialog and must not
+    // run after the dialog state starts being released.
+    if (m_state->navigation != nullptr)
+        m_state->navigation->SetEvtHandlerEnabled(false);
+
+    // wx destroys child controls after C++ members. Remove every node that
+    // points into the catalog while the catalog is still alive.
+    if (m_state->plugin_list_model != nullptr) {
+        m_state->plugin_list_model->clear();
+        m_state->plugin_list_model->notify_rebuilt();
+    }
+}
+
+void PluginConfigDialog::build_catalog()
+{
+    m_state->activation_config = read_plugin_configuration();
+    for (const std::pair<const std::string, bool> &activation : m_state->activation_config.activated)
+        if (activation.second)
+            m_state->original_active_plugin_ids.insert(activation.first);
+
+    std::vector<Plugin *> plugins = Orchestrator::instance().registered_plugins();
+    m_state->entries.reserve(plugins.size() + m_state->original_active_plugin_ids.size());
+    std::set<std::string> loaded_plugin_ids;
+
+    // Loaded plugins contribute their complete metadata. The catalog keeps the
+    // registration index as the final stable ordering key when priorities tie.
+    for (size_t plugin_idx = 0; plugin_idx < plugins.size(); ++plugin_idx) {
+        Plugin *plugin = plugins[plugin_idx];
+        if (plugin == nullptr)
+            continue;
+
+        PluginCatalogEntry entry;
+        entry.id = plugin->get_id();
+        entry.name = I18N::translate_in_domain(plugin->get_name(), plugin->get_translation_domain());
+        entry.description = I18N::translate_in_domain(plugin->get_description(), plugin->get_translation_domain());
+        entry.step = plugin->get_step();
+        entry.step_label = step_name(entry.step);
+        entry.priority = plugin->get_priority();
+        entry.registration_index = plugin_idx;
+        entry.exclusive_group = plugin->get_exclusive_group();
+        entry.exclusive_group_label =
+            I18N::translate_in_domain(plugin->get_exclusive_group_label(), plugin->get_translation_domain());
+        entry.exclusive_group_tooltip =
+            I18N::translate_in_domain(plugin->get_exclusive_group_tooltip(), plugin->get_translation_domain());
+        entry.dependencies = plugin->get_dependencies();
+        entry.loaded = true;
+        entry.modifiable = true;
+        entry.active = Orchestrator::instance().is_plugin_active(plugin) ||
+                       m_state->original_active_plugin_ids.find(entry.id) !=
+                           m_state->original_active_plugin_ids.end();
+        if (!plugin->get_package_root().empty()) {
+            entry.package_id = boost::filesystem::path(plugin->get_package_root()).filename().string();
+            entry.external = true;
+        } else {
+            const std::map<std::string, std::string>::const_iterator provider =
+                m_state->activation_config.plugin_packages.find(entry.id);
+            if (provider != m_state->activation_config.plugin_packages.end()) {
+                entry.package_id = provider->second;
+                entry.external = true;
+            }
+        }
+
+        loaded_plugin_ids.insert(entry.id);
+        m_state->entries.push_back(std::move(entry));
+    }
+
+    // Configured ids with no Plugin object remain visible in Problems. A known
+    // package association protects the requested activation while the package
+    // is repaired; an unknown orphan keeps the existing removal-on-save rule.
+    for (const std::string &plugin_id : m_state->original_active_plugin_ids) {
+        if (loaded_plugin_ids.find(plugin_id) != loaded_plugin_ids.end())
+            continue;
+
+        PluginCatalogEntry entry;
+        entry.id = plugin_id;
+        entry.name = format_wxstr(_L("%1% (not loaded)"), from_u8(plugin_id));
+        entry.description = _L("This configured plugin id is not currently loaded.");
+        entry.diagnostic = unavailable_plugin_tooltip(plugin_id, m_state->activation_config);
+        entry.step_label = _L("Unknown");
+        entry.registration_index = m_state->entries.size();
+        entry.loaded = false;
+        entry.modifiable = false;
+        const std::map<std::string, std::string>::const_iterator provider =
+            m_state->activation_config.plugin_packages.find(plugin_id);
+        entry.preserve_unavailable_activation = provider != m_state->activation_config.plugin_packages.end();
+        entry.active = entry.preserve_unavailable_activation;
+        if (entry.preserve_unavailable_activation) {
+            entry.package_id = provider->second;
+            entry.external = true;
+        }
+        m_state->entries.push_back(std::move(entry));
+    }
+}
+
+void PluginConfigDialog::build_navigation()
+{
+    wxTreeCtrl *tree = m_state->navigation;
+    tree->DeleteAllItems();
+    m_state->navigation_records.clear();
+    const wxTreeItemId root = tree->AddRoot("Plugins");
+
+    const wxTreeItemId all_item = tree->AppendItem(
+        root, _L("All plugins"), -1, -1, new NavigationItemData({PluginNavigationKind::All}));
+    m_state->navigation_records.push_back({all_item, {PluginNavigationKind::All}, _L("All plugins")});
+
+    const std::array<PluginPhase, 5> phases {{
+        PluginPhase::Slicing,
+        PluginPhase::Perimeters,
+        PluginPhase::SurfacesInfill,
+        PluginPhase::SupportAdhesion,
+        PluginPhase::Output
+    }};
+    for (PluginPhase phase : phases) {
+        const NavigationScope phase_scope { PluginNavigationKind::Phase, phase, STEP_NONE };
+        const wxTreeItemId phase_item = tree->AppendItem(
+            root, phase_name(phase), -1, -1, new NavigationItemData(phase_scope));
+        m_state->navigation_records.push_back({phase_item, phase_scope, phase_name(phase)});
+
+        // Pipeline order, not enum numeric order, controls the navigation.
+        // STEP_SKIRT_BRIM is one example whose execution position differs.
+        for (slicing_step_t step : Steps::execution_order()) {
+            const std::optional<PluginPhase> step_phase = phase_for_step(step);
+            if (!step_phase.has_value() || *step_phase != phase)
+                continue;
+            const NavigationScope step_scope { PluginNavigationKind::Step, phase, step };
+            const wxTreeItemId step_item = tree->AppendItem(
+                phase_item, step_name(step), -1, -1, new NavigationItemData(step_scope));
+            m_state->navigation_records.push_back({step_item, step_scope, step_name(step)});
+        }
+    }
+
+    const NavigationScope extensions_scope { PluginNavigationKind::Extensions };
+    const wxTreeItemId extensions_item = tree->AppendItem(
+        root, _L("Extension points"), -1, -1, new NavigationItemData(extensions_scope));
+    m_state->navigation_records.push_back(
+        {extensions_item, extensions_scope, _L("Extension points")});
+
+    std::set<slicing_step_t> extension_steps;
+    for (const PluginCatalogEntry &entry : m_state->entries)
+        if (entry.loaded && is_extension_step(entry.step))
+            extension_steps.insert(entry.step);
+    for (slicing_step_t step : extension_steps) {
+        const NavigationScope step_scope { PluginNavigationKind::Step, PluginPhase::Slicing, step };
+        const wxTreeItemId step_item = tree->AppendItem(
+            extensions_item, step_name(step), -1, -1, new NavigationItemData(step_scope));
+        m_state->navigation_records.push_back({step_item, step_scope, step_name(step)});
+    }
+
+    const NavigationScope problems_scope { PluginNavigationKind::Problems };
+    const wxTreeItemId problems_item = tree->AppendItem(
+        root, _L("Problems"), -1, -1, new NavigationItemData(problems_scope));
+    m_state->navigation_records.push_back({problems_item, problems_scope, _L("Problems")});
+
+    tree->ExpandAll();
+    tree->SelectItem(all_item);
+    refresh_navigation_counts();
+}
+
+void PluginConfigDialog::refresh_navigation_counts()
+{
+    for (const NavigationRecord &record : m_state->navigation_records) {
+        size_t active_count = 0;
+        size_t total_count = 0;
+        for (const PluginCatalogEntry &entry : m_state->entries) {
+            if (!navigation_matches(entry, record.scope))
+                continue;
+            ++total_count;
+            if (entry.active)
+                ++active_count;
+        }
+        m_state->navigation->SetItemText(
+            record.item,
+            record.label + wxString::Format(" (%u/%u)", unsigned(active_count), unsigned(total_count)));
+    }
+}
+
+void PluginConfigDialog::refresh_plugin_list()
+{
+    PluginCatalogEntry *previous_entry = nullptr;
+    const wxDataViewItem previous_selection = m_state->plugin_list->GetSelection();
+    PluginListNode *previous_node = m_state->plugin_list_model->node(previous_selection);
+    if (previous_node != nullptr)
+        previous_entry = previous_node->entry;
+
+    NavigationScope scope;
+    const wxTreeItemId selected_navigation = m_state->navigation->GetSelection();
+    if (selected_navigation.IsOk()) {
+        const NavigationItemData *data =
+            dynamic_cast<const NavigationItemData *>(m_state->navigation->GetItemData(selected_navigation));
+        if (data != nullptr)
+            scope = data->scope();
+    }
+
+    const wxString search = m_state->search->GetValue().Lower().Strip(wxString::both);
+    const int state_filter = m_state->state_filter->GetSelection();
+    const int origin_filter = m_state->origin_filter->GetSelection();
+    std::vector<PluginCatalogEntry *> visible;
+    for (PluginCatalogEntry &entry : m_state->entries) {
+        // A non-empty search intentionally ignores navigation, making it a
+        // global catalog search. State and origin filters still apply.
+        if (search.empty() && !navigation_matches(entry, scope))
+            continue;
+        if (!search.empty() && searchable_plugin_text(entry).Find(search) == wxNOT_FOUND)
+            continue;
+        if (state_filter == 1 && !entry.active)
+            continue;
+        if (state_filter == 2 && entry.active)
+            continue;
+        if (state_filter == 3 && entry.loaded)
+            continue;
+        if (origin_filter == 1 && (entry.external || !entry.loaded))
+            continue;
+        if (origin_filter == 2 && !entry.external)
+            continue;
+        visible.push_back(&entry);
+    }
+
+    std::stable_sort(visible.begin(), visible.end(), plugin_less);
+    std::vector<StepBucket> step_buckets;
+    for (PluginCatalogEntry *entry : visible) {
+        std::vector<StepBucket>::iterator bucket = std::find_if(
+            step_buckets.begin(), step_buckets.end(), [entry](const StepBucket &candidate) {
+                return candidate.problems == !entry->loaded &&
+                       (candidate.problems || candidate.step == entry->step);
+            });
+        if (bucket == step_buckets.end()) {
+            StepBucket created;
+            created.problems = !entry->loaded;
+            created.step = entry->step;
+            created.label = created.problems ? _L("Problems") : entry->step_label;
+            step_buckets.push_back(std::move(created));
+            bucket = std::prev(step_buckets.end());
+        }
+        bucket->entries.push_back(entry);
+    }
+    std::stable_sort(step_buckets.begin(), step_buckets.end(), step_bucket_less);
+
+    m_state->plugin_list->UnselectAll();
+    m_state->plugin_list_model->clear();
+    const bool show_step_containers = step_buckets.size() > 1 || !search.empty() ||
+                                      scope.kind == PluginNavigationKind::All ||
+                                      scope.kind == PluginNavigationKind::Phase ||
+                                      scope.kind == PluginNavigationKind::Extensions;
+
+    for (StepBucket &step_bucket : step_buckets) {
+        PluginListNode *step_parent = nullptr;
+        if (show_step_containers) {
+            size_t active_count = 0;
+            for (const PluginCatalogEntry *entry : step_bucket.entries)
+                if (entry->active)
+                    ++active_count;
+            step_parent = m_state->plugin_list_model->add_container(
+                nullptr,
+                step_bucket.label,
+                wxString::Format("%u/%u", unsigned(active_count), unsigned(step_bucket.entries.size())),
+                step_bucket.problems ? _L("Configured plugin ids that are not currently loaded.") :
+                                       step_bucket.label);
+        }
+
+        std::map<std::string, size_t> group_counts;
+        for (const PluginCatalogEntry &catalog_entry : m_state->entries) {
+            const bool same_bucket = step_bucket.problems ? !catalog_entry.loaded :
+                                                           catalog_entry.loaded && catalog_entry.step == step_bucket.step;
+            if (same_bucket && !catalog_entry.exclusive_group.empty())
+                ++group_counts[catalog_entry.exclusive_group];
+        }
+
+        std::vector<GroupBucket> groups;
+        for (PluginCatalogEntry *entry : step_bucket.entries) {
+            const bool shared_group = !entry->exclusive_group.empty() && group_counts[entry->exclusive_group] > 1;
+            const std::string group_id = shared_group ? entry->exclusive_group : std::string();
+            std::vector<GroupBucket>::iterator group = std::find_if(
+                groups.begin(), groups.end(), [&group_id](const GroupBucket &candidate) {
+                    return candidate.id == group_id;
+                });
+            if (group == groups.end()) {
+                GroupBucket created;
+                created.id = group_id;
+                created.label = shared_group ?
+                    (entry->exclusive_group_label.empty() ? from_u8(entry->exclusive_group) :
+                                                           entry->exclusive_group_label) :
+                    _L("Other plugins");
+                created.tooltip = shared_group ? entry->exclusive_group_tooltip :
+                    _L("Plugins that do not share an alternative-selection group in this step.");
+                groups.push_back(std::move(created));
+                group = std::prev(groups.end());
+            }
+            group->entries.push_back(entry);
+            group->minimum_priority = std::min(group->minimum_priority, entry->priority);
+            group->registration_index = std::min(group->registration_index, entry->registration_index);
+        }
+        std::stable_sort(groups.begin(), groups.end(), [](const GroupBucket &left, const GroupBucket &right) {
+            if (left.minimum_priority != right.minimum_priority)
+                return left.minimum_priority < right.minimum_priority;
+            return left.registration_index < right.registration_index;
+        });
+
+        for (GroupBucket &group : groups) {
+            std::stable_sort(group.entries.begin(), group.entries.end(), plugin_less);
+            const wxString group_count = group.entries.size() == 1 ? _L("1 plugin") :
+                wxString::Format(_L("%u plugins"), unsigned(group.entries.size()));
+            PluginListNode *group_parent = m_state->plugin_list_model->add_container(
+                step_parent,
+                group.label,
+                group_count,
+                group.tooltip);
+            for (PluginCatalogEntry *entry : group.entries)
+                m_state->plugin_list_model->add_plugin(group_parent, *entry);
+        }
+    }
+
+    m_state->plugin_list_model->notify_rebuilt();
+    for (const wxDataViewItem &container : m_state->plugin_list_model->container_items())
+        m_state->plugin_list->Expand(container);
+
+    wxDataViewItem selection = m_state->plugin_list_model->item_for_entry(previous_entry);
+    if (!selection.IsOk() && !visible.empty())
+        selection = m_state->plugin_list_model->item_for_entry(visible.front());
+    if (selection.IsOk()) {
+        m_state->plugin_list->Select(selection);
+        m_state->plugin_list->EnsureVisible(selection);
+    }
+    refresh_details();
+}
+
+void PluginConfigDialog::refresh_details()
+{
+    const wxDataViewItem selection = m_state->plugin_list->GetSelection();
+    PluginListNode *node = m_state->plugin_list_model->node(selection);
+    PluginCatalogEntry *entry = node != nullptr ? node->entry : nullptr;
+    if (entry == nullptr) {
+        const wxString title = node != nullptr ? node->label : _L("Select a plugin");
+        const wxString description = node != nullptr ? node->detail :
+            _L("Choose a plugin in the list to inspect its role and activation metadata.");
+        set_detail_value(m_state->details.title, title);
+        set_detail_value(m_state->details.description, description);
+        set_detail_value(m_state->details.status, wxEmptyString);
+        set_detail_value(m_state->details.id, wxEmptyString);
+        set_detail_value(m_state->details.package, wxEmptyString);
+        set_detail_value(m_state->details.step, wxEmptyString);
+        set_detail_value(m_state->details.priority, wxEmptyString);
+        set_detail_value(m_state->details.group, wxEmptyString);
+        set_detail_value(m_state->details.dependencies, wxEmptyString);
+        m_state->details.diagnostic_label->Show(false);
+        m_state->details.diagnostic->Show(false);
+    } else {
+        set_detail_value(m_state->details.title, entry->name);
+        set_detail_value(m_state->details.description,
+                         entry->description.empty() ? _L("No description is available.") : entry->description);
+        set_detail_value(m_state->details.status, plugin_status(*entry));
+        set_detail_value(m_state->details.id, from_u8(entry->id));
+        const wxString package = !entry->loaded && entry->package_id.empty() ? _L("Unknown") :
+                                 entry->external ? from_u8(entry->package_id) : _L("Built-in");
+        set_detail_value(m_state->details.package, package);
+
+        const std::optional<size_t> step_index = entry->loaded ? pipeline_step_index(entry->step) : std::nullopt;
+        wxString step_value = entry->step_label;
+        if (step_index.has_value())
+            step_value += wxString::Format(_L(" (pipeline position %u)"), unsigned(*step_index + 1));
+        else if (entry->loaded)
+            step_value += _L(" (extension point)");
+        set_detail_value(m_state->details.step, step_value);
+        set_detail_value(m_state->details.priority,
+                         entry->loaded ? wxString::Format("%d", entry->priority) : _L("Not available"));
+
+        wxString group_value = entry->exclusive_group.empty() ? _L("None") :
+            (entry->exclusive_group_label.empty() ? from_u8(entry->exclusive_group) :
+                                                   entry->exclusive_group_label);
+        if (!entry->exclusive_group.empty() && group_value != from_u8(entry->exclusive_group))
+            group_value += " (" + from_u8(entry->exclusive_group) + ")";
+        if (!entry->exclusive_group_tooltip.empty())
+            group_value += "\n" + entry->exclusive_group_tooltip;
+        set_detail_value(m_state->details.group, group_value);
+        set_detail_value(m_state->details.dependencies, join_dependencies(entry->dependencies));
+
+        const bool show_diagnostic = !entry->diagnostic.empty();
+        m_state->details.diagnostic_label->Show(show_diagnostic);
+        m_state->details.diagnostic->Show(show_diagnostic);
+        if (show_diagnostic)
+            set_detail_value(m_state->details.diagnostic, entry->diagnostic);
+    }
+
+    const int wrap_width = 29 * em_unit();
+    m_state->details.description->Wrap(wrap_width);
+    m_state->details.group->Wrap(wrap_width);
+    m_state->details.dependencies->Wrap(wrap_width);
+    m_state->details.diagnostic->Wrap(wrap_width);
+    m_state->details_panel->Layout();
+    m_state->details_panel->FitInside();
 }
 
 void PluginConfigDialog::build()
 {
-    const PluginActivationConfig activation_config = read_plugin_configuration();
-    m_plugin_packages = activation_config.plugin_packages;
-    for (const auto &[plugin_id, enabled] : activation_config.activated)
-        if (enabled)
-            m_original_active_plugin_ids.insert(plugin_id);
-
     wxBoxSizer *main_sizer = new wxBoxSizer(wxVERTICAL);
 
     wxStaticText *description = new wxStaticText(
         this, wxID_ANY,
-        _L("Choose which loaded plugins will be active after the next restart."));
+        _L("Choose which loaded plugins will be active after the next restart. Runtime selectors decide which "
+           "active alternative is used for an individual print."));
+    description->Wrap(95 * em_unit());
     main_sizer->Add(description, 0, wxEXPAND | wxALL, 10);
 
-    wxScrolledWindow *scrolled = new wxScrolledWindow(this, wxID_ANY, wxDefaultPosition,
-                                                      wxSize(70 * em_unit(), 24 * em_unit()),
-                                                      wxVSCROLL);
-    scrolled->SetScrollRate(0, em_unit());
+    // Search is global; the two choices refine both search results and the
+    // current navigation scope without changing pending activation values.
+    wxBoxSizer *filters = new wxBoxSizer(wxHORIZONTAL);
+    m_state->search = new wxSearchCtrl(this, wxID_ANY);
+    m_state->search->SetDescriptiveText(_L("Search plugins"));
+    m_state->search->ShowCancelButton(true);
+    filters->Add(m_state->search, 1, wxALIGN_CENTER_VERTICAL | wxRIGHT, 12);
+    filters->Add(new wxStaticText(this, wxID_ANY, _L("State")), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
+    m_state->state_filter = new wxChoice(this, wxID_ANY);
+    m_state->state_filter->Append(_L("All"));
+    m_state->state_filter->Append(_L("Active"));
+    m_state->state_filter->Append(_L("Inactive"));
+    m_state->state_filter->Append(_L("Problems"));
+    m_state->state_filter->SetSelection(0);
+    filters->Add(m_state->state_filter, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 12);
+    filters->Add(new wxStaticText(this, wxID_ANY, _L("Origin")), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
+    m_state->origin_filter = new wxChoice(this, wxID_ANY);
+    m_state->origin_filter->Append(_L("All"));
+    m_state->origin_filter->Append(_L("Built-in"));
+    m_state->origin_filter->Append(_L("External"));
+    m_state->origin_filter->SetSelection(0);
+    filters->Add(m_state->origin_filter, 0, wxALIGN_CENTER_VERTICAL);
+    main_sizer->Add(filters, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
 
-    wxFlexGridSizer *grid = new wxFlexGridSizer(4, 8, 12);
-    grid->AddGrowableCol(1, 1);
+    wxBoxSizer *content = new wxBoxSizer(wxHORIZONTAL);
+    m_state->navigation = new wxTreeCtrl(
+        this, wxID_ANY, wxDefaultPosition, wxSize(25 * em_unit(), 32 * em_unit()),
+        wxTR_HIDE_ROOT | wxTR_HAS_BUTTONS | wxTR_SINGLE | wxBORDER_SIMPLE);
+    content->Add(m_state->navigation, 0, wxEXPAND | wxRIGHT, 8);
 
-    grid->Add(new wxStaticText(scrolled, wxID_ANY, _L("Active")), 0, wxALIGN_CENTER_VERTICAL);
-    grid->Add(new wxStaticText(scrolled, wxID_ANY, _L("Plugin")), 0, wxALIGN_CENTER_VERTICAL);
-    grid->Add(new wxStaticText(scrolled, wxID_ANY, _L("Step")), 0, wxALIGN_CENTER_VERTICAL);
-    grid->Add(new wxStaticText(scrolled, wxID_ANY, _L("Priority")), 0, wxALIGN_CENTER_VERTICAL);
+    m_state->plugin_list = new wxDataViewCtrl(
+        this, wxID_ANY, wxDefaultPosition, wxSize(52 * em_unit(), 32 * em_unit()),
+        wxDV_SINGLE | wxDV_ROW_LINES | wxDV_VERT_RULES | wxBORDER_SIMPLE);
+    m_state->plugin_list_model = new PluginListModel();
+    m_state->plugin_list->AssociateModel(m_state->plugin_list_model);
+    m_state->plugin_list_model->DecRef();
+    wxDataViewColumn *active_column = m_state->plugin_list->AppendToggleColumn(
+        _L("Active"), PluginListModel::Active, wxDATAVIEW_CELL_ACTIVATABLE, 7 * em_unit());
+    wxDataViewColumn *name_column = m_state->plugin_list->AppendTextColumn(
+        _L("Plugin"), PluginListModel::Name, wxDATAVIEW_CELL_INERT, 30 * em_unit(), wxALIGN_LEFT,
+        wxDATAVIEW_COL_RESIZABLE);
+    m_state->plugin_list->AppendTextColumn(
+        _L("Status"), PluginListModel::Status, wxDATAVIEW_CELL_INERT, 13 * em_unit(), wxALIGN_LEFT,
+        wxDATAVIEW_COL_RESIZABLE);
+    m_state->plugin_list->SetExpanderColumn(name_column);
+    (void) active_column;
+    wxGetApp().UpdateDVCDarkUI(m_state->plugin_list);
+    content->Add(m_state->plugin_list, 1, wxEXPAND | wxRIGHT, 8);
 
-    std::vector<Plugin *> plugins = Orchestrator::instance().registered_plugins();
-    std::stable_sort(plugins.begin(), plugins.end(), [](const Plugin *lhs, const Plugin *rhs) {
-        if (lhs->get_step() != rhs->get_step())
-            return lhs->get_step() < rhs->get_step();
-        return lhs->get_priority() < rhs->get_priority();
-    });
+    m_state->details_panel = new wxScrolledWindow(
+        this, wxID_ANY, wxDefaultPosition, wxSize(32 * em_unit(), 32 * em_unit()), wxVSCROLL | wxBORDER_SIMPLE);
+    m_state->details_panel->SetScrollRate(0, em_unit());
+    wxBoxSizer *details_sizer = new wxBoxSizer(wxVERTICAL);
+    m_state->details.title = new wxStaticText(m_state->details_panel, wxID_ANY, _L("Select a plugin"));
+    wxFont title_font = m_state->details.title->GetFont();
+    title_font.SetWeight(wxFONTWEIGHT_BOLD);
+    m_state->details.title->SetFont(title_font);
+    details_sizer->Add(m_state->details.title, 0, wxEXPAND | wxALL, 10);
+    m_state->details.description = new wxStaticText(
+        m_state->details_panel, wxID_ANY,
+        _L("Choose a plugin in the list to inspect its role and activation metadata."));
+    details_sizer->Add(m_state->details.description, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
+    details_sizer->Add(new wxStaticLine(m_state->details_panel), 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
 
-    std::set<std::string> loaded_plugin_ids;
-    for (Plugin *plugin : plugins) {
-        loaded_plugin_ids.insert(plugin->get_id());
-        const wxString plugin_tooltip = plugin->get_description().empty() ?
-            from_u8(plugin->get_id()) :
-            I18N::translate_in_domain(plugin->get_description(), plugin->get_translation_domain());
-
-        wxCheckBox *checkbox = new wxCheckBox(scrolled, wxID_ANY, wxEmptyString);
-        checkbox->SetValue(Orchestrator::instance().is_plugin_active(plugin) ||
-                           m_original_active_plugin_ids.find(plugin->get_id()) != m_original_active_plugin_ids.end());
-        checkbox->SetToolTip(plugin_tooltip);
-
-        wxStaticText *name_label = new wxStaticText(
-            scrolled, wxID_ANY, I18N::translate_in_domain(plugin->get_name(), plugin->get_translation_domain()));
-        wxStaticText *step_label = new wxStaticText(scrolled, wxID_ANY, step_name(plugin->get_step()));
-        wxStaticText *priority_label = new wxStaticText(scrolled, wxID_ANY, wxString::Format("%d", plugin->get_priority()));
-        name_label->SetToolTip(plugin_tooltip);
-        step_label->SetToolTip(plugin_tooltip);
-        priority_label->SetToolTip(plugin_tooltip);
-
-        grid->Add(checkbox, 0, wxALIGN_CENTER_VERTICAL);
-        grid->Add(name_label, 0, wxALIGN_CENTER_VERTICAL);
-        grid->Add(step_label, 0, wxALIGN_CENTER_VERTICAL);
-        grid->Add(priority_label, 0, wxALIGN_CENTER_VERTICAL);
-
-        m_rows.push_back({ plugin->get_id(), checkbox, false });
+    wxFlexGridSizer *details_grid = new wxFlexGridSizer(2, 6, 10);
+    details_grid->AddGrowableCol(1, 1);
+    const std::array<wxString, 7> detail_labels {{
+        _L("State"), _L("ID"), _L("Package"), _L("Step"), _L("Priority"), _L("Exclusive group"), _L("Dependencies")
+    }};
+    std::array<wxStaticText **, 7> detail_values {{
+        &m_state->details.status,
+        &m_state->details.id,
+        &m_state->details.package,
+        &m_state->details.step,
+        &m_state->details.priority,
+        &m_state->details.group,
+        &m_state->details.dependencies
+    }};
+    for (size_t detail_idx = 0; detail_idx < detail_labels.size(); ++detail_idx) {
+        wxStaticText *label = new wxStaticText(m_state->details_panel, wxID_ANY, detail_labels[detail_idx]);
+        wxFont label_font = label->GetFont();
+        label_font.SetWeight(wxFONTWEIGHT_BOLD);
+        label->SetFont(label_font);
+        details_grid->Add(label, 0, wxALIGN_TOP);
+        *detail_values[detail_idx] = new wxStaticText(m_state->details_panel, wxID_ANY, wxEmptyString);
+        details_grid->Add(*detail_values[detail_idx], 1, wxEXPAND);
     }
+    details_sizer->Add(details_grid, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
 
-    for (const std::string &plugin_id : m_original_active_plugin_ids) {
-        if (loaded_plugin_ids.find(plugin_id) != loaded_plugin_ids.end())
-            continue;
-
-        // Keep unavailable configured ids visible even though there is no
-        // Plugin instance from which to build a normal row. Known package
-        // associations are preserved so repairing or installing the package
-        // can satisfy the same activation request after restart.
-        const std::map<std::string, std::string>::const_iterator provider = m_plugin_packages.find(plugin_id);
-        const bool provider_known = provider != m_plugin_packages.end();
-        const wxString plugin_tooltip = unavailable_plugin_tooltip(plugin_id, activation_config);
-
-        wxCheckBox *checkbox = new wxCheckBox(scrolled, wxID_ANY, wxEmptyString);
-        checkbox->SetValue(false);
-        checkbox->Enable(false);
-        checkbox->SetToolTip(plugin_tooltip);
-
-        wxStaticText *name_label = new wxStaticText(scrolled, wxID_ANY,
-                                                    format_wxstr(_L("%1% (not loaded)"), from_u8(plugin_id)));
-        wxStaticText *step_label = new wxStaticText(scrolled, wxID_ANY, _L("Not loaded"));
-        wxStaticText *priority_label = new wxStaticText(scrolled, wxID_ANY, wxEmptyString);
-        name_label->SetToolTip(plugin_tooltip);
-        step_label->SetToolTip(plugin_tooltip);
-        priority_label->SetToolTip(plugin_tooltip);
-
-        grid->Add(checkbox, 0, wxALIGN_CENTER_VERTICAL);
-        grid->Add(name_label, 0, wxALIGN_CENTER_VERTICAL);
-        grid->Add(step_label, 0, wxALIGN_CENTER_VERTICAL);
-        grid->Add(priority_label, 0, wxALIGN_CENTER_VERTICAL);
-
-        m_rows.push_back({ plugin_id, checkbox, provider_known });
-    }
-
-    if (m_rows.empty()) {
-        grid->Add(new wxStaticText(scrolled, wxID_ANY, _L("No plugin is loaded.")), 0, wxALIGN_CENTER_VERTICAL);
-        grid->AddSpacer(0);
-        grid->AddSpacer(0);
-        grid->AddSpacer(0);
-    }
-
-    scrolled->SetSizer(grid);
-    main_sizer->Add(scrolled, 1, wxEXPAND | wxLEFT | wxRIGHT, 10);
+    m_state->details.diagnostic_label = new wxStaticText(m_state->details_panel, wxID_ANY, _L("Diagnostic"));
+    wxFont diagnostic_font = m_state->details.diagnostic_label->GetFont();
+    diagnostic_font.SetWeight(wxFONTWEIGHT_BOLD);
+    m_state->details.diagnostic_label->SetFont(diagnostic_font);
+    m_state->details.diagnostic = new wxStaticText(m_state->details_panel, wxID_ANY, wxEmptyString);
+    details_sizer->Add(m_state->details.diagnostic_label, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, 10);
+    details_sizer->Add(m_state->details.diagnostic, 0, wxEXPAND | wxALL, 10);
+    m_state->details.diagnostic_label->Show(false);
+    m_state->details.diagnostic->Show(false);
+    details_sizer->AddStretchSpacer();
+    m_state->details_panel->SetSizer(details_sizer);
+    content->Add(m_state->details_panel, 0, wxEXPAND);
+    main_sizer->Add(content, 1, wxEXPAND | wxLEFT | wxRIGHT, 10);
 
     wxBoxSizer *buttons = new wxBoxSizer(wxHORIZONTAL);
     wxButton *save = new wxButton(this, wxID_OK, _L("Save and restart"));
@@ -252,10 +1182,29 @@ void PluginConfigDialog::build()
     buttons->Add(cancel, 0);
     main_sizer->Add(buttons, 0, wxEXPAND | wxALL, 10);
 
+    build_navigation();
+    refresh_plugin_list();
+
+    // Every projection event rebuilds from the catalog. Toggle events also
+    // update tree counters before applying filters that may hide the row.
+    m_state->search->Bind(wxEVT_TEXT, [this](wxCommandEvent &) { refresh_plugin_list(); });
+    m_state->state_filter->Bind(wxEVT_CHOICE, [this](wxCommandEvent &) { refresh_plugin_list(); });
+    m_state->origin_filter->Bind(wxEVT_CHOICE, [this](wxCommandEvent &) { refresh_plugin_list(); });
+    m_state->navigation->Bind(wxEVT_TREE_SEL_CHANGED, [this](wxTreeEvent &) { refresh_plugin_list(); });
+    m_state->plugin_list->Bind(wxEVT_DATAVIEW_SELECTION_CHANGED,
+                               [this](wxDataViewEvent &) { refresh_details(); });
+    m_state->plugin_list->Bind(wxEVT_DATAVIEW_ITEM_VALUE_CHANGED, [this](wxDataViewEvent &) {
+        refresh_navigation_counts();
+        refresh_plugin_list();
+    });
     save->Bind(wxEVT_BUTTON, &PluginConfigDialog::save_and_restart, this);
     cancel->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { EndModal(wxID_CANCEL); });
 
-    SetSizerAndFit(main_sizer);
+    SetSizer(main_sizer);
+    SetMinSize(wxSize(100 * em_unit(), 36 * em_unit()));
+    SetSize(wxSize(120 * em_unit(), 50 * em_unit()));
+    wxGetApp().UpdateDarkUI(this);
+    Layout();
     CentreOnParent();
 }
 
@@ -268,13 +1217,13 @@ bool PluginConfigDialog::write_active_plugins(std::string &error_message) const
 
     const boost::filesystem::path config_path = plugin_activation_config_path(boost::filesystem::path(data_dir()));
     try {
-        std::set<std::string> active_ids = m_original_active_plugin_ids;
-        for (const PluginRow &row : m_rows) {
-            if (row.preserve_unavailable_activation)
+        std::set<std::string> active_ids = m_state->original_active_plugin_ids;
+        for (const PluginCatalogEntry &entry : m_state->entries) {
+            if (entry.preserve_unavailable_activation)
                 continue;
-            active_ids.erase(row.id);
-            if (row.checkbox != nullptr && row.checkbox->GetValue())
-                active_ids.insert(row.id);
+            active_ids.erase(entry.id);
+            if (entry.active)
+                active_ids.insert(entry.id);
         }
 
         std::vector<std::string> selected_plugin_ids;
@@ -288,18 +1237,16 @@ bool PluginConfigDialog::write_active_plugins(std::string &error_message) const
         if (!read_plugin_activation_config(config_path, config, error_message))
             return false;
 
-        for (const PluginRow &row : m_rows) {
-            if (!row.preserve_unavailable_activation) {
-                config.activated[row.id] = row.checkbox != nullptr && row.checkbox->GetValue();
-                if (row.checkbox == nullptr || !row.checkbox->GetValue())
-                    config.plugin_packages.erase(row.id);
+        // Re-reading immediately before publication preserves package changes
+        // made by another dialog while this activation catalog was open.
+        for (const PluginCatalogEntry &entry : m_state->entries) {
+            if (!entry.preserve_unavailable_activation) {
+                config.activated[entry.id] = entry.active;
+                if (!entry.active)
+                    config.plugin_packages.erase(entry.id);
             }
-            if (row.checkbox != nullptr && row.checkbox->GetValue()) {
-                const Plugin *plugin = Orchestrator::instance().get_plugin(row.id);
-                if (plugin != nullptr && !plugin->get_package_root().empty())
-                    config.plugin_packages[row.id] =
-                        boost::filesystem::path(plugin->get_package_root()).filename().string();
-            }
+            if (entry.active && entry.loaded && entry.external && !entry.package_id.empty())
+                config.plugin_packages[entry.id] = entry.package_id;
         }
         if (!write_plugin_activation_config(config_path, config, error_message))
             return false;
@@ -341,7 +1288,8 @@ void PluginConfigDialog::save_and_restart(wxCommandEvent &)
     }
 
     BOOST_LOG_TRIVIAL(info) << "Plugin activation configuration saved to '"
-                            << plugin_activation_config_path(boost::filesystem::path(data_dir())).string() << "'. Restarting.";
+                            << plugin_activation_config_path(boost::filesystem::path(data_dir())).string()
+                            << "'. Restarting.";
     EndModal(wxID_OK);
     start_new_slicer(nullptr, false);
     if (wxGetApp().mainframe != nullptr)
@@ -351,8 +1299,14 @@ void PluginConfigDialog::save_and_restart(wxCommandEvent &)
 void PluginConfigDialog::on_dpi_changed(const wxRect &)
 {
     SetFont(wxGetApp().normal_font());
+    if (m_state->plugin_list != nullptr && m_state->plugin_list->GetColumnCount() == PluginListModel::Count) {
+        m_state->plugin_list->GetColumn(PluginListModel::Active)->SetWidth(7 * em_unit());
+        m_state->plugin_list->GetColumn(PluginListModel::Name)->SetWidth(30 * em_unit());
+        m_state->plugin_list->GetColumn(PluginListModel::Status)->SetWidth(13 * em_unit());
+    }
     msw_buttons_rescale(this, em_unit(), { wxID_OK, wxID_CANCEL });
-    Fit();
+    refresh_details();
+    Layout();
     Refresh();
 }
 
