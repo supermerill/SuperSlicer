@@ -18,6 +18,7 @@ add_executable(${_TEST_NAME}_tests
 	test_cut_surface.cpp
 	test_elephant_foot_compensation.cpp
 	test_expolygon.cpp
+	test_filesystem_transaction.cpp
 	test_geometry.cpp
 	test_placeholder_parser.cpp
 	test_polygon.cpp
@@ -54,6 +55,7 @@ if (TARGET OpenVDB::openvdb)
 endif()
     
 target_link_libraries(${_TEST_NAME}_tests test_common test_common_data libslic3r)
+target_compile_definitions(${_TEST_NAME}_tests PRIVATE SLIC3R_FILESYSTEM_TRANSACTION_TESTING)
 set_property(TARGET ${_TEST_NAME}_tests PROPERTY FOLDER "tests")
 
 if (WIN32)

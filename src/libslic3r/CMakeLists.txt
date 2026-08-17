@@ -368,6 +368,9 @@ set(SLIC3R_SOURCES
     FFFPrintConfig.cpp
     FFFPrintConfig.hpp
     FileParserError.hpp
+    FilesystemTransaction.cpp
+    FilesystemTransaction.hpp
+    FilesystemTransactionTest.hpp
     Fill/Fill.cpp
     Fill/Fill3DHoneycomb.cpp
     Fill/Fill3DHoneycomb.hpp
@@ -845,6 +848,7 @@ add_library(libslic3r STATIC ${SLIC3R_SOURCES})
 
 if (SLIC3R_BUILD_TESTS)
     target_compile_definitions(libslic3r PUBLIC SLIC3R_PLUGIN_REPOSITORY_TESTING)
+    target_compile_definitions(libslic3r PRIVATE SLIC3R_FILESYSTEM_TRANSACTION_TESTING)
 endif()
 
 if (WIN32)
