@@ -585,9 +585,10 @@ void UpdateConfigDialog::request_rebuild_ui() {
     this->QueueEvent(evt);
 }
 
-void UpdateConfigDialog::request_rebuild_after_vendor_change(bool change_succeeded)
+void UpdateConfigDialog::request_rebuild_after_vendor_change(UpdaterError result)
 {
-    if (!change_succeeded) {
+    if (!result.succeeded()) {
+        request_show_error_msg(format_updater_error(result));
         request_rebuild_ui();
         return;
     }
@@ -843,9 +844,9 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                     if (msg_dlg.ShowModal() == wxID_OK) {
                         this->m_data.uninstall_vendor(
                             vendor_id,
-                            repository_operation_callback<bool>(
-                                *this, [](UpdateConfigDialog &dialog, bool success) {
-                                    dialog.request_rebuild_after_vendor_change(success);
+                            repository_operation_callback<UpdaterError>(
+                                *this, [](UpdateConfigDialog &dialog, UpdaterError result) {
+                                    dialog.request_rebuild_after_vendor_change(std::move(result));
                                 }));
                     }
                 } else if (vendor_has_cache) {
@@ -856,9 +857,9 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                     if (msg_dlg.ShowModal() == wxID_OK) {
                         this->m_data.clear_cache_vendor(
                             vendor_id,
-                            repository_operation_callback<bool>(
-                                *this, [](UpdateConfigDialog &dialog, bool success) {
-                                    dialog.request_rebuild_after_vendor_change(success);
+                            repository_operation_callback<UpdaterError>(
+                                *this, [](UpdateConfigDialog &dialog, UpdaterError result) {
+                                    dialog.request_rebuild_after_vendor_change(std::move(result));
                                 }));
                     }
                 }
@@ -1053,10 +1054,10 @@ void UpdateConfigDialog::build_ui() {
             _L("Uninstall vendor bundle"), wxICON_WARNING | wxOK |wxCANCEL);
         if (msg_dlg.ShowModal() == wxID_OK) {
             this->begin_vendor_operation(_L("Uninstalling the presets, please wait"));
-            this->m_data.uninstall_all_vendors(repository_operation_callback<bool>(
-                *this, [](UpdateConfigDialog &dialog, bool ok) {
+            this->m_data.uninstall_all_vendors(repository_operation_callback<UpdaterError>(
+                *this, [](UpdateConfigDialog &dialog, UpdaterError result) {
                     dialog.finish_vendor_operation();
-                    dialog.request_rebuild_after_vendor_change(ok);
+                    dialog.request_rebuild_after_vendor_change(std::move(result));
                 }));
         }
     }));

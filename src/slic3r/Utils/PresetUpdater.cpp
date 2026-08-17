@@ -89,10 +89,13 @@ void PresetUpdater::cache_vendor_ini(const boost::filesystem::path &profile_path
     dispatch_error_callback(callback_result, std::move(error));
 }
 
-void PresetUpdater::uninstall_vendor(const std::string &vendor_id, std::function<void(bool)> callback_result)
+void PresetUpdater::uninstall_vendor(const std::string &vendor_id,
+                                     std::function<void(Slic3r::UpdaterError)> callback_result)
 {
     m_core.uninstall_vendor(vendor_id, [this, callback_result = std::move(callback_result)](Slic3r::UpdaterError error) {
-        m_app.CallAfter([callback_result, error = std::move(error)] { callback_result(error.succeeded()); });
+        m_app.CallAfter([callback_result, error = std::move(error)]() mutable {
+            callback_result(std::move(error));
+        });
     });
 }
 
@@ -105,17 +108,22 @@ void PresetUpdater::install_vendor(const std::string &vendor_id,
     });
 }
 
-void PresetUpdater::clear_cache_vendor(const std::string &vendor_id, std::function<void(bool)> callback_result)
+void PresetUpdater::clear_cache_vendor(const std::string &vendor_id,
+                                       std::function<void(Slic3r::UpdaterError)> callback_result)
 {
     m_core.clear_cache_vendor(vendor_id, [this, callback_result = std::move(callback_result)](Slic3r::UpdaterError error) {
-        m_app.CallAfter([callback_result, error = std::move(error)] { callback_result(error.succeeded()); });
+        m_app.CallAfter([callback_result, error = std::move(error)]() mutable {
+            callback_result(std::move(error));
+        });
     });
 }
 
-void PresetUpdater::uninstall_all_vendors(std::function<void(bool)> callback_result)
+void PresetUpdater::uninstall_all_vendors(std::function<void(Slic3r::UpdaterError)> callback_result)
 {
     m_core.uninstall_all_vendors([this, callback_result = std::move(callback_result)](Slic3r::UpdaterError error) {
-        m_app.CallAfter([callback_result, error = std::move(error)] { callback_result(error.succeeded()); });
+        m_app.CallAfter([callback_result, error = std::move(error)]() mutable {
+            callback_result(std::move(error));
+        });
     });
 }
 

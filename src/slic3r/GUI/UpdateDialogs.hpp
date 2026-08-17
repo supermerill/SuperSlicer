@@ -224,10 +224,10 @@ protected://bool install_vendor_config(VendorSync &vendor_synch, VendorAvailable
     void add_vendor_in_list(wxWindow *parent, VendorSync &vendor, wxGridBagSizer *versions_sizer, const int line_num);
     void rebuild_ui();
     void request_rebuild_ui();
-    // Vendor file changes reload the updater model and start a repository
-    // refresh. Wait for that refresh before rebuilding so the status column
-    // displays its final success or error instead of remaining InProgress.
-    void request_rebuild_after_vendor_change(bool change_succeeded);
+    // Report a failed vendor mutation with its precise updater diagnostic. A
+    // successful change joins the repository refresh before rebuilding so the
+    // status column does not remain InProgress.
+    void request_rebuild_after_vendor_change(UpdaterError result);
     void request_show_error_msg(const std::string &error_msg);
 
     // Disable every vendor action while preserving the independent OK button,

@@ -61,12 +61,16 @@ public:
     void cache_vendor_ini(const boost::filesystem::path &profile_path,
                           std::function<void(const std::string &)> callback_result);
 
-    void uninstall_vendor(const std::string &vendor_id, std::function<void(bool)> callback_result);
+    // Vendor removals preserve the structured updater result so the caller can
+    // distinguish snapshot, filesystem and rollback failures.
+    void uninstall_vendor(const std::string &vendor_id,
+                          std::function<void(Slic3r::UpdaterError)> callback_result);
     void install_vendor(const std::string &vendor_id,
                         const Slic3r::VendorAvailable &version,
                         std::function<void(const std::string &)> callback_result);
-    void clear_cache_vendor(const std::string &vendor_id, std::function<void(bool)> callback_result);
-    void uninstall_all_vendors(std::function<void(bool)> callback_result);
+    void clear_cache_vendor(const std::string &vendor_id,
+                            std::function<void(Slic3r::UpdaterError)> callback_result);
+    void uninstall_all_vendors(std::function<void(Slic3r::UpdaterError)> callback_result);
     void install_all_vendors(std::function<void(const std::string &)> callback_result);
     void upgrade_all_installed_vendors(std::function<void(const std::string &)> callback_result);
 
