@@ -131,8 +131,8 @@ PluginPackageLoadReport missing_live_package_report(
 
 PluginUpdater::~PluginUpdater()
 {
-    // Queued operations capture the derived model, so they must finish before
-    // m_plugins begins destruction.
+    // Queued operations and HTTP callback chains capture the derived model, so
+    // they must finish before m_plugins begins destruction.
     shutdown_operation_executor();
 }
 

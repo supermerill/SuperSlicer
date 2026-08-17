@@ -25,6 +25,16 @@ UpdaterOperationExecutor::~UpdaterOperationExecutor()
     shutdown_and_wait();
 }
 
+UpdaterOperationExecutor::AsyncOperationToken::AsyncOperationToken(UpdaterOperationExecutor &executor)
+    : m_executor(executor)
+{
+}
+
+UpdaterOperationExecutor::AsyncOperationToken::~AsyncOperationToken()
+{
+    m_executor.release_async_operation();
+}
+
 bool UpdaterOperationExecutor::enqueue(Operation operation, Completion completion)
 {
     std::lock_guard<std::mutex> guard(m_mutex);
@@ -50,6 +60,19 @@ bool UpdaterOperationExecutor::enqueue(Operation operation, Completion completio
     return true;
 }
 
+UpdaterOperationExecutor::AsyncOperation UpdaterOperationExecutor::retain_async_operation()
+{
+    std::lock_guard<std::mutex> guard(m_mutex);
+    if (m_stopping)
+        return AsyncOperation();
+
+    // Allocate the token before changing the counter so allocation failure
+    // cannot leave shutdown waiting for an operation that was never returned.
+    AsyncOperation operation(new AsyncOperationToken(*this));
+    ++m_async_operations;
+    return operation;
+}
+
 void UpdaterOperationExecutor::shutdown_and_wait()
 {
     {
@@ -62,12 +85,28 @@ void UpdaterOperationExecutor::shutdown_and_wait()
         assert(m_worker.get_id() != std::this_thread::get_id());
         m_worker.join();
     }
+
+    // HTTP callbacks may finish after the worker has stopped. They can no
+    // longer enqueue filesystem work, but the updater remains alive until each
+    // terminal callback has observed that rejection and released its token.
+    std::unique_lock<std::mutex> lock(m_mutex);
+    m_condition.wait(lock, [this] { return m_async_operations == 0; });
 }
 
 void UpdaterOperationExecutor::wait_until_idle()
 {
     std::unique_lock<std::mutex> lock(m_mutex);
     m_condition.wait(lock, [this] { return m_operations.empty() && !m_executing; });
+}
+
+void UpdaterOperationExecutor::release_async_operation()
+{
+    {
+        std::lock_guard<std::mutex> guard(m_mutex);
+        assert(m_async_operations != 0);
+        --m_async_operations;
+    }
+    m_condition.notify_all();
 }
 
 void UpdaterOperationExecutor::worker_loop()

@@ -203,8 +203,8 @@ UpdaterError save_vendor_description(const std::string &contents, const std::str
 
 PresetUpdater::~PresetUpdater()
 {
-    // Filesystem jobs retain detached VendorSync records and this updater's
-    // helper methods, so drain them before the derived members are destroyed.
+    // Filesystem jobs and HTTP callback chains retain VendorSync records and
+    // this updater's helpers, so drain both before derived members disappear.
     shutdown_operation_executor();
 }
 

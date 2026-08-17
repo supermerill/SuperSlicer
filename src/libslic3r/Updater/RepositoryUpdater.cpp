@@ -178,11 +178,22 @@ void RepositoryUpdater::refresh_repository_tags(const std::string &repository_id
                                                 ParseRepositoryTagsFn parse_tags,
                                                 RepositoryRefreshFinishedFn finished)
 {
+    const UpdaterOperationExecutor::AsyncOperation pending_operation =
+        m_operation_executor.retain_async_operation();
+    if (!pending_operation) {
+        finish_repository_refresh(
+            make_updater_error(UpdaterError::Code::PreparationRejected,
+                               "The updater is shutting down."),
+            finished);
+        return;
+    }
+
     // Every cache, startup and transport path converges on this guard. The
     // enclosing synchronization is released exactly once even if a transport
     // reports twice or throws while unwinding a callback.
     const std::shared_ptr<std::atomic_bool> terminal = std::make_shared<std::atomic_bool>(false);
-    const RepositoryRefreshFinishedFn complete = [this, terminal, finished](UpdaterError error) {
+    const RepositoryRefreshFinishedFn complete =
+        [this, pending_operation, terminal, finished](UpdaterError error) {
         if (!terminal->exchange(true))
             finish_repository_refresh(std::move(error), finished);
     };
@@ -204,8 +215,16 @@ void RepositoryUpdater::download_repository_description(const std::string &rest_
                                                         RepositoryDescriptionConsumerFn consume,
                                                         UpdaterErrorCallback callback)
 {
+    const UpdaterOperationExecutor::AsyncOperation pending_operation =
+        m_operation_executor.retain_async_operation();
+    if (!pending_operation) {
+        callback(make_updater_error(UpdaterError::Code::PreparationRejected,
+                                    "The updater is shutting down."));
+        return;
+    }
+
     const std::shared_ptr<std::atomic_bool> terminal = std::make_shared<std::atomic_bool>(false);
-    const UpdaterErrorCallback complete = [terminal, callback](UpdaterError error) {
+    const UpdaterErrorCallback complete = [pending_operation, terminal, callback](UpdaterError error) {
         if (!terminal->exchange(true))
             callback(std::move(error));
     };
@@ -251,8 +270,16 @@ void RepositoryUpdater::download_repository_file_async(const std::string &url,
                                                        size_t size_limit,
                                                        UpdaterErrorCallback callback)
 {
+    const UpdaterOperationExecutor::AsyncOperation pending_operation =
+        m_operation_executor.retain_async_operation();
+    if (!pending_operation) {
+        callback(make_updater_error(UpdaterError::Code::PreparationRejected,
+                                    "The updater is shutting down."));
+        return;
+    }
+
     const std::shared_ptr<std::atomic_bool> terminal = std::make_shared<std::atomic_bool>(false);
-    const UpdaterErrorCallback complete = [terminal, callback](UpdaterError error) {
+    const UpdaterErrorCallback complete = [pending_operation, terminal, callback](UpdaterError error) {
         if (!terminal->exchange(true))
             callback(std::move(error));
     };
@@ -332,8 +359,17 @@ void RepositoryUpdater::download_repository_changelogs(std::vector<RepositoryCha
                                                        std::function<void(bool)> callback,
                                                        bool force)
 {
+    const UpdaterOperationExecutor::AsyncOperation pending_operation =
+        m_operation_executor.retain_async_operation();
+    if (!pending_operation) {
+        callback(false);
+        return;
+    }
+
     m_changelog_service->download(
-        std::move(requests), std::move(callback), force,
+        std::move(requests),
+        [pending_operation, callback = std::move(callback)](bool succeeded) { callback(succeeded); },
+        force,
         [this]() { return sync_in_progress(); },
         [this](const std::string &url) { return has_api_request_slot(url); });
 }
@@ -345,9 +381,17 @@ void RepositoryUpdater::download_repository_version_changelogs(
     std::function<void(bool)> callback,
     bool force)
 {
+    const UpdaterOperationExecutor::AsyncOperation pending_operation =
+        m_operation_executor.retain_async_operation();
+    if (!pending_operation) {
+        callback(false);
+        return;
+    }
+
     m_changelog_service->download_versions(
         std::move(versions), log_directory, normalize_repository_rest_url(configured_rest_url),
-        std::move(callback), force,
+        [pending_operation, callback = std::move(callback)](bool succeeded) { callback(succeeded); },
+        force,
         [this]() { return sync_in_progress(); },
         [this](const std::string &url) { return has_api_request_slot(url); });
 }

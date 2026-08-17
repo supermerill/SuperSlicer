@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <ctime>
 #include <deque>
@@ -20,6 +21,7 @@
 #include <functional>
 #include <future>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <sstream>
@@ -267,6 +269,13 @@ public:
     explicit TestRepositoryUpdater(Slic3r::UpdaterHttpTransport &http_transport)
         : RepositoryUpdater(http_transport)
     {
+    }
+
+    ~TestRepositoryUpdater() override
+    {
+        // Real derived updaters drain callback chains before their model
+        // members disappear. Keep the focused test facade under that contract.
+        shutdown_operation_executor();
     }
 
     using RepositoryUpdater::begin_sync;
@@ -3007,6 +3016,106 @@ TEST_CASE("Updater worker contains operation and completion exceptions",
     CHECK(results[1].code == Slic3r::UpdaterError::Code::Unexpected);
     CHECK(results[1].detail == "Unknown updater exception.");
     CHECK(results[2].succeeded());
+}
+
+TEST_CASE("Updater worker shutdown waits for retained asynchronous operations",
+          "[plugins][updater][lifetime]")
+{
+    Slic3r::UpdaterOperationExecutor executor;
+    Slic3r::UpdaterOperationExecutor::AsyncOperation pending = executor.retain_async_operation();
+    REQUIRE(pending);
+
+    std::promise<void> shutdown_completed;
+    std::future<void> shutdown_completed_future = shutdown_completed.get_future();
+    std::promise<void> shutdown_started;
+    std::future<void> shutdown_started_future = shutdown_started.get_future();
+    std::thread shutdown_thread([&executor, &shutdown_completed, &shutdown_started] {
+        shutdown_started.set_value();
+        executor.shutdown_and_wait();
+        shutdown_completed.set_value();
+    });
+
+    // Shutdown must not return while an external callback can still reference
+    // the updater which owns this executor.
+    shutdown_started_future.wait();
+    CHECK(shutdown_completed_future.wait_for(std::chrono::milliseconds(50)) == std::future_status::timeout);
+    pending.reset();
+    CHECK(shutdown_completed_future.wait_for(std::chrono::seconds(1)) == std::future_status::ready);
+    shutdown_thread.join();
+    CHECK_FALSE(executor.retain_async_operation());
+}
+
+TEST_CASE("RepositoryUpdater destruction waits for a pending HTTP callback",
+          "[plugins][updater][lifetime]")
+{
+    FakeUpdaterHttpTransport http;
+    TemporaryDirectory temporary;
+    const boost::filesystem::path destination = temporary.path() / "late-response.zip";
+    std::optional<Slic3r::UpdaterError> result;
+    std::unique_ptr<TestRepositoryUpdater> updater = std::make_unique<TestRepositoryUpdater>(http);
+
+    updater->download_repository_file_async(
+        "https://example.invalid/late-response.zip", destination, 4096,
+        [&result](Slic3r::UpdaterError error) { result = std::move(error); });
+    REQUIRE(http.pending_count() == 1);
+
+    std::promise<void> destruction_completed;
+    std::future<void> destruction_completed_future = destruction_completed.get_future();
+    std::promise<void> destruction_started;
+    std::future<void> destruction_started_future = destruction_started.get_future();
+    std::thread destruction_thread(
+        [owned = std::move(updater), &destruction_completed, &destruction_started]() mutable {
+            destruction_started.set_value();
+            owned.reset();
+            destruction_completed.set_value();
+        });
+
+    // The updater stays alive until the delayed transport callback has either
+    // submitted its work or observed that shutdown rejects new worker tasks.
+    destruction_started_future.wait();
+    CHECK(destruction_completed_future.wait_for(std::chrono::milliseconds(50)) == std::future_status::timeout);
+    REQUIRE_NOTHROW(http.succeed_front("late response", 200));
+    CHECK(destruction_completed_future.wait_for(std::chrono::seconds(1)) == std::future_status::ready);
+    destruction_thread.join();
+    REQUIRE(result.has_value());
+}
+
+TEST_CASE("RepositoryUpdater destruction keeps changelog service state alive",
+          "[plugins][updater][lifetime]")
+{
+    FakeUpdaterHttpTransport http;
+    TemporaryDirectory temporary;
+    bool callback_succeeded = false;
+    std::unique_ptr<TestRepositoryUpdater> updater = std::make_unique<TestRepositoryUpdater>(http);
+
+    TestRepositoryUpdater::RepositoryChangelogRequest request;
+    request.cache_file = temporary.path() / "logs" / "late.json";
+    request.url = "https://example.invalid/commit/late";
+    request.kind = TestRepositoryUpdater::RepositoryChangelogKind::Commit;
+    request.store_notes = [](std::string) {};
+    updater->download_repository_changelogs(
+        {request}, [&callback_succeeded](bool succeeded) { callback_succeeded = succeeded; }, false);
+    REQUIRE(http.pending_count() == 1);
+
+    std::promise<void> destruction_completed;
+    std::future<void> destruction_completed_future = destruction_completed.get_future();
+    std::promise<void> destruction_started;
+    std::future<void> destruction_started_future = destruction_started.get_future();
+    std::thread destruction_thread(
+        [owned = std::move(updater), &destruction_completed, &destruction_started]() mutable {
+            destruction_started.set_value();
+            owned.reset();
+            destruction_completed.set_value();
+        });
+
+    // RepositoryChangelogState contains a pointer into its service. The async
+    // token keeps that service alive until the batch callback releases it.
+    destruction_started_future.wait();
+    CHECK(destruction_completed_future.wait_for(std::chrono::milliseconds(50)) == std::future_status::timeout);
+    REQUIRE_NOTHROW(http.succeed_front(R"({"commit":{"message":"late notes"}})", 200));
+    CHECK(destruction_completed_future.wait_for(std::chrono::seconds(1)) == std::future_status::ready);
+    destruction_thread.join();
+    CHECK(callback_succeeded);
 }
 
 TEST_CASE("Updater HTTP contains callback exceptions", "[plugins][updater][exceptions]")

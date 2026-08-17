@@ -90,8 +90,8 @@ public:
     virtual ~RepositoryUpdater();
 
     // Establish a synchronization point after local filesystem operations.
-    // Network requests and host callbacks must already have completed before
-    // this can observe work that they have not submitted yet.
+    // Network requests may still be active and enqueue the next operation in a
+    // multi-download sequence after this function returns.
     void wait_for_pending_operations();
 
     // Convert the repository spellings accepted by the GUI and configuration
@@ -186,9 +186,10 @@ protected:
     bool sync_in_progress() const { return m_sync_in_progress; }
     bool changelog_download_in_progress() const;
 
-    // Filesystem mutations use one serialized worker per updater. Derived
-    // destructors call shutdown_operation_executor() before their own model
-    // members are destroyed because queued closures may still reference them.
+    // Filesystem mutations use one serialized worker per updater, and network
+    // chains retain asynchronous-operation tokens from the same executor.
+    // Derived destructors call shutdown_operation_executor() before their model
+    // members are destroyed because both kinds of callbacks may reference them.
     bool enqueue_operation(UpdaterOperationExecutor::Operation operation,
                            UpdaterOperationExecutor::Completion completion);
     void shutdown_operation_executor();

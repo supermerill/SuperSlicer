@@ -3,10 +3,10 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 
 // UpdaterOperationExecutor serializes filesystem mutations on one background
-// thread. Call enqueue() with work returning UpdaterError and a terminal
-// callback; exceptions from either side are contained at the worker boundary.
-// Updater owners must call shutdown_and_wait() in their derived destructor
-// before members captured by queued operations begin to disappear.
+// thread and tracks asynchronous operations executed by external transports.
+// Call enqueue() for worker tasks and retain_async_operation() before starting
+// a callback-based operation. shutdown_and_wait() keeps the updater alive until
+// both kinds of work have released every callback capture.
 
 #ifndef slic3r_Updater_UpdaterOperationExecutor_hpp_
 #define slic3r_Updater_UpdaterOperationExecutor_hpp_
@@ -14,6 +14,7 @@
 #include <condition_variable>
 #include <deque>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <thread>
 
@@ -27,6 +28,21 @@ public:
     using Operation = std::function<UpdaterError()>;
     using Completion = std::function<void(UpdaterError)>;
 
+    // An asynchronous callback chain shares this token until its terminal
+    // callback returns. Releasing the final reference wakes shutdown waiters.
+    class AsyncOperationToken
+    {
+    public:
+        ~AsyncOperationToken();
+
+    private:
+        friend class UpdaterOperationExecutor;
+        explicit AsyncOperationToken(UpdaterOperationExecutor &executor);
+
+        UpdaterOperationExecutor &m_executor;
+    };
+    using AsyncOperation = std::shared_ptr<AsyncOperationToken>;
+
     UpdaterOperationExecutor();
     ~UpdaterOperationExecutor();
     UpdaterOperationExecutor(const UpdaterOperationExecutor &) = delete;
@@ -39,22 +55,30 @@ public:
     // in that case no callback is retained or invoked by the executor.
     bool enqueue(Operation operation, Completion completion);
 
-    // Stop accepting work, drain accepted tasks, then join the worker. This is
-    // idempotent so derived and base destructors may both enforce the lifetime
-    // rule without coordinating ownership details.
+    // Register one logical callback-based operation. Every callback belonging
+    // to that operation must retain a copy until the terminal callback has
+    // returned. An empty result means shutdown has started and no new external
+    // work may capture the updater.
+    AsyncOperation retain_async_operation();
+
+    // Stop accepting work, drain accepted tasks, join the worker, then wait for
+    // callback-based operations to release their tokens. This is idempotent so
+    // derived and base destructors may both enforce the lifetime rule.
     void shutdown_and_wait();
 
-    // Wait until every accepted task and its completion have returned while
-    // keeping the executor available. Headless callers and deterministic tests
-    // use this when they need a synchronous observation point.
+    // Wait until every worker task and its completion have returned while
+    // keeping the executor available. Network callbacks are deliberately not
+    // included because they may enqueue a later worker task in a sequence.
     void wait_until_idle();
 
 private:
+    void release_async_operation();
     void worker_loop();
 
     std::mutex m_mutex;
     std::condition_variable m_condition;
     std::deque<std::function<void()>> m_operations;
+    size_t m_async_operations = 0;
     bool m_stopping = false;
     bool m_executing = false;
     std::thread m_worker;
