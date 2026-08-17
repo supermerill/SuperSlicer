@@ -36,6 +36,8 @@ namespace {
 
 boost::filesystem::path data_path();
 boost::filesystem::path vendor_cache_directory(const VendorProfile &profile);
+// Build the versionless profile used to expose a repository in the updater.
+VendorProfile vendor_profile_from_repository_description(const RepositoryDescription &description);
 bool prepare_vendor_cache(RepositoryPackageCache &cache, bool &purged, std::string &error_message);
 bool transfer_vendor_files(const boost::filesystem::path &input_directory,
                            const boost::filesystem::path &output_directory,
@@ -50,6 +52,20 @@ boost::filesystem::path data_path()
 boost::filesystem::path vendor_cache_directory(const VendorProfile &profile)
 {
     return repository_cache_root_path(data_path(), RepositoryPackageType::Vendor, profile.id);
+}
+
+// A repository descriptor identifies a vendor before any version has been
+// downloaded. It deliberately has no profile version, printer models or
+// presets; those are read only from a version's profiles directory.
+VendorProfile vendor_profile_from_repository_description(const RepositoryDescription &description)
+{
+    VendorProfile profile(description.id);
+    profile.name = description.name;
+    profile.full_name = description.full_name;
+    profile.description = description.description;
+    profile.config_update_rest = description.config_update_rest;
+    profile.slicer = description.slicer;
+    return profile;
 }
 
 // Initialize the schema and restore durable vendor sources after a purge. This
@@ -274,10 +290,39 @@ void PresetUpdater::reload_all_vendors()
     load_unused_vendors(vendors, is_synchronized, vendor_ids, installed_directory, true);
     for (const RepositoryCachedEntry &repository : cache.scan()) {
         // The root descriptor makes a local-only or newly configured remote
-        // repository visible before it has any downloaded version.
-        load_unused_vendors(vendors, is_synchronized, vendor_ids, repository.directory, false);
-        for (const RepositoryCachedVersion &version : repository.versions)
+        // repository visible before it has any downloaded version. Other INI
+        // files at this level, such as tags.pagination.ini, are cache metadata
+        // and must never be parsed as vendor profiles.
+        // Use the descriptor already validated by RepositoryPackageCache.
+        const RepositoryDescription &description = repository.description;
+        // A descriptor without an id cannot identify a VendorSync entry.
+        if (!description.id.empty()) {
+            // Reuse an installed entry or create the repository-only entry.
+            VendorSync &vendor = vendors[description.id];
+            // Installed profiles remain authoritative when already present.
+            if (vendor.profile.id.empty()) {
+                // Expose repositories that do not yet contain a cached version.
+                vendor.reset(vendor_profile_from_repository_description(description), false, true);
+            } else {
+                // The scanned root proves that this vendor has cache metadata.
+                vendor.has_cache = true;
+            }
+            // Remember the id so later synchronization includes this vendor.
+            vendor_ids.insert(description.id);
+            // A remote endpoint means its tag list still needs synchronization.
+            if (!description.config_update_rest.empty()) {
+                // Mark the aggregate model as requiring a repository refresh.
+                is_synchronized = false;
+            }
+        }
+
+        // Version directories contain the actual vendor profiles and are the
+        // only cache locations interpreted by VendorProfile::from_ini().
+        // Visit every cached version without scanning root metadata files.
+        for (const RepositoryCachedVersion &version : repository.versions) {
+            // Parse only the profiles payload belonging to this exact version.
             load_unused_vendors(vendors, is_synchronized, vendor_ids, version.directory / "profiles", false);
+        }
     }
 
     std::lock_guard<std::mutex> guard(m_model_mutex);
