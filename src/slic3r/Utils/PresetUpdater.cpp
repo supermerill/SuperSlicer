@@ -16,6 +16,8 @@
 #include <wx/app.h>
 #include <wx/window.h>
 
+#include <boost/log/trivial.hpp>
+
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/PresetBundle.hpp"
 
@@ -35,6 +37,13 @@ PresetUpdater::PresetUpdater(GUI_App &app)
 {
 }
 
+PresetUpdater::~PresetUpdater()
+{
+    // Snapshot callbacks capture this GUI adapter. Drain the worker while all
+    // of its AppConfig and PresetBundle references are still alive.
+    m_snapshot_executor.shutdown_and_wait();
+}
+
 void PresetUpdater::set_installed_vendors(const Slic3r::PresetBundle *preset_bundle)
 {
     m_core.set_installed_vendors(preset_bundle);
@@ -48,7 +57,7 @@ void PresetUpdater::reload_all_vendors()
 void PresetUpdater::sync_async(std::function<void(int)> callback_result, bool force)
 {
     m_core.sync_async([this, callback_result = std::move(callback_result)](int update_count) {
-        m_app.CallAfter([callback_result, update_count] { callback_result(update_count); });
+        post_to_gui([callback_result, update_count] { callback_result(update_count); });
     }, force);
 }
 
@@ -57,7 +66,7 @@ void PresetUpdater::download_changelogs(const std::string &vendor_id,
                                         bool force)
 {
     m_core.download_changelogs(vendor_id, [this, callback_result = std::move(callback_result)](bool succeeded) {
-        m_app.CallAfter([callback_result, succeeded] { callback_result(succeeded); });
+        post_to_gui([callback_result, succeeded] { callback_result(succeeded); });
     }, force);
 }
 
@@ -65,7 +74,7 @@ void PresetUpdater::download_new_repo(const std::string &rest_url,
                                       std::function<void(Slic3r::UpdaterError)> callback_result)
 {
     m_core.download_new_repo(rest_url, [this, callback_result = std::move(callback_result)](Slic3r::UpdaterError error) {
-        m_app.CallAfter([callback_result, error = std::move(error)]() mutable {
+        post_to_gui([callback_result, error = std::move(error)]() mutable {
             callback_result(std::move(error));
         });
     });
@@ -74,26 +83,28 @@ void PresetUpdater::download_new_repo(const std::string &rest_url,
 void PresetUpdater::cache_vendor_archive(const boost::filesystem::path &archive_path,
                                          std::function<void(const std::string &)> callback_result)
 {
-    Slic3r::UpdaterError error = m_core.cache_vendor_archive(archive_path);
-    if (error.succeeded())
-        m_core.reload_all_vendors();
-    dispatch_error_callback(callback_result, std::move(error));
+    m_core.cache_vendor_archive(
+        archive_path,
+        [this, callback_result = std::move(callback_result)](Slic3r::UpdaterError error) {
+            dispatch_error_callback(callback_result, std::move(error));
+        });
 }
 
 void PresetUpdater::cache_vendor_ini(const boost::filesystem::path &profile_path,
                                      std::function<void(const std::string &)> callback_result)
 {
-    Slic3r::UpdaterError error = m_core.cache_vendor_ini(profile_path);
-    if (error.succeeded())
-        m_core.reload_all_vendors();
-    dispatch_error_callback(callback_result, std::move(error));
+    m_core.cache_vendor_ini(
+        profile_path,
+        [this, callback_result = std::move(callback_result)](Slic3r::UpdaterError error) {
+            dispatch_error_callback(callback_result, std::move(error));
+        });
 }
 
 void PresetUpdater::uninstall_vendor(const std::string &vendor_id,
                                      std::function<void(Slic3r::UpdaterError)> callback_result)
 {
     m_core.uninstall_vendor(vendor_id, [this, callback_result = std::move(callback_result)](Slic3r::UpdaterError error) {
-        m_app.CallAfter([callback_result, error = std::move(error)]() mutable {
+        post_to_gui([callback_result, error = std::move(error)]() mutable {
             callback_result(std::move(error));
         });
     });
@@ -112,7 +123,7 @@ void PresetUpdater::clear_cache_vendor(const std::string &vendor_id,
                                        std::function<void(Slic3r::UpdaterError)> callback_result)
 {
     m_core.clear_cache_vendor(vendor_id, [this, callback_result = std::move(callback_result)](Slic3r::UpdaterError error) {
-        m_app.CallAfter([callback_result, error = std::move(error)]() mutable {
+        post_to_gui([callback_result, error = std::move(error)]() mutable {
             callback_result(std::move(error));
         });
     });
@@ -121,7 +132,7 @@ void PresetUpdater::clear_cache_vendor(const std::string &vendor_id,
 void PresetUpdater::uninstall_all_vendors(std::function<void(Slic3r::UpdaterError)> callback_result)
 {
     m_core.uninstall_all_vendors([this, callback_result = std::move(callback_result)](Slic3r::UpdaterError error) {
-        m_app.CallAfter([callback_result, error = std::move(error)]() mutable {
+        post_to_gui([callback_result, error = std::move(error)]() mutable {
             callback_result(std::move(error));
         });
     });
@@ -188,48 +199,128 @@ void PresetUpdater::show_synch_window(wxWindow *parent,
         sync_async([this](int) { show_synch_window_internal(); });
         return;
     }
-    m_app.CallAfter([this] { show_synch_window_internal(); });
+    post_to_gui([this] { show_synch_window_internal(); });
 }
 
-std::optional<std::string> PresetUpdater::prepare_vendor_change(
-    Slic3r::VendorChange change, const std::vector<std::string> &vendor_ids)
+void PresetUpdater::prepare_vendor_change_async(
+    Slic3r::VendorChange change,
+    const std::vector<std::string> &vendor_ids,
+    Slic3r::PresetUpdaterHost::PrepareCallback callback)
 {
-    if (vendor_ids.empty())
-        return std::string();
-
-    const Config::Snapshot::Reason reason = change == Slic3r::VendorChange::Uninstall ||
-                                                     change == Slic3r::VendorChange::ClearCache ?
-        Config::Snapshot::SNAPSHOT_DOWNGRADE : Config::Snapshot::SNAPSHOT_UPGRADE;
-    const std::string comment = change == Slic3r::VendorChange::Uninstall ?
-        _u8L("Before removing vendor bundles") : _u8L("Before changing vendor bundles");
-    const Config::Snapshot *snapshot = Config::take_config_snapshot_report_error(
-        *m_app.app_config, reason, comment);
-    return snapshot == nullptr ? std::nullopt : std::optional<std::string>(snapshot->id);
-}
-
-Slic3r::UpdaterError PresetUpdater::rollback_vendor_change(const std::string &token)
-{
-    try {
-        // Snapshot restoration puts both the complete vendor directory and the
-        // user's preset selections back into their pre-operation state.
-        const Config::Snapshot &snapshot = Config::SnapshotDB::singleton().restore_snapshot(
-            token, *m_app.app_config);
-        m_app.app_config->set("on_snapshot", snapshot.id);
-        m_app.preset_bundle->load_presets(
-            *m_app.app_config, ForwardCompatibilitySubstitutionRule::EnableSystemSilent);
-        m_app.load_current_presets();
-        return Slic3r::UpdaterError();
-    } catch (const std::exception &error) {
-        return Slic3r::make_updater_error(Slic3r::UpdaterError::Code::Filesystem, error.what());
+    if (vendor_ids.empty()) {
+        callback(Slic3r::UpdaterError(), std::string());
+        return;
     }
+
+    // AppConfig is owned by wx. Capture its small value state there before the
+    // worker parses vendor files and recursively copies the snapshot payload.
+    post_to_gui([this, change, callback = std::move(callback)]() mutable {
+        const Config::Snapshot::Reason reason = change == Slic3r::VendorChange::Uninstall ?
+            Config::Snapshot::SNAPSHOT_DOWNGRADE : Config::Snapshot::SNAPSHOT_UPGRADE;
+        const std::string comment = change == Slic3r::VendorChange::Uninstall ?
+            _u8L("Before removing vendor bundles") : _u8L("Before changing vendor bundles");
+
+        const std::shared_ptr<std::optional<Config::Snapshot>> materialized =
+            std::make_shared<std::optional<Config::Snapshot>>();
+        try {
+            Config::Snapshot captured = Config::SnapshotDB::singleton().capture_snapshot_state(
+                *m_app.app_config, reason, comment);
+            const bool accepted = m_snapshot_executor.enqueue(
+                [materialized, captured = std::move(captured)]() mutable {
+                    materialized->emplace(
+                        Config::SnapshotDB::singleton().materialize_snapshot(std::move(captured)));
+                    return Slic3r::UpdaterError();
+                },
+                [this, materialized, callback](Slic3r::UpdaterError error) mutable {
+                    try {
+                        post_to_gui([materialized, callback, error = std::move(error)]() mutable {
+                            if (!error.succeeded()) {
+                                callback(std::move(error), std::string());
+                                return;
+                            }
+                            try {
+                                const Config::Snapshot &snapshot =
+                                    Config::SnapshotDB::singleton().register_snapshot(
+                                        std::move(materialized->value()));
+                                callback(Slic3r::UpdaterError(), snapshot.id);
+                            } catch (...) {
+                                callback(Slic3r::make_updater_error_from_exception(
+                                             std::current_exception(),
+                                             Slic3r::UpdaterError::Code::Filesystem),
+                                         std::string());
+                            }
+                        });
+                    } catch (...) {
+                        callback(Slic3r::make_updater_error_from_exception(std::current_exception()),
+                                 std::string());
+                    }
+                });
+            if (!accepted)
+                callback(Slic3r::make_updater_error(
+                             Slic3r::UpdaterError::Code::PreparationRejected,
+                             "The snapshot worker is shutting down."),
+                         std::string());
+        } catch (...) {
+            callback(Slic3r::make_updater_error_from_exception(
+                         std::current_exception(), Slic3r::UpdaterError::Code::Filesystem),
+                     std::string());
+        }
+    });
 }
 
-void PresetUpdater::dispatch_vendor_change(std::function<void()> operation)
+void PresetUpdater::rollback_vendor_change_async(
+    const std::string &token,
+    Slic3r::PresetUpdaterHost::RollbackCallback callback)
 {
-    // Snapshot creation and preset publication touch GUI-owned application
-    // state. Queue the complete transaction instead of running it in the HTTP
-    // completion thread that prepared the package cache.
-    m_app.CallAfter([operation = std::move(operation)]() mutable { operation(); });
+    // SnapshotDB lookup and AppConfig publication remain on wx. The recursive
+    // restoration between them runs on the dedicated snapshot worker.
+    post_to_gui([this, token, callback = std::move(callback)]() mutable {
+        const std::optional<Config::Snapshot> snapshot =
+            Config::SnapshotDB::singleton().snapshot_copy(token);
+        if (!snapshot) {
+            callback(Slic3r::make_updater_error(
+                Slic3r::UpdaterError::Code::Filesystem,
+                "The vendor rollback snapshot was not found."));
+            return;
+        }
+
+        const std::shared_ptr<Config::Snapshot> detached =
+            std::make_shared<Config::Snapshot>(*snapshot);
+        const bool accepted = m_snapshot_executor.enqueue(
+            [detached] {
+                Config::SnapshotDB::singleton().restore_snapshot_files(*detached);
+                return Slic3r::UpdaterError();
+            },
+            [this, detached, callback](Slic3r::UpdaterError error) mutable {
+                try {
+                    post_to_gui([this, detached, callback, error = std::move(error)]() mutable {
+                        if (!error.succeeded()) {
+                            callback(std::move(error));
+                            return;
+                        }
+                        try {
+                            Config::SnapshotDB::singleton().apply_snapshot_configuration(
+                                *detached, *m_app.app_config);
+                            m_app.app_config->set("on_snapshot", detached->id);
+                            m_app.preset_bundle->load_presets(
+                                *m_app.app_config,
+                                ForwardCompatibilitySubstitutionRule::EnableSystemSilent);
+                            m_app.load_current_presets();
+                            callback(Slic3r::UpdaterError());
+                        } catch (...) {
+                            callback(Slic3r::make_updater_error_from_exception(
+                                std::current_exception(), Slic3r::UpdaterError::Code::Filesystem));
+                        }
+                    });
+                } catch (...) {
+                    callback(Slic3r::make_updater_error_from_exception(std::current_exception()));
+                }
+            });
+        if (!accepted)
+            callback(Slic3r::make_updater_error(
+                Slic3r::UpdaterError::Code::PreparationRejected,
+                "The snapshot worker is shutting down."));
+    });
 }
 
 void PresetUpdater::vendor_files_changed(Slic3r::PresetUpdater &,
@@ -238,7 +329,7 @@ void PresetUpdater::vendor_files_changed(Slic3r::PresetUpdater &,
 {
     // Queue the reload before the operation callback so the dialog sees the
     // refreshed state when it rebuilds its controls.
-    m_app.CallAfter([this, change, vendor_ids] { reload_application_presets(change, vendor_ids); });
+    post_to_gui([this, change, vendor_ids] { reload_application_presets(change, vendor_ids); });
 }
 
 void PresetUpdater::reload_application_presets(Slic3r::VendorChange change, const std::vector<std::string> &vendor_ids)
@@ -290,7 +381,10 @@ void PresetUpdater::reload_application_presets(Slic3r::VendorChange change, cons
     m_app.preset_bundle->load_installed_printers(*m_app.app_config);
     m_app.preset_bundle->load_presets(*m_app.app_config, ForwardCompatibilitySubstitutionRule::EnableSystemSilent);
     m_app.load_current_presets();
-    m_core.reload_all_vendors();
+
+    // The core publishes its detached VendorSync result before notifying this
+    // host. Avoid rescanning cache and vendor directories on the wx thread;
+    // only repository synchronization remains to refresh remote metadata.
     m_core.sync_async([](int) {}, false);
 }
 
@@ -318,7 +412,7 @@ void PresetUpdater::show_synch_window_internal()
 void PresetUpdater::dispatch_error_callback(const std::function<void(const std::string &)> &callback_result,
                                             Slic3r::UpdaterError error)
 {
-    m_app.CallAfter([callback_result, error = std::move(error)] {
+    post_to_gui([callback_result, error = std::move(error)] {
         const std::string message = error.succeeded() ? std::string() : format_updater_error(error);
         callback_result(message);
     });
@@ -327,7 +421,7 @@ void PresetUpdater::dispatch_error_callback(const std::function<void(const std::
 void PresetUpdater::dispatch_errors_callback(const std::function<void(const std::string &)> &callback_result,
                                              Slic3r::UpdaterErrors errors)
 {
-    m_app.CallAfter([callback_result, errors = std::move(errors)] {
+    post_to_gui([callback_result, errors = std::move(errors)] {
         std::string message;
         for (const Slic3r::UpdaterError &error : errors) {
             if (!message.empty())
@@ -336,6 +430,28 @@ void PresetUpdater::dispatch_errors_callback(const std::function<void(const std:
         }
         callback_result(message);
     });
+}
+
+void PresetUpdater::post_to_gui(std::function<void()> operation) noexcept
+{
+    if (wxTheApp == nullptr)
+        return;
+
+    try {
+        m_app.CallAfter([operation = std::move(operation)]() mutable {
+            try {
+                operation();
+            } catch (const std::exception &error) {
+                BOOST_LOG_TRIVIAL(error) << "Preset updater wx continuation failed: " << error.what();
+            } catch (...) {
+                BOOST_LOG_TRIVIAL(error) << "Preset updater wx continuation failed with an unknown exception.";
+            }
+        });
+    } catch (const std::exception &error) {
+        BOOST_LOG_TRIVIAL(error) << "Failed posting preset updater work to wx: " << error.what();
+    } catch (...) {
+        BOOST_LOG_TRIVIAL(error) << "Failed posting preset updater work to wx with an unknown exception.";
+    }
 }
 
 } // namespace Slic3r::GUI

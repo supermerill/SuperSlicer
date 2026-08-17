@@ -77,25 +77,23 @@ struct VendorSync {
 
 class PresetUpdaterHost {
 public:
+    using PrepareCallback = std::function<void(UpdaterError, std::string)>;
+    using RollbackCallback = std::function<void(UpdaterError)>;
+
     virtual ~PresetUpdaterHost() = default;
 
-    // Create the application backup used if publication fails. The returned
-    // string is an opaque token understood only by the host. nullopt rejects
-    // the operation and guarantees that the core leaves live vendor files
-    // untouched.
-    virtual std::optional<std::string> prepare_vendor_change(
-        VendorChange change, const std::vector<std::string> &vendor_ids) = 0;
+    // Build the application backup asynchronously before live files change.
+    // The opaque token is returned only after the snapshot is durable.
+    virtual void prepare_vendor_change_async(
+        VendorChange change,
+        const std::vector<std::string> &vendor_ids,
+        PrepareCallback callback) = 0;
 
-    // Restore the backup identified by prepare_vendor_change(). This is called
-    // synchronously after a live vendor-file operation fails, before the
-    // updater reports the error to its caller.
-    virtual UpdaterError rollback_vendor_change(const std::string &token) = 0;
-
-    // Run the live-file transaction on the thread that owns application
-    // configuration and preset state. GUI hosts enqueue the operation on the
-    // wx thread; non-GUI hosts may execute it immediately. The host must run
-    // every accepted operation exactly once.
-    virtual void dispatch_vendor_change(std::function<void()> operation) = 0;
+    // Restore snapshot files off the GUI thread, then publish AppConfig and
+    // preset state on its owner thread before completing the callback.
+    virtual void rollback_vendor_change_async(
+        const std::string &token,
+        RollbackCallback callback) = 0;
 
     // Called after a successful filesystem operation. The host owns AppConfig,
     // preset reloads and any UI refresh; the core never accesses them directly.
@@ -115,6 +113,7 @@ public:
     PresetUpdater(PresetUpdater &&) = delete;
     PresetUpdater &operator=(const PresetUpdater &) = delete;
     PresetUpdater &operator=(PresetUpdater &&) = delete;
+    ~PresetUpdater() override;
 
     void set_installed_vendors(const PresetBundle *preset_bundle);
     void reload_all_vendors();
@@ -128,16 +127,19 @@ public:
                              bool force = false);
     void download_new_repo(const std::string &github_org_repo, std::function<void(UpdaterError)> callback_result);
 
-    // Import a downloaded vendor ZIP into the versioned cache. The archive
-    // must contain one profiles/<vendor-id>.ini file, either at its root or
-    // below one wrapper directory. Call reload_all_vendors() after success to
-    // expose the imported version through vendors().
-    UpdaterError cache_vendor_archive(const boost::filesystem::path &archive_path);
+    // Import a downloaded vendor ZIP on the serialized worker and reload the
+    // model after publication. The archive must contain one
+    // profiles/<vendor-id>.ini file, either at its root or below one wrapper
+    // directory. The callback runs on the worker, not the caller's thread.
+    void cache_vendor_archive(const boost::filesystem::path &archive_path,
+                              std::function<void(UpdaterError)> callback_result);
 
-    // Cache one standalone vendor INI and its optional sibling icon directory.
-    // Reimporting the same version replaces that version atomically; other
-    // versions of the vendor remain available to the selector.
-    UpdaterError cache_vendor_ini(const boost::filesystem::path &profile_path);
+    // Cache one standalone vendor INI and its optional sibling icon directory
+    // on the worker. Reimporting the same version replaces that version
+    // atomically; other versions remain available. The callback runs on the
+    // worker, so GUI adapters must marshal it back to wx.
+    void cache_vendor_ini(const boost::filesystem::path &profile_path,
+                          std::function<void(UpdaterError)> callback_result);
 
     void uninstall_vendor(const std::string &vendor_id, std::function<void(UpdaterError)> callback_result);
     void install_vendor(const std::string &vendor_id,
@@ -159,6 +161,8 @@ public:
     std::optional<VendorSync> vendor(const std::string &id) const;
 
 private:
+    UpdaterError cache_vendor_archive_files(const boost::filesystem::path &archive_path);
+    UpdaterError cache_vendor_ini_files(const boost::filesystem::path &profile_path);
     // One entry owns the detached model snapshot and prepared cache source
     // needed to publish a single vendor inside an install transaction.
     struct PendingVendorInstall {
@@ -208,12 +212,12 @@ private:
     bool begin_vendor_change_operation();
     void finish_vendor_change_operation();
 
-    // Non-GUI use executes inline; GUI use hands the transaction to wx without
-    // exposing wxWidgets in libslic3r.
-    void dispatch_vendor_change(std::function<void()> operation);
-    std::optional<std::string> prepare_vendor_change(VendorChange change,
-                                                     const std::vector<std::string> &vendor_ids);
-    UpdaterError rollback_vendor_change(const std::string &token, UpdaterError operation_error);
+    void prepare_vendor_change_async(VendorChange change,
+                                     const std::vector<std::string> &vendor_ids,
+                                     PresetUpdaterHost::PrepareCallback callback);
+    void rollback_vendor_change_async(const std::string &token,
+                                      UpdaterError operation_error,
+                                      std::function<void(UpdaterError)> callback);
     void notify_vendor_files_changed(VendorChange change, const std::vector<std::string> &vendor_ids);
 
     std::map<std::string, VendorSync> m_vendors;

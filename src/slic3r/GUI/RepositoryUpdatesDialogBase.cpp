@@ -12,6 +12,8 @@
 #include <wx/busyinfo.h>
 #include <wx/msgdlg.h>
 
+#include "libslic3r/Updater/UpdaterError.hpp"
+
 #include "I18N.hpp"
 #include "GUI.hpp"
 
@@ -33,6 +35,7 @@ void RepositoryUpdatesDialogBase::begin_repository_operation(wxWindow *action_ar
                                                                const wxString &message)
 {
     m_repository_operation_in_progress = true;
+    m_action_area = action_area;
     if (action_area != nullptr)
         action_area->Enable(false);
     m_wait_dialog = std::make_unique<wxBusyInfo>(message);
@@ -42,8 +45,10 @@ void RepositoryUpdatesDialogBase::finish_repository_operation(wxWindow *action_a
 {
     m_wait_dialog.reset();
     m_repository_operation_in_progress = false;
-    if (action_area != nullptr)
-        action_area->Enable(true);
+    wxWindow *area_to_enable = action_area != nullptr ? action_area : m_action_area;
+    if (area_to_enable != nullptr)
+        area_to_enable->Enable(true);
+    m_action_area = nullptr;
 }
 
 bool RepositoryUpdatesDialogBase::repository_operation_in_progress() const
@@ -54,6 +59,18 @@ bool RepositoryUpdatesDialogBase::repository_operation_in_progress() const
 void RepositoryUpdatesDialogBase::show_repository_error(const std::string &message)
 {
     wxMessageBox(from_u8(message), _L("Repository updates"), wxICON_ERROR);
+}
+
+void RepositoryUpdatesDialogBase::handle_repository_exception(std::exception_ptr exception) noexcept
+{
+    const UpdaterError error = make_updater_error_from_exception(std::move(exception));
+    try {
+        finish_repository_operation(nullptr);
+        show_repository_error(error.detail.empty() ?
+            "The updater encountered an unexpected error." : error.detail);
+    } catch (...) {
+        BOOST_LOG_TRIVIAL(error) << "Failed reporting an exception from a repository GUI operation.";
+    }
 }
 
 } // namespace Slic3r::GUI

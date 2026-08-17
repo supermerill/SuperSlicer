@@ -306,6 +306,8 @@ set(SLIC3R_SOURCES
 	Updater/UpdaterHttp.cpp
 	Updater/UpdaterHttp.hpp
 	Updater/UpdaterError.hpp
+	Updater/UpdaterOperationExecutor.cpp
+	Updater/UpdaterOperationExecutor.hpp
     BoundingBox.cpp
     BoundingBox.hpp
     BridgeDetector.cpp

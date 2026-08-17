@@ -10,6 +10,7 @@
 
 #include <ctime>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -115,6 +116,23 @@ public:
 	// Create a snapshot directory, copy the vendor config bundles, user print / sla_print / filament / sla_material / printer / physical_printer profiles,
 	// create an index.
 	const Snapshot&					take_snapshot(const AppConfig &app_config, Snapshot::Reason reason, const std::string &comment = "");
+
+    // Snapshot creation is split so GUI callers hold AppConfig only while
+    // copying its lightweight selections. materialize_snapshot() performs all
+    // parsing and recursive file copies on a worker; register_snapshot() is
+    // then called on the thread owning this database.
+    Snapshot                        capture_snapshot_state(const AppConfig &app_config,
+                                                           Snapshot::Reason reason,
+                                                           const std::string &comment = "") const;
+    Snapshot                        materialize_snapshot(Snapshot snapshot) const;
+    const Snapshot&                 register_snapshot(Snapshot snapshot);
+
+	// A detached copy may cross a worker boundary safely. File restoration is
+	// separated from AppConfig publication for the same reason as creation.
+	std::optional<Snapshot>           snapshot_copy(const std::string &id) const;
+	void                              restore_snapshot_files(const Snapshot &snapshot) const;
+	void                              apply_snapshot_configuration(const Snapshot &snapshot,
+	                                                               AppConfig &app_config) const;
 	const Snapshot&					restore_snapshot(const std::string &id, AppConfig &app_config);
 	void 							restore_snapshot(const Snapshot &snapshot, AppConfig &app_config);
 	// Test whether the AppConfig's on_snapshot variable points to an existing snapshot, and the existing snapshot

@@ -18,6 +18,7 @@
 #include <deque>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <map>
 #include <optional>
 #include <set>
@@ -40,6 +41,7 @@
 #include "libslic3r/Updater/RepositoryPackageCache.hpp"
 #include "libslic3r/Updater/UpdaterHttp.hpp"
 #include "libslic3r/Updater/UpdaterError.hpp"
+#include "libslic3r/Updater/UpdaterOperationExecutor.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/miniz_extension.hpp"
 
@@ -148,29 +150,49 @@ struct VendorChangeCall {
 class FakePresetUpdaterHost final : public Slic3r::PresetUpdaterHost
 {
 public:
-    std::optional<std::string> prepare_vendor_change(
-        Slic3r::VendorChange change, const std::vector<std::string> &vendor_ids) override
+    void prepare_vendor_change_async(
+        Slic3r::VendorChange change,
+        const std::vector<std::string> &vendor_ids,
+        Slic3r::PresetUpdaterHost::PrepareCallback callback) override
     {
-        prepared_changes.push_back({change, vendor_ids});
-        if (!accept_changes)
-            return std::nullopt;
+        std::function<void()> operation =
+            [this, change, vendor_ids, callback = std::move(callback)]() mutable {
+                prepared_changes.push_back({change, vendor_ids});
+                if (!accept_changes) {
+                    callback(Slic3r::make_updater_error(
+                                 Slic3r::UpdaterError::Code::PreparationRejected),
+                             std::string());
+                    return;
+                }
 
-        capture_vendor_directory();
-        return "test-snapshot-" + std::to_string(prepared_changes.size());
+                capture_vendor_directory();
+                callback(Slic3r::UpdaterError(),
+                         "test-snapshot-" + std::to_string(prepared_changes.size()));
+            };
+        if (dispatch_immediately)
+            operation();
+        else
+            dispatched_changes.emplace_back(std::move(operation));
     }
 
-    Slic3r::UpdaterError rollback_vendor_change(const std::string &token) override
+    void rollback_vendor_change_async(
+        const std::string &token,
+        Slic3r::PresetUpdaterHost::RollbackCallback callback) override
     {
         rollback_tokens.emplace_back(token);
-        if (!rollback_succeeds)
-            return Slic3r::make_updater_error(Slic3r::UpdaterError::Code::Filesystem,
-                                              "The fake snapshot restore failed.");
+        if (!rollback_succeeds) {
+            callback(Slic3r::make_updater_error(Slic3r::UpdaterError::Code::Filesystem,
+                                                "The fake snapshot restore failed."));
+            return;
+        }
 
         const boost::filesystem::path vendor_directory =
             boost::filesystem::path(Slic3r::data_dir()) / "vendor";
         boost::filesystem::remove_all(vendor_directory);
-        if (!snapshot_vendor_existed)
-            return Slic3r::UpdaterError();
+        if (!snapshot_vendor_existed) {
+            callback(Slic3r::UpdaterError());
+            return;
+        }
 
         boost::filesystem::create_directories(vendor_directory);
         for (const std::string &directory : snapshot_directories)
@@ -181,14 +203,7 @@ public:
             boost::nowide::ofstream stream(destination.string(), std::ios::binary | std::ios::trunc);
             stream.write(file.second.data(), static_cast<std::streamsize>(file.second.size()));
         }
-        return Slic3r::UpdaterError();
-    }
-
-    void dispatch_vendor_change(std::function<void()> operation) override
-    {
-        dispatched_changes.emplace_back(std::move(operation));
-        if (dispatch_immediately)
-            run_next_dispatched_change();
+        callback(Slic3r::UpdaterError());
     }
 
     void run_next_dispatched_change()
@@ -260,6 +275,8 @@ public:
     using RepositoryUpdater::download_repository_description;
     using RepositoryUpdater::download_repository_file_async;
     using RepositoryUpdater::download_repository_file_sync;
+    using RepositoryUpdater::enqueue_operation;
+    using RepositoryUpdater::finish_sync;
     using RepositoryUpdater::has_api_request_slot;
     using RepositoryUpdater::refresh_repository_tags;
     using RepositoryUpdater::RepositoryChangelogKind;
@@ -1711,6 +1728,23 @@ TEST_CASE("RepositoryUpdater writes asynchronous and synchronous repository file
     SECTION("asynchronous success") {
         const boost::filesystem::path destination = temporary.path() / "async" / "archive.zip";
         std::optional<Slic3r::UpdaterError> result;
+
+        // Hold the serialized worker so the HTTP completion can only enqueue
+        // the file write. This makes the asynchronous observation independent
+        // from thread scheduling speed.
+        std::promise<void> blocker_started;
+        std::future<void> blocker_started_future = blocker_started.get_future();
+        std::promise<void> release_blocker;
+        std::future<void> release_blocker_future = release_blocker.get_future();
+        REQUIRE(updater.enqueue_operation(
+            [&blocker_started, &release_blocker_future] {
+                blocker_started.set_value();
+                release_blocker_future.wait();
+                return Slic3r::UpdaterError();
+            },
+            [](Slic3r::UpdaterError) {}));
+        blocker_started_future.wait();
+
         updater.download_repository_file_async(
             "https://example.invalid/async.zip", destination, 4096,
             [&result](Slic3r::UpdaterError error) { result = std::move(error); });
@@ -1718,6 +1752,9 @@ TEST_CASE("RepositoryUpdater writes asynchronous and synchronous repository file
         REQUIRE(http.pending_count() == 1);
         CHECK(http.pending_front().response_size_limit() == 4096);
         http.succeed_front("async archive", 200);
+        CHECK_FALSE(result.has_value());
+        release_blocker.set_value();
+        updater.wait_for_pending_operations();
 
         REQUIRE(result.has_value());
         CHECK(result->succeeded());
@@ -1759,6 +1796,7 @@ TEST_CASE("RepositoryUpdater writes asynchronous and synchronous repository file
 
         REQUIRE(http.pending_count() == 1);
         http.succeed_front("cannot be written over a directory", 200);
+        updater.wait_for_pending_operations();
         REQUIRE(result.has_value());
         CHECK(result->code == Slic3r::UpdaterError::Code::Filesystem);
 
@@ -2270,6 +2308,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     REQUIRE(http.pending_count() == 1);
     CHECK(http.pending_front().url() == "https://example.invalid/plugin-2.zip");
     http.succeed_front(make_plugin_archive("2.0.0.0"), 200);
+    updater.wait_for_pending_operations();
 
     REQUIRE(install_result.has_value());
     CHECK(install_result->succeeded());
@@ -2344,6 +2383,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     updater.uninstall_plugin(plugin_id, [&uninstall_result](Slic3r::UpdaterError error) {
         uninstall_result = std::move(error);
     });
+    updater.wait_for_pending_operations();
 
     REQUIRE(uninstall_result.has_value());
     CHECK(uninstall_result->succeeded());
@@ -2535,6 +2575,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     updater.install_plugin(plugin_id, version, [&install_result](Slic3r::UpdaterError error) {
         install_result = std::move(error);
     });
+    updater.wait_for_pending_operations();
 
     REQUIRE(install_result.has_value());
     CHECK(install_result->succeeded());
@@ -2566,6 +2607,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     updater.install_plugin(plugin_id, *selected, [&install_result](Slic3r::UpdaterError error) {
         install_result = std::move(error);
     });
+    updater.wait_for_pending_operations();
     REQUIRE(install_result.has_value());
     REQUIRE(install_result->succeeded());
     REQUIRE(read_activation_config().installed.count(plugin_id) == 1);
@@ -2576,6 +2618,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     updater.clear_cache_plugin(plugin_id, [&clear_result](Slic3r::UpdaterError error) {
         clear_result = std::move(error);
     });
+    updater.wait_for_pending_operations();
     REQUIRE(clear_result.has_value());
     REQUIRE(clear_result->succeeded());
     CHECK_FALSE(updater.plugin(plugin_id).has_value());
@@ -2615,6 +2658,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     updater.clear_cache_plugin(plugin_id, [&clear_result](Slic3r::UpdaterError error) {
         clear_result = std::move(error);
     });
+    updater.wait_for_pending_operations();
     REQUIRE(clear_result.has_value());
     REQUIRE(clear_result->succeeded());
     CHECK_FALSE(updater.plugin(plugin_id).has_value());
@@ -2627,7 +2671,13 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     CHECK_FALSE(updater.plugin(plugin_id).has_value());
     const boost::filesystem::path other_package = temporary.path() / "another.plugin";
     write_test_file(other_package / plugin_library_filename(), "another plugin");
-    REQUIRE(updater.cache_plugin_directory(other_package).succeeded());
+    std::optional<Slic3r::UpdaterError> import_result;
+    updater.cache_plugin_directory(other_package, [&import_result](Slic3r::UpdaterError error) {
+        import_result = std::move(error);
+    });
+    updater.wait_for_pending_operations();
+    REQUIRE(import_result.has_value());
+    REQUIRE(import_result->succeeded());
     updater.reload_all_plugins();
     CHECK_FALSE(updater.plugin(plugin_id).has_value());
     CHECK(updater.plugin("another.plugin").has_value());
@@ -2709,6 +2759,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     updater.install_plugin(plugin_id, *update, [&install_result](Slic3r::UpdaterError error) {
         install_result = std::move(error);
     });
+    updater.wait_for_pending_operations();
     REQUIRE(install_result.has_value());
     REQUIRE(install_result->succeeded());
     REQUIRE(read_activation_config().installed.at(plugin_id).package_version == "2.0.0.0");
@@ -2717,6 +2768,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     updater.clear_cache_plugin(plugin_id, [&clear_result](Slic3r::UpdaterError error) {
         clear_result = std::move(error);
     });
+    updater.wait_for_pending_operations();
     REQUIRE(clear_result.has_value());
     REQUIRE(clear_result->succeeded());
 
@@ -2748,9 +2800,13 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     const boost::filesystem::path package = temporary.path() / "local_only_plugin";
     write_test_file(package / plugin_library_filename(), "local library");
 
-    const Slic3r::UpdaterError import_error = updater.cache_plugin_directory(package);
-    REQUIRE(import_error.succeeded());
-    updater.reload_all_plugins();
+    std::optional<Slic3r::UpdaterError> import_error;
+    updater.cache_plugin_directory(package, [&import_error](Slic3r::UpdaterError error) {
+        import_error = std::move(error);
+    });
+    updater.wait_for_pending_operations();
+    REQUIRE(import_error.has_value());
+    REQUIRE(import_error->succeeded());
 
     const std::optional<Slic3r::PluginSync> plugin = updater.plugin("local_only_plugin");
     REQUIRE(plugin.has_value());
@@ -2814,6 +2870,7 @@ TEST_CASE("PluginUpdater lists and manages Python runtime infrastructure",
     updater.install_plugin("python", *runtime_best, [&install_result](Slic3r::UpdaterError error) {
         install_result = std::move(error);
     });
+    updater.wait_for_pending_operations();
     REQUIRE(install_result.has_value());
     REQUIRE(install_result->succeeded());
     runtime = updater.plugin("python");
@@ -2834,6 +2891,7 @@ TEST_CASE("PluginUpdater lists and manages Python runtime infrastructure",
     updater.uninstall_plugin("python", [&uninstall_result](Slic3r::UpdaterError error) {
         uninstall_result = std::move(error);
     });
+    updater.wait_for_pending_operations();
     REQUIRE(uninstall_result.has_value());
     REQUIRE(uninstall_result->succeeded());
     runtime = updater.plugin("python");
@@ -2920,6 +2978,110 @@ TEST_CASE("Updater HTTP progress remains controllable from a fake transport", "[
     CHECK(http.pending_count() == 0);
 }
 
+TEST_CASE("Updater worker contains operation and completion exceptions",
+          "[plugins][updater][exceptions]")
+{
+    Slic3r::UpdaterOperationExecutor executor;
+    std::vector<Slic3r::UpdaterError> results;
+
+    REQUIRE(executor.enqueue(
+        []() -> Slic3r::UpdaterError { throw std::runtime_error("worker failure"); },
+        [&results](Slic3r::UpdaterError error) { results.emplace_back(std::move(error)); }));
+    REQUIRE(executor.enqueue(
+        []() -> Slic3r::UpdaterError { throw 42; },
+        [&results](Slic3r::UpdaterError error) { results.emplace_back(std::move(error)); }));
+
+    // A bad terminal callback must be contained by the worker boundary. The
+    // following queued operation proves that the worker continues afterwards.
+    REQUIRE(executor.enqueue(
+        [] { return Slic3r::UpdaterError(); },
+        [](Slic3r::UpdaterError) { throw std::runtime_error("completion failure"); }));
+    REQUIRE(executor.enqueue(
+        [] { return Slic3r::UpdaterError(); },
+        [&results](Slic3r::UpdaterError error) { results.emplace_back(std::move(error)); }));
+
+    executor.wait_until_idle();
+    REQUIRE(results.size() == 3);
+    CHECK(results[0].code == Slic3r::UpdaterError::Code::Unexpected);
+    CHECK(results[0].detail.find("worker failure") != std::string::npos);
+    CHECK(results[1].code == Slic3r::UpdaterError::Code::Unexpected);
+    CHECK(results[1].detail == "Unknown updater exception.");
+    CHECK(results[2].succeeded());
+}
+
+TEST_CASE("Updater HTTP contains callback exceptions", "[plugins][updater][exceptions]")
+{
+    FakeUpdaterHttpTransport http;
+
+    SECTION("a complete exception is delivered once to the error callback") {
+        int error_count = 0;
+        std::string diagnostic;
+        http.get("https://example.invalid/complete")
+            .on_complete([](std::string, unsigned) { throw std::runtime_error("complete failure"); })
+            .on_error([&error_count, &diagnostic](std::string, std::string error, unsigned) {
+                ++error_count;
+                diagnostic = std::move(error);
+            })
+            .perform();
+
+        REQUIRE_NOTHROW(http.succeed_front("body", 200));
+        CHECK(error_count == 1);
+        CHECK(diagnostic.find("complete failure") != std::string::npos);
+    }
+
+    SECTION("a progress exception cancels and consumes the terminal callbacks") {
+        int error_count = 0;
+        http.get("https://example.invalid/progress")
+            .on_complete([](std::string, unsigned) { FAIL("The completed request was already cancelled."); })
+            .on_error([&error_count](std::string, std::string, unsigned) { ++error_count; })
+            .on_progress([](Slic3r::UpdaterHttpRequest::Progress, bool &) {
+                throw std::runtime_error("progress failure");
+            })
+            .perform();
+
+        CHECK(http.progress_front(10, 5, "partial"));
+        CHECK(error_count == 1);
+        REQUIRE_NOTHROW(http.succeed_front(std::string(), 200));
+        CHECK(error_count == 1);
+    }
+
+    SECTION("an error callback exception never escapes the transport") {
+        http.get("https://example.invalid/error")
+            .on_error([](std::string, std::string, unsigned) {
+                throw std::runtime_error("error callback failure");
+            })
+            .perform();
+
+        REQUIRE_NOTHROW(http.fail_front(std::string(), "network failure", 0));
+        CHECK(http.pending_count() == 0);
+    }
+}
+
+TEST_CASE("Repository sync contains terminal callback exceptions",
+          "[plugins][updater][exceptions]")
+{
+    FakeUpdaterHttpTransport http;
+    TestRepositoryUpdater updater(http);
+    int following_callback_count = 0;
+
+    REQUIRE(updater.begin_sync(1, [](int) {
+        throw std::runtime_error("sync callback failure");
+    }));
+    CHECK_FALSE(updater.begin_sync(1, [&following_callback_count](int count) {
+        CHECK(count == 7);
+        ++following_callback_count;
+    }));
+
+    REQUIRE_NOTHROW(updater.finish_sync());
+    CHECK(following_callback_count == 1);
+
+    // Completing the previous batch must release the shared sync state so a
+    // later request starts normally after the throwing subscriber.
+    int later_callback_count = 0;
+    REQUIRE(updater.begin_sync(0, [&later_callback_count](int) { ++later_callback_count; }));
+    CHECK(later_callback_count == 1);
+}
+
 TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
                  "PresetUpdater functional dialog installs an uninstalled bundled vendor",
                  "[plugins][updater][preset-functional]")
@@ -2947,6 +3109,7 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
                            [&install_result](Slic3r::UpdaterError error) {
                                install_result = std::move(error);
                            });
+    updater.wait_for_pending_operations();
 
     REQUIRE(install_result.has_value());
     CHECK(install_result->succeeded());
@@ -2981,10 +3144,15 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
 
     // The cache operation validates and publishes the package. The GUI adapter
     // then reloads the model before asking UpdateConfigDialog to rebuild.
-    const Slic3r::UpdaterError import_result = updater.cache_vendor_archive(archive_path);
-    INFO("Updater error code: " << static_cast<int>(import_result.code));
-    INFO("Updater error detail: " << import_result.detail);
-    REQUIRE(import_result.succeeded());
+    std::optional<Slic3r::UpdaterError> import_result;
+    updater.cache_vendor_archive(archive_path, [&import_result](Slic3r::UpdaterError error) {
+        import_result = std::move(error);
+    });
+    updater.wait_for_pending_operations();
+    REQUIRE(import_result.has_value());
+    INFO("Updater error code: " << static_cast<int>(import_result->code));
+    INFO("Updater error detail: " << import_result->detail);
+    REQUIRE(import_result->succeeded());
 
     const boost::filesystem::path package_root = Slic3r::repository_package_cache_path(
         data_directory, Slic3r::RepositoryPackageType::Vendor, vendor_id,
@@ -3014,16 +3182,26 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     const boost::filesystem::path local_profile = temporary.path() / (vendor_id + ".ini");
     write_test_file(local_profile, vendor_profile_contents(vendor_id, "1.0.0.0", slicer_version));
 
-    const Slic3r::UpdaterError first_import = updater.cache_vendor_ini(local_profile);
-    INFO("First import error: " << first_import.detail);
-    REQUIRE(first_import.succeeded());
+    std::optional<Slic3r::UpdaterError> first_import;
+    updater.cache_vendor_ini(local_profile, [&first_import](Slic3r::UpdaterError error) {
+        first_import = std::move(error);
+    });
+    updater.wait_for_pending_operations();
+    REQUIRE(first_import.has_value());
+    INFO("First import error: " << first_import->detail);
+    REQUIRE(first_import->succeeded());
 
     // Loading the same vendor again must overwrite its cached INI. Changing
     // the source version proves that the second call did not merely ignore it.
     write_test_file(local_profile, vendor_profile_contents(vendor_id, "2.0.0.0", slicer_version));
-    const Slic3r::UpdaterError second_import = updater.cache_vendor_ini(local_profile);
-    INFO("Second import error: " << second_import.detail);
-    REQUIRE(second_import.succeeded());
+    std::optional<Slic3r::UpdaterError> second_import;
+    updater.cache_vendor_ini(local_profile, [&second_import](Slic3r::UpdaterError error) {
+        second_import = std::move(error);
+    });
+    updater.wait_for_pending_operations();
+    REQUIRE(second_import.has_value());
+    INFO("Second import error: " << second_import->detail);
+    REQUIRE(second_import->succeeded());
 
     const boost::filesystem::path cached_profile = Slic3r::repository_package_cache_path(
         data_directory, Slic3r::RepositoryPackageType::Vendor, vendor_id,
@@ -3073,6 +3251,7 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
                            [&change_result](Slic3r::UpdaterError error) {
                                change_result = std::move(error);
                            });
+    updater.wait_for_pending_operations();
 
     REQUIRE(change_result.has_value());
     CHECK(change_result->succeeded());
@@ -3112,6 +3291,7 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     updater.install_vendor(vendor_id, broken, [&result](Slic3r::UpdaterError error) {
         result = std::move(error);
     });
+    updater.wait_for_pending_operations();
 
     REQUIRE(result.has_value());
     CHECK_FALSE(result->succeeded());
@@ -3148,6 +3328,7 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     updater.install_vendor(vendor_id, broken, [&result](Slic3r::UpdaterError error) {
         result = std::move(error);
     });
+    updater.wait_for_pending_operations();
 
     REQUIRE(result.has_value());
     CHECK_FALSE(result->succeeded());
@@ -3180,6 +3361,7 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     updater.install_all_vendors([&result](Slic3r::UpdaterErrors errors) {
         result = std::move(errors);
     });
+    updater.wait_for_pending_operations();
 
     REQUIRE(result.has_value());
     REQUIRE(result->size() == 1);
@@ -3213,6 +3395,7 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
                              [&uninstall_result](Slic3r::UpdaterError error) {
                                  uninstall_result = std::move(error);
                              });
+    updater.wait_for_pending_operations();
 
     REQUIRE(uninstall_result.has_value());
     CHECK(uninstall_result->succeeded());
@@ -3289,10 +3472,12 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     CHECK(http.pending_count() == 1);
 
     http.succeed_front(archive_contents, 200);
+    updater.wait_for_pending_operations();
     CHECK_FALSE(upgrade_result.has_value());
     CHECK(host.prepared_changes.empty());
     REQUIRE(host.dispatched_changes.size() == 1);
     host.run_next_dispatched_change();
+    updater.wait_for_pending_operations();
 
     REQUIRE(upgrade_result.has_value());
     INFO("Updater error code: " << static_cast<int>(upgrade_result->code));
@@ -3357,6 +3542,7 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
         });
         REQUIRE(http.pending_count() == 1);
         http.succeed_front("not a zip archive", 200);
+        updater.wait_for_pending_operations();
 
         REQUIRE(result.has_value());
         CHECK(result->code == Slic3r::UpdaterError::Code::InvalidArchive);
@@ -3412,14 +3598,17 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     REQUIRE(http.pending_count() == 1);
     CHECK(host.prepared_changes.empty());
     http.succeed_front(read_test_file(first_archive), 200);
+    updater.wait_for_pending_operations();
     REQUIRE(http.pending_count() == 1);
     CHECK(host.dispatched_changes.empty());
     http.succeed_front(read_test_file(second_archive), 200);
+    updater.wait_for_pending_operations();
 
     CHECK_FALSE(install_result.has_value());
     REQUIRE(host.dispatched_changes.size() == 1);
     CHECK(host.prepared_changes.empty());
     host.run_next_dispatched_change();
+    updater.wait_for_pending_operations();
 
     REQUIRE(install_result.has_value());
     CHECK(install_result->empty());
@@ -3522,6 +3711,7 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     CHECK(http.pending_front().url() == remote_archive_url);
     CHECK(host.prepared_changes.empty());
     http.succeed_front(archive_contents, 200);
+    updater.wait_for_pending_operations();
 
     REQUIRE(install_result.has_value());
     INFO("Updater error code: " << static_cast<int>(install_result->code));

@@ -18,6 +18,8 @@
 #include <memory>
 #include <utility>
 
+#include <boost/log/trivial.hpp>
+
 #include "libslic3r/Updater/RepositoryCacheIO.hpp"
 #include "libslic3r/Updater/RepositoryChangelogService.hpp"
 #include "libslic3r/Updater/RepositoryTagService.hpp"
@@ -43,7 +45,15 @@ RepositoryUpdater::RepositoryUpdater(UpdaterHttpTransport &http_transport)
 {
 }
 
-RepositoryUpdater::~RepositoryUpdater() = default;
+RepositoryUpdater::~RepositoryUpdater()
+{
+    shutdown_operation_executor();
+}
+
+void RepositoryUpdater::wait_for_pending_operations()
+{
+    m_operation_executor.wait_until_idle();
+}
 
 std::string RepositoryUpdater::normalize_repository_rest_url(const std::string &configured_url)
 {
@@ -120,8 +130,15 @@ void RepositoryUpdater::complete_sync()
 {
     // Derived models finalize aggregate state before subscribers rebuild from
     // update_count(). User callbacks run outside the callback mutex.
-    on_sync_completed();
-    const int final_update_count = update_count();
+    int final_update_count = 0;
+    try {
+        on_sync_completed();
+        final_update_count = update_count();
+    } catch (const std::exception &error) {
+        BOOST_LOG_TRIVIAL(error) << "Repository sync finalization failed: " << error.what();
+    } catch (...) {
+        BOOST_LOG_TRIVIAL(error) << "Repository sync finalization failed with an unknown exception.";
+    }
 
     std::vector<std::function<void(int)>> callbacks;
     {
@@ -129,8 +146,15 @@ void RepositoryUpdater::complete_sync()
         m_sync_in_progress = false;
         callbacks.swap(m_sync_callbacks);
     }
-    for (const std::function<void(int)> &callback : callbacks)
-        callback(final_update_count);
+    for (const std::function<void(int)> &callback : callbacks) {
+        try {
+            callback(final_update_count);
+        } catch (const std::exception &error) {
+            BOOST_LOG_TRIVIAL(error) << "Repository sync callback failed: " << error.what();
+        } catch (...) {
+            BOOST_LOG_TRIVIAL(error) << "Repository sync callback failed with an unknown exception.";
+        }
+    }
 }
 
 bool RepositoryUpdater::has_api_request_slot(const std::string &url)
@@ -217,6 +241,8 @@ void RepositoryUpdater::download_repository_description(const std::string &rest_
             .perform();
     } catch (const std::exception &error) {
         complete(make_updater_error(UpdaterError::Code::Network, error.what()));
+    } catch (...) {
+        complete(make_updater_error_from_exception(std::current_exception()));
     }
 }
 
@@ -246,12 +272,25 @@ void RepositoryUpdater::download_repository_file_async(const std::string &url,
             .on_error([complete](std::string, std::string error, unsigned) {
                 complete(make_updater_error(UpdaterError::Code::Network, std::move(error)));
             })
-            .on_complete([destination, complete](std::string contents, unsigned) {
-                complete(RepositoryUpdaterInternal::write_repository_file(destination, contents));
+            .on_complete([this, destination, complete](std::string contents, unsigned) mutable {
+                // Network callbacks only transfer ownership of the response.
+                // The serialized updater worker performs the filesystem write
+                // alongside imports, cache publication and cache deletion.
+                const bool accepted = enqueue_operation(
+                    [destination, contents = std::move(contents)] {
+                        return RepositoryUpdaterInternal::write_repository_file(destination, contents);
+                    },
+                    complete);
+                if (!accepted)
+                    complete(make_updater_error(
+                        UpdaterError::Code::PreparationRejected,
+                        "The updater operation worker is shutting down."));
             })
             .perform();
     } catch (const std::exception &error) {
         complete(make_updater_error(UpdaterError::Code::Network, error.what()));
+    } catch (...) {
+        complete(make_updater_error_from_exception(std::current_exception()));
     }
 }
 
@@ -282,6 +321,9 @@ UpdaterError RepositoryUpdater::download_repository_file_sync(const std::string 
     } catch (const std::exception &error) {
         if (!completed)
             result = make_updater_error(UpdaterError::Code::Network, error.what());
+    } catch (...) {
+        if (!completed)
+            result = make_updater_error_from_exception(std::current_exception());
     }
     return result;
 }
@@ -315,14 +357,26 @@ bool RepositoryUpdater::changelog_download_in_progress() const
     return m_changelog_service->download_in_progress();
 }
 
+bool RepositoryUpdater::enqueue_operation(UpdaterOperationExecutor::Operation operation,
+                                          UpdaterOperationExecutor::Completion completion)
+{
+    return m_operation_executor.enqueue(std::move(operation), std::move(completion));
+}
+
+void RepositoryUpdater::shutdown_operation_executor()
+{
+    m_operation_executor.shutdown_and_wait();
+}
+
 void RepositoryUpdater::finish_repository_refresh(UpdaterError error,
                                                   const RepositoryRefreshFinishedFn &finished)
 {
     try {
         finished(std::move(error));
+    } catch (const std::exception &callback_error) {
+        BOOST_LOG_TRIVIAL(error) << "Repository refresh callback failed: " << callback_error.what();
     } catch (...) {
-        finish_sync();
-        throw;
+        BOOST_LOG_TRIVIAL(error) << "Repository refresh callback failed with an unknown exception.";
     }
     finish_sync();
 }

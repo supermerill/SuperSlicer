@@ -658,7 +658,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
         bt_version_panel->SetToolTip(
             _L("No vendor profile version is available in the local cache or repository."));
     } else {
-        bt_version->Bind(wxEVT_BUTTON, ([this, vendor_id](wxCommandEvent &e) {
+        bind_repository_action(*bt_version, ([this, vendor_id](wxCommandEvent &e) {
             m_data.download_changelogs(
                 vendor_id,
                 repository_operation_callback<bool>(
@@ -684,7 +684,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
             _L("Click this button to create a snapshot and install the compatible vendor bundle already available "
                "in the local cache."));
         versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
-        bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
+        bind_repository_action(*bt_upgrade, ([this, vendor_id, best_version](wxCommandEvent &e) {
             this->begin_vendor_operation(_L("Installing the local preset, please wait"));
             this->m_data.install_vendor(
                 vendor_id, best_version,
@@ -708,7 +708,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
             bt_upgrade->SetToolTip(_L("Click this button to create a snapshot and upgrade this vendor bundle to the "
                                       "latest compatible version."));
             versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
-            bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
+            bind_repository_action(*bt_upgrade, ([this, vendor_id, best_version](wxCommandEvent &e) {
                                  this->begin_vendor_operation(_L("Upgrading the preset, please wait"));
                                  this->m_data.install_vendor(
                                      vendor_id, best_version,
@@ -750,7 +750,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
             bt_upgrade->SetToolTip(_L("Click this button to create a snapshot and upgrade this vendor bundle to the "
                                       "latest compatible version."));
             versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
-            bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
+            bind_repository_action(*bt_upgrade, ([this, vendor_id, best_version](wxCommandEvent &e) {
                 this->begin_vendor_operation(_L("Upgrading the preset, please wait"));
                 this->m_data.install_vendor(
                     vendor_id, best_version,
@@ -781,7 +781,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                           "create a snapshot and install it.");
             bt_upgrade->SetToolTip(tooltip);
             versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
-            bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
+            bind_repository_action(*bt_upgrade, ([this, vendor_id, best_version](wxCommandEvent &e) {
                 this->begin_vendor_operation(_L("Installing the preset, please wait"));
                 this->m_data.install_vendor(
                     vendor_id, best_version,
@@ -828,7 +828,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
     if (!vendor.is_installed && !vendor.has_cache) {
         bt_uninstall->Enable(false);
     } else {
-        bt_uninstall->Bind(wxEVT_BUTTON, ([this, vendor_id, vendor_is_installed = vendor.is_installed, vendor_has_cache = vendor.has_cache, vendor_full_name = vendor.profile.full_name](wxCommandEvent &e) {
+        bind_repository_action(*bt_uninstall, ([this, vendor_id, vendor_is_installed = vendor.is_installed, vendor_has_cache = vendor.has_cache, vendor_full_name = vendor.profile.full_name](wxCommandEvent &e) {
                 if (vendor_is_installed) {
                     bool apply_keeped_changes_useless;
                     if (!wxGetApp().check_and_keep_current_preset_changes(_L("Uninstalling a vendor bundle"),
@@ -895,7 +895,7 @@ void UpdateConfigDialog::build_ui() {
 
     // button to synch
     wxButton* bt_synch = new wxButton(this, wxID_ANY, _L("Force check for updates"));
-    bt_synch->Bind(wxEVT_BUTTON, ([this](wxCommandEvent &e) {
+    bind_repository_action(*bt_synch, ([this](wxCommandEvent &e) {
         this->begin_vendor_operation(_L("Updating the presets, please wait"));
         this->m_data.reload_all_vendors();
         this->m_data.sync_async(
@@ -918,7 +918,7 @@ void UpdateConfigDialog::build_ui() {
     txt_new_repo->SetHint("github.com/SuperSlicer_org/Basic");
     // button to add a new repository
     wxButton *bt_add = new wxButton(this, wxID_ANY, _L("Add a new vendor"));
-    bt_add->Bind(wxEVT_BUTTON, ([this](wxCommandEvent& e) {
+    bind_repository_action(*bt_add, ([this](wxCommandEvent& e) {
         std::string rest_url = txt_new_repo->GetValue().utf8_string();
         rest_url = VendorProfile::get_http_url_rest(rest_url);
         this->m_data.download_new_repo(
@@ -942,7 +942,7 @@ void UpdateConfigDialog::build_ui() {
                 }));
     }));
     wxButton *bt_load_ini = new wxButton(this, wxID_ANY, _L("Load vendor ini file"));
-    bt_load_ini->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) {
+    bind_repository_action(*bt_load_ini, [this](wxCommandEvent &) {
         wxFileDialog dialog(this, _L("Load vendor configuration bundle"), "", "", "*.ini",
                             wxFD_OPEN | wxFD_FILE_MUST_EXIST);
         wxGetApp().UpdateDarkUI(&dialog);
@@ -964,7 +964,7 @@ void UpdateConfigDialog::build_ui() {
     });
     wxButton *bt_load_archive = new wxButton(this, wxID_ANY, _L("Load vendor archive"));
     bt_load_archive->SetToolTip(_L("Load a ZIP vendor bundle into the local version cache."));
-    bt_load_archive->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) {
+    bind_repository_action(*bt_load_archive, [this](wxCommandEvent &) {
         wxFileDialog dialog(this, _L("Load vendor bundle archive"), "", "",
                             _L("Vendor bundle archives (*.zip)|*.zip"),
                             wxFD_OPEN | wxFD_FILE_MUST_EXIST);
@@ -1029,7 +1029,7 @@ void UpdateConfigDialog::build_ui() {
     versions_sizer->Add(bt_upgrade_all, wxGBPosition(row_idx, 3), wxGBSpan(1, 1), wxEXPAND, 2);
     wxButton *bt_uninstall_all = new wxButton(hscroll, wxID_ANY, _L("Uninstall all"));
     versions_sizer->Add(bt_uninstall_all, wxGBPosition(row_idx, 4), wxGBSpan(1, 1), wxEXPAND, 2);
-    bt_install_all->Bind(wxEVT_BUTTON, ([this](wxCommandEvent &e) {
+    bind_repository_action(*bt_install_all, ([this](wxCommandEvent &e) {
         this->begin_vendor_operation(_L("Installing the presets, please wait"));
         this->m_data.install_all_vendors(repository_operation_callback<std::string>(
             *this, [](UpdateConfigDialog &dialog, std::string error_msg) {
@@ -1038,7 +1038,7 @@ void UpdateConfigDialog::build_ui() {
                 dialog.request_rebuild_ui();
             }));
     }));
-    bt_upgrade_all->Bind(wxEVT_BUTTON, ([this](wxCommandEvent &e) {
+    bind_repository_action(*bt_upgrade_all, ([this](wxCommandEvent &e) {
         this->begin_vendor_operation(_L("Updating the presets, please wait"));
         this->m_data.upgrade_all_installed_vendors(repository_operation_callback<std::string>(
             *this, [](UpdateConfigDialog &dialog, std::string error_msg) {
@@ -1047,7 +1047,7 @@ void UpdateConfigDialog::build_ui() {
                 dialog.request_rebuild_ui();
             }));
     }));
-    bt_uninstall_all->Bind(wxEVT_BUTTON, ([this](wxCommandEvent &e) {
+    bind_repository_action(*bt_uninstall_all, ([this](wxCommandEvent &e) {
         MessageDialog msg_dlg(this,
                 _L("Are you sure to uninstall all the vendor bundles ? \nThis will remove all the system "
                           "printers from the slicer. \nA snapshot will be made in case you want to revert."),
@@ -1353,7 +1353,7 @@ void ChooseVendorVersionDialog::add_version_in_list(wxWindow *parent,
         versions_sizer->Add(installed_panel, wxGBPosition(line_num, 1), wxGBSpan(1, 1), wxEXPAND, 2);
     } else {
         wxButton *bt_version = new wxButton(parent, wxID_ANY, version.config_version.to_string());
-        bt_version->Bind(wxEVT_BUTTON, ([this, version](wxCommandEvent &e) {
+        bind_repository_action(*bt_version, ([this, version](wxCommandEvent &e) {
             this->begin_repository_operation(hscroll, _L("Installing the local preset. Please wait."));
             // install_vendor can work with copies passed as parameter, no worry.
             this->m_data.install_vendor(

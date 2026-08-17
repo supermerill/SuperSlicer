@@ -37,7 +37,7 @@ public:
     PresetUpdater(PresetUpdater &&) = delete;
     PresetUpdater &operator=(const PresetUpdater &) = delete;
     PresetUpdater &operator=(PresetUpdater &&) = delete;
-    ~PresetUpdater() override = default;
+    ~PresetUpdater() override;
 
     void set_installed_vendors(const Slic3r::PresetBundle *preset_bundle);
     void reload_all_vendors();
@@ -89,10 +89,13 @@ public:
                            std::function<void(bool)> callback_dialog_closed);
 
 private:
-    std::optional<std::string> prepare_vendor_change(
-        Slic3r::VendorChange change, const std::vector<std::string> &vendor_ids) override;
-    Slic3r::UpdaterError rollback_vendor_change(const std::string &token) override;
-    void dispatch_vendor_change(std::function<void()> operation) override;
+    void prepare_vendor_change_async(
+        Slic3r::VendorChange change,
+        const std::vector<std::string> &vendor_ids,
+        Slic3r::PresetUpdaterHost::PrepareCallback callback) override;
+    void rollback_vendor_change_async(
+        const std::string &token,
+        Slic3r::PresetUpdaterHost::RollbackCallback callback) override;
     void vendor_files_changed(Slic3r::PresetUpdater &updater,
                               Slic3r::VendorChange change,
                               const std::vector<std::string> &vendor_ids) override;
@@ -103,6 +106,7 @@ private:
                                  Slic3r::UpdaterError error);
     void dispatch_errors_callback(const std::function<void(const std::string &)> &callback_result,
                                   Slic3r::UpdaterErrors errors);
+    void post_to_gui(std::function<void()> operation) noexcept;
 
     GUI_App &m_app;
     Slic3r::PresetUpdater m_core;
@@ -110,6 +114,7 @@ private:
     wxWindow *m_dialog_parent = nullptr;
     std::string m_dialog_message;
     std::function<void(bool)> m_dialog_callback;
+    Slic3r::UpdaterOperationExecutor m_snapshot_executor;
 };
 
 } // namespace Slic3r::GUI

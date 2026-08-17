@@ -68,6 +68,7 @@ public:
     PluginUpdater(PluginUpdater &&) = delete;
     PluginUpdater &operator=(const PluginUpdater &) = delete;
     PluginUpdater &operator=(PluginUpdater &&) = delete;
+    ~PluginUpdater() override;
 
     // Reload local descriptions and selected package versions. This does not
     // contact the network; sync_async() performs that work later.
@@ -82,10 +83,13 @@ public:
                              bool force = false);
     void download_new_repo(const std::string &rest_url, std::function<void(UpdaterError)> callback_result);
 
-    // Import an unpacked package directory. Generic description.ini and
-    // version.ini files are generated in the cache when their information can
-    // be derived from the folder, payload metadata or local defaults.
-    UpdaterError cache_plugin_directory(const boost::filesystem::path &package_directory);
+    // Import an unpacked package directory on the serialized worker and reload
+    // the detached model after publication. Generic description.ini and
+    // version.ini files are generated when metadata can be derived from the
+    // payload or defaults. The callback runs on an updater/HTTP worker; GUI
+    // callers must marshal it to their owner thread.
+    void cache_plugin_directory(const boost::filesystem::path &package_directory,
+                                std::function<void(UpdaterError)> callback_result);
     void install_plugin(const std::string &plugin_id,
                         const PluginAvailable &version,
                         std::function<void(UpdaterError)> callback_result);
@@ -104,10 +108,16 @@ public:
     std::optional<PluginSync> plugin(const std::string &id) const;
 
 private:
+    UpdaterError cache_plugin_directory_files(const boost::filesystem::path &package_directory);
+    void schedule_cached_plugin_install_async(const std::string &plugin_id,
+                                              const PluginAvailable &version,
+                                              std::function<void(UpdaterError)> callback_result);
     void update_plugin(const std::string &plugin_id, bool force);
     PluginSync *find_plugin_unlocked(const std::string &id);
     const PluginSync *find_plugin_unlocked(const std::string &id) const;
     UpdaterError schedule_cached_plugin_install(const std::string &plugin_id, const PluginAvailable &version);
+    UpdaterError uninstall_plugin_files(const std::string &plugin_id);
+    UpdaterError clear_cache_plugin_files(const std::string &plugin_id);
     int update_count() override;
 
     std::map<std::string, PluginSync> m_plugins;

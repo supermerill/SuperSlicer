@@ -25,6 +25,7 @@ std::string updater_error_short_label(const UpdaterError &error)
     case UpdaterError::Code::InvalidArchive:            return _u8L("Invalid archive");
     case UpdaterError::Code::Filesystem:                return _u8L("Filesystem error");
     case UpdaterError::Code::PreparationRejected:       return _u8L("Update cancelled");
+    case UpdaterError::Code::Unexpected:                return _u8L("Unexpected updater error");
     }
     return _u8L("Update failed");
 }
@@ -45,6 +46,7 @@ std::string format_updater_error(const UpdaterError &error)
     case UpdaterError::Code::InvalidArchive:        message = _u8L("The downloaded update archive is invalid."); break;
     case UpdaterError::Code::Filesystem:            message = _u8L("The update could not be written to disk."); break;
     case UpdaterError::Code::PreparationRejected:   message = _u8L("The update was cancelled before files were changed."); break;
+    case UpdaterError::Code::Unexpected:            message = _u8L("The updater encountered an unexpected error."); break;
     }
 
     if (!error.detail.empty())

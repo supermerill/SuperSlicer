@@ -13,6 +13,8 @@
 #include <stdexcept>
 #include <utility>
 
+#include <boost/log/trivial.hpp>
+
 #include "libslic3r/Updater/Http.hpp"
 
 namespace Slic3r {
@@ -27,6 +29,21 @@ private:
     void perform_request(UpdaterHttpRequest request) override;
     void perform_request_sync(UpdaterHttpRequest request) override;
 };
+
+// Turn the active exception into a transport diagnostic without allowing an
+// unknown exception type to cross the HTTP worker boundary.
+std::string current_callback_exception_message();
+
+std::string current_callback_exception_message()
+{
+    try {
+        throw;
+    } catch (const std::exception &error) {
+        return std::string("Updater HTTP callback failed: ") + error.what();
+    } catch (...) {
+        return "Updater HTTP callback failed with an unknown exception.";
+    }
+}
 
 void DefaultUpdaterHttpTransport::perform_request(UpdaterHttpRequest request)
 {
@@ -136,10 +153,27 @@ void UpdaterHttpTransport::complete_request(UpdaterHttpRequest &request,
                                             unsigned http_status)
 {
     UpdaterHttpRequest::CompleteFn callback = std::move(request.m_complete);
-    request.m_error = UpdaterHttpRequest::ErrorFn();
+    UpdaterHttpRequest::ErrorFn error_callback = std::move(request.m_error);
     request.m_progress = UpdaterHttpRequest::ProgressFn();
-    if (callback)
+    if (!callback)
+        return;
+
+    try {
         callback(std::move(body), http_status);
+    } catch (...) {
+        const std::string detail = current_callback_exception_message();
+        if (error_callback) {
+            try {
+                error_callback(std::string(), detail, 0);
+            } catch (const std::exception &error) {
+                BOOST_LOG_TRIVIAL(error) << "Updater HTTP error callback failed: " << error.what();
+            } catch (...) {
+                BOOST_LOG_TRIVIAL(error) << "Updater HTTP error callback failed with an unknown exception.";
+            }
+        } else {
+            BOOST_LOG_TRIVIAL(error) << detail;
+        }
+    }
 }
 
 void UpdaterHttpTransport::fail_request(UpdaterHttpRequest &request,
@@ -150,8 +184,16 @@ void UpdaterHttpTransport::fail_request(UpdaterHttpRequest &request,
     UpdaterHttpRequest::ErrorFn callback = std::move(request.m_error);
     request.m_complete = UpdaterHttpRequest::CompleteFn();
     request.m_progress = UpdaterHttpRequest::ProgressFn();
-    if (callback)
+    if (!callback)
+        return;
+
+    try {
         callback(std::move(body), std::move(error), http_status);
+    } catch (const std::exception &callback_error) {
+        BOOST_LOG_TRIVIAL(error) << "Updater HTTP error callback failed: " << callback_error.what();
+    } catch (...) {
+        BOOST_LOG_TRIVIAL(error) << "Updater HTTP error callback failed with an unknown exception.";
+    }
 }
 
 void UpdaterHttpTransport::progress_request(UpdaterHttpRequest &request,
@@ -162,8 +204,17 @@ void UpdaterHttpTransport::progress_request(UpdaterHttpRequest &request,
                                             const std::string &buffer,
                                             bool &cancel)
 {
-    if (request.m_progress)
+    if (!request.m_progress)
+        return;
+
+    try {
         request.m_progress(UpdaterHttpRequest::Progress{dltotal, dlnow, ultotal, ulnow, buffer}, cancel);
+    } catch (...) {
+        // Consuming the error callback here prevents the subsequent cURL abort
+        // notification from completing the same request a second time.
+        cancel = true;
+        fail_request(request, std::string(), current_callback_exception_message(), 0);
+    }
 }
 
 UpdaterHttpTransport &default_updater_http_transport()

@@ -627,7 +627,25 @@ Http::Ptr Http::perform()
 
 	if (self->p) {
 		auto io_thread = std::thread([self](){
+			try {
 				self->p->http_perform();
+			} catch (const std::exception &error) {
+				// No exception may leave a std::thread entry point. Report the
+				// failure through the configured transport callback when possible.
+				try {
+					if (self->p->errorfn)
+						self->p->errorfn(std::move(self->p->buffer), error.what(), 0);
+				} catch (...) {
+					BOOST_LOG_TRIVIAL(error) << "HTTP worker error callback also threw an exception.";
+				}
+			} catch (...) {
+				try {
+					if (self->p->errorfn)
+						self->p->errorfn(std::move(self->p->buffer), "Unknown HTTP worker exception.", 0);
+				} catch (...) {
+					BOOST_LOG_TRIVIAL(error) << "HTTP worker and its error callback threw unknown exceptions.";
+				}
+			}
 			});
 		self->p->io_thread = std::move(io_thread);
 	}

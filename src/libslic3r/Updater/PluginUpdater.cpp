@@ -129,6 +129,13 @@ PluginPackageLoadReport missing_live_package_report(
 
 } // namespace
 
+PluginUpdater::~PluginUpdater()
+{
+    // Queued operations capture the derived model, so they must finish before
+    // m_plugins begins destruction.
+    shutdown_operation_executor();
+}
+
 UpdaterError PluginSync::parse_tags(const std::string &json)
 {
     std::vector<RepositoryPackageVersion> parsed;
@@ -424,10 +431,27 @@ void PluginUpdater::download_new_repo(const std::string &rest_url, std::function
                 return make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message));
             return UpdaterError();
         },
-        std::move(callback_result));
+        callback_result);
 }
 
-UpdaterError PluginUpdater::cache_plugin_directory(const boost::filesystem::path &package_directory)
+void PluginUpdater::cache_plugin_directory(const boost::filesystem::path &package_directory,
+                                           std::function<void(UpdaterError)> callback_result)
+{
+    const bool accepted = enqueue_operation(
+        [this, package_directory] {
+            UpdaterError result = cache_plugin_directory_files(package_directory);
+            if (result.succeeded())
+                reload_all_plugins();
+            return result;
+        },
+        callback_result);
+    if (!accepted && callback_result)
+        callback_result(make_updater_error(
+            UpdaterError::Code::PreparationRejected,
+            "The plugin updater is shutting down."));
+}
+
+UpdaterError PluginUpdater::cache_plugin_directory_files(const boost::filesystem::path &package_directory)
 {
     if (!boost::filesystem::is_directory(package_directory))
         return make_updater_error(UpdaterError::Code::ArchiveUnavailable,
@@ -458,7 +482,7 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
     const PluginInstalledVersion cached_version{version.package_version, version.slicer_version};
     if (plugin_package_cache_is_valid(boost::filesystem::path(data_dir()), plugin_id,
                                       cached_version, cache_error_message)) {
-        callback_result(schedule_cached_plugin_install(plugin_id, version));
+        schedule_cached_plugin_install_async(plugin_id, version, std::move(callback_result));
         return;
     }
 
@@ -473,16 +497,56 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
                 callback_result(std::move(download_error));
                 return;
             }
-            std::string error_message;
-            if (!cache_plugin_package_archive(boost::filesystem::path(data_dir()), archive_path, plugin_id,
-                                              version.package_version, version.slicer_version, error_message)) {
-                callback_result(make_updater_error(UpdaterError::Code::Cache, std::move(error_message)));
-                return;
+
+            // Extraction, cache publication and activation-file writes share
+            // the updater worker with imports and cache removal. The HTTP
+            // callback only hands over the completed transfer artifact.
+            const bool accepted = enqueue_operation(
+                [this, plugin_id, version, archive_path] {
+                    UpdaterError result;
+                    try {
+                        std::string error_message;
+                        if (!cache_plugin_package_archive(
+                                boost::filesystem::path(data_dir()), archive_path, plugin_id,
+                                version.package_version, version.slicer_version, error_message)) {
+                            result = make_updater_error(
+                                UpdaterError::Code::Cache, std::move(error_message));
+                        } else {
+                            result = schedule_cached_plugin_install(plugin_id, version);
+                        }
+                    } catch (...) {
+                        result = make_updater_error_from_exception(std::current_exception());
+                    }
+
+                    // The downloaded ZIP is never durable state. Remove it
+                    // after success or failure without masking the main error.
+                    boost::system::error_code cleanup_error;
+                    boost::filesystem::remove(archive_path, cleanup_error);
+                    return result;
+                },
+                callback_result);
+            if (!accepted && callback_result) {
+                boost::system::error_code cleanup_error;
+                boost::filesystem::remove(archive_path, cleanup_error);
+                callback_result(make_updater_error(
+                    UpdaterError::Code::PreparationRejected,
+                    "The plugin updater is shutting down."));
             }
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(archive_path, cleanup_error);
-            callback_result(schedule_cached_plugin_install(plugin_id, version));
         });
+}
+
+void PluginUpdater::schedule_cached_plugin_install_async(
+    const std::string &plugin_id,
+    const PluginAvailable &version,
+    std::function<void(UpdaterError)> callback_result)
+{
+    const bool accepted = enqueue_operation(
+        [this, plugin_id, version] { return schedule_cached_plugin_install(plugin_id, version); },
+        callback_result);
+    if (!accepted && callback_result)
+        callback_result(make_updater_error(
+            UpdaterError::Code::PreparationRejected,
+            "The plugin updater is shutting down."));
 }
 
 UpdaterError PluginUpdater::schedule_cached_plugin_install(const std::string &plugin_id,
@@ -515,11 +579,20 @@ void PluginUpdater::uninstall_plugin(const std::string &plugin_id,
         return;
     }
 
+    const bool accepted = enqueue_operation(
+        [this, plugin_id] { return uninstall_plugin_files(plugin_id); },
+        callback_result);
+    if (!accepted && callback_result)
+        callback_result(make_updater_error(
+            UpdaterError::Code::PreparationRejected,
+            "The plugin updater is shutting down."));
+}
+
+UpdaterError PluginUpdater::uninstall_plugin_files(const std::string &plugin_id)
+{
     std::string error_message;
-    if (!request_plugin_uninstall(plugin_id, error_message)) {
-        callback_result(make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message)));
-        return;
-    }
+    if (!request_plugin_uninstall(plugin_id, error_message))
+        return make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message));
 
     // The DLL remains loaded until restart, but the updater presents the
     // package state requested for that restart just as it does for installs.
@@ -532,7 +605,7 @@ void PluginUpdater::uninstall_plugin(const std::string &plugin_id,
             scheduled->can_upgrade = false;
         }
     }
-    callback_result(UpdaterError());
+    return UpdaterError();
 }
 
 void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::function<void(UpdaterError)> callback_result)
@@ -544,6 +617,17 @@ void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::functi
         return;
     }
 
+    const bool accepted = enqueue_operation(
+        [this, plugin_id] { return clear_cache_plugin_files(plugin_id); },
+        callback_result);
+    if (!accepted && callback_result)
+        callback_result(make_updater_error(
+            UpdaterError::Code::PreparationRejected,
+            "The plugin updater is shutting down."));
+}
+
+UpdaterError PluginUpdater::clear_cache_plugin_files(const std::string &plugin_id)
+{
     UpdaterError result;
     try {
         const boost::filesystem::path data_directory(data_dir());
@@ -555,14 +639,12 @@ void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::functi
         std::string error_message;
         if (!read_live_plugin_version(data_directory / "plugins" / plugin_id,
                                       live_version, error_message)) {
-            callback_result(make_updater_error(UpdaterError::Code::Cache, std::move(error_message)));
-            return;
+            return make_updater_error(UpdaterError::Code::Cache, std::move(error_message));
         }
         PluginActivationConfig config;
         bool from_user_config = false;
         if (!ensure_plugin_activation_config(data_directory, config, from_user_config, error_message)) {
-            callback_result(make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message)));
-            return;
+            return make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message));
         }
         const bool package_is_desired = config.installed.count(plugin_id) != 0;
         if (live_version && package_is_desired)
@@ -570,8 +652,7 @@ void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::functi
         else
             config.installed.erase(plugin_id);
         if (!write_plugin_activation_config(plugin_activation_config_path(data_directory), config, error_message)) {
-            callback_result(make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message)));
-            return;
+            return make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message));
         }
 
         boost::filesystem::remove_all(repository_cache_root_path(
@@ -586,8 +667,7 @@ void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::functi
             live_cached_version.emplace();
             if (!cache.cache_simple(data_directory / "plugins" / plugin_id,
                                     *live_cached_version, error_message)) {
-                callback_result(make_updater_error(UpdaterError::Code::Cache, std::move(error_message)));
-                return;
+                return make_updater_error(UpdaterError::Code::Cache, std::move(error_message));
             }
         }
 
@@ -636,7 +716,7 @@ void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::functi
         BOOST_LOG_TRIVIAL(warning) << error.what();
         result = make_updater_error(UpdaterError::Code::Filesystem, error.what());
     }
-    callback_result(std::move(result));
+    return result;
 }
 
 size_t PluginUpdater::count_available() const

@@ -514,96 +514,121 @@ static void delete_existing_ini_files(const boost::filesystem::path &path)
 		    boost::filesystem::remove(dir_entry.path());
 }
 
-const Snapshot&	SnapshotDB::take_snapshot(const AppConfig &app_config, Snapshot::Reason reason, const std::string &comment)
+Snapshot SnapshotDB::capture_snapshot_state(const AppConfig &app_config,
+                                            Snapshot::Reason reason,
+                                            const std::string &comment) const
 {
-	boost::filesystem::path data_dir        = boost::filesystem::path(Slic3r::data_dir());
-	boost::filesystem::path snapshot_db_dir = SnapshotDB::create_db_dir();
+    Snapshot snapshot;
 
-	// 1) Prepare the snapshot structure.
-	Snapshot snapshot;
-	// Snapshot header.
-	snapshot.time_captured 			 = Slic3r::Utils::get_current_time_utc();
-	snapshot.id 					 = Slic3r::Utils::iso_utc_timestamp(snapshot.time_captured);
+    // Copy the scalar selections while the caller is on the AppConfig owner
+    // thread. No recursive filesystem work is performed in this phase.
+    snapshot.time_captured = Slic3r::Utils::get_current_time_utc();
+    snapshot.id = Slic3r::Utils::iso_utc_timestamp(snapshot.time_captured);
     snapshot.slic3r_version_captured = Slic3r::SEMVER;
-    snapshot.comment 				 = comment;
-    snapshot.reason 				 = reason;
-	// Active presets at the time of the snapshot.
-    snapshot.print                   = app_config.get("presets", "print");
-    snapshot.sla_print               = app_config.get("presets", "sla_print");
+    snapshot.comment = comment;
+    snapshot.reason = reason;
+    snapshot.print = app_config.get("presets", "print");
+    snapshot.sla_print = app_config.get("presets", "sla_print");
     snapshot.filaments.emplace_back(app_config.get("presets", "filament"));
-    snapshot.sla_material            = app_config.get("presets", "sla_material");
-    snapshot.printer                 = app_config.get("presets", "printer");
-    snapshot.physical_printer        = app_config.get("presets", "physical_printer");
-    for (unsigned i = 1; i < 1000; ++ i) {
+    snapshot.sla_material = app_config.get("presets", "sla_material");
+    snapshot.printer = app_config.get("presets", "printer");
+    snapshot.physical_printer = app_config.get("presets", "physical_printer");
+    for (unsigned index = 1; index < 1000; ++index) {
         char name[64];
-        sprintf(name, "filament_%u", i);
-        if (! app_config.has("presets", name))
+        sprintf(name, "filament_%u", index);
+        if (!app_config.has("presets", name))
             break;
         snapshot.filaments.emplace_back(app_config.get("presets", name));
     }
-    // Vendor specific config bundles and installed printers.
-    {
-        std::lock_guard<std::recursive_mutex> lk(app_config.config_lock);
-        for (const auto &vendor : app_config.vendors()) {
-            Snapshot::VendorConfig cfg;
-            cfg.name = vendor.first;
-            cfg.models_variants_installed = vendor.second;
-            for (auto it = cfg.models_variants_installed.begin(); it != cfg.models_variants_installed.end();)
-                if (it->second.empty())
-                    cfg.models_variants_installed.erase(it ++);
-                else
-                    ++ it;
-            // Read the active config bundle, parse the config version.
-            PresetBundle bundle;
-            bundle.load_configbundle((data_dir / "vendor" / (cfg.name + ".ini")).string(), PresetBundle::LoadConfigBundleAttribute::LoadVendorOnly, ForwardCompatibilitySubstitutionRule::EnableSilent);
-            for (const auto &vp : bundle.vendors)
-                if (vp.second.id == cfg.name)
-                    cfg.version.config_version = vp.second.config_version;
-            // Fill-in the min/max slic3r version from the config index, if possible.
-            try {
-                // Load the config index for the vendor.
-                Index index;
-                index.load(data_dir / "vendor" / (cfg.name + ".idx"));
-                auto it = index.find(cfg.version.config_version);
-                if (it != index.end()) {
-                    cfg.version.min_slic3r_version = it->min_slic3r_version;
-                    cfg.version.max_slic3r_version = it->max_slic3r_version;
-                }
-            } catch (const std::runtime_error & /* err */) {
+
+    // Vendor selections are copied as values. Their bundle and index versions
+    // are resolved later by materialize_snapshot() on the worker.
+    std::lock_guard<std::recursive_mutex> lock(app_config.config_lock);
+    for (const auto &vendor : app_config.vendors()) {
+        Snapshot::VendorConfig config;
+        config.name = vendor.first;
+        config.models_variants_installed = vendor.second;
+        for (auto model = config.models_variants_installed.begin();
+             model != config.models_variants_installed.end();) {
+            if (model->second.empty())
+                model = config.models_variants_installed.erase(model);
+            else
+                ++model;
+        }
+        snapshot.vendor_configs.emplace_back(std::move(config));
+    }
+    return snapshot;
+}
+
+Snapshot SnapshotDB::materialize_snapshot(Snapshot snapshot) const
+{
+    const boost::filesystem::path data_directory(Slic3r::data_dir());
+    const boost::filesystem::path snapshot_directory = create_db_dir() / snapshot.id;
+
+    // Resolve bundle versions from the same live files that are about to be
+    // copied, so snapshot metadata and its vendor tree describe one state.
+    for (Snapshot::VendorConfig &config : snapshot.vendor_configs) {
+        PresetBundle bundle;
+        bundle.load_configbundle(
+            (data_directory / "vendor" / (config.name + ".ini")).string(),
+            PresetBundle::LoadConfigBundleAttribute::LoadVendorOnly,
+            ForwardCompatibilitySubstitutionRule::EnableSilent);
+        for (const auto &vendor : bundle.vendors)
+            if (vendor.second.id == config.name)
+                config.version.config_version = vendor.second.config_version;
+
+        try {
+            Index index;
+            index.load(data_directory / "vendor" / (config.name + ".idx"));
+            const Index::const_iterator version = index.find(config.version.config_version);
+            if (version != index.end()) {
+                config.version.min_slic3r_version = version->min_slic3r_version;
+                config.version.max_slic3r_version = version->max_slic3r_version;
             }
-            snapshot.vendor_configs.emplace_back(std::move(cfg));
+        } catch (const std::runtime_error &) {
+            // An optional index only enriches compatibility metadata. The
+            // vendor bundle itself remains sufficient for rollback.
         }
     }
 
-	boost::filesystem::path snapshot_dir = snapshot_db_dir / snapshot.id;
-
     try {
-	    boost::filesystem::create_directory(snapshot_dir);
+        boost::filesystem::create_directory(snapshot_directory);
 
-        // Preset directories remain compact flat INI snapshots. The vendor
-        // directory is copied recursively because its images are part of a
-        // usable vendor installation and must participate in rollback.
-        for (const char *subdir : snapshot_ini_subdirs)
-    	    copy_config_dir_single_level(data_dir / subdir, snapshot_dir / subdir);
-        copy_directory_recursively(data_dir / "vendor", snapshot_dir / "vendor");
+        // Flat preset directories remain compact, while vendor resources and
+        // plugin activation state require their exact relative locations.
+        for (const char *subdirectory : snapshot_ini_subdirs)
+            copy_config_dir_single_level(
+                data_directory / subdirectory, snapshot_directory / subdirectory);
+        copy_directory_recursively(data_directory / "vendor", snapshot_directory / "vendor");
         copy_file_if_exists(
-            data_dir / snapshot_plugin_directory / snapshot_plugin_activation_filename,
-            snapshot_dir / snapshot_plugin_directory / snapshot_plugin_activation_filename);
-        snapshot.save_ini((snapshot_dir / "snapshot.ini").string());
-        assert(m_snapshots.empty() || m_snapshots.back().time_captured <= snapshot.time_captured);
-        m_snapshots.emplace_back(std::move(snapshot));
+            data_directory / snapshot_plugin_directory / snapshot_plugin_activation_filename,
+            snapshot_directory / snapshot_plugin_directory / snapshot_plugin_activation_filename);
+        snapshot.save_ini((snapshot_directory / "snapshot.ini").string());
     } catch (...) {
-        if (boost::filesystem::is_directory(snapshot_dir)) {
-            try {
-                // Clean up partially copied snapshot.
-                boost::filesystem::remove_all(snapshot_dir);
-            } catch (...) {
-                BOOST_LOG_TRIVIAL(error) << "Failed taking snapshot and failed removing the snapshot directory " << snapshot_dir;
-            }
+        try {
+            if (boost::filesystem::is_directory(snapshot_directory))
+                boost::filesystem::remove_all(snapshot_directory);
+        } catch (...) {
+            BOOST_LOG_TRIVIAL(error) << "Failed removing incomplete snapshot " << snapshot_directory;
         }
         throw;
     }
+    return snapshot;
+}
+
+const Snapshot &SnapshotDB::register_snapshot(Snapshot snapshot)
+{
+    assert(m_snapshots.empty() || m_snapshots.back().time_captured <= snapshot.time_captured);
+    m_snapshots.emplace_back(std::move(snapshot));
     return m_snapshots.back();
+}
+
+const Snapshot& SnapshotDB::take_snapshot(const AppConfig &app_config,
+                                          Snapshot::Reason reason,
+                                          const std::string &comment)
+{
+    Snapshot snapshot = capture_snapshot_state(app_config, reason, comment);
+    return register_snapshot(materialize_snapshot(std::move(snapshot)));
 }
 
 const Snapshot& SnapshotDB::restore_snapshot(const std::string &id, AppConfig &app_config)
@@ -616,7 +641,15 @@ const Snapshot& SnapshotDB::restore_snapshot(const std::string &id, AppConfig &a
 	throw Slic3r::RuntimeError(std::string("Snapshot with id " + id + " was not found."));
 }
 
-void SnapshotDB::restore_snapshot(const Snapshot &snapshot, AppConfig &app_config)
+std::optional<Snapshot> SnapshotDB::snapshot_copy(const std::string &id) const
+{
+    for (const Snapshot &snapshot : m_snapshots)
+        if (snapshot.id == id)
+            return snapshot;
+    return std::nullopt;
+}
+
+void SnapshotDB::restore_snapshot_files(const Snapshot &snapshot) const
 {
 	boost::filesystem::path data_dir        = boost::filesystem::path(Slic3r::data_dir());
 	boost::filesystem::path snapshot_db_dir = SnapshotDB::create_db_dir();
@@ -645,10 +678,20 @@ void SnapshotDB::restore_snapshot(const Snapshot &snapshot, AppConfig &app_confi
         data_dir / snapshot_plugin_directory / snapshot_plugin_activation_filename;
     boost::filesystem::remove(plugin_activation_dst);
     copy_file_if_exists(plugin_activation_src, plugin_activation_dst);
+}
+
+void SnapshotDB::apply_snapshot_configuration(const Snapshot &snapshot, AppConfig &app_config) const
+{
     // Update AppConfig with the selections of the print / sla_print / filament / sla_material / printer profiles
     // and about the installed printer types and variants.
     snapshot.export_selections(app_config);
     snapshot.export_vendor_configs(app_config);
+}
+
+void SnapshotDB::restore_snapshot(const Snapshot &snapshot, AppConfig &app_config)
+{
+    restore_snapshot_files(snapshot);
+    apply_snapshot_configuration(snapshot, app_config);
 }
 
 bool SnapshotDB::is_on_snapshot(AppConfig &app_config) const

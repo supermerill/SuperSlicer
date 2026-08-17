@@ -122,9 +122,15 @@ void PluginUpdateDialog::rebuild()
     repository_sizer->Add(load_button, 0, wxRIGHT, 6);
     repository_sizer->Add(check_button, 0);
     m_main_sizer->Add(repository_sizer, 0, wxEXPAND | wxALL, 10);
-    add_button->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { add_repository(); });
-    load_button->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { load_package_directory(); });
-    check_button->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { check_updates(); });
+    bind_repository_action(*add_button, [this](wxCommandEvent &) {
+        add_repository();
+    });
+    bind_repository_action(*load_button, [this](wxCommandEvent &) {
+        load_package_directory();
+    });
+    bind_repository_action(*check_button, [this](wxCommandEvent &) {
+        check_updates();
+    });
 
     wxFlexGridSizer *grid = new wxFlexGridSizer(5, 8, 10);
     grid->AddGrowableCol(1, 1);
@@ -188,7 +194,9 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
             _L("No plugin package version is available in the local cache or repository."));
     } else {
         version_button->SetToolTip(_L("Choose a plugin package version and review its changelog."));
-        version_button->Bind(wxEVT_BUTTON, [this, plugin_id](wxCommandEvent &) { choose_version(plugin_id); });
+        bind_repository_action(*version_button, [this, plugin_id](wxCommandEvent &) {
+            choose_version(plugin_id);
+        });
     }
     grid.Add(version_panel, 0, wxALIGN_CENTER_VERTICAL | wxEXPAND);
 
@@ -205,7 +213,9 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
             this, wxID_ANY, format(_L("Install %1% (local)"), best->package_version));
         install->SetToolTip(
             _L("Install the compatible plugin package already available in the local cache after restarting the application."));
-        install->Bind(wxEVT_BUTTON, [this, plugin_id](wxCommandEvent &) { install_latest(plugin_id); });
+        bind_repository_action(*install, [this, plugin_id](wxCommandEvent &) {
+            install_latest(plugin_id);
+        });
         upgrade_control = install;
     } else if (plugin.description.config_update_rest.empty()) {
         if (plugin.can_upgrade && has_compatible_version) {
@@ -213,7 +223,9 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
                 this, wxID_ANY, format(_L("Upgrade to %1%"), best->package_version));
             upgrade->SetToolTip(
                 _L("Download this plugin version and install it after restarting the application."));
-            upgrade->Bind(wxEVT_BUTTON, [this, plugin_id](wxCommandEvent &) { install_latest(plugin_id); });
+            bind_repository_action(*upgrade, [this, plugin_id](wxCommandEvent &) {
+                install_latest(plugin_id);
+            });
             upgrade_control = upgrade;
         } else if (!plugin.available_packages.empty() && !has_compatible_version) {
             upgrade_control = new wxStaticText(this, wxID_ANY, _L("No compatible plugin"));
@@ -240,7 +252,9 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
                                       format(_L("Install %1%"), best->package_version));
             upgrade->SetToolTip(
                 _L("Download this plugin version and install it after restarting the application."));
-            upgrade->Bind(wxEVT_BUTTON, [this, plugin_id](wxCommandEvent &) { install_latest(plugin_id); });
+            bind_repository_action(*upgrade, [this, plugin_id](wxCommandEvent &) {
+                install_latest(plugin_id);
+            });
             upgrade_control = upgrade;
         } else {
             upgrade_control = new wxStaticText(this, wxID_ANY, _L("Up to date"));
@@ -276,11 +290,15 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
     if (plugin.is_installed) {
         remove_button->SetToolTip(
             _L("Schedule this plugin for removal when the application next starts."));
-        remove_button->Bind(wxEVT_BUTTON, [this, plugin_id](wxCommandEvent &) { uninstall(plugin_id); });
+        bind_repository_action(*remove_button, [this, plugin_id](wxCommandEvent &) {
+            uninstall(plugin_id);
+        });
     } else if (plugin.has_cache) {
         remove_button->SetToolTip(
             _L("Remove every cached package and repository file for this plugin."));
-        remove_button->Bind(wxEVT_BUTTON, [this, plugin_id](wxCommandEvent &) { clear_cache(plugin_id); });
+        bind_repository_action(*remove_button, [this, plugin_id](wxCommandEvent &) {
+            clear_cache(plugin_id);
+        });
     } else {
         remove_button->Enable(false);
     }
@@ -310,14 +328,16 @@ void PluginUpdateDialog::load_package_directory()
     if (dialog.ShowModal() != wxID_OK)
         return;
 
-    const UpdaterError error = m_updater.cache_plugin_directory(
-        boost::filesystem::path(dialog.GetPath().utf8_string()));
-    if (!error.succeeded()) {
-        wxMessageBox(from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR);
-        return;
-    }
-    m_updater.reload_all_plugins();
-    rebuild();
+    begin_repository_operation(nullptr, _L("Loading the plugin package, please wait"));
+    m_updater.cache_plugin_directory(
+        boost::filesystem::path(dialog.GetPath().utf8_string()),
+        repository_operation_callback<UpdaterError>(
+            *this, [](PluginUpdateDialog &dialog, UpdaterError error) {
+                dialog.finish_repository_operation(nullptr);
+                if (!error.succeeded())
+                    dialog.show_repository_error(format_updater_error(error));
+                dialog.rebuild();
+            }));
 }
 
 void PluginUpdateDialog::check_updates()
@@ -481,7 +501,9 @@ void ChoosePluginVersionDialog::build()
                 select->SetToolTip(compatible ?
                     _L("Download this package and install it after restarting the application.") :
                     _L("This package requires a newer slicer version."));
-                select->Bind(wxEVT_BUTTON, [this, version](wxCommandEvent &) { schedule_version(version); });
+                bind_repository_action(*select, [this, version](wxCommandEvent &) {
+                    schedule_version(version);
+                });
                 grid->Add(select, wxGBPosition(row, 0), wxDefaultSpan, wxEXPAND);
             }
 

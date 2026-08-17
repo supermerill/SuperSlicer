@@ -10,6 +10,7 @@
 #ifndef slic3r_Updater_UpdaterError_hpp_
 #define slic3r_Updater_UpdaterError_hpp_
 
+#include <exception>
 #include <string>
 #include <utility>
 #include <vector>
@@ -27,7 +28,8 @@ struct UpdaterError {
         InvalidRepositoryMetadata,
         InvalidArchive,
         Filesystem,
-        PreparationRejected
+        PreparationRejected,
+        Unexpected
     };
 
     Code        code = Code::None;
@@ -45,6 +47,25 @@ inline UpdaterError make_updater_error(UpdaterError::Code code, std::string deta
     error.code = code;
     error.detail = std::move(detail);
     return error;
+}
+
+// Convert an exception captured at a thread or callback boundary into the
+// updater's value-based error channel. Unknown exceptions deliberately keep a
+// stable diagnostic so they can be reported without terminating the process.
+inline UpdaterError make_updater_error_from_exception(
+    std::exception_ptr exception,
+    UpdaterError::Code code = UpdaterError::Code::Unexpected)
+{
+    if (!exception)
+        return make_updater_error(code, "Unknown updater exception.");
+
+    try {
+        std::rethrow_exception(exception);
+    } catch (const std::exception &error) {
+        return make_updater_error(code, error.what());
+    } catch (...) {
+        return make_updater_error(code, "Unknown updater exception.");
+    }
 }
 
 using UpdaterErrors = std::vector<UpdaterError>;

@@ -25,6 +25,7 @@
 
 #include "libslic3r/Semver.hpp"
 #include "libslic3r/Updater/UpdaterError.hpp"
+#include "libslic3r/Updater/UpdaterOperationExecutor.hpp"
 
 namespace Slic3r {
 
@@ -87,6 +88,11 @@ public:
     RepositoryUpdater &operator=(const RepositoryUpdater &) = delete;
     RepositoryUpdater &operator=(RepositoryUpdater &&) = delete;
     virtual ~RepositoryUpdater();
+
+    // Establish a synchronization point after local filesystem operations.
+    // Network requests and host callbacks must already have completed before
+    // this can observe work that they have not submitted yet.
+    void wait_for_pending_operations();
 
     // Convert the repository spellings accepted by the GUI and configuration
     // files into one REST URL. Short "owner/repository" and github.com URLs
@@ -180,6 +186,13 @@ protected:
     bool sync_in_progress() const { return m_sync_in_progress; }
     bool changelog_download_in_progress() const;
 
+    // Filesystem mutations use one serialized worker per updater. Derived
+    // destructors call shutdown_operation_executor() before their own model
+    // members are destroyed because queued closures may still reference them.
+    bool enqueue_operation(UpdaterOperationExecutor::Operation operation,
+                           UpdaterOperationExecutor::Completion completion);
+    void shutdown_operation_executor();
+
     // Derived updaters build every request through this accessor so tests can
     // observe and complete the operation without contacting the network.
     UpdaterHttpTransport &http() { return m_http_transport; }
@@ -208,6 +221,7 @@ private:
     UpdaterHttpTransport &m_http_transport;
     std::unique_ptr<RepositoryUpdaterInternal::RepositoryTagService> m_tag_service;
     std::unique_ptr<RepositoryUpdaterInternal::RepositoryChangelogService> m_changelog_service;
+    UpdaterOperationExecutor m_operation_executor;
 };
 
 } // namespace Slic3r
