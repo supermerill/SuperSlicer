@@ -207,6 +207,8 @@ set(SLIC3R_SOURCES
 	Plugins/Perimeter/SeparateHoleContour.hpp
 	Plugins/Perimeter/SimplePerimeterGenerator.cpp
 	Plugins/Perimeter/SimplePerimeterGenerator.hpp
+	Plugins/PluginActivationConfig.cpp
+	Plugins/PluginActivationConfig.hpp
 	Plugins/PluginBinaryMetadata.hpp
 	Plugins/PluginLoader.cpp
 	Plugins/PluginLoader.hpp

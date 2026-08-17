@@ -338,6 +338,52 @@ TEST_CASE("Plugin reconciliation removes unmanaged live package directories", "[
     boost::filesystem::remove_all(root);
 }
 
+TEST_CASE("Plugin reconciliation applies a sanitized desired package set",
+          "[plugins][repository][activation]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-plugin-reconcile-%%%%-%%%%");
+    const boost::filesystem::path data_directory = root / "data";
+    const boost::filesystem::path config_path = Slic3r::plugin_activation_config_path(data_directory);
+    const boost::filesystem::path valid_cache = Slic3r::repository_package_cache_path(
+        data_directory, Slic3r::RepositoryPackageType::Plugin,
+        "valid.package", "1.0.0", "2.7.63.0");
+    write_description(valid_cache, "valid.package", "1.0.0", "2.7.63.0");
+    {
+        boost::nowide::ofstream stream((valid_cache / plugin_library_filename()).string());
+        stream << "valid library";
+    }
+    const boost::filesystem::path rejected_live = data_directory / "plugins" / "rejected.package";
+    boost::filesystem::create_directories(rejected_live);
+    {
+        boost::nowide::ofstream stream((rejected_live / "plugin.dll").string());
+        stream << "must be removed";
+    }
+    {
+        boost::nowide::ofstream stream(config_path.string());
+        stream << "[installed]\n"
+               << "valid.package = 1.0.0\n"
+               << "valid.package.slicer_version = 2.7.63.0\n"
+               << "rejected.package = invalid\n\n"
+               << "[activated]\nvalid.plugin = 1\nrejected.plugin = 1\n\n"
+               << "[plugin_packages]\n"
+               << "valid.plugin = valid.package\n"
+               << "rejected.plugin = rejected.package\n";
+    }
+
+    const Slic3r::PluginActivationConfigReadResult read_result =
+        Slic3r::read_plugin_activation_config_tolerant(config_path);
+    REQUIRE(read_result.status == Slic3r::PluginActivationConfigStatus::PartiallyValid);
+    std::string error_message;
+    REQUIRE(Slic3r::reconcile_installed_plugin_packages(
+        data_directory, read_result.config, error_message));
+    CHECK(boost::filesystem::is_directory(data_directory / "plugins" / "valid.package"));
+    CHECK_FALSE(boost::filesystem::exists(rejected_live));
+    CHECK(read_result.config.activated.count("rejected.plugin") == 0);
+
+    boost::filesystem::remove_all(root);
+}
+
 TEST_CASE("Requesting a cached plugin version preserves activation settings", "[plugins][repository]")
 {
     const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
@@ -351,7 +397,7 @@ TEST_CASE("Requesting a cached plugin version preserves activation settings", "[
     boost::filesystem::create_directories(default_config.parent_path());
     {
         boost::nowide::ofstream stream(default_config.string());
-        stream << "[activated]\nexample.plugin.id = 1\n";
+        stream << "[installed]\n\n[activated]\nexample.plugin.id = 1\n";
     }
 
     // request_plugin_install() accepts only packages that were fully validated
@@ -998,116 +1044,6 @@ TEST_CASE("Plugin cache purge restores desired live packages and preserves lost 
     boost::filesystem::remove_all(root);
 }
 
-TEST_CASE("Legacy installed plugin version is read as both package and slicer versions", "[plugins][repository]")
-{
-    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
-                                         boost::filesystem::unique_path("slic3r-plugin-repository-%%%%-%%%%");
-    const boost::filesystem::path config_path = root / "activated.ini";
-    boost::filesystem::create_directories(root);
-    {
-        boost::nowide::ofstream stream(config_path.string());
-        stream << "[installed]\nexample.plugin = 1.2.3.4\n\n[activated]\nexample.id = 1\n";
-    }
-    Slic3r::PluginActivationConfig config;
-    std::string error_message;
-    REQUIRE(Slic3r::read_plugin_activation_config(config_path, config, error_message));
-    CHECK(config.installed["example.plugin"].package_version == "1.2.3.4");
-    CHECK(config.installed["example.plugin"].slicer_version == "1.2.3.4");
-    CHECK(config.activated["example.id"]);
-    boost::filesystem::remove_all(root);
-}
-
-TEST_CASE("Plugin activation configuration preserves package providers",
-          "[plugins][repository][activation]")
-{
-    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
-                                         boost::filesystem::unique_path("slic3r-plugin-activation-%%%%-%%%%");
-    const boost::filesystem::path config_path = root / "activated.ini";
-    Slic3r::PluginActivationConfig written;
-    written.activated["example.first"] = true;
-    written.activated["example.second"] = true;
-    written.plugin_packages["example.first"] = "example.package";
-    written.plugin_packages["example.second"] = "example.package";
-    written.installed["example.package"] = {"1.2.3", "2.7.63.0"};
-
-    boost::filesystem::create_directories(root);
-    {
-        boost::nowide::ofstream previous(config_path.string());
-        previous << "[installed]\nobsolete.package = 0.1.0\n"
-                 << "obsolete.package.slicer_version = 2.0.0\n\n"
-                 << "[activated]\nobsolete.plugin = 1\n";
-    }
-
-    std::string error_message;
-    REQUIRE(Slic3r::write_plugin_activation_config(config_path, written, error_message));
-    Slic3r::PluginActivationConfig read;
-    REQUIRE(Slic3r::read_plugin_activation_config(config_path, read, error_message));
-    CHECK(read.activated == written.activated);
-    CHECK(read.plugin_packages == written.plugin_packages);
-    REQUIRE(read.installed.size() == 1);
-    const Slic3r::PluginInstalledVersion &installed = read.installed.at("example.package");
-    CHECK(installed.package_version == "1.2.3");
-    CHECK(installed.slicer_version == "2.7.63.0");
-
-    const std::string contents = read_text_file(config_path);
-    CHECK(contents.find("[plugin_packages]") != std::string::npos);
-    CHECK(contents.find("example.first = example.package") != std::string::npos);
-    CHECK(contents.find("obsolete.package") == std::string::npos);
-
-    // A completed replacement consumes both sibling work files.
-    for (boost::filesystem::directory_iterator it(root), end; it != end; ++it) {
-        const std::string filename = it->path().filename().string();
-        CHECK(filename.find(".activated.ini.replacement-") == std::string::npos);
-        CHECK(filename.find(".activated.ini.previous-") == std::string::npos);
-    }
-    boost::filesystem::remove_all(root);
-}
-
-TEST_CASE("Plugin activation configuration rejects a non-file destination without leftovers",
-          "[plugins][repository][activation]")
-{
-    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
-                                         boost::filesystem::unique_path("slic3r-plugin-activation-%%%%-%%%%");
-    const boost::filesystem::path config_path = root / "activated.ini";
-    boost::filesystem::create_directories(config_path);
-
-    Slic3r::PluginActivationConfig config;
-    config.activated["example.plugin"] = true;
-    std::string error_message;
-    CHECK_FALSE(Slic3r::write_plugin_activation_config(config_path, config, error_message));
-    CHECK_FALSE(error_message.empty());
-    CHECK(boost::filesystem::is_directory(config_path));
-
-    // Refusing the destination also removes the complete staging file without
-    // disturbing the directory which made publication invalid.
-    for (boost::filesystem::directory_iterator it(root), end; it != end; ++it) {
-        const std::string filename = it->path().filename().string();
-        CHECK(filename.find(".activated.ini.replacement-") == std::string::npos);
-        CHECK(filename.find(".activated.ini.previous-") == std::string::npos);
-    }
-    boost::filesystem::remove_all(root);
-}
-
-TEST_CASE("Plugin activation configuration accepts files without package providers",
-          "[plugins][repository][activation]")
-{
-    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
-                                         boost::filesystem::unique_path("slic3r-plugin-activation-%%%%-%%%%");
-    const boost::filesystem::path config_path = root / "activated.ini";
-    boost::filesystem::create_directories(root);
-    {
-        boost::nowide::ofstream stream(config_path.string());
-        stream << "[activated]\nlegacy.plugin = 1\n";
-    }
-
-    Slic3r::PluginActivationConfig config;
-    std::string error_message;
-    REQUIRE(Slic3r::read_plugin_activation_config(config_path, config, error_message));
-    CHECK(config.activated["legacy.plugin"]);
-    CHECK(config.plugin_packages.empty());
-    boost::filesystem::remove_all(root);
-}
-
 TEST_CASE("Plugin startup activation uses valid user configuration",
           "[plugins][repository][activation][loader]")
 {
@@ -1121,20 +1057,20 @@ TEST_CASE("Plugin startup activation uses valid user configuration",
     boost::filesystem::create_directories(user_config.parent_path());
     {
         boost::nowide::ofstream stream(default_config.string());
-        stream << "[activated]\ndefault.plugin = 1\n";
+        stream << "[installed]\n\n[activated]\ndefault.plugin = 1\n";
     }
     {
         boost::nowide::ofstream stream(user_config.string());
-        stream << "[activated]\nuser.plugin = 1\n";
+        stream << "[installed]\n\n[activated]\nuser.plugin = 1\n";
     }
     ScopedPluginRepositoryDirectories directories(resources_directory, data_directory);
 
     Slic3r::PluginActivationConfig config;
-    bool from_user_config = false;
+    Slic3r::PluginActivationConfigSource source = Slic3r::PluginActivationConfigSource::DefaultsFallback;
     std::string error_message;
     REQUIRE(Slic3r::resolve_plugin_startup_activation_config(
-        data_directory, config, from_user_config, error_message));
-    CHECK(from_user_config);
+        data_directory, config, source, error_message));
+    CHECK(source == Slic3r::PluginActivationConfigSource::UserValid);
     CHECK(config.activated.count("user.plugin") == 1);
     CHECK(config.activated.count("default.plugin") == 0);
     CHECK(error_message.empty());
@@ -1155,16 +1091,16 @@ TEST_CASE("Plugin startup activation creates a missing user configuration from d
     boost::filesystem::create_directories(default_config.parent_path());
     {
         boost::nowide::ofstream stream(default_config.string());
-        stream << "[activated]\ndefault.plugin = 1\n";
+        stream << "[installed]\n\n[activated]\ndefault.plugin = 1\n";
     }
     ScopedPluginRepositoryDirectories directories(resources_directory, data_directory);
 
     Slic3r::PluginActivationConfig config;
-    bool from_user_config = false;
+    Slic3r::PluginActivationConfigSource source = Slic3r::PluginActivationConfigSource::DefaultsFallback;
     std::string error_message;
     REQUIRE(Slic3r::resolve_plugin_startup_activation_config(
-        data_directory, config, from_user_config, error_message));
-    CHECK(from_user_config);
+        data_directory, config, source, error_message));
+    CHECK(source == Slic3r::PluginActivationConfigSource::UserValid);
     CHECK(config.activated.count("default.plugin") == 1);
     CHECK(boost::filesystem::is_regular_file(user_config));
     CHECK(read_text_file(user_config) == read_text_file(default_config));
@@ -1176,6 +1112,113 @@ TEST_CASE("Plugin startup activation creates a missing user configuration from d
         CHECK(filename.find(".activated.ini.replacement-") == std::string::npos);
         CHECK(filename.find(".activated.ini.previous-") == std::string::npos);
     }
+
+    boost::filesystem::remove_all(root);
+}
+
+TEST_CASE("Plugin startup activation sanitizes semantic errors without rewriting the user file",
+          "[plugins][repository][activation][loader]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-plugin-startup-%%%%-%%%%");
+    const boost::filesystem::path resources_directory = root / "resources";
+    const boost::filesystem::path data_directory = root / "data";
+    const boost::filesystem::path default_config = resources_directory / "plugins" / "default_activated.ini";
+    const boost::filesystem::path user_config = Slic3r::plugin_activation_config_path(data_directory);
+    boost::filesystem::create_directories(default_config.parent_path());
+    boost::filesystem::create_directories(user_config.parent_path());
+    {
+        boost::nowide::ofstream stream(default_config.string());
+        stream << "[installed]\n\n[activated]\ndefault.plugin = 1\n";
+    }
+    {
+        boost::nowide::ofstream stream(user_config.string());
+        stream << "[installed]\n"
+               << "valid.package = 1.0.0\n"
+               << "valid.package.slicer_version = 2.7.63.0\n"
+               << "rejected.package = invalid\n\n"
+               << "[activated]\n"
+               << "valid.plugin = 1\n"
+               << "rejected.plugin = 1\n\n"
+               << "[plugin_packages]\n"
+               << "valid.plugin = valid.package\n"
+               << "rejected.plugin = rejected.package\n";
+    }
+    const std::string original_contents = read_text_file(user_config);
+    ScopedPluginRepositoryDirectories directories(resources_directory, data_directory);
+
+    Slic3r::PluginActivationConfig config;
+    Slic3r::PluginActivationConfigSource source = Slic3r::PluginActivationConfigSource::DefaultsFallback;
+    std::string error_message;
+    REQUIRE(Slic3r::resolve_plugin_startup_activation_config(
+        data_directory, config, source, error_message));
+    CHECK(source == Slic3r::PluginActivationConfigSource::UserSanitized);
+    CHECK(config.installed.count("valid.package") == 1);
+    CHECK(config.installed.count("rejected.package") == 0);
+    CHECK(config.activated.count("valid.plugin") == 1);
+    CHECK(config.activated.count("rejected.plugin") == 0);
+    CHECK(config.plugin_packages.count("rejected.plugin") == 0);
+    CHECK(read_text_file(user_config) == original_contents);
+    CHECK(error_message.empty());
+
+    const std::optional<Slic3r::PluginActivationStartupError> startup_error =
+        Slic3r::take_plugin_activation_startup_error();
+    REQUIRE(startup_error.has_value());
+    CHECK(startup_error->source == Slic3r::PluginActivationConfigSource::UserSanitized);
+    CHECK_FALSE(startup_error->default_activations_used);
+    CHECK_FALSE(startup_error->package_changes_skipped);
+    CHECK_FALSE(startup_error->issues.empty());
+    REQUIRE(startup_error->removed_packages.size() == 1);
+    CHECK(startup_error->removed_packages.front() == "rejected.package");
+    CHECK(startup_error->sanitized_config.installed.count("valid.package") == 1);
+    CHECK_FALSE(Slic3r::take_plugin_activation_startup_error().has_value());
+
+    boost::filesystem::remove_all(root);
+}
+
+TEST_CASE("Plugin package mutation APIs refuse a partially valid activation file",
+          "[plugins][repository][activation]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-plugin-activation-%%%%-%%%%");
+    const boost::filesystem::path resources_directory = root / "resources";
+    const boost::filesystem::path data_directory = root / "data";
+    const boost::filesystem::path default_config = resources_directory / "plugins" / "default_activated.ini";
+    const boost::filesystem::path user_config = Slic3r::plugin_activation_config_path(data_directory);
+    boost::filesystem::create_directories(default_config.parent_path());
+    boost::filesystem::create_directories(user_config.parent_path());
+    {
+        boost::nowide::ofstream stream(default_config.string());
+        stream << "[installed]\n\n[activated]\n";
+    }
+    {
+        boost::nowide::ofstream stream(user_config.string());
+        stream << "[installed]\nexisting.package = 1.0.0\n\n"
+               << "[activated]\nbroken.activation = unexpected\n";
+    }
+    const std::string original_contents = read_text_file(user_config);
+
+    Slic3r::RepositoryPackageCache cache(data_directory, Slic3r::plugin_repository_cache_adapter());
+    bool purged = false;
+    std::string error_message;
+    REQUIRE(cache.prepare_layout(purged, error_message));
+    const boost::filesystem::path cached_package = Slic3r::repository_package_cache_path(
+        data_directory, Slic3r::RepositoryPackageType::Plugin,
+        "new.package", "1.0.0", "2.7.63.0");
+    write_description(cached_package, "new.package", "1.0.0", "2.7.63.0");
+    {
+        boost::nowide::ofstream stream((cached_package / plugin_library_filename()).string());
+        stream << "library";
+    }
+    ScopedPluginRepositoryDirectories directories(resources_directory, data_directory);
+
+    CHECK_FALSE(Slic3r::request_plugin_install(
+        "new.package", "1.0.0", "2.7.63.0", error_message));
+    CHECK_FALSE(error_message.empty());
+    CHECK(read_text_file(user_config) == original_contents);
+    CHECK_FALSE(Slic3r::request_plugin_uninstall("existing.package", error_message));
+    CHECK_FALSE(error_message.empty());
+    CHECK(read_text_file(user_config) == original_contents);
 
     boost::filesystem::remove_all(root);
 }
@@ -1212,11 +1255,11 @@ TEST_CASE("Plugin startup activation preserves an invalid user configuration",
     ScopedPluginRepositoryDirectories directories(resources_directory, data_directory);
 
     Slic3r::PluginActivationConfig config;
-    bool from_user_config = true;
+    Slic3r::PluginActivationConfigSource source = Slic3r::PluginActivationConfigSource::UserValid;
     std::string error_message;
     REQUIRE(Slic3r::resolve_plugin_startup_activation_config(
-        data_directory, config, from_user_config, error_message));
-    CHECK_FALSE(from_user_config);
+        data_directory, config, source, error_message));
+    CHECK(source == Slic3r::PluginActivationConfigSource::DefaultsFallback);
     CHECK(config.activated.count("default.plugin") == 1);
     CHECK(config.installed.empty());
     CHECK(config.plugin_packages.empty());
@@ -1235,129 +1278,6 @@ TEST_CASE("Plugin startup activation preserves an invalid user configuration",
 
     boost::filesystem::remove_all(root);
 }
-
-TEST_CASE("Plugin activation repair publishes the complete default configuration",
-          "[plugins][repository][activation][loader]")
-{
-    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
-                                         boost::filesystem::unique_path("slic3r-plugin-repair-%%%%-%%%%");
-    const boost::filesystem::path resources_directory = root / "resources";
-    const boost::filesystem::path data_directory = root / "data";
-    const boost::filesystem::path default_config = resources_directory / "plugins" / "default_activated.ini";
-    const boost::filesystem::path user_config = Slic3r::plugin_activation_config_path(data_directory);
-    const boost::filesystem::path live_marker = data_directory / "plugins" / "keep.package" / "marker.txt";
-    boost::filesystem::create_directories(default_config.parent_path());
-    boost::filesystem::create_directories(user_config.parent_path());
-    {
-        boost::nowide::ofstream stream(default_config.string());
-        stream << "; complete resource configuration\n"
-               << "[installed]\ndefault.package = 1.0.0\n"
-               << "default.package.slicer_version = 2.7.63.0\n\n"
-               << "[activated]\ndefault.plugin = 1\n\n"
-               << "[plugin_packages]\ndefault.plugin = default.package\n";
-    }
-    {
-        boost::nowide::ofstream stream(user_config.string());
-        stream << "[activated\nbroken.plugin = 1\n";
-    }
-    boost::filesystem::create_directories(live_marker.parent_path());
-    {
-        boost::nowide::ofstream stream(live_marker.string());
-        stream << "must remain";
-    }
-    ScopedPluginRepositoryDirectories directories(resources_directory, data_directory);
-
-    std::string error_message;
-    REQUIRE(Slic3r::replace_plugin_activation_config_with_defaults(user_config, error_message));
-    CHECK(error_message.empty());
-    CHECK(read_text_file(user_config) == read_text_file(default_config));
-    CHECK(read_text_file(live_marker) == "must remain");
-
-    Slic3r::PluginActivationConfig repaired;
-    REQUIRE(Slic3r::read_plugin_activation_config(user_config, repaired, error_message));
-    CHECK(repaired.installed.count("default.package") == 1);
-    CHECK(repaired.activated.count("default.plugin") == 1);
-    CHECK(repaired.plugin_packages.at("default.plugin") == "default.package");
-
-    // Successful publication consumes both sibling work files; only the final
-    // activation file and unrelated package directories remain.
-    for (boost::filesystem::directory_iterator it(user_config.parent_path()), end; it != end; ++it) {
-        const std::string filename = it->path().filename().string();
-        CHECK(filename.find(".activated.ini.replacement-") == std::string::npos);
-        CHECK(filename.find(".activated.ini.previous-") == std::string::npos);
-    }
-
-    boost::filesystem::remove_all(root);
-}
-
-TEST_CASE("Plugin activation repair preserves the user file when defaults are invalid",
-          "[plugins][repository][activation][loader]")
-{
-    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
-                                         boost::filesystem::unique_path("slic3r-plugin-repair-%%%%-%%%%");
-    const boost::filesystem::path resources_directory = root / "resources";
-    const boost::filesystem::path data_directory = root / "data";
-    const boost::filesystem::path default_config = resources_directory / "plugins" / "default_activated.ini";
-    const boost::filesystem::path user_config = Slic3r::plugin_activation_config_path(data_directory);
-    const std::string invalid_user_contents = "[activated\nbroken.plugin = 1\n";
-    boost::filesystem::create_directories(default_config.parent_path());
-    boost::filesystem::create_directories(user_config.parent_path());
-    {
-        boost::nowide::ofstream stream(default_config.string());
-        stream << "[activated\ndefault.plugin = 1\n";
-    }
-    {
-        boost::nowide::ofstream stream(user_config.string());
-        stream << invalid_user_contents;
-    }
-    const std::string original_user_contents = read_text_file(user_config);
-    ScopedPluginRepositoryDirectories directories(resources_directory, data_directory);
-
-    std::string error_message;
-    CHECK_FALSE(Slic3r::replace_plugin_activation_config_with_defaults(user_config, error_message));
-    CHECK_FALSE(error_message.empty());
-    CHECK(read_text_file(user_config) == original_user_contents);
-
-    boost::filesystem::remove_all(root);
-}
-
-#ifdef _WIN32
-TEST_CASE("Plugin activation repair restores the user file when publication fails",
-          "[plugins][repository][activation][loader]")
-{
-    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
-                                         boost::filesystem::unique_path("slic3r-plugin-repair-%%%%-%%%%");
-    const boost::filesystem::path resources_directory = root / "resources";
-    const boost::filesystem::path data_directory = root / "data";
-    const boost::filesystem::path default_config = resources_directory / "plugins" / "default_activated.ini";
-    const boost::filesystem::path user_config = Slic3r::plugin_activation_config_path(data_directory);
-    boost::filesystem::create_directories(default_config.parent_path());
-    boost::filesystem::create_directories(user_config.parent_path());
-    {
-        boost::nowide::ofstream stream(default_config.string());
-        stream << "[activated]\ndefault.plugin = 1\n";
-    }
-    {
-        boost::nowide::ofstream stream(user_config.string());
-        stream << "[activated\nbroken.plugin = 1\n";
-    }
-    const std::string original_user_contents = read_text_file(user_config);
-    ScopedPluginRepositoryDirectories directories(resources_directory, data_directory);
-
-    // Denying FILE_SHARE_DELETE makes the publication rename fail after the
-    // complete replacement has been staged, which exercises the rollback path.
-    const HANDLE locked_file = ::CreateFileW(user_config.wstring().c_str(), GENERIC_READ, FILE_SHARE_READ,
-                                             nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    REQUIRE(locked_file != INVALID_HANDLE_VALUE);
-    std::string error_message;
-    CHECK_FALSE(Slic3r::replace_plugin_activation_config_with_defaults(user_config, error_message));
-    CHECK_FALSE(error_message.empty());
-    ::CloseHandle(locked_file);
-    CHECK(read_text_file(user_config) == original_user_contents);
-
-    boost::filesystem::remove_all(root);
-}
-#endif
 
 TEST_CASE("Plugin startup activation fails when user and default files are invalid",
           "[plugins][repository][activation][loader]")
@@ -1381,37 +1301,13 @@ TEST_CASE("Plugin startup activation fails when user and default files are inval
     ScopedPluginRepositoryDirectories directories(resources_directory, data_directory);
 
     Slic3r::PluginActivationConfig config;
-    bool from_user_config = true;
+    Slic3r::PluginActivationConfigSource source = Slic3r::PluginActivationConfigSource::UserValid;
     std::string error_message;
     CHECK_FALSE(Slic3r::resolve_plugin_startup_activation_config(
-        data_directory, config, from_user_config, error_message));
+        data_directory, config, source, error_message));
     CHECK(error_message.find(user_config.string()) != std::string::npos);
     CHECK(error_message.find(default_config.string()) != std::string::npos);
     CHECK_FALSE(Slic3r::take_plugin_activation_startup_error().has_value());
 
-    boost::filesystem::remove_all(root);
-}
-
-TEST_CASE("Plugin activation configuration writes no removal section", "[plugins][repository]")
-{
-    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
-                                         boost::filesystem::unique_path("slic3r-plugin-removal-%%%%-%%%%");
-    const boost::filesystem::path config_path = root / "activated.ini";
-    boost::filesystem::create_directories(root);
-    {
-        boost::nowide::ofstream stream(config_path.string());
-        stream << "[installed]\n"
-               << "example.plugin = 1.2.3.4\n"
-               << "example.plugin.slicer_version = 2.7.0.0\n\n"
-               << "[activated]\nexample.id = 1\n";
-    }
-
-    Slic3r::PluginActivationConfig config;
-    std::string error_message;
-    REQUIRE(Slic3r::read_plugin_activation_config(config_path, config, error_message));
-    CHECK(config.installed.count("example.plugin") == 1);
-    CHECK(config.activated["example.id"]);
-    REQUIRE(Slic3r::write_plugin_activation_config(config_path, config, error_message));
-    CHECK(read_text_file(config_path).find("[removed]") == std::string::npos);
     boost::filesystem::remove_all(root);
 }

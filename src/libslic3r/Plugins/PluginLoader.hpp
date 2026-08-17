@@ -9,6 +9,8 @@
 #include <optional>
 #include <string>
 
+#include "PluginActivationConfig.hpp"
+
 namespace boost {
 namespace filesystem {
 class path;
@@ -18,29 +20,38 @@ class path;
 namespace Slic3r {
 
 class Orchestrator;
-struct PluginActivationConfig;
 
-// Describes a recoverable failure of the user activation file. The loader has
-// already switched to resource defaults when this value is published, while
-// package changes remain untouched because their desired state was unreadable.
+enum class PluginActivationConfigSource {
+    UserValid,
+    UserSanitized,
+    DefaultsFallback
+};
+
+// Describes a recoverable user activation-file problem. A semantic problem
+// carries the sanitized value already used by the loader; a structural problem
+// records that defaults were used without changing live packages.
 struct PluginActivationStartupError {
     std::string config_path;
     std::string detail;
+    PluginActivationConfigSource source = PluginActivationConfigSource::DefaultsFallback;
     bool default_activations_used = false;
     bool package_changes_skipped = false;
+    std::vector<PluginActivationConfigIssue> issues;
+    std::vector<std::string> removed_packages;
+    PluginActivationConfig sanitized_config;
 };
 
-// Resolve the activation file used during startup. A valid user file keeps its
-// complete package state. If that file cannot be read, resource defaults are
-// returned for activation only and a deferred startup error is recorded. False
-// means that neither source was usable and error_message explains both errors.
+// Resolve the activation file used during startup. Semantic entry errors yield
+// UserSanitized and a complete deferred diagnostic while structural errors use
+// default activations without applying package changes. False means that both
+// the user source and the resource defaults were unusable.
 bool resolve_plugin_startup_activation_config(const boost::filesystem::path &data_directory,
                                               PluginActivationConfig &config,
-                                              bool &from_user_config,
+                                              PluginActivationConfigSource &source,
                                               std::string &error_message);
 
-// Return and clear the deferred fallback diagnostic. GUI applications consume
-// it once after their main window exists; command-line applications rely on the
+// Return and clear the deferred repair diagnostic. GUI applications consume it
+// once after their main window exists; command-line applications rely on the
 // startup log and may leave it unconsumed.
 std::optional<PluginActivationStartupError> take_plugin_activation_startup_error();
 

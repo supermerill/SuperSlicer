@@ -76,7 +76,7 @@
 #include "libslic3r/Color.hpp"
 #include "libslic3r/Format/SLAArchiveFormatRegistry.hpp"
 #include "libslic3r/Plugins/PluginLoader.hpp"
-#include "libslic3r/Plugins/PluginRepository.hpp"
+#include "libslic3r/Plugins/PluginActivationConfig.hpp"
 
 #include "GUI.hpp"
 #include "GUI_Utils.hpp"
@@ -893,6 +893,50 @@ void GUI_App::post_init()
         take_plugin_activation_startup_error();
     if (plugin_startup_error.has_value()) {
         CallAfter([this, error = std::move(*plugin_startup_error)]() {
+            if (error.source == PluginActivationConfigSource::UserSanitized) {
+                wxString message = format_wxstr(
+                    _L("The plugin activation configuration contains invalid entries:\n%1%"),
+                    from_u8(error.config_path));
+                for (const PluginActivationConfigIssue &issue : error.issues) {
+                    message += "\n\n[" + from_u8(issue.section) + "]";
+                    if (!issue.key.empty())
+                        message += " " + from_u8(issue.key);
+                    message += ": " + from_u8(issue.reason);
+                }
+                if (!error.removed_packages.empty()) {
+                    message += "\n\n";
+                    message += _L("Packages removed from the desired state before plugin loading:");
+                    for (const std::string &package_name : error.removed_packages)
+                        message += "\n- " + from_u8(package_name);
+                }
+                message += "\n\n";
+                message += _L("This session is already using the valid entries. Continue to replace the file "
+                              "with the sanitized configuration, or restore the complete defaults for the next startup.");
+
+                RichMessageDialog dialog(mainframe, message, _L("Plugin configuration error"),
+                                         wxYES_NO | wxYES_DEFAULT | wxICON_ERROR);
+                dialog.SetYesNoLabels(_L("Continue with valid entries"), _L("Restore defaults"));
+                const int choice = dialog.ShowModal();
+
+                // Closing the dialog intentionally accepts the entries which
+                // were already used safely for the current session.
+                std::string publication_error;
+                const bool published = choice == wxID_NO ?
+                    replace_plugin_activation_config_with_defaults(
+                        boost::filesystem::path(error.config_path), publication_error) :
+                    write_plugin_activation_config(boost::filesystem::path(error.config_path),
+                                                   error.sanitized_config, publication_error);
+                if (!published) {
+                    MessageDialog failure_dialog(
+                        mainframe,
+                        format_wxstr(_L("The plugin configuration could not be repaired:\n%1%"),
+                                     from_u8(publication_error)),
+                        _L("Plugin configuration error"), wxOK | wxICON_ERROR);
+                    failure_dialog.ShowModal();
+                }
+                return;
+            }
+
             wxString message = format_wxstr(
                 _L("The plugin activation configuration could not be read:\n%1%\n\n%2%"),
                 from_u8(error.config_path), from_u8(error.detail));

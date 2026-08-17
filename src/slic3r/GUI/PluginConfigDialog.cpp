@@ -40,7 +40,7 @@ of the visible list and is written to activated.ini only when the user saves.
 
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/host/Plugin.hpp"
-#include "libslic3r/Plugins/PluginRepository.hpp"
+#include "libslic3r/Plugins/PluginActivationConfig.hpp"
 #include "libslic3r/Steps/StepPipeline.hpp"
 #include "libslic3r/Utils.hpp"
 

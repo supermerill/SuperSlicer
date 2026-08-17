@@ -704,25 +704,60 @@ void register_exclusive_step_group_ui_fragments_impl(Orchestrator &orchestrator)
 
 bool resolve_plugin_startup_activation_config(const boost::filesystem::path &data_directory,
                                               PluginActivationConfig &config,
-                                              bool &from_user_config,
+                                              PluginActivationConfigSource &source,
                                               std::string &error_message)
 {
     g_plugin_activation_startup_error.reset();
     config = {};
-    from_user_config = false;
+    source = PluginActivationConfigSource::DefaultsFallback;
 
-    std::string user_error;
-    if (ensure_plugin_activation_config(data_directory, config, from_user_config, user_error)) {
-        error_message.clear();
-        return true;
+    // Tools without a writable data directory intentionally consume the
+    // resource configuration directly and have no user file to repair.
+    if (data_directory.empty()) {
+        bool ignored_from_user_config = false;
+        return ensure_plugin_activation_config(data_directory, config,
+                                               ignored_from_user_config, error_message);
     }
 
-    // An empty data directory already selects the resource file, so there is
-    // no independent source left to use as a fallback.
-    if (data_directory.empty()) {
-        config = {};
-        error_message = std::move(user_error);
-        return false;
+    std::string user_error;
+    const boost::filesystem::path user_config_path = plugin_activation_config_path(data_directory);
+    try {
+        if (!boost::filesystem::exists(user_config_path)) {
+            bool ignored_from_user_config = false;
+            if (ensure_plugin_activation_config(data_directory, config,
+                                                ignored_from_user_config, user_error)) {
+                source = PluginActivationConfigSource::UserValid;
+                error_message.clear();
+                return true;
+            }
+        } else {
+            PluginActivationConfigReadResult read_result =
+                read_plugin_activation_config_tolerant(user_config_path);
+            if (read_result.status == PluginActivationConfigStatus::Valid) {
+                config = std::move(read_result.config);
+                source = PluginActivationConfigSource::UserValid;
+                error_message.clear();
+                return true;
+            }
+            if (read_result.status == PluginActivationConfigStatus::PartiallyValid) {
+                config = std::move(read_result.config);
+                source = PluginActivationConfigSource::UserSanitized;
+
+                PluginActivationStartupError startup_error;
+                startup_error.config_path = user_config_path.string();
+                startup_error.detail = std::move(read_result.error_message);
+                startup_error.source = source;
+                startup_error.issues = std::move(read_result.issues);
+                startup_error.removed_packages = std::move(read_result.rejected_packages);
+                startup_error.sanitized_config = config;
+                g_plugin_activation_startup_error = std::move(startup_error);
+                error_message.clear();
+                return true;
+            }
+            user_error = std::move(read_result.error_message);
+        }
+    } catch (const boost::filesystem::filesystem_error &error) {
+        user_error = "Cannot inspect plugin configuration '" + user_config_path.string() + "': " + error.what();
     }
 
     PluginActivationConfig default_config;
@@ -731,7 +766,7 @@ bool resolve_plugin_startup_activation_config(const boost::filesystem::path &dat
     if (!ensure_plugin_activation_config(boost::filesystem::path(), default_config,
                                          ignored_from_user_config, default_error)) {
         config = {};
-        from_user_config = false;
+        source = PluginActivationConfigSource::DefaultsFallback;
         error_message = user_error + " Default plugin activations are also unavailable: " + default_error;
         return false;
     }
@@ -741,9 +776,14 @@ bool resolve_plugin_startup_activation_config(const boost::filesystem::path &dat
     // state, even if a future caller forgets to inspect the source flag.
     config = {};
     config.activated = std::move(default_config.activated);
-    from_user_config = false;
-    g_plugin_activation_startup_error = PluginActivationStartupError{
-        plugin_activation_config_path(data_directory).string(), std::move(user_error), true, true};
+    source = PluginActivationConfigSource::DefaultsFallback;
+    PluginActivationStartupError startup_error;
+    startup_error.config_path = user_config_path.string();
+    startup_error.detail = std::move(user_error);
+    startup_error.source = source;
+    startup_error.default_activations_used = true;
+    startup_error.package_changes_skipped = true;
+    g_plugin_activation_startup_error = std::move(startup_error);
     error_message.clear();
     return true;
 }
@@ -788,24 +828,35 @@ void load_plugins()
     // Package installation happens before any external DLL is loaded. This
     // keeps a running process from replacing a library that Windows or the
     // dynamic linker may still hold open.
-    bool active_plugins_loaded_from_user_config = false;
+    PluginActivationConfigSource activation_config_source = PluginActivationConfigSource::DefaultsFallback;
     const boost::filesystem::path config_dir = has_data_dir() ? boost::filesystem::path(data_dir()) :
                                                                 boost::filesystem::path();
     PluginActivationConfig plugin_config;
     std::string plugin_config_error;
     if (!resolve_plugin_startup_activation_config(config_dir, plugin_config,
-                                                  active_plugins_loaded_from_user_config,
+                                                  activation_config_source,
                                                   plugin_config_error))
         throw std::runtime_error(plugin_config_error);
 
+    const bool user_configuration_available =
+        activation_config_source != PluginActivationConfigSource::DefaultsFallback;
+    const bool automatic_configuration_writes_allowed =
+        activation_config_source == PluginActivationConfigSource::UserValid;
+
     if (const std::optional<PluginActivationStartupError> startup_error =
             g_plugin_activation_startup_error; startup_error.has_value()) {
-        BOOST_LOG_TRIVIAL(error) << startup_error->detail << " Using default plugin activations for this "
-                                 << "session. The user configuration remains unchanged and package changes "
-                                 << "were not applied.";
+        if (startup_error->source == PluginActivationConfigSource::UserSanitized) {
+            BOOST_LOG_TRIVIAL(error) << startup_error->detail << " Valid plugin configuration entries are used "
+                                     << "for this session. Rejected packages are removed from the desired state; "
+                                     << "the user file remains unchanged.";
+        } else {
+            BOOST_LOG_TRIVIAL(error) << startup_error->detail << " Using default plugin activations for this "
+                                     << "session. The user configuration remains unchanged and package changes "
+                                     << "were not applied.";
+        }
     }
 
-    if (!config_dir.empty() && active_plugins_loaded_from_user_config) {
+    if (!config_dir.empty() && user_configuration_available) {
         // A profile created before a later built-in plugin existed should pick
         // up the new default unless it explicitly keeps that id disabled.
         PluginActivationConfig default_plugin_config;
@@ -825,12 +876,12 @@ void load_plugins()
             BOOST_LOG_TRIVIAL(warning) << plugin_config_error;
         }
         const bool packages_prepared = prepare_plugin_bundle_cache(
-            boost::filesystem::path(resources_dir()), config_dir, plugin_config_error);
+            boost::filesystem::path(resources_dir()), config_dir, plugin_config, plugin_config_error);
         const bool packages_applied = packages_prepared && reconcile_installed_plugin_packages(
             config_dir, plugin_config, plugin_config_error);
         if (!packages_applied)
             BOOST_LOG_TRIVIAL(warning) << plugin_config_error;
-        if (activation_config_changed &&
+        if (activation_config_changed && automatic_configuration_writes_allowed &&
             !write_plugin_activation_config(plugin_activation_config_path(config_dir),
                                             plugin_config, plugin_config_error))
             BOOST_LOG_TRIVIAL(warning) << plugin_config_error;
@@ -844,7 +895,7 @@ void load_plugins()
     // for its provider association. Backfill old profiles when that relation
     // was not yet persisted, without replacing an explicit existing mapping.
     bool learned_package_association = false;
-    if (active_plugins_loaded_from_user_config) {
+    if (user_configuration_available) {
         for (const Plugin *plugin : orchestrator.registered_plugins()) {
             if (plugin->get_package_root().empty() ||
                 plugin_config.activated.find(plugin->get_id()) == plugin_config.activated.end() ||
@@ -857,10 +908,17 @@ void load_plugins()
             }
         }
     }
-    if (learned_package_association && !config_dir.empty() &&
+    if (learned_package_association && automatic_configuration_writes_allowed && !config_dir.empty() &&
         !write_plugin_activation_config(plugin_activation_config_path(config_dir),
                                         plugin_config, plugin_config_error))
         BOOST_LOG_TRIVIAL(warning) << plugin_config_error;
+
+    // Publish the final in-memory value only through the deferred diagnostic.
+    // The original partial INI remains byte-identical until the user chooses
+    // whether this sanitized value should become durable.
+    if (activation_config_source == PluginActivationConfigSource::UserSanitized &&
+        g_plugin_activation_startup_error.has_value())
+        g_plugin_activation_startup_error->sanitized_config = plugin_config;
 
     // Loading and activation are intentionally separate. A disabled plugin is
     // still registered so the configuration dialog can show it, but it cannot
@@ -870,9 +928,9 @@ void load_plugins()
         if (is_enabled)
             active_plugin_ids.push_back(plugin_id);
     BOOST_LOG_TRIVIAL(info) << "Loaded " << active_plugin_ids.size() << " active plugin id(s) from "
-                            << (active_plugins_loaded_from_user_config ? plugin_activation_config_path(config_dir).string() :
+                            << (user_configuration_available ? plugin_activation_config_path(config_dir).string() :
                                 (boost::filesystem::path(resources_dir()) / "plugins/default_activated.ini").string()) << ".";
-    activate_plugins_from_ids(orchestrator, active_plugin_ids, active_plugins_loaded_from_user_config);
+    activate_plugins_from_ids(orchestrator, active_plugin_ids, user_configuration_available);
     register_infill_pattern_config_choices(orchestrator);
     register_exclusive_step_group_options_impl(orchestrator);
 

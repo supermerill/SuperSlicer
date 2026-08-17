@@ -3,21 +3,20 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 
-// PluginRepository defines the durable metadata shared by vendor and plugin
-// repositories, plus the plugin activation/install protocol. description.ini
-// carries stable repository identity only. RepositoryPackageVersion carries a
-// selected downloadable version; installed plugin packages persist that value
-// separately in version.ini. Filesystem cache layout and normalization live in
-// RepositoryPackageCache.
+// PluginRepository defines the durable package protocol shared by vendor and
+// plugin repositories. description.ini carries stable repository identity;
+// package versions and cache/install operations remain separate from the
+// activated.ini integrity rules defined by PluginActivationConfig.
 
 #ifndef plugins_pluginrepository_hpp_
 #define plugins_pluginrepository_hpp_
 
-#include <map>
 #include <string>
 #include <vector>
 
 #include <boost/filesystem/path.hpp>
+
+#include "PluginActivationConfig.hpp"
 
 namespace Slic3r {
 
@@ -89,58 +88,6 @@ bool extract_repository_archive(const boost::filesystem::path &archive_path,
                                 const boost::filesystem::path &destination,
                                 std::string &error_message);
 
-struct PluginInstalledVersion {
-    std::string package_version;
-    std::string slicer_version;
-};
-
-// The activation file separates package lifecycle from plugin activation.
-// [installed] is the complete desired package set: selected versions are
-// copied into the live directory and live packages absent from the section are
-// removed at the next launch. Individual plugin ids remain independently
-// enabled in [activated].
-struct PluginActivationConfig {
-    std::map<std::string, bool> activated;
-    // External plugin ids are associated with the package that registered
-    // them. The activation dialog can then explain which installed package is
-    // unavailable without requiring package metadata to predict runtime ids.
-    // Built-in plugins have no entry in this map.
-    std::map<std::string, std::string> plugin_packages;
-    std::map<std::string, PluginInstalledVersion> installed;
-};
-
-// Return the user configuration file which records package changes and enabled
-// plugin ids.
-boost::filesystem::path plugin_activation_config_path(const boost::filesystem::path &data_directory);
-
-// Read or write the [installed], [activated] and [plugin_packages] sections.
-// Callers load the complete value before changing one concern, so unrelated
-// desired packages and activation choices remain present when the file is
-// rewritten. Writes are completed in a sibling staging file before replacing
-// the destination, and restore the previous file if publication fails. Files
-// without [plugin_packages] remain valid.
-bool read_plugin_activation_config(const boost::filesystem::path &config_path,
-                                   PluginActivationConfig &config,
-                                   std::string &error_message);
-bool write_plugin_activation_config(const boost::filesystem::path &config_path,
-                                    const PluginActivationConfig &config,
-                                    std::string &error_message);
-
-// Replace a damaged user activation file with the complete resource default.
-// The copy is validated and staged beside config_path before publication, so a
-// failure leaves the previous user file in place. This function only changes
-// the configuration file; package reconciliation happens at the next startup.
-bool replace_plugin_activation_config_with_defaults(const boost::filesystem::path &config_path,
-                                                    std::string &error_message);
-
-// Create data_dir/plugins/activated.ini from resources when needed. The old
-// data_dir/plugin location is copied once so existing profiles keep both
-// their activation state and their desired package versions.
-bool ensure_plugin_activation_config(const boost::filesystem::path &data_directory,
-                                     PluginActivationConfig &config,
-                                     bool &from_user_config,
-                                     std::string &error_message);
-
 // Prepare the current cache layout without importing shipped bundles. Runtime
 // repository operations use this entry point so clearing a bundled plugin
 // remains effective until the application starts again.
@@ -153,6 +100,14 @@ bool prepare_plugin_cache(const boost::filesystem::path &data_directory,
 // the complete [installed] set.
 bool prepare_plugin_bundle_cache(const boost::filesystem::path &resources_directory,
                                  const boost::filesystem::path &data_directory,
+                                 std::string &error_message);
+
+// Startup has already parsed and possibly sanitized activated.ini. Supplying
+// that desired state keeps a cache-layout rebuild from reparsing the preserved
+// partial file with the strict mutation reader.
+bool prepare_plugin_bundle_cache(const boost::filesystem::path &resources_directory,
+                                 const boost::filesystem::path &data_directory,
+                                 const PluginActivationConfig &activation_config,
                                  std::string &error_message);
 
 // Validate and publish one downloaded plugin archive into the versioned cache.

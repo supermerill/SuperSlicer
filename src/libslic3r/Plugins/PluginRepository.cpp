@@ -11,9 +11,9 @@
 #include "PluginRepository.hpp"
 
 #include <algorithm>
-#include <cctype>
 #include <exception>
 #include <iterator>
+#include <map>
 #include <sstream>
 #include <string>
 
@@ -35,16 +35,12 @@ namespace Slic3r {
 namespace {
 
 const char *const PLUGIN_DIRECTORY = "plugins";
-const char *const ACTIVATED_PLUGINS_FILENAME = "activated.ini";
-const char *const DEFAULT_ACTIVATED_PLUGINS_FILENAME = "default_activated.ini";
 const char *const DESCRIPTION_FILENAME = "description.ini";
 const char *const VERSION_FILENAME = "version.ini";
 
 const char *plugin_package_library_filename();
-bool ini_value_is_enabled(const std::string &value);
-bool is_safe_package_name(const std::string &package_name);
+bool parse_repository_enabled_value(const std::string &value, bool &enabled);
 bool is_valid_repository_id(const std::string &repository_id);
-bool is_valid_package_version(const std::string &version);
 bool parse_bundle_filename(const boost::filesystem::path &archive_path,
                            std::string &package_name,
                            PluginInstalledVersion &version);
@@ -68,17 +64,6 @@ bool replace_installed_package(const boost::filesystem::path &data_directory,
                                const std::string &package_name,
                                const PluginInstalledVersion &version,
                                std::string &error_message);
-boost::filesystem::path default_plugin_activation_config_path();
-// Publish a complete sibling staging file while keeping the previous
-// destination available for rollback until the replacement succeeds.
-bool publish_staged_file(const boost::filesystem::path &staging,
-                         const boost::filesystem::path &destination,
-                         std::string &error_message);
-// Copy a complete file through sibling staging and backup paths. The previous
-// destination remains recoverable until the staged copy is published.
-bool replace_file_with_copy(const boost::filesystem::path &source,
-                            const boost::filesystem::path &destination,
-                            std::string &error_message);
 
 const char *plugin_package_library_filename()
 {
@@ -91,23 +76,21 @@ const char *plugin_package_library_filename()
 #endif
 }
 
-bool ini_value_is_enabled(const std::string &value)
+bool parse_repository_enabled_value(const std::string &value, bool &enabled)
 {
-    return boost::algorithm::iequals(value, "1") || boost::algorithm::iequals(value, "true") ||
-           boost::algorithm::iequals(value, "yes") || boost::algorithm::iequals(value, "on") ||
-           boost::algorithm::iequals(value, "enabled");
-}
-
-bool is_safe_package_name(const std::string &package_name)
-{
-    if (package_name.empty() || package_name.front() == '.' || package_name == "." || package_name == ".." ||
-        package_name.find("..") != std::string::npos)
-        return false;
-
-    for (const unsigned char character : package_name)
-        if (character > 0x7f || (!std::isalnum(character) && character != '.' && character != '_' && character != '-'))
-            return false;
-    return true;
+    if (boost::algorithm::iequals(value, "1") || boost::algorithm::iequals(value, "true") ||
+        boost::algorithm::iequals(value, "yes") || boost::algorithm::iequals(value, "on") ||
+        boost::algorithm::iequals(value, "enabled")) {
+        enabled = true;
+        return true;
+    }
+    if (boost::algorithm::iequals(value, "0") || boost::algorithm::iequals(value, "false") ||
+        boost::algorithm::iequals(value, "no") || boost::algorithm::iequals(value, "off") ||
+        boost::algorithm::iequals(value, "disabled")) {
+        enabled = false;
+        return true;
+    }
+    return false;
 }
 
 bool is_valid_repository_id(const std::string &repository_id)
@@ -121,11 +104,6 @@ bool is_valid_repository_id(const std::string &repository_id)
             character == '>' || character == '|')
             return false;
     return true;
-}
-
-bool is_valid_package_version(const std::string &version)
-{
-    return Semver::parse(version).has_value();
 }
 
 bool parse_bundle_filename(const boost::filesystem::path &archive_path,
@@ -146,8 +124,9 @@ bool parse_bundle_filename(const boost::filesystem::path &archive_path,
     package_name = stem.substr(0, package_separator);
     version.package_version = stem.substr(package_separator + 1, slicer_separator - package_separator - 1);
     version.slicer_version = stem.substr(slicer_separator + 1);
-    return is_safe_package_name(package_name) && is_valid_package_version(version.package_version) &&
-           is_valid_package_version(version.slicer_version);
+    return is_valid_plugin_package_name(package_name) &&
+           is_valid_plugin_package_version(version.package_version) &&
+           is_valid_plugin_package_version(version.slicer_version);
 }
 
 bool is_safe_archive_entry(const std::string &entry_name)
@@ -232,8 +211,8 @@ bool read_plugin_version(const boost::filesystem::path &package_root,
         const boost::property_tree::ptree &plugin = tree.get_child("plugin");
         version.package_version = plugin.get<std::string>("package_version", std::string());
         version.slicer_version = plugin.get<std::string>("slicer_version", std::string());
-        if (!is_valid_package_version(version.package_version) ||
-            !is_valid_package_version(version.slicer_version)) {
+        if (!is_valid_plugin_package_version(version.package_version) ||
+            !is_valid_plugin_package_version(version.slicer_version)) {
             error_message = "Plugin version.ini contains an invalid package or slicer version.";
             return false;
         }
@@ -249,8 +228,9 @@ bool validate_plugin_package(const boost::filesystem::path &package_root,
                              const PluginInstalledVersion &version,
                              std::string &error_message)
 {
-    if (!is_safe_package_name(package_name) || !is_valid_package_version(version.package_version) ||
-        !is_valid_package_version(version.slicer_version)) {
+    if (!is_valid_plugin_package_name(package_name) ||
+        !is_valid_plugin_package_version(version.package_version) ||
+        !is_valid_plugin_package_version(version.slicer_version)) {
         error_message = "Invalid plugin package name or version.";
         return false;
     }
@@ -347,104 +327,6 @@ bool replace_installed_package(const boost::filesystem::path &data_directory,
     return true;
 }
 
-boost::filesystem::path default_plugin_activation_config_path()
-{
-    return boost::filesystem::path(resources_dir()) / PLUGIN_DIRECTORY / DEFAULT_ACTIVATED_PLUGINS_FILENAME;
-}
-
-bool replace_file_with_copy(const boost::filesystem::path &source,
-                            const boost::filesystem::path &destination,
-                            std::string &error_message)
-{
-    const boost::filesystem::path parent = destination.parent_path();
-    const std::string filename = destination.filename().string();
-    const boost::filesystem::path staging = parent /
-        boost::filesystem::unique_path("." + filename + ".replacement-%%%%-%%%%");
-
-    try {
-        if (!parent.empty())
-            boost::filesystem::create_directories(parent);
-        boost::filesystem::copy_file(source, staging);
-    } catch (const boost::filesystem::filesystem_error &error) {
-        boost::system::error_code cleanup_error;
-        boost::filesystem::remove(staging, cleanup_error);
-        error_message = "Cannot stage plugin configuration '" + destination.string() + "': " + error.what();
-        return false;
-    }
-
-    return publish_staged_file(staging, destination, error_message);
-}
-
-bool publish_staged_file(const boost::filesystem::path &staging,
-                         const boost::filesystem::path &destination,
-                         std::string &error_message)
-{
-    const boost::filesystem::path parent = destination.parent_path();
-    const std::string filename = destination.filename().string();
-    const boost::filesystem::path backup = parent /
-        boost::filesystem::unique_path("." + filename + ".previous-%%%%-%%%%");
-    bool previous_moved = false;
-
-    try {
-        // Windows cannot rename over an existing file. Keep the previous file
-        // beside the staging copy until the replacement has reached its final
-        // path, so a failed publication can restore the original bytes.
-        if (boost::filesystem::exists(destination)) {
-            if (!boost::filesystem::is_regular_file(destination)) {
-                boost::system::error_code cleanup_error;
-                boost::filesystem::remove(staging, cleanup_error);
-                error_message = "Cannot replace plugin configuration '" + destination.string() +
-                                "' because it is not a regular file.";
-                return false;
-            }
-            boost::filesystem::rename(destination, backup);
-            previous_moved = true;
-        }
-
-        try {
-            boost::filesystem::rename(staging, destination);
-        } catch (const boost::filesystem::filesystem_error &error) {
-            std::string detail = error.what();
-            if (previous_moved && !boost::filesystem::exists(destination)) {
-                boost::system::error_code restore_error;
-                boost::filesystem::rename(backup, destination, restore_error);
-                if (restore_error)
-                    detail += "; restoring the previous plugin configuration also failed: " +
-                              restore_error.message();
-            }
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(staging, cleanup_error);
-            error_message = "Cannot replace plugin configuration '" + destination.string() + "': " + detail;
-            return false;
-        }
-
-        // The destination now contains the complete default file. Backup
-        // cleanup cannot invalidate that published configuration.
-        if (previous_moved) {
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(backup, cleanup_error);
-            if (cleanup_error)
-                BOOST_LOG_TRIVIAL(warning) << "Cannot remove previous plugin configuration '"
-                                           << backup.string() << "': " << cleanup_error.message();
-        }
-        error_message.clear();
-        return true;
-    } catch (const boost::filesystem::filesystem_error &error) {
-        boost::system::error_code cleanup_error;
-        boost::filesystem::remove(staging, cleanup_error);
-        std::string detail = error.what();
-        if (previous_moved && !boost::filesystem::exists(destination)) {
-            boost::system::error_code restore_error;
-            boost::filesystem::rename(backup, destination, restore_error);
-            if (restore_error)
-                detail += "; restoring the previous plugin configuration also failed: " +
-                          restore_error.message();
-        }
-        error_message = "Cannot replace plugin configuration '" + destination.string() + "': " + detail;
-        return false;
-    }
-}
-
 } // namespace
 
 bool parse_repository_description(const std::string &contents,
@@ -471,7 +353,9 @@ bool parse_repository_description(const std::string &contents,
         description.description = section.get<std::string>("description", std::string());
         description.config_update_rest = section.get<std::string>("config_update_rest", std::string());
         description.slicer = section.get<std::string>("slicer", std::string());
-        description.is_internal = ini_value_is_enabled(section.get<std::string>("internal", "0"));
+        bool is_internal = false;
+        parse_repository_enabled_value(section.get<std::string>("internal", "0"), is_internal);
+        description.is_internal = is_internal;
         // Version-looking keys are accepted for compatibility with packages
         // produced before versions were separated, but are intentionally not
         // copied into the generic repository description.
@@ -585,184 +469,6 @@ bool extract_repository_archive(const boost::filesystem::path &archive_path,
     return true;
 }
 
-boost::filesystem::path plugin_activation_config_path(const boost::filesystem::path &data_directory)
-{
-    return data_directory / PLUGIN_DIRECTORY / ACTIVATED_PLUGINS_FILENAME;
-}
-
-bool read_plugin_activation_config(const boost::filesystem::path &config_path,
-                                   PluginActivationConfig &config,
-                                   std::string &error_message)
-{
-    config = {};
-    boost::nowide::ifstream stream(config_path.string());
-    if (!stream) {
-        error_message = "Cannot read plugin configuration '" + config_path.string() + "'.";
-        return false;
-    }
-
-    try {
-        boost::property_tree::ptree tree;
-        boost::property_tree::read_ini(stream, tree);
-        if (const boost::optional<boost::property_tree::ptree&> activated = tree.get_child_optional("activated"))
-            for (const boost::property_tree::ptree::value_type &entry : *activated) {
-                const std::string plugin_id = boost::algorithm::trim_copy(entry.first);
-                if (!plugin_id.empty())
-                    config.activated[plugin_id] = ini_value_is_enabled(entry.second.get_value<std::string>());
-            }
-
-        // This optional section was added after plugin activation already
-        // existed. It is deliberately independent from [activated], so old
-        // profiles and manually maintained files keep their original meaning.
-        if (const boost::optional<boost::property_tree::ptree&> packages = tree.get_child_optional("plugin_packages"))
-            for (const boost::property_tree::ptree::value_type &entry : *packages) {
-                const std::string plugin_id = boost::algorithm::trim_copy(entry.first);
-                const std::string package_name = boost::algorithm::trim_copy(entry.second.get_value<std::string>());
-                if (!plugin_id.empty() && is_safe_package_name(package_name))
-                    config.plugin_packages[plugin_id] = package_name;
-                else
-                    BOOST_LOG_TRIVIAL(warning) << "Ignoring invalid plugin package association for '" << plugin_id << "'.";
-            }
-
-        std::map<std::string, std::string> requested_slicer_versions;
-        if (const boost::optional<boost::property_tree::ptree&> installed = tree.get_child_optional("installed"))
-            for (const boost::property_tree::ptree::value_type &entry : *installed) {
-                const std::string key = boost::algorithm::trim_copy(entry.first);
-                const std::string value = boost::algorithm::trim_copy(entry.second.get_value<std::string>());
-                const std::string suffix = ".slicer_version";
-                if (key.size() > suffix.size() && key.compare(key.size() - suffix.size(), suffix.size(), suffix) == 0)
-                    requested_slicer_versions.emplace(key.substr(0, key.size() - suffix.size()), value);
-                else if (is_safe_package_name(key) && is_valid_package_version(value))
-                    config.installed[key].package_version = value;
-                else
-                    BOOST_LOG_TRIVIAL(warning) << "Ignoring invalid requested plugin package '" << key << "'.";
-            }
-
-        for (auto it = config.installed.begin(); it != config.installed.end();) {
-            const std::map<std::string, std::string>::const_iterator slicer = requested_slicer_versions.find(it->first);
-            // Older activated.ini files contained one version only. They were
-            // produced while package and slicer versions were identical.
-            it->second.slicer_version = slicer == requested_slicer_versions.end() ?
-                it->second.package_version : slicer->second;
-            if (!is_valid_package_version(it->second.slicer_version)) {
-                BOOST_LOG_TRIVIAL(warning) << "Ignoring invalid slicer version for plugin package '" << it->first << "'.";
-                it = config.installed.erase(it);
-            } else {
-                ++it;
-            }
-        }
-
-    } catch (const std::exception &error) {
-        error_message = "Cannot parse plugin configuration '" + config_path.string() + "': " + error.what();
-        return false;
-    }
-    return true;
-}
-
-bool write_plugin_activation_config(const boost::filesystem::path &config_path,
-                                    const PluginActivationConfig &config,
-                                    std::string &error_message)
-{
-    const boost::filesystem::path parent = config_path.parent_path();
-    const std::string filename = config_path.filename().string();
-    const boost::filesystem::path staging = parent /
-        boost::filesystem::unique_path("." + filename + ".replacement-%%%%-%%%%");
-
-    try {
-        if (!parent.empty())
-            boost::filesystem::create_directories(parent);
-
-        // Build the complete INI in a sibling file. The live activation file
-        // remains untouched until every section has been written and closed.
-        boost::nowide::ofstream stream(staging.string(), std::ios::out | std::ios::trunc);
-        if (!stream) {
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(staging, cleanup_error);
-            error_message = "Cannot write plugin configuration '" + config_path.string() + "'.";
-            return false;
-        }
-        stream << "[installed]\n";
-        for (const auto &[package_name, version] : config.installed) {
-            stream << package_name << " = " << version.package_version << "\n";
-            stream << package_name << ".slicer_version = " << version.slicer_version << "\n";
-        }
-        stream << "\n[activated]\n";
-        for (const auto &[plugin_id, enabled] : config.activated)
-            stream << plugin_id << " = " << (enabled ? "1" : "0") << "\n";
-        stream << "\n[plugin_packages]\n";
-        for (const auto &[plugin_id, package_name] : config.plugin_packages)
-            if (!plugin_id.empty() && is_safe_package_name(package_name))
-                stream << plugin_id << " = " << package_name << "\n";
-        stream.flush();
-        if (!stream) {
-            error_message = "Cannot finish writing plugin configuration '" + config_path.string() + "'.";
-            stream.close();
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(staging, cleanup_error);
-            return false;
-        }
-
-        // A successful close confirms that buffered bytes reached the staging
-        // file before it is allowed to replace the live configuration.
-        stream.close();
-        if (!stream) {
-            error_message = "Cannot close plugin configuration staging file '" + staging.string() + "'.";
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(staging, cleanup_error);
-            return false;
-        }
-    } catch (const std::exception &error) {
-        boost::system::error_code cleanup_error;
-        boost::filesystem::remove(staging, cleanup_error);
-        error_message = "Cannot stage plugin configuration '" + config_path.string() + "': " + error.what();
-        return false;
-    }
-
-    return publish_staged_file(staging, config_path, error_message);
-}
-
-bool replace_plugin_activation_config_with_defaults(const boost::filesystem::path &config_path,
-                                                    std::string &error_message)
-{
-    const boost::filesystem::path default_config_path = default_plugin_activation_config_path();
-    PluginActivationConfig default_config;
-    std::string validation_error;
-
-    // Validate the resource file before touching the user's invalid file. The
-    // staged copy remains byte-identical to the shipped default, including its
-    // installed-package and provider-association sections.
-    if (!read_plugin_activation_config(default_config_path, default_config, validation_error)) {
-        error_message = "Cannot use default plugin configuration '" + default_config_path.string() + "': " +
-                        validation_error;
-        return false;
-    }
-    return replace_file_with_copy(default_config_path, config_path, error_message);
-}
-
-bool ensure_plugin_activation_config(const boost::filesystem::path &data_directory,
-                                     PluginActivationConfig &config,
-                                     bool &from_user_config,
-                                     std::string &error_message)
-{
-    from_user_config = false;
-    if (data_directory.empty())
-        return read_plugin_activation_config(default_plugin_activation_config_path(), config, error_message);
-
-    const boost::filesystem::path config_path = plugin_activation_config_path(data_directory);
-    try {
-        // Initial creation uses the same staging protocol as later updates, so
-        // startup can observe either no file or one complete default file.
-        if (!boost::filesystem::exists(config_path) &&
-            !replace_file_with_copy(default_plugin_activation_config_path(), config_path, error_message))
-            return false;
-    } catch (const boost::filesystem::filesystem_error &error) {
-        error_message = "Cannot prepare plugin configuration '" + config_path.string() + "': " + error.what();
-        return false;
-    }
-    from_user_config = true;
-    return read_plugin_activation_config(config_path, config, error_message);
-}
-
 bool cache_plugin_package_archive(const boost::filesystem::path &data_directory,
                                   const boost::filesystem::path &archive_path,
                                   const std::string &package_name,
@@ -806,6 +512,7 @@ bool plugin_package_cache_is_valid(const boost::filesystem::path &data_directory
 
 static bool prepare_plugin_cache_impl(const boost::filesystem::path *resources_directory,
                                       const boost::filesystem::path &data_directory,
+                                      const PluginActivationConfig *activation_config,
                                       std::string &error_message)
 {
     RepositoryPackageCache cache(data_directory, plugin_repository_cache_adapter());
@@ -843,18 +550,23 @@ static bool prepare_plugin_cache_impl(const boost::filesystem::path *resources_d
         if (!purged)
             return true;
 
-        PluginActivationConfig config;
+        PluginActivationConfig loaded_config;
+        const PluginActivationConfig *config = activation_config;
         const boost::filesystem::path activation_path = plugin_activation_config_path(data_directory);
         const bool has_activation_config = boost::filesystem::is_regular_file(activation_path);
-        if (has_activation_config && !read_plugin_activation_config(activation_path, config, error_message))
-            return false;
+        if (config == nullptr) {
+            if (has_activation_config &&
+                !read_plugin_activation_config(activation_path, loaded_config, error_message))
+                return false;
+            config = &loaded_config;
+        }
 
         // Only packages selected in [installed] are durable live sources. Any
         // other live directory is outside the desired package set and will be
         // removed by startup reconciliation instead of being imported again.
         const boost::filesystem::path live_plugins = data_directory / PLUGIN_DIRECTORY;
         if (boost::filesystem::is_directory(live_plugins))
-            for (const auto &[package_name, version] : config.installed) {
+            for (const auto &[package_name, version] : config->installed) {
                 const boost::filesystem::path live_package = live_plugins / package_name;
                 if (!boost::filesystem::is_directory(live_package))
                     continue;
@@ -879,14 +591,22 @@ static bool prepare_plugin_cache_impl(const boost::filesystem::path *resources_d
 bool prepare_plugin_cache(const boost::filesystem::path &data_directory,
                           std::string &error_message)
 {
-    return prepare_plugin_cache_impl(nullptr, data_directory, error_message);
+    return prepare_plugin_cache_impl(nullptr, data_directory, nullptr, error_message);
 }
 
 bool prepare_plugin_bundle_cache(const boost::filesystem::path &resources_directory,
                                  const boost::filesystem::path &data_directory,
                                  std::string &error_message)
 {
-    return prepare_plugin_cache_impl(&resources_directory, data_directory, error_message);
+    return prepare_plugin_cache_impl(&resources_directory, data_directory, nullptr, error_message);
+}
+
+bool prepare_plugin_bundle_cache(const boost::filesystem::path &resources_directory,
+                                 const boost::filesystem::path &data_directory,
+                                 const PluginActivationConfig &activation_config,
+                                 std::string &error_message)
+{
+    return prepare_plugin_cache_impl(&resources_directory, data_directory, &activation_config, error_message);
 }
 
 bool reconcile_installed_plugin_packages(const boost::filesystem::path &data_directory,
@@ -960,7 +680,7 @@ bool request_plugin_uninstall(const std::string &package_name, std::string &erro
         error_message = "Cannot schedule a plugin removal before data_dir is available.";
         return false;
     }
-    if (!is_safe_package_name(package_name)) {
+    if (!is_valid_plugin_package_name(package_name)) {
         error_message = "Cannot schedule removal for invalid plugin package '" + package_name + "'.";
         return false;
     }
