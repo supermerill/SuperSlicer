@@ -10,6 +10,7 @@
 #include <catch2/catch.hpp>
 
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -20,6 +21,7 @@
 #include "libslic3r/Plugins/PluginBinaryMetadata.hpp"
 #include "libslic3r/Plugins/PluginLoader.hpp"
 #include "libslic3r/Plugins/PluginRepository.hpp"
+#include "libslic3r/Exception.hpp"
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/host/Plugin.hpp"
 #include "libslic3r/Updater/RepositoryPackageCache.hpp"
@@ -49,6 +51,14 @@ private:
     std::string m_previous_data_directory;
 };
 
+#ifdef SLIC3R_PLUGIN_REPOSITORY_TESTING
+class ScopedPluginPackageTransactionHook {
+public:
+    explicit ScopedPluginPackageTransactionHook(Slic3r::PluginPackageTransactionTestHook hook);
+    ~ScopedPluginPackageTransactionHook();
+};
+#endif
+
 bool write_zip(const boost::filesystem::path &archive_path, const std::vector<ZipEntry> &entries);
 std::string description_contents(const std::string &package_name,
                                  const std::string &name = std::string());
@@ -58,6 +68,12 @@ void write_description(const boost::filesystem::path &package_root,
                        const std::string &package_name,
                        const std::string &package_version,
                        const std::string &slicer_version);
+void write_plugin_package(const boost::filesystem::path &package_root,
+                          const std::string &package_name,
+                          const std::string &package_version,
+                          const std::string &slicer_version,
+                          const std::string &payload);
+bool has_plugin_transaction_directory(const boost::filesystem::path &plugin_directory);
 const char *plugin_library_filename();
 std::string read_text_file(const boost::filesystem::path &path);
 #ifdef _WIN32
@@ -78,6 +94,19 @@ ScopedPluginRepositoryDirectories::~ScopedPluginRepositoryDirectories()
     Slic3r::set_resources_dir(m_previous_resources_directory);
     Slic3r::set_data_dir(m_previous_data_directory);
 }
+
+#ifdef SLIC3R_PLUGIN_REPOSITORY_TESTING
+ScopedPluginPackageTransactionHook::ScopedPluginPackageTransactionHook(
+    Slic3r::PluginPackageTransactionTestHook hook)
+{
+    Slic3r::set_plugin_package_transaction_test_hook(std::move(hook));
+}
+
+ScopedPluginPackageTransactionHook::~ScopedPluginPackageTransactionHook()
+{
+    Slic3r::set_plugin_package_transaction_test_hook({});
+}
+#endif
 
 bool write_zip(const boost::filesystem::path &archive_path, const std::vector<ZipEntry> &entries)
 {
@@ -128,6 +157,33 @@ void write_description(const boost::filesystem::path &package_root,
     description << description_contents(package_name);
     boost::nowide::ofstream version((package_root / "version.ini").string());
     version << version_contents(package_version, slicer_version);
+}
+
+void write_plugin_package(const boost::filesystem::path &package_root,
+                          const std::string &package_name,
+                          const std::string &package_version,
+                          const std::string &slicer_version,
+                          const std::string &payload)
+{
+    write_description(package_root, package_name, package_version, slicer_version);
+    boost::nowide::ofstream library((package_root / plugin_library_filename()).string(), std::ios::binary);
+    library << payload;
+}
+
+bool has_plugin_transaction_directory(const boost::filesystem::path &plugin_directory)
+{
+    if (!boost::filesystem::is_directory(plugin_directory))
+        return false;
+    for (boost::filesystem::directory_iterator it(plugin_directory), end; it != end; ++it) {
+        if (!boost::filesystem::is_directory(it->path()))
+            continue;
+        const std::string filename = it->path().filename().string();
+        if (!filename.empty() && filename.front() == '.' &&
+            (filename.find(".install-") != std::string::npos ||
+             filename.find(".backup-") != std::string::npos))
+            return true;
+    }
+    return false;
 }
 
 const char *plugin_library_filename()
@@ -313,6 +369,271 @@ TEST_CASE("Plugin installation is deferred and preserves the previous package on
 
     boost::filesystem::remove_all(root);
 }
+
+TEST_CASE("Plugin reconciliation commits multiple package updates as one transaction",
+          "[plugins][repository][transaction]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-plugin-transaction-%%%%-%%%%");
+    const boost::filesystem::path data_directory = root / "data";
+    const boost::filesystem::path plugin_directory = data_directory / "plugins";
+    const std::string slicer_version = "2.7.63.0";
+    const std::string first_version = "1.0.0";
+    const std::string second_version = "2.0.0";
+
+    for (const std::string &package_name : {std::string("a.plugin"), std::string("b.plugin")}) {
+        write_plugin_package(Slic3r::repository_package_cache_path(
+            data_directory, Slic3r::RepositoryPackageType::Plugin, package_name,
+            first_version, slicer_version), package_name, first_version, slicer_version, "old " + package_name);
+        write_plugin_package(Slic3r::repository_package_cache_path(
+            data_directory, Slic3r::RepositoryPackageType::Plugin, package_name,
+            second_version, slicer_version), package_name, second_version, slicer_version, "new " + package_name);
+    }
+
+    Slic3r::PluginActivationConfig config;
+    config.installed["a.plugin"] = {first_version, slicer_version};
+    config.installed["b.plugin"] = {first_version, slicer_version};
+    std::string error_message;
+    REQUIRE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
+
+    // A successful transaction also consumes artifacts left by an interrupted
+    // older process, because the complete desired set is now known to be live.
+    boost::filesystem::create_directories(plugin_directory / ".old.install-1111-2222");
+    boost::filesystem::create_directories(plugin_directory / ".old.backup-1111-2222");
+    config.installed["a.plugin"] = {second_version, slicer_version};
+    config.installed["b.plugin"] = {second_version, slicer_version};
+    REQUIRE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
+
+    CHECK(read_text_file(plugin_directory / "a.plugin" / plugin_library_filename()) == "new a.plugin");
+    CHECK(read_text_file(plugin_directory / "b.plugin" / plugin_library_filename()) == "new b.plugin");
+    CHECK_FALSE(has_plugin_transaction_directory(plugin_directory));
+    boost::filesystem::remove_all(root);
+}
+
+#ifdef SLIC3R_PLUGIN_REPOSITORY_TESTING
+TEST_CASE("Plugin reconciliation rolls back a published package when the next publication fails",
+          "[plugins][repository][transaction]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-plugin-transaction-%%%%-%%%%");
+    const boost::filesystem::path data_directory = root / "data";
+    const boost::filesystem::path plugin_directory = data_directory / "plugins";
+    const std::string slicer_version = "2.7.63.0";
+
+    for (const std::string &package_name : {std::string("a.plugin"), std::string("b.plugin")}) {
+        write_plugin_package(Slic3r::repository_package_cache_path(
+            data_directory, Slic3r::RepositoryPackageType::Plugin, package_name,
+            "1.0.0", slicer_version), package_name, "1.0.0", slicer_version, "old " + package_name);
+        write_plugin_package(Slic3r::repository_package_cache_path(
+            data_directory, Slic3r::RepositoryPackageType::Plugin, package_name,
+            "2.0.0", slicer_version), package_name, "2.0.0", slicer_version, "new " + package_name);
+    }
+
+    Slic3r::PluginActivationConfig config;
+    config.installed["a.plugin"] = {"1.0.0", slicer_version};
+    config.installed["b.plugin"] = {"1.0.0", slicer_version};
+    std::string error_message;
+    REQUIRE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
+
+    // This unmanaged package is moved to a removal backup before replacements
+    // are published, so the later failure must restore it as well.
+    const boost::filesystem::path obsolete = plugin_directory / "obsolete.plugin";
+    boost::filesystem::create_directories(obsolete);
+    {
+        boost::nowide::ofstream stream((obsolete / plugin_library_filename()).string());
+        stream << "obsolete";
+    }
+
+    config.installed["a.plugin"] = {"2.0.0", slicer_version};
+    config.installed["b.plugin"] = {"2.0.0", slicer_version};
+    {
+        ScopedPluginPackageTransactionHook hook(
+            [](Slic3r::PluginPackageTransactionTestPoint point, const std::string &package_name) {
+                if (point == Slic3r::PluginPackageTransactionTestPoint::BeforePublishStaging &&
+                    package_name == "b.plugin")
+                    throw std::runtime_error("injected second publication failure");
+            });
+        CHECK_FALSE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
+    }
+
+    CHECK(error_message.find("injected second publication failure") != std::string::npos);
+    CHECK(read_text_file(plugin_directory / "a.plugin" / plugin_library_filename()) == "old a.plugin");
+    CHECK(read_text_file(plugin_directory / "b.plugin" / plugin_library_filename()) == "old b.plugin");
+    CHECK(read_text_file(obsolete / plugin_library_filename()) == "obsolete");
+    CHECK_FALSE(has_plugin_transaction_directory(plugin_directory));
+    boost::filesystem::remove_all(root);
+}
+
+TEST_CASE("Plugin reconciliation removes a newly published package during rollback",
+          "[plugins][repository][transaction]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-plugin-transaction-%%%%-%%%%");
+    const boost::filesystem::path data_directory = root / "data";
+    const boost::filesystem::path plugin_directory = data_directory / "plugins";
+    const std::string slicer_version = "2.7.63.0";
+    write_plugin_package(Slic3r::repository_package_cache_path(
+        data_directory, Slic3r::RepositoryPackageType::Plugin, "a.new", "1.0.0", slicer_version),
+        "a.new", "1.0.0", slicer_version, "new package");
+    write_plugin_package(Slic3r::repository_package_cache_path(
+        data_directory, Slic3r::RepositoryPackageType::Plugin, "b.plugin", "1.0.0", slicer_version),
+        "b.plugin", "1.0.0", slicer_version, "old b");
+    write_plugin_package(Slic3r::repository_package_cache_path(
+        data_directory, Slic3r::RepositoryPackageType::Plugin, "b.plugin", "2.0.0", slicer_version),
+        "b.plugin", "2.0.0", slicer_version, "new b");
+
+    Slic3r::PluginActivationConfig config;
+    config.installed["b.plugin"] = {"1.0.0", slicer_version};
+    std::string error_message;
+    REQUIRE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
+    config.installed["a.new"] = {"1.0.0", slicer_version};
+    config.installed["b.plugin"] = {"2.0.0", slicer_version};
+    {
+        ScopedPluginPackageTransactionHook hook(
+            [](Slic3r::PluginPackageTransactionTestPoint point, const std::string &package_name) {
+                if (point == Slic3r::PluginPackageTransactionTestPoint::BeforePublishStaging &&
+                    package_name == "b.plugin")
+                    throw std::runtime_error("injected publication failure after new package");
+            });
+        CHECK_FALSE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
+    }
+
+    CHECK_FALSE(boost::filesystem::exists(plugin_directory / "a.new"));
+    CHECK(read_text_file(plugin_directory / "b.plugin" / plugin_library_filename()) == "old b");
+    CHECK_FALSE(has_plugin_transaction_directory(plugin_directory));
+    boost::filesystem::remove_all(root);
+}
+
+TEST_CASE("Plugin reconciliation staging failure leaves every live package untouched",
+          "[plugins][repository][transaction]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-plugin-transaction-%%%%-%%%%");
+    const boost::filesystem::path data_directory = root / "data";
+    const boost::filesystem::path plugin_directory = data_directory / "plugins";
+    const std::string slicer_version = "2.7.63.0";
+    write_plugin_package(Slic3r::repository_package_cache_path(
+        data_directory, Slic3r::RepositoryPackageType::Plugin, "a.plugin", "1.0.0", slicer_version),
+        "a.plugin", "1.0.0", slicer_version, "old a");
+    write_plugin_package(Slic3r::repository_package_cache_path(
+        data_directory, Slic3r::RepositoryPackageType::Plugin, "a.plugin", "2.0.0", slicer_version),
+        "a.plugin", "2.0.0", slicer_version, "new a");
+
+    Slic3r::PluginActivationConfig config;
+    config.installed["a.plugin"] = {"1.0.0", slicer_version};
+    std::string error_message;
+    REQUIRE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
+    config.installed["a.plugin"] = {"2.0.0", slicer_version};
+    {
+        ScopedPluginPackageTransactionHook hook(
+            [](Slic3r::PluginPackageTransactionTestPoint point, const std::string &package_name) {
+                if (point == Slic3r::PluginPackageTransactionTestPoint::BeforeStageCopy &&
+                    package_name == "a.plugin")
+                    throw std::runtime_error("injected staging failure");
+            });
+        CHECK_FALSE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
+    }
+
+    CHECK(error_message.find("injected staging failure") != std::string::npos);
+    CHECK(read_text_file(plugin_directory / "a.plugin" / plugin_library_filename()) == "old a");
+    CHECK_FALSE(has_plugin_transaction_directory(plugin_directory));
+    boost::filesystem::remove_all(root);
+}
+
+TEST_CASE("Plugin reconciliation throws when global rollback cannot restore the live set",
+          "[plugins][repository][transaction][loader]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-plugin-transaction-%%%%-%%%%");
+    const boost::filesystem::path data_directory = root / "data";
+    const std::string slicer_version = "2.7.63.0";
+    for (const std::string &package_name : {std::string("a.plugin"), std::string("b.plugin")}) {
+        write_plugin_package(Slic3r::repository_package_cache_path(
+            data_directory, Slic3r::RepositoryPackageType::Plugin, package_name,
+            "1.0.0", slicer_version), package_name, "1.0.0", slicer_version, "old " + package_name);
+        write_plugin_package(Slic3r::repository_package_cache_path(
+            data_directory, Slic3r::RepositoryPackageType::Plugin, package_name,
+            "2.0.0", slicer_version), package_name, "2.0.0", slicer_version, "new " + package_name);
+    }
+
+    Slic3r::PluginActivationConfig config;
+    config.installed["a.plugin"] = {"1.0.0", slicer_version};
+    config.installed["b.plugin"] = {"1.0.0", slicer_version};
+    std::string error_message;
+    REQUIRE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
+    config.installed["a.plugin"] = {"2.0.0", slicer_version};
+    config.installed["b.plugin"] = {"2.0.0", slicer_version};
+
+    std::string exception_message;
+    {
+        ScopedPluginPackageTransactionHook hook(
+            [](Slic3r::PluginPackageTransactionTestPoint point, const std::string &package_name) {
+                if (point == Slic3r::PluginPackageTransactionTestPoint::BeforePublishStaging &&
+                    package_name == "b.plugin")
+                    throw std::runtime_error("injected commit failure");
+                if (point == Slic3r::PluginPackageTransactionTestPoint::BeforeHidePublishedStaging &&
+                    package_name == "a.plugin")
+                    throw std::runtime_error("injected rollback failure");
+            });
+        try {
+            Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message);
+        } catch (const Slic3r::RuntimeError &error) {
+            exception_message = error.what();
+        }
+    }
+
+    REQUIRE_FALSE(exception_message.empty());
+    CHECK(exception_message.find("injected commit failure") != std::string::npos);
+    CHECK(exception_message.find("injected rollback failure") != std::string::npos);
+    CHECK(exception_message.find("a.plugin") != std::string::npos);
+    boost::filesystem::remove_all(root);
+}
+#endif
+
+#ifdef _WIN32
+TEST_CASE("Plugin reconciliation restores updates when a removed package is locked",
+          "[plugins][repository][transaction]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-plugin-transaction-%%%%-%%%%");
+    const boost::filesystem::path data_directory = root / "data";
+    const boost::filesystem::path plugin_directory = data_directory / "plugins";
+    const std::string slicer_version = "2.7.63.0";
+    write_plugin_package(Slic3r::repository_package_cache_path(
+        data_directory, Slic3r::RepositoryPackageType::Plugin, "a.plugin", "1.0.0", slicer_version),
+        "a.plugin", "1.0.0", slicer_version, "old a");
+    write_plugin_package(Slic3r::repository_package_cache_path(
+        data_directory, Slic3r::RepositoryPackageType::Plugin, "a.plugin", "2.0.0", slicer_version),
+        "a.plugin", "2.0.0", slicer_version, "new a");
+
+    Slic3r::PluginActivationConfig config;
+    config.installed["a.plugin"] = {"1.0.0", slicer_version};
+    std::string error_message;
+    REQUIRE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
+    const boost::filesystem::path obsolete = plugin_directory / "obsolete.plugin";
+    boost::filesystem::create_directories(obsolete);
+    {
+        boost::nowide::ofstream stream((obsolete / plugin_library_filename()).string());
+        stream << "obsolete";
+    }
+
+    // Omitting FILE_SHARE_DELETE makes renaming the containing package fail on
+    // Windows, reproducing a real antivirus or loaded-file obstruction.
+    const HANDLE locked_file = ::CreateFileW(
+        (obsolete / plugin_library_filename()).wstring().c_str(), GENERIC_READ, FILE_SHARE_READ,
+        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    REQUIRE(locked_file != INVALID_HANDLE_VALUE);
+    config.installed["a.plugin"] = {"2.0.0", slicer_version};
+    const bool reconciled = Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message);
+    ::CloseHandle(locked_file);
+
+    CHECK_FALSE(reconciled);
+    CHECK(read_text_file(plugin_directory / "a.plugin" / plugin_library_filename()) == "old a");
+    CHECK(boost::filesystem::is_directory(obsolete));
+    CHECK_FALSE(has_plugin_transaction_directory(plugin_directory));
+    boost::filesystem::remove_all(root);
+}
+#endif
 
 TEST_CASE("Plugin reconciliation removes unmanaged live package directories", "[plugins][repository]")
 {

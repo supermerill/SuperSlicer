@@ -14,6 +14,10 @@
 #include <string>
 #include <vector>
 
+#ifdef SLIC3R_PLUGIN_REPOSITORY_TESTING
+#include <functional>
+#endif
+
 #include <boost/filesystem/path.hpp>
 
 #include "PluginActivationConfig.hpp"
@@ -129,12 +133,29 @@ bool plugin_package_cache_is_valid(const boost::filesystem::path &data_directory
                                    std::string &error_message);
 
 // Reconcile data/plugins with the complete desired package set from
-// activated.ini before loading any DLL. Every desired cache entry is validated
-// before the live directory is changed. Missing cache data or filesystem
-// failures return false through error_message.
+// activated.ini before loading any DLL. False guarantees that the live tree
+// was never changed or was fully restored. An incomplete rollback throws
+// RuntimeError so startup cannot load a mixed package set.
 bool reconcile_installed_plugin_packages(const boost::filesystem::path &data_directory,
                                          const PluginActivationConfig &config,
                                          std::string &error_message);
+
+#ifdef SLIC3R_PLUGIN_REPOSITORY_TESTING
+// Test builds may inject failures at transaction boundaries which ordinary
+// filesystems cannot reproduce deterministically on every platform.
+enum class PluginPackageTransactionTestPoint {
+    BeforeStageCopy,
+    BeforePreserveDestination,
+    BeforePublishStaging,
+    BeforeHidePublishedStaging,
+    BeforeRestoreBackup
+};
+
+using PluginPackageTransactionTestHook = std::function<void(
+    PluginPackageTransactionTestPoint, const std::string &)>;
+
+void set_plugin_package_transaction_test_hook(PluginPackageTransactionTestHook hook);
+#endif
 
 // Schedule a cached package version for installation on the next process
 // start. The current process never replaces a loaded plugin library.

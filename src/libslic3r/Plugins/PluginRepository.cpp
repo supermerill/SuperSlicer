@@ -16,6 +16,7 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include <utility>
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/trim.hpp>
@@ -26,6 +27,7 @@
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 
+#include "libslic3r/Exception.hpp"
 #include "libslic3r/Semver.hpp"
 #include "libslic3r/Updater/RepositoryPackageCache.hpp"
 #include "libslic3r/miniz_extension.hpp"
@@ -37,6 +39,31 @@ namespace {
 const char *const PLUGIN_DIRECTORY = "plugins";
 const char *const DESCRIPTION_FILENAME = "description.ini";
 const char *const VERSION_FILENAME = "version.ini";
+
+enum class PluginPackageTransactionAction {
+    Replace,
+    Remove
+};
+
+// One entry owns every sibling path needed to publish or remove a live
+// package. State flags let rollback distinguish prepared, moved and published
+// paths without inferring progress from an incomplete filesystem operation.
+struct PluginPackageTransactionEntry {
+    PluginPackageTransactionAction action = PluginPackageTransactionAction::Replace;
+    std::string package_name;
+    PluginInstalledVersion version;
+    boost::filesystem::path source;
+    boost::filesystem::path destination;
+    boost::filesystem::path staging;
+    boost::filesystem::path backup;
+    bool staging_prepared = false;
+    bool destination_moved = false;
+    bool staging_published = false;
+};
+
+#ifdef SLIC3R_PLUGIN_REPOSITORY_TESTING
+PluginPackageTransactionTestHook g_plugin_package_transaction_test_hook;
+#endif
 
 const char *plugin_package_library_filename();
 bool parse_repository_enabled_value(const std::string &value, bool &enabled);
@@ -60,10 +87,49 @@ bool validate_plugin_package(const boost::filesystem::path &package_root,
 bool installed_package_matches(const boost::filesystem::path &package_root,
                                const std::string &package_name,
                                const PluginInstalledVersion &version);
-bool replace_installed_package(const boost::filesystem::path &data_directory,
-                               const std::string &package_name,
-                               const PluginInstalledVersion &version,
-                               std::string &error_message);
+// Build a deterministic transaction after validating every desired cache
+// entry. The function does not modify any live package.
+bool build_plugin_package_transaction(const boost::filesystem::path &data_directory,
+                                      const PluginActivationConfig &config,
+                                      std::vector<PluginPackageTransactionEntry> &entries,
+                                      std::string &error_message);
+// Copy every replacement beside the live packages and validate the copies.
+// Failure here leaves the complete live repository untouched.
+bool stage_plugin_package_transaction(std::vector<PluginPackageTransactionEntry> &entries,
+                                      std::string &error_message);
+// Move all existing destinations aside before publishing any replacement.
+// A failed commit restores the original repository or throws when restoration
+// cannot re-establish a coherent live set.
+bool commit_plugin_package_transaction(std::vector<PluginPackageTransactionEntry> &entries,
+                                       std::string &error_message);
+// Restore moved and published entries in reverse order. Cleanup failures for
+// hidden staging paths are warnings, while a visible live mismatch is fatal.
+bool rollback_plugin_package_transaction(std::vector<PluginPackageTransactionEntry> &entries,
+                                         std::string &rollback_error);
+// Remove transaction-owned hidden paths after success or complete rollback.
+// Cleanup does not change whether the visible package set is coherent.
+void cleanup_plugin_package_transaction(const std::vector<PluginPackageTransactionEntry> &entries);
+// Remove hidden transaction directories left by an interrupted older process
+// only after the desired live set has been committed successfully.
+void cleanup_stale_plugin_transaction_directories(const boost::filesystem::path &plugin_directory);
+// Best-effort removal is used only for hidden transaction artifacts; failures
+// are logged because the loader never treats those paths as packages.
+void remove_plugin_transaction_path(const boost::filesystem::path &path, const char *purpose);
+#ifdef SLIC3R_PLUGIN_REPOSITORY_TESTING
+// Invoke the optional test failure seam immediately before one filesystem
+// boundary. Production builds compile both the hook and these calls out.
+void invoke_plugin_package_transaction_test_hook(PluginPackageTransactionTestPoint point,
+                                                 const std::string &package_name);
+#endif
+
+#ifdef SLIC3R_PLUGIN_REPOSITORY_TESTING
+void invoke_plugin_package_transaction_test_hook(PluginPackageTransactionTestPoint point,
+                                                 const std::string &package_name)
+{
+    if (g_plugin_package_transaction_test_hook)
+        g_plugin_package_transaction_test_hook(point, package_name);
+}
+#endif
 
 const char *plugin_package_library_filename()
 {
@@ -278,56 +344,277 @@ bool installed_package_matches(const boost::filesystem::path &package_root,
            validate_plugin_package(package_root, package_name, version, ignored_error);
 }
 
-bool replace_installed_package(const boost::filesystem::path &data_directory,
-                               const std::string &package_name,
-                               const PluginInstalledVersion &version,
-                               std::string &error_message)
+bool build_plugin_package_transaction(const boost::filesystem::path &data_directory,
+                                      const PluginActivationConfig &config,
+                                      std::vector<PluginPackageTransactionEntry> &entries,
+                                      std::string &error_message)
 {
-    if (!plugin_package_cache_is_valid(data_directory, package_name, version, error_message))
-        return false;
+    entries.clear();
 
-    const boost::filesystem::path source = repository_package_cache_path(
-        data_directory, RepositoryPackageType::Plugin, package_name, version.package_version, version.slicer_version);
+    // Validate the complete desired set before even creating the live plugin
+    // directory. Cache problems therefore cannot start a filesystem commit.
+    for (const auto &[package_name, version] : config.installed)
+        if (!plugin_package_cache_is_valid(data_directory, package_name, version, error_message))
+            return false;
+
     const boost::filesystem::path plugin_directory = data_directory / PLUGIN_DIRECTORY;
-    const boost::filesystem::path destination = plugin_directory / package_name;
-    if (installed_package_matches(destination, package_name, version))
-        return true;
-
-    const boost::filesystem::path staging = plugin_directory /
-        boost::filesystem::unique_path("." + package_name + ".install-%%%%-%%%%");
-    const boost::filesystem::path backup = plugin_directory /
-        boost::filesystem::unique_path("." + package_name + ".backup-%%%%-%%%%");
     try {
         boost::filesystem::create_directories(plugin_directory);
-        if (!copy_directory_tree(source, staging, error_message)) {
-            boost::filesystem::remove_all(staging);
-            return false;
+
+        // Only packages whose complete live payload differs need staging. A
+        // matching directory may contain local markers which must be retained.
+        for (const auto &[package_name, version] : config.installed) {
+            const boost::filesystem::path destination = plugin_directory / package_name;
+            if (installed_package_matches(destination, package_name, version))
+                continue;
+
+            PluginPackageTransactionEntry entry;
+            entry.action = PluginPackageTransactionAction::Replace;
+            entry.package_name = package_name;
+            entry.version = version;
+            entry.source = repository_package_cache_path(
+                data_directory, RepositoryPackageType::Plugin, package_name,
+                version.package_version, version.slicer_version);
+            entry.destination = destination;
+            entry.staging = plugin_directory /
+                boost::filesystem::unique_path("." + package_name + ".install-%%%%-%%%%");
+            entry.backup = plugin_directory /
+                boost::filesystem::unique_path("." + package_name + ".backup-%%%%-%%%%");
+            entries.emplace_back(std::move(entry));
         }
 
-        const bool had_previous_installation = boost::filesystem::exists(destination);
-        if (had_previous_installation)
-            boost::filesystem::rename(destination, backup);
-        try {
-            boost::filesystem::rename(staging, destination);
-        } catch (const boost::filesystem::filesystem_error &) {
-            if (had_previous_installation && !boost::filesystem::exists(destination))
-                boost::filesystem::rename(backup, destination);
-            throw;
+        // Enumerate removals before committing. Sorting them makes error and
+        // rollback order deterministic on every supported filesystem.
+        std::vector<boost::filesystem::path> removals;
+        for (boost::filesystem::directory_iterator it(plugin_directory), end; it != end; ++it) {
+            if (!boost::filesystem::is_directory(it->path()))
+                continue;
+            const std::string package_name = it->path().filename().string();
+            if (package_name.empty() || package_name.front() == '.' || config.installed.count(package_name) != 0)
+                continue;
+            removals.emplace_back(it->path());
         }
-        if (had_previous_installation)
-            boost::filesystem::remove_all(backup);
+        std::sort(removals.begin(), removals.end());
+        for (const boost::filesystem::path &destination : removals) {
+            PluginPackageTransactionEntry entry;
+            entry.action = PluginPackageTransactionAction::Remove;
+            entry.package_name = destination.filename().string();
+            entry.destination = destination;
+            entry.backup = plugin_directory /
+                boost::filesystem::unique_path("." + entry.package_name + ".backup-%%%%-%%%%");
+            entries.emplace_back(std::move(entry));
+        }
     } catch (const boost::filesystem::filesystem_error &error) {
-        boost::filesystem::remove_all(staging);
-        error_message = "Cannot install plugin package '" + package_name + "': " + error.what();
+        error_message = "Cannot prepare plugin package transaction: " + std::string(error.what());
         return false;
     }
-
-    BOOST_LOG_TRIVIAL(info) << "Installed plugin package '" << package_name << "' version '"
-                            << version.package_version << "' for slicer '" << version.slicer_version << "'.";
     return true;
 }
 
+bool stage_plugin_package_transaction(std::vector<PluginPackageTransactionEntry> &entries,
+                                      std::string &error_message)
+{
+    for (PluginPackageTransactionEntry &entry : entries) {
+        if (entry.action != PluginPackageTransactionAction::Replace)
+            continue;
+
+        // Copy every replacement before touching live directories. Validating
+        // the copy catches incomplete reads independently from cache validity.
+        try {
+#ifdef SLIC3R_PLUGIN_REPOSITORY_TESTING
+            invoke_plugin_package_transaction_test_hook(
+                PluginPackageTransactionTestPoint::BeforeStageCopy, entry.package_name);
+#endif
+            entry.staging_prepared = true;
+            if (copy_directory_tree(entry.source, entry.staging, error_message) &&
+                validate_plugin_package(entry.staging, entry.package_name, entry.version, error_message))
+                continue;
+        } catch (const std::exception &error) {
+            error_message = error.what();
+        } catch (...) {
+            error_message = "unknown staging failure";
+        }
+
+        error_message = "Cannot stage plugin package '" + entry.package_name + "': " + error_message;
+        cleanup_plugin_package_transaction(entries);
+        return false;
+    }
+    return true;
+}
+
+bool commit_plugin_package_transaction(std::vector<PluginPackageTransactionEntry> &entries,
+                                       std::string &error_message)
+{
+    std::string active_package;
+    std::string active_operation;
+    try {
+        // First move every previous live destination aside. At this point no
+        // replacement is visible, so an error only has to restore backups.
+        for (PluginPackageTransactionEntry &entry : entries) {
+            if (!boost::filesystem::exists(entry.destination))
+                continue;
+            active_package = entry.package_name;
+            active_operation = entry.action == PluginPackageTransactionAction::Remove ?
+                "prepare removal" : "preserve the previous version";
+#ifdef SLIC3R_PLUGIN_REPOSITORY_TESTING
+            invoke_plugin_package_transaction_test_hook(
+                PluginPackageTransactionTestPoint::BeforePreserveDestination, entry.package_name);
+#endif
+            boost::filesystem::rename(entry.destination, entry.backup);
+            entry.destination_moved = true;
+        }
+
+        // All old destinations are now recoverable from backups. Publishing a
+        // staging directory is a same-volume rename and cannot expose a copy
+        // that was only partially written.
+        for (PluginPackageTransactionEntry &entry : entries) {
+            if (entry.action != PluginPackageTransactionAction::Replace)
+                continue;
+            active_package = entry.package_name;
+            active_operation = "publish the staged version";
+#ifdef SLIC3R_PLUGIN_REPOSITORY_TESTING
+            invoke_plugin_package_transaction_test_hook(
+                PluginPackageTransactionTestPoint::BeforePublishStaging, entry.package_name);
+#endif
+            boost::filesystem::rename(entry.staging, entry.destination);
+            entry.staging_prepared = false;
+            entry.staging_published = true;
+        }
+    } catch (const std::exception &error) {
+        const std::string commit_error = "Cannot " + active_operation + " for plugin package '" +
+                                         active_package + "': " + error.what();
+        std::string rollback_error;
+        if (!rollback_plugin_package_transaction(entries, rollback_error))
+            throw RuntimeError(commit_error + "; plugin package rollback failed: " + rollback_error);
+        error_message = commit_error;
+        return false;
+    } catch (...) {
+        const std::string commit_error = "Cannot " + active_operation + " for plugin package '" +
+                                         active_package + "': unknown filesystem failure.";
+        std::string rollback_error;
+        if (!rollback_plugin_package_transaction(entries, rollback_error))
+            throw RuntimeError(commit_error + "; plugin package rollback failed: " + rollback_error);
+        error_message = commit_error;
+        return false;
+    }
+
+    // Backups become disposable only after every replacement is visible. Any
+    // cleanup failure leaves a hidden directory which the loader ignores.
+    cleanup_plugin_package_transaction(entries);
+    for (const PluginPackageTransactionEntry &entry : entries) {
+        if (entry.action == PluginPackageTransactionAction::Replace)
+            BOOST_LOG_TRIVIAL(info) << "Installed plugin package '" << entry.package_name << "' version '"
+                                    << entry.version.package_version << "' for slicer '"
+                                    << entry.version.slicer_version << "'.";
+        else
+            BOOST_LOG_TRIVIAL(info) << "Removed plugin package '" << entry.package_name << "'.";
+    }
+    return true;
+}
+
+bool rollback_plugin_package_transaction(std::vector<PluginPackageTransactionEntry> &entries,
+                                         std::string &rollback_error)
+{
+    bool succeeded = true;
+    std::ostringstream errors;
+
+    // Reverse order mirrors the commit and prevents a later package from
+    // retaining a visible replacement while earlier backups are restored.
+    for (std::vector<PluginPackageTransactionEntry>::reverse_iterator it = entries.rbegin();
+         it != entries.rend(); ++it) {
+        PluginPackageTransactionEntry &entry = *it;
+        if (entry.staging_published && boost::filesystem::exists(entry.destination)) {
+            try {
+#ifdef SLIC3R_PLUGIN_REPOSITORY_TESTING
+                invoke_plugin_package_transaction_test_hook(
+                    PluginPackageTransactionTestPoint::BeforeHidePublishedStaging, entry.package_name);
+#endif
+                boost::filesystem::rename(entry.destination, entry.staging);
+                entry.staging_published = false;
+                entry.staging_prepared = true;
+            } catch (const std::exception &error) {
+                if (!succeeded)
+                    errors << "; ";
+                errors << "cannot hide replacement '" << entry.destination.string() << "': " << error.what();
+                succeeded = false;
+            }
+        }
+
+        if (entry.destination_moved) {
+            try {
+#ifdef SLIC3R_PLUGIN_REPOSITORY_TESTING
+                invoke_plugin_package_transaction_test_hook(
+                    PluginPackageTransactionTestPoint::BeforeRestoreBackup, entry.package_name);
+#endif
+                if (boost::filesystem::exists(entry.destination))
+                    throw boost::filesystem::filesystem_error(
+                        "rollback destination is occupied", entry.destination,
+                        boost::system::errc::make_error_code(boost::system::errc::file_exists));
+                boost::filesystem::rename(entry.backup, entry.destination);
+                entry.destination_moved = false;
+            } catch (const std::exception &error) {
+                if (!succeeded)
+                    errors << "; ";
+                errors << "cannot restore backup '" << entry.backup.string() << "' to '"
+                       << entry.destination.string() << "': " << error.what();
+                succeeded = false;
+            }
+        }
+    }
+
+    if (succeeded)
+        cleanup_plugin_package_transaction(entries);
+    rollback_error = errors.str();
+    return succeeded;
+}
+
+void cleanup_plugin_package_transaction(const std::vector<PluginPackageTransactionEntry> &entries)
+{
+    for (const PluginPackageTransactionEntry &entry : entries) {
+        remove_plugin_transaction_path(entry.staging, "staging");
+        remove_plugin_transaction_path(entry.backup, "backup");
+    }
+}
+
+void cleanup_stale_plugin_transaction_directories(const boost::filesystem::path &plugin_directory)
+{
+    try {
+        if (!boost::filesystem::is_directory(plugin_directory))
+            return;
+        for (boost::filesystem::directory_iterator it(plugin_directory), end; it != end; ++it) {
+            if (!boost::filesystem::is_directory(it->path()))
+                continue;
+            const std::string filename = it->path().filename().string();
+            if (filename.empty() || filename.front() != '.' ||
+                (filename.find(".install-") == std::string::npos &&
+                 filename.find(".backup-") == std::string::npos))
+                continue;
+            remove_plugin_transaction_path(it->path(), "stale transaction");
+        }
+    } catch (const boost::filesystem::filesystem_error &error) {
+        BOOST_LOG_TRIVIAL(warning) << "Cannot enumerate stale plugin transaction directories: " << error.what();
+    }
+}
+
+void remove_plugin_transaction_path(const boost::filesystem::path &path, const char *purpose)
+{
+    if (path.empty())
+        return;
+    boost::system::error_code error;
+    boost::filesystem::remove_all(path, error);
+    if (error)
+        BOOST_LOG_TRIVIAL(warning) << "Cannot remove plugin transaction " << purpose << " path '"
+                                   << path.string() << "': " << error.message();
+}
+
 } // namespace
+
+#ifdef SLIC3R_PLUGIN_REPOSITORY_TESTING
+void set_plugin_package_transaction_test_hook(PluginPackageTransactionTestHook hook)
+{
+    g_plugin_package_transaction_test_hook = std::move(hook);
+}
+#endif
 
 bool parse_repository_description(const std::string &contents,
                                   RepositoryPackageType expected_type,
@@ -614,40 +901,22 @@ bool reconcile_installed_plugin_packages(const boost::filesystem::path &data_dir
                                          std::string &error_message)
 {
     error_message.clear();
+    std::vector<PluginPackageTransactionEntry> entries;
 
-    // Validate every requested installation before changing a live package.
-    // A missing archive therefore cannot leave a partially applied startup.
-    for (const auto &[package_name, version] : config.installed)
-        if (!plugin_package_cache_is_valid(data_directory, package_name, version, error_message))
-            return false;
-
-    for (const auto &[package_name, version] : config.installed)
-        if (!replace_installed_package(data_directory, package_name, version, error_message))
-            return false;
-
-    // Every remaining direct subdirectory is a package that is no longer in
-    // the desired set. Files such as activated.ini are deliberately ignored.
-    const boost::filesystem::path plugin_directory = data_directory / PLUGIN_DIRECTORY;
-    try {
-        std::vector<boost::filesystem::path> packages_to_remove;
-        if (boost::filesystem::is_directory(plugin_directory)) {
-            for (boost::filesystem::directory_iterator it(plugin_directory), end; it != end; ++it) {
-                if (!boost::filesystem::is_directory(it->path()))
-                    continue;
-                const std::string package_name = it->path().filename().string();
-                if (config.installed.count(package_name) == 0)
-                    packages_to_remove.emplace_back(it->path());
-            }
-        }
-
-        // Finish directory enumeration before deleting entries. Removing the
-        // current entry may invalidate platform-specific directory iterators.
-        for (const boost::filesystem::path &package_path : packages_to_remove)
-            boost::filesystem::remove_all(package_path);
-    } catch (const boost::filesystem::filesystem_error &error) {
-        error_message = "Cannot reconcile live plugin packages: " + std::string(error.what());
+    // Build and stage the complete desired set before moving a live package.
+    // A false result from either phase guarantees that the live tree was not
+    // changed; commit provides the same guarantee through global rollback.
+    if (!build_plugin_package_transaction(data_directory, config, entries, error_message) ||
+        !stage_plugin_package_transaction(entries, error_message))
         return false;
-    }
+    if (!commit_plugin_package_transaction(entries, error_message))
+        return false;
+
+    // A successful commit makes any hidden transaction directories left by a
+    // previously interrupted process obsolete. activated.ini is a regular
+    // file and is never considered part of this package transaction.
+    const boost::filesystem::path plugin_directory = data_directory / PLUGIN_DIRECTORY;
+    cleanup_stale_plugin_transaction_directories(plugin_directory);
     return true;
 }
 

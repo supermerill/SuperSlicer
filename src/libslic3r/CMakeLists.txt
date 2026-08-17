@@ -843,6 +843,10 @@ set(SLIC3R_SOURCES
 
 add_library(libslic3r STATIC ${SLIC3R_SOURCES})
 
+if (SLIC3R_BUILD_TESTS)
+    target_compile_definitions(libslic3r PUBLIC SLIC3R_PLUGIN_REPOSITORY_TESTING)
+endif()
+
 if (WIN32)
     target_compile_definitions(libslic3r PUBLIC NOMINMAX)
     target_compile_definitions(libslic3r PRIVATE SLIC3R_HOST_EXPORTS)
