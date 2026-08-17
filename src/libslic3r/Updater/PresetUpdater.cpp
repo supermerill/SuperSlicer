@@ -494,7 +494,7 @@ void PresetUpdater::download_new_repo(const std::string &rest_url, std::function
 void PresetUpdater::cache_vendor_archive(const boost::filesystem::path &archive_path,
                                          std::function<void(UpdaterError)> callback_result)
 {
-    if (!begin_vendor_change_operation()) {
+    if (!begin_repository_change()) {
         invoke_vendor_callback(callback_result, make_updater_error(
             UpdaterError::Code::PreparationRejected,
             "Another vendor package change is already in progress."), "Vendor archive import");
@@ -505,7 +505,7 @@ void PresetUpdater::cache_vendor_archive(const boost::filesystem::path &archive_
         [this, terminal, callback_result = std::move(callback_result)](UpdaterError error) {
             if (terminal->exchange(true))
                 return;
-            finish_vendor_change_operation();
+            finish_repository_change();
             invoke_vendor_callback(callback_result, std::move(error), "Vendor archive import");
         };
 
@@ -551,7 +551,7 @@ UpdaterError PresetUpdater::cache_vendor_archive_files(const boost::filesystem::
 void PresetUpdater::cache_vendor_ini(const boost::filesystem::path &profile_path,
                                      std::function<void(UpdaterError)> callback_result)
 {
-    if (!begin_vendor_change_operation()) {
+    if (!begin_repository_change()) {
         invoke_vendor_callback(callback_result, make_updater_error(
             UpdaterError::Code::PreparationRejected,
             "Another vendor package change is already in progress."), "Vendor profile import");
@@ -562,7 +562,7 @@ void PresetUpdater::cache_vendor_ini(const boost::filesystem::path &profile_path
         [this, terminal, callback_result = std::move(callback_result)](UpdaterError error) {
             if (terminal->exchange(true))
                 return;
-            finish_vendor_change_operation();
+            finish_repository_change();
             invoke_vendor_callback(callback_result, std::move(error), "Vendor profile import");
         };
 
@@ -837,20 +837,9 @@ void PresetUpdater::notify_vendor_files_changed(VendorChange change, const std::
     }
 }
 
-bool PresetUpdater::begin_vendor_change_operation()
-{
-    bool expected = false;
-    return m_vendor_change_in_progress.compare_exchange_strong(expected, true);
-}
-
-void PresetUpdater::finish_vendor_change_operation()
-{
-    m_vendor_change_in_progress.store(false);
-}
-
 void PresetUpdater::uninstall_vendor(const std::string &vendor_id, std::function<void(UpdaterError)> callback_result)
 {
-    if (!begin_vendor_change_operation()) {
+    if (!begin_repository_change()) {
         invoke_vendor_callback(callback_result, make_updater_error(
             UpdaterError::Code::PreparationRejected,
             "Another vendor package change is already in progress."), "Vendor uninstall");
@@ -861,7 +850,7 @@ void PresetUpdater::uninstall_vendor(const std::string &vendor_id, std::function
         [this, terminal, callback_result = std::move(callback_result)](UpdaterError error) {
             if (terminal->exchange(true))
                 return;
-            finish_vendor_change_operation();
+            finish_repository_change();
             invoke_vendor_callback(callback_result, std::move(error), "Vendor uninstall");
         };
 
@@ -938,7 +927,7 @@ void PresetUpdater::install_vendor(const std::string &vendor_id,
 
 void PresetUpdater::clear_cache_vendor(const std::string &vendor_id, std::function<void(UpdaterError)> callback_result)
 {
-    if (!begin_vendor_change_operation()) {
+    if (!begin_repository_change()) {
         invoke_vendor_callback(callback_result, make_updater_error(
             UpdaterError::Code::PreparationRejected,
             "Another vendor package change is already in progress."), "Vendor cache removal");
@@ -949,7 +938,7 @@ void PresetUpdater::clear_cache_vendor(const std::string &vendor_id, std::functi
         [this, terminal, callback_result = std::move(callback_result)](UpdaterError error) {
             if (terminal->exchange(true))
                 return;
-            finish_vendor_change_operation();
+            finish_repository_change();
             invoke_vendor_callback(callback_result, std::move(error), "Vendor cache removal");
         };
 
@@ -987,7 +976,7 @@ void PresetUpdater::clear_cache_vendor(const std::string &vendor_id, std::functi
 
 void PresetUpdater::uninstall_all_vendors(std::function<void(UpdaterError)> callback_result)
 {
-    if (!begin_vendor_change_operation()) {
+    if (!begin_repository_change()) {
         invoke_vendor_callback(callback_result, make_updater_error(
             UpdaterError::Code::PreparationRejected,
             "Another vendor package change is already in progress."), "Bulk vendor uninstall");
@@ -998,7 +987,7 @@ void PresetUpdater::uninstall_all_vendors(std::function<void(UpdaterError)> call
         [this, terminal, callback_result = std::move(callback_result)](UpdaterError error) {
             if (terminal->exchange(true))
                 return;
-            finish_vendor_change_operation();
+            finish_repository_change();
             invoke_vendor_callback(callback_result, std::move(error), "Bulk vendor uninstall");
         };
 
@@ -1112,7 +1101,7 @@ void PresetUpdater::install_vendor_batch(
         invoke_vendor_callback(callback_result, UpdaterErrors(), "Vendor installation");
         return;
     }
-    if (!begin_vendor_change_operation()) {
+    if (!begin_repository_change()) {
         invoke_vendor_callback(callback_result, UpdaterErrors{make_updater_error(
             UpdaterError::Code::PreparationRejected,
             "Another vendor package change is already in progress.")}, "Vendor installation");
@@ -1124,7 +1113,7 @@ void PresetUpdater::install_vendor_batch(
         [this, terminal, callback_result = std::move(callback_result)](UpdaterErrors errors) {
             if (terminal->exchange(true))
                 return;
-            finish_vendor_change_operation();
+            finish_repository_change();
             invoke_vendor_callback(callback_result, std::move(errors), "Vendor installation");
         };
 

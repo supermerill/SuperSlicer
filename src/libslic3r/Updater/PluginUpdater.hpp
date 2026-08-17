@@ -108,6 +108,11 @@ public:
     std::optional<PluginSync> plugin(const std::string &id) const;
 
 private:
+    // Acquire the shared repository mutation gate and build a once-only
+    // terminal callback which releases it before notifying the caller.
+    bool start_plugin_change(const char *context,
+                             std::function<void(UpdaterError)> callback_result,
+                             std::function<void(UpdaterError)> &complete);
     UpdaterError cache_plugin_directory_files(const boost::filesystem::path &package_directory);
     void schedule_cached_plugin_install_async(const std::string &plugin_id,
                                               const PluginAvailable &version,

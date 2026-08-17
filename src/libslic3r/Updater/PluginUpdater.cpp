@@ -11,6 +11,7 @@
 #include "libslic3r/Updater/PluginUpdater.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <ctime>
 #include <iterator>
@@ -49,6 +50,12 @@ std::optional<PluginPackageLoadReport> package_manager_load_report(
 // installed package whose live directory is no longer present.
 PluginPackageLoadReport missing_live_package_report(
     const std::string &package_id, const boost::filesystem::path &package_root);
+// Invoke an updater client without allowing an exception to escape an HTTP or
+// worker callback. The repository mutation gate is released by the caller
+// before this function runs.
+void invoke_plugin_callback(const std::function<void(UpdaterError)> &callback,
+                            UpdaterError error,
+                            const char *context);
 
 bool read_plugin_description(const boost::filesystem::path &path,
                              RepositoryDescription &description,
@@ -125,6 +132,21 @@ PluginPackageLoadReport missing_live_package_report(
     issue.detail = "The package is selected as installed, but its live plugin directory is missing.";
     report.issues.emplace_back(std::move(issue));
     return report;
+}
+
+void invoke_plugin_callback(const std::function<void(UpdaterError)> &callback,
+                            UpdaterError error,
+                            const char *context)
+{
+    if (!callback)
+        return;
+    try {
+        callback(std::move(error));
+    } catch (const std::exception &exception) {
+        BOOST_LOG_TRIVIAL(error) << context << " callback failed: " << exception.what();
+    } catch (...) {
+        BOOST_LOG_TRIVIAL(error) << context << " callback failed with an unknown exception.";
+    }
 }
 
 } // namespace
@@ -308,6 +330,14 @@ void PluginUpdater::reload_all_plugins()
 
 void PluginUpdater::sync_async(std::function<void(int)> callback_result, bool force)
 {
+    // A package mutation may remove or replace the same repository tree used
+    // by tag refreshes. Let the caller retry after that mutation completes.
+    if (repository_change_in_progress()) {
+        if (callback_result)
+            callback_result(update_count());
+        return;
+    }
+
     std::vector<std::string> plugin_ids;
     {
         std::lock_guard<std::mutex> guard(m_model_mutex);
@@ -362,6 +392,14 @@ void PluginUpdater::download_changelogs(const std::string &plugin_id,
                                         std::function<void(bool)> callback_result,
                                         bool force)
 {
+    // Changelog cache files belong to the repository directory removed by a
+    // plugin mutation, so they must not start while that directory is reserved.
+    if (repository_change_in_progress()) {
+        if (callback_result)
+            callback_result(false);
+        return;
+    }
+
     std::vector<RepositoryChangelogVersion> versions;
     std::string rest_url;
     bool found = false;
@@ -413,8 +451,47 @@ void PluginUpdater::download_changelogs(const std::string &plugin_id,
                                            std::move(callback_result), force);
 }
 
+bool PluginUpdater::start_plugin_change(const char *context,
+                                        std::function<void(UpdaterError)> callback_result,
+                                        std::function<void(UpdaterError)> &complete)
+{
+    // Repository metadata operations retain callbacks into files under the
+    // same package root. A package change starts only after they have finished.
+    if (sync_in_progress() || changelog_download_in_progress()) {
+        invoke_plugin_callback(
+            callback_result,
+            make_updater_error(UpdaterError::Code::PreparationRejected,
+                               "Repository metadata is currently being updated."),
+            context);
+        return false;
+    }
+    if (!begin_repository_change()) {
+        invoke_plugin_callback(
+            callback_result,
+            make_updater_error(UpdaterError::Code::PreparationRejected,
+                               "Another plugin package change is already in progress."),
+            context);
+        return false;
+    }
+
+    // Network and worker code may converge on the same completion path. The
+    // atomic makes releasing the shared mutation gate an exactly-once action.
+    const std::shared_ptr<std::atomic_bool> terminal = std::make_shared<std::atomic_bool>(false);
+    complete = [this, terminal, callback_result = std::move(callback_result), context](UpdaterError error) {
+        if (terminal->exchange(true))
+            return;
+        finish_repository_change();
+        invoke_plugin_callback(callback_result, std::move(error), context);
+    };
+    return true;
+}
+
 void PluginUpdater::download_new_repo(const std::string &rest_url, std::function<void(UpdaterError)> callback_result)
 {
+    std::function<void(UpdaterError)> complete;
+    if (!start_plugin_change("Plugin repository import", std::move(callback_result), complete))
+        return;
+
     download_repository_description(
         rest_url,
         [](const std::string &contents, const std::string &) {
@@ -431,12 +508,16 @@ void PluginUpdater::download_new_repo(const std::string &rest_url, std::function
                 return make_updater_error(UpdaterError::Code::Filesystem, std::move(error_message));
             return UpdaterError();
         },
-        callback_result);
+        std::move(complete));
 }
 
 void PluginUpdater::cache_plugin_directory(const boost::filesystem::path &package_directory,
                                            std::function<void(UpdaterError)> callback_result)
 {
+    std::function<void(UpdaterError)> complete;
+    if (!start_plugin_change("Plugin package import", std::move(callback_result), complete))
+        return;
+
     const bool accepted = enqueue_operation(
         [this, package_directory] {
             UpdaterError result = cache_plugin_directory_files(package_directory);
@@ -444,9 +525,9 @@ void PluginUpdater::cache_plugin_directory(const boost::filesystem::path &packag
                 reload_all_plugins();
             return result;
         },
-        callback_result);
-    if (!accepted && callback_result)
-        callback_result(make_updater_error(
+        complete);
+    if (!accepted)
+        complete(make_updater_error(
             UpdaterError::Code::PreparationRejected,
             "The plugin updater is shutting down."));
 }
@@ -471,8 +552,12 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
                                    const PluginAvailable &version,
                                    std::function<void(UpdaterError)> callback_result)
 {
+    std::function<void(UpdaterError)> complete;
+    if (!start_plugin_change("Plugin installation", std::move(callback_result), complete))
+        return;
+
     if (!plugin(plugin_id).has_value()) {
-        callback_result(make_updater_error(UpdaterError::Code::ArchiveUnavailable));
+        complete(make_updater_error(UpdaterError::Code::ArchiveUnavailable));
         return;
     }
 
@@ -482,7 +567,7 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
     const PluginInstalledVersion cached_version{version.package_version, version.slicer_version};
     if (plugin_package_cache_is_valid(boost::filesystem::path(data_dir()), plugin_id,
                                       cached_version, cache_error_message)) {
-        schedule_cached_plugin_install_async(plugin_id, version, std::move(callback_result));
+        schedule_cached_plugin_install_async(plugin_id, version, std::move(complete));
         return;
     }
 
@@ -492,9 +577,9 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
             version.package_version, version.slicer_version) + ".zip");
     download_repository_file_async(
         version.url_zip, archive_path, 130 * 1024 * 1024,
-        [this, plugin_id, version, archive_path, callback_result](UpdaterError download_error) {
+        [this, plugin_id, version, archive_path, complete](UpdaterError download_error) {
             if (!download_error.succeeded()) {
-                callback_result(std::move(download_error));
+                complete(std::move(download_error));
                 return;
             }
 
@@ -524,11 +609,11 @@ void PluginUpdater::install_plugin(const std::string &plugin_id,
                     boost::filesystem::remove(archive_path, cleanup_error);
                     return result;
                 },
-                callback_result);
-            if (!accepted && callback_result) {
+                complete);
+            if (!accepted) {
                 boost::system::error_code cleanup_error;
                 boost::filesystem::remove(archive_path, cleanup_error);
-                callback_result(make_updater_error(
+                complete(make_updater_error(
                     UpdaterError::Code::PreparationRejected,
                     "The plugin updater is shutting down."));
             }
@@ -573,17 +658,21 @@ UpdaterError PluginUpdater::schedule_cached_plugin_install(const std::string &pl
 void PluginUpdater::uninstall_plugin(const std::string &plugin_id,
                                      std::function<void(UpdaterError)> callback_result)
 {
+    std::function<void(UpdaterError)> complete;
+    if (!start_plugin_change("Plugin uninstall", std::move(callback_result), complete))
+        return;
+
     const std::optional<PluginSync> plugin_snapshot = plugin(plugin_id);
     if (!plugin_snapshot || !plugin_snapshot->is_installed) {
-        callback_result(make_updater_error(UpdaterError::Code::ArchiveUnavailable));
+        complete(make_updater_error(UpdaterError::Code::ArchiveUnavailable));
         return;
     }
 
     const bool accepted = enqueue_operation(
         [this, plugin_id] { return uninstall_plugin_files(plugin_id); },
-        callback_result);
-    if (!accepted && callback_result)
-        callback_result(make_updater_error(
+        complete);
+    if (!accepted)
+        complete(make_updater_error(
             UpdaterError::Code::PreparationRejected,
             "The plugin updater is shutting down."));
 }
@@ -610,18 +699,15 @@ UpdaterError PluginUpdater::uninstall_plugin_files(const std::string &plugin_id)
 
 void PluginUpdater::clear_cache_plugin(const std::string &plugin_id, std::function<void(UpdaterError)> callback_result)
 {
-    if (sync_in_progress() || changelog_download_in_progress()) {
-        callback_result(make_updater_error(
-            UpdaterError::Code::PreparationRejected,
-            "Cannot clear a plugin cache while repository data is being updated."));
+    std::function<void(UpdaterError)> complete;
+    if (!start_plugin_change("Plugin cache removal", std::move(callback_result), complete))
         return;
-    }
 
     const bool accepted = enqueue_operation(
         [this, plugin_id] { return clear_cache_plugin_files(plugin_id); },
-        callback_result);
-    if (!accepted && callback_result)
-        callback_result(make_updater_error(
+        complete);
+    if (!accepted)
+        complete(make_updater_error(
             UpdaterError::Code::PreparationRejected,
             "The plugin updater is shutting down."));
 }

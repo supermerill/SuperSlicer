@@ -100,6 +100,11 @@ public:
     // multi-download sequence after this function returns.
     void wait_for_pending_operations();
 
+    // Report whether this updater has reserved one logical repository change.
+    // The reservation belongs to this updater instance, so vendor and plugin
+    // operations never block one another.
+    bool repository_change_in_progress() const;
+
     // Convert the repository spellings accepted by the GUI and configuration
     // files into one REST URL. Short "owner/repository" and github.com URLs
     // become the GitHub API form; other explicit HTTP(S) endpoints are kept.
@@ -121,6 +126,12 @@ protected:
     using RepositoryDescriptionConsumerFn =
         std::function<UpdaterError(const std::string &, const std::string &)>;
     using UpdaterErrorCallback = std::function<void(UpdaterError)>;
+
+    // Reserve a complete repository mutation, including network waits between
+    // worker tasks. Every successful begin must be matched exactly once by
+    // finish, before the derived updater invokes its terminal user callback.
+    bool begin_repository_change();
+    void finish_repository_change();
 
     // Starts one logical refresh. If another refresh is already running, the
     // callback joins that operation and is called with its final update count.
@@ -229,6 +240,7 @@ private:
     std::unique_ptr<RepositoryUpdaterInternal::RepositoryTagService> m_tag_service;
     std::unique_ptr<RepositoryUpdaterInternal::RepositoryChangelogService> m_changelog_service;
     std::atomic_long m_archive_download_timeout_seconds = 5 * 60;
+    std::atomic_bool m_repository_change_in_progress = false;
     UpdaterOperationExecutor m_operation_executor;
 };
 

@@ -282,6 +282,7 @@ public:
     }
 
     using RepositoryUpdater::begin_sync;
+    using RepositoryUpdater::begin_repository_change;
     using RepositoryUpdater::changelog_download_in_progress;
     using RepositoryUpdater::download_repository_changelogs;
     using RepositoryUpdater::download_repository_description;
@@ -289,6 +290,7 @@ public:
     using RepositoryUpdater::download_repository_file_sync;
     using RepositoryUpdater::enqueue_operation;
     using RepositoryUpdater::finish_sync;
+    using RepositoryUpdater::finish_repository_change;
     using RepositoryUpdater::has_api_request_slot;
     using RepositoryUpdater::refresh_repository_tags;
     using RepositoryUpdater::RepositoryChangelogKind;
@@ -793,6 +795,28 @@ TEST_CASE("RepositoryUpdater normalizes configured repository URLs", "[plugins][
               "https://updates.example.com/repository/") ==
           "https://updates.example.com/repository");
     CHECK(Slic3r::RepositoryUpdater::normalize_repository_rest_url(std::string()).empty());
+}
+
+TEST_CASE("RepositoryUpdater mutation gates are independent per updater", "[plugins][updater]")
+{
+    FakeUpdaterHttpTransport first_http;
+    FakeUpdaterHttpTransport second_http;
+    TestRepositoryUpdater first(first_http);
+    TestRepositoryUpdater second(second_http);
+
+    // One updater rejects a second logical mutation while another updater has
+    // its own independent reservation and may proceed concurrently.
+    CHECK(first.begin_repository_change());
+    CHECK(first.repository_change_in_progress());
+    CHECK_FALSE(first.begin_repository_change());
+    CHECK(second.begin_repository_change());
+    CHECK(second.repository_change_in_progress());
+
+    first.finish_repository_change();
+    CHECK_FALSE(first.repository_change_in_progress());
+    CHECK(first.begin_repository_change());
+    first.finish_repository_change();
+    second.finish_repository_change();
 }
 
 TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plugins][updater]")
@@ -2369,6 +2393,126 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     const std::string activation_contents = read_test_file(Slic3r::plugin_activation_config_path(data_directory));
     CHECK(activation_contents.find(plugin_id + " = 2.0.0.0") != std::string::npos);
     CHECK(activation_contents.find(plugin_id + ".slicer_version = " + slicer_version) != std::string::npos);
+}
+
+TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
+                 "PluginUpdater reserves a remote installation across its HTTP wait",
+                 "[plugins][updater][plugin-functional][concurrency]")
+{
+    write_plugin_repository();
+    updater.reload_all_plugins();
+    synchronize({{"2.0.0.0", slicer_version, "https://example.invalid/plugin-2.zip"}});
+
+    const std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
+    const Slic3r::PluginAvailable *selected = plugin->best_available();
+    REQUIRE(selected != nullptr);
+    const Slic3r::PluginAvailable version = *selected;
+
+    // Keep the archive request pending so every following call runs during the
+    // gap which previously was not covered by the serialized filesystem worker.
+    std::optional<Slic3r::UpdaterError> install_result;
+    updater.install_plugin(plugin_id, version, [&install_result](Slic3r::UpdaterError error) {
+        install_result = std::move(error);
+    });
+    REQUIRE(http.pending_count() == 1);
+    CHECK(updater.repository_change_in_progress());
+
+    std::vector<Slic3r::UpdaterError> rejected;
+    const std::function<void(Slic3r::UpdaterError)> record_rejection =
+        [&rejected](Slic3r::UpdaterError error) { rejected.emplace_back(std::move(error)); };
+    updater.clear_cache_plugin(plugin_id, record_rejection);
+    updater.uninstall_plugin(plugin_id, record_rejection);
+    updater.install_plugin(plugin_id, version, record_rejection);
+    updater.download_new_repo("https://example.invalid/other", record_rejection);
+
+    const boost::filesystem::path other_package = temporary.path() / "another.plugin";
+    write_test_file(other_package / plugin_library_filename(), "another plugin");
+    updater.cache_plugin_directory(other_package, record_rejection);
+
+    REQUIRE(rejected.size() == 5);
+    for (const Slic3r::UpdaterError &error : rejected)
+        CHECK(error.code == Slic3r::UpdaterError::Code::PreparationRejected);
+    CHECK_FALSE(updater.plugin("another.plugin").has_value());
+
+    // Completing the original operation publishes one coherent cache and
+    // activation selection, then releases the mutation reservation.
+    http.succeed_front(make_plugin_archive("2.0.0.0"), 200);
+    updater.wait_for_pending_operations();
+    REQUIRE(install_result.has_value());
+    CHECK(install_result->succeeded());
+    CHECK_FALSE(updater.repository_change_in_progress());
+    const Slic3r::PluginActivationConfig config = read_activation_config();
+    REQUIRE(config.installed.count(plugin_id) == 1);
+    CHECK(config.installed.at(plugin_id).package_version == "2.0.0.0");
+}
+
+TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
+                 "PluginUpdater releases its mutation gate before the terminal callback",
+                 "[plugins][updater][plugin-functional][concurrency]")
+{
+    write_plugin_repository();
+    write_cached_plugin("1.0.0.0");
+    updater.reload_all_plugins();
+    const std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
+    const Slic3r::PluginAvailable *selected = plugin->best_available();
+    REQUIRE(selected != nullptr);
+
+    // The completion callback immediately starts a second mutation. It can be
+    // accepted only if the first operation releases the shared gate beforehand.
+    std::optional<Slic3r::UpdaterError> install_result;
+    std::optional<Slic3r::UpdaterError> uninstall_result;
+    updater.install_plugin(
+        plugin_id, *selected,
+        [this, &install_result, &uninstall_result](Slic3r::UpdaterError error) {
+            install_result = error;
+            updater.uninstall_plugin(
+                plugin_id,
+                [&uninstall_result](Slic3r::UpdaterError uninstall_error) {
+                    uninstall_result = std::move(uninstall_error);
+                });
+        });
+    updater.wait_for_pending_operations();
+
+    REQUIRE(install_result.has_value());
+    CHECK(install_result->succeeded());
+    REQUIRE(uninstall_result.has_value());
+    CHECK(uninstall_result->succeeded());
+    CHECK_FALSE(updater.repository_change_in_progress());
+    CHECK(read_activation_config().installed.count(plugin_id) == 0);
+}
+
+TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
+                 "PluginUpdater releases its mutation gate after a network error",
+                 "[plugins][updater][plugin-functional][concurrency]")
+{
+    write_plugin_repository();
+    updater.reload_all_plugins();
+    synchronize({{"2.0.0.0", slicer_version, "https://example.invalid/plugin-2.zip"}});
+    const std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
+    const Slic3r::PluginAvailable *selected = plugin->best_available();
+    REQUIRE(selected != nullptr);
+
+    std::optional<Slic3r::UpdaterError> install_result;
+    updater.install_plugin(plugin_id, *selected, [&install_result](Slic3r::UpdaterError error) {
+        install_result = std::move(error);
+    });
+    REQUIRE(http.pending_count() == 1);
+    http.fail_front(std::string(), "The test transport timed out.", 0);
+
+    REQUIRE(install_result.has_value());
+    CHECK_FALSE(install_result->succeeded());
+    CHECK_FALSE(updater.repository_change_in_progress());
+
+    std::optional<Slic3r::UpdaterError> clear_result;
+    updater.clear_cache_plugin(plugin_id, [&clear_result](Slic3r::UpdaterError error) {
+        clear_result = std::move(error);
+    });
+    updater.wait_for_pending_operations();
+    REQUIRE(clear_result.has_value());
+    CHECK(clear_result->succeeded());
 }
 
 TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,

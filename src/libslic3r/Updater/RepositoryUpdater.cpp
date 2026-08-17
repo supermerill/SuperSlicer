@@ -66,6 +66,22 @@ void RepositoryUpdater::wait_for_pending_operations()
     m_operation_executor.wait_until_idle();
 }
 
+bool RepositoryUpdater::repository_change_in_progress() const
+{
+    return m_repository_change_in_progress.load();
+}
+
+bool RepositoryUpdater::begin_repository_change()
+{
+    bool expected = false;
+    return m_repository_change_in_progress.compare_exchange_strong(expected, true);
+}
+
+void RepositoryUpdater::finish_repository_change()
+{
+    m_repository_change_in_progress.store(false);
+}
+
 std::string RepositoryUpdater::normalize_repository_rest_url(const std::string &configured_url)
 {
     std::string normalized = configured_url;

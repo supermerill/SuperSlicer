@@ -15,7 +15,6 @@
 #include <utility>
 #include <vector>
 
-#include <wx/busyinfo.h>
 #include <wx/button.h>
 #include <wx/dirdlg.h>
 #include <wx/gbsizer.h>
@@ -105,6 +104,7 @@ void PluginUpdateDialog::rebuild()
 {
     Freeze();
     const bool first_build = m_main_sizer == nullptr;
+    m_repository_action_controls.clear();
     if (m_main_sizer != nullptr) {
         m_main_sizer->Clear(true);
     } else {
@@ -131,6 +131,10 @@ void PluginUpdateDialog::rebuild()
     bind_repository_action(*check_button, [this](wxCommandEvent &) {
         check_updates();
     });
+    m_repository_action_controls.emplace_back(m_repository_url);
+    m_repository_action_controls.emplace_back(add_button);
+    m_repository_action_controls.emplace_back(load_button);
+    m_repository_action_controls.emplace_back(check_button);
 
     wxFlexGridSizer *grid = new wxFlexGridSizer(5, 8, 10);
     grid->AddGrowableCol(1, 1);
@@ -152,6 +156,7 @@ void PluginUpdateDialog::rebuild()
 
     wxStdDialogButtonSizer *buttons = CreateStdDialogButtonSizer(wxCLOSE);
     m_main_sizer->Add(buttons, 0, wxEXPAND | wxALL, 10);
+    apply_plugin_operation_state();
     wxGetApp().UpdateDlgDarkUI(this);
     if (first_build)
         m_main_sizer->Fit(this);
@@ -197,6 +202,7 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
         bind_repository_action(*version_button, [this, plugin_id](wxCommandEvent &) {
             choose_version(plugin_id);
         });
+        m_repository_action_controls.emplace_back(version_panel);
     }
     grid.Add(version_panel, 0, wxALIGN_CENTER_VERTICAL | wxEXPAND);
 
@@ -216,6 +222,7 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
         bind_repository_action(*install, [this, plugin_id](wxCommandEvent &) {
             install_latest(plugin_id);
         });
+        m_repository_action_controls.emplace_back(install);
         upgrade_control = install;
     } else if (plugin.description.config_update_rest.empty()) {
         if (plugin.can_upgrade && has_compatible_version) {
@@ -226,6 +233,7 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
             bind_repository_action(*upgrade, [this, plugin_id](wxCommandEvent &) {
                 install_latest(plugin_id);
             });
+            m_repository_action_controls.emplace_back(upgrade);
             upgrade_control = upgrade;
         } else if (!plugin.available_packages.empty() && !has_compatible_version) {
             upgrade_control = new wxStaticText(this, wxID_ANY, _L("No compatible plugin"));
@@ -255,6 +263,7 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
             bind_repository_action(*upgrade, [this, plugin_id](wxCommandEvent &) {
                 install_latest(plugin_id);
             });
+            m_repository_action_controls.emplace_back(upgrade);
             upgrade_control = upgrade;
         } else {
             upgrade_control = new wxStaticText(this, wxID_ANY, _L("Up to date"));
@@ -293,12 +302,14 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
         bind_repository_action(*remove_button, [this, plugin_id](wxCommandEvent &) {
             uninstall(plugin_id);
         });
+        m_repository_action_controls.emplace_back(remove_button);
     } else if (plugin.has_cache) {
         remove_button->SetToolTip(
             _L("Remove every cached package and repository file for this plugin."));
         bind_repository_action(*remove_button, [this, plugin_id](wxCommandEvent &) {
             clear_cache(plugin_id);
         });
+        m_repository_action_controls.emplace_back(remove_button);
     } else {
         remove_button->Enable(false);
     }
@@ -310,9 +321,11 @@ void PluginUpdateDialog::add_repository()
     const std::string url = m_repository_url->GetValue().utf8_string();
     if (url.empty())
         return;
+    begin_plugin_operation(_L("Adding the plugin repository, please wait"));
     m_updater.download_new_repo(
         url, repository_operation_callback<UpdaterError>(
                  *this, [](PluginUpdateDialog &dialog, UpdaterError error) {
+                     dialog.finish_plugin_operation();
                      if (!error.succeeded())
                          wxMessageBox(
                              from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR, &dialog);
@@ -328,12 +341,12 @@ void PluginUpdateDialog::load_package_directory()
     if (dialog.ShowModal() != wxID_OK)
         return;
 
-    begin_repository_operation(nullptr, _L("Loading the plugin package, please wait"));
+    begin_plugin_operation(_L("Loading the plugin package, please wait"));
     m_updater.cache_plugin_directory(
         boost::filesystem::path(dialog.GetPath().utf8_string()),
         repository_operation_callback<UpdaterError>(
             *this, [](PluginUpdateDialog &dialog, UpdaterError error) {
-                dialog.finish_repository_operation(nullptr);
+                dialog.finish_plugin_operation();
                 if (!error.succeeded())
                     dialog.show_repository_error(format_updater_error(error));
                 dialog.rebuild();
@@ -342,9 +355,13 @@ void PluginUpdateDialog::load_package_directory()
 
 void PluginUpdateDialog::check_updates()
 {
+    begin_plugin_operation(_L("Checking plugin repositories, please wait"));
     m_updater.sync_async(
         repository_operation_callback<int>(
-            *this, [](PluginUpdateDialog &dialog, int) { dialog.rebuild(); }),
+            *this, [](PluginUpdateDialog &dialog, int) {
+                dialog.finish_plugin_operation();
+                dialog.rebuild();
+            }),
         true);
     rebuild();
 }
@@ -353,10 +370,12 @@ void PluginUpdateDialog::choose_version(const std::string &plugin_id)
 {
     // Changelog failures do not hide otherwise usable packages. The chooser
     // opens after every request has finished and leaves missing notes blank.
+    begin_plugin_operation(_L("Loading plugin changelogs, please wait"));
     m_updater.download_changelogs(
         plugin_id,
         repository_operation_callback<bool>(
             *this, [plugin_id](PluginUpdateDialog &dialog, bool) {
+                dialog.finish_plugin_operation();
                 ChoosePluginVersionDialog chooser(&dialog, dialog.m_updater, plugin_id);
                 chooser.ShowModal();
                 dialog.rebuild();
@@ -370,10 +389,12 @@ void PluginUpdateDialog::install_latest(const std::string &plugin_id)
     if (best == nullptr)
         return;
     const PluginAvailable version = *best;
+    begin_plugin_operation(_L("Downloading the plugin package, please wait"));
     m_updater.install_plugin(
         plugin_id, version,
         repository_operation_callback<UpdaterError>(
             *this, [](PluginUpdateDialog &dialog, UpdaterError error) {
+                dialog.finish_plugin_operation();
                 if (!error.succeeded())
                     wxMessageBox(
                         from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR, &dialog);
@@ -396,9 +417,11 @@ void PluginUpdateDialog::uninstall(const std::string &plugin_id)
             _L("Uninstall plugin"), wxYES_NO | wxNO_DEFAULT | wxICON_WARNING, this) != wxYES)
         return;
 
+    begin_plugin_operation(_L("Scheduling the plugin removal, please wait"));
     m_updater.uninstall_plugin(
         plugin_id, repository_operation_callback<UpdaterError>(
                        *this, [](PluginUpdateDialog &dialog, UpdaterError error) {
+                           dialog.finish_plugin_operation();
                            if (!error.succeeded()) {
                                wxMessageBox(from_u8(format_updater_error(error)),
                                             _L("Plugin updates"),
@@ -426,14 +449,36 @@ void PluginUpdateDialog::clear_cache(const std::string &plugin_id)
             _L("Clear plugin cache"), wxYES_NO | wxNO_DEFAULT | wxICON_WARNING, this) != wxYES)
         return;
 
+    begin_plugin_operation(_L("Clearing the plugin cache, please wait"));
     m_updater.clear_cache_plugin(
         plugin_id, repository_operation_callback<UpdaterError>(
                        *this, [](PluginUpdateDialog &dialog, UpdaterError error) {
+                           dialog.finish_plugin_operation();
                            if (!error.succeeded())
                                wxMessageBox(
                                    from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR, &dialog);
                            dialog.rebuild();
                        }));
+}
+
+void PluginUpdateDialog::begin_plugin_operation(const wxString &message)
+{
+    begin_repository_operation(nullptr, message);
+    apply_plugin_operation_state();
+}
+
+void PluginUpdateDialog::finish_plugin_operation()
+{
+    finish_repository_operation(nullptr);
+    apply_plugin_operation_state();
+}
+
+void PluginUpdateDialog::apply_plugin_operation_state()
+{
+    const bool enable_actions = !repository_operation_in_progress() &&
+                                !m_updater.repository_change_in_progress();
+    for (wxWindow *control : m_repository_action_controls)
+        control->Enable(enable_actions);
 }
 
 ChoosePluginVersionDialog::ChoosePluginVersionDialog(wxWindow *parent,
@@ -532,12 +577,12 @@ void ChoosePluginVersionDialog::build()
 
 void ChoosePluginVersionDialog::schedule_version(const PluginAvailable &version)
 {
-    m_wait_dialog = std::make_unique<wxBusyInfo>(_L("Downloading the plugin package. Please wait."), this);
+    begin_repository_operation(m_scroll, _L("Downloading the plugin package. Please wait."));
     m_updater.install_plugin(
         m_plugin_id, version,
         repository_operation_callback<UpdaterError>(
             *this, [](ChoosePluginVersionDialog &dialog, UpdaterError error) {
-                dialog.m_wait_dialog.reset();
+                dialog.finish_repository_operation(dialog.m_scroll);
                 if (!error.succeeded()) {
                     wxMessageBox(from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR, &dialog);
                     return;

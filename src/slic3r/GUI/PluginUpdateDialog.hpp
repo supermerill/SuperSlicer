@@ -10,13 +10,12 @@
 #ifndef slic3r_GUI_PluginUpdateDialog_hpp_
 #define slic3r_GUI_PluginUpdateDialog_hpp_
 
-#include <memory>
 #include <string>
+#include <vector>
 
 #include "RepositoryUpdatesDialogBase.hpp"
 
 class wxBoxSizer;
-class wxBusyInfo;
 class wxFlexGridSizer;
 class wxGridBagSizer;
 class wxScrolledWindow;
@@ -44,10 +43,14 @@ private:
     void install_latest(const std::string &plugin_id);
     void uninstall(const std::string &plugin_id);
     void clear_cache(const std::string &plugin_id);
+    void begin_plugin_operation(const wxString &message);
+    void finish_plugin_operation();
+    void apply_plugin_operation_state();
 
     PluginUpdater &m_updater;
     wxBoxSizer *m_main_sizer = nullptr;
     wxTextCtrl *m_repository_url = nullptr;
+    std::vector<wxWindow *> m_repository_action_controls;
 };
 
 // Lists every package version after its changelog has been loaded. Selecting a
@@ -65,7 +68,6 @@ private:
     PluginUpdater &m_updater;
     std::string m_plugin_id;
     wxScrolledWindow *m_scroll = nullptr;
-    std::unique_ptr<wxBusyInfo> m_wait_dialog;
 };
 
 } // namespace Slic3r::GUI

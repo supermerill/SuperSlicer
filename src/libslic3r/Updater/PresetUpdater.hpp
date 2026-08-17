@@ -207,11 +207,6 @@ private:
         VendorChange change,
         std::shared_ptr<std::vector<PendingVendorInstall>> installs,
         std::function<void(UpdaterErrors)> callback_result);
-    // Only one cache/live vendor mutation may own the snapshot transaction at
-    // a time. Async operations retain this gate until their terminal callback.
-    bool begin_vendor_change_operation();
-    void finish_vendor_change_operation();
-
     void prepare_vendor_change_async(VendorChange change,
                                      const std::vector<std::string> &vendor_ids,
                                      PresetUpdaterHost::PrepareCallback callback);
@@ -223,7 +218,6 @@ private:
     std::map<std::string, VendorSync> m_vendors;
     bool m_is_synchronized = false;
     PresetUpdaterHost *m_host = nullptr;
-    std::atomic_bool m_vendor_change_in_progress = false;
 };
 
 } // namespace Slic3r
