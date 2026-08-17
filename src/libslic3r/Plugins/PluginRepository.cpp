@@ -69,6 +69,11 @@ bool replace_installed_package(const boost::filesystem::path &data_directory,
                                const PluginInstalledVersion &version,
                                std::string &error_message);
 boost::filesystem::path default_plugin_activation_config_path();
+// Publish a complete sibling staging file while keeping the previous
+// destination available for rollback until the replacement succeeds.
+bool publish_staged_file(const boost::filesystem::path &staging,
+                         const boost::filesystem::path &destination,
+                         std::string &error_message);
 // Copy a complete file through sibling staging and backup paths. The previous
 // destination remains recoverable until the staged copy is published.
 bool replace_file_with_copy(const boost::filesystem::path &source,
@@ -355,16 +360,33 @@ bool replace_file_with_copy(const boost::filesystem::path &source,
     const std::string filename = destination.filename().string();
     const boost::filesystem::path staging = parent /
         boost::filesystem::unique_path("." + filename + ".replacement-%%%%-%%%%");
-    const boost::filesystem::path backup = parent /
-        boost::filesystem::unique_path("." + filename + ".previous-%%%%-%%%%");
-    bool previous_moved = false;
 
     try {
         if (!parent.empty())
             boost::filesystem::create_directories(parent);
         boost::filesystem::copy_file(source, staging);
+    } catch (const boost::filesystem::filesystem_error &error) {
+        boost::system::error_code cleanup_error;
+        boost::filesystem::remove(staging, cleanup_error);
+        error_message = "Cannot stage plugin configuration '" + destination.string() + "': " + error.what();
+        return false;
+    }
 
-        // Windows cannot rename over an existing file. Keep the invalid file
+    return publish_staged_file(staging, destination, error_message);
+}
+
+bool publish_staged_file(const boost::filesystem::path &staging,
+                         const boost::filesystem::path &destination,
+                         std::string &error_message)
+{
+    const boost::filesystem::path parent = destination.parent_path();
+    const std::string filename = destination.filename().string();
+    const boost::filesystem::path backup = parent /
+        boost::filesystem::unique_path("." + filename + ".previous-%%%%-%%%%");
+    bool previous_moved = false;
+
+    try {
+        // Windows cannot rename over an existing file. Keep the previous file
         // beside the staging copy until the replacement has reached its final
         // path, so a failed publication can restore the original bytes.
         if (boost::filesystem::exists(destination)) {
@@ -641,10 +663,21 @@ bool write_plugin_activation_config(const boost::filesystem::path &config_path,
                                     const PluginActivationConfig &config,
                                     std::string &error_message)
 {
+    const boost::filesystem::path parent = config_path.parent_path();
+    const std::string filename = config_path.filename().string();
+    const boost::filesystem::path staging = parent /
+        boost::filesystem::unique_path("." + filename + ".replacement-%%%%-%%%%");
+
     try {
-        boost::filesystem::create_directories(config_path.parent_path());
-        boost::nowide::ofstream stream(config_path.string(), std::ios::out | std::ios::trunc);
+        if (!parent.empty())
+            boost::filesystem::create_directories(parent);
+
+        // Build the complete INI in a sibling file. The live activation file
+        // remains untouched until every section has been written and closed.
+        boost::nowide::ofstream stream(staging.string(), std::ios::out | std::ios::trunc);
         if (!stream) {
+            boost::system::error_code cleanup_error;
+            boost::filesystem::remove(staging, cleanup_error);
             error_message = "Cannot write plugin configuration '" + config_path.string() + "'.";
             return false;
         }
@@ -660,15 +693,32 @@ bool write_plugin_activation_config(const boost::filesystem::path &config_path,
         for (const auto &[plugin_id, package_name] : config.plugin_packages)
             if (!plugin_id.empty() && is_safe_package_name(package_name))
                 stream << plugin_id << " = " << package_name << "\n";
-        if (!stream.good()) {
+        stream.flush();
+        if (!stream) {
             error_message = "Cannot finish writing plugin configuration '" + config_path.string() + "'.";
+            stream.close();
+            boost::system::error_code cleanup_error;
+            boost::filesystem::remove(staging, cleanup_error);
             return false;
         }
-    } catch (const boost::filesystem::filesystem_error &error) {
-        error_message = error.what();
+
+        // A successful close confirms that buffered bytes reached the staging
+        // file before it is allowed to replace the live configuration.
+        stream.close();
+        if (!stream) {
+            error_message = "Cannot close plugin configuration staging file '" + staging.string() + "'.";
+            boost::system::error_code cleanup_error;
+            boost::filesystem::remove(staging, cleanup_error);
+            return false;
+        }
+    } catch (const std::exception &error) {
+        boost::system::error_code cleanup_error;
+        boost::filesystem::remove(staging, cleanup_error);
+        error_message = "Cannot stage plugin configuration '" + config_path.string() + "': " + error.what();
         return false;
     }
-    return true;
+
+    return publish_staged_file(staging, config_path, error_message);
 }
 
 bool replace_plugin_activation_config_with_defaults(const boost::filesystem::path &config_path,
@@ -700,10 +750,11 @@ bool ensure_plugin_activation_config(const boost::filesystem::path &data_directo
 
     const boost::filesystem::path config_path = plugin_activation_config_path(data_directory);
     try {
-        if (!boost::filesystem::exists(config_path)) {
-            boost::filesystem::create_directories(config_path.parent_path());
-            boost::filesystem::copy_file(default_plugin_activation_config_path(), config_path);
-        }
+        // Initial creation uses the same staging protocol as later updates, so
+        // startup can observe either no file or one complete default file.
+        if (!boost::filesystem::exists(config_path) &&
+            !replace_file_with_copy(default_plugin_activation_config_path(), config_path, error_message))
+            return false;
     } catch (const boost::filesystem::filesystem_error &error) {
         error_message = "Cannot prepare plugin configuration '" + config_path.string() + "': " + error.what();
         return false;

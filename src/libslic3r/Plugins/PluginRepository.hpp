@@ -116,7 +116,9 @@ boost::filesystem::path plugin_activation_config_path(const boost::filesystem::p
 // Read or write the [installed], [activated] and [plugin_packages] sections.
 // Callers load the complete value before changing one concern, so unrelated
 // desired packages and activation choices remain present when the file is
-// rewritten. Files without [plugin_packages] remain valid.
+// rewritten. Writes are completed in a sibling staging file before replacing
+// the destination, and restore the previous file if publication fails. Files
+// without [plugin_packages] remain valid.
 bool read_plugin_activation_config(const boost::filesystem::path &config_path,
                                    PluginActivationConfig &config,
                                    std::string &error_message);

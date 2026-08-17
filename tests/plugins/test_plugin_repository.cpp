@@ -1028,6 +1028,15 @@ TEST_CASE("Plugin activation configuration preserves package providers",
     written.activated["example.second"] = true;
     written.plugin_packages["example.first"] = "example.package";
     written.plugin_packages["example.second"] = "example.package";
+    written.installed["example.package"] = {"1.2.3", "2.7.63.0"};
+
+    boost::filesystem::create_directories(root);
+    {
+        boost::nowide::ofstream previous(config_path.string());
+        previous << "[installed]\nobsolete.package = 0.1.0\n"
+                 << "obsolete.package.slicer_version = 2.0.0\n\n"
+                 << "[activated]\nobsolete.plugin = 1\n";
+    }
 
     std::string error_message;
     REQUIRE(Slic3r::write_plugin_activation_config(config_path, written, error_message));
@@ -1035,10 +1044,47 @@ TEST_CASE("Plugin activation configuration preserves package providers",
     REQUIRE(Slic3r::read_plugin_activation_config(config_path, read, error_message));
     CHECK(read.activated == written.activated);
     CHECK(read.plugin_packages == written.plugin_packages);
+    REQUIRE(read.installed.size() == 1);
+    const Slic3r::PluginInstalledVersion &installed = read.installed.at("example.package");
+    CHECK(installed.package_version == "1.2.3");
+    CHECK(installed.slicer_version == "2.7.63.0");
 
     const std::string contents = read_text_file(config_path);
     CHECK(contents.find("[plugin_packages]") != std::string::npos);
     CHECK(contents.find("example.first = example.package") != std::string::npos);
+    CHECK(contents.find("obsolete.package") == std::string::npos);
+
+    // A completed replacement consumes both sibling work files.
+    for (boost::filesystem::directory_iterator it(root), end; it != end; ++it) {
+        const std::string filename = it->path().filename().string();
+        CHECK(filename.find(".activated.ini.replacement-") == std::string::npos);
+        CHECK(filename.find(".activated.ini.previous-") == std::string::npos);
+    }
+    boost::filesystem::remove_all(root);
+}
+
+TEST_CASE("Plugin activation configuration rejects a non-file destination without leftovers",
+          "[plugins][repository][activation]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-plugin-activation-%%%%-%%%%");
+    const boost::filesystem::path config_path = root / "activated.ini";
+    boost::filesystem::create_directories(config_path);
+
+    Slic3r::PluginActivationConfig config;
+    config.activated["example.plugin"] = true;
+    std::string error_message;
+    CHECK_FALSE(Slic3r::write_plugin_activation_config(config_path, config, error_message));
+    CHECK_FALSE(error_message.empty());
+    CHECK(boost::filesystem::is_directory(config_path));
+
+    // Refusing the destination also removes the complete staging file without
+    // disturbing the directory which made publication invalid.
+    for (boost::filesystem::directory_iterator it(root), end; it != end; ++it) {
+        const std::string filename = it->path().filename().string();
+        CHECK(filename.find(".activated.ini.replacement-") == std::string::npos);
+        CHECK(filename.find(".activated.ini.previous-") == std::string::npos);
+    }
     boost::filesystem::remove_all(root);
 }
 
@@ -1123,6 +1169,13 @@ TEST_CASE("Plugin startup activation creates a missing user configuration from d
     CHECK(boost::filesystem::is_regular_file(user_config));
     CHECK(read_text_file(user_config) == read_text_file(default_config));
     CHECK_FALSE(Slic3r::take_plugin_activation_startup_error().has_value());
+
+    // Initial publication also consumes its sibling staging file.
+    for (boost::filesystem::directory_iterator it(user_config.parent_path()), end; it != end; ++it) {
+        const std::string filename = it->path().filename().string();
+        CHECK(filename.find(".activated.ini.replacement-") == std::string::npos);
+        CHECK(filename.find(".activated.ini.previous-") == std::string::npos);
+    }
 
     boost::filesystem::remove_all(root);
 }
