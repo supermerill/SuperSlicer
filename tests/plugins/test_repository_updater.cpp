@@ -1214,6 +1214,39 @@ TEST_CASE("RepositoryUpdater refuses tag refresh after the GitHub request limit"
     CHECK(http.pending_count() == 0);
 }
 
+TEST_CASE("RepositoryUpdater serializes the GitHub request limit across threads", "[plugins][updater]")
+{
+    FakeUpdaterHttpTransport http;
+    TestRepositoryUpdater updater(http);
+    constexpr size_t worker_count = 64;
+    std::atomic_size_t ready_workers{0};
+    std::atomic_size_t accepted_requests{0};
+    std::atomic_bool start{false};
+    std::vector<std::thread> workers;
+    workers.reserve(worker_count);
+
+    // Release every worker together so several request paths contend for the
+    // same first-window initialization and remaining request budget.
+    for (size_t worker_idx = 0; worker_idx < worker_count; ++worker_idx) {
+        workers.emplace_back([&updater, &ready_workers, &accepted_requests, &start] {
+            ready_workers.fetch_add(1, std::memory_order_release);
+            while (!start.load(std::memory_order_acquire))
+                std::this_thread::yield();
+            if (updater.has_api_request_slot("https://api.github.com/repos/example/repository"))
+                accepted_requests.fetch_add(1, std::memory_order_relaxed);
+        });
+    }
+    while (ready_workers.load(std::memory_order_acquire) != worker_count)
+        std::this_thread::yield();
+    start.store(true, std::memory_order_release);
+    for (std::thread &worker : workers)
+        worker.join();
+
+    CHECK(accepted_requests.load(std::memory_order_relaxed) == 24);
+    CHECK_FALSE(updater.has_api_request_slot("https://api.github.com/repos/example/repository"));
+    CHECK(updater.has_api_request_slot("https://updates.example.invalid/repository"));
+}
+
 TEST_CASE("RepositoryUpdater notifies callers that join an active refresh", "[plugins][updater]")
 {
     FakeUpdaterHttpTransport http;

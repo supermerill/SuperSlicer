@@ -139,6 +139,7 @@ bool RepositoryUpdater::has_api_request_slot(const std::string &url)
         return true;
 
     const std::time_t now = std::time(nullptr);
+    std::lock_guard<std::mutex> guard(m_api_request_mutex);
     if (m_next_api_window + 3600 < now) {
         m_next_api_window = now;
         m_max_api_requests = 25;

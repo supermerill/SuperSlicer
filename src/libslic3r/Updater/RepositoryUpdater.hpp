@@ -200,7 +200,10 @@ private:
     std::atomic_bool m_sync_in_progress = false;
     std::mutex m_callback_mutex;
     std::vector<std::function<void(int)>> m_sync_callbacks;
-    std::atomic_int m_max_api_requests = 25;
+    // The request window and its remaining budget form one state transition.
+    // Pagination and download callbacks may reserve slots concurrently.
+    std::mutex m_api_request_mutex;
+    int m_max_api_requests = 25;
     std::time_t m_next_api_window = 0;
     UpdaterHttpTransport &m_http_transport;
     std::unique_ptr<RepositoryUpdaterInternal::RepositoryTagService> m_tag_service;
