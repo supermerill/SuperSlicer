@@ -377,6 +377,9 @@ public:
 
 	PresetUpdater*  get_preset_updater() { return preset_updater.get(); }
     PluginUpdater *get_plugin_updater() { return plugin_updater.get(); }
+    // Apply the persisted archive timeout to both repository updaters. Invalid
+    // manually edited values fall back to five minutes.
+    void apply_repository_archive_download_timeout();
     PrinterTechnology get_current_printer_technology() const;
 
     wxBookCtrlBase* tab_panel() const ;

@@ -127,7 +127,8 @@ protected:
 								int def_val,
 								ConfigOptionMode mode = ConfigOptionMode::comNone,
 								int32_t min = std::numeric_limits<int32_t>::min(),
-								int32_t max = std::numeric_limits<int32_t>::max());
+								int32_t max = std::numeric_limits<int32_t>::max(),
+                                const std::string &side_text = std::string());
 	
 	void append_color_option( std::shared_ptr<ConfigOptionsGroup> optgroup,
 								const t_config_option_key& opt_key,

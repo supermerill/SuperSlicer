@@ -15,8 +15,11 @@
 
 namespace Slic3r {
 
+thread_local const UpdaterOperationExecutor *UpdaterOperationExecutor::s_callback_executor = nullptr;
+
 UpdaterOperationExecutor::UpdaterOperationExecutor()
     : m_worker(&UpdaterOperationExecutor::worker_loop, this)
+    , m_worker_thread_id(m_worker.get_id())
 {
 }
 
@@ -33,6 +36,24 @@ UpdaterOperationExecutor::AsyncOperationToken::AsyncOperationToken(UpdaterOperat
 UpdaterOperationExecutor::AsyncOperationToken::~AsyncOperationToken()
 {
     m_executor.release_async_operation();
+}
+
+void UpdaterOperationExecutor::AsyncOperationToken::run_callback(std::function<void()> callback) const
+{
+    if (!callback)
+        return;
+
+    // Preserve an outer callback context because one updater callback may
+    // synchronously invoke another updater using a different executor.
+    const UpdaterOperationExecutor *previous_executor = UpdaterOperationExecutor::s_callback_executor;
+    UpdaterOperationExecutor::s_callback_executor = &m_executor;
+    try {
+        callback();
+    } catch (...) {
+        UpdaterOperationExecutor::s_callback_executor = previous_executor;
+        throw;
+    }
+    UpdaterOperationExecutor::s_callback_executor = previous_executor;
 }
 
 bool UpdaterOperationExecutor::enqueue(Operation operation, Completion completion)
@@ -73,8 +94,22 @@ UpdaterOperationExecutor::AsyncOperation UpdaterOperationExecutor::retain_async_
     return operation;
 }
 
+bool UpdaterOperationExecutor::can_shutdown_from_current_thread() const
+{
+    return std::this_thread::get_id() != m_worker_thread_id && s_callback_executor != this;
+}
+
 void UpdaterOperationExecutor::shutdown_and_wait()
 {
+    if (!can_shutdown_from_current_thread()) {
+        const bool from_worker = std::this_thread::get_id() == m_worker_thread_id;
+        BOOST_LOG_TRIVIAL(fatal)
+            << "Updater shutdown requested from its own "
+            << (from_worker ? "operation worker" : "asynchronous callback")
+            << ". Continuing would deadlock or destroy state still in use.";
+        std::terminate();
+    }
+
     {
         std::lock_guard<std::mutex> guard(m_mutex);
         m_stopping = true;

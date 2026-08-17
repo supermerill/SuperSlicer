@@ -15,6 +15,7 @@
 #define USE_GTHUB_PRESET_UPDATE 1
 #endif
 
+#include <chrono>
 #include <functional>
 #include <mutex>
 #include <optional>
@@ -41,6 +42,7 @@ public:
 
     void set_installed_vendors(const Slic3r::PresetBundle *preset_bundle);
     void reload_all_vendors();
+    void set_archive_download_timeout(std::chrono::seconds timeout);
     void sync_async(std::function<void(int)> callback_result, bool force = false);
     void download_changelogs(const std::string &vendor_id,
                              std::function<void(bool)> callback_result,

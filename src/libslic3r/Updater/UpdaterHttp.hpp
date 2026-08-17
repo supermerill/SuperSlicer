@@ -26,6 +26,8 @@ class UpdaterHttpTransport;
 class UpdaterHttpRequest
 {
 public:
+    static constexpr long DEFAULT_TOTAL_TIMEOUT_SECONDS = 60;
+
     struct Progress {
         size_t dltotal;
         size_t dlnow;
@@ -49,6 +51,11 @@ public:
     // default limit; updater callers normally set an explicit package limit.
     UpdaterHttpRequest &size_limit(size_t size_limit);
 
+    // Sets the maximum duration of the complete transfer. Updater requests
+    // always start with a finite metadata timeout; archive callers may replace
+    // it with their longer configured duration.
+    UpdaterHttpRequest &timeout_max(long timeout_seconds);
+
     // A successful HTTP response invokes on_complete. Network failures and
     // HTTP status codes of 400 or greater invoke on_error; the body may still
     // contain a server-provided diagnostic in that case.
@@ -70,6 +77,7 @@ public:
 
     const std::string &url() const { return m_url; }
     size_t response_size_limit() const { return m_size_limit; }
+    long total_timeout_seconds() const { return m_timeout_seconds; }
 
 private:
     friend class UpdaterHttpTransport;
@@ -79,6 +87,7 @@ private:
     UpdaterHttpTransport *m_transport;
     std::string m_url;
     size_t m_size_limit = 0;
+    long m_timeout_seconds = DEFAULT_TOTAL_TIMEOUT_SECONDS;
     CompleteFn m_complete;
     ErrorFn m_error;
     ProgressFn m_progress;

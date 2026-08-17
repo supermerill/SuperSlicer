@@ -51,6 +51,7 @@ void DefaultUpdaterHttpTransport::perform_request(UpdaterHttpRequest request)
         std::make_shared<UpdaterHttpRequest>(std::move(request));
 
     Http::get(state->url())
+        .timeout_max(state->total_timeout_seconds())
         .size_limit(state->response_size_limit())
         .on_error([state](std::string body, std::string error, unsigned http_status) {
             fail_request(*state, std::move(body), std::move(error), http_status);
@@ -73,6 +74,7 @@ void DefaultUpdaterHttpTransport::perform_request(UpdaterHttpRequest request)
 void DefaultUpdaterHttpTransport::perform_request_sync(UpdaterHttpRequest request)
 {
     Http::get(request.url())
+        .timeout_max(request.total_timeout_seconds())
         .size_limit(request.response_size_limit())
         .on_error([&request](std::string body, std::string error, unsigned http_status) {
             fail_request(request, std::move(body), std::move(error), http_status);
@@ -102,6 +104,15 @@ UpdaterHttpRequest::UpdaterHttpRequest(UpdaterHttpTransport &transport, std::str
 UpdaterHttpRequest &UpdaterHttpRequest::size_limit(size_t size_limit)
 {
     m_size_limit = size_limit;
+    return *this;
+}
+
+UpdaterHttpRequest &UpdaterHttpRequest::timeout_max(long timeout_seconds)
+{
+    if (timeout_seconds <= 0)
+        throw std::invalid_argument("An updater HTTP timeout must be greater than zero.");
+
+    m_timeout_seconds = timeout_seconds;
     return *this;
 }
 

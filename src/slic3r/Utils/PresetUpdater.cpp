@@ -54,6 +54,11 @@ void PresetUpdater::reload_all_vendors()
     m_core.reload_all_vendors();
 }
 
+void PresetUpdater::set_archive_download_timeout(std::chrono::seconds timeout)
+{
+    m_core.set_archive_download_timeout(timeout);
+}
+
 void PresetUpdater::sync_async(std::function<void(int)> callback_result, bool force)
 {
     m_core.sync_async([this, callback_result = std::move(callback_result)](int update_count) {

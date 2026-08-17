@@ -190,6 +190,11 @@ void AppConfig::set_defaults()
         if (get("preset_update").empty())
             set("preset_update", "0");
 
+        // Archive downloads are allowed more time than repository metadata,
+        // while remaining finite so application shutdown cannot wait forever.
+        if (get("repository_archive_download_timeout_minutes").empty())
+            set("repository_archive_download_timeout_minutes", "5");
+
         if (get("export_sources_full_pathnames").empty())
             set("export_sources_full_pathnames", "0");
 

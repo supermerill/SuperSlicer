@@ -35,6 +35,11 @@ public:
     public:
         ~AsyncOperationToken();
 
+        // Run a terminal callback while marking the current thread as part of
+        // this asynchronous operation. Destroying the updater from inside the
+        // callback can then fail immediately instead of waiting on itself.
+        void run_callback(std::function<void()> callback) const;
+
     private:
         friend class UpdaterOperationExecutor;
         explicit AsyncOperationToken(UpdaterOperationExecutor &executor);
@@ -61,6 +66,11 @@ public:
     // work may capture the updater.
     AsyncOperation retain_async_operation();
 
+    // Return false when shutdown would wait for work executing on the current
+    // thread. Owners may use this for diagnostics; shutdown_and_wait() enforces
+    // the same contract with an immediate fatal failure.
+    bool can_shutdown_from_current_thread() const;
+
     // Stop accepting work, drain accepted tasks, join the worker, then wait for
     // callback-based operations to release their tokens. This is idempotent so
     // derived and base destructors may both enforce the lifetime rule.
@@ -75,6 +85,8 @@ private:
     void release_async_operation();
     void worker_loop();
 
+    static thread_local const UpdaterOperationExecutor *s_callback_executor;
+
     std::mutex m_mutex;
     std::condition_variable m_condition;
     std::deque<std::function<void()>> m_operations;
@@ -82,6 +94,7 @@ private:
     bool m_stopping = false;
     bool m_executing = false;
     std::thread m_worker;
+    const std::thread::id m_worker_thread_id;
 };
 
 } // namespace Slic3r

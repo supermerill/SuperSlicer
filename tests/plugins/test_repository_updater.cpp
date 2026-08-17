@@ -61,6 +61,7 @@ public:
     const Slic3r::UpdaterHttpRequest &pending_at(size_t idx) const { return m_pending.at(idx); }
     size_t sync_request_count() const { return m_sync_request_urls.size(); }
     const std::string &sync_request_url(size_t idx) const { return m_sync_request_urls.at(idx); }
+    long sync_request_timeout(size_t idx) const { return m_sync_request_timeouts.at(idx); }
 
     // The common updater catches failures raised while an asynchronous request
     // is being started. This hook exercises that path without a network thread.
@@ -124,6 +125,7 @@ private:
     void perform_request_sync(Slic3r::UpdaterHttpRequest request) override
     {
         m_sync_request_urls.emplace_back(request.url());
+        m_sync_request_timeouts.emplace_back(request.total_timeout_seconds());
         if (!m_sync_response)
             throw std::logic_error("The fake updater transport has no scripted synchronous response.");
 
@@ -139,6 +141,7 @@ private:
     std::optional<SyncResponse> m_sync_response;
     std::optional<std::string> m_async_exception;
     std::vector<std::string> m_sync_request_urls;
+    std::vector<long> m_sync_request_timeouts;
 };
 
 struct VendorChangeCall {
@@ -861,6 +864,7 @@ TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plug
         CHECK(http.pending_front().url() ==
               "https://example.invalid/forced/tags?per_page=100&page=1");
         CHECK(http.pending_front().response_size_limit() == 64 * 1024);
+        CHECK(http.pending_front().total_timeout_seconds() == 60);
         CHECK(sync_callback_count == 0);
 
         http.succeed_front(paginated_repository_tags(0, 1, "fresh-"), 200);
@@ -1429,6 +1433,8 @@ TEST_CASE("RepositoryUpdater downloads changelog batches through cache and trans
     REQUIRE(http.pending_count() == 2);
     CHECK(http.pending_at(0).response_size_limit() == 4 * 1024 * 1024);
     CHECK(http.pending_at(1).response_size_limit() == 128 * 1024);
+    CHECK(http.pending_at(0).total_timeout_seconds() == 60);
+    CHECK(http.pending_at(1).total_timeout_seconds() == 60);
     int rejected_sync_callback_count = 0;
     CHECK_FALSE(updater.begin_sync(1, [&rejected_sync_callback_count](int count) {
         CHECK(count == 7);
@@ -1652,6 +1658,7 @@ TEST_CASE("RepositoryUpdater downloads repository descriptions", "[plugins][upda
     CHECK(http.pending_front().url() ==
           "https://raw.githubusercontent.com/example/repository/HEAD/description.ini");
     CHECK(http.pending_front().response_size_limit() == 64 * 1024);
+    CHECK(http.pending_front().total_timeout_seconds() == 60);
     http.succeed_front("repository description", 200);
 
     REQUIRE(result.has_value());
@@ -1760,6 +1767,7 @@ TEST_CASE("RepositoryUpdater writes asynchronous and synchronous repository file
 
         REQUIRE(http.pending_count() == 1);
         CHECK(http.pending_front().response_size_limit() == 4096);
+        CHECK(http.pending_front().total_timeout_seconds() == 5 * 60);
         http.succeed_front("async archive", 200);
         CHECK_FALSE(result.has_value());
         release_blocker.set_value();
@@ -1778,7 +1786,36 @@ TEST_CASE("RepositoryUpdater writes asynchronous and synchronous repository file
             "https://example.invalid/sync.zip", destination, 8192);
 
         CHECK(result.succeeded());
+        REQUIRE(http.sync_request_count() == 1);
+        CHECK(http.sync_request_timeout(0) == 5 * 60);
         CHECK(read_test_file(destination) == "sync archive");
+    }
+
+    SECTION("a configured archive timeout applies to asynchronous and synchronous requests") {
+        updater.set_archive_download_timeout(std::chrono::seconds(75));
+        const boost::filesystem::path async_destination = temporary.path() / "configured-async.zip";
+        std::optional<Slic3r::UpdaterError> async_result;
+        updater.download_repository_file_async(
+            "https://example.invalid/configured-async.zip", async_destination, 4096,
+            [&async_result](Slic3r::UpdaterError error) { async_result = std::move(error); });
+
+        REQUIRE(http.pending_count() == 1);
+        CHECK(http.pending_front().total_timeout_seconds() == 75);
+        http.fail_front(std::string(), "test complete", 500);
+        REQUIRE(async_result.has_value());
+
+        http.script_sync_failure("test complete");
+        updater.download_repository_file_sync(
+            "https://example.invalid/configured-sync.zip", temporary.path() / "configured-sync.zip", 4096);
+        REQUIRE(http.sync_request_count() == 1);
+        CHECK(http.sync_request_timeout(0) == 75);
+    }
+
+    SECTION("a non-positive archive timeout is rejected") {
+        CHECK_THROWS_AS(updater.set_archive_download_timeout(std::chrono::seconds(0)),
+                        std::invalid_argument);
+        CHECK_THROWS_AS(updater.set_archive_download_timeout(std::chrono::seconds(-1)),
+                        std::invalid_argument);
     }
 
     SECTION("network and URL errors keep their categories") {
@@ -3022,6 +3059,7 @@ TEST_CASE("Updater worker shutdown waits for retained asynchronous operations",
           "[plugins][updater][lifetime]")
 {
     Slic3r::UpdaterOperationExecutor executor;
+    CHECK(executor.can_shutdown_from_current_thread());
     Slic3r::UpdaterOperationExecutor::AsyncOperation pending = executor.retain_async_operation();
     REQUIRE(pending);
 
@@ -3043,6 +3081,53 @@ TEST_CASE("Updater worker shutdown waits for retained asynchronous operations",
     CHECK(shutdown_completed_future.wait_for(std::chrono::seconds(1)) == std::future_status::ready);
     shutdown_thread.join();
     CHECK_FALSE(executor.retain_async_operation());
+}
+
+TEST_CASE("Updater worker identifies shutdown contexts which would wait on themselves",
+          "[plugins][updater][lifetime]")
+{
+    Slic3r::UpdaterOperationExecutor executor;
+    CHECK(executor.can_shutdown_from_current_thread());
+
+    std::promise<bool> worker_result;
+    std::future<bool> worker_result_future = worker_result.get_future();
+    REQUIRE(executor.enqueue(
+        [&executor, &worker_result] {
+            worker_result.set_value(executor.can_shutdown_from_current_thread());
+            return Slic3r::UpdaterError();
+        },
+        [](Slic3r::UpdaterError) {}));
+    CHECK_FALSE(worker_result_future.get());
+    executor.wait_until_idle();
+
+    Slic3r::UpdaterOperationExecutor::AsyncOperation pending = executor.retain_async_operation();
+    REQUIRE(pending);
+    bool callback_context_is_safe = true;
+    pending->run_callback([&executor, &callback_context_is_safe] {
+        callback_context_is_safe = executor.can_shutdown_from_current_thread();
+    });
+    CHECK_FALSE(callback_context_is_safe);
+    pending.reset();
+    CHECK(executor.can_shutdown_from_current_thread());
+}
+
+TEST_CASE("Updater idle waits do not wait for external callback tokens",
+          "[plugins][updater][lifetime]")
+{
+    Slic3r::UpdaterOperationExecutor executor;
+    Slic3r::UpdaterOperationExecutor::AsyncOperation pending = executor.retain_async_operation();
+    REQUIRE(pending);
+
+    std::promise<void> idle_completed;
+    std::future<void> idle_completed_future = idle_completed.get_future();
+    std::thread idle_thread([&executor, &idle_completed] {
+        executor.wait_until_idle();
+        idle_completed.set_value();
+    });
+
+    CHECK(idle_completed_future.wait_for(std::chrono::seconds(1)) == std::future_status::ready);
+    idle_thread.join();
+    pending.reset();
 }
 
 TEST_CASE("RepositoryUpdater destruction waits for a pending HTTP callback",

@@ -395,11 +395,13 @@ void PreferencesDialog::append_int_option( std::shared_ptr<ConfigOptionsGroup> o
 								int def_val,
 								ConfigOptionMode mode,
 								int32_t min /*= -FLT_MAX*/,
-								int32_t max /*= FLT_MAX*/)
+								int32_t max /*= FLT_MAX*/,
+                                const std::string &side_text /*= std::string()*/)
 {
 	ConfigOptionDef def = {opt_key, coInt};
 	def.label = label;
 	def.tooltip = tooltip;
+	def.sidetext = side_text;
 	def.mode = mode;
 	def.min = double(min);
 	def.max = double(max);
@@ -595,6 +597,23 @@ void PreferencesDialog::build()
 			L("If enabled, Slic3r downloads updates of built-in system presets in the background. These updates are downloaded "
 			  "into a separate temporary location. When a new preset version becomes available it is offered at application startup."),
 			app_config->get_bool("preset_update"));
+
+        int archive_timeout_minutes =
+            atoi(app_config->get("repository_archive_download_timeout_minutes").c_str());
+        if (archive_timeout_minutes < 1 || archive_timeout_minutes > 120)
+            archive_timeout_minutes = 5;
+
+        append_int_option(
+            m_tabid_2_optgroups.back().back(),
+            "repository_archive_download_timeout_minutes",
+            L("Plugin and preset download timeout"),
+            L("Maximum duration of a plugin or preset archive download. Repository metadata and changelog requests always use a 60 second timeout."),
+            8,
+            archive_timeout_minutes,
+            ConfigOptionMode::comNone,
+            1,
+            120,
+            L("minutes"));
 
 		append_bool_option(m_tabid_2_optgroups.back().back(), "no_defaults",
 			L("Suppress \" - default - \" presets"),
@@ -1384,6 +1403,9 @@ void PreferencesDialog::accept(wxEvent&)
 	
 	for (std::map<std::string, std::string>::iterator it = m_values.begin(); it != m_values.end(); ++it)
 		app_config->set(it->first, it->second);
+
+    if (m_values.find("repository_archive_download_timeout_minutes") != m_values.end())
+        wxGetApp().apply_repository_archive_download_timeout();
 
 	EndModal(wxID_OK);
 

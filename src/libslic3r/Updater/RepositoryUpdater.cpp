@@ -15,7 +15,9 @@
 #include <cstring>
 #include <ctime>
 #include <exception>
+#include <limits>
 #include <memory>
+#include <stdexcept>
 #include <utility>
 
 #include <boost/log/trivial.hpp>
@@ -48,6 +50,15 @@ RepositoryUpdater::RepositoryUpdater(UpdaterHttpTransport &http_transport)
 RepositoryUpdater::~RepositoryUpdater()
 {
     shutdown_operation_executor();
+}
+
+void RepositoryUpdater::set_archive_download_timeout(std::chrono::seconds timeout)
+{
+    const std::chrono::seconds::rep seconds = timeout.count();
+    if (seconds <= 0 || seconds > std::numeric_limits<long>::max())
+        throw std::invalid_argument("The repository archive timeout must be a positive number of seconds.");
+
+    m_archive_download_timeout_seconds.store(static_cast<long>(seconds));
 }
 
 void RepositoryUpdater::wait_for_pending_operations()
@@ -193,9 +204,12 @@ void RepositoryUpdater::refresh_repository_tags(const std::string &repository_id
     // reports twice or throws while unwinding a callback.
     const std::shared_ptr<std::atomic_bool> terminal = std::make_shared<std::atomic_bool>(false);
     const RepositoryRefreshFinishedFn complete =
-        [this, pending_operation, terminal, finished](UpdaterError error) {
-        if (!terminal->exchange(true))
-            finish_repository_refresh(std::move(error), finished);
+        [this, pending_operation, terminal, finished](UpdaterError error) mutable {
+        pending_operation->run_callback(
+            [this, terminal, finished, error = std::move(error)]() mutable {
+                if (!terminal->exchange(true))
+                    finish_repository_refresh(std::move(error), finished);
+            });
     };
 
     const std::string repository_url = normalize_repository_rest_url(rest_url);
@@ -224,9 +238,12 @@ void RepositoryUpdater::download_repository_description(const std::string &rest_
     }
 
     const std::shared_ptr<std::atomic_bool> terminal = std::make_shared<std::atomic_bool>(false);
-    const UpdaterErrorCallback complete = [pending_operation, terminal, callback](UpdaterError error) {
-        if (!terminal->exchange(true))
-            callback(std::move(error));
+    const UpdaterErrorCallback complete = [pending_operation, terminal, callback](UpdaterError error) mutable {
+        pending_operation->run_callback(
+            [terminal, callback, error = std::move(error)]() mutable {
+                if (!terminal->exchange(true))
+                    callback(std::move(error));
+            });
     };
 
     const std::string repository_url = normalize_repository_rest_url(rest_url);
@@ -279,9 +296,12 @@ void RepositoryUpdater::download_repository_file_async(const std::string &url,
     }
 
     const std::shared_ptr<std::atomic_bool> terminal = std::make_shared<std::atomic_bool>(false);
-    const UpdaterErrorCallback complete = [pending_operation, terminal, callback](UpdaterError error) {
-        if (!terminal->exchange(true))
-            callback(std::move(error));
+    const UpdaterErrorCallback complete = [pending_operation, terminal, callback](UpdaterError error) mutable {
+        pending_operation->run_callback(
+            [terminal, callback, error = std::move(error)]() mutable {
+                if (!terminal->exchange(true))
+                    callback(std::move(error));
+            });
     };
 
     if (url.empty()) {
@@ -295,6 +315,7 @@ void RepositoryUpdater::download_repository_file_async(const std::string &url,
 
     try {
         http().get(url)
+            .timeout_max(m_archive_download_timeout_seconds.load())
             .size_limit(size_limit)
             .on_error([complete](std::string, std::string error, unsigned) {
                 complete(make_updater_error(UpdaterError::Code::Network, std::move(error)));
@@ -335,6 +356,7 @@ UpdaterError RepositoryUpdater::download_repository_file_sync(const std::string 
                                              "The repository request did not complete.");
     try {
         http().get(url)
+            .timeout_max(m_archive_download_timeout_seconds.load())
             .size_limit(size_limit)
             .on_error([&result, &completed](std::string, std::string error, unsigned) {
                 result = make_updater_error(UpdaterError::Code::Network, std::move(error));
@@ -368,7 +390,9 @@ void RepositoryUpdater::download_repository_changelogs(std::vector<RepositoryCha
 
     m_changelog_service->download(
         std::move(requests),
-        [pending_operation, callback = std::move(callback)](bool succeeded) { callback(succeeded); },
+        [pending_operation, callback = std::move(callback)](bool succeeded) {
+            pending_operation->run_callback([callback, succeeded] { callback(succeeded); });
+        },
         force,
         [this]() { return sync_in_progress(); },
         [this](const std::string &url) { return has_api_request_slot(url); });
@@ -390,7 +414,9 @@ void RepositoryUpdater::download_repository_version_changelogs(
 
     m_changelog_service->download_versions(
         std::move(versions), log_directory, normalize_repository_rest_url(configured_rest_url),
-        [pending_operation, callback = std::move(callback)](bool succeeded) { callback(succeeded); },
+        [pending_operation, callback = std::move(callback)](bool succeeded) {
+            pending_operation->run_callback([callback, succeeded] { callback(succeeded); });
+        },
         force,
         [this]() { return sync_in_progress(); },
         [this](const std::string &url) { return has_api_request_slot(url); });

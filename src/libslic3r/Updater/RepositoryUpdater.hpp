@@ -13,6 +13,7 @@
 #define slic3r_Updater_RepositoryUpdater_hpp_
 
 #include <atomic>
+#include <chrono>
 #include <ctime>
 #include <functional>
 #include <memory>
@@ -88,6 +89,11 @@ public:
     RepositoryUpdater &operator=(const RepositoryUpdater &) = delete;
     RepositoryUpdater &operator=(RepositoryUpdater &&) = delete;
     virtual ~RepositoryUpdater();
+
+    // Set the total timeout used for vendor and plugin package archives.
+    // Metadata keeps its shorter request-level default. The value must remain
+    // positive so shutdown always has a finite network wait.
+    void set_archive_download_timeout(std::chrono::seconds timeout);
 
     // Establish a synchronization point after local filesystem operations.
     // Network requests may still be active and enqueue the next operation in a
@@ -222,6 +228,7 @@ private:
     UpdaterHttpTransport &m_http_transport;
     std::unique_ptr<RepositoryUpdaterInternal::RepositoryTagService> m_tag_service;
     std::unique_ptr<RepositoryUpdaterInternal::RepositoryChangelogService> m_changelog_service;
+    std::atomic_long m_archive_download_timeout_seconds = 5 * 60;
     UpdaterOperationExecutor m_operation_executor;
 };
 

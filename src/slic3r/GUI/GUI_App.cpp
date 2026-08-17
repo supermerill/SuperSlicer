@@ -30,6 +30,7 @@
 #include "slic3r/GUI/I18N.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <iterator>
 #include <exception>
 #include <cstdlib>
@@ -1718,6 +1719,7 @@ bool GUI_App::on_init_inner()
 
         preset_updater.reset(new PresetUpdater(*this));
         plugin_updater.reset(new PluginUpdater());
+        apply_repository_archive_download_timeout();
         plugin_updater->reload_all_plugins();
         Bind(EVT_SLIC3R_VERSION_ONLINE, &GUI_App::on_version_read, this);
         Bind(EVT_SLIC3R_EXPERIMENTAL_VERSION_ONLINE, [this](const wxCommandEvent& evt) {
@@ -2827,6 +2829,25 @@ void GUI_App::force_colors_update()
     m_force_colors_update = true;
 }
 #endif //_WIN32
+
+void GUI_App::apply_repository_archive_download_timeout()
+{
+    constexpr int default_timeout_minutes = 5;
+    constexpr int maximum_timeout_minutes = 120;
+
+    // Preferences validate this range, but AppConfig may have been edited by
+    // hand. Falling back keeps every archive request finite and predictable.
+    int timeout_minutes = app_config == nullptr ? default_timeout_minutes :
+        atoi(app_config->get("repository_archive_download_timeout_minutes").c_str());
+    if (timeout_minutes < 1 || timeout_minutes > maximum_timeout_minutes)
+        timeout_minutes = default_timeout_minutes;
+
+    const std::chrono::seconds timeout = std::chrono::minutes(timeout_minutes);
+    if (preset_updater != nullptr)
+        preset_updater->set_archive_download_timeout(timeout);
+    if (plugin_updater != nullptr)
+        plugin_updater->set_archive_download_timeout(timeout);
+}
 
 // Called after the Preferences dialog is closed and the program settings are saved.
 // Update the UI based on the current preferences.
