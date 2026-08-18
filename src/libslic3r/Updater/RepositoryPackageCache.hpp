@@ -152,10 +152,11 @@ private:
                  const RepositoryPackageVersion &version,
                  RepositoryCachedVersion &cached,
                  std::string &error_message) const;
-    bool refresh_repository_description(const std::string &id,
-                                        const RepositoryDescription &fallback,
-                                        const RepositoryPackageVersion &fallback_version,
-                                        std::string &error_message) const;
+    bool select_repository_description(const std::string &id,
+                                       const RepositoryDescription &fallback,
+                                       const RepositoryPackageVersion &fallback_version,
+                                       RepositoryDescription &selected,
+                                       std::string &error_message) const;
 
     boost::filesystem::path m_data_directory;
     const RepositoryPackageCacheAdapter &m_adapter;

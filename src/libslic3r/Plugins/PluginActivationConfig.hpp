@@ -78,9 +78,9 @@ bool read_plugin_activation_config(const boost::filesystem::path &config_path,
                                    PluginActivationConfig &config,
                                    std::string &error_message);
 
-// Write a complete sibling staging file, then replace the destination while
-// retaining the previous bytes for rollback. A failed publication therefore
-// leaves the original configuration intact.
+// Write a complete sibling staging file, then publish it through the shared
+// filesystem transaction engine. A failed publication therefore leaves the
+// original configuration intact or reports an incomplete rollback.
 bool write_plugin_activation_config(const boost::filesystem::path &config_path,
                                     const PluginActivationConfig &config,
                                     std::string &error_message);

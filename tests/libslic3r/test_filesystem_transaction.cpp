@@ -408,4 +408,34 @@ TEST_CASE("Cleanup failures are warnings after a successful commit",
     CHECK(has_transaction_backup(tree.path()));
 }
 
+TEST_CASE("Filesystem transaction diagnostics separate rollback errors from cleanup warnings",
+          "[filesystem][transaction]")
+{
+    Slic3r::FilesystemTransactionResult result;
+    result.status = Slic3r::FilesystemTransactionStatus::RollbackFailed;
+    result.failure = Slic3r::FilesystemTransactionFailure{
+        Slic3r::FilesystemTransactionOperation::PublishStaging,
+        boost::filesystem::path("staging"), boost::filesystem::path("destination"),
+        "publication failed"};
+    result.rollback_errors.push_back(Slic3r::FilesystemTransactionFailure{
+        Slic3r::FilesystemTransactionOperation::RestoreDestination,
+        boost::filesystem::path("backup"), boost::filesystem::path("destination"),
+        "restore failed"});
+    result.cleanup_warnings.push_back(Slic3r::FilesystemTransactionFailure{
+        Slic3r::FilesystemTransactionOperation::CleanupArtifact,
+        boost::filesystem::path("artifact"), boost::filesystem::path(),
+        "cleanup warning"});
+
+    const std::string failure =
+        Slic3r::format_filesystem_transaction_failure(*result.failure);
+    CHECK(failure.find("publish staging") != std::string::npos);
+    CHECK(failure.find("staging") != std::string::npos);
+    CHECK(failure.find("destination") != std::string::npos);
+
+    const std::string error = Slic3r::format_filesystem_transaction_error(result);
+    CHECK(error.find("publication failed") != std::string::npos);
+    CHECK(error.find("restore failed") != std::string::npos);
+    CHECK(error.find("cleanup warning") == std::string::npos);
+}
+
 } // namespace

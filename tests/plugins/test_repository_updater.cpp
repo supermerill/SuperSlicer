@@ -37,10 +37,12 @@
 #include <boost/property_tree/json_parser.hpp>
 
 #include "libslic3r/ContainerUtils.hpp"
+#include "libslic3r/FilesystemTransactionTest.hpp"
 #include "libslic3r/Plugins/PluginRepository.hpp"
 #include "libslic3r/Updater/PluginUpdater.hpp"
 #include "libslic3r/Updater/PresetUpdater.hpp"
 #include "libslic3r/Updater/RepositoryPackageCache.hpp"
+#include "libslic3r/Updater/RepositoryCacheIO.hpp"
 #include "libslic3r/Updater/UpdaterHttp.hpp"
 #include "libslic3r/Updater/UpdaterError.hpp"
 #include "libslic3r/Updater/UpdaterOperationExecutor.hpp"
@@ -48,6 +50,21 @@
 #include "libslic3r/miniz_extension.hpp"
 
 namespace {
+
+#ifdef SLIC3R_FILESYSTEM_TRANSACTION_TESTING
+class ScopedFilesystemTransactionHook {
+public:
+    explicit ScopedFilesystemTransactionHook(Slic3r::FilesystemTransactionTestHook hook)
+    {
+        Slic3r::set_filesystem_transaction_test_hook(std::move(hook));
+    }
+
+    ~ScopedFilesystemTransactionHook()
+    {
+        Slic3r::set_filesystem_transaction_test_hook({});
+    }
+};
+#endif
 
 // FakeUpdaterHttpTransport retains asynchronous requests instead of starting a
 // network thread. A test first inspects the pending request, then deliberately
@@ -818,6 +835,42 @@ TEST_CASE("RepositoryUpdater mutation gates are independent per updater", "[plug
     first.finish_repository_change();
     second.finish_repository_change();
 }
+
+#ifdef SLIC3R_FILESYSTEM_TRANSACTION_TESTING
+TEST_CASE("Repository metadata batch restores tags and pagination together",
+          "[plugins][updater][repository-cache]")
+{
+    TemporaryDirectory temporary;
+    const boost::filesystem::path tags = temporary.path() / "tags.json";
+    const boost::filesystem::path pagination = temporary.path() / "tags.pagination.ini";
+    write_test_file(tags, "old tags");
+    write_test_file(pagination, "old pagination");
+
+    Slic3r::UpdaterError result;
+    {
+        ScopedFilesystemTransactionHook hook(
+            [pagination](Slic3r::FilesystemTransactionTestPoint point,
+                         const boost::filesystem::path &,
+                         const boost::filesystem::path &destination) {
+                if (point == Slic3r::FilesystemTransactionTestPoint::BeforePublishStaging &&
+                    destination == pagination)
+                    throw std::runtime_error("injected pagination publication failure");
+            });
+        result = Slic3r::RepositoryUpdaterInternal::publish_repository_caches_atomically({
+            {tags, "new tags"}, {pagination, "new pagination"}});
+    }
+
+    CHECK_FALSE(result.succeeded());
+    CHECK(result.detail.find("injected pagination publication failure") != std::string::npos);
+    CHECK(read_test_file(tags) == "old tags");
+    CHECK(read_test_file(pagination) == "old pagination");
+    for (boost::filesystem::directory_iterator it(temporary.path()), end; it != end; ++it) {
+        const std::string filename = it->path().filename().string();
+        CHECK(filename.find(".download-") == std::string::npos);
+        CHECK(filename.find(".transaction-backup-") == std::string::npos);
+    }
+}
+#endif
 
 TEST_CASE("RepositoryUpdater refreshes tags through cache and transport", "[plugins][updater]")
 {
@@ -3561,7 +3614,9 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
                  "[plugins][updater][preset-functional]")
 {
     write_installed_vendor("2.0.0.0");
+    write_test_file(data_directory / "vendor" / vendor_id / "icons" / "old.svg", "old icon");
     write_resource_vendor("1.5.0.0");
+    write_test_file(resources_directory / "profiles" / vendor_id / "icons" / "new.svg", "new icon");
     updater.reload_all_vendors();
 
     const PresetDialogSnapshot dialog = synchronize_and_open_dialog({
@@ -3596,6 +3651,8 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     const boost::filesystem::path installed_file = data_directory / "vendor" / (vendor_id + ".ini");
     REQUIRE(boost::filesystem::is_regular_file(installed_file));
     CHECK(Slic3r::VendorProfile::from_ini(installed_file, true).config_version.to_string() == "1.5.0.0");
+    CHECK(read_test_file(data_directory / "vendor" / vendor_id / "icons" / "new.svg") == "new icon");
+    CHECK_FALSE(boost::filesystem::exists(data_directory / "vendor" / vendor_id / "icons" / "old.svg"));
     CHECK(http.sync_request_count() == 0);
     REQUIRE(host.completed_changes.size() == 1);
     CHECK(host.completed_changes.front().change == Slic3r::VendorChange::Install);
@@ -3647,6 +3704,33 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
 }
 
 TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
+                 "PresetUpdater removes obsolete vendor resources when the selected version has none",
+                 "[plugins][updater][preset-functional][transaction]")
+{
+    write_installed_vendor("1.0.0.0");
+    write_test_file(data_directory / "vendor" / vendor_id / "icons" / "old.svg", "old icon");
+    write_resource_vendor("2.0.0.0");
+    updater.reload_all_vendors();
+
+    const std::optional<Slic3r::VendorSync> vendor = updater.vendor(vendor_id);
+    REQUIRE(vendor.has_value());
+    const Slic3r::VendorAvailable *best = vendor->best_available();
+    REQUIRE(best != nullptr);
+
+    std::optional<Slic3r::UpdaterError> result;
+    updater.install_vendor(vendor_id, *best, [&result](Slic3r::UpdaterError error) {
+        result = std::move(error);
+    });
+    updater.wait_for_pending_operations();
+
+    REQUIRE(result.has_value());
+    CHECK(result->succeeded());
+    CHECK_FALSE(boost::filesystem::exists(data_directory / "vendor" / vendor_id));
+    CHECK(Slic3r::VendorProfile::from_ini(
+        data_directory / "vendor" / (vendor_id + ".ini"), true).config_version.to_string() == "2.0.0.0");
+}
+
+TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
                  "PresetUpdater reports both publication and snapshot restore failures",
                  "[plugins][updater][preset-functional][rollback]")
 {
@@ -3693,16 +3777,26 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     const Slic3r::VendorAvailable *second_best = second->best_available();
     REQUIRE(second_best != nullptr);
     REQUIRE_FALSE(second_best->local_file.empty());
-    write_test_file(second_best->local_file, "this is not a vendor profile");
 
     std::optional<Slic3r::UpdaterErrors> result;
-    updater.install_all_vendors([&result](Slic3r::UpdaterErrors errors) {
-        result = std::move(errors);
-    });
-    updater.wait_for_pending_operations();
+    {
+        ScopedFilesystemTransactionHook hook(
+            [second_id](Slic3r::FilesystemTransactionTestPoint point,
+                        const boost::filesystem::path &,
+                        const boost::filesystem::path &destination) {
+                if (point == Slic3r::FilesystemTransactionTestPoint::BeforePublishStaging &&
+                    destination.filename() == second_id + ".ini")
+                    throw std::runtime_error("injected second vendor publication failure");
+            });
+        updater.install_all_vendors([&result](Slic3r::UpdaterErrors errors) {
+            result = std::move(errors);
+        });
+        updater.wait_for_pending_operations();
+    }
 
     REQUIRE(result.has_value());
     REQUIRE(result->size() == 1);
+    CHECK(result->front().detail.find("injected second vendor publication failure") != std::string::npos);
     REQUIRE(host.rollback_tokens.size() == 1);
     CHECK(host.completed_changes.empty());
     CHECK_FALSE(boost::filesystem::exists(data_directory / "vendor" / (first_id + ".ini")));
@@ -3713,6 +3807,47 @@ TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
     REQUIRE(second_after.has_value());
     CHECK_FALSE(first_after->is_installed);
     CHECK_FALSE(second_after->is_installed);
+}
+
+TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,
+                 "PresetUpdater restores a complete uninstall batch when one removal fails",
+                 "[plugins][updater][preset-functional][rollback]")
+{
+    const std::string first_id = "uninstall_vendor_a";
+    const std::string second_id = "uninstall_vendor_b";
+    write_test_file(data_directory / "vendor" / (first_id + ".ini"),
+                    vendor_profile_contents(first_id, "1.0.0.0", slicer_version));
+    write_test_file(data_directory / "vendor" / (second_id + ".ini"),
+                    vendor_profile_contents(second_id, "1.0.0.0", slicer_version));
+    updater.reload_all_vendors();
+
+    std::optional<Slic3r::UpdaterError> result;
+    {
+        ScopedFilesystemTransactionHook hook(
+            [second_id](Slic3r::FilesystemTransactionTestPoint point,
+                        const boost::filesystem::path &source,
+                        const boost::filesystem::path &) {
+                if (point == Slic3r::FilesystemTransactionTestPoint::BeforePreserveDestination &&
+                    source.filename() == second_id + ".ini")
+                    throw std::runtime_error("injected second vendor removal failure");
+            });
+        updater.uninstall_all_vendors([&result](Slic3r::UpdaterError error) {
+            result = std::move(error);
+        });
+        updater.wait_for_pending_operations();
+    }
+
+    REQUIRE(result.has_value());
+    CHECK_FALSE(result->succeeded());
+    CHECK(result->detail.find("injected second vendor removal failure") != std::string::npos);
+    CHECK(boost::filesystem::is_regular_file(data_directory / "vendor" / (first_id + ".ini")));
+    CHECK(boost::filesystem::is_regular_file(data_directory / "vendor" / (second_id + ".ini")));
+    REQUIRE(host.rollback_tokens.size() == 1);
+    CHECK(host.completed_changes.empty());
+    REQUIRE(updater.vendor(first_id).has_value());
+    REQUIRE(updater.vendor(second_id).has_value());
+    CHECK(updater.vendor(first_id)->is_installed);
+    CHECK(updater.vendor(second_id)->is_installed);
 }
 
 TEST_CASE_METHOD(PresetUpdaterFunctionalFixture,

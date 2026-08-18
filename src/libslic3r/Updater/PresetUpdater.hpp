@@ -190,8 +190,8 @@ private:
         const VendorSync &vendor,
         const VendorAvailable &version,
         std::function<void(UpdaterError, boost::filesystem::path)> callback_result);
-    UpdaterError install_vendor_files(VendorSync &vendor, const boost::filesystem::path &source_directory);
-    UpdaterError uninstall_vendor_files(VendorSync &vendor);
+    UpdaterError install_vendor_files(std::vector<PendingVendorInstall> &installs);
+    UpdaterError uninstall_vendor_files(std::vector<std::pair<std::string, VendorSync>> &vendors);
     UpdaterError clear_cache_vendor_files(VendorSync &vendor);
     // Prepare batch sources sequentially, then publish them under one host
     // snapshot on the thread selected by PresetUpdaterHost.

@@ -215,6 +215,7 @@ TEST_CASE("Plugin activation configuration preserves package providers",
         const std::string filename = it->path().filename().string();
         CHECK(filename.find(".activated.ini.replacement-") == std::string::npos);
         CHECK(filename.find(".activated.ini.previous-") == std::string::npos);
+        CHECK(filename.find(".transaction-backup-") == std::string::npos);
     }
     boost::filesystem::remove_all(root);
 }
@@ -240,6 +241,7 @@ TEST_CASE("Plugin activation configuration rejects a non-file destination withou
         const std::string filename = it->path().filename().string();
         CHECK(filename.find(".activated.ini.replacement-") == std::string::npos);
         CHECK(filename.find(".activated.ini.previous-") == std::string::npos);
+        CHECK(filename.find(".transaction-backup-") == std::string::npos);
     }
     boost::filesystem::remove_all(root);
 }

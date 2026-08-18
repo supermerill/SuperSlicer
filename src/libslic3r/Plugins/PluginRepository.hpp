@@ -141,14 +141,10 @@ bool reconcile_installed_plugin_packages(const boost::filesystem::path &data_dir
                                          std::string &error_message);
 
 #ifdef SLIC3R_PLUGIN_REPOSITORY_TESTING
-// Test builds may inject failures at transaction boundaries which ordinary
-// filesystems cannot reproduce deterministically on every platform.
+// The package-specific seam covers staging-copy failures. Publication and
+// rollback tests use the neutral FilesystemTransaction seam.
 enum class PluginPackageTransactionTestPoint {
-    BeforeStageCopy,
-    BeforePreserveDestination,
-    BeforePublishStaging,
-    BeforeHidePublishedStaging,
-    BeforeRestoreBackup
+    BeforeStageCopy
 };
 
 using PluginPackageTransactionTestHook = std::function<void(

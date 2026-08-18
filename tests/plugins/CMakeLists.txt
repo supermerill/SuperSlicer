@@ -85,6 +85,7 @@ add_dependencies(${_TEST_NAME}_tests
     plugin_loader_missing_abi_fixture
     plugin_loader_throw_register_fixture)
 target_compile_definitions(${_TEST_NAME}_tests PRIVATE
+    SLIC3R_FILESYSTEM_TRANSACTION_TESTING
     SLIC3R_TEST_PLUGIN_BAD_ABI_DLL=R"\($<TARGET_FILE:plugin_loader_bad_abi_fixture>\)"
     SLIC3R_TEST_PLUGIN_MISSING_REGISTER_DLL=R"\($<TARGET_FILE:plugin_loader_missing_register_fixture>\)"
     SLIC3R_TEST_PLUGIN_MISSING_ABI_DLL=R"\($<TARGET_FILE:plugin_loader_missing_abi_fixture>\)"

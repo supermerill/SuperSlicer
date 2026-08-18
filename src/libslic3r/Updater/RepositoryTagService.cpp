@@ -102,7 +102,11 @@ UpdaterError read_repository_tag_pagination(const boost::filesystem::path &path,
                                             RepositoryTagPagination &pagination,
                                             bool &exists);
 
-// Atomically writes the cursor and daily request timestamp.
+// Serialize the cursor independently so it can participate in a batch commit.
+std::string serialize_repository_tag_pagination(const RepositoryTagPagination &pagination);
+
+// Atomically writes the cursor and daily request timestamp when no tags file
+// is part of the same logical publication.
 UpdaterError publish_repository_tag_pagination(const boost::filesystem::path &path,
                                                const RepositoryTagPagination &pagination);
 
@@ -268,8 +272,7 @@ UpdaterError read_repository_tag_pagination(const boost::filesystem::path &path,
     }
 }
 
-UpdaterError publish_repository_tag_pagination(const boost::filesystem::path &path,
-                                               const RepositoryTagPagination &pagination)
+std::string serialize_repository_tag_pagination(const RepositoryTagPagination &pagination)
 {
     boost::property_tree::ptree root;
     root.put("pagination.next_page", pagination.next_page);
@@ -278,7 +281,13 @@ UpdaterError publish_repository_tag_pagination(const boost::filesystem::path &pa
 
     std::stringstream stream;
     boost::property_tree::write_ini(stream, root);
-    return publish_repository_cache_atomically(path, stream.str());
+    return stream.str();
+}
+
+UpdaterError publish_repository_tag_pagination(const boost::filesystem::path &path,
+                                               const RepositoryTagPagination &pagination)
+{
+    return publish_repository_cache_atomically(path, serialize_repository_tag_pagination(pagination));
 }
 
 void request_repository_tag_page(const std::shared_ptr<RepositoryTagRefreshState> &state,
@@ -405,20 +414,21 @@ void finalize_repository_tag_refresh(const std::shared_ptr<RepositoryTagRefreshS
         return;
     }
 
-    const UpdaterError cache_error = publish_repository_cache_atomically(state->cache_file, aggregate);
+    std::vector<RepositoryCachePublication> publications;
+    publications.push_back(RepositoryCachePublication{state->cache_file, aggregate});
+    if (state->github)
+        publications.push_back(RepositoryCachePublication{
+            state->pagination_file, serialize_repository_tag_pagination(state->pagination)});
+
+    // The aggregate and its cursor describe one state. Publishing them in the
+    // same transaction prevents a newer cursor from referring to old tags or
+    // vice versa after a second-file failure.
+    const UpdaterError cache_error = publish_repository_caches_atomically(publications);
     if (!cache_error.succeeded()) {
         BOOST_LOG_TRIVIAL(warning) << "Cannot write repository cache for '" << state->repository_id
                                    << "': " << cache_error.detail;
         state->complete(std::move(parse_error));
         return;
-    }
-
-    if (state->github) {
-        const UpdaterError pagination_error =
-            publish_repository_tag_pagination(state->pagination_file, state->pagination);
-        if (!pagination_error.succeeded())
-            BOOST_LOG_TRIVIAL(warning) << "Cannot advance repository tag pagination for '"
-                                       << state->repository_id << "': " << pagination_error.detail;
     }
     state->complete(std::move(parse_error));
 }

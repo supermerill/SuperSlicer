@@ -11,6 +11,7 @@
 #define slic3r_Updater_RepositoryCacheIO_hpp_
 
 #include <string>
+#include <vector>
 
 #include <boost/filesystem/path.hpp>
 
@@ -18,6 +19,11 @@
 
 namespace Slic3r {
 namespace RepositoryUpdaterInternal {
+
+struct RepositoryCachePublication {
+    boost::filesystem::path destination;
+    std::string contents;
+};
 
 // Reads one complete cache file. A missing file is a successful result with
 // exists set to false; local access or stream failures return Filesystem.
@@ -36,6 +42,11 @@ UpdaterError write_repository_file(const boost::filesystem::path &destination,
 // on both successful and failed paths.
 UpdaterError publish_repository_cache_atomically(const boost::filesystem::path &destination,
                                                   const std::string &contents);
+
+// Prepare every metadata file first, then publish the complete set in one
+// filesystem transaction. An empty list is a successful no-op.
+UpdaterError publish_repository_caches_atomically(
+    const std::vector<RepositoryCachePublication> &publications);
 
 } // namespace RepositoryUpdaterInternal
 } // namespace Slic3r

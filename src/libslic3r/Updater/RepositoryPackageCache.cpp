@@ -25,6 +25,7 @@
 #include <boost/nowide/fstream.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 
+#include "libslic3r/FilesystemTransaction.hpp"
 #include "libslic3r/Preset.hpp"
 #include "libslic3r/Plugins/PluginBinaryMetadata.hpp"
 #include "libslic3r/Utils.hpp"
@@ -109,6 +110,10 @@ bool resolve_plugin_version(const boost::filesystem::path &source,
                             const std::optional<RepositoryPackageExpectation> &expected,
                             RepositoryPackageVersion &version,
                             std::string &error_message);
+// Commit prepared cache entries and report non-fatal artifact cleanup issues.
+bool commit_repository_package_cache_transaction(FilesystemTransaction &transaction,
+                                                 const std::string &context,
+                                                 std::string &error_message);
 
 class VendorRepositoryPackageCacheAdapter final : public RepositoryPackageCacheAdapter {
 public:
@@ -190,8 +195,13 @@ bool repository_root_accepts_id(const boost::filesystem::path &descriptor,
                                 const std::string &id,
                                 std::string &error_message)
 {
-    if (!boost::filesystem::is_regular_file(descriptor))
+    if (!boost::filesystem::exists(descriptor))
         return true;
+    if (!boost::filesystem::is_regular_file(descriptor)) {
+        error_message = "Repository description '" + descriptor.string() +
+                        "' is not a regular file.";
+        return false;
+    }
 
     std::string contents;
     RepositoryDescription existing;
@@ -729,6 +739,22 @@ bool resolve_plugin_version(const boost::filesystem::path &source,
     return true;
 }
 
+bool commit_repository_package_cache_transaction(FilesystemTransaction &transaction,
+                                                 const std::string &context,
+                                                 std::string &error_message)
+{
+    const FilesystemTransactionResult result = transaction.commit();
+    for (const FilesystemTransactionFailure &warning : result.cleanup_warnings)
+        BOOST_LOG_TRIVIAL(warning) << "Repository package cache cleanup warning: "
+                                   << format_filesystem_transaction_failure(warning);
+    if (result.status != FilesystemTransactionStatus::Committed) {
+        error_message = context + ": " + format_filesystem_transaction_error(result);
+        return false;
+    }
+    error_message.clear();
+    return true;
+}
+
 bool VendorRepositoryPackageCacheAdapter::inspect(
     const boost::filesystem::path &source,
     RepositoryPackageSource source_type,
@@ -1013,37 +1039,13 @@ bool RepositoryPackageCache::save_repository_description(const RepositoryDescrip
         boost::filesystem::create_directories(root);
         const boost::filesystem::path staging = root /
             boost::filesystem::unique_path(".description-%%%%-%%%%.ini");
-        const boost::filesystem::path backup = root /
-            boost::filesystem::unique_path(".description-previous-%%%%-%%%%.ini");
-        if (!write_description_file(staging, description, error_message)) {
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(staging, cleanup_error);
+        FilesystemTransaction transaction;
+        transaction.add_replacement(staging, descriptor);
+        if (!write_description_file(staging, description, error_message))
             return false;
-        }
-
-        // Windows cannot rename over an existing file. Keep the previous
-        // descriptor beside the staging file until the new descriptor is in
-        // place, then remove it without making cleanup failure fatal.
-        const bool replacing = boost::filesystem::is_regular_file(descriptor);
-        try {
-            if (replacing)
-                boost::filesystem::rename(descriptor, backup);
-            boost::filesystem::rename(staging, descriptor);
-        } catch (...) {
-            if (boost::filesystem::is_regular_file(backup) && !boost::filesystem::exists(descriptor))
-                boost::filesystem::rename(backup, descriptor);
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(staging, cleanup_error);
-            throw;
-        }
-        if (replacing) {
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(backup, cleanup_error);
-            if (cleanup_error)
-                BOOST_LOG_TRIVIAL(warning) << "Cannot remove previous repository description '"
-                                           << backup.string() << "': " << cleanup_error.message();
-        }
-        return true;
+        return commit_repository_package_cache_transaction(
+            transaction, "Cannot publish repository description '" + descriptor.string() + "'",
+            error_message);
     } catch (const boost::filesystem::filesystem_error &error) {
         error_message = error.what();
         return false;
@@ -1143,79 +1145,53 @@ bool RepositoryPackageCache::publish(const boost::filesystem::path &source,
         description.id, version.package_version, version.slicer_version);
     const boost::filesystem::path staging = root /
         boost::filesystem::unique_path(".publish-%%%%-%%%%");
-    const boost::filesystem::path backup = root /
-        boost::filesystem::unique_path(".previous-%%%%-%%%%");
-    bool backup_created = false;
-    bool published = false;
     try {
         if (!repository_root_accepts_id(repository_description_path(description.id),
                                         m_adapter.package_type(), description.id, error_message))
             return false;
         boost::filesystem::create_directories(root);
+        FilesystemTransaction transaction;
+        transaction.add_replacement(staging, destination);
         if (!m_adapter.stage(source, source_type, description, version, staging, error_message) ||
-            !m_adapter.validate(staging, description, version, error_message)) {
-            boost::filesystem::remove_all(staging);
+            !m_adapter.validate(staging, description, version, error_message))
             return false;
-        }
 
-        const bool replacing = boost::filesystem::exists(destination);
-        if (replacing) {
-            boost::filesystem::rename(destination, backup);
-            backup_created = true;
-        }
-        try {
-            boost::filesystem::rename(staging, destination);
-            published = true;
-        } catch (...) {
-            if (replacing && !boost::filesystem::exists(destination))
-                boost::filesystem::rename(backup, destination);
-            throw;
-        }
-        if (!refresh_repository_description(description.id, description, version, error_message)) {
-            // The root descriptor is part of publication. Restore the previous
-            // exact version when it existed, or remove the newly added version,
-            // so callers never observe a half-published package.
-            boost::filesystem::remove_all(destination);
-            if (replacing)
-                boost::filesystem::rename(backup, destination);
+        // Select the descriptor against the current validated versions before
+        // either the incoming version or its new root metadata becomes visible.
+        RepositoryDescription selected_description;
+        if (!select_repository_description(description.id, description, version,
+                                           selected_description, error_message))
             return false;
-        }
-        if (replacing) {
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove_all(backup, cleanup_error);
-            if (cleanup_error)
-                BOOST_LOG_TRIVIAL(warning) << "Cannot remove previous cached version '"
-                                           << backup.string() << "': " << cleanup_error.message();
-        }
+
+        const boost::filesystem::path descriptor = repository_description_path(description.id);
+        const boost::filesystem::path description_staging = root /
+            boost::filesystem::unique_path(".description-%%%%-%%%%.ini");
+        transaction.add_replacement(description_staging, descriptor);
+        if (!write_description_file(description_staging, selected_description, error_message))
+            return false;
+        if (!commit_repository_package_cache_transaction(
+                transaction, "Cannot publish cached repository version '" + destination.string() + "'",
+                error_message))
+            return false;
+
         cached.description = description;
         cached.version = version;
         cached.directory = destination;
         return true;
     } catch (const boost::filesystem::filesystem_error &error) {
-        boost::system::error_code ignored_error;
-        if (published)
-            boost::filesystem::remove_all(destination, ignored_error);
-        if (backup_created && !boost::filesystem::exists(destination)) {
-            try {
-                boost::filesystem::rename(backup, destination);
-            } catch (const boost::filesystem::filesystem_error &restore_error) {
-                BOOST_LOG_TRIVIAL(error) << "Cannot restore cached repository version '"
-                                         << destination.string() << "': " << restore_error.what();
-            }
-        }
-        boost::filesystem::remove_all(staging, ignored_error);
         error_message = error.what();
         return false;
     }
 }
 
-bool RepositoryPackageCache::refresh_repository_description(
+bool RepositoryPackageCache::select_repository_description(
     const std::string &id,
     const RepositoryDescription &fallback,
     const RepositoryPackageVersion &fallback_version,
+    RepositoryDescription &selected,
     std::string &error_message) const
 {
-    RepositoryDescription selected = fallback;
+    selected = fallback;
     RepositoryPackageVersion selected_version = fallback_version;
     RepositoryDescription existing;
     std::string contents;
@@ -1254,7 +1230,8 @@ bool RepositoryPackageCache::refresh_repository_description(
                 selected.config_update_rest = preserved_url;
         }
     }
-    return save_repository_description(selected, error_message);
+    error_message.clear();
+    return true;
 }
 
 std::vector<RepositoryCachedEntry> RepositoryPackageCache::scan() const

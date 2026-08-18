@@ -29,6 +29,10 @@
 #include "libslic3r/miniz_extension.hpp"
 #include "plugin_test_helpers.hpp"
 
+#ifdef SLIC3R_FILESYSTEM_TRANSACTION_TESTING
+#include "libslic3r/FilesystemTransactionTest.hpp"
+#endif
+
 #ifdef _WIN32
 #include <Windows.h>
 #endif
@@ -59,6 +63,14 @@ public:
 };
 #endif
 
+#ifdef SLIC3R_FILESYSTEM_TRANSACTION_TESTING
+class ScopedFilesystemTransactionHook {
+public:
+    explicit ScopedFilesystemTransactionHook(Slic3r::FilesystemTransactionTestHook hook);
+    ~ScopedFilesystemTransactionHook();
+};
+#endif
+
 bool write_zip(const boost::filesystem::path &archive_path, const std::vector<ZipEntry> &entries);
 std::string description_contents(const std::string &package_name,
                                  const std::string &name = std::string());
@@ -78,6 +90,19 @@ const char *plugin_library_filename();
 std::string read_text_file(const boost::filesystem::path &path);
 #ifdef _WIN32
 boost::filesystem::path current_test_executable();
+#endif
+
+#ifdef SLIC3R_FILESYSTEM_TRANSACTION_TESTING
+ScopedFilesystemTransactionHook::ScopedFilesystemTransactionHook(
+    Slic3r::FilesystemTransactionTestHook hook)
+{
+    Slic3r::set_filesystem_transaction_test_hook(std::move(hook));
+}
+
+ScopedFilesystemTransactionHook::~ScopedFilesystemTransactionHook()
+{
+    Slic3r::set_filesystem_transaction_test_hook({});
+}
 #endif
 
 ScopedPluginRepositoryDirectories::ScopedPluginRepositoryDirectories(const boost::filesystem::path &resources_directory,
@@ -180,7 +205,8 @@ bool has_plugin_transaction_directory(const boost::filesystem::path &plugin_dire
         const std::string filename = it->path().filename().string();
         if (!filename.empty() && filename.front() == '.' &&
             (filename.find(".install-") != std::string::npos ||
-             filename.find(".backup-") != std::string::npos))
+             filename.find(".backup-") != std::string::npos ||
+             filename.find(".transaction-backup-") != std::string::npos))
             return true;
     }
     return false;
@@ -400,6 +426,7 @@ TEST_CASE("Plugin reconciliation commits multiple package updates as one transac
     // older process, because the complete desired set is now known to be live.
     boost::filesystem::create_directories(plugin_directory / ".old.install-1111-2222");
     boost::filesystem::create_directories(plugin_directory / ".old.backup-1111-2222");
+    boost::filesystem::create_directories(plugin_directory / ".old.transaction-backup-1111-2222");
     config.installed["a.plugin"] = {second_version, slicer_version};
     config.installed["b.plugin"] = {second_version, slicer_version};
     REQUIRE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
@@ -410,7 +437,7 @@ TEST_CASE("Plugin reconciliation commits multiple package updates as one transac
     boost::filesystem::remove_all(root);
 }
 
-#ifdef SLIC3R_PLUGIN_REPOSITORY_TESTING
+#if defined(SLIC3R_PLUGIN_REPOSITORY_TESTING) && defined(SLIC3R_FILESYSTEM_TRANSACTION_TESTING)
 TEST_CASE("Plugin reconciliation rolls back a published package when the next publication fails",
           "[plugins][repository][transaction]")
 {
@@ -447,10 +474,12 @@ TEST_CASE("Plugin reconciliation rolls back a published package when the next pu
     config.installed["a.plugin"] = {"2.0.0", slicer_version};
     config.installed["b.plugin"] = {"2.0.0", slicer_version};
     {
-        ScopedPluginPackageTransactionHook hook(
-            [](Slic3r::PluginPackageTransactionTestPoint point, const std::string &package_name) {
-                if (point == Slic3r::PluginPackageTransactionTestPoint::BeforePublishStaging &&
-                    package_name == "b.plugin")
+        ScopedFilesystemTransactionHook hook(
+            [](Slic3r::FilesystemTransactionTestPoint point,
+               const boost::filesystem::path &,
+               const boost::filesystem::path &destination) {
+                if (point == Slic3r::FilesystemTransactionTestPoint::BeforePublishStaging &&
+                    destination.filename() == "b.plugin")
                     throw std::runtime_error("injected second publication failure");
             });
         CHECK_FALSE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
@@ -489,10 +518,12 @@ TEST_CASE("Plugin reconciliation removes a newly published package during rollba
     config.installed["a.new"] = {"1.0.0", slicer_version};
     config.installed["b.plugin"] = {"2.0.0", slicer_version};
     {
-        ScopedPluginPackageTransactionHook hook(
-            [](Slic3r::PluginPackageTransactionTestPoint point, const std::string &package_name) {
-                if (point == Slic3r::PluginPackageTransactionTestPoint::BeforePublishStaging &&
-                    package_name == "b.plugin")
+        ScopedFilesystemTransactionHook hook(
+            [](Slic3r::FilesystemTransactionTestPoint point,
+               const boost::filesystem::path &,
+               const boost::filesystem::path &destination) {
+                if (point == Slic3r::FilesystemTransactionTestPoint::BeforePublishStaging &&
+                    destination.filename() == "b.plugin")
                     throw std::runtime_error("injected publication failure after new package");
             });
         CHECK_FALSE(Slic3r::reconcile_installed_plugin_packages(data_directory, config, error_message));
@@ -566,13 +597,15 @@ TEST_CASE("Plugin reconciliation throws when global rollback cannot restore the 
 
     std::string exception_message;
     {
-        ScopedPluginPackageTransactionHook hook(
-            [](Slic3r::PluginPackageTransactionTestPoint point, const std::string &package_name) {
-                if (point == Slic3r::PluginPackageTransactionTestPoint::BeforePublishStaging &&
-                    package_name == "b.plugin")
+        ScopedFilesystemTransactionHook hook(
+            [](Slic3r::FilesystemTransactionTestPoint point,
+               const boost::filesystem::path &source,
+               const boost::filesystem::path &destination) {
+                if (point == Slic3r::FilesystemTransactionTestPoint::BeforePublishStaging &&
+                    destination.filename() == "b.plugin")
                     throw std::runtime_error("injected commit failure");
-                if (point == Slic3r::PluginPackageTransactionTestPoint::BeforeHidePublishedStaging &&
-                    package_name == "a.plugin")
+                if (point == Slic3r::FilesystemTransactionTestPoint::BeforeWithdrawPublishedReplacement &&
+                    source.filename() == "a.plugin")
                     throw std::runtime_error("injected rollback failure");
             });
         try {
@@ -1244,6 +1277,76 @@ TEST_CASE("Repository package cache preserves versions and selects root metadata
 
     boost::filesystem::remove_all(root);
 }
+
+#ifdef SLIC3R_FILESYSTEM_TRANSACTION_TESTING
+TEST_CASE("Repository package cache publishes a version and root description transactionally",
+          "[plugins][repository][cache-layout][transaction]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+                                         boost::filesystem::unique_path("slic3r-package-transaction-%%%%-%%%%");
+    const boost::filesystem::path data_directory = root / "data";
+    Slic3r::RepositoryPackageCache cache(data_directory, Slic3r::plugin_repository_cache_adapter());
+    bool purged = false;
+    std::string error_message;
+    REQUIRE(cache.prepare_layout(purged, error_message));
+
+    const std::string package_name = "transaction.plugin";
+    const std::string slicer_version = "2.7.63.0";
+    const boost::filesystem::path source = root / "source";
+    write_plugin_package(source, package_name, "1.0.0", slicer_version, "old payload");
+    {
+        boost::nowide::ofstream description((source / "description.ini").string(), std::ios::app);
+        description << "config_update_rest = example/repository\n";
+    }
+    Slic3r::RepositoryCachedVersion cached;
+    REQUIRE(cache.cache_simple(source, cached, error_message));
+    const boost::filesystem::path first_destination = cached.directory;
+    const boost::filesystem::path root_description = cache.repository_description_path(package_name);
+    const std::string original_description = read_text_file(root_description);
+
+    // Failing the second publication restores an exact-version replacement
+    // and the root descriptor selected for that replacement.
+    write_plugin_package(source, package_name, "1.0.0", slicer_version, "replacement payload");
+    {
+        ScopedFilesystemTransactionHook hook(
+            [root_description](Slic3r::FilesystemTransactionTestPoint point,
+                               const boost::filesystem::path &,
+                               const boost::filesystem::path &destination) {
+                if (point == Slic3r::FilesystemTransactionTestPoint::BeforePublishStaging &&
+                    destination == root_description)
+                    throw std::runtime_error("injected root description failure");
+            });
+        CHECK_FALSE(cache.cache_simple(source, cached, error_message));
+    }
+    CHECK(error_message.find("injected root description failure") != std::string::npos);
+    CHECK(read_text_file(first_destination / plugin_library_filename()) == "old payload");
+    CHECK(read_text_file(root_description) == original_description);
+
+    // The same rollback removes a newly introduced version which had no
+    // previous destination while preserving the known repository URL.
+    write_plugin_package(source, package_name, "2.0.0", slicer_version, "new payload");
+    const boost::filesystem::path new_destination =
+        cache.version_directory(package_name, "2.0.0", slicer_version);
+    {
+        ScopedFilesystemTransactionHook hook(
+            [root_description](Slic3r::FilesystemTransactionTestPoint point,
+                               const boost::filesystem::path &,
+                               const boost::filesystem::path &destination) {
+                if (point == Slic3r::FilesystemTransactionTestPoint::BeforePublishStaging &&
+                    destination == root_description)
+                    throw std::runtime_error("injected new-version description failure");
+            });
+        CHECK_FALSE(cache.cache_simple(source, cached, error_message));
+    }
+    CHECK_FALSE(boost::filesystem::exists(new_destination));
+    const std::vector<Slic3r::RepositoryCachedEntry> repositories = cache.scan();
+    REQUIRE(repositories.size() == 1);
+    CHECK(repositories.front().description.config_update_rest == "example/repository");
+    CHECK_FALSE(has_plugin_transaction_directory(cache.repository_directory(package_name)));
+
+    boost::filesystem::remove_all(root);
+}
+#endif
 
 TEST_CASE("Repository package cache sanitizes ids and rejects collisions",
           "[plugins][repository][cache-layout]")

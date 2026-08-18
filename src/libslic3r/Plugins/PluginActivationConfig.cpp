@@ -25,6 +25,7 @@
 #include <boost/log/trivial.hpp>
 #include <boost/nowide/fstream.hpp>
 
+#include "libslic3r/FilesystemTransaction.hpp"
 #include "libslic3r/Semver.hpp"
 #include "libslic3r/Utils.hpp"
 
@@ -64,11 +65,10 @@ boost::filesystem::path default_plugin_activation_config_path();
 bool replace_file_with_copy(const boost::filesystem::path &source,
                             const boost::filesystem::path &destination,
                             std::string &error_message);
-// Publish a complete sibling staging file while retaining a rollback copy of
-// the previous destination until the final rename succeeds.
-bool publish_staged_file(const boost::filesystem::path &staging,
-                         const boost::filesystem::path &destination,
-                         std::string &error_message);
+// Commit one prepared configuration staging and report cleanup warnings.
+bool commit_plugin_activation_staging(FilesystemTransaction &transaction,
+                                      const boost::filesystem::path &destination,
+                                      std::string &error_message);
 
 bool parse_ini_enabled_value(const std::string &value, bool &enabled)
 {
@@ -172,86 +172,47 @@ bool replace_file_with_copy(const boost::filesystem::path &source,
     const std::string filename = destination.filename().string();
     const boost::filesystem::path staging = parent /
         boost::filesystem::unique_path("." + filename + ".replacement-%%%%-%%%%");
+    FilesystemTransaction transaction;
+    transaction.add_replacement(staging, destination);
 
     try {
         if (!parent.empty())
             boost::filesystem::create_directories(parent);
         boost::filesystem::copy_file(source, staging);
     } catch (const boost::filesystem::filesystem_error &error) {
-        boost::system::error_code cleanup_error;
-        boost::filesystem::remove(staging, cleanup_error);
         error_message = "Cannot stage plugin configuration '" + destination.string() + "': " + error.what();
         return false;
     }
 
-    return publish_staged_file(staging, destination, error_message);
+    return commit_plugin_activation_staging(transaction, destination, error_message);
 }
 
-bool publish_staged_file(const boost::filesystem::path &staging,
-                         const boost::filesystem::path &destination,
-                         std::string &error_message)
+bool commit_plugin_activation_staging(FilesystemTransaction &transaction,
+                                      const boost::filesystem::path &destination,
+                                      std::string &error_message)
 {
-    const boost::filesystem::path parent = destination.parent_path();
-    const std::string filename = destination.filename().string();
-    const boost::filesystem::path backup = parent /
-        boost::filesystem::unique_path("." + filename + ".previous-%%%%-%%%%");
-    bool previous_moved = false;
-
     try {
-        // Windows cannot rename over an existing file. Keep the previous file
-        // beside the staging copy until the replacement reaches its final path.
-        if (boost::filesystem::exists(destination)) {
-            if (!boost::filesystem::is_regular_file(destination)) {
-                boost::system::error_code cleanup_error;
-                boost::filesystem::remove(staging, cleanup_error);
-                error_message = "Cannot replace plugin configuration '" + destination.string() +
-                                "' because it is not a regular file.";
-                return false;
-            }
-            boost::filesystem::rename(destination, backup);
-            previous_moved = true;
-        }
-
-        try {
-            boost::filesystem::rename(staging, destination);
-        } catch (const boost::filesystem::filesystem_error &error) {
-            std::string detail = error.what();
-            if (previous_moved && !boost::filesystem::exists(destination)) {
-                boost::system::error_code restore_error;
-                boost::filesystem::rename(backup, destination, restore_error);
-                if (restore_error)
-                    detail += "; restoring the previous plugin configuration also failed: " +
-                              restore_error.message();
-            }
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(staging, cleanup_error);
-            error_message = "Cannot replace plugin configuration '" + destination.string() + "': " + detail;
+        // This application file may be absent or regular, but a directory at
+        // the same path is configuration damage rather than replaceable data.
+        if (boost::filesystem::exists(destination) && !boost::filesystem::is_regular_file(destination)) {
+            error_message = "Cannot replace plugin configuration '" + destination.string() +
+                            "' because it is not a regular file.";
             return false;
         }
 
-        // Backup cleanup cannot invalidate the complete file already published
-        // at the destination, so it is reported as a warning only.
-        if (previous_moved) {
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(backup, cleanup_error);
-            if (cleanup_error)
-                BOOST_LOG_TRIVIAL(warning) << "Cannot remove previous plugin configuration '"
-                                           << backup.string() << "': " << cleanup_error.message();
+        const FilesystemTransactionResult result = transaction.commit();
+        for (const FilesystemTransactionFailure &warning : result.cleanup_warnings)
+            BOOST_LOG_TRIVIAL(warning) << "Plugin activation configuration cleanup warning: "
+                                       << format_filesystem_transaction_failure(warning);
+        if (result.status != FilesystemTransactionStatus::Committed) {
+            error_message = "Cannot replace plugin configuration '" + destination.string() + "': " +
+                            format_filesystem_transaction_error(result);
+            return false;
         }
         error_message.clear();
         return true;
-    } catch (const boost::filesystem::filesystem_error &error) {
-        boost::system::error_code cleanup_error;
-        boost::filesystem::remove(staging, cleanup_error);
-        std::string detail = error.what();
-        if (previous_moved && !boost::filesystem::exists(destination)) {
-            boost::system::error_code restore_error;
-            boost::filesystem::rename(backup, destination, restore_error);
-            if (restore_error)
-                detail += "; restoring the previous plugin configuration also failed: " +
-                          restore_error.message();
-        }
-        error_message = "Cannot replace plugin configuration '" + destination.string() + "': " + detail;
+    } catch (const std::exception &error) {
+        error_message = "Cannot replace plugin configuration '" + destination.string() + "': " + error.what();
         return false;
     }
 }
@@ -451,6 +412,8 @@ bool write_plugin_activation_config(const boost::filesystem::path &config_path,
     const std::string filename = config_path.filename().string();
     const boost::filesystem::path staging = parent /
         boost::filesystem::unique_path("." + filename + ".replacement-%%%%-%%%%");
+    FilesystemTransaction transaction;
+    transaction.add_replacement(staging, config_path);
 
     try {
         if (!parent.empty())
@@ -460,8 +423,6 @@ bool write_plugin_activation_config(const boost::filesystem::path &config_path,
         // and the sibling staging stream has closed successfully.
         boost::nowide::ofstream stream(staging.string(), std::ios::out | std::ios::trunc);
         if (!stream) {
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(staging, cleanup_error);
             error_message = "Cannot write plugin configuration '" + config_path.string() + "'.";
             return false;
         }
@@ -481,8 +442,6 @@ bool write_plugin_activation_config(const boost::filesystem::path &config_path,
         if (!stream) {
             error_message = "Cannot finish writing plugin configuration '" + config_path.string() + "'.";
             stream.close();
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(staging, cleanup_error);
             return false;
         }
 
@@ -491,18 +450,14 @@ bool write_plugin_activation_config(const boost::filesystem::path &config_path,
         stream.close();
         if (!stream) {
             error_message = "Cannot close plugin configuration staging file '" + staging.string() + "'.";
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(staging, cleanup_error);
             return false;
         }
     } catch (const std::exception &error) {
-        boost::system::error_code cleanup_error;
-        boost::filesystem::remove(staging, cleanup_error);
         error_message = "Cannot stage plugin configuration '" + config_path.string() + "': " + error.what();
         return false;
     }
 
-    return publish_staged_file(staging, config_path, error_message);
+    return commit_plugin_activation_staging(transaction, config_path, error_message);
 }
 
 bool replace_plugin_activation_config_with_defaults(const boost::filesystem::path &config_path,

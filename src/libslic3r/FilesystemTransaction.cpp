@@ -65,6 +65,8 @@ FilesystemTransactionFailure make_filesystem_transaction_failure(
     std::string detail);
 // Preserve standard exception text while still reporting unknown failures.
 std::string filesystem_transaction_exception_detail(std::exception_ptr exception);
+// Return the stable display name used by the neutral transaction formatter.
+const char *filesystem_transaction_operation_name(FilesystemTransactionOperation operation);
 #ifdef SLIC3R_FILESYSTEM_TRANSACTION_TESTING
 // Invoke the deterministic test seam immediately before a filesystem action.
 void invoke_filesystem_transaction_test_hook(FilesystemTransactionTestPoint point,
@@ -197,6 +199,25 @@ std::string filesystem_transaction_exception_detail(std::exception_ptr exception
     return "Unknown filesystem transaction failure.";
 }
 
+const char *filesystem_transaction_operation_name(FilesystemTransactionOperation operation)
+{
+    switch (operation) {
+    case FilesystemTransactionOperation::ValidatePlan:
+        return "validate plan";
+    case FilesystemTransactionOperation::PreserveDestination:
+        return "preserve destination";
+    case FilesystemTransactionOperation::PublishStaging:
+        return "publish staging";
+    case FilesystemTransactionOperation::WithdrawPublishedReplacement:
+        return "withdraw published replacement";
+    case FilesystemTransactionOperation::RestoreDestination:
+        return "restore destination";
+    case FilesystemTransactionOperation::CleanupArtifact:
+        return "clean transaction artifact";
+    }
+    return "filesystem operation";
+}
+
 #ifdef SLIC3R_FILESYSTEM_TRANSACTION_TESTING
 void invoke_filesystem_transaction_test_hook(FilesystemTransactionTestPoint point,
                                              const boost::filesystem::path &source,
@@ -208,6 +229,35 @@ void invoke_filesystem_transaction_test_hook(FilesystemTransactionTestPoint poin
 #endif
 
 } // namespace
+
+std::string format_filesystem_transaction_failure(
+    const FilesystemTransactionFailure &failure)
+{
+    std::ostringstream stream;
+    stream << filesystem_transaction_operation_name(failure.operation);
+    if (!failure.source.empty())
+        stream << " '" << failure.source.string() << "'";
+    if (!failure.destination.empty())
+        stream << " -> '" << failure.destination.string() << "'";
+    if (!failure.detail.empty())
+        stream << ": " << failure.detail;
+    return stream.str();
+}
+
+std::string format_filesystem_transaction_error(
+    const FilesystemTransactionResult &result)
+{
+    std::ostringstream stream;
+    if (result.failure.has_value())
+        stream << format_filesystem_transaction_failure(*result.failure);
+    for (const FilesystemTransactionFailure &rollback_error : result.rollback_errors) {
+        if (stream.tellp() > 0)
+            stream << "\n";
+        stream << "Rollback failed while "
+               << format_filesystem_transaction_failure(rollback_error);
+    }
+    return stream.str();
+}
 
 FilesystemTransaction::Impl::~Impl()
 {

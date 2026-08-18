@@ -2,9 +2,8 @@
 ///|/
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 
-// See RepositoryCacheIO.hpp. Cache writers first finish a sibling staging
-// file, then temporarily move the previous destination aside. This ordering is
-// required on Windows, where rename cannot replace an existing file directly.
+// See RepositoryCacheIO.hpp. Cache writers finish every sibling staging file
+// before the shared transaction changes any visible cache destination.
 
 #include "libslic3r/Updater/RepositoryCacheIO.hpp"
 
@@ -15,6 +14,8 @@
 #include <boost/filesystem.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/nowide/fstream.hpp>
+
+#include "libslic3r/FilesystemTransaction.hpp"
 
 namespace Slic3r {
 namespace RepositoryUpdaterInternal {
@@ -75,72 +76,43 @@ UpdaterError write_repository_file(const boost::filesystem::path &destination,
 UpdaterError publish_repository_cache_atomically(const boost::filesystem::path &destination,
                                                   const std::string &contents)
 {
-    const boost::filesystem::path parent = destination.parent_path();
-    const std::string filename = destination.filename().string();
-    const boost::filesystem::path staging = parent /
-        boost::filesystem::unique_path("." + filename + ".download-%%%%-%%%%");
-    const boost::filesystem::path backup = parent /
-        boost::filesystem::unique_path("." + filename + ".previous-%%%%-%%%%");
-    bool previous_moved = false;
+    return publish_repository_caches_atomically({RepositoryCachePublication{destination, contents}});
+}
 
+UpdaterError publish_repository_caches_atomically(
+    const std::vector<RepositoryCachePublication> &publications)
+{
     try {
-        if (!parent.empty())
-            boost::filesystem::create_directories(parent);
+        FilesystemTransaction transaction;
 
-        const UpdaterError write_error = write_repository_file(staging, contents);
-        if (!write_error.succeeded()) {
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(staging, cleanup_error);
-            return write_error;
+        // Register ownership before writing so a failed write cannot leave a
+        // partially prepared cache beside its destination.
+        for (const RepositoryCachePublication &publication : publications) {
+            if (boost::filesystem::exists(publication.destination) &&
+                !boost::filesystem::is_regular_file(publication.destination))
+                return make_updater_error(
+                    UpdaterError::Code::Filesystem,
+                    "Repository cache destination '" + publication.destination.string() +
+                    "' is not a regular file.");
+            const boost::filesystem::path parent = publication.destination.parent_path();
+            const std::string filename = publication.destination.filename().string();
+            const boost::filesystem::path staging = parent /
+                boost::filesystem::unique_path("." + filename + ".download-%%%%-%%%%");
+            transaction.add_replacement(staging, publication.destination);
+            const UpdaterError write_error = write_repository_file(staging, publication.contents);
+            if (!write_error.succeeded())
+                return write_error;
         }
 
-        // Windows cannot rename over an existing destination. Keep the old
-        // cache beside the staging file until the new file is in place.
-        if (boost::filesystem::exists(destination)) {
-            if (!boost::filesystem::is_regular_file(destination)) {
-                boost::system::error_code cleanup_error;
-                boost::filesystem::remove(staging, cleanup_error);
-                return make_updater_error(UpdaterError::Code::Filesystem,
-                                          "The repository cache destination is not a regular file.");
-            }
-            boost::filesystem::rename(destination, backup);
-            previous_moved = true;
-        }
-
-        try {
-            boost::filesystem::rename(staging, destination);
-        } catch (const boost::filesystem::filesystem_error &error) {
-            std::string detail = error.what();
-            if (previous_moved && !boost::filesystem::exists(destination)) {
-                boost::system::error_code restore_error;
-                boost::filesystem::rename(backup, destination, restore_error);
-                if (restore_error)
-                    detail += "; restoring the previous cache also failed: " + restore_error.message();
-            }
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(staging, cleanup_error);
-            return make_updater_error(UpdaterError::Code::Filesystem, std::move(detail));
-        }
-
-        if (previous_moved) {
-            boost::system::error_code cleanup_error;
-            boost::filesystem::remove(backup, cleanup_error);
-            if (cleanup_error)
-                BOOST_LOG_TRIVIAL(warning) << "Cannot remove previous repository cache '"
-                                           << backup.string() << "': " << cleanup_error.message();
-        }
+        const FilesystemTransactionResult result = transaction.commit();
+        for (const FilesystemTransactionFailure &warning : result.cleanup_warnings)
+            BOOST_LOG_TRIVIAL(warning) << "Repository cache transaction cleanup warning: "
+                                       << format_filesystem_transaction_failure(warning);
+        if (result.status != FilesystemTransactionStatus::Committed)
+            return make_updater_error(UpdaterError::Code::Filesystem,
+                                      format_filesystem_transaction_error(result));
         return UpdaterError();
     } catch (const std::exception &error) {
-        boost::system::error_code cleanup_error;
-        boost::filesystem::remove(staging, cleanup_error);
-        if (previous_moved && !boost::filesystem::exists(destination)) {
-            boost::system::error_code restore_error;
-            boost::filesystem::rename(backup, destination, restore_error);
-            if (restore_error)
-                return make_updater_error(UpdaterError::Code::Filesystem,
-                    std::string(error.what()) + "; restoring the previous cache also failed: " +
-                    restore_error.message());
-        }
         return make_updater_error(UpdaterError::Code::Filesystem, error.what());
     }
 }

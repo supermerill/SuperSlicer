@@ -66,6 +66,17 @@ struct FilesystemTransactionResult {
     std::vector<FilesystemTransactionFailure> cleanup_warnings;
 };
 
+// Format one filesystem boundary failure without adding application-specific
+// context. Empty source or destination paths are omitted from the message.
+std::string format_filesystem_transaction_failure(
+    const FilesystemTransactionFailure &failure);
+
+// Format the primary commit failure followed by every rollback failure.
+// Cleanup warnings are deliberately excluded because they never make a stable
+// visible state invalid and must be logged separately by the caller.
+std::string format_filesystem_transaction_error(
+    const FilesystemTransactionResult &result);
+
 class FilesystemTransaction {
 public:
     FilesystemTransaction();
