@@ -5,6 +5,7 @@
 #include <libslic3r/Polyline.hpp>
 #include <libslic3r/EdgeGrid.hpp>
 #include <libslic3r/Geometry.hpp>
+#include <libslic3r/Geometry/Voronoi.hpp>
 #include "libslic3r/Geometry/VoronoiUtilsCgal.hpp"
 
 #include <libslic3r/Geometry/VoronoiOffset.hpp>
@@ -23,7 +24,7 @@ using boost::polygon::voronoi_diagram;
 
 using namespace Slic3r;
 
-using VD = Slic3r::VoronoiDiagram;
+using VD = Slic3r::Geometry::VoronoiDiagram;
 
 // https://svn.boost.org/trac10/ticket/12067
 // This bug seems to be confirmed.
@@ -43,8 +44,8 @@ TEST_CASE("Voronoi missing edges - points 12067", "[Voronoi]")
 #if 0
     for (Point &p : pts) {
         Vec2d q = p.cast<double>();
-        p.x() = scale_(p.x());
-        p.y() = scale_(p.y());
+        p.x() = scale_d(p.x());
+        p.y() = scale_d(p.y());
     }
 #endif
 
@@ -327,8 +328,8 @@ TEST_CASE("Voronoi division by zero 12903", "[Voronoi]")
 #ifdef VORONOI_DEBUG_OUT
     // Scale the voronoi vertices and input points, so that the dump_voronoi_to_svg will display them correctly.
     for (auto &pt : vd.vertices()) {
-        const_cast<double&>(pt.x()) = scale_(pt.x());
-        const_cast<double&>(pt.y()) = scale_(pt.y());
+        const_cast<double&>(pt.x()) = scale_d(pt.x());
+        const_cast<double&>(pt.y()) = scale_d(pt.y());
     }
     for (auto &pt : pts)
         pt = Point::new_scale(pt.x(), pt.y());
@@ -1363,19 +1364,19 @@ TEST_CASE("Voronoi offset", "[VoronoiOffset]")
   vd.construct_voronoi(lines.begin(), lines.end());
 
   for (const OffsetTest &ot : {
-            OffsetTest { scale_(0.2), 1, 1 },
-            OffsetTest { scale_(0.4), 1, 1 },
-            OffsetTest { scale_(0.5), 1, 2 },
-            OffsetTest { scale_(0.505), 1, 2 },
-            OffsetTest { scale_(0.51), 1, 2 },
-            OffsetTest { scale_(0.52), 1, 1 },
-            OffsetTest { scale_(0.53), 1, 1 },
-            OffsetTest { scale_(0.54), 1, 1 },
-            OffsetTest { scale_(0.55), 1, 0 }
+            OffsetTest { scale_d(0.2), 1, 1 },
+            OffsetTest { scale_d(0.4), 1, 1 },
+            OffsetTest { scale_d(0.5), 1, 2 },
+            OffsetTest { scale_d(0.505), 1, 2 },
+            OffsetTest { scale_d(0.51), 1, 2 },
+            OffsetTest { scale_d(0.52), 1, 1 },
+            OffsetTest { scale_d(0.53), 1, 1 },
+            OffsetTest { scale_d(0.54), 1, 1 },
+            OffsetTest { scale_d(0.55), 1, 0 }
       }) {
 
 #if 0
-      Polygons offsetted_polygons_out = Slic3r::Voronoi::offset(vd, lines, ot.distance, scale_(0.005));
+      Polygons offsetted_polygons_out = Slic3r::Voronoi::offset(vd, lines, ot.distance, scale_d(0.005));
 #ifdef VORONOI_DEBUG_OUT
       dump_voronoi_to_svg(debug_out_path("voronoi-offset-out-%lf.svg", ot.distance).c_str(),
           vd, Points(), lines, offsetted_polygons_out);
@@ -1383,7 +1384,7 @@ TEST_CASE("Voronoi offset", "[VoronoiOffset]")
       REQUIRE(offsetted_polygons_out.size() == ot.num_outer);
 #endif
 
-      Polygons offsetted_polygons_in = Slic3r::Voronoi::offset(vd, lines, - ot.distance, scale_(0.005));
+      Polygons offsetted_polygons_in = Slic3r::Voronoi::offset(vd, lines, - ot.distance, scale_d(0.005));
 #ifdef VORONOI_DEBUG_OUT
       dump_voronoi_to_svg(debug_out_path("voronoi-offset-in-%lf.svg", ot.distance).c_str(),
           vd, Points(), lines, offsetted_polygons_in);
@@ -1394,7 +1395,7 @@ TEST_CASE("Voronoi offset", "[VoronoiOffset]")
 
 TEST_CASE("Voronoi offset 2", "[VoronoiOffset]")
 {
-    coord_t mm = coord_t(scale_(1.));
+    coord_t mm = coord_t(scale_d(1.));
     Polygons poly = {
         Polygon {
             { 0, 0 },
@@ -1429,24 +1430,24 @@ TEST_CASE("Voronoi offset 2", "[VoronoiOffset]")
   vd.construct_voronoi(lines.begin(), lines.end());
 
   for (const OffsetTest &ot : {
-            OffsetTest { scale_(0.2), 2, 2 },
-            OffsetTest { scale_(0.4), 2, 2 },
-            OffsetTest { scale_(0.45), 2, 2 },
-            OffsetTest { scale_(0.48), 2, 2 },
-            OffsetTest { scale_(0.5), 2, 4 },
-            OffsetTest { scale_(0.505), 2, 4 },
-            OffsetTest { scale_(0.7), 2, 0 },
-            OffsetTest { scale_(0.8), 1, 0 }
+            OffsetTest { scale_d(0.2), 2, 2 },
+            OffsetTest { scale_d(0.4), 2, 2 },
+            OffsetTest { scale_d(0.45), 2, 2 },
+            OffsetTest { scale_d(0.48), 2, 2 },
+            OffsetTest { scale_d(0.5), 2, 4 },
+            OffsetTest { scale_d(0.505), 2, 4 },
+            OffsetTest { scale_d(0.7), 2, 0 },
+            OffsetTest { scale_d(0.8), 1, 0 }
       }) {
 
-      Polygons offsetted_polygons_out = Slic3r::Voronoi::offset(vd, lines, ot.distance, scale_(0.005));
+      Polygons offsetted_polygons_out = Slic3r::Voronoi::offset(vd, lines, ot.distance, scale_d(0.005));
 #ifdef VORONOI_DEBUG_OUT
       dump_voronoi_to_svg(debug_out_path("voronoi-offset2-out-%lf.svg", ot.distance).c_str(),
           vd, Points(), lines, offsetted_polygons_out);
 #endif
       REQUIRE(offsetted_polygons_out.size() == ot.num_outer);
 
-      Polygons offsetted_polygons_in = Slic3r::Voronoi::offset(vd, lines, - ot.distance, scale_(0.005));
+      Polygons offsetted_polygons_in = Slic3r::Voronoi::offset(vd, lines, - ot.distance, scale_d(0.005));
 #ifdef VORONOI_DEBUG_OUT
       dump_voronoi_to_svg(debug_out_path("voronoi-offset2-in-%lf.svg", ot.distance).c_str(),
           vd, Points(), lines, offsetted_polygons_in);
@@ -1457,7 +1458,7 @@ TEST_CASE("Voronoi offset 2", "[VoronoiOffset]")
 
 TEST_CASE("Voronoi offset 3", "[VoronoiOffset]")
 {
-    coord_t mm = coord_t(scale_(1.));
+    coord_t mm = coord_t(scale_d(1.));
     Polygons poly = {
         Polygon {
             { 0, 0 },
@@ -1499,29 +1500,29 @@ TEST_CASE("Voronoi offset 3", "[VoronoiOffset]")
   vd.construct_voronoi(lines.begin(), lines.end());
 
   for (const OffsetTest &ot : {
-            OffsetTest { scale_(0.2), 2, 2 },
-            OffsetTest { scale_(0.4), 2, 2 },
-            OffsetTest { scale_(0.49), 2, 2 },
-            OffsetTest { scale_(0.5), 2, 2 },
-            OffsetTest { scale_(0.51), 2, 2 },
-            OffsetTest { scale_(0.56), 2, 2 },
-            OffsetTest { scale_(0.6), 2, 2 },
-            OffsetTest { scale_(0.7), 2, 2 },
-            OffsetTest { scale_(0.8), 1, 6 },
-            OffsetTest { scale_(0.9), 1, 6 },
-            OffsetTest { scale_(0.99), 1, 6 },
-            OffsetTest { scale_(1.0), 1, 0 },
-            OffsetTest { scale_(1.01), 1, 0 },
+            OffsetTest { scale_d(0.2), 2, 2 },
+            OffsetTest { scale_d(0.4), 2, 2 },
+            OffsetTest { scale_d(0.49), 2, 2 },
+            OffsetTest { scale_d(0.5), 2, 2 },
+            OffsetTest { scale_d(0.51), 2, 2 },
+            OffsetTest { scale_d(0.56), 2, 2 },
+            OffsetTest { scale_d(0.6), 2, 2 },
+            OffsetTest { scale_d(0.7), 2, 2 },
+            OffsetTest { scale_d(0.8), 1, 6 },
+            OffsetTest { scale_d(0.9), 1, 6 },
+            OffsetTest { scale_d(0.99), 1, 6 },
+            OffsetTest { scale_d(1.0), 1, 0 },
+            OffsetTest { scale_d(1.01), 1, 0 },
       }) {
 
-      Polygons offsetted_polygons_out = Slic3r::Voronoi::offset(vd, lines, ot.distance, scale_(0.005));
+      Polygons offsetted_polygons_out = Slic3r::Voronoi::offset(vd, lines, ot.distance, scale_d(0.005));
 #ifdef VORONOI_DEBUG_OUT
       dump_voronoi_to_svg(debug_out_path("voronoi-offset3-out-%lf.svg", ot.distance).c_str(),
           vd, Points(), lines, offsetted_polygons_out);
 #endif
       REQUIRE(offsetted_polygons_out.size() == ot.num_outer);
 
-      Polygons offsetted_polygons_in = Slic3r::Voronoi::offset(vd, lines, - ot.distance, scale_(0.005));
+      Polygons offsetted_polygons_in = Slic3r::Voronoi::offset(vd, lines, - ot.distance, scale_d(0.005));
 #ifdef VORONOI_DEBUG_OUT
       dump_voronoi_to_svg(debug_out_path("voronoi-offset3-in-%lf.svg", ot.distance).c_str(),
           vd, Points(), lines, offsetted_polygons_in);
@@ -1750,28 +1751,28 @@ TEST_CASE("Voronoi offset with edge collapse", "[VoronoiOffset4]")
   vd.construct_voronoi(lines.begin(), lines.end());
 
   for (const OffsetTest &ot : {
-            OffsetTest { scale_(0.2), 2, 2 },
-            OffsetTest { scale_(0.4), 2, 2 },
-            OffsetTest { scale_(0.49), 2, 3 },
-            OffsetTest { scale_(0.51), 2, 2 },
-            OffsetTest { scale_(0.56), 2, 2 },
-            OffsetTest { scale_(0.6), 2, 2 },
-            OffsetTest { scale_(0.7), 2, 2 },
-            OffsetTest { scale_(0.8), 2, 2 },
-            OffsetTest { scale_(0.9), 2, 2 },
-            OffsetTest { scale_(0.99), 1, 2 },
-            OffsetTest { scale_(1.0), 1, 2 },
-            OffsetTest { scale_(1.01), 1, 2 },
+            OffsetTest { scale_d(0.2), 2, 2 },
+            OffsetTest { scale_d(0.4), 2, 2 },
+            OffsetTest { scale_d(0.49), 2, 3 },
+            OffsetTest { scale_d(0.51), 2, 2 },
+            OffsetTest { scale_d(0.56), 2, 2 },
+            OffsetTest { scale_d(0.6), 2, 2 },
+            OffsetTest { scale_d(0.7), 2, 2 },
+            OffsetTest { scale_d(0.8), 2, 2 },
+            OffsetTest { scale_d(0.9), 2, 2 },
+            OffsetTest { scale_d(0.99), 1, 2 },
+            OffsetTest { scale_d(1.0), 1, 2 },
+            OffsetTest { scale_d(1.01), 1, 2 },
       }) {
 
-      Polygons offsetted_polygons_out = Slic3r::Voronoi::offset(vd, lines, ot.distance, scale_(0.005));
+      Polygons offsetted_polygons_out = Slic3r::Voronoi::offset(vd, lines, ot.distance, scale_d(0.005));
 #ifdef VORONOI_DEBUG_OUT
       dump_voronoi_to_svg(debug_out_path("voronoi-offset3-out-%lf.svg", ot.distance).c_str(),
           vd, Points(), lines, offsetted_polygons_out);
 #endif
       REQUIRE(offsetted_polygons_out.size() == ot.num_outer);
 
-      Polygons offsetted_polygons_in = Slic3r::Voronoi::offset(vd, lines, - ot.distance, scale_(0.005));
+      Polygons offsetted_polygons_in = Slic3r::Voronoi::offset(vd, lines, - ot.distance, scale_d(0.005));
 #ifdef VORONOI_DEBUG_OUT
       dump_voronoi_to_svg(debug_out_path("voronoi-offset3-in-%lf.svg", ot.distance).c_str(),
           vd, Points(), lines, offsetted_polygons_in);
@@ -1781,7 +1782,7 @@ TEST_CASE("Voronoi offset with edge collapse", "[VoronoiOffset4]")
 }
 
 // A sample extracted from file medallion_printable_fixed-teeth.stl from https://www.thingiverse.com/thing:1347129
-// This test for offset scale_(2.9) and bigger
+// This test for offset scale_d(2.9) and bigger
 // triggers assert(r < std::max(d0, d1) + EPSILON) in function first_circle_segment_intersection_parameter.
 TEST_CASE("Voronoi offset 5", "[VoronoiOffset5]")
 {
@@ -1861,19 +1862,19 @@ TEST_CASE("Voronoi offset 5", "[VoronoiOffset5]")
     vd.construct_voronoi(lines.begin(), lines.end());
 
     for (const OffsetTest &ot : {
-            OffsetTest { scale_(2.8), 1, 1 },
-            OffsetTest { scale_(2.9), 1, 1 },
-            OffsetTest { scale_(3.0), 1, 1 },
+            OffsetTest { scale_d(2.8), 1, 1 },
+            OffsetTest { scale_d(2.9), 1, 1 },
+            OffsetTest { scale_d(3.0), 1, 1 },
     }) {
 
-        Polygons offsetted_polygons_out = Slic3r::Voronoi::offset(vd, lines, ot.distance, scale_(0.005));
+        Polygons offsetted_polygons_out = Slic3r::Voronoi::offset(vd, lines, ot.distance, scale_d(0.005));
 #ifdef VORONOI_DEBUG_OUT
         dump_voronoi_to_svg(debug_out_path("voronoi-offset5-out-%lf.svg", ot.distance).c_str(),
             vd, Points(), lines, offsetted_polygons_out);
 #endif
         REQUIRE(offsetted_polygons_out.size() == ot.num_outer);
 
-        Polygons offsetted_polygons_in = Slic3r::Voronoi::offset(vd, lines, - ot.distance, scale_(0.005));
+        Polygons offsetted_polygons_in = Slic3r::Voronoi::offset(vd, lines, - ot.distance, scale_d(0.005));
 #ifdef VORONOI_DEBUG_OUT
         dump_voronoi_to_svg(debug_out_path("voronoi-offset5-in-%lf.svg", ot.distance).c_str(),
             vd, Points(), lines, offsetted_polygons_in);
@@ -1884,7 +1885,7 @@ TEST_CASE("Voronoi offset 5", "[VoronoiOffset5]")
 
 TEST_CASE("Voronoi skeleton", "[VoronoiSkeleton]")
 {
-    coord_t mm = coord_t(scale_(1.));
+    coord_t mm = coord_t(scale_d(1.));
     Polygons poly = {
         Polygon {
             { 0, 0 },

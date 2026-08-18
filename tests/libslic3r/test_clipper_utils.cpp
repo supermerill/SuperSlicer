@@ -21,23 +21,23 @@ SCENARIO("test clipper limits", "[ClipperUtils]") {
         WHEN("offset") {
             Slic3r::Polygon   square{ Point::new_scale(200, 100), Point::new_scale(200, 200), Point::new_scale(100, 200), Point::new_scale(100, 100) };
             THEN("offset 100") {
-                REQUIRE(offset(square, scale_(100)).size() == 1);
+                REQUIRE(offset(square, scale_d(100)).size() == 1);
             }
             THEN("offset 1000") {
-                REQUIRE(offset(square, scale_(1000)).size() == 1);
+                REQUIRE(offset(square, scale_d(1000)).size() == 1);
             }
             THEN("offset 10000") {
-                REQUIRE(offset(square, scale_(10000)).size() == 1);
+                REQUIRE(offset(square, scale_d(10000)).size() == 1);
             }
             // every segment shorter than 0.5% of the offset will be cut.
             // that means 500 for an offset of 100000
             // so from now, offsetting it will destroy evrything
             // (since 2017)
             THEN("offset 100000") {
-                REQUIRE(offset(square, scale_(100000)).size() == 0);
+                REQUIRE(offset(square, scale_d(100000)).size() == 0);
             }
             THEN("offset 1000000") {
-                REQUIRE(offset(square, scale_(1000000)).size() == 0);
+                REQUIRE(offset(square, scale_d(1000000)).size() == 0);
             }
         }
     }

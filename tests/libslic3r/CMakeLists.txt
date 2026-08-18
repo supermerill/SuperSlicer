@@ -2,6 +2,11 @@ get_filename_component(_TEST_NAME ${CMAKE_CURRENT_LIST_DIR} NAME)
 
 add_executable(${_TEST_NAME}_tests 
 	${_TEST_NAME}_tests.cpp
+	../../src/plugins_cpp/DenseInfill/DenseInfill.cpp
+	../../src/plugins_cpp/ExtraPerimeterOverhangWave/ExtraPerimeterOverhangWave.cpp
+	../../src/plugins_cpp/FlatAreaLayerHeight/FlatAreaLayerHeight.cpp
+	../../src/plugins_cpp/Polyholes/Polyholes.cpp
+	../plugins/plugin_test_helpers.cpp
 	test_amf.cpp
     test_line.cpp
     test_point.cpp

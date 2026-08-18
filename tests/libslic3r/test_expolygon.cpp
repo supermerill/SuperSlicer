@@ -23,14 +23,14 @@ static bool polygons_close_permuted(const Polygon &poly1, const Polygon &poly2, 
 
 SCENARIO("Basics", "[ExPolygon]") {
     GIVEN("ccw_square") {
-        Polygon ccw_square{ { 100, 100 }, { 200, 100 }, { 200, 200 }, { 100, 200 } };
-        Polygon cw_hole_in_square{ { 140, 140 }, { 140, 160 }, { 160, 160 }, { 160, 140 } };
+        Polygon ccw_square = Polygon::new_scale({ { 100, 100 }, { 200, 100 }, { 200, 200 }, { 100, 200 } });
+        Polygon cw_hole_in_square = Polygon::new_scale({ { 140, 140 }, { 140, 160 }, { 160, 160 }, { 160, 140 } });
         ExPolygon expolygon { ccw_square, cw_hole_in_square };
         THEN("expolygon is valid") {
             REQUIRE(expolygon.is_valid());
         }
         THEN("expolygon area") {
-            REQUIRE(expolygon.area() == Approx(100*100-20*20));
+            REQUIRE(unscaled(unscaled(expolygon.area())) == Approx(100*100-20*20));
         }
         WHEN("Expolygon scaled") {
             ExPolygon expolygon2 = expolygon;
@@ -45,18 +45,18 @@ SCENARIO("Basics", "[ExPolygon]") {
         }
         WHEN("Expolygon translated") {
             ExPolygon expolygon2 = expolygon;
-            expolygon2.translate(10, -5);
+            expolygon2.translate(scale_i(10), scale_i(-5));
             REQUIRE(expolygon.contour.size() == expolygon2.contour.size());
             REQUIRE(expolygon.holes.size() == 1);
             REQUIRE(expolygon2.holes.size() == 1);
             for (size_t i = 0; i < expolygon.contour.size(); ++ i)
-                REQUIRE(points_close(expolygon.contour[i] + Point(10, -5), expolygon2.contour[i]));
+                REQUIRE(points_close(expolygon.contour[i] + Point::new_scale(10, -5), expolygon2.contour[i]));
             for (size_t i = 0; i < expolygon.holes.front().size(); ++ i)
-                REQUIRE(points_close(expolygon.holes.front()[i] + Point(10, -5), expolygon2.holes.front()[i]));
+                REQUIRE(points_close(expolygon.holes.front()[i] + Point::new_scale(10, -5), expolygon2.holes.front()[i]));
         }
         WHEN("Expolygon rotated around point") {
             ExPolygon expolygon2 = expolygon;
-            expolygon2.rotate(M_PI / 2, Point(150, 150));
+            expolygon2.rotate(M_PI / 2, Point::new_scale(150, 150));
             REQUIRE(expolygon.contour.size() == expolygon2.contour.size());
             REQUIRE(expolygon.holes.size() == 1);
             REQUIRE(expolygon2.holes.size() == 1);

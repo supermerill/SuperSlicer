@@ -16,7 +16,7 @@ SCENARIO("Reading an STL file", "[stl]") {
 			Slic3r::Model model;
 			THEN("load should succeed") {
                 REQUIRE(Slic3r::load_stl(stl_path("Geräte/20mmbox-čřšřěá.stl").c_str(), &model));
-				REQUIRE(is_approx(model.objects.front()->volumes.front()->mesh().size(), Vec3d(20, 20, 20)));
+				REQUIRE(is_approx(model.objects().front().volumes.front()->mesh().size(), Vec3d(20, 20, 20)));
             }
         }
     }
@@ -25,14 +25,14 @@ SCENARIO("Reading an STL file", "[stl]") {
 			Slic3r::Model model;
 			THEN("load should succeed") {
 				REQUIRE(Slic3r::load_stl(stl_path("ASCII/20mmbox-LF.stl").c_str(), &model));
-				REQUIRE(is_approx(model.objects.front()->volumes.front()->mesh().size(), Vec3d(20, 20, 20)));
+				REQUIRE(is_approx(model.objects().front().volumes.front()->mesh().size(), Vec3d(20, 20, 20)));
 			}
 		}
 		WHEN("line endings CRLF") {
 			Slic3r::Model model;
 			THEN("load should succeed") {
 				REQUIRE(Slic3r::load_stl(stl_path("ASCII/20mmbox-CRLF.stl").c_str(), &model));
-				REQUIRE(is_approx(model.objects.front()->volumes.front()->mesh().size(), Vec3d(20, 20, 20)));
+				REQUIRE(is_approx(model.objects().front().volumes.front()->mesh().size(), Vec3d(20, 20, 20)));
 			}
 		}
 #if 0
@@ -41,7 +41,7 @@ SCENARIO("Reading an STL file", "[stl]") {
 			Slic3r::Model model;
 			THEN("load should succeed") {
 				REQUIRE(Slic3r::load_stl(stl_path("ASCII/20mmbox-CR.stl").c_str(), &model));
-				REQUIRE(is_approx(model.objects.front()->volumes.front()->mesh().size(), Vec3d(20, 20, 20)));
+				REQUIRE(is_approx(model.objects().front().volumes.front()->mesh().size(), Vec3d(20, 20, 20)));
 			}
 		}
 
@@ -50,7 +50,7 @@ SCENARIO("Reading an STL file", "[stl]") {
 			Slic3r::Model model;
 			THEN("load should succeed") {
 				REQUIRE(Slic3r::load_stl(stl_path("ASCII/20mmbox-nonstandard.stl").c_str(), &model));
-				REQUIRE(is_approx(model.objects.front()->volumes.front()->mesh().size(), Vec3d(20, 20, 20)));
+				REQUIRE(is_approx(model.objects().front().volumes.front()->mesh().size(), Vec3d(20, 20, 20)));
 			}
 		}
 	}

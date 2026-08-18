@@ -1,4 +1,6 @@
 #include <catch2/catch.hpp>
+
+#include "libslic3r/TriangleMesh.hpp"
 #include <test_utils.hpp>
 
 #include <libslic3r/TriangleMesh.hpp>
@@ -24,7 +26,7 @@ TEST_CASE("CGAL and TriangleMesh conversions", "[MeshBoolean]") {
     REQUIRE(! MeshBoolean::cgal::does_self_intersect(M));
 }
 
-Vec3d calc_normal(const Vec3i &triangle, const std::vector<Vec3f> &vertices)
+Vec3d calc_normal(const Vec3i32 &triangle, const std::vector<Vec3f> &vertices)
 {
     Vec3d v0 = vertices[triangle[0]].cast<double>();
     Vec3d v1 = vertices[triangle[1]].cast<double>();

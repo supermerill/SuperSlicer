@@ -2,6 +2,8 @@
 #include <fstream>
 #include <catch2/catch.hpp>
 
+#include "libslic3r/TriangleMesh.hpp"
+
 #include "libslic3r/SLA/Hollowing.hpp"
 
 TEST_CASE("Hollow two overlapping spheres") {

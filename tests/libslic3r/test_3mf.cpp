@@ -15,7 +15,7 @@ SCENARIO("Reading 3mf file", "[3mf]") {
         	std::string path = std::string(TEST_DATA_DIR) + "/test_3mf/Geräte/Büchse.3mf";
         	DynamicPrintConfig config;
             ConfigSubstitutionContext ctxt{ ForwardCompatibilitySubstitutionRule::Disable };
-            bool ret = load_3mf(path.c_str(), config, ctxt, &model, false);
+            bool ret = load_3mf(path.c_str(), config, ctxt, &model, false, false);
             THEN("load should succeed") {
                 REQUIRE(ret);
             }
@@ -31,7 +31,7 @@ SCENARIO("Export+Import geometry to/from 3mf file cycle", "[3mf]") {
         load_stl(src_file.c_str(), &src_model);
         src_model.add_default_instances();
 
-        ModelObject* src_object = src_model.objects.front();
+        ModelObject* src_object = &src_model.objects().front();
 
         // apply generic transformation to the 1st volume
         Geometry::Transformation src_volume_transform;
@@ -52,14 +52,14 @@ SCENARIO("Export+Import geometry to/from 3mf file cycle", "[3mf]") {
         WHEN("model is saved+loaded to/from 3mf file") {
             // save the model to 3mf file
             std::string test_file = std::string(TEST_DATA_DIR) + "/test_3mf/prusa.3mf";
-            store_3mf(test_file.c_str(), &src_model, nullptr, false);
+            store_3mf(test_file.c_str(), &src_model, nullptr, OptionStore3mf{}.set_fullpath_sources(false));
 
             // load back the model from the 3mf file
             Model dst_model;
             DynamicPrintConfig dst_config;
             {
                 ConfigSubstitutionContext ctxt{ ForwardCompatibilitySubstitutionRule::Disable };
-                load_3mf(test_file.c_str(), dst_config, ctxt, &dst_model, false);
+                load_3mf(test_file.c_str(), dst_config, ctxt, &dst_model, false, false);
             }
             boost::filesystem::remove(test_file);
 
@@ -89,7 +89,7 @@ SCENARIO("2D convex hull of sinking object", "[3mf]") {
         model.add_default_instances();
 
         WHEN("model is rotated, scaled and set as sinking") {
-            ModelObject* object = model.objects.front();
+            ModelObject* object = &model.objects().front();
             object->center_around_origin(false);
 
             // set instance's attitude so that it is rotated, scaled and sinking

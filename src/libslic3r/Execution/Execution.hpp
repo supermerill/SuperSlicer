@@ -12,6 +12,7 @@
 #include <algorithm>
 
 #include "libslic3r/libslic3r.h"
+#include "libslic3r/TypeTraits.hpp"
 
 namespace Slic3r {
 

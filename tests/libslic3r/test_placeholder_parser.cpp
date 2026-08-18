@@ -25,8 +25,10 @@ SCENARIO("Placeholder parser scripting", "[PlaceholderParser]") {
     // a percent to what.
     config.option<ConfigOptionFloatOrPercent>("first_layer_speed")->value = 50.;
     config.option<ConfigOptionFloatOrPercent>("first_layer_speed")->percent = true;
-    ConfigOptionFloatsNullable *opt_filament_retract_length = config.option<ConfigOptionFloatsNullable>("filament_retract_length", true);
-    opt_filament_retract_length->values = { 5., ConfigOptionFloatsNullable::nil_value(), 3. };
+    ConfigOptionFloats *opt_filament_retract_length = config.option<ConfigOptionFloats>("filament_retract_length", true);
+    opt_filament_retract_length->set({ 5., 0., 3. });
+    opt_filament_retract_length->set_enabled(true);
+    opt_filament_retract_length->set_enabled(false, 1);
 
 
     config.option<ConfigOptionFloatOrPercent>("first_layer_extrusion_width")->value = 150.;
@@ -193,7 +195,7 @@ SCENARIO("Placeholder parser variables", "[PlaceholderParser]") {
 
     config.set_deserialize_strict({
         { "filament_notes", "testnotes" },
-        { "enable_dynamic_fan_speeds", "1" },
+        { "retract_layer_change", "1" },
         { "nozzle_diameter", "0.6;0.6;0.6;0.6" },
         { "temperature", "357;359;363;378" }
         });
@@ -238,10 +240,10 @@ SCENARIO("Placeholder parser variables", "[PlaceholderParser]") {
 
     SECTION("create an ints local variable by a copy") { REQUIRE(parser.process("{local myint = temperature}{myint[0]}", 0, &config, nullptr, nullptr) == "357"); }
     SECTION("create a strings local variable by a copy") { REQUIRE(parser.process("{local mystr = filament_notes}{mystr[0]}", 0, &config, nullptr, nullptr) == "testnotes"); }
-    SECTION("create a bools local variable by a copy") { REQUIRE(parser.process("{local mybool = enable_dynamic_fan_speeds}{mybool[0]}", 0, &config, nullptr, nullptr) == "true"); }
+    SECTION("create a bools local variable by a copy") { REQUIRE(parser.process("{local mybool = retract_layer_change}{mybool[0]}", 0, &config, nullptr, nullptr) == "true"); }
     SECTION("create an ints global variable by a copy") { REQUIRE(parser.process("{global myint = temperature}{myint[0]}", 0, &config, nullptr, &context_with_global_dict) == "357"); }
     SECTION("create a strings global variable by a copy") { REQUIRE(parser.process("{global mystr = filament_notes}{mystr[0]}", 0, &config, nullptr, &context_with_global_dict) == "testnotes"); }
-    SECTION("create a bools global variable by a copy") { REQUIRE(parser.process("{global mybool = enable_dynamic_fan_speeds}{mybool[0]}", 0, &config, nullptr, &context_with_global_dict) == "true"); }
+    SECTION("create a bools global variable by a copy") { REQUIRE(parser.process("{global mybool = retract_layer_change}{mybool[0]}", 0, &config, nullptr, &context_with_global_dict) == "true"); }
 
     SECTION("create an ints local variable by a copy and overwrite it") {
         REQUIRE(parser.process("{local myint = temperature}{myint = repeat(2*3, 4*6)}{myint[5]}", 0, &config, nullptr, nullptr) == "24");
@@ -254,9 +256,9 @@ SCENARIO("Placeholder parser variables", "[PlaceholderParser]") {
         REQUIRE(parser.process("{local mystr = filament_notes}{mystr = (2*3, \"mine\" + \"only\" + \"mine\")}{mystr = filament_notes}{mystr[0]}", 0, &config, nullptr, nullptr) == "testnotes");
     }
     SECTION("create a bools local variable by a copy and overwrite it") {
-        REQUIRE(parser.process("{local mybool = enable_dynamic_fan_speeds}{mybool = repeat(2*3, true)}{mybool[5]}", 0, &config, nullptr, nullptr) == "true");
-        REQUIRE(parser.process("{local mybool = enable_dynamic_fan_speeds}{mybool = (false, true)}{mybool[1]}", 0, &config, nullptr, nullptr) == "true");
-        REQUIRE(parser.process("{local mybool = enable_dynamic_fan_speeds}{mybool = (false, false)}{mybool = enable_dynamic_fan_speeds}{mybool[0]}", 0, &config, nullptr, nullptr) == "true");
+        REQUIRE(parser.process("{local mybool = retract_layer_change}{mybool = repeat(2*3, true)}{mybool[5]}", 0, &config, nullptr, nullptr) == "true");
+        REQUIRE(parser.process("{local mybool = retract_layer_change}{mybool = (false, true)}{mybool[1]}", 0, &config, nullptr, nullptr) == "true");
+        REQUIRE(parser.process("{local mybool = retract_layer_change}{mybool = (false, false)}{mybool = retract_layer_change}{mybool[0]}", 0, &config, nullptr, nullptr) == "true");
     }
 
     SECTION("size() of a non-empty vector returns the right size") { REQUIRE(parser.process("{local myint = (0, 1, 2, 3)}{size(myint)}", 0, nullptr, nullptr, nullptr) == "4"); }

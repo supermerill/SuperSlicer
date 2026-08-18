@@ -111,8 +111,8 @@ TEST_CASE("arc discretization", "[ArcWelder]") {
         const Point p1         = Point::new_scale(2., 1.);
         const Point p2         = Point::new_scale(1., 2.);
         const Point center     = Point::new_scale(1., 1.);
-        const float radius     = scaled<float>(1.);
-        const float resolution = scaled<float>(0.002);
+        const float radius     = scale_d(1.);
+        const float resolution = scale_d(0.002);
         auto test = [center, resolution, radius](const Point &p1, const Point &p2, const float r, const bool ccw) {
             Vec2f  c = ArcWelder::arc_center(p1.cast<float>(), p2.cast<float>(), r, ccw);
             REQUIRE((p1.cast<float>() - c).norm() == Approx(radius));
@@ -168,8 +168,8 @@ TEST_CASE("arc fitting", "[ArcWelder]") {
         const Point p1         = Point::new_scale(2., 1.);
         const Point p2         = Point::new_scale(1., 2.);
         const Point center     = Point::new_scale(1., 1.);
-        const float radius     = scaled<float>(1.);
-        const float resolution = scaled<float>(0.002);
+        const float radius     = scale_d(1.);
+        const float resolution = scale_d(0.002);
         auto test = [center, resolution](const Point &p1, const Point &p2, const float r, const bool ccw) {
             Points pts = ArcWelder::arc_discretize(p1, p2, r, ccw, resolution);
             ArcWelder::Path path = ArcWelder::fit_path(pts, resolution + SCALED_EPSILON, ArcWelder::default_scaled_resolution);
@@ -200,8 +200,8 @@ TEST_CASE("arc fitting", "[ArcWelder]") {
         const Point p3 = Point::new_scale(0., 3.);
         const Point center1 = Point::new_scale(1., 1.);
         const Point center2 = Point::new_scale(1., 3.);
-        const float radius = scaled<float>(1.);
-        const float resolution = scaled<float>(0.002);
+        const float radius = scale_d(1.);
+        const float resolution = scale_d(0.002);
         auto test = [center1, center2, resolution](const Point &p1, const Point &p2, const Point &p3, const float r, const bool ccw) {
             Points pts = ArcWelder::arc_discretize(p1, p2, r, ccw, resolution);
             size_t num_pts1 = pts.size();
@@ -240,11 +240,11 @@ TEST_CASE("least squares arc fitting, interpolating end points", "[ArcWelder]") 
     using namespace Slic3r::Geometry;
 
     // Generate bunch of random arches.
-    const coord_t                 max_coordinate = scaled<coord_t>(sqrt(250. - 1.));
-    static constexpr const double min_radius     = scaled<double>(0.01);
-    static constexpr const double max_radius     = scaled<double>(250.);
-//  static constexpr const double deviation      = scaled<double>(0.5);
-    static constexpr const double deviation      = scaled<double>(0.1);
+    const coord_t                 max_coordinate = scale_i(sqrt(250. - 1.));
+    static constexpr const double min_radius     = scale_d(0.01);
+    static constexpr const double max_radius     = scale_d(250.);
+//  static constexpr const double deviation      = scale_d(0.5);
+    static constexpr const double deviation      = scale_d(0.1);
     // Seeded with a fixed seed, to be repeatable.
     std::mt19937                            rng(867092346);
     std::uniform_int_distribution<int32_t>  coord_sampler(0, int32_t(max_coordinate));
@@ -294,7 +294,7 @@ TEST_CASE("least squares arc fitting, interpolating end points", "[ArcWelder]") 
                 double dist = (center_pos - new_center).norm();
                 printf("Radius: %lf, Angle: %lf deg, Samples: %d, Dist: %lf\n", unscaled<double>(radius), 180. * angle / M_PI, int(num_samples), unscaled<double>(dist));
     //            REQUIRE(is_approx(center_pos, new_center, deviation));
-                if (dist > scaled<double>(1.)) {
+                if (dist > scale_d(1.)) {
                     static int irun = 0;
                     char path[2048];
                     sprintf(path, "d:\\temp\\debug\\circle-fit-%d.svg", irun++);
@@ -319,7 +319,7 @@ TEST_CASE("least squares arc fitting, interpolating end points", "[ArcWelder]") 
                         svg.draw(Point(sample.cast<coord_t>()), "red");
                     svg.draw(Point(new_center.cast<coord_t>()), "magenta");
                 }
-                if (!is_approx(center_pos, new_center, scaled<double>(5.))) {
+                if (!is_approx(center_pos, new_center, scale_d(5.))) {
                     printf("Failed\n");
                 }
 #endif
@@ -407,8 +407,8 @@ TEST_CASE("arc quantization", "[ArcWelder]") {
 
     WHEN("generating a bunch of random arches") {
         static constexpr const size_t  len            = 100000;
-        static constexpr const coord_t max_coordinate = scaled<coord_t>(250.);
-        static constexpr const float   max_radius     = scaled<float>(250.);
+        static constexpr const coord_t max_coordinate = scale_i(250.);
+        static constexpr const float   max_radius     = scale_d(250.);
         ArcWelder::Segments path;
         path.reserve(len + 1);
         // Seeded with a fixed seed, to be repeatable.

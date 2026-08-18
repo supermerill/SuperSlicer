@@ -1,5 +1,7 @@
 #include <catch2/catch.hpp>
 
+#include <iostream>
+
 #include "libslic3r/KDTreeIndirect.hpp"
 #include "libslic3r/Execution/ExecutionSeq.hpp"
 #include "libslic3r/BoundingBox.hpp"

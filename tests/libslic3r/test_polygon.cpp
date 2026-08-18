@@ -71,12 +71,13 @@ SCENARIO("Converted Perl tests", "[Polygon]") {
         }
     }
     GIVEN("Triangulating hexagon") {
-        Polygon hexagon{ { 100, 0 } };
+        Points hexagon_points{ { 100, 0 } };
         for (size_t i = 1; i < 6; ++ i) {
-            Point p = hexagon.points.front();
+            Point p = hexagon_points.front();
             p.rotate(PI / 3 * i);
-            hexagon.points.emplace_back(p);
+            hexagon_points.emplace_back(p);
         }
+        Polygon hexagon(std::move(hexagon_points));
         Polygons triangles;
         hexagon.triangulate_convex(&triangles);
         THEN("right number of triangles") {
@@ -203,8 +204,8 @@ SCENARIO("Simplify polygon", "[Polygon]")
 TEST_CASE("Indexing expolygons", "[ExPolygon]")
 {
     ExPolygons expolys{
-        ExPolygon{Polygon{{0, 0}, {10, 0}, {0, 5}}, Polygon{{4, 3}, {6, 3}, {5, 2}}},
-        ExPolygon{Polygon{{100, 0}, {110, 0}, {100, 5}}, Polygon{{104, 3}, {106, 3}, {105, 2}}}    
+        ExPolygon{Polygon::new_scale({{0, 0}, {10, 0}, {0, 5}}), Polygon::new_scale({{4, 3}, {6, 3}, {5, 2}})},
+        ExPolygon{Polygon::new_scale({{100, 0}, {110, 0}, {100, 5}}), Polygon::new_scale({{104, 3}, {106, 3}, {105, 2}})}
     };
     Points points = to_points(expolys);
     Lines lines = to_lines(expolys);
@@ -221,10 +222,10 @@ TEST_CASE("Indexing expolygons", "[ExPolygon]")
         const Point &p          = pts[id.point_index];
         CHECK(points[i] == p);
         CHECK(lines[i].a == p);
-        CHECK(linesf[i].a.cast<int>() == p);
+        CHECK(linesf[i].a.cast<coord_t>() == p);
         CHECK(ids.cvt(id) == i);
         const Point &p_b = ids.is_last_point(id) ? pts.front() : pts[id.point_index + 1];
         CHECK(lines[i].b == p_b);
-        CHECK(linesf[i].b.cast<int>() == p_b);
+        CHECK(linesf[i].b.cast<coord_t>() == p_b);
     }
 }

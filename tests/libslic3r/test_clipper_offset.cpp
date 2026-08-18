@@ -27,7 +27,7 @@ SCENARIO("Constant offset", "[ClipperUtils]") {
 					{
 						SVG svg(debug_out_path("constant_offset_box20mm_plus1mm_miter%lf.svg", miter).c_str(), get_extents(output));
 						svg.draw(box20mm, "blue");
-						svg.draw_outline(output, "black", coord_t(scale_(0.01)));
+						svg.draw_outline(output, "black", coord_t(scale_d(0.01)));
 					}
 #endif
 					THEN("Area is 22^2mm2") {
@@ -41,7 +41,7 @@ SCENARIO("Constant offset", "[ClipperUtils]") {
 					{
 						SVG svg(debug_out_path("constant_offset_box20mm_minus1mm_miter%lf.svg", miter).c_str(), get_extents(output));
 						svg.draw(box20mm, "blue");
-						svg.draw_outline(output, "black", coord_t(scale_(0.01)));
+						svg.draw_outline(output, "black", coord_t(scale_d(0.01)));
 					}
 #endif
 					THEN("Area is 18^2mm2") {
@@ -59,7 +59,7 @@ SCENARIO("Constant offset", "[ClipperUtils]") {
 					{
 						SVG svg(debug_out_path("variable_offset_box20mm_plus1mm_miter%lf.svg", miter).c_str(), get_extents(output));
 						svg.draw(box20mm, "blue");
-						svg.draw_outline(output, "black", coord_t(scale_(0.01)));
+						svg.draw_outline(output, "black", coord_t(scale_d(0.01)));
 					}
 #endif
 					THEN("Area is 22^2mm2") {
@@ -73,7 +73,7 @@ SCENARIO("Constant offset", "[ClipperUtils]") {
 					{
 						SVG svg(debug_out_path("variable_offset_box20mm_minus1mm_miter%lf.svg", miter).c_str(), get_extents(output));
 						svg.draw(box20mm, "blue");
-						svg.draw_outline(output, "black", coord_t(scale_(0.01)));
+						svg.draw_outline(output, "black", coord_t(scale_d(0.01)));
 					}
 #endif
 					THEN("Area is 18^2mm2") {
@@ -101,7 +101,7 @@ SCENARIO("Constant offset", "[ClipperUtils]") {
 						{
 							SVG svg(debug_out_path("constant_offset_box20mm_10mm_hole_plus1mm_miter%lf.svg", miter).c_str(), get_extents(output));
 							svg.draw(box20mm, "blue");
-							svg.draw_outline(to_polygons(output), "black", coord_t(scale_(0.01)));
+							svg.draw_outline(to_polygons(output), "black", coord_t(scale_d(0.01)));
 						}
 #endif
 						THEN("Area is 22^2-8^2 mm2") {
@@ -115,7 +115,7 @@ SCENARIO("Constant offset", "[ClipperUtils]") {
 						{
 							SVG svg(debug_out_path("constant_offset_box20mm_10mm_hole_minus1mm_miter%lf.svg", miter).c_str(), get_extents(output));
 							svg.draw(box20mm, "blue");
-							svg.draw_outline(to_polygons(output), "black", coord_t(scale_(0.01)));
+							svg.draw_outline(to_polygons(output), "black", coord_t(scale_d(0.01)));
 						}
 #endif
 						THEN("Area is 18^2-12^2 mm2") {
@@ -135,7 +135,7 @@ SCENARIO("Constant offset", "[ClipperUtils]") {
 						{
 							SVG svg(debug_out_path("variable_offset_box20mm_10mm_hole_plus1mm_miter%lf.svg", miter).c_str(), get_extents(output));
 							svg.draw(box20mm, "blue");
-							svg.draw_outline(to_polygons(output), "black", coord_t(scale_(0.01)));
+							svg.draw_outline(to_polygons(output), "black", coord_t(scale_d(0.01)));
 						}
 #endif
 						THEN("Area is 22^2-8^2 mm2") {
@@ -149,7 +149,7 @@ SCENARIO("Constant offset", "[ClipperUtils]") {
 						{
 							SVG svg(debug_out_path("variable_offset_box20mm_10mm_hole_minus1mm_miter%lf.svg", miter).c_str(), get_extents(output));
 							svg.draw(box20mm, "blue");
-							svg.draw_outline(to_polygons(output), "black", coord_t(scale_(0.01)));
+							svg.draw_outline(to_polygons(output), "black", coord_t(scale_d(0.01)));
 						}
 #endif
 						THEN("Area is 18^2-12^2 mm2") {
@@ -181,7 +181,7 @@ SCENARIO("Constant offset", "[ClipperUtils]") {
 					{
 						SVG svg(debug_out_path("constant_offset_triangle20mm_plus1mm_miter%lf.svg", miter).c_str(), get_extents(output));
 						svg.draw(triangle20mm, "blue");
-						svg.draw_outline(output, "black", coord_t(scale_(0.01)));
+						svg.draw_outline(output, "black", coord_t(scale_d(0.01)));
 					}
 #endif
 					THEN("Area matches") {
@@ -200,7 +200,7 @@ SCENARIO("Constant offset", "[ClipperUtils]") {
 					{
 						SVG svg(debug_out_path("variable_offset_triangle20mm_plus1mm_miter%lf.svg", miter).c_str(), get_extents(output));
 						svg.draw(triangle20mm, "blue");
-						svg.draw_outline(output, "black", coord_t(scale_(0.01)));
+						svg.draw_outline(output, "black", coord_t(scale_d(0.01)));
 					}
 #endif
 					THEN("Area matches") {

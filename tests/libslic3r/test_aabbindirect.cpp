@@ -189,7 +189,7 @@ TEST_CASE("AABBTreeLines vs SignedDistanceGrid time Benchmark", "[AABBIndirect]"
         high_resolution_clock::time_point t1 = high_resolution_clock::now();
         for (int i = 0; i < build_num/100; ++i) {
             EdgeGrid::Grid grid { };
-            grid.create(lines, scaled(1.0), true);
+            grid.create(lines, scale_i(1.0), true);
             grid.calculate_sdf();
         }
         high_resolution_clock::time_point t2 = high_resolution_clock::now();
@@ -201,7 +201,7 @@ TEST_CASE("AABBTreeLines vs SignedDistanceGrid time Benchmark", "[AABBIndirect]"
         high_resolution_clock::time_point t1 = high_resolution_clock::now();
         for (int i = 0; i < build_num; ++i) {
             EdgeGrid::Grid grid { };
-            grid.create(lines, scaled(10.0), true);
+            grid.create(lines, scale_i(10.0), true);
             grid.calculate_sdf();
         }
         high_resolution_clock::time_point t2 = high_resolution_clock::now();
@@ -210,13 +210,13 @@ TEST_CASE("AABBTreeLines vs SignedDistanceGrid time Benchmark", "[AABBIndirect]"
     }
 
     EdgeGrid::Grid grid10 { };
-    grid10.create(lines, scaled(10.0), true);
-    coord_t query10_res = scaled(10.0);
+    grid10.create(lines, scale_i(10.0), true);
+    coord_t query10_res = scale_i(10.0);
     grid10.calculate_sdf();
 
     EdgeGrid::Grid grid1 { };
-    grid1.create(lines, scaled(1.0), true);
-    coord_t query1_res = scaled(1.0);
+    grid1.create(lines, scale_i(1.0), true);
+    coord_t query1_res = scale_i(1.0);
     grid1.calculate_sdf();
 
     auto tree = AABBTreeLines::build_aabb_tree_over_indexed_lines(linesf);
@@ -307,8 +307,8 @@ TEST_CASE("AABBTreeLines vs SignedDistanceGrid time Benchmark", "[AABBIndirect]"
         {
             high_resolution_clock::time_point t1 = high_resolution_clock::now();
             EdgeGrid::Grid grid1 { };
-            grid1.create(lines, scaled(1.0), true);
-            coord_t query1_res = scaled(1.0);
+            grid1.create(lines, scale_i(1.0), true);
+            coord_t query1_res = scale_i(1.0);
             grid1.calculate_sdf();
             for (const Point &qp : query_points) {
                 volatile auto dist = grid1.closest_point_signed_distance(qp, query1_res);
@@ -321,8 +321,8 @@ TEST_CASE("AABBTreeLines vs SignedDistanceGrid time Benchmark", "[AABBIndirect]"
         {
             high_resolution_clock::time_point t1 = high_resolution_clock::now();
             EdgeGrid::Grid grid10 { };
-            grid10.create(lines, scaled(10.0), true);
-            coord_t query10_res = scaled(10.0);
+            grid10.create(lines, scale_i(10.0), true);
+            coord_t query10_res = scale_i(10.0);
             grid10.calculate_sdf();
             for (const Point &qp : query_points) {
                 volatile auto dist = grid10.closest_point_signed_distance(qp, query10_res);
@@ -377,8 +377,8 @@ TEST_CASE("AABBTreeLines vs SignedDistanceGrid time Benchmark", "[AABBIndirect]"
           {
               high_resolution_clock::time_point t1 = high_resolution_clock::now();
               EdgeGrid::Grid grid1 { };
-              grid1.create(lines, scaled(1.0), true);
-              coord_t query1_res = scaled(1.0);
+              grid1.create(lines, scale_i(1.0), true);
+              coord_t query1_res = scale_i(1.0);
               grid1.calculate_sdf();
               for (const Point &qp : query_points) {
                   volatile auto dist = grid1.closest_point_signed_distance(qp, query1_res);
@@ -391,8 +391,8 @@ TEST_CASE("AABBTreeLines vs SignedDistanceGrid time Benchmark", "[AABBIndirect]"
           {
               high_resolution_clock::time_point t1 = high_resolution_clock::now();
               EdgeGrid::Grid grid10 { };
-              grid10.create(lines, scaled(10.0), true);
-              coord_t query10_res = scaled(10.0);
+              grid10.create(lines, scale_i(10.0), true);
+              coord_t query10_res = scale_i(10.0);
               grid10.calculate_sdf();
               for (const Point &qp : query_points) {
                   volatile auto dist = grid10.closest_point_signed_distance(qp, query10_res);

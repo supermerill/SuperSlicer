@@ -30,7 +30,7 @@ static Slic3r::sla::RasterGrayscaleAA create_raster(
 {
     sla::PixelDim pixdim{disp_w / res.width_px, disp_h / res.height_px};
     
-    auto bb = BoundingBox({0, 0}, {scaled(disp_w), scaled(disp_h)});
+    auto bb = BoundingBox({0, 0}, {scale_i(disp_w), scale_i(disp_h)});
     sla::RasterBase::Trafo trafo;
     trafo.center_x = bb.center().x();
     trafo.center_y = bb.center().y();
@@ -41,7 +41,7 @@ static Slic3r::sla::RasterGrayscaleAA create_raster(
 static ExPolygon square(double a, Point center = {0, 0})
 {
     ExPolygon poly;
-    coord_t V = scaled(a / 2.);
+    coord_t V = scale_i(a / 2.);
     
     poly.contour.points = {{-V, -V}, {V, -V}, {V, V}, {-V, V}};
     poly.translate(center.x(), center.y());
@@ -54,7 +54,7 @@ static ExPolygon square_with_hole(double a, Point center = {0, 0})
     ExPolygon poly = square(a);
     
     poly.holes.emplace_back();
-    coord_t V = scaled(a / 4.);
+    coord_t V = scale_i(a / 4.);
     poly.holes.front().points = {{-V, V}, {V, V}, {V, -V}, {-V, -V}};
     
     poly.translate(center.x(), center.y());
@@ -68,7 +68,7 @@ static ExPolygons circle_with_hole(double r, Point center = {0, 0}) {
     
     std::vector<double> pis = linspace_vector(0., 2 * PI, 100);
     
-    coord_t rs = scaled(r);
+    coord_t rs = scale_i(r);
     for (double phi : pis) {
         poly.contour.points.emplace_back(rs * std::cos(phi), rs * std::sin(phi));
     }
@@ -106,13 +106,13 @@ static void test_expolys(Rst &&             rst,
     
     double max_rel_err = 0.1;
     sla::PixelDim pxd = rst.pixel_dimensions();
-    double max_abs_err = area(pxd) * scaled(1.) * scaled(1.);
+    double max_abs_err = area(pxd) * scale_i(1.) * scale_i(1.);
     
     BoundingBox ref_bb;
     for (auto &expoly : ref) ref_bb.merge(expoly.contour.bounding_box());
     
     double max_displacement = 4. * (std::pow(pxd.h_mm, 2) + std::pow(pxd.w_mm, 2));
-    max_displacement *= scaled<double>(1.) * scaled(1.);
+    max_displacement *= scale_d(1.) * scale_i(1.);
     
     REQUIRE(extracted.size() == ref.size());
     for (size_t i = 0; i < ref.size(); ++i) {
@@ -340,13 +340,13 @@ static void recreate_object_from_rasters(const std::string &objname, float lh) {
 //#endif
         
         ExPolygons layer_ = sla::raster_to_polygons(rst);
-//        float delta = scaled(std::min(rst.pixel_dimensions().h_mm,
+//        float delta = scale_i(std::min(rst.pixel_dimensions().h_mm,
 //                                      rst.pixel_dimensions().w_mm)) / 2;
         
 //        layer_ = expolygons_simplify(layer_, delta);
 
 //#ifndef NDEBUG
-//        SVG svg(objname +  std::to_string(cntr) + ".svg", BoundingBox(Point{0, 0}, Point{scaled(disp_w), scaled(disp_h)}));
+//        SVG svg(objname +  std::to_string(cntr) + ".svg", BoundingBox(Point{0, 0}, Point{scale_i(disp_w), scale_i(disp_h)}));
 //        svg.draw(layer_);
 //        svg.draw(layer, "green");
 //        svg.Close();
@@ -359,7 +359,7 @@ static void recreate_object_from_rasters(const std::string &objname, float lh) {
 //        std::cout << cntr++ << std::endl;
 //#endif
         double diff = std::abs(layera_ - layera);
-        REQUIRE((diff <= 0.1 * layera || diff < scaled<double>(1.) * scaled<double>(1.)));
+        REQUIRE((diff <= 0.1 * layera || diff < scale_d(1.) * scale_d(1.)));
         
         layer = std::move(layer_);
     }

@@ -2,6 +2,8 @@
 #include <fstream>
 #include <catch2/catch.hpp>
 
+#include "libslic3r/PointUtils.hpp"
+
 #include "libslic3r/TriangleMesh.hpp"
 
 using namespace Slic3r;
@@ -110,7 +112,7 @@ static float triangle_area(const Vec3f &v0, const Vec3f &v1, const Vec3f &v2)
     return ab.cross(ac).norm() / 2.f;
 }
 
-static float triangle_area(const Vec3crd &triangle_inices, const std::vector<Vec3f> &vertices)
+static float triangle_area(const stl_triangle_vertex_indices &triangle_inices, const std::vector<Vec3f> &vertices)
 {
     return triangle_area(vertices[triangle_inices[0]],
                          vertices[triangle_inices[1]],
@@ -199,7 +201,7 @@ bool is_similar(const indexed_triangle_set &from,
         collect_distances(vertex);
     }
 
-    for (const Vec3i &t : to.indices) {
+    for (const Vec3i32 &t : to.indices) {
         Vec3f center(0,0,0);
         for (size_t i = 0; i < 3; ++i) { 
             center += to.vertices[t[i]] / 3;

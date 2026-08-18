@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "clipper.hpp"
+#include "BoundingBox.hpp"
 #include "ExPolygon.hpp"
 #include "libslic3r.h"
 #include "Line.hpp"

@@ -1,6 +1,11 @@
 #include <catch_main.hpp>
 
+#include "libslic3r/ContainerUtils.hpp"
+#include "libslic3r/FFFPrintConfig.hpp"
+#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/SLA/SLAPrintConfig.hpp"
 #include "libslic3r/Utils.hpp"
+#include "../plugins/plugin_test_helpers.hpp"
 
 // bimap test
 #include <string_view>
@@ -8,6 +13,19 @@
 #include <boost/assign.hpp>
 
 namespace {
+
+class Libslic3rTestRuntimeInitializer : public Catch::TestEventListenerBase
+{
+public:
+    using Catch::TestEventListenerBase::TestEventListenerBase;
+
+    void testRunStarting(const Catch::TestRunInfo &) override
+    {
+        Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    }
+};
+
+CATCH_REGISTER_LISTENER(Libslic3rTestRuntimeInitializer)
 
 TEST_CASE("sort_remove_duplicates", "[utils]") {
 	std::vector<int> data_src = { 3, 0, 2, 1, 15, 3, 5, 6, 3, 1, 0 };

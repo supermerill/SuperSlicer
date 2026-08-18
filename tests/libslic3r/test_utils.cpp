@@ -1,5 +1,7 @@
 #include <catch2/catch.hpp>
 
+#include "libslic3r/NumericUtils.hpp"
+
 #include "libslic3r/libslic3r.h"
 
 SCENARIO("Test fast_round_up()") {

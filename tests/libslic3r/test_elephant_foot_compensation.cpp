@@ -418,11 +418,11 @@ SCENARIO("Elephant foot compensation", "[ElephantFoot]") {
 		ExPolygon expoly =  contour_with_hole();
 		WHEN("Compensated") {
 			// Elephant foot compensation shall not pinch off bits from this contour.
-			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow(0.419999987f, 0.2f, 0.4f, 1, false), 0.2f);
+			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow::new_from_width(0.419999987f, 0.4f, 0.2f, 1.f, false), 0.2f);
 #ifdef TESTS_EXPORT_SVGS
 			SVG::export_expolygons(debug_out_path("elephant_foot_compensation_with_hole.svg").c_str(),
-				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } },
-				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } } });
+				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } },
+				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } } });
 #endif /* TESTS_EXPORT_SVGS */
             THEN("area of the compensated polygon is smaller") {
                 REQUIRE(is_efc_result_smaller(expoly_compensated, expoly));
@@ -433,11 +433,11 @@ SCENARIO("Elephant foot compensation", "[ElephantFoot]") {
 	GIVEN("Tiny contour") {
 		ExPolygon expoly({ { 133382606, 94912473 }, { 134232493, 95001115 }, { 133783926, 95159440 }, { 133441897, 95180666 }, { 133408242, 95191984 }, { 133339012, 95166830 }, { 132991642, 95011087 }, { 133206549, 94908304 } });
 		WHEN("Compensated") {
-			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow(0.419999987f, 0.2f, 0.4f, 1, false), 0.2f);
+			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow::new_from_width(0.419999987f, 0.4f, 0.2f, 1.f, false), 0.2f);
 #ifdef TESTS_EXPORT_SVGS
 			SVG::export_expolygons(debug_out_path("elephant_foot_compensation_tiny.svg").c_str(),
-				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } },
-				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } } });
+				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } },
+				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } } });
 #endif /* TESTS_EXPORT_SVGS */
 			THEN("Tiny contour is not compensated") {
 				REQUIRE(expoly_compensated == expoly);
@@ -448,11 +448,11 @@ SCENARIO("Elephant foot compensation", "[ElephantFoot]") {
 	GIVEN("Large box") {
 		ExPolygon expoly( { {50000000, 50000000 }, { 0, 50000000 }, { 0, 0 }, { 50000000, 0 } } );
         WHEN("Compensated") {
-			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow(0.419999987f, 0.2f, 0.4f, 1, false), 0.21f);
+			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow::new_from_width(0.419999987f, 0.4f, 0.2f, 1.f, false), 0.21f);
 #ifdef TESTS_EXPORT_SVGS
 		    SVG::export_expolygons(debug_out_path("elephant_foot_compensation_large_box.svg").c_str(), 
-				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } },
-				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } } });
+				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } },
+				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } } });
 #endif /* TESTS_EXPORT_SVGS */
             THEN("area of the compensated polygon is smaller") {
                 REQUIRE(is_efc_result_smaller(expoly_compensated, expoly));
@@ -463,11 +463,11 @@ SCENARIO("Elephant foot compensation", "[ElephantFoot]") {
 	GIVEN("Thin ring (GH issue #2085)") {
 		ExPolygon expoly = thin_ring();
         WHEN("Compensated") {
-			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow(0.419999987f, 0.2f, 0.4f, 1, false), 0.25f);
+			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow::new_from_width(0.419999987f, 0.4f, 0.2f, 1.f, false), 0.25f);
 #ifdef TESTS_EXPORT_SVGS
 		    SVG::export_expolygons(debug_out_path("elephant_foot_compensation_thin_ring.svg").c_str(), 
-				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } },
-				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } } });
+				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } },
+				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } } });
 #endif /* TESTS_EXPORT_SVGS */
             THEN("area of the compensated polygon is smaller") {
                 REQUIRE(is_efc_result_smaller(expoly_compensated, expoly));
@@ -479,24 +479,24 @@ SCENARIO("Elephant foot compensation", "[ElephantFoot]") {
 	GIVEN("Varying inner offset") {
 		ExPolygon input = spirograph_gear_1mm().simplify(SCALED_EPSILON).front();
 		ExPolygon output;
-		std::vector<float> deltas(input.contour.points.size(), scale_(1.));
+		std::vector<float> deltas(input.contour.points.size(), scale_d(1.));
                 // mittered_offset_path_scaled_points is commented out somewhere above
 		output.contour.points = Slic3r::mittered_offset_path_scaled_points(input.contour.points, deltas, 2.);
 #ifdef TESTS_EXPORT_SVGS
 		{
 			SVG svg(debug_out_path("elephant_foot_compensation_0.svg").c_str(), get_extents(output));
 			svg.draw(input, "blue");
-			svg.draw_outline(output, "black", coord_t(scale_(0.01)));
+			svg.draw_outline(output, "black", coord_t(scale_d(0.01)));
 		}
 #endif /* TESTS_EXPORT_SVGS */
 		for (size_t i = 0; i <= deltas.size() / 2; ++ i)
-			deltas[i] = deltas[deltas.size() - i - 1] = scale_(1.) * double(i) / (0.5 * double(deltas.size()));
+			deltas[i] = deltas[deltas.size() - i - 1] = scale_d(1.) * double(i) / (0.5 * double(deltas.size()));
 		output.contour.points = Slic3r::mittered_offset_path_scaled_points(input.contour.points, deltas, 2.);
 #ifdef TESTS_EXPORT_SVGS
 		{
 			SVG svg(debug_out_path("elephant_foot_compensation_varying.svg").c_str(), get_extents(output));
 			svg.draw(input, "blue");
-			svg.draw_outline(output, "black", coord_t(scale_(0.01)));
+			svg.draw_outline(output, "black", coord_t(scale_d(0.01)));
 		}
 #endif /* TESTS_EXPORT_SVGS */
 	}
@@ -505,33 +505,33 @@ SCENARIO("Elephant foot compensation", "[ElephantFoot]") {
     GIVEN("Rectangle with a narrow part sticking out") {				
 		// Rectangle
 		ExPolygon expoly;
-		int32_t scaled_w = int32_t(scale_(10)); //should be coord_t but it's eaisier to create that way
+		int32_t scaled_w = int32_t(scale_d(10)); //should be coord_t but it's eaisier to create that way
 		expoly.contour.points = { Vec2crd{ 0, 0 }, Vec2crd{ 0, scaled_w, }, Vec2crd{ scaled_w, scaled_w }, Vec2crd{ scaled_w, 0 } };
 		// Narrow part
 		ExPolygon expoly2;
-        int32_t scaled_h = int32_t(scale_(0.8));
+        int32_t scaled_h = int32_t(scale_d(0.8));
 		expoly2.contour.points = { { scaled_w - int32_t(SCALED_EPSILON), scaled_w / 2 }, { scaled_w - int32_t(SCALED_EPSILON), scaled_w / 2 + scaled_h, },
 								   { 2 * scaled_w, scaled_w / 2 + scaled_h }, { 2 * scaled_w, scaled_w / 2 } };
 		// Rectangle with the narrow part.
 		expoly = union_ex({ expoly, expoly2 }).front();
 
         WHEN("Partially compensated") {
-			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow(0.45f, 0.2f, 0.4f, 1, false), 0.25f);
+			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow::new_from_width(0.45f, 0.4f, 0.2f, 1.f, false), 0.25f);
 #ifdef TESTS_EXPORT_SVGS
 		    SVG::export_expolygons(debug_out_path("elephant_foot_compensation_0.svg").c_str(), 
-				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } },
-				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } } });
+				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } },
+				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } } });
 #endif /* TESTS_EXPORT_SVGS */
             THEN("area of the compensated polygon is smaller") {
                 REQUIRE(is_efc_result_smaller(expoly_compensated, expoly));
             }
         }
 		WHEN("Fully compensated") {
-			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow(0.35f, 0.2f, 0.4f, 1, false), 0.17f);
+			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow::new_from_width(0.35f, 0.4f, 0.2f, 1.f, false), 0.17f);
 #ifdef TESTS_EXPORT_SVGS
 		    SVG::export_expolygons(debug_out_path("elephant_foot_compensation_1.svg").c_str(), 
-				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } },
-				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } } });
+				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } },
+				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } } });
 #endif /* TESTS_EXPORT_SVGS */
 			THEN("area of the compensated polygon is smaller") {
 				REQUIRE(is_efc_result_smaller(expoly_compensated, expoly));
@@ -542,11 +542,11 @@ SCENARIO("Elephant foot compensation", "[ElephantFoot]") {
 	GIVEN("Box with hole close to wall (GH issue #2998)") {
 		ExPolygon expoly = box_with_hole_close_to_wall();
         WHEN("Compensated") {
-			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow(0.419999987f, 0.2f, 0.4f, 1, false), 0.25f);
+			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow::new_from_width(0.419999987f, 0.4f, 0.2f, 1.f, false), 0.25f);
 #ifdef TESTS_EXPORT_SVGS
 		    SVG::export_expolygons(debug_out_path("elephant_foot_compensation_2.svg").c_str(), 
-				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } },
-				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } } });
+				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } },
+				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } } });
 #endif /* TESTS_EXPORT_SVGS */
             THEN("area of the compensated polygon is smaller") {
                 REQUIRE(is_efc_result_smaller(expoly_compensated, expoly));
@@ -559,33 +559,33 @@ SCENARIO("Elephant foot compensation", "[ElephantFoot]") {
 		ExPolygon expoly = spirograph_gear_1mm();
 
         WHEN("Partially compensated") {
-			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow(0.45f, 0.2f, 0.4f, 1, false), 0.25f);
+			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow::new_from_width(0.45f, 0.4f, 0.2f, 1.f, false), 0.25f);
 #ifdef TESTS_EXPORT_SVGS
 		    SVG::export_expolygons(debug_out_path("elephant_foot_compensation_2.svg").c_str(), 
-				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } },
-				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } } });
+				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } },
+				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } } });
 #endif /* TESTS_EXPORT_SVGS */
             THEN("area of the compensated polygon is smaller") {
                 REQUIRE(is_efc_result_smaller(expoly_compensated, expoly));
             }
         }
 		WHEN("Fully compensated") {
-			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow(0.35f, 0.2f, 0.4f, 1, false), 0.17f);
+			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow::new_from_width(0.35f, 0.4f, 0.2f, 1.f, false), 0.17f);
 #ifdef TESTS_EXPORT_SVGS
 		    SVG::export_expolygons(debug_out_path("elephant_foot_compensation_3.svg").c_str(), 
-				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } },
-				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } } });
+				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } },
+				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } } });
 #endif /* TESTS_EXPORT_SVGS */
 			THEN("area of the compensated polygon is smaller") {
 				REQUIRE(is_efc_result_smaller(expoly_compensated, expoly));
 			}
 		}
         WHEN("Brutally compensated") {
-			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow(0.45f, 0.2f, 0.4f, 1, false), 0.6f);
+			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow::new_from_width(0.45f, 0.4f, 0.2f, 1.f, false), 0.6f);
 #ifdef TESTS_EXPORT_SVGS
 		    SVG::export_expolygons(debug_out_path("elephant_foot_compensation_4.svg").c_str(), 
-				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } },
-				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } } });
+				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } },
+				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } } });
 #endif /* TESTS_EXPORT_SVGS */
             THEN("area of the compensated polygon is smaller") {
                 REQUIRE(is_efc_result_smaller(expoly_compensated, expoly));
@@ -596,11 +596,11 @@ SCENARIO("Elephant foot compensation", "[ElephantFoot]") {
 	GIVEN("Vase with fins") {
 		ExPolygon expoly = vase_with_fins();
         WHEN("Compensated") {
-			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow(0.419999987f, 0.2f, 0.4f, 1, false), 0.41f);
+			ExPolygon expoly_compensated = elephant_foot_compensation(expoly, Flow::new_from_width(0.419999987f, 0.4f, 0.2f, 1.f, false), 0.41f);
 #ifdef TESTS_EXPORT_SVGS
 		    SVG::export_expolygons(debug_out_path("elephant_foot_compensation_vase_with_fins.svg").c_str(), 
-				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } },
-				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_(0.02)), 0.5f, "black", coord_t(scale_(0.05)) } } });
+				{ { { expoly },             { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } },
+				  { { expoly_compensated }, { "gray", "black", "blue", coord_t(scale_d(0.02)), 0.5f, "black", coord_t(scale_d(0.05)) } } });
 #endif /* TESTS_EXPORT_SVGS */
             THEN("area of the compensated polygon is smaller") {
                 REQUIRE(is_efc_result_smaller(expoly_compensated, expoly));

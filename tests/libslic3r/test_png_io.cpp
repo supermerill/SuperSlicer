@@ -16,7 +16,7 @@ static sla::RasterGrayscaleAA create_raster(const sla::Resolution &res)
 {
     sla::PixelDim pixdim{1., 1.};
 
-    auto bb = BoundingBox({0, 0}, {scaled(1.), scaled(1.)});
+    auto bb = BoundingBox({0, 0}, {scale_i(1.), scale_i(1.)});
     sla::RasterBase::Trafo trafo;
     trafo.center_x = bb.center().x();
     trafo.center_y = bb.center().y();

@@ -1,4 +1,8 @@
 #include "libslic3r/Point.hpp"
+#include "libslic3r/PointUtils.hpp"
+#include "libslic3r/ClipperUtils.hpp"
+#include "libslic3r/ExtrusionEntity.hpp"
+#include "libslic3r/ExtrusionEntityCollection.hpp"
 #include <catch2/catch.hpp>
 #include <libslic3r/SupportSpotsGenerator.hpp>
 
@@ -9,10 +13,10 @@ namespace Rectangle {
 const float width = 10;
 const float height = 20;
 const Polygon polygon = {
-    scaled(Vec2f{-width / 2, -height / 2}),
-    scaled(Vec2f{width / 2, -height / 2}),
-    scaled(Vec2f{width / 2, height / 2}),
-    scaled(Vec2f{-width / 2, height / 2})
+    scale_p(Vec2f{-width / 2, -height / 2}),
+    scale_p(Vec2f{width / 2, -height / 2}),
+    scale_p(Vec2f{width / 2, height / 2}),
+    scale_p(Vec2f{-width / 2, height / 2})
 };
 }
 
@@ -35,7 +39,7 @@ TEST_CASE("Integrals over multiple polygons", "[SupportSpotsGenerator]") {
 TEST_CASE("Numerical integral over line calculation compared with exact solution.", "[SupportSpotsGenerator]") {
     const float length = 10;
     const float width = 20;
-    const Polyline polyline{scaled(Vec2f{-length/2.0f, 0.0f}), scaled(Vec2f{length/2.0f, 0.0f})};
+    const Polyline polyline{scale_p(Vec2f{-length/2.0f, 0.0f}), scale_p(Vec2f{length/2.0f, 0.0f})};
 
     const Integrals integrals{{polyline}, {width}};
     CHECK(integrals.area == Approx(length * width));
@@ -52,10 +56,10 @@ TEST_CASE("Moment values and ratio check.", "[SupportSpotsGenerator]") {
     // Moments are calculated at centroid.
     // Polygon centroid must not be (0, 0).
     const Polygon polygon = {
-        scaled(Vec2f{0, 0}),
-        scaled(Vec2f{width, 0}),
-        scaled(Vec2f{width, height}),
-        scaled(Vec2f{0, height})
+        scale_p(Vec2f{0, 0}),
+        scale_p(Vec2f{width, 0}),
+        scale_p(Vec2f{width, height}),
+        scale_p(Vec2f{0, height})
     };
 
     const Integrals integrals{polygon};
@@ -77,16 +81,16 @@ TEST_CASE("Moment values and ratio check.", "[SupportSpotsGenerator]") {
 
 TEST_CASE("Moments calculation for rotated axis.", "[SupportSpotsGenerator]") {
     Polygon polygon = {
-        scaled(Vec2f{6.362284076172198, 138.9674202217155}),
-        scaled(Vec2f{97.48779843751677, 106.08136606617076}),
-        scaled(Vec2f{135.75221821532384, 66.84428834668765}),
-        scaled(Vec2f{191.5308049852741, 45.77905628725614}),
-        scaled(Vec2f{182.7525148049201, 74.01799041087513}),
-        scaled(Vec2f{296.83210979283473, 196.80022572637228}),
-        scaled(Vec2f{215.16434429179148, 187.45715418834143}),
-        scaled(Vec2f{64.64574271229334, 284.293883209721}),
-        scaled(Vec2f{110.76507036894843, 174.35633141113783}),
-        scaled(Vec2f{77.56229640885199, 189.33057746591336})
+        scale_p(Vec2f{6.362284076172198, 138.9674202217155}),
+        scale_p(Vec2f{97.48779843751677, 106.08136606617076}),
+        scale_p(Vec2f{135.75221821532384, 66.84428834668765}),
+        scale_p(Vec2f{191.5308049852741, 45.77905628725614}),
+        scale_p(Vec2f{182.7525148049201, 74.01799041087513}),
+        scale_p(Vec2f{296.83210979283473, 196.80022572637228}),
+        scale_p(Vec2f{215.16434429179148, 187.45715418834143}),
+        scale_p(Vec2f{64.64574271229334, 284.293883209721}),
+        scale_p(Vec2f{110.76507036894843, 174.35633141113783}),
+        scale_p(Vec2f{77.56229640885199, 189.33057746591336})
     };
 
     Integrals integrals{polygon};
@@ -116,8 +120,8 @@ TEST_CASE("Moments calculation for rotated axis.", "[SupportSpotsGenerator]") {
 
 struct ObjectPartFixture {
     const Polyline polyline{
-        Point{scaled(Vec2f{0, 0})},
-        Point{scaled(Vec2f{1, 0})},
+        Point{scale_p(Vec2f{0, 0})},
+        Point{scale_p(Vec2f{1, 0})},
     };
     const float width = 0.1f;
     bool connected_to_bed = true;
@@ -127,15 +131,15 @@ struct ObjectPartFixture {
     ExtrusionEntityCollection collection;
     std::vector<const ExtrusionEntityCollection*> extrusions{};
     Polygon expected_polygon{
-        Point{scaled(Vec2f{0, -width / 2})},
-        Point{scaled(Vec2f{1, -width / 2})},
-        Point{scaled(Vec2f{1, width / 2})},
-        Point{scaled(Vec2f{0, width / 2})}
+        Point{scale_p(Vec2f{0, -width / 2})},
+        Point{scale_p(Vec2f{1, -width / 2})},
+        Point{scale_p(Vec2f{1, width / 2})},
+        Point{scale_p(Vec2f{0, width / 2})}
     };
 
     ObjectPartFixture() {
         attributes.width = width;
-        const ExtrusionPath path{polyline, attributes};
+        const ExtrusionPath path{ArcPolyline{polyline}, attributes, ExtrusionPropertyUPtr{}};
         collection.append(path);
         extrusions.push_back(&collection);
     }
@@ -168,7 +172,11 @@ TEST_CASE_METHOD(ObjectPartFixture, "Constructing ObjectPart using extrusion col
 
 TEST_CASE_METHOD(ObjectPartFixture, "Constructing ObjectPart with brim", "[SupportSpotsGenerator]") {
     float brim_width = 1;
-    Polygons brim = get_brim(ExPolygon{expected_polygon}, BrimType::btOuterOnly, brim_width);
+    Polygons brim_contours = expand(expected_polygon, scale_i(brim_width));
+    REQUIRE_FALSE(brim_contours.empty());
+    Polygon brim_hole = expected_polygon;
+    brim_hole.reverse();
+    Polygons brim = to_polygons(ExPolygons{ExPolygon{brim_contours.front(), brim_hole}});
 
     ObjectPart part{
         extrusions,

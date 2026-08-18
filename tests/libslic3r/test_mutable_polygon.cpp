@@ -145,32 +145,32 @@ SCENARIO("Remove degenerate points from MutablePolygon", "[MutablePolygon]") {
 
 SCENARIO("smooth_outward", "[MutablePolygon]") {
     GIVEN("Convex polygon") {
-        MutablePolygon p{ { 0, 0 }, { scaled<coord_t>(10.), 0 }, { 0, scaled<coord_t>(10.) } };
+        MutablePolygon p{ { 0, 0 }, { scale_i(10.), 0 }, { 0, scale_i(10.) } };
         WHEN("smooth_outward") {
             MutablePolygon p2{ p };
-            smooth_outward(p2, scaled<double>(10.));
+            smooth_outward(p2, scale_d(10.));
             THEN("Polygon is unmodified") {
                 REQUIRE(p == p2);
             }
         }
     }
     GIVEN("Sharp tiny concave polygon (hole)") {
-        MutablePolygon p{ { 0, 0 }, { 0, scaled<coord_t>(5.) }, { scaled<coord_t>(10.), 0 } };
+        MutablePolygon p{ { 0, 0 }, { 0, scale_i(5.) }, { scale_i(10.), 0 } };
         WHEN("smooth_outward") {
             MutablePolygon p2{ p };
-            smooth_outward(p2, scaled<double>(10.));
+            smooth_outward(p2, scale_d(10.));
             THEN("Hole is closed") {
                 REQUIRE(p2.empty());
             }
         }
     }
     GIVEN("Two polygons") {
-        Polygons p{ { { 0, 0 }, { scaled<coord_t>(10.), 0 }, { 0, scaled<coord_t>(10.) } },
-                    { { 0, 0 }, { 0, scaled<coord_t>(5.) }, { scaled<coord_t>(10.), 0 } } };
+        Polygons p{ { { 0, 0 }, { scale_i(10.), 0 }, { 0, scale_i(10.) } },
+                    { { 0, 0 }, { 0, scale_i(5.) }, { scale_i(10.), 0 } } };
         WHEN("smooth_outward") {
-            p = smooth_outward(p, scaled<double>(10.));
+            p = smooth_outward(p, scale_d(10.));
             THEN("CCW contour unmodified, CW contour removed.") {
-                REQUIRE(p == Polygons{ { { 0, 0 }, { scaled<coord_t>(10.), 0 }, { 0, scaled<coord_t>(10.) } } });
+                REQUIRE(p == Polygons{ { { 0, 0 }, { scale_i(10.), 0 }, { 0, scale_i(10.) } } });
             }
         }
     }
