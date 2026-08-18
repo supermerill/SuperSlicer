@@ -52,7 +52,7 @@ Const-correctness model
 from __future__ import annotations
 
 import ctypes
-from typing import Iterator, Sequence
+from typing import Iterator, NamedTuple, Sequence
 
 from slic3r_api_generated import (
     CFlow,
@@ -81,14 +81,22 @@ from slic3r_api_generated import (
     EXTRUSION_PROPERTY_TYPE_SPECIAL_COMMAND,
     EXTRUSION_PROPERTY_TYPE_SPEED,
     EXTRUSION_PROPERTY_TYPE_Z_OFFSET,
+    EXTRUSION_SPLIT_FRAGMENT,
     MEDIAL_AXIS_EXTRUSION_CAN_REVERSE,
     MEDIAL_AXIS_EXTRUSION_CONSTANT_WIDTH,
     MEDIAL_AXIS_EXTRUSION_KEEP_EMPTY_ROOT,
     MEDIAL_AXIS_EXTRUSION_TRIM_THIN_ENDPOINTS,
     RAW_EXTRUSION_FLAG_REVERSIBLE,
     RAW_EXTRUSION_FLAG_SORTABLE,
+    RAW_EXTRUSION_SPLIT_STATUS_CLIPPING_FAILED,
+    RAW_EXTRUSION_SPLIT_STATUS_INTERNAL_ERROR,
+    RAW_EXTRUSION_SPLIT_STATUS_INVALID_ARGUMENT,
+    RAW_EXTRUSION_SPLIT_STATUS_INVALID_GEOMETRY,
+    RAW_EXTRUSION_SPLIT_STATUS_NOT_A_LEAF,
+    RAW_EXTRUSION_SPLIT_STATUS_SUCCESS,
     RAW_EXTRUSION_ROLE_GAP_FILL,
     RAW_EXTRUSION_ROLE_THIN_WALL,
+    SCALED_EPSILON,
 )
 
 from slic3r_geometry_views import as_point, make_point, point_tuple
@@ -194,6 +202,17 @@ def _array_from_segments(segments: Sequence[CExtrusionSegment]):
 def _field_pointer(payload, field_name: str):
     offset = getattr(type(payload), field_name).offset
     return ctypes.cast(ctypes.byref(payload, offset), ctypes.POINTER(ctypes.c_uint32))
+
+
+class ExtrusionAreaFragment(NamedTuple):
+    """Borrowed mutable fragment returned by split_leaf_by_areas().
+
+    The entity view remains valid only until a later structural mutation of
+    the source leaf.
+    """
+
+    entity: "MutableExtrusionEntity"
+    area_index: int
 
 
 # Shared read-only property API. Read access returns copies for built-in payload
@@ -611,6 +630,67 @@ class ExtrusionEntityMutableMixin:
             self.mutable_c_handle(), int(dst_idx), src_parent.mutable_c_handle(), int(src_idx)
         ))
 
+    def split_leaf_by_areas(
+        self,
+        areas: Sequence,
+        max_deviation: int = SCALED_EPSILON,
+    ) -> list[ExtrusionAreaFragment]:
+        """Split this leaf with a complete, disjoint area partition.
+
+        Empty collections may be present in ``areas``. The caller is
+        responsible for ensuring that all collections together are disjoint
+        and cover the complete extrusion path.
+        """
+        area_addresses = [
+            _address(area.c_handle() if hasattr(area, "c_handle") else area)
+            for area in areas
+        ]
+        area_array = None
+        if area_addresses:
+            area_array = (ctypes.c_void_p * len(area_addresses))(
+                *(ctypes.c_void_p(address) for address in area_addresses)
+            )
+
+        fragments: list[ExtrusionAreaFragment] = []
+        callback_errors: list[BaseException] = []
+
+        def collect_fragment(fragment_handle, area_index, _user_data) -> None:
+            try:
+                fragments.append(ExtrusionAreaFragment(
+                    MutableExtrusionEntity(self.api, fragment_handle),
+                    int(area_index),
+                ))
+            except BaseException as exception:
+                # ctypes must never observe a Python exception escaping its C
+                # callback. Raise it after the synchronous host call returns.
+                callback_errors.append(exception)
+
+        callback = EXTRUSION_SPLIT_FRAGMENT(collect_fragment)
+        status = int(self.api.host.extrusion_split_leaf_by_areas(
+            self.mutable_c_handle(),
+            area_array,
+            len(area_addresses),
+            int(max_deviation),
+            callback,
+            None,
+        ))
+
+        if callback_errors:
+            raise callback_errors[0]
+        if status == RAW_EXTRUSION_SPLIT_STATUS_SUCCESS:
+            return fragments
+        if status == RAW_EXTRUSION_SPLIT_STATUS_INVALID_ARGUMENT:
+            raise ValueError("extrusion_split_leaf_by_areas: invalid argument")
+        if status == RAW_EXTRUSION_SPLIT_STATUS_NOT_A_LEAF:
+            raise ValueError("extrusion_split_leaf_by_areas: entity is not a leaf")
+        if status == RAW_EXTRUSION_SPLIT_STATUS_INVALID_GEOMETRY:
+            raise ValueError("extrusion_split_leaf_by_areas: invalid leaf or area geometry")
+        if status == RAW_EXTRUSION_SPLIT_STATUS_CLIPPING_FAILED:
+            raise RuntimeError("extrusion_split_leaf_by_areas: clipping failed")
+        if status == RAW_EXTRUSION_SPLIT_STATUS_INTERNAL_ERROR:
+            raise RuntimeError("extrusion_split_leaf_by_areas: internal error")
+        raise RuntimeError(f"extrusion_split_leaf_by_areas: unknown status {status}")
+
 
 # Borrowed read-only extrusion entity. Use this for input handles or child views
 # when the plugin must inspect but not modify the tree.
@@ -898,6 +978,7 @@ __all__ = [
     "EXTRUSION_PROPERTY_TYPE_SPECIAL_COMMAND",
     "EXTRUSION_PROPERTY_TYPE_SPEED",
     "EXTRUSION_PROPERTY_TYPE_Z_OFFSET",
+    "ExtrusionAreaFragment",
     "ExtrusionEntity",
     "MEDIAL_AXIS_EXTRUSION_CAN_REVERSE",
     "MEDIAL_AXIS_EXTRUSION_CONSTANT_WIDTH",

@@ -321,18 +321,40 @@ public:
     ArcPolyline& polyline() { return this->polyline_ref(); }
     const ArcPolyline& polyline() const { return this->polyline_ref(); }
 
-	ExtrusionEntity* clone() const override { return new ExtrusionPath(*this); }
+    ExtrusionEntity* clone() const override { return new ExtrusionPath(*this); }
     // Create a new object, initialize it with this object using the move semantics.
     virtual ExtrusionPath* clone_move() override { return new ExtrusionPath(std::move(*this)); }
-    void reverse() override { this->polyline().reverse(); }
+    // A structural plugin operation may replace this path's local polyline by
+    // ordered path children while keeping the object's stable handle. Read and
+    // traversal operations therefore delegate to ExtrusionEntity in that state.
+    void reverse() override {
+        if (this->has_polyline())
+            this->polyline().reverse();
+        else
+            ExtrusionEntity::reverse();
+    }
     void set_can_reverse(bool can_reverse) { this->m_can_reverse = can_reverse; }
-    const Point& first_point() const override { return this->polyline().front(); }
-    const Point& last_point() const override { return this->polyline().back(); }
+    const Point& first_point() const override {
+        return this->has_polyline() ? this->polyline().front() : ExtrusionEntity::first_point();
+    }
+    const Point& last_point() const override {
+        return this->has_polyline() ? this->polyline().back() : ExtrusionEntity::last_point();
+    }
     // Is it really what you can call a middle point?: yes, it's more random than middle.
-    const Point &middle_point() const override { return this->polyline().middle(); }
-    size_t size() const { return this->polyline().size(); }
-    bool empty() const { return this->polyline().empty(); }
-    bool is_closed() const { return ! this->empty() && this->polyline().front() == this->polyline().back(); }
+    const Point &middle_point() const override {
+        return this->has_polyline() ? this->polyline().middle() : ExtrusionEntity::middle_point();
+    }
+    size_t size() const {
+        return this->has_polyline() ? this->polyline().size() : ExtrusionEntity::as_polyline().size();
+    }
+    bool empty() const override {
+        return this->has_polyline() ? this->polyline().empty() : ExtrusionEntity::empty();
+    }
+    bool is_closed() const {
+        return this->has_polyline() ?
+            !this->polyline().empty() && this->polyline().front() == this->polyline().back() :
+            this->is_loop();
+    }
     // Produce a list of extrusion paths into retval by clipping this path by ExPolygons.
     // Currently not used.
     void intersect_expolygons(const ExPolygons &collection, ExtrusionEntityCollection* retval) const;
@@ -366,10 +388,24 @@ public:
         { Polygons out; this->polygons_covered_by_width(out, scaled_epsilon); return out; }
     virtual Polygons polygons_covered_by_spacing(const float spacing_ratio, const float scaled_epsilon) const
         { Polygons out; this->polygons_covered_by_spacing(out, spacing_ratio, scaled_epsilon); return out; }
-    ArcPolyline as_polyline() const override { return this->polyline(); }
-    void          collect_polylines(ArcPolylines &dst) const override { if (! this->polyline().empty()) dst.emplace_back(this->polyline()); }
-    void          collect_points(Points &dst) const override { append(dst, this->polyline().to_polyline().points); }
-    double      total_volume() const override { return attributes().mm3_per_mm * unscaled(length()); }
+    ArcPolyline as_polyline() const override { return this->has_polyline() ? this->polyline() : ExtrusionEntity::as_polyline(); }
+    void collect_polylines(ArcPolylines &dst) const override {
+        if (this->has_polyline()) {
+            if (!this->polyline().empty())
+                dst.emplace_back(this->polyline());
+        } else {
+            ExtrusionEntity::collect_polylines(dst);
+        }
+    }
+    void collect_points(Points &dst) const override {
+        if (this->has_polyline())
+            append(dst, this->polyline().to_polyline().points);
+        else
+            ExtrusionEntity::collect_points(dst);
+    }
+    double total_volume() const override {
+        return this->has_polyline() ? attributes().mm3_per_mm * unscaled(length()) : ExtrusionEntity::total_volume();
+    }
     void push_back(Point point, coord_t z_offset) {
         assert(!this->polyline().has_arc());
         this->polyline().append(point);

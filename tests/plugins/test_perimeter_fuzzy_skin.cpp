@@ -242,7 +242,7 @@ double max_distance_to_reference(const Polylines &subject, const Polylines &refe
 
 } // namespace
 
-TEST_CASE("Fuzzy skin post-process perturbs a full perimeter without breaking geometry", "[plugins][perimeter]")
+TEST_CASE("Fuzzy skin post-process perturbs a full perimeter without breaking geometry", "[plugins][perimeter][fuzzy-skin]")
 {
     // Full-area case: fuzzy skin is enabled uniformly on a simple rectangle.
     // The expected behavior is a single perimeter loop with extra randomized
@@ -268,7 +268,7 @@ TEST_CASE("Fuzzy skin post-process perturbs a full perimeter without breaking ge
     require_leaf_fill_area_consistency(fuzzy);
 }
 
-TEST_CASE("Fuzzy skin post-process splits and fuzzifies only the enabled region", "[plugins][perimeter]")
+TEST_CASE("Fuzzy skin post-process splits and fuzzifies only the enabled region", "[plugins][perimeter][fuzzy-skin]")
 {
     // Single-region case: the global setting is disabled and only the right
     // half of the island enables fuzzy skin. The plugin must split the original
@@ -303,7 +303,7 @@ TEST_CASE("Fuzzy skin post-process splits and fuzzifies only the enabled region"
     require_leaf_fill_area_consistency(regional);
 }
 
-TEST_CASE("Fuzzy skin post-process honors different settings in different regions", "[plugins][perimeter]")
+TEST_CASE("Fuzzy skin post-process honors different settings in different regions", "[plugins][perimeter][fuzzy-skin]")
 {
     // Multi-region case: both halves of the island enable fuzzy skin, but the
     // right side asks for denser points and a thicker displacement. The point
@@ -339,7 +339,7 @@ TEST_CASE("Fuzzy skin post-process honors different settings in different region
     require_leaf_fill_area_consistency(regional);
 }
 
-TEST_CASE("Fuzzy skin settings change point density and displacement", "[plugins][perimeter]")
+TEST_CASE("Fuzzy skin settings change point density and displacement", "[plugins][perimeter][fuzzy-skin]")
 {
     // Setting-sensitivity case: the plugin uses deterministic random positions
     // for a given centerline, so changing point distance should change point
@@ -383,7 +383,7 @@ TEST_CASE("Fuzzy skin settings change point density and displacement", "[plugins
     require_centerline_inside_envelope(baseline, thick, scale_d(0.45));
 }
 
-TEST_CASE("Fuzzy skin facet painting can enable or block fuzzy areas", "[plugins][perimeter]")
+TEST_CASE("Fuzzy skin facet painting can enable or block fuzzy areas", "[plugins][perimeter][fuzzy-skin]")
 {
     // The test model is the standard 20x20x10 cube used by perimeter plugin
     // helpers. Painting all vertical side facets produces a band around the
@@ -448,7 +448,7 @@ TEST_CASE("Fuzzy skin facet painting can enable or block fuzzy areas", "[plugins
     }
 }
 
-TEST_CASE("Fuzzy skin post-process is a no-op when no perimeters exist", "[plugins][perimeter]")
+TEST_CASE("Fuzzy skin post-process is a no-op when no perimeters exist", "[plugins][perimeter][fuzzy-skin]")
 {
     // Empty-perimeter case: a configuration with zero perimeters still runs the
     // post-process step. The plugin must tolerate an empty perimeter bucket and

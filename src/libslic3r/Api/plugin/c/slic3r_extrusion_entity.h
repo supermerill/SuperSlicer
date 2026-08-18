@@ -33,6 +33,20 @@ describe how an entity or its descendants should be interpreted.
 
 typedef struct extrusion_entity_handle extrusion_entity_handle;
 
+typedef enum raw_extrusion_split_status {
+    RAW_EXTRUSION_SPLIT_STATUS_SUCCESS = 0,
+    RAW_EXTRUSION_SPLIT_STATUS_INVALID_ARGUMENT,
+    RAW_EXTRUSION_SPLIT_STATUS_NOT_A_LEAF,
+    RAW_EXTRUSION_SPLIT_STATUS_INVALID_GEOMETRY,
+    RAW_EXTRUSION_SPLIT_STATUS_CLIPPING_FAILED,
+    RAW_EXTRUSION_SPLIT_STATUS_INTERNAL_ERROR
+} raw_extrusion_split_status;
+
+typedef void (*extrusion_split_fragment_fn)(
+    extrusion_entity_handle *fragment,
+    uint32_t area_index,
+    void *user_data);
+
 #ifndef EXTRUSION_INDEX_INVALID
 #define EXTRUSION_INDEX_INVALID ((uint32_t)UINT32_MAX)
 #endif
@@ -142,6 +156,32 @@ SLIC3R_HOST_API uint32_t extrusion_move_child(extrusion_entity_handle *dst_paren
                                               uint32_t dst_idx,
                                               extrusion_entity_handle *src_parent,
                                               uint32_t src_idx);
+
+/*
+Split one extrusion leaf according to an ordered 2D area partition.
+
+The caller must provide disjoint areas that completely cover the leaf path.
+This function deliberately does not detect or repair overlaps or uncovered
+sections. Empty area collections are accepted and simply produce no fragment.
+
+The leaf handle keeps its identity. If one area owns the complete leaf, the
+tree is left unchanged. Otherwise the leaf becomes a non-sortable collection
+whose children follow source traversal order. Each child receives the leaf's
+direct properties and flags. Arc geometry and interpolated Z offsets are
+preserved by cutting the original ArcPolyline after clipping its temporary
+linearization.
+
+on_fragment is optional and is called synchronously after a successful
+publication. It must not throw or structurally modify leaf. Borrowed fragment
+handles remain valid only until a later structural mutation of leaf.
+*/
+SLIC3R_HOST_API raw_extrusion_split_status extrusion_split_leaf_by_areas(
+    extrusion_entity_handle *leaf,
+    const expolygon_collection_handle *const *areas,
+    uint32_t area_count,
+    coord_t max_deviation,
+    extrusion_split_fragment_fn on_fragment,
+    void *user_data);
 
 #ifdef __cplusplus
 }

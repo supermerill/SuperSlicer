@@ -9,7 +9,6 @@
 #include <cassert>
 #include <cmath>
 #include <cstdint>
-#include <limits>
 #include <random>
 #include <utility>
 #include <vector>
@@ -73,6 +72,13 @@ struct FuzzyParameters
     {
         return mode == k_fuzzy_all && thickness > 0. && point_distance > 0.;
     }
+
+    bool operator==(const FuzzyParameters &other) const
+    {
+        return mode == other.mode &&
+               thickness == other.thickness &&
+               point_distance == other.point_distance;
+    }
 };
 
 struct InheritedExtrusionState
@@ -97,6 +103,12 @@ struct FuzzyClip
     FuzzyParameters params;
 };
 
+struct FuzzyPartition
+{
+    std::vector<StoredExPolygonCollection> areas;
+    std::vector<FuzzyParameters> params;
+};
+
 struct FuzzyPaintingClip
 {
     explicit FuzzyPaintingClip(storage_handle *storage) : enforcers(storage), blockers(storage) {}
@@ -107,28 +119,6 @@ struct FuzzyPaintingClip
 
     StoredExPolygonCollection enforcers;
     StoredExPolygonCollection blockers;
-};
-
-struct SplitFragment
-{
-    SplitFragment(storage_handle *storage,
-                  const ExtrusionEntity &source,
-                  const Polyline &polyline,
-                  const FuzzyParameters &params_in,
-                  double order_in,
-                  bool fuzzify_in) :
-        entity(storage, source),
-        params(params_in),
-        order(order_in),
-        fuzzify(fuzzify_in)
-    {
-        entity.set(polyline);
-    }
-
-    StoredExtrusionEntity entity;
-    FuzzyParameters params;
-    double order = 0.;
-    bool fuzzify = false;
 };
 
 // --------------------------------------------------------------------------
@@ -217,60 +207,6 @@ bool any_area_can_fuzzify_role(const RegionSettings::AreaMap &areas,
     return false;
 }
 
-double squared_distance_to_projection(c_point point,
-                                      c_point segment_start,
-                                      c_point segment_end,
-                                      double &projection_ratio)
-{
-    const double vx = double(segment_end.x) - double(segment_start.x);
-    const double vy = double(segment_end.y) - double(segment_start.y);
-    const double wx = double(point.x) - double(segment_start.x);
-    const double wy = double(point.y) - double(segment_start.y);
-    const double segment_length_sq = vx * vx + vy * vy;
-    if (segment_length_sq <= 0.) {
-        projection_ratio = 0.;
-        const double dx = double(point.x) - double(segment_start.x);
-        const double dy = double(point.y) - double(segment_start.y);
-        return dx * dx + dy * dy;
-    }
-
-    projection_ratio = (wx * vx + wy * vy) / segment_length_sq;
-    if (projection_ratio < 0.)
-        projection_ratio = 0.;
-    else if (projection_ratio > 1.)
-        projection_ratio = 1.;
-
-    const double px = double(segment_start.x) + vx * projection_ratio;
-    const double py = double(segment_start.y) + vy * projection_ratio;
-    const double dx = double(point.x) - px;
-    const double dy = double(point.y) - py;
-    return dx * dx + dy * dy;
-}
-
-double distance_along_points(const std::vector<c_point> &source, c_point point)
-{
-    // Clipper returns fragments in geometric order most of the time, but not as
-    // a documented guarantee. Sort fragments by their first point projected on
-    // the original polyline so replacement children keep the extrusion order.
-    double best_distance_sq = std::numeric_limits<double>::max();
-    double best_distance = 0.;
-    double accumulated = 0.;
-
-    for (size_t idx = 1; idx < source.size(); ++idx) {
-        double projection_ratio = 0.;
-        const double distance_sq =
-            squared_distance_to_projection(point, source[idx - 1], source[idx], projection_ratio);
-        const double segment_length = norm(source[idx] - source[idx - 1]);
-        if (distance_sq < best_distance_sq) {
-            best_distance_sq = distance_sq;
-            best_distance = accumulated + projection_ratio * segment_length;
-        }
-        accumulated += segment_length;
-    }
-
-    return best_distance;
-}
-
 FuzzyParameters parameters_for_painting_enforcer(FuzzyParameters params)
 {
     // A painted enforcer is an explicit request for fuzzy skin in the painted
@@ -281,38 +217,42 @@ FuzzyParameters parameters_for_painting_enforcer(FuzzyParameters params)
     return params;
 }
 
-std::vector<SplitFragment> split_leaf_by_region_settings(storage_handle *storage,
-                                                         MutableExtrusionEntity entity,
-                                                         const ExPolygon &island_slice,
-                                                         const RegionSettings::AreaMap &areas,
-                                                         const FuzzyPaintingClip &painting,
-                                                         double nozzle_diameter,
-                                                         raw_extrusion_role role,
-                                                         const InheritedExtrusionState &state)
+void append_grouped_fuzzy_clip(std::vector<FuzzyClip> &clips,
+                               StoredExPolygonCollection &&area,
+                               const FuzzyParameters &params)
 {
-    // RegionSettings partitions the island by configuration. Generic facet
-    // painting is an additional spatial mask layered on top:
-    // - normal settings create fuzzy clips where fuzzy_skin is enabled;
-    // - enforcer facets create fuzzy clips even where fuzzy_skin is none;
-    // - blocker facets are subtracted from both sources.
-    //
-    // The split itself has to keep both sides of the path: fuzzy fragments are
-    // changed later, while smooth remainders must stay in the tree so the
-    // perimeter still covers the whole original extrusion.
-    std::vector<SplitFragment> fragments;
-    const std::vector<c_point> source_points = entity.points();
-    if (source_points.size() < 2)
-        return fragments;
+    if (area.empty())
+        return;
+    area.ensure_valid();
+    if (area.empty())
+        return;
 
+    // Settings tuples are an implementation detail. Grouping by the final
+    // fuzzy parameters minimizes the number of spatial areas and therefore
+    // the number of fragments produced for one extrusion leaf.
+    for (FuzzyClip &clip : clips) {
+        if (!(clip.params == params))
+            continue;
+        clip.area.append_copy_from(area.readonly());
+        return;
+    }
+
+    clips.emplace_back(std::move(area), params);
+}
+
+FuzzyPartition build_fuzzy_partition(storage_handle *storage,
+                                     const ExPolygon &island_slice,
+                                     const RegionSettings::AreaMap &areas,
+                                     const FuzzyPaintingClip &painting,
+                                     double nozzle_diameter,
+                                     raw_extrusion_role role,
+                                     const InheritedExtrusionState &state)
+{
     std::vector<FuzzyClip> fuzzy_clips;
-    const auto append_clip = [&fuzzy_clips](StoredExPolygonCollection &&area, const FuzzyParameters &params) {
-        if (area.empty())
-            return;
-        area.ensure_valid();
-        if (!area.empty())
-            fuzzy_clips.emplace_back(std::move(area), params);
-    };
 
+    // RegionSettings partitions the island by configuration. Painting then
+    // restricts or enables fuzzy skin inside each region while preserving the
+    // region's own thickness and point-distance values.
     for (const auto &[setting_value, setting_clip] : areas) {
         StoredExPolygonCollection region_area = setting_clip.intersections(island_slice);
         if (region_area.empty())
@@ -321,14 +261,18 @@ std::vector<SplitFragment> split_leaf_by_region_settings(storage_handle *storage
         const FuzzyParameters params = fuzzy_parameters_from_value(setting_value, nozzle_diameter);
         if (should_fuzzify_for_role(role, params, state)) {
             if (!painting.has_blockers()) {
-                append_clip(region_area.readonly().clone(storage), params);
+                append_grouped_fuzzy_clip(fuzzy_clips,
+                                          region_area.readonly().clone(storage), params);
             } else {
                 ClipperContext clipper(storage);
-                // Expand blockers by a tiny amount so a painted edge reliably
-                // cuts a fragment instead of leaving a coincident fuzzy sliver.
+                // Expanding blockers slightly gives a painted boundary clear
+                // ownership instead of leaving a coincident fuzzy sliver.
                 ClipperOperand blockers = clipper_offset(clipper(painting.blockers.readonly()),
                                                          1000. * double(SCALED_EPSILON));
-                append_clip(clipper_diff(clipper(region_area.readonly()), blockers).to_expolygon_collection(), params);
+                append_grouped_fuzzy_clip(
+                    fuzzy_clips,
+                    clipper_diff(clipper(region_area.readonly()), blockers).to_expolygon_collection(),
+                    params);
             }
             continue;
         }
@@ -343,146 +287,73 @@ std::vector<SplitFragment> split_leaf_by_region_settings(storage_handle *storage
                                                          1000. * double(SCALED_EPSILON));
                 enforced = clipper_diff(enforced, blockers);
             }
-            append_clip(enforced.to_expolygon_collection(), painted_params);
+            append_grouped_fuzzy_clip(fuzzy_clips,
+                                      enforced.to_expolygon_collection(), painted_params);
         }
     }
 
+    FuzzyPartition partition;
     if (fuzzy_clips.empty())
-        return fragments;
+        return partition;
 
-    StoredPolyline source_polyline(storage);
-    source_polyline.insert_array(0, source_points.data(), static_cast<uint32_t>(source_points.size()));
     StoredExPolygonCollection accepted_area(storage);
-    for (const FuzzyClip &clip : fuzzy_clips) {
-        StoredPolylineCollection clipped_polylines =
-            clipper_intersection_polyline_expolygons(storage, source_polyline, clip.area.readonly());
-        for (const Polyline clipped_polyline : clipped_polylines) {
-            if (clipped_polyline.size() < 2)
-                continue;
-
-            const double order = distance_along_points(source_points, clipped_polyline.front());
-            fragments.emplace_back(storage, entity.readonly(), clipped_polyline, clip.params, order, true);
-        }
-        accepted_area.append_copy_from(clip.area.readonly());
-    }
-
-    if (!accepted_area.empty()) {
+    for (FuzzyClip &clip : fuzzy_clips) {
+        // Union only areas with identical final behavior. Areas with different
+        // parameters remain separate members of the partition.
         ClipperContext clipper(storage);
-        accepted_area = clipper_union(clipper(accepted_area)).to_expolygon_collection();
-        accepted_area.ensure_valid();
+        clip.area = clipper_union(clipper(clip.area.readonly())).to_expolygon_collection();
+        clip.area.ensure_valid();
+        accepted_area.append_copy_from(clip.area.readonly());
+        partition.params.push_back(clip.params);
+        partition.areas.push_back(std::move(clip.area));
     }
 
-    // The accepted area is the union of all fuzzy regions, including painted
-    // enforcers. Everything outside it stays printable but keeps the original
-    // smooth centerline.
-    FuzzyParameters disabled_params;
-    StoredPolylineCollection remainders =
-        clipper_diff_polyline_expolygons(storage, source_polyline, accepted_area.readonly());
-    for (const Polyline remainder : remainders) {
-        if (remainder.size() < 2)
-            continue;
-        const double order = distance_along_points(source_points, remainder.front());
-        fragments.emplace_back(storage, entity.readonly(), remainder, disabled_params, order, false);
-    }
+    ClipperContext clipper(storage);
+    accepted_area = clipper_union(clipper(accepted_area.readonly())).to_expolygon_collection();
+    accepted_area.ensure_valid();
 
-    std::sort(fragments.begin(), fragments.end(),
-              [](const SplitFragment &lhs, const SplitFragment &rhs) { return lhs.order < rhs.order; });
-    return fragments;
+    // The generic splitter requires a complete partition. Add the smooth
+    // complement explicitly so every point of a perimeter or gap-fill path is
+    // owned by exactly one area, including blockers and non-fuzzy settings.
+    StoredExPolygonCollection island_area(storage, island_slice);
+    StoredExPolygonCollection disabled_area =
+        clipper_diff(clipper(island_area.readonly()), clipper(accepted_area.readonly())).to_expolygon_collection();
+    disabled_area.ensure_valid();
+    partition.params.push_back(FuzzyParameters{});
+    partition.areas.push_back(std::move(disabled_area));
+    return partition;
 }
 
-void collect_fuzzy_targets_from_fragments(MutableExtrusionEntity owner,
-                                          const std::vector<SplitFragment> &fragments,
-                                          std::vector<FuzzyTarget> &targets)
+void split_leaf_and_collect_targets(storage_handle *storage,
+                                    MutableExtrusionEntity entity,
+                                    const ExPolygon &island_slice,
+                                    const RegionSettings::AreaMap &areas,
+                                    const FuzzyPaintingClip &painting,
+                                    double nozzle_diameter,
+                                    raw_extrusion_role role,
+                                    const InheritedExtrusionState &state,
+                                    std::vector<FuzzyTarget> &targets)
 {
-    // New child handles are only stable after all children have been inserted.
-    // Store the handles after replacement, then fuzz them in a separate pass.
-    assert(owner.child_count() == fragments.size());
-    for (uint32_t idx = 0; idx < owner.child_count() && idx < fragments.size(); ++idx)
-        if (fragments[idx].fuzzify)
-            targets.push_back({ owner.child_mutable(idx), fragments[idx].params });
-}
-
-uint32_t replace_child_with_fragments(MutableExtrusionEntity parent,
-                                      uint32_t child_idx,
-                                      MutableExtrusionEntity child,
-                                      std::vector<SplitFragment> &fragments,
-                                      std::vector<FuzzyTarget> &targets)
-{
-    if (fragments.empty())
-        return child_idx + 1;
-
-    if (fragments.size() == 1) {
-        const bool moved = extrusion_move_from(child.mutable_handle(), fragments.front().entity.mutable_handle()) != 0;
-        assert(moved);
-        (void) moved;
-        if (fragments.front().fuzzify)
-            targets.push_back({ child, fragments.front().params });
-        return child_idx + 1;
-    }
-
-    if ((parent.flags() & RAW_EXTRUSION_FLAG_SORTABLE) != 0) {
-        // Sortable parents may reorder children. A split fuzzy path must stay
-        // in its original sequence, so replace the leaf by a non-sortable
-        // collection containing the ordered fragments.
-        const bool was_reversible = (child.flags() & RAW_EXTRUSION_FLAG_REVERSIBLE) != 0;
-        child.clear_content();
-        child.set_flags(was_reversible ? RAW_EXTRUSION_FLAG_REVERSIBLE : 0);
-        for (SplitFragment &fragment : fragments)
-            child.append_child_move(fragment.entity.mutable_view());
-        collect_fuzzy_targets_from_fragments(child, fragments, targets);
-        return child_idx + 1;
-    }
-
-    // Non-sortable parents already preserve child order. In that case inserting
-    // the fragments as siblings keeps the tree shallower and mirrors how a
-    // continuous loop stores ordered path pieces.
-    const bool removed = parent.remove_child(child_idx);
-    assert(removed);
-    (void) removed;
-    for (uint32_t offset = 0; offset < fragments.size(); ++offset) {
-        const uint32_t inserted_idx = parent.insert_child_move(child_idx + offset, fragments[offset].entity.mutable_view());
-        assert(!is_invalid_index(inserted_idx));
-        if (!is_invalid_index(inserted_idx) && fragments[offset].fuzzify)
-            targets.push_back({ parent.child_mutable(inserted_idx), fragments[offset].params });
-    }
-    return child_idx + static_cast<uint32_t>(fragments.size());
-}
-
-void replace_root_leaf_with_fragments(MutableExtrusionEntity root,
-                                      std::vector<SplitFragment> &fragments,
-                                      std::vector<FuzzyTarget> &targets)
-{
-    // A root leaf has no parent where sibling fragments could be inserted. Turn
-    // it into a non-sortable collection so the fragment order remains explicit.
-    if (fragments.empty())
+    FuzzyPartition partition = build_fuzzy_partition(storage, island_slice, areas, painting,
+                                                     nozzle_diameter, role, state);
+    if (partition.areas.empty())
         return;
-    if (fragments.size() == 1) {
-        const bool moved = extrusion_move_from(root.mutable_handle(), fragments.front().entity.mutable_handle()) != 0;
-        assert(moved);
-        (void) moved;
-        if (fragments.front().fuzzify)
-            targets.push_back({ root, fragments.front().params });
-        return;
+
+    // Materialize borrowed area views only after the owning vector is complete,
+    // then split once. The returned handles already follow source path order.
+    std::vector<ExPolygonCollection> area_views;
+    area_views.reserve(partition.areas.size());
+    for (const StoredExPolygonCollection &area : partition.areas)
+        area_views.push_back(area.readonly());
+
+    const std::vector<ExtrusionAreaFragment> fragments = entity.split_leaf_by_areas(area_views);
+    for (const ExtrusionAreaFragment &fragment : fragments) {
+        assert(fragment.area_index < partition.params.size());
+        if (fragment.area_index < partition.params.size() &&
+            should_fuzzify_for_role(role, partition.params[fragment.area_index], state))
+            targets.push_back({ fragment.entity, partition.params[fragment.area_index] });
     }
-
-    const bool was_reversible = (root.flags() & RAW_EXTRUSION_FLAG_REVERSIBLE) != 0;
-    root.clear_content();
-    root.set_flags(was_reversible ? RAW_EXTRUSION_FLAG_REVERSIBLE : 0);
-    for (SplitFragment &fragment : fragments)
-        root.append_child_move(fragment.entity.mutable_view());
-    collect_fuzzy_targets_from_fragments(root, fragments, targets);
 }
-
-void process_entity_children(storage_handle *storage,
-                             MutableExtrusionEntity parent,
-                             const ExPolygon &island_slice,
-                             const RegionSettings::AreaMap *areas,
-                             const FuzzyPaintingClip &painting,
-                             const FuzzyParameters &solo_params,
-                             double nozzle_diameter,
-                             raw_extrusion_role role,
-                             const InheritedExtrusionState &parent_state,
-                             std::vector<FuzzyTarget> &targets);
 
 void process_entity(storage_handle *storage,
                     MutableExtrusionEntity entity,
@@ -495,14 +366,16 @@ void process_entity(storage_handle *storage,
                     const InheritedExtrusionState &parent_state,
                     std::vector<FuzzyTarget> &targets)
 {
-    // Walk the extrusion tree directly instead of flattening it. Keeping the
-    // hierarchy lets us replace a single leaf without disturbing unrelated
-    // collections, loops, or continuous path groups.
+    // Walk the extrusion tree directly instead of flattening it. The generic
+    // splitter mutates only the leaf it receives, so parent collections keep
+    // their identity, order and loop semantics.
     const InheritedExtrusionState state = state_with_entity_properties(parent_state, entity.readonly());
 
     if (entity.child_count() > 0) {
-        process_entity_children(storage, entity, island_slice, areas, painting, solo_params,
-                                nozzle_diameter, role, state, targets);
+        const uint32_t child_count = entity.child_count();
+        for (uint32_t child_idx = 0; child_idx < child_count; ++child_idx)
+            process_entity(storage, entity.child_mutable(child_idx), island_slice, areas, painting,
+                           solo_params, nozzle_diameter, role, state, targets);
         return;
     }
 
@@ -515,58 +388,8 @@ void process_entity(storage_handle *storage,
         return;
     }
 
-    std::vector<SplitFragment> fragments =
-        split_leaf_by_region_settings(storage, entity, island_slice, *areas, painting, nozzle_diameter, role, state);
-    const bool has_fuzzy_fragment =
-        std::any_of(fragments.begin(), fragments.end(), [](const SplitFragment &fragment) { return fragment.fuzzify; });
-    if (has_fuzzy_fragment)
-        replace_root_leaf_with_fragments(entity, fragments, targets);
-}
-
-void process_entity_children(storage_handle *storage,
-                             MutableExtrusionEntity parent,
-                             const ExPolygon &island_slice,
-                             const RegionSettings::AreaMap *areas,
-                             const FuzzyPaintingClip &painting,
-                             const FuzzyParameters &solo_params,
-                             double nozzle_diameter,
-                             raw_extrusion_role role,
-                             const InheritedExtrusionState &parent_state,
-                             std::vector<FuzzyTarget> &targets)
-{
-    uint32_t child_idx = 0;
-    while (child_idx < parent.child_count()) {
-        MutableExtrusionEntity child = parent.child_mutable(child_idx);
-        const InheritedExtrusionState child_state = state_with_entity_properties(parent_state, child.readonly());
-
-        if (child.child_count() > 0) {
-            process_entity_children(storage, child, island_slice, areas, painting, solo_params,
-                                    nozzle_diameter, role, child_state, targets);
-            ++child_idx;
-            continue;
-        }
-
-        if (!child.has_polyline() || child.point_count() < 2) {
-            ++child_idx;
-            continue;
-        }
-
-        if (areas == nullptr) {
-            if (should_fuzzify_for_role(role, solo_params, child_state))
-                targets.push_back({ child, solo_params });
-            ++child_idx;
-            continue;
-        }
-
-        std::vector<SplitFragment> fragments =
-            split_leaf_by_region_settings(storage, child, island_slice, *areas, painting,
-                                          nozzle_diameter, role, child_state);
-        const bool has_fuzzy_fragment =
-            std::any_of(fragments.begin(), fragments.end(), [](const SplitFragment &fragment) { return fragment.fuzzify; });
-        child_idx = has_fuzzy_fragment ?
-            replace_child_with_fragments(parent, child_idx, child, fragments, targets) :
-            child_idx + 1;
-    }
+    split_leaf_and_collect_targets(storage, entity, island_slice, *areas, painting,
+                                   nozzle_diameter, role, state, targets);
 }
 
 // --------------------------------------------------------------------------

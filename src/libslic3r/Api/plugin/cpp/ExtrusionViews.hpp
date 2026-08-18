@@ -9,9 +9,11 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <initializer_list>
 #include <iterator>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -29,6 +31,7 @@ namespace slic3r_api {
 class ExtrusionEntity;
 class MutableExtrusionEntity;
 class StoredExtrusionEntity;
+struct ExtrusionAreaFragment;
 
 /*
 Extrusion entity C++ views
@@ -941,8 +944,25 @@ public:
     ExtrusionEntity readonly() const { return ExtrusionEntity(handle()); }
     operator ExtrusionEntity() const { return readonly(); }
 
+    /*
+    Split this leaf with a complete, disjoint area partition.
+
+    Returned entities are mutable borrowed views into this leaf. A later
+    structural mutation of the leaf invalidates them. The host preserves the
+    source traversal order and returns the input vector index for every piece.
+    */
+    std::vector<ExtrusionAreaFragment> split_leaf_by_areas(
+        const std::vector<ExPolygonCollection> &areas,
+        coord_t max_deviation = SCALED_EPSILON) const;
+
 private:
     extrusion_entity_handle *m_handle = nullptr;
+};
+
+struct ExtrusionAreaFragment
+{
+    MutableExtrusionEntity entity;
+    uint32_t area_index = 0;
 };
 
 /*
@@ -1279,6 +1299,64 @@ inline uint32_t ExtrusionEntityMutableApi<Derived>::move_child_from(uint32_t dst
                                                                     uint32_t src_idx)
 {
     return extrusion_move_child(self().mutable_handle(), dst_idx, src_parent.mutable_handle(), src_idx);
+}
+
+inline std::vector<ExtrusionAreaFragment> MutableExtrusionEntity::split_leaf_by_areas(
+    const std::vector<ExPolygonCollection> &areas,
+    coord_t max_deviation) const
+{
+    struct CallbackContext
+    {
+        std::vector<ExtrusionAreaFragment> fragments;
+        std::exception_ptr exception;
+    };
+
+    std::vector<const expolygon_collection_handle *> area_handles;
+    area_handles.reserve(areas.size());
+    for (const ExPolygonCollection &area : areas)
+        area_handles.push_back(area.handle());
+
+    CallbackContext context;
+    const extrusion_split_fragment_fn collect_fragment =
+        [](extrusion_entity_handle *fragment, uint32_t area_index, void *user_data) noexcept {
+            CallbackContext &callback_context = *static_cast<CallbackContext *>(user_data);
+            if (callback_context.exception != nullptr)
+                return;
+            try {
+                callback_context.fragments.push_back({ MutableExtrusionEntity(fragment), area_index });
+            } catch (...) {
+                // Never let a C++ allocation exception cross the C callback
+                // boundary. The wrapper rethrows it once host execution ends.
+                callback_context.exception = std::current_exception();
+            }
+        };
+
+    const raw_extrusion_split_status status = extrusion_split_leaf_by_areas(
+        mutable_handle(),
+        area_handles.empty() ? nullptr : area_handles.data(),
+        static_cast<uint32_t>(area_handles.size()),
+        max_deviation,
+        collect_fragment,
+        &context);
+
+    if (context.exception != nullptr)
+        std::rethrow_exception(context.exception);
+    if (status == RAW_EXTRUSION_SPLIT_STATUS_SUCCESS)
+        return context.fragments;
+
+    switch (status) {
+    case RAW_EXTRUSION_SPLIT_STATUS_INVALID_ARGUMENT:
+        throw std::invalid_argument("extrusion_split_leaf_by_areas: invalid argument");
+    case RAW_EXTRUSION_SPLIT_STATUS_NOT_A_LEAF:
+        throw std::invalid_argument("extrusion_split_leaf_by_areas: entity is not a leaf");
+    case RAW_EXTRUSION_SPLIT_STATUS_INVALID_GEOMETRY:
+        throw std::invalid_argument("extrusion_split_leaf_by_areas: invalid leaf or area geometry");
+    case RAW_EXTRUSION_SPLIT_STATUS_CLIPPING_FAILED:
+        throw std::runtime_error("extrusion_split_leaf_by_areas: clipping failed");
+    case RAW_EXTRUSION_SPLIT_STATUS_INTERNAL_ERROR:
+    default:
+        throw std::runtime_error("extrusion_split_leaf_by_areas: internal error");
+    }
 }
 
 } // namespace slic3r_api

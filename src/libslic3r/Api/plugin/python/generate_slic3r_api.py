@@ -55,6 +55,7 @@ TYPE_ALIASES = {
     "extrusion_data_id": "uint32_t",
     "infill_pattern_runtime_id": "uint32_t",
     "expolygon_status": "int32_t",
+    "raw_extrusion_split_status": "int32_t",
     "c_extrusion_custom_gcode_kind": "int",
     "c_extrusion_special_command": "int",
     "clipper_end_type_t": "int",

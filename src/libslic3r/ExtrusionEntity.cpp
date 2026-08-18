@@ -602,12 +602,21 @@ void ExtrusionNop::visit(ExtrusionVisitorConst &visitor) const
 
 void ExtrusionPath::visit(ExtrusionVisitor &visitor)
 {
-    visitor.use(*this);
+    // A split path is structurally a collection even though its stable object
+    // still has the ExtrusionPath dynamic type. Dispatch it as the generic
+    // entity so recursive visitors descend into the published fragments.
+    if (this->has_polyline())
+        visitor.use(*this);
+    else
+        ExtrusionEntity::visit(visitor);
 }
 
 void ExtrusionPath::visit(ExtrusionVisitorConst &visitor) const
 {
-    visitor.use(*this);
+    if (this->has_polyline())
+        visitor.use(*this);
+    else
+        ExtrusionEntity::visit(visitor);
 }
 
 void ExtrusionMultiPath::visit(ExtrusionVisitor &visitor)
@@ -690,7 +699,10 @@ void ExtrusionPath::subtract_expolygons(const ExPolygons &collection, ExtrusionE
 
 void ExtrusionPath::clip_end(coordf_t distance) { this->polyline().clip_end(distance); }
 
-coordf_t ExtrusionPath::length() const { return this->polyline().length(); }
+coordf_t ExtrusionPath::length() const
+{
+    return this->has_polyline() ? this->polyline().length() : ExtrusionEntity::length();
+}
 
 void ExtrusionPath::_inflate_collection(const Polylines &polylines, ExtrusionEntityCollection *collection) const
 {
@@ -702,12 +714,22 @@ void ExtrusionPath::_inflate_collection(const Polylines &polylines, ExtrusionEnt
 
 void ExtrusionPath::polygons_covered_by_width(Polygons &out, const float scaled_epsilon) const
 {
+    if (!this->has_polyline()) {
+        ExtrusionEntity::polygons_covered_by_width(out, scaled_epsilon);
+        return;
+    }
+
     //polygons_append(out, offset(this->polyline().to_polyline(), double(scale_(attributes().width / 2)) + scaled_epsilon));
     out = union_(out, offset(this->polyline().to_polyline(), scale_d(attributes().width / 2) + scaled_epsilon));
 }
 
 void ExtrusionPath::polygons_covered_by_spacing(Polygons &out, const float spacing_ratio, const float scaled_epsilon) const
 {
+    if (!this->has_polyline()) {
+        ExtrusionEntity::polygons_covered_by_spacing(out, spacing_ratio, scaled_epsilon);
+        return;
+    }
+
     // Instantiating the Flow class to get the line spacing.
     // Don't know the nozzle diameter, setting to zero. It shall not matter it shall be optimized out by the compiler.
     bool bridge = this->role().is_bridge() || (this->width() * 4 < this->height());

@@ -58,6 +58,7 @@ set(SLIC3R_SOURCES
 	Api/host/slic3r_config_option.cpp
 	Api/host/slic3r_data_tree.cpp
 	Api/host/slic3r_extrusion_entity.cpp
+	Api/host/slic3r_extrusion_split.cpp
 	Api/host/slic3r_extrusion_polyline.cpp
 	Api/host/slic3r_extrusion_property.cpp
 	Api/host/slic3r_geometry.cpp
