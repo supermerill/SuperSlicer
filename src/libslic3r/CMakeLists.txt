@@ -171,6 +171,8 @@ set(SLIC3R_SOURCES
 	Plugins/LayerExtrusionEdit/DefaultSpeed.hpp
 	Plugins/LayerExtrusionEdit/ExtrusionProcessParameterHelpers.cpp
 	Plugins/LayerExtrusionEdit/ExtrusionProcessParameterHelpers.hpp
+	Plugins/LayerExtrusionEdit/RegionalProcessParameterHelpers.cpp
+	Plugins/LayerExtrusionEdit/RegionalProcessParameterHelpers.hpp
 	Plugins/MaxOverhangThreshold.cpp
 	Plugins/MaxOverhangThreshold.hpp
 	Plugins/Ordering/DefaultExtrusionTreeOrdering.cpp

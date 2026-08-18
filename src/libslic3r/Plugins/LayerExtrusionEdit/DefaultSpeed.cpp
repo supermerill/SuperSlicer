@@ -21,14 +21,17 @@ and hoist acceleration without depending on this strategy.
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <iterator>
 #include <limits>
 #include <map>
+#include <set>
 #include <stdexcept>
 #include <vector>
 
 #include "ExtrusionProcessParameterHelpers.hpp"
+#include "RegionalProcessParameterHelpers.hpp"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_layer_extrusion_edit.h"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
 
@@ -36,6 +39,7 @@ namespace slic3r_api { namespace LayerExtrusionEdit { namespace DefaultSpeedPlug
 namespace {
 
 using namespace ProcessParameterHelpers;
+using namespace RegionalProcessParameterHelpers;
 
 const char *const k_no_dependencies[] = { nullptr };
 
@@ -65,7 +69,50 @@ const raw_used_config_key k_used_config_keys[] = {
     {"top_solid_infill_speed", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE}
 };
 
+const RegionSettings::OptionKeyGroup k_region_speed_keys = {
+    "bridge_speed",
+    "external_perimeter_speed",
+    "gap_fill_speed",
+    "infill_speed",
+    "internal_bridge_speed",
+    "ironing_speed",
+    "milling_speed",
+    "overhangs",
+    "overhangs_speed",
+    "perimeter_speed",
+    "solid_infill_speed",
+    "thin_walls_speed",
+    "top_solid_infill_speed"
+};
+
 using AutospeedTargets = std::vector<std::map<uint16_t, double>>;
+using RegionalSettingsPartitions = std::map<RegionalSourceKey, RegionalSettingsPartition>;
+
+struct AutospeedPartitionKey
+{
+    RegionalSourceKey source;
+    uint16_t extruder_id = uint16_t(-1);
+    raw_extrusion_role role = RAW_EXTRUSION_ROLE_NONE;
+    bool full_overhang_speed = false;
+
+    bool operator<(const AutospeedPartitionKey &rhs) const;
+};
+
+struct SpeedPartitionKey
+{
+    RegionalSourceKey source;
+    uint32_t group_idx = 0;
+    uint16_t extruder_id = uint16_t(-1);
+    raw_extrusion_role role = RAW_EXTRUSION_ROLE_NONE;
+    bool full_overhang_speed = false;
+    double mm3_per_mm = 0.0;
+    bool has_volumetric_flow = false;
+
+    bool operator<(const SpeedPartitionKey &rhs) const;
+};
+
+using AutospeedPartitions = std::map<AutospeedPartitionKey, RegionalProcessPartition>;
+using SpeedPartitions = std::map<SpeedPartitionKey, RegionalProcessPartition>;
 
 // Resolve the role speed through the legacy percentage fallback hierarchy.
 double role_speed(const ExtrusionSettingsContext &context,
@@ -80,21 +127,52 @@ double finalize_speed(const ExtrusionSettingsContext &context,
                       bool has_volumetric_flow,
                       double speed);
 
+// Resolve the exact float later written to one leaf or regional fragment.
+float resolved_speed(const ExtrusionSettingsContext &context,
+                     raw_extrusion_role role,
+                     bool full_overhang_speed,
+                     double mm3_per_mm,
+                     bool has_volumetric_flow,
+                     double autospeed_target);
+
 // Scan unresolved eligible leaves for the group's smallest flow cross-section.
 void collect_autospeed_minimum(const MutableExtrusionEntity &entity,
                               const EffectiveTreeState &parent_state,
                               const ExtrusionSettingsContext &context,
+                              storage_handle *storage,
+                              const RegionalSourceKey &source,
+                              const RegionalSettingsPartition &regional_settings,
+                              AutospeedPartitions &regional_partitions,
                               bool exclude_thin_flows,
                               double &minimum);
 
-// Validate the plan and compute group/extruder targets before parallel runs.
-AutospeedTargets prepare_autospeed_targets(const Print &print, const PrintingPlan &plan);
+// Prepare raw/final regional partitions and group/extruder autospeed targets.
+void prepare_plan(storage_handle *storage,
+                  const Print &print,
+                  const PrintingPlan &plan,
+                  AutospeedTargets &targets,
+                  SpeedPartitions &speed_partitions);
+
+// Build final speed partitions required by unresolved leaves in one tree.
+void collect_speed_partitions(MutableExtrusionEntity entity,
+                              const EffectiveTreeState &parent_state,
+                              const ExtrusionSettingsContext &context,
+                              const RegionalSourceKey &source,
+                              const RegionalSettingsPartition &regional_settings,
+                              storage_handle *storage,
+                              uint32_t group_idx,
+                              double autospeed_target,
+                              std::set<SpeedPartitionKey> &prepared_keys,
+                              SpeedPartitions &speed_partitions);
 
 // Assign missing speed recursively while preserving inherited overrides.
 void assign_speed_tree(MutableExtrusionEntity entity,
                        const EffectiveTreeState &parent_state,
                        const ExtrusionSettingsContext &context,
+                       uint32_t group_idx,
+                       const RegionalSourceKey &source,
                        double autospeed_target,
+                       const SpeedPartitions &speed_partitions,
                        ProcessFieldEditor &editor);
 
 // Return a target for one group/extruder, or zero when autospeed is unavailable.
@@ -106,7 +184,9 @@ double autospeed_target(const AutospeedTargets &targets,
 void edit_extrusion(const Print &print,
                     const PrintingToolGroup &tool_group,
                     const PrintingExtrusion &extrusion,
-                    double target);
+                    uint32_t group_idx,
+                    double target,
+                    const SpeedPartitions &speed_partitions);
 
 class DefaultSpeed : public PluginBase
 {
@@ -131,8 +211,41 @@ private:
     void run_impl(const plugin_run_context *run_ctx) const override;
 
     mutable AutospeedTargets m_autospeed_targets;
+    mutable SpeedPartitions m_speed_partitions;
     mutable bool m_setup_valid = false;
 };
+
+bool AutospeedPartitionKey::operator<(const AutospeedPartitionKey &rhs) const
+{
+    if (source < rhs.source)
+        return true;
+    if (rhs.source < source)
+        return false;
+    if (extruder_id != rhs.extruder_id)
+        return extruder_id < rhs.extruder_id;
+    if (role != rhs.role)
+        return uint16_t(role) < uint16_t(rhs.role);
+    return full_overhang_speed < rhs.full_overhang_speed;
+}
+
+bool SpeedPartitionKey::operator<(const SpeedPartitionKey &rhs) const
+{
+    if (source < rhs.source)
+        return true;
+    if (rhs.source < source)
+        return false;
+    if (group_idx != rhs.group_idx)
+        return group_idx < rhs.group_idx;
+    if (extruder_id != rhs.extruder_id)
+        return extruder_id < rhs.extruder_id;
+    if (role != rhs.role)
+        return uint16_t(role) < uint16_t(rhs.role);
+    if (full_overhang_speed != rhs.full_overhang_speed)
+        return full_overhang_speed < rhs.full_overhang_speed;
+    if (mm3_per_mm != rhs.mm3_per_mm)
+        return mm3_per_mm < rhs.mm3_per_mm;
+    return has_volumetric_flow < rhs.has_volumetric_flow;
+}
 
 double role_speed(const ExtrusionSettingsContext &context,
                   raw_extrusion_role role,
@@ -233,9 +346,51 @@ double finalize_speed(const ExtrusionSettingsContext &context,
     return speed;
 }
 
+float resolved_speed(const ExtrusionSettingsContext &context,
+                     raw_extrusion_role role,
+                     bool full_overhang_speed,
+                     double mm3_per_mm,
+                     bool has_volumetric_flow,
+                     double autospeed_target_value)
+{
+    double speed = role_speed(context, role, full_overhang_speed, 0.0);
+
+    // Convert a shared volumetric target into the linear base appropriate for
+    // this exact flow, then reevaluate role percentages against that base.
+    if (speed <= 0.0 && autospeed_target_value > 0.0 && has_volumetric_flow) {
+        const double max_print_speed = context.print_config.computed_float_or_default(
+            "max_print_speed", int32_t(context.extruder_id), 0.0);
+        const double auto_base = std::min(autospeed_target_value / mm3_per_mm, max_print_speed);
+        speed = role_speed(context, role, full_overhang_speed, auto_base);
+        if (speed <= 0.0)
+            speed = auto_base;
+    }
+
+    // With no volumetric target, max_print_speed remains the last legacy
+    // fallback before first-layer and physical ceilings are applied.
+    if (speed <= 0.0)
+        speed = context.print_config.computed_float_or_default(
+            "max_print_speed", int32_t(context.extruder_id), 0.0);
+    if (speed <= 0.0 || !std::isfinite(speed))
+        throw std::runtime_error("Unable to resolve a positive finite extrusion speed.");
+
+    if (!RAW_EXTRUSION_ROLE_HAS(role, RAW_EXTRUSION_ROLE_MILL))
+        speed = finalize_speed(context, role, mm3_per_mm, has_volumetric_flow, speed);
+    if (speed <= 0.0 || !std::isfinite(speed))
+        throw std::runtime_error("Extrusion speed limits produced an invalid value.");
+    const float stored_speed = float(speed);
+    if (!std::isfinite(stored_speed))
+        throw std::runtime_error("Extrusion speed cannot be represented by the stored float.");
+    return stored_speed;
+}
+
 void collect_autospeed_minimum(const MutableExtrusionEntity &entity,
                               const EffectiveTreeState &parent_state,
                               const ExtrusionSettingsContext &context,
+                              storage_handle *storage,
+                              const RegionalSourceKey &source,
+                              const RegionalSettingsPartition &regional_settings,
+                              AutospeedPartitions &regional_partitions,
                               bool exclude_thin_flows,
                               double &minimum)
 {
@@ -245,6 +400,7 @@ void collect_autospeed_minimum(const MutableExtrusionEntity &entity,
     if (entity.child_count() > 0) {
         for (uint32_t child_idx = 0; child_idx < entity.child_count(); ++child_idx)
             collect_autospeed_minimum(entity.child_mutable(child_idx), state, context,
+                                      storage, source, regional_settings, regional_partitions,
                                       exclude_thin_flows, minimum);
         return;
     }
@@ -257,8 +413,29 @@ void collect_autospeed_minimum(const MutableExtrusionEntity &entity,
     if (state.attributes.c_extrusion_property_attributes::height == -2.f ||
         RAW_EXTRUSION_ROLE_HAS(role, RAW_EXTRUSION_ROLE_MILL) ||
         RAW_EXTRUSION_ROLE_HAS(role, RAW_EXTRUSION_ROLE_IRONING) ||
-        (exclude_thin_flows && (role == RAW_EXTRUSION_ROLE_GAP_FILL || role == RAW_EXTRUSION_ROLE_THIN_WALL)) ||
-        role_speed(context, role, state.full_overhang_speed, 0.0) > 0.0)
+        (exclude_thin_flows && (role == RAW_EXTRUSION_ROLE_GAP_FILL || role == RAW_EXTRUSION_ROLE_THIN_WALL)))
+        return;
+
+    // Resolve auto-vs-explicit speed for every regional tuple, then split a
+    // deep clone to inspect only the zones actually crossed by this leaf.
+    const AutospeedPartitionKey partition_key{
+        source, context.extruder_id, role, state.full_overhang_speed
+    };
+    AutospeedPartitions::iterator partition_it = regional_partitions.find(partition_key);
+    if (partition_it == regional_partitions.end()) {
+        RegionalProcessPartition partition = project_regional_process_values(
+            storage, regional_settings,
+            [&context, role, &state](const Config &region_config) {
+                ExtrusionSettingsContext regional_context = context;
+                regional_context.region_config = region_config;
+                return float(role_speed(
+                    regional_context, role, state.full_overhang_speed, 0.0));
+            });
+        partition_it = regional_partitions.emplace(partition_key, std::move(partition)).first;
+    }
+    if (!regional_partition_leaf_matches(
+            storage, entity, partition_it->second,
+            [](float regional_speed) { return regional_speed <= 0.f; }))
         return;
 
     // The thinnest eligible flow defines the linear speed required to reach a
@@ -268,11 +445,19 @@ void collect_autospeed_minimum(const MutableExtrusionEntity &entity,
         minimum = std::min(minimum, mm3_per_mm);
 }
 
-AutospeedTargets prepare_autospeed_targets(const Print &print, const PrintingPlan &plan)
+void prepare_plan(storage_handle *storage,
+                  const Print &print,
+                  const PrintingPlan &plan,
+                  AutospeedTargets &targets,
+                  SpeedPartitions &speed_partitions)
 {
     // Targets are isolated by printing group and extruder so complete-object
     // groups and different filaments cannot influence each other.
-    AutospeedTargets targets(plan.group_count());
+    targets.clear();
+    targets.resize(plan.group_count());
+    speed_partitions.clear();
+    RegionalSettingsPartitions regional_settings;
+    AutospeedPartitions autospeed_partitions;
     const Config print_config = print.config();
     const double maximum_volumetric = print_config.float_or_default("max_volumetric_speed", 0.0);
     const bool thin_floor_enabled = print_config.has("autospeed_min_thin_flow") &&
@@ -292,6 +477,21 @@ AutospeedTargets prepare_autospeed_targets(const Print &print, const PrintingPla
                     const PrintingExtrusion extrusion = tool_group.extrusion(extrusion_idx);
                     const ExtrusionSettingsContext context = validated_settings_context(
                         print, tool_group, extrusion, true);
+                    const LayerRegionIsland region_island = extrusion.region_island();
+                    const RegionalSourceKey source{
+                        region_island.handle(), extrusion.object_instance_idx()
+                    };
+
+                    // Build raw RegionSettings geometry once per source and
+                    // translated object instance. Both autospeed analysis and
+                    // final speed projection consume this immutable result.
+                    RegionalSettingsPartitions::iterator settings_it = regional_settings.find(source);
+                    if (settings_it == regional_settings.end()) {
+                        RegionalSettingsPartition settings = build_regional_settings_partition(
+                            storage, region_island, extrusion.object_instance_idx(),
+                            k_region_speed_keys);
+                        settings_it = regional_settings.emplace(source, std::move(settings)).first;
+                    }
                     if (maximum_volumetric <= 0.0)
                         continue;
 
@@ -299,7 +499,8 @@ AutospeedTargets prepare_autospeed_targets(const Print &print, const PrintingPla
                     if (minimum == 0.0)
                         minimum = (std::numeric_limits<double>::max)();
                     collect_autospeed_minimum(extrusion.mutable_root(), EffectiveTreeState{}, context,
-                                              thin_floor_enabled, minimum);
+                                              storage, source, settings_it->second,
+                                              autospeed_partitions, thin_floor_enabled, minimum);
                 }
             }
         }
@@ -335,13 +536,100 @@ AutospeedTargets prepare_autospeed_targets(const Print &print, const PrintingPla
                     std::min(minimum * max_print_speed, maximum_volumetric);
         }
     }
-    return targets;
+
+    // Autospeed targets are now stable. Project every unresolved leaf's raw
+    // regional tuples through the complete final-speed calculation and retain
+    // only partitions that can actually produce distinct stored floats.
+    std::set<SpeedPartitionKey> prepared_keys;
+    for (uint32_t group_idx = 0; group_idx < plan.group_count(); ++group_idx) {
+        const PrintingGroup group = plan.group(group_idx);
+        for (uint32_t layer_idx = 0; layer_idx < group.layer_group_count(); ++layer_idx) {
+            const PrintingLayerGroup layer_group = group.layer_group(layer_idx);
+            for (uint32_t tool_idx = 0; tool_idx < layer_group.tool_group_count(); ++tool_idx) {
+                const PrintingToolGroup tool_group = layer_group.tool_group(tool_idx);
+                const double target = autospeed_target(targets, group_idx, tool_group.extruder_id());
+                for (uint32_t extrusion_idx = 0; extrusion_idx < tool_group.extrusion_count(); ++extrusion_idx) {
+                    const PrintingExtrusion extrusion = tool_group.extrusion(extrusion_idx);
+                    const ExtrusionSettingsContext context = settings_context(print, tool_group, extrusion);
+                    const RegionalSourceKey source{
+                        extrusion.region_island().handle(), extrusion.object_instance_idx()
+                    };
+                    const RegionalSettingsPartitions::const_iterator settings_it =
+                        regional_settings.find(source);
+                    if (settings_it == regional_settings.end())
+                        throw std::runtime_error("Validated speed source has no regional settings partition.");
+
+                    collect_speed_partitions(
+                        extrusion.mutable_root(), EffectiveTreeState{}, context, source,
+                        settings_it->second, storage, group_idx, target, prepared_keys,
+                        speed_partitions);
+                }
+            }
+        }
+    }
+}
+
+void collect_speed_partitions(MutableExtrusionEntity entity,
+                              const EffectiveTreeState &parent_state,
+                              const ExtrusionSettingsContext &context,
+                              const RegionalSourceKey &source,
+                              const RegionalSettingsPartition &regional_settings,
+                              storage_handle *storage,
+                              uint32_t group_idx,
+                              double autospeed_target_value,
+                              std::set<SpeedPartitionKey> &prepared_keys,
+                              SpeedPartitions &speed_partitions)
+{
+    const EffectiveTreeState state = effective_state(entity, parent_state);
+    if (entity.child_count() > 0) {
+        for (uint32_t child_idx = 0; child_idx < entity.child_count(); ++child_idx) {
+            collect_speed_partitions(
+                entity.child_mutable(child_idx), state, context, source, regional_settings,
+                storage, group_idx, autospeed_target_value, prepared_keys, speed_partitions);
+        }
+        return;
+    }
+
+    if (leaf_disposition(entity, state) != LeafDisposition::Editable || state.speed > 0.f)
+        return;
+
+    const raw_extrusion_role role = state.attributes.extrusion_role();
+    const double raw_mm3_per_mm =
+        state.attributes.c_extrusion_property_attributes::mm3_per_mm;
+    const bool has_volumetric_flow =
+        state.attributes.c_extrusion_property_attributes::height != -2.f &&
+        raw_mm3_per_mm > 0.0;
+    const double mm3_per_mm = has_volumetric_flow ? raw_mm3_per_mm : 0.0;
+    const SpeedPartitionKey key{
+        source, group_idx, context.extruder_id, role, state.full_overhang_speed,
+        mm3_per_mm, has_volumetric_flow
+    };
+    if (!prepared_keys.insert(key).second)
+        return;
+
+    // Resolve every regional tuple with the same flow and autospeed inputs as
+    // the future leaf. Equal final floats are united by the common projector.
+    RegionalProcessPartition partition = project_regional_process_values(
+        storage, regional_settings,
+        [&context, role, &state, mm3_per_mm, has_volumetric_flow,
+         autospeed_target_value](const Config &region_config) {
+            ExtrusionSettingsContext regional_context = context;
+            regional_context.region_config = region_config;
+            return resolved_speed(
+                regional_context, role, state.full_overhang_speed, mm3_per_mm,
+                has_volumetric_flow, autospeed_target_value);
+        });
+    if (partition.requires_split())
+        speed_partitions.emplace(key, std::move(partition));
 }
 
 void assign_speed_tree(MutableExtrusionEntity entity,
                        const EffectiveTreeState &parent_state,
                        const ExtrusionSettingsContext &context,
+                       uint32_t group_idx,
+                       const RegionalSourceKey &source,
                        double autospeed_target_value,
+                       const SpeedPartitions &speed_partitions,
                        ProcessFieldEditor &editor)
 {
     // Collections only propagate inherited state. Values are assigned to
@@ -350,7 +638,8 @@ void assign_speed_tree(MutableExtrusionEntity entity,
     if (entity.child_count() > 0) {
         for (uint32_t child_idx = 0; child_idx < entity.child_count(); ++child_idx)
             assign_speed_tree(entity.child_mutable(child_idx), state, context,
-                              autospeed_target_value, editor);
+                              group_idx, source, autospeed_target_value,
+                              speed_partitions, editor);
         return;
     }
 
@@ -358,32 +647,27 @@ void assign_speed_tree(MutableExtrusionEntity entity,
         return;
 
     const raw_extrusion_role role = state.attributes.extrusion_role();
-    double speed = role_speed(context, role, state.full_overhang_speed, 0.0);
-    const double mm3_per_mm = state.attributes.c_extrusion_property_attributes::mm3_per_mm;
+    const double raw_mm3_per_mm =
+        state.attributes.c_extrusion_property_attributes::mm3_per_mm;
     const bool has_volumetric_flow =
-        state.attributes.c_extrusion_property_attributes::height != -2.f && mm3_per_mm > 0.0;
-
-    // Convert the shared volumetric target to a leaf-specific linear base, then
-    // evaluate any role percentage against that base.
-    if (speed <= 0.0 && autospeed_target_value > 0.0 && has_volumetric_flow) {
-        const double max_print_speed = context.print_config.computed_float_or_default(
-            "max_print_speed", int32_t(context.extruder_id), 0.0);
-        const double auto_base = std::min(autospeed_target_value / mm3_per_mm, max_print_speed);
-        speed = role_speed(context, role, state.full_overhang_speed, auto_base);
-        if (speed <= 0.0)
-            speed = auto_base;
+        state.attributes.c_extrusion_property_attributes::height != -2.f &&
+        raw_mm3_per_mm > 0.0;
+    const double mm3_per_mm = has_volumetric_flow ? raw_mm3_per_mm : 0.0;
+    const SpeedPartitionKey key{
+        source, group_idx, context.extruder_id, role, state.full_overhang_speed,
+        mm3_per_mm, has_volumetric_flow
+    };
+    const SpeedPartitions::const_iterator partition_it = speed_partitions.find(key);
+    if (partition_it != speed_partitions.end()) {
+        // The common splitter applies the already-final values to only the
+        // regional fragments touched by this leaf.
+        apply_regional_process_partition(entity, partition_it->second, editor);
+        return;
     }
 
-    // Preserve the legacy non-volumetric fallback when no target was available.
-    if (speed <= 0.0)
-        speed = context.print_config.computed_float_or_default(
-            "max_print_speed", int32_t(context.extruder_id), 0.0);
-    if (speed <= 0.0)
-        throw std::runtime_error("Unable to resolve a positive extrusion speed.");
-
-    if (!RAW_EXTRUSION_ROLE_HAS(role, RAW_EXTRUSION_ROLE_MILL))
-        speed = finalize_speed(context, role, mm3_per_mm, has_volumetric_flow, speed);
-    editor.set_value(entity, float(speed));
+    editor.set_value(entity, resolved_speed(
+        context, role, state.full_overhang_speed, mm3_per_mm,
+        has_volumetric_flow, autospeed_target_value));
 }
 
 double autospeed_target(const AutospeedTargets &targets,
@@ -399,14 +683,20 @@ double autospeed_target(const AutospeedTargets &targets,
 void edit_extrusion(const Print &print,
                     const PrintingToolGroup &tool_group,
                     const PrintingExtrusion &extrusion,
-                    double target)
+                    uint32_t group_idx,
+                    double target,
+                    const SpeedPartitions &speed_partitions)
 {
     // Assign missing leaf speed, then remove redundant direct fields by moving
     // a uniform effective speed towards the root.
     const ExtrusionSettingsContext context = settings_context(print, tool_group, extrusion);
+    const RegionalSourceKey source{
+        extrusion.region_island().handle(), extrusion.object_instance_idx()
+    };
     MutableExtrusionEntity root = extrusion.mutable_root();
     ProcessFieldEditor editor(ProcessField::Speed);
-    assign_speed_tree(root, EffectiveTreeState{}, context, target, editor);
+    assign_speed_tree(root, EffectiveTreeState{}, context, group_idx, source, target,
+                      speed_partitions, editor);
     editor.hoist(root);
 }
 
@@ -481,13 +771,17 @@ void DefaultSpeed::setup_impl(const plugin_run_context *run_ctx, uint32_t) const
     // computed for an earlier printing plan.
     m_setup_valid = false;
     m_autospeed_targets.clear();
+    m_speed_partitions.clear();
 
     const run_ctx_layer_extrusion_edition *ctx = plugin_ctx_as_layer_extrusion_edition(run_ctx);
-    assert(ctx != nullptr && ctx->print != nullptr && ctx->plan != nullptr);
-    if (ctx == nullptr || ctx->print == nullptr || ctx->plan == nullptr)
+    assert(ctx != nullptr && ctx->print != nullptr && ctx->plan != nullptr &&
+           run_ctx != nullptr && run_ctx->plugin_storage != nullptr);
+    if (ctx == nullptr || ctx->print == nullptr || ctx->plan == nullptr ||
+        run_ctx == nullptr || run_ctx->plugin_storage == nullptr)
         return;
 
-    m_autospeed_targets = prepare_autospeed_targets(Print(ctx->print), PrintingPlan(ctx->plan));
+    prepare_plan(run_ctx->plugin_storage, Print(ctx->print), PrintingPlan(ctx->plan),
+                 m_autospeed_targets, m_speed_partitions);
     m_setup_valid = true;
 }
 
@@ -516,7 +810,8 @@ void DefaultSpeed::run_impl(const plugin_run_context *run_ctx) const
         const PrintingToolGroup tool_group = layer_group.tool_group(tool_idx);
         const double target = autospeed_target(m_autospeed_targets, ctx->group_idx, tool_group.extruder_id());
         for (uint32_t extrusion_idx = 0; extrusion_idx < tool_group.extrusion_count(); ++extrusion_idx) {
-            edit_extrusion(print, tool_group, tool_group.extrusion(extrusion_idx), target);
+            edit_extrusion(print, tool_group, tool_group.extrusion(extrusion_idx),
+                           ctx->group_idx, target, m_speed_partitions);
             progress().increment();
         }
     }

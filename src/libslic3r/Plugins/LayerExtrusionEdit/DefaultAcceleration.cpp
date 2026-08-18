@@ -20,10 +20,7 @@ temperature fields remain owned by their original producers.
 
 #include <algorithm>
 #include <cassert>
-#include <cmath>
 #include <cstdint>
-#include <functional>
-#include <iterator>
 #include <map>
 #include <set>
 #include <stdexcept>
@@ -31,14 +28,15 @@ temperature fields remain owned by their original producers.
 #include <vector>
 
 #include "ExtrusionProcessParameterHelpers.hpp"
+#include "RegionalProcessParameterHelpers.hpp"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_layer_extrusion_edit.h"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
-#include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
 
 namespace slic3r_api { namespace LayerExtrusionEdit { namespace DefaultAccelerationPlugin {
 namespace {
 
 using namespace ProcessParameterHelpers;
+using namespace RegionalProcessParameterHelpers;
 
 const char *const k_no_dependencies[] = { nullptr };
 
@@ -78,56 +76,33 @@ const RegionSettings::OptionKeyGroup k_region_acceleration_keys = {
 
 struct AccelerationPartitionKey
 {
-    const layer_region_island_handle *region_island = nullptr;
-    uint16_t object_instance_idx = 0;
+    RegionalSourceKey source;
     uint16_t extruder_id = uint16_t(-1);
     raw_extrusion_role role = RAW_EXTRUSION_ROLE_NONE;
 
     bool operator<(const AccelerationPartitionKey &rhs) const
     {
-        const std::less<const layer_region_island_handle *> less_handle;
-        if (region_island != rhs.region_island)
-            return less_handle(region_island, rhs.region_island);
-        if (object_instance_idx != rhs.object_instance_idx)
-            return object_instance_idx < rhs.object_instance_idx;
+        if (source < rhs.source)
+            return true;
+        if (rhs.source < source)
+            return false;
         if (extruder_id != rhs.extruder_id)
             return extruder_id < rhs.extruder_id;
         return uint16_t(role) < uint16_t(rhs.role);
     }
 };
 
-struct AccelerationPartition
-{
-    std::vector<StoredExPolygonCollection> areas;
-    std::vector<float> accelerations;
-
-    bool requires_split() const
-    {
-        return areas.size() > 1 && areas.size() == accelerations.size();
-    }
-};
-
-using AccelerationPartitions = std::map<AccelerationPartitionKey, AccelerationPartition>;
+using AccelerationPartitions = std::map<AccelerationPartitionKey, RegionalProcessPartition>;
+using RegionalSettingsPartitions = std::map<RegionalSourceKey, RegionalSettingsPartition>;
 
 // Resolve role acceleration, then apply first-layer and machine limits.
 double role_acceleration(const ExtrusionSettingsContext &context,
                          raw_extrusion_role role);
 
-// Find the physical island that owns a region-island source handle.
-LayerIsland owning_layer_island(const LayerRegionIsland &region_island);
-
 // Collect roles that still need acceleration from one validated tree.
 void collect_unresolved_roles(MutableExtrusionEntity entity,
                               const EffectiveTreeState &parent_state,
                               std::set<raw_extrusion_role> &roles);
-
-// Build a complete area partition and collapse raw tuples with equal results.
-AccelerationPartition build_acceleration_partition(
-    storage_handle *storage,
-    const LayerRegionIsland &region_island,
-    const ExtrusionSettingsContext &base_context,
-    uint16_t object_instance_idx,
-    raw_extrusion_role role);
 
 // Validate all trees and prepare immutable partitions before parallel mutation.
 void prepare_plan(storage_handle *storage,
@@ -237,27 +212,6 @@ double role_acceleration(const ExtrusionSettingsContext &context,
     return acceleration;
 }
 
-LayerIsland owning_layer_island(const LayerRegionIsland &region_island)
-{
-    if (!region_island.valid() || region_island.region_count() == 0)
-        throw std::runtime_error("Cannot locate the LayerIsland of an invalid LayerRegionIsland.");
-
-    // Region-islands do not expose a parent pointer through the plugin ABI.
-    // Resolve it once during setup by scanning the source layer's islands.
-    const Layer layer = region_island.region(0).layer();
-    for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx) {
-        const LayerIsland island = layer.island(island_idx);
-        for (uint32_t region_island_idx = 0;
-             region_island_idx < island.region_island_count();
-             ++region_island_idx) {
-            if (island.region_island(region_island_idx).handle() == region_island.handle())
-                return island;
-        }
-    }
-
-    throw std::runtime_error("Printing extrusion source LayerRegionIsland has no owning LayerIsland.");
-}
-
 void collect_unresolved_roles(MutableExtrusionEntity entity,
                               const EffectiveTreeState &parent_state,
                               std::set<raw_extrusion_role> &roles)
@@ -273,115 +227,6 @@ void collect_unresolved_roles(MutableExtrusionEntity entity,
         roles.insert(state.attributes.extrusion_role());
 }
 
-StoredExPolygonCollection translated_area(storage_handle *storage,
-                                          const ExPolygonCollection &source,
-                                          c_point shift)
-{
-    if (shift.x == 0 && shift.y == 0)
-        return source.clone(storage);
-
-    // Flatten contours and holes into oriented paths so every point can use
-    // the existing mutable Polygon API. The union below reconstructs their
-    // ExPolygon hierarchy after applying the instance translation.
-    StoredPolygonCollection translated_paths(storage);
-    for (const ExPolygon expolygon : source) {
-        translated_paths.push_back(expolygon.contour());
-        for (const Polygon hole : expolygon.holes())
-            translated_paths.push_back(hole);
-    }
-
-    const uint32_t path_count = translated_paths.size();
-    for (uint32_t path_idx = 0; path_idx < path_count; ++path_idx) {
-        StoredPolygon path = translated_paths.extract(0);
-        path.translate(double(shift.x), double(shift.y));
-        translated_paths.push_back_move(std::move(path));
-    }
-
-    ClipperContext clipper(storage);
-    StoredExPolygonCollection translated =
-        clipper_union(clipper(translated_paths.readonly())).to_expolygon_collection();
-    translated.ensure_valid();
-    return translated;
-}
-
-AccelerationPartition build_acceleration_partition(
-    storage_handle *storage,
-    const LayerRegionIsland &region_island,
-    const ExtrusionSettingsContext &base_context,
-    uint16_t object_instance_idx,
-    raw_extrusion_role role)
-{
-    AccelerationPartition partition;
-    if (region_island.region_count() <= 1)
-        return partition;
-
-    // RegionSettings first groups equal raw option tuples and clips them to the
-    // physical island. This produces the complete disjoint partition required
-    // by split_leaf_by_areas().
-    const LayerIsland island = owning_layer_island(region_island);
-    std::vector<RegionSettings::OptionKeyGroup> option_groups{ k_region_acceleration_keys };
-    RegionSettings settings(storage, region_island.region(0).print_region().config(),
-                            std::move(option_groups));
-    for (uint32_t region_idx = 0; region_idx < region_island.region_count(); ++region_idx)
-        settings.add_region(region_island.region(region_idx));
-    settings.segregate(island.slice());
-
-    const char *const primary_key = k_region_acceleration_keys.front().c_str();
-    const RegionSettings::AreaMap &raw_areas = settings.get_areas(primary_key);
-    if (raw_areas.size() <= 1)
-        return partition;
-
-    // Different raw configurations may resolve to the same stored float after
-    // role fallbacks, first-layer rules and machine limits. Merge those zones
-    // before splitting so configuration differences alone never fragment a
-    // path.
-    std::map<float, StoredExPolygonCollection> grouped_areas;
-    for (const std::pair<const RegionSettingsValue, RegionSettingsClip> &entry : raw_areas) {
-        const std::vector<LayerRegion> &regions = settings.get_regions(primary_key, entry.first);
-        if (regions.empty() || entry.second.is_accept_all())
-            throw std::runtime_error("Regional acceleration partition has no concrete source area.");
-
-        ExtrusionSettingsContext regional_context = base_context;
-        regional_context.region_config = regions.front().print_region().config();
-        const float acceleration = float(role_acceleration(regional_context, role));
-        if (!std::isfinite(acceleration))
-            throw std::runtime_error("Regional acceleration resolved to a non-finite value.");
-
-        std::map<float, StoredExPolygonCollection>::iterator grouped = grouped_areas.find(acceleration);
-        if (grouped == grouped_areas.end()) {
-            grouped = grouped_areas.emplace(
-                std::piecewise_construct,
-                std::forward_as_tuple(acceleration),
-                std::forward_as_tuple(storage)).first;
-        }
-        grouped->second.append_copy_from(entry.second.expolygons());
-    }
-
-    if (grouped_areas.size() <= 1)
-        return partition;
-
-    const Object object = region_island.region(0).layer().object();
-    if (object_instance_idx >= object.instance_count())
-        throw std::runtime_error("Regional acceleration references an invalid object instance.");
-    const c_point instance_shift = object.instance_shift(object_instance_idx);
-
-    // Union each final-value bucket once while setup is serialized. Parallel
-    // runs later borrow these immutable handles and never mutate PluginStorage.
-    // PrintingPlan extrusions already include their instance shift, so cache a
-    // translated partition for each object instance as well.
-    partition.areas.reserve(grouped_areas.size());
-    partition.accelerations.reserve(grouped_areas.size());
-    for (std::pair<const float, StoredExPolygonCollection> &entry : grouped_areas) {
-        ClipperContext clipper(storage);
-        StoredExPolygonCollection area =
-            clipper_union(clipper(entry.second.readonly())).to_expolygon_collection();
-        area.ensure_valid();
-        partition.accelerations.push_back(entry.first);
-        partition.areas.push_back(translated_area(storage, area.readonly(), instance_shift));
-    }
-    return partition;
-}
-
 void prepare_plan(storage_handle *storage,
                   const Print &print,
                   const PrintingPlan &plan,
@@ -389,6 +234,7 @@ void prepare_plan(storage_handle *storage,
 {
     partitions.clear();
     std::set<AccelerationPartitionKey> prepared_keys;
+    RegionalSettingsPartitions regional_settings;
 
     // Visit every root before mutation. Besides validating source attributes,
     // collect every role that may need a regional partition in later runs.
@@ -407,15 +253,33 @@ void prepare_plan(storage_handle *storage,
                     std::set<raw_extrusion_role> roles;
                     collect_unresolved_roles(extrusion.mutable_root(), EffectiveTreeState{}, roles);
                     for (const raw_extrusion_role role : roles) {
+                        const RegionalSourceKey source{
+                            region_island.handle(), extrusion.object_instance_idx()
+                        };
                         const AccelerationPartitionKey key{
-                            region_island.handle(), extrusion.object_instance_idx(),
-                            tool_group.extruder_id(), role
+                            source, tool_group.extruder_id(), role
                         };
                         if (!prepared_keys.insert(key).second)
                             continue;
 
-                        AccelerationPartition partition = build_acceleration_partition(
-                            storage, region_island, context, extrusion.object_instance_idx(), role);
+                        // The geometry and raw setting tuples depend only on
+                        // the source region-island and object instance. Reuse
+                        // that expensive partition for every role and tool.
+                        RegionalSettingsPartitions::iterator settings_it = regional_settings.find(source);
+                        if (settings_it == regional_settings.end()) {
+                            RegionalSettingsPartition settings = build_regional_settings_partition(
+                                storage, region_island, extrusion.object_instance_idx(),
+                                k_region_acceleration_keys);
+                            settings_it = regional_settings.emplace(source, std::move(settings)).first;
+                        }
+
+                        RegionalProcessPartition partition = project_regional_process_values(
+                            storage, settings_it->second,
+                            [&context, role](const Config &region_config) {
+                                ExtrusionSettingsContext regional_context = context;
+                                regional_context.region_config = region_config;
+                                return float(role_acceleration(regional_context, role));
+                            });
                         if (partition.requires_split())
                             partitions.emplace(key, std::move(partition));
                     }
@@ -447,30 +311,19 @@ void assign_acceleration_tree(MutableExtrusionEntity entity,
         return;
 
     const raw_extrusion_role role = state.attributes.extrusion_role();
+    const RegionalSourceKey source{ region_island.handle(), object_instance_idx };
     const AccelerationPartitionKey key{
-        region_island.handle(), object_instance_idx, context.extruder_id, role
+        source, context.extruder_id, role
     };
     const AccelerationPartitions::const_iterator partition_it = partitions.find(key);
-    if (partition_it == partitions.end() || !partition_it->second.requires_split()) {
+    if (partition_it == partitions.end()) {
         editor.set_value(entity, float(role_acceleration(context, role)));
         return;
     }
 
-    // The partition is complete by construction. The splitter returns borrowed
-    // fragment views in traversal order, each carrying the final-value bucket
-    // index selected during setup.
-    const AccelerationPartition &partition = partition_it->second;
-    std::vector<ExPolygonCollection> area_views;
-    area_views.reserve(partition.areas.size());
-    for (const StoredExPolygonCollection &area : partition.areas)
-        area_views.push_back(area.readonly());
-
-    const std::vector<ExtrusionAreaFragment> fragments = entity.split_leaf_by_areas(area_views);
-    for (const ExtrusionAreaFragment &fragment : fragments) {
-        if (fragment.area_index >= partition.accelerations.size())
-            throw std::runtime_error("Regional acceleration split returned an invalid area index.");
-        editor.set_value(fragment.entity, partition.accelerations[fragment.area_index]);
-    }
+    // The common helper keeps clipping, fragment ordering and property edits
+    // identical between acceleration and speed.
+    apply_regional_process_partition(entity, partition_it->second, editor);
 }
 
 void edit_extrusion(const Print &print,

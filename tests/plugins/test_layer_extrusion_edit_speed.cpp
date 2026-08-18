@@ -219,17 +219,18 @@ void prepare_ordered_plan(PreparedSpeedPrint &prepared,
 }
 
 // Build a model part with a centered parameter modifier. The auxiliary layer
-// receives the resulting region masks, while its single test path can either
-// cross base/modifier/base or remain wholly inside the modifier.
-void prepare_regional_acceleration_plan(
+// receives the resulting region masks, while its test paths can either cross
+// base/modifier/base or remain wholly inside the modifier.
+void prepare_regional_process_plan(
     PreparedSpeedPrint &prepared,
     const DynamicPrintConfig &config,
     std::initializer_list<ConfigBase::SetDeserializeItem> modifier_overrides,
-    const ExtrusionSpec &spec,
+    const char *region_setting_key,
+    const std::vector<ExtrusionSpec> &specs,
     bool path_inside_modifier = false)
 {
     ModelObject *model_object = prepared.model.add_object();
-    model_object->name = "regional_acceleration.stl";
+    model_object->name = "regional_process_parameter.stl";
 
     ModelVolume *part = model_object->add_volume(
         Slic3r::make_cube(20., 20., 10.), ModelVolumeType::MODEL_PART, false);
@@ -295,8 +296,8 @@ void prepare_regional_acceleration_plan(
         Point(center.x() + inset, center.y()) :
         Point(bbox.max.x() - inset, center.y());
 
-    // Keep the fixture honest: the region masks supplied to the acceleration
-    // plugin must collectively cover the exact path added below.
+    // Keep the fixture honest: the region masks supplied to the process plugin
+    // must collectively cover the exact paths added below.
     const Polyline test_line(start, end);
     double covered_length = 0.;
     for (uint32_t region_idx = 0; region_idx < island.region_count(); ++region_idx) {
@@ -310,10 +311,10 @@ void prepare_regional_acceleration_plan(
     slic3r_api::RegionSettings fixture_settings(
         reinterpret_cast<storage_handle *>(&prepared.storage),
         island,
-        {{"default_acceleration"}});
+        {{region_setting_key}});
     fixture_settings.segregate(island.slice());
     const slic3r_api::RegionSettings::AreaMap &fixture_areas =
-        fixture_settings.get_areas("default_acceleration");
+        fixture_settings.get_areas(region_setting_key);
     REQUIRE(fixture_areas.size() == 2);
     double segregated_length = 0.;
     for (const auto &entry : fixture_areas)
@@ -322,13 +323,14 @@ void prepare_regional_acceleration_plan(
             segregated_length += covered.length();
     REQUIRE(segregated_length == Approx(test_line.length()).margin(double(SCALED_EPSILON) * 2.));
 
-    std::unique_ptr<ExtrusionPath> path = make_path(spec, 0);
-    path->polyline() = ArcPolyline();
-    path->polyline().append(start);
-    path->polyline().append(end);
-
     ExtrusionEntityCollection &root = *reinterpret_cast<ExtrusionEntityCollection *>(root_handle);
-    root.append(std::move(path));
+    for (size_t spec_idx = 0; spec_idx < specs.size(); ++spec_idx) {
+        std::unique_ptr<ExtrusionPath> path = make_path(specs[spec_idx], spec_idx);
+        path->polyline() = ArcPolyline();
+        path->polyline().append(start);
+        path->polyline().append(end);
+        root.append(std::move(path));
+    }
     prepared.source_roots.push_back(&root);
     prepared.source_layers.push_back(reinterpret_cast<Layer *>(
         const_cast<layer_handle *>(result.layer.handle())));
@@ -336,6 +338,20 @@ void prepare_regional_acceleration_plan(
     Steps::StepExtrusionOrdering::clean_and_prepare(prepared.print);
     Steps::StepExtrusionOrdering::run_step(orchestrator, prepared.print);
     REQUIRE(prepared.print.printing_plan() != nullptr);
+}
+
+// Preserve the concise acceleration fixture calls while sharing all regional
+// setup and validation with the speed scenarios below.
+void prepare_regional_acceleration_plan(
+    PreparedSpeedPrint &prepared,
+    const DynamicPrintConfig &config,
+    std::initializer_list<ConfigBase::SetDeserializeItem> modifier_overrides,
+    const ExtrusionSpec &spec,
+    bool path_inside_modifier = false)
+{
+    prepare_regional_process_plan(
+        prepared, config, modifier_overrides, "default_acceleration", {spec},
+        path_inside_modifier);
 }
 
 // Run any selected editor set through the host runner rather than invoking
@@ -630,6 +646,218 @@ TEST_CASE("Layer extrusion speed and acceleration plugins operate independently"
         REQUIRE(leaves.size() == 1);
         CHECK(leaves.front().speed == -1.f);
         CHECK(leaves.front().acceleration == 700.f);
+    }
+}
+
+TEST_CASE("Layer speed follows final values across region boundaries",
+          "[plugins][layer-extrusion-edit][speed][regions]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    SECTION("different final values split a crossing leaf in traversal order") {
+        PreparedSpeedPrint prepared;
+        const DynamicPrintConfig config = speed_config({
+            {"perimeter_speed", "70"}, {"first_layer_speed", "100%"},
+            {"max_print_speed", "100"}, {"max_volumetric_speed", "0"},
+            {"filament_max_speed", "0"}, {"filament_max_volumetric_speed", "0"}
+        });
+        ExtrusionSpec spec{ExtrusionRole::Perimeter, 0.2};
+        spec.existing_acceleration = 321.f;
+        spec.pressure_advance = 0.05f;
+        spec.fan_speed = 42.f;
+        spec.temperature = 210.f;
+        prepare_regional_process_plan(
+            prepared, config, {{"perimeter_speed", "30"}}, "perimeter_speed", {spec});
+
+        run_editors(prepared, {DEFAULT_SPEED_PLUGIN});
+
+        const std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+        REQUIRE(leaves.size() == 3);
+        CHECK(leaves[0].speed == 70.f);
+        CHECK(leaves[1].speed == 30.f);
+        CHECK(leaves[2].speed == 70.f);
+        for (const ObservedLeaf &leaf : leaves) {
+            REQUIRE(leaf.direct_process != nullptr);
+            CHECK(leaf.acceleration == 321.f);
+            CHECK(leaf.direct_process->pressure_adv == 0.05f);
+            CHECK(leaf.direct_process->fan_speed_percent == 42.f);
+            CHECK(leaf.direct_process->temperature_C == 210.f);
+        }
+
+        ExtrusionEntity &root = single_plan_root(prepared.print);
+        REQUIRE(root.child_count() == 1);
+        const ExtrusionEntity &split_leaf = root.child(0);
+        REQUIRE(split_leaf.child_count() == 3);
+        CHECK(split_leaf.child(0).last_point() == split_leaf.child(1).first_point());
+        CHECK(split_leaf.child(1).last_point() == split_leaf.child(2).first_point());
+
+        // Speed edits belong to the ordered plan clone; the source layer keeps
+        // its original unsplit geometry and unrelated process fields.
+        REQUIRE(prepared.source_roots.size() == 1);
+        REQUIRE(prepared.source_roots.front()->child_count() == 1);
+        CHECK(prepared.source_roots.front()->child(0).child_count() == 0);
+        const ExtrusionPropertySpeed *source_process =
+            prepared.source_roots.front()->child(0).get_property<ExtrusionPropertySpeed>();
+        REQUIRE(source_process != nullptr);
+        CHECK(source_process->speed_mm_per_s == -1.f);
+        CHECK(source_process->accel_mm_per_s2 == 321.f);
+    }
+
+    SECTION("different raw settings capped to one final float do not split") {
+        PreparedSpeedPrint prepared;
+        const DynamicPrintConfig config = speed_config({
+            {"perimeter_speed", "100"}, {"first_layer_speed", "100%"},
+            {"max_print_speed", "50"}, {"max_volumetric_speed", "0"},
+            {"filament_max_speed", "0"}, {"filament_max_volumetric_speed", "0"}
+        });
+        prepare_regional_process_plan(
+            prepared, config, {{"perimeter_speed", "80"}}, "perimeter_speed",
+            {ExtrusionSpec{ExtrusionRole::Perimeter, 0.2}});
+
+        run_editors(prepared, {DEFAULT_SPEED_PLUGIN});
+
+        const std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+        REQUIRE(leaves.size() == 1);
+        CHECK(leaves.front().speed == 50.f);
+        ExtrusionEntity &root = single_plan_root(prepared.print);
+        REQUIRE(root.child_count() == 1);
+        CHECK(root.child(0).child_count() == 0);
+    }
+
+    SECTION("base autospeed and explicit modifier are resolved independently") {
+        PreparedSpeedPrint prepared;
+        const DynamicPrintConfig config = speed_config({
+            {"perimeter_speed", "0"}, {"first_layer_speed", "100%"},
+            {"max_print_speed", "100"}, {"max_volumetric_speed", "12"},
+            {"autospeed_min_thin_flow", "!0"}, {"filament_max_speed", "0"},
+            {"filament_max_volumetric_speed", "0"}
+        });
+        prepare_regional_process_plan(
+            prepared, config, {{"perimeter_speed", "30"}}, "perimeter_speed",
+            {ExtrusionSpec{ExtrusionRole::Perimeter, 0.2}});
+
+        run_editors(prepared, {DEFAULT_SPEED_PLUGIN});
+
+        const std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+        REQUIRE(leaves.size() == 3);
+        CHECK(leaves[0].speed == 60.f);
+        CHECK(leaves[1].speed == 30.f);
+        CHECK(leaves[2].speed == 60.f);
+    }
+
+    SECTION("an autospeed modifier contributes when the base setting is explicit") {
+        PreparedSpeedPrint prepared;
+        const DynamicPrintConfig config = speed_config({
+            {"perimeter_speed", "30"}, {"first_layer_speed", "100%"},
+            {"max_print_speed", "100"}, {"max_volumetric_speed", "12"},
+            {"autospeed_min_thin_flow", "!0"}, {"filament_max_speed", "0"},
+            {"filament_max_volumetric_speed", "0"}
+        });
+        prepare_regional_process_plan(
+            prepared, config, {{"perimeter_speed", "0"}}, "perimeter_speed",
+            {ExtrusionSpec{ExtrusionRole::Perimeter, 0.2}});
+
+        run_editors(prepared, {DEFAULT_SPEED_PLUGIN});
+
+        const std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+        REQUIRE(leaves.size() == 3);
+        CHECK(leaves[0].speed == 30.f);
+        CHECK(leaves[1].speed == 60.f);
+        CHECK(leaves[2].speed == 30.f);
+    }
+
+    SECTION("an untouched autospeed region does not contribute to the group target") {
+        PreparedSpeedPrint prepared;
+        const DynamicPrintConfig config = speed_config({
+            {"perimeter_speed", "0"}, {"infill_speed", "0"},
+            {"solid_infill_speed", "0"},
+            {"first_layer_speed", "100%"}, {"first_layer_infill_speed", "100%"},
+            {"max_print_speed", "100"}, {"max_volumetric_speed", "50"},
+            {"autospeed_min_thin_flow", "!0"}, {"filament_max_speed", "0"},
+            {"filament_max_volumetric_speed", "0"}
+        });
+        prepare_regional_process_plan(
+            prepared, config, {{"perimeter_speed", "30"}}, "perimeter_speed",
+            {ExtrusionSpec{ExtrusionRole::Perimeter, 0.2},
+             ExtrusionSpec{ExtrusionRole::InternalInfill, 0.4}}, true);
+
+        run_editors(prepared, {DEFAULT_SPEED_PLUGIN});
+
+        const std::map<uint16_t, ObservedLeaf> leaves =
+            observed_by_role(observed_plan_leaves(prepared.print));
+        REQUIRE(leaves.count(uint16_t(ExtrusionRole::Perimeter)) == 1);
+        REQUIRE(leaves.count(uint16_t(ExtrusionRole::InternalInfill)) == 1);
+        CHECK(leaves.at(uint16_t(ExtrusionRole::Perimeter)).speed == 30.f);
+        CHECK(leaves.at(uint16_t(ExtrusionRole::InternalInfill)).speed == 100.f);
+    }
+
+    SECTION("a leaf contained in one region keeps its structure") {
+        PreparedSpeedPrint prepared;
+        const DynamicPrintConfig config = speed_config({
+            {"perimeter_speed", "70"}, {"first_layer_speed", "100%"},
+            {"max_print_speed", "100"}, {"max_volumetric_speed", "0"},
+            {"filament_max_speed", "0"}, {"filament_max_volumetric_speed", "0"}
+        });
+        prepare_regional_process_plan(
+            prepared, config, {{"perimeter_speed", "30"}}, "perimeter_speed",
+            {ExtrusionSpec{ExtrusionRole::Perimeter, 0.2}}, true);
+
+        run_editors(prepared, {DEFAULT_SPEED_PLUGIN});
+
+        const std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+        REQUIRE(leaves.size() == 1);
+        CHECK(leaves.front().speed == 30.f);
+        ExtrusionEntity &root = single_plan_root(prepared.print);
+        REQUIRE(root.child_count() == 1);
+        CHECK(root.child(0).child_count() == 0);
+    }
+
+    SECTION("an existing effective speed bypasses regional splitting") {
+        PreparedSpeedPrint prepared;
+        const DynamicPrintConfig config = speed_config({
+            {"perimeter_speed", "70"}, {"first_layer_speed", "100%"},
+            {"max_print_speed", "100"}, {"max_volumetric_speed", "0"},
+            {"filament_max_speed", "0"}, {"filament_max_volumetric_speed", "0"}
+        });
+        ExtrusionSpec spec{ExtrusionRole::Perimeter, 0.2};
+        spec.existing_speed = 41.f;
+        prepare_regional_process_plan(
+            prepared, config, {{"perimeter_speed", "30"}}, "perimeter_speed", {spec});
+
+        run_editors(prepared, {DEFAULT_SPEED_PLUGIN});
+
+        const std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+        REQUIRE(leaves.size() == 1);
+        CHECK(leaves.front().speed == 41.f);
+        ExtrusionEntity &root = single_plan_root(prepared.print);
+        REQUIRE(root.child_count() == 1);
+        CHECK(root.child(0).child_count() == 0);
+    }
+
+    SECTION("flow-dependent caps produce distinct cached partitions") {
+        PreparedSpeedPrint prepared;
+        const DynamicPrintConfig config = speed_config({
+            {"perimeter_speed", "100"}, {"first_layer_speed", "100%"},
+            {"max_print_speed", "100"}, {"max_volumetric_speed", "12"},
+            {"filament_max_speed", "0"}, {"filament_max_volumetric_speed", "0"}
+        });
+        prepare_regional_process_plan(
+            prepared, config, {{"perimeter_speed", "50"}}, "perimeter_speed",
+            {ExtrusionSpec{ExtrusionRole::Perimeter, 0.2},
+             ExtrusionSpec{ExtrusionRole::Perimeter, 0.4}});
+
+        run_editors(prepared, {DEFAULT_SPEED_PLUGIN});
+
+        const std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+        REQUIRE(leaves.size() == 4);
+        CHECK(leaves[0].speed == 60.f);
+        CHECK(leaves[1].speed == 50.f);
+        CHECK(leaves[2].speed == 60.f);
+        CHECK(leaves[3].speed == 30.f);
+        ExtrusionEntity &root = single_plan_root(prepared.print);
+        REQUIRE(root.child_count() == 2);
+        CHECK(root.child(0).child_count() == 3);
+        CHECK(root.child(1).child_count() == 0);
     }
 }
 
