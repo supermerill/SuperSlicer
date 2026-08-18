@@ -6,6 +6,7 @@
 #include "GuiRulesExample.hpp"
 
 #include <cstdint>
+#include <iterator>
 
 #include "libslic3r/Api/plugin/c/slic3r_config_def.h"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
@@ -17,23 +18,25 @@ namespace {
 
 const char *k_gui_rules_example_id = "gui_rules_example";
 const char *k_no_dependencies[] = { nullptr };
-const char *k_defined_config_keys[] = {
-    "plugin_gui_rule_test_bool_true_condition",
-    "plugin_gui_rule_test_bool_true_target",
-    "plugin_gui_rule_test_bool_false_condition",
-    "plugin_gui_rule_test_bool_false_target",
-    "plugin_gui_rule_test_value_nonzero_condition",
-    "plugin_gui_rule_test_value_nonzero_target",
-    "plugin_gui_rule_test_option_enabled_condition",
-    "plugin_gui_rule_test_option_enabled_target",
-    "plugin_gui_rule_test_option_disabled_condition",
-    "plugin_gui_rule_test_option_disabled_target",
-    "plugin_gui_rule_test_int_equals_target",
-    "plugin_gui_rule_test_int_not_equals_target",
-    "plugin_gui_rule_test_thin_walls",
-    "plugin_gui_rule_test_thin_walls_min_width"
+const raw_used_config_key k_used_config_keys[] = {
+    { "plugin_gui_rule_test_bool_true_condition", RAW_CO_BOOL, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "plugin_gui_rule_test_bool_true_target", RAW_CO_BOOL, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "plugin_gui_rule_test_bool_false_condition", RAW_CO_BOOL, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "plugin_gui_rule_test_bool_false_target", RAW_CO_BOOL, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "plugin_gui_rule_test_value_nonzero_condition", RAW_CO_FLOAT, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "plugin_gui_rule_test_value_nonzero_target", RAW_CO_BOOL, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "plugin_gui_rule_test_option_enabled_condition", RAW_CO_FLOAT, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "plugin_gui_rule_test_option_enabled_target", RAW_CO_BOOL, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "plugin_gui_rule_test_option_disabled_condition", RAW_CO_FLOAT, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "plugin_gui_rule_test_option_disabled_target", RAW_CO_BOOL, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "plugin_gui_rule_test_int_equals_target", RAW_CO_BOOL, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "plugin_gui_rule_test_int_not_equals_target", RAW_CO_BOOL, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "plugin_gui_rule_test_thin_walls", RAW_CO_BOOL, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "plugin_gui_rule_test_thin_walls_min_width", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "perimeter_generator", RAW_CO_ENUM, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE },
+    { "perimeters", RAW_CO_INT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE }
 };
-constexpr size_t k_defined_config_key_count = sizeof(k_defined_config_keys) / sizeof(k_defined_config_keys[0]);
+constexpr size_t k_defined_config_key_count = 14;
 
 void create_rule_test_option(orchestrator_handle *orchestrator,
                              const char *key,
@@ -112,11 +115,19 @@ int32_t GuiRulesExample::priority_impl() const noexcept
     return 0;
 }
 
+int32_t GuiRulesExample::used_config_keys(raw_used_config_key *keys) const noexcept
+{
+    if (keys != nullptr)
+        for (size_t idx = 0; idx < std::size(k_used_config_keys); ++idx)
+            keys[idx] = k_used_config_keys[idx];
+    return int32_t(std::size(k_used_config_keys));
+}
+
 int32_t GuiRulesExample::defined_config_keys(const char **keys) const noexcept
 {
     if (keys != nullptr)
         for (size_t idx = 0; idx < k_defined_config_key_count; ++idx)
-            keys[idx] = k_defined_config_keys[idx];
+            keys[idx] = k_used_config_keys[idx].key;
     return int32_t(k_defined_config_key_count);
 }
 

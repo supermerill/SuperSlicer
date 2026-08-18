@@ -398,7 +398,8 @@ protected:
     // Lower priority runs first inside a step.
     virtual int32_t priority_impl() const noexcept = 0;
 
-    // Configuration options read by this plugin. The default is empty.
+    // Configuration options read or defined by this plugin. The default is
+    // empty; every key returned by defined_config_keys() must also be present.
     // Return the required entry count when keys is nullptr, otherwise fill the
     // caller-provided array with borrowed key pointers and type expectations.
     virtual int32_t used_config_keys(raw_used_config_key *keys) const noexcept
@@ -409,7 +410,8 @@ protected:
 
     // Configuration option keys created by this plugin. The host uses this
     // declaration for early activation checks; orchestrator_create_option_def()
-    // still performs the full definition compatibility validation.
+    // still performs the full definition compatibility validation. The host
+    // obtains each defined key's type from used_config_keys().
     virtual int32_t defined_config_keys(const char **keys) const noexcept
     {
         (void)keys;

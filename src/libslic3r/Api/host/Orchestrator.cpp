@@ -1046,7 +1046,8 @@ bool Orchestrator::validate_plugin_activation(const std::vector<std::string> &pl
             return false;
         }
 
-        for (const std::string &key : plugin->get_defined_config_keys()) {
+        for (const Plugin::DefinedConfigKey &defined_key : plugin->get_defined_config_keys()) {
+            const std::string &key = defined_key.key;
             const std::map<std::string, ConfigOptionOwner>::const_iterator existing_owner = future_owners.find(key);
             if (existing_owner != future_owners.end()) {
                 if (same_option_ownership_scope(existing_owner->second, *plugin))

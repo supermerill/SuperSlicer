@@ -72,7 +72,8 @@ void read_plugin_used_config_keys(const plugin_instance &c_api,
 
 void read_plugin_defined_config_keys(const plugin_instance &c_api,
                                      plugin_defined_config_keys_fn callback,
-                                     std::vector<std::string> &out)
+                                     const std::vector<Plugin::UsedConfigKey> &used_keys,
+                                     std::vector<Plugin::DefinedConfigKey> &out)
 {
     const int32_t key_count = callback(c_api.ctx, nullptr);
     if (key_count < 0 || key_count > MAX_PLUGIN_CONFIG_KEYS)
@@ -87,9 +88,32 @@ void read_plugin_defined_config_keys(const plugin_instance &c_api,
     if (written_count < 0 || written_count > key_count)
         throw std::runtime_error("Plugin wrote an invalid defined_config_keys count.");
 
-    for (int32_t i = 0; i < written_count; ++i)
-        if (keys[size_t(i)] != nullptr)
-            out.emplace_back(keys[size_t(i)]);
+    // Defined keys intentionally reuse the richer used-key declaration. This
+    // keeps the lightweight activation callback ABI stable while making a
+    // setting's type available before an inactive plugin is initialized.
+    for (int32_t i = 0; i < written_count; ++i) {
+        const char *defined_key = keys[size_t(i)];
+        if (defined_key == nullptr)
+            continue;
+
+        const Plugin::UsedConfigKey *matching_used_key = nullptr;
+        for (const Plugin::UsedConfigKey &used_key : used_keys) {
+            if (used_key.key != defined_key)
+                continue;
+            if (matching_used_key != nullptr && matching_used_key->type != used_key.type)
+                throw std::runtime_error(
+                    std::string("Plugin declares defined config key '") + defined_key +
+                    "' with conflicting used_config_keys types.");
+            matching_used_key = &used_key;
+        }
+
+        if (matching_used_key == nullptr)
+            throw std::runtime_error(
+                std::string("Plugin declares defined config key '") + defined_key +
+                "' without a matching used_config_keys entry.");
+
+        out.push_back(Plugin::DefinedConfigKey{defined_key, matching_used_key->type});
+    }
 }
 
 } // namespace
@@ -129,7 +153,8 @@ Plugin::Plugin(plugin_instance c_api,
     }
 
     read_plugin_used_config_keys(c_api, c_api.vt->used_config_keys, m_used_config_keys);
-    read_plugin_defined_config_keys(c_api, c_api.vt->defined_config_keys, m_defined_config_keys);
+    read_plugin_defined_config_keys(
+        c_api, c_api.vt->defined_config_keys, m_used_config_keys, m_defined_config_keys);
 }
 
 } // namespace Slic3r

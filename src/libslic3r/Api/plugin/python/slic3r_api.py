@@ -172,12 +172,13 @@ def used_config_key(
     option_preset_type: int = RAW_PRESET_TYPE_NONE,
 ) -> tuple[str, int, int, int]:
     """
-    Declare one setting read by a Python plugin.
+    Declare one setting read or defined by a Python plugin.
 
     The type is mandatory because the host validates that the setting provider
     and the reader agree on the ConfigOption representation. container_type and
     option_preset_type are optional filters; leave them at *_NONE when the key
-    may legitimately come from several places.
+    may legitimately come from several places. Every name in
+    defined_config_keys must have a matching typed entry created here.
     """
     return (key, int(type), int(container_type), int(option_preset_type))
 
@@ -189,7 +190,8 @@ class PluginBase:
     Set plugin_id, name, description, step, priority, dependencies and
     used_config_keys in __init__ by calling the base constructor. Entries in
     used_config_keys should be created with used_config_key(...), so the host
-    can validate the expected option type. Every plugin has an exclusive group:
+    can validate the expected option type. This list must also contain every
+    key in defined_config_keys. Every plugin has an exclusive group:
     when exclusive_group is not supplied, it defaults to plugin_id and behaves as
     a singleton group. If several plugins are alternatives for the same work,
     give them the same exclusive_group so the host can expose a selector and run

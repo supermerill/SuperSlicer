@@ -24,6 +24,14 @@ public:
         raw_option_preset_type option_preset_type = RAW_PRESET_TYPE_NONE;
     };
 
+    struct DefinedConfigKey
+    {
+        // The type is resolved from UsedConfigKey during registration, before
+        // inactive plugins have published their complete option definitions.
+        std::string key;
+        raw_config_option_type type = RAW_CO_NONE;
+    };
+
 protected:
     plugin_instance m_c_api;
     std::string m_id;
@@ -39,7 +47,7 @@ protected:
     slicing_step_t m_step;
     std::vector<std::string> m_dependencies;
     std::vector<UsedConfigKey> m_used_config_keys;
-    std::vector<std::string> m_defined_config_keys;
+    std::vector<DefinedConfigKey> m_defined_config_keys;
     int m_priority;
 
 public:
@@ -58,7 +66,7 @@ public:
     slicing_step_t get_step() const noexcept { return m_step; }
     const std::vector<std::string>& get_dependencies() const noexcept { return m_dependencies; }
     const std::vector<UsedConfigKey>& get_used_config_keys() const noexcept { return m_used_config_keys; }
-    const std::vector<std::string>& get_defined_config_keys() const noexcept { return m_defined_config_keys; }
+    const std::vector<DefinedConfigKey>& get_defined_config_keys() const noexcept { return m_defined_config_keys; }
     int get_priority() const noexcept { return m_priority; }
     void initialize(storage_handle *storage) const {
         m_c_api.vt->initialize(m_c_api.ctx, storage);

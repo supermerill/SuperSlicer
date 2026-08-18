@@ -78,6 +78,11 @@ struct NavigationScope {
     slicing_step_t step { STEP_NONE };
 };
 
+struct PluginSettingEntry {
+    std::string key;
+    raw_config_option_type type { RAW_CO_NONE };
+};
+
 struct PluginCatalogEntry {
     std::string id;
     std::string package_id;
@@ -89,6 +94,8 @@ struct PluginCatalogEntry {
     wxString exclusive_group_tooltip;
     wxString diagnostic;
     std::vector<std::string> dependencies;
+    std::vector<PluginSettingEntry> defined_settings;
+    std::vector<PluginSettingEntry> other_used_settings;
     slicing_step_t step { STEP_NONE };
     int priority { 0 };
     size_t registration_index { 0 };
@@ -181,6 +188,8 @@ struct DetailWidgets {
     wxStaticText *priority { nullptr };
     wxStaticText *group { nullptr };
     wxStaticText *dependencies { nullptr };
+    wxDataViewListCtrl *defined_settings { nullptr };
+    wxDataViewListCtrl *other_used_settings { nullptr };
     wxStaticText *diagnostic_label { nullptr };
     wxStaticText *diagnostic { nullptr };
 };
@@ -214,10 +223,14 @@ bool is_extension_step(slicing_step_t step);
 bool navigation_matches(const PluginCatalogEntry &entry, const NavigationScope &scope);
 wxString plugin_status(const PluginCatalogEntry &entry);
 wxString join_dependencies(const std::vector<std::string> &dependencies);
+wxString config_option_type_name(raw_config_option_type type);
 wxString searchable_plugin_text(const PluginCatalogEntry &entry);
 bool plugin_less(const PluginCatalogEntry *left, const PluginCatalogEntry *right);
 bool step_bucket_less(const StepBucket &left, const StepBucket &right);
 void set_detail_value(wxStaticText *widget, const wxString &value);
+void populate_setting_list(wxDataViewListCtrl *list,
+                           const std::vector<PluginSettingEntry> &settings,
+                           const wxString &empty_message);
 
 } // namespace
 
@@ -465,11 +478,42 @@ wxString join_dependencies(const std::vector<std::string> &dependencies)
     return result;
 }
 
+wxString config_option_type_name(raw_config_option_type type)
+{
+    switch (type) {
+    case RAW_CO_BOOL:                    return _L("Boolean");
+    case RAW_CO_INT:                     return _L("Integer");
+    case RAW_CO_FLOAT:                   return _L("Float");
+    case RAW_CO_PERCENT:                 return _L("Percent");
+    case RAW_CO_FLOAT_OR_PERCENT:        return _L("Float or percent");
+    case RAW_CO_STRING:                  return _L("String");
+    case RAW_CO_POINT:                   return _L("Point");
+    case RAW_CO_ENUM:                    return _L("Enum");
+    case RAW_CO_GRAPH:                   return _L("Graph");
+    case RAW_CO_VECTOR_BOOL:             return _L("Boolean list");
+    case RAW_CO_VECTOR_INT:              return _L("Integer list");
+    case RAW_CO_VECTOR_FLOAT:            return _L("Float list");
+    case RAW_CO_VECTOR_PERCENT:          return _L("Percent list");
+    case RAW_CO_VECTOR_FLOAT_OR_PERCENT: return _L("Float or percent list");
+    case RAW_CO_VECTOR_STRING:           return _L("String list");
+    case RAW_CO_VECTOR_POINT:            return _L("Point list");
+    case RAW_CO_VECTOR_ENUM:             return _L("Enum list");
+    case RAW_CO_VECTOR_GRAPH:            return _L("Graph list");
+    case RAW_CO_NONE:                    return _L("Unknown");
+    }
+    return _L("Unknown");
+}
+
 wxString searchable_plugin_text(const PluginCatalogEntry &entry)
 {
-    return (entry.name + " " + from_u8(entry.id) + " " + entry.description + " " + entry.step_label + " " +
-            entry.exclusive_group_label + " " + from_u8(entry.exclusive_group) + " " + from_u8(entry.package_id))
-        .Lower();
+    wxString searchable = entry.name + " " + from_u8(entry.id) + " " + entry.description + " " +
+        entry.step_label + " " + entry.exclusive_group_label + " " + from_u8(entry.exclusive_group) + " " +
+        from_u8(entry.package_id);
+    for (const PluginSettingEntry &setting : entry.defined_settings)
+        searchable += " " + from_u8(setting.key);
+    for (const PluginSettingEntry &setting : entry.other_used_settings)
+        searchable += " " + from_u8(setting.key);
+    return searchable.Lower();
 }
 
 bool plugin_less(const PluginCatalogEntry *left, const PluginCatalogEntry *right)
@@ -499,6 +543,30 @@ void set_detail_value(wxStaticText *widget, const wxString &value)
         return;
     widget->SetLabel(value);
     widget->SetToolTip(value);
+}
+
+void populate_setting_list(wxDataViewListCtrl *list,
+                           const std::vector<PluginSettingEntry> &settings,
+                           const wxString &empty_message)
+{
+    if (list == nullptr)
+        return;
+
+    list->DeleteAllItems();
+    if (settings.empty()) {
+        wxVector<wxVariant> row;
+        row.push_back(wxVariant(empty_message));
+        row.push_back(wxVariant(wxEmptyString));
+        list->AppendItem(row);
+        return;
+    }
+
+    for (const PluginSettingEntry &setting : settings) {
+        wxVector<wxVariant> row;
+        row.push_back(wxVariant(from_u8(setting.key)));
+        row.push_back(wxVariant(config_option_type_name(setting.type)));
+        list->AppendItem(row);
+    }
 }
 
 unsigned int PluginListModel::GetColumnCount() const
@@ -714,6 +782,15 @@ void PluginConfigDialog::build_catalog()
         entry.exclusive_group_tooltip =
             I18N::translate_in_domain(plugin->get_exclusive_group_tooltip(), plugin->get_translation_domain());
         entry.dependencies = plugin->get_dependencies();
+        std::set<std::string> defined_setting_keys;
+        for (const Plugin::DefinedConfigKey &defined_key : plugin->get_defined_config_keys()) {
+            if (defined_setting_keys.insert(defined_key.key).second)
+                entry.defined_settings.push_back({defined_key.key, defined_key.type});
+        }
+        for (const Plugin::UsedConfigKey &used_key : plugin->get_used_config_keys()) {
+            if (defined_setting_keys.find(used_key.key) == defined_setting_keys.end())
+                entry.other_used_settings.push_back({used_key.key, used_key.type});
+        }
         entry.loaded = true;
         entry.modifiable = true;
         entry.active = Orchestrator::instance().is_plugin_active(plugin) ||
@@ -999,6 +1076,8 @@ void PluginConfigDialog::refresh_details()
     const wxDataViewItem selection = m_state->plugin_list->GetSelection();
     PluginListNode *node = m_state->plugin_list_model->node(selection);
     PluginCatalogEntry *entry = node != nullptr ? node->entry : nullptr;
+    const wxString unavailable_settings = entry == nullptr ? _L("Select a plugin") :
+        entry->loaded ? _L("None") : _L("Not available because the plugin is not loaded");
     if (entry == nullptr) {
         const wxString title = node != nullptr ? node->label : _L("Select a plugin");
         const wxString description = node != nullptr ? node->detail :
@@ -1050,6 +1129,14 @@ void PluginConfigDialog::refresh_details()
         if (show_diagnostic)
             set_detail_value(m_state->details.diagnostic, entry->diagnostic);
     }
+
+    const std::vector<PluginSettingEntry> no_settings;
+    populate_setting_list(m_state->details.defined_settings,
+                          entry != nullptr ? entry->defined_settings : no_settings,
+                          unavailable_settings);
+    populate_setting_list(m_state->details.other_used_settings,
+                          entry != nullptr ? entry->other_used_settings : no_settings,
+                          unavailable_settings);
 
     const int wrap_width = 29 * em_unit();
     m_state->details.description->Wrap(wrap_width);
@@ -1159,6 +1246,39 @@ void PluginConfigDialog::build()
         details_grid->Add(*detail_values[detail_idx], 1, wxEXPAND);
     }
     details_sizer->Add(details_grid, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
+
+    // Settings remain readable for plugins that are not active because their
+    // registration metadata is collected before initialize() is called.
+    details_sizer->Add(new wxStaticLine(m_state->details_panel), 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
+    wxStaticText *defined_settings_label =
+        new wxStaticText(m_state->details_panel, wxID_ANY, _L("Defined settings"));
+    wxFont settings_label_font = defined_settings_label->GetFont();
+    settings_label_font.SetWeight(wxFONTWEIGHT_BOLD);
+    defined_settings_label->SetFont(settings_label_font);
+    details_sizer->Add(defined_settings_label, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 6);
+    m_state->details.defined_settings = new wxDataViewListCtrl(
+        m_state->details_panel, wxID_ANY, wxDefaultPosition, wxSize(-1, 10 * em_unit()),
+        wxDV_ROW_LINES | wxDV_VERT_RULES | wxBORDER_SIMPLE);
+    m_state->details.defined_settings->AppendTextColumn(
+        _L("Setting"), wxDATAVIEW_CELL_INERT, 19 * em_unit(), wxALIGN_LEFT, wxDATAVIEW_COL_RESIZABLE);
+    m_state->details.defined_settings->AppendTextColumn(
+        _L("Type"), wxDATAVIEW_CELL_INERT, 11 * em_unit(), wxALIGN_LEFT, wxDATAVIEW_COL_RESIZABLE);
+    wxGetApp().UpdateDVCDarkUI(m_state->details.defined_settings);
+    details_sizer->Add(m_state->details.defined_settings, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
+
+    wxStaticText *used_settings_label =
+        new wxStaticText(m_state->details_panel, wxID_ANY, _L("Other settings used"));
+    used_settings_label->SetFont(settings_label_font);
+    details_sizer->Add(used_settings_label, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 6);
+    m_state->details.other_used_settings = new wxDataViewListCtrl(
+        m_state->details_panel, wxID_ANY, wxDefaultPosition, wxSize(-1, 10 * em_unit()),
+        wxDV_ROW_LINES | wxDV_VERT_RULES | wxBORDER_SIMPLE);
+    m_state->details.other_used_settings->AppendTextColumn(
+        _L("Setting"), wxDATAVIEW_CELL_INERT, 19 * em_unit(), wxALIGN_LEFT, wxDATAVIEW_COL_RESIZABLE);
+    m_state->details.other_used_settings->AppendTextColumn(
+        _L("Type"), wxDATAVIEW_CELL_INERT, 11 * em_unit(), wxALIGN_LEFT, wxDATAVIEW_COL_RESIZABLE);
+    wxGetApp().UpdateDVCDarkUI(m_state->details.other_used_settings);
+    details_sizer->Add(m_state->details.other_used_settings, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
 
     m_state->details.diagnostic_label = new wxStaticText(m_state->details_panel, wxID_ANY, _L("Diagnostic"));
     wxFont diagnostic_font = m_state->details.diagnostic_label->GetFont();

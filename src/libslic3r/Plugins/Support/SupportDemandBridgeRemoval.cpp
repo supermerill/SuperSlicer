@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <iterator>
 #include <utility>
 #include <vector>
 
@@ -21,7 +22,11 @@ namespace {
 
 const char *k_support_demand_bridge_removal_id = "support.demand.bridge_removal";
 const char *k_dependencies[] = { nullptr };
-const char *k_defined_config_keys[] = { "dont_support_bridges" };
+const raw_used_config_key k_used_config_keys[] = {
+    { "dont_support_bridges", RAW_CO_BOOL, RAW_CONTAINER_TYPE_OBJECT, RAW_PRESET_TYPE_FFF_PRINT },
+    { "support_material", RAW_CO_BOOL, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE },
+    { "raft_layers", RAW_CO_INT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE }
+};
 
 struct BridgeRemovalConfig
 {
@@ -317,10 +322,17 @@ int32_t SupportDemandBridgeRemoval::priority_impl() const noexcept
     return 15;
 }
 
+int32_t SupportDemandBridgeRemoval::used_config_keys(raw_used_config_key *keys) const noexcept
+{
+    if (keys != nullptr)
+        std::copy(std::begin(k_used_config_keys), std::end(k_used_config_keys), keys);
+    return int32_t(std::size(k_used_config_keys));
+}
+
 int32_t SupportDemandBridgeRemoval::defined_config_keys(const char **keys) const noexcept
 {
     if (keys != nullptr)
-        keys[0] = k_defined_config_keys[0];
+        keys[0] = k_used_config_keys[0].key;
     return 1;
 }
 

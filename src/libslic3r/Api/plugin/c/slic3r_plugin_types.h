@@ -57,7 +57,7 @@ typedef void (*plugin_setup_run_fn)(void *plugin_ctx, const plugin_run_context *
 typedef void (*plugin_run_fn)(void *plugin_ctx, const plugin_run_context *run_ctx);
 
 /*
-One configuration option read by a plugin.
+One configuration option read or defined by a plugin.
 
 type is mandatory and must not be RAW_CO_NONE. It lets the host verify that the
 plugin and the option owner agree on the value representation.
@@ -74,7 +74,7 @@ typedef struct raw_used_config_key {
 } raw_used_config_key;
 
 /*
-Return the configuration options read by this plugin.
+Return the configuration options read or defined by this plugin.
 
 This uses the usual C double-call pattern:
 - call with keys == NULL to get the number of entries to allocate;
@@ -83,7 +83,9 @@ This uses the usual C double-call pattern:
 
 The host uses this list to validate plugin contracts and to enable/disable GUI
 fields when several plugins are available for an exclusive step and a project
-selects one of them.
+selects one of them. Every key returned by defined_config_keys must have a
+matching typed entry in this list, even when the plugin only defines that option
+for its GUI or for another plugin.
 */
 typedef int32_t (*plugin_used_config_keys_fn)(void *plugin_ctx, raw_used_config_key *keys);
 
@@ -94,6 +96,9 @@ This is a lightweight declaration used for early validation before a plugin is
 enabled from the GUI. The authoritative check still happens when the plugin
 calls orchestrator_create_option_def(), because only that call contains the full
 definition to compare.
+Every key returned here must also appear in plugin_used_config_keys_fn. The host
+uses that typed declaration to describe settings before an inactive plugin has
+called initialize().
 
 Use the same double-call convention as plugin_used_config_keys_fn.
 */

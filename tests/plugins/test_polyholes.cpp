@@ -28,6 +28,7 @@
 #include <initializer_list>
 #include <set>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -355,6 +356,8 @@ struct DuplicateOptionPluginState
     const char *const *defined_keys = nullptr;
     size_t defined_key_count = 0;
     bool create_polyhole_option = false;
+    bool omit_used_keys = false;
+    bool conflicting_used_types = false;
 };
 
 DuplicateOptionPluginState g_same_group_duplicate {
@@ -440,9 +443,25 @@ int32_t duplicate_plugin_priority(void *)
     return 1000;
 }
 
-int32_t duplicate_plugin_no_keys(void *, raw_used_config_key *)
+int32_t duplicate_plugin_used_keys(void *plugin_ctx, raw_used_config_key *keys)
 {
-    return 0;
+    const DuplicateOptionPluginState &state = *static_cast<DuplicateOptionPluginState *>(plugin_ctx);
+    if (state.omit_used_keys)
+        return 0;
+
+    const size_t key_count = state.defined_key_count * (state.conflicting_used_types ? 2 : 1);
+    if (keys != nullptr) {
+        for (size_t idx = 0; idx < state.defined_key_count; ++idx) {
+            const raw_config_option_type type = std::string(state.defined_keys[idx]) == "layer_height" ?
+                RAW_CO_FLOAT : RAW_CO_BOOL;
+            keys[idx] = raw_used_config_key{
+                state.defined_keys[idx], type, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT};
+            if (state.conflicting_used_types)
+                keys[state.defined_key_count + idx] = raw_used_config_key{
+                    state.defined_keys[idx], RAW_CO_STRING, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT};
+        }
+    }
+    return int32_t(key_count);
 }
 
 int32_t duplicate_plugin_defined_keys(void *plugin_ctx, const char **keys)
@@ -501,7 +520,7 @@ const plugin_vtable *duplicate_option_plugin_vtable()
         &duplicate_plugin_step,
         &duplicate_plugin_dependencies,
         &duplicate_plugin_priority,
-        &duplicate_plugin_no_keys,
+        &duplicate_plugin_used_keys,
         &duplicate_plugin_defined_keys,
         &duplicate_plugin_initialize,
         &duplicate_plugin_setup,
@@ -697,6 +716,71 @@ TEST_CASE("Exclusive-group option ownership validates plugin activation early", 
         {g_builtin_duplicate.id},
         error_message));
     CHECK(error_message.find("layer_height") != std::string::npos);
+}
+
+TEST_CASE("Defined plugin settings obtain their type from used settings", "[plugins][config][metadata]")
+{
+    DuplicateOptionPluginState state {
+        "test.config.metadata",
+        "test.config.metadata",
+        k_duplicate_polyhole_key,
+        1,
+        false
+    };
+    plugin_instance instance = {};
+    instance.ctx = &state;
+    instance.vt = duplicate_option_plugin_vtable();
+
+    Plugin plugin(instance, std::string(), std::string());
+    REQUIRE(plugin.get_defined_config_keys().size() == 1);
+    CHECK(plugin.get_defined_config_keys().front().key == "hole_to_polyhole");
+    CHECK(plugin.get_defined_config_keys().front().type == RAW_CO_BOOL);
+}
+
+TEST_CASE("Defined plugin settings require a matching typed used setting", "[plugins][config][metadata]")
+{
+    DuplicateOptionPluginState state {
+        "test.config.metadata.missing",
+        "test.config.metadata.missing",
+        k_duplicate_polyhole_key,
+        1,
+        false
+    };
+    state.omit_used_keys = true;
+    plugin_instance instance = {};
+    instance.ctx = &state;
+    instance.vt = duplicate_option_plugin_vtable();
+
+    try {
+        Plugin plugin(instance, std::string(), std::string());
+        (void) plugin;
+        FAIL("Plugin registration should reject a defined key missing from used_config_keys.");
+    } catch (const std::runtime_error &error) {
+        CHECK(std::string(error.what()).find("without a matching used_config_keys entry") != std::string::npos);
+    }
+}
+
+TEST_CASE("Defined plugin settings reject conflicting used setting types", "[plugins][config][metadata]")
+{
+    DuplicateOptionPluginState state {
+        "test.config.metadata.conflict",
+        "test.config.metadata.conflict",
+        k_duplicate_polyhole_key,
+        1,
+        false
+    };
+    state.conflicting_used_types = true;
+    plugin_instance instance = {};
+    instance.ctx = &state;
+    instance.vt = duplicate_option_plugin_vtable();
+
+    try {
+        Plugin plugin(instance, std::string(), std::string());
+        (void) plugin;
+        FAIL("Plugin registration should reject conflicting declarations for one setting.");
+    } catch (const std::runtime_error &error) {
+        CHECK(std::string(error.what()).find("conflicting used_config_keys types") != std::string::npos);
+    }
 }
 
 TEST_CASE("Exclusive-group option ownership rejects wrong-group definitions during initialization", "[plugins][polyholes][config]")

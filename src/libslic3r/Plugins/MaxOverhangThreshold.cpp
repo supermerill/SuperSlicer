@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <set>
 
 #include "libslic3r/Api/plugin/c/slic3r_config_def.h"
@@ -20,12 +21,15 @@ namespace {
 
 const char *k_max_overhang_threshold_id = "max_overhang_threshold";
 const char *k_no_dependencies[] = {nullptr};
-const char *k_defined_config_keys[] = {
-    "overhangs_bridge_threshold",
-    "overhangs_bridge_upper_layers",
-    "overhangs_max_slope"
+const raw_used_config_key k_used_config_keys[] = {
+    { "overhangs_bridge_threshold", RAW_CO_FLOAT, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "overhangs_bridge_upper_layers", RAW_CO_INT, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "overhangs_max_slope", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_REGION, RAW_PRESET_TYPE_FFF_PRINT },
+    { "bridge_precision", RAW_CO_FLOAT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE },
+    { "nozzle_diameter", RAW_CO_VECTOR_FLOAT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE },
+    { "resolution", RAW_CO_FLOAT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE }
 };
-constexpr size_t k_defined_config_key_count = sizeof(k_defined_config_keys) / sizeof(k_defined_config_keys[0]);
+constexpr size_t k_defined_config_key_count = 3;
 
 uint32_t layer_work_count(const Object &object)
 {
@@ -513,11 +517,18 @@ const char *const *MaxOverhangThreshold::dependencies_impl() const noexcept { re
 
 int32_t MaxOverhangThreshold::priority_impl() const noexcept { return 0; }
 
+int32_t MaxOverhangThreshold::used_config_keys(raw_used_config_key *keys) const noexcept
+{
+    if (keys != nullptr)
+        std::copy(std::begin(k_used_config_keys), std::end(k_used_config_keys), keys);
+    return int32_t(std::size(k_used_config_keys));
+}
+
 int32_t MaxOverhangThreshold::defined_config_keys(const char **keys) const noexcept
 {
     if (keys != nullptr)
         for (size_t idx = 0; idx < k_defined_config_key_count; ++idx)
-            keys[idx] = k_defined_config_keys[idx];
+            keys[idx] = k_used_config_keys[idx].key;
     return int32_t(k_defined_config_key_count);
 }
 
