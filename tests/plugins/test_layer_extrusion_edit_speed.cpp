@@ -21,15 +21,21 @@
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_layer_extrusion_edit.h"
 #include "libslic3r/Api/plugin/cpp/AuxiliaryLayerHelpers.hpp"
 #include "libslic3r/Api/plugin/cpp/ConfigViews.hpp"
+#include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
+#include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/ExPolygon.hpp"
 #include "libslic3r/ExtrusionEntityCollection.hpp"
 #include "libslic3r/ExtrusionProperty.hpp"
 #include "libslic3r/Layer.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/Print.hpp"
+#include "libslic3r/PrintObject.hpp"
 #include "libslic3r/Printing/PrintingPlan.hpp"
 #include "libslic3r/Steps/StepExtrusionOrdering.hpp"
+#include "libslic3r/Steps/StepLayerHeightGeneration.hpp"
 #include "libslic3r/Steps/StepLayerExtrusionEdition.hpp"
+#include "libslic3r/Steps/StepPostSlicing.hpp"
+#include "libslic3r/Steps/StepSlicing.hpp"
 
 /*
 STEP_LAYER_EXTRUSION_EDIT process-parameter tests
@@ -212,6 +218,126 @@ void prepare_ordered_plan(PreparedSpeedPrint &prepared,
     REQUIRE(prepared.print.printing_plan() != nullptr);
 }
 
+// Build a model part with a centered parameter modifier. The auxiliary layer
+// receives the resulting region masks, while its single test path can either
+// cross base/modifier/base or remain wholly inside the modifier.
+void prepare_regional_acceleration_plan(
+    PreparedSpeedPrint &prepared,
+    const DynamicPrintConfig &config,
+    std::initializer_list<ConfigBase::SetDeserializeItem> modifier_overrides,
+    const ExtrusionSpec &spec,
+    bool path_inside_modifier = false)
+{
+    ModelObject *model_object = prepared.model.add_object();
+    model_object->name = "regional_acceleration.stl";
+
+    ModelVolume *part = model_object->add_volume(
+        Slic3r::make_cube(20., 20., 10.), ModelVolumeType::MODEL_PART, false);
+    part->set_type(ModelVolumeType::MODEL_PART);
+
+    TriangleMesh modifier_mesh = Slic3r::make_cube(4., 20., 10.);
+    modifier_mesh.translate(Vec3f(8.f, 0.f, 0.f));
+    ModelVolume *modifier = model_object->add_volume(
+        std::move(modifier_mesh), ModelVolumeType::PARAMETER_MODIFIER, false);
+    modifier->set_type(ModelVolumeType::PARAMETER_MODIFIER);
+    DynamicPrintConfig modifier_config;
+    modifier_config.set_deserialize_strict(modifier_overrides);
+    modifier->config.assign_config(modifier_config);
+
+    model_object->add_instance();
+    prepared.model.center_instances_around_point({100., 100.});
+    model_object->ensure_on_bed();
+    prepared.print.auto_assign_extruders(model_object);
+    prepared.print.apply(prepared.model, config);
+    prepared.print.validate();
+    prepared.print.set_status_silent();
+
+    Orchestrator &orchestrator = Orchestrator::instance();
+    Steps::StepLayerHeightGeneration::run_step(orchestrator, prepared.print);
+    Steps::StepSlicing::run_step(orchestrator, prepared.print);
+    Steps::StepPostSlicing::run_step(orchestrator, prepared.print);
+
+    PrintObject &print_object = prepared.print.object(0);
+    REQUIRE(print_object.layer_count() > 0);
+    const Layer &source_layer = print_object.layer(0);
+    REQUIRE_FALSE(source_layer.lslices().empty());
+
+    const ExPolygons subject = source_layer.lslices();
+    const slic3r_api::AuxiliaryLayerBuildResult result =
+        slic3r_api::build_auxiliary_layer_regions_from_subject(
+            reinterpret_cast<storage_handle *>(&prepared.storage),
+            slic3r_api::Print(reinterpret_cast<const print_handle *>(&prepared.print)),
+            slic3r_api::Object(reinterpret_cast<const object_handle *>(&print_object)),
+            slic3r_api::ExPolygonCollection(
+                reinterpret_cast<const expolygon_collection_handle *>(&subject)),
+            source_layer.scaled_height(),
+            source_layer.scaled_print_z(),
+            scale_i(source_layer.slice_z));
+    REQUIRE(result.created);
+    REQUIRE(result.layer.island_count() == 1);
+    const slic3r_api::LayerIsland island = result.layer.island(0);
+    REQUIRE(island.region_count() >= 2);
+
+    layer_region_island_handle *region_island = layer_island_get_or_create_region_island(
+        const_cast<layer_island_handle *>(island.handle()), nullptr, 0, 0);
+    REQUIRE(region_island != nullptr);
+    extrusion_entity_handle *root_handle = layer_region_island_get_mutable_extrusion(
+        region_island, RAW_EXTRUSION_ROLE_PERIMETER);
+    REQUIRE(root_handle != nullptr);
+
+    const BoundingBox bbox = get_extents(subject);
+    const Point center = bbox.center();
+    const coord_t inset = path_inside_modifier ? scale_i(1.) : scale_i(1.5);
+    const Point start = path_inside_modifier ?
+        Point(center.x() - inset, center.y()) :
+        Point(bbox.min.x() + inset, center.y());
+    const Point end = path_inside_modifier ?
+        Point(center.x() + inset, center.y()) :
+        Point(bbox.max.x() - inset, center.y());
+
+    // Keep the fixture honest: the region masks supplied to the acceleration
+    // plugin must collectively cover the exact path added below.
+    const Polyline test_line(start, end);
+    double covered_length = 0.;
+    for (uint32_t region_idx = 0; region_idx < island.region_count(); ++region_idx) {
+        const slic3r_api::ExPolygonCollection slices = island.region(region_idx).slices();
+        const ExPolygons &native_slices = *reinterpret_cast<const ExPolygons *>(slices.handle());
+        for (const Polyline &covered : intersection_pl(test_line, native_slices))
+            covered_length += covered.length();
+    }
+    REQUIRE(covered_length == Approx(test_line.length()).margin(double(SCALED_EPSILON) * 2.));
+
+    slic3r_api::RegionSettings fixture_settings(
+        reinterpret_cast<storage_handle *>(&prepared.storage),
+        island,
+        {{"default_acceleration"}});
+    fixture_settings.segregate(island.slice());
+    const slic3r_api::RegionSettings::AreaMap &fixture_areas =
+        fixture_settings.get_areas("default_acceleration");
+    REQUIRE(fixture_areas.size() == 2);
+    double segregated_length = 0.;
+    for (const auto &entry : fixture_areas)
+        for (const slic3r_api::Polyline &covered : entry.second.intersections(
+                 slic3r_api::Polyline(reinterpret_cast<const polyline_handle *>(&test_line))))
+            segregated_length += covered.length();
+    REQUIRE(segregated_length == Approx(test_line.length()).margin(double(SCALED_EPSILON) * 2.));
+
+    std::unique_ptr<ExtrusionPath> path = make_path(spec, 0);
+    path->polyline() = ArcPolyline();
+    path->polyline().append(start);
+    path->polyline().append(end);
+
+    ExtrusionEntityCollection &root = *reinterpret_cast<ExtrusionEntityCollection *>(root_handle);
+    root.append(std::move(path));
+    prepared.source_roots.push_back(&root);
+    prepared.source_layers.push_back(reinterpret_cast<Layer *>(
+        const_cast<layer_handle *>(result.layer.handle())));
+
+    Steps::StepExtrusionOrdering::clean_and_prepare(prepared.print);
+    Steps::StepExtrusionOrdering::run_step(orchestrator, prepared.print);
+    REQUIRE(prepared.print.printing_plan() != nullptr);
+}
+
 // Run any selected editor set through the host runner rather than invoking
 // callbacks directly, preserving setup and parallel layer-run semantics.
 void run_editors(PreparedSpeedPrint &prepared,
@@ -270,17 +396,24 @@ std::vector<ObservedLeaf> observed_plan_leaves(const Print &print)
     return out;
 }
 
-// Return the only cloned root in small one-layer fixtures.
+// Return the only cloned root, ignoring empty layer-groups produced by slicing
+// fixtures whose model height spans more than one physical layer.
 ExtrusionEntity &single_plan_root(Print &print)
 {
     REQUIRE(print.printing_plan() != nullptr);
-    REQUIRE(print.printing_plan()->groups.size() == 1);
-    PrintingGroup &group = print.mutable_printing_plan().groups.front();
-    REQUIRE(group.layers.size() == 1);
-    REQUIRE(group.layers.front().tool_groups.size() == 1);
-    REQUIRE(group.layers.front().tool_groups.front().extrusions.size() == 1);
-    REQUIRE(group.layers.front().tool_groups.front().extrusions.front().root != nullptr);
-    return *group.layers.front().tool_groups.front().extrusions.front().root;
+    ExtrusionEntity *root = nullptr;
+    size_t root_count = 0;
+    for (PrintingGroup &group : print.mutable_printing_plan().groups)
+        for (PrintingLayerGroup &layer : group.layers)
+            for (PrintingToolGroup &tool : layer.tool_groups)
+                for (PrintingExtrusion &extrusion : tool.extrusions) {
+                    REQUIRE(extrusion.root != nullptr);
+                    root = extrusion.root.get();
+                    ++root_count;
+                }
+    REQUIRE(root_count == 1);
+    REQUIRE(root != nullptr);
+    return *root;
 }
 
 // Resolve observed values by role for scenarios containing one leaf per role.
@@ -497,6 +630,151 @@ TEST_CASE("Layer extrusion speed and acceleration plugins operate independently"
         REQUIRE(leaves.size() == 1);
         CHECK(leaves.front().speed == -1.f);
         CHECK(leaves.front().acceleration == 700.f);
+    }
+}
+
+TEST_CASE("Layer acceleration follows final values across region boundaries",
+          "[plugins][layer-extrusion-edit][acceleration][regions]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    SECTION("different final values split a crossing leaf in traversal order") {
+        PreparedSpeedPrint prepared;
+        const DynamicPrintConfig config = speed_config({
+            {"default_acceleration", "1000"},
+            {"perimeter_acceleration", "100%"},
+            {"first_layer_acceleration", "100%"},
+            {"machine_limits_usage", "ignore"}
+        });
+        ExtrusionSpec spec{ExtrusionRole::Perimeter, 0.2};
+        spec.existing_speed = 37.f;
+        spec.pressure_advance = 0.05f;
+        spec.fan_speed = 42.f;
+        spec.temperature = 210.f;
+        prepare_regional_acceleration_plan(
+            prepared, config, {{"default_acceleration", "400"}}, spec);
+
+        run_editors(prepared, {DEFAULT_ACCELERATION_PLUGIN});
+
+        const std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+        REQUIRE(leaves.size() == 3);
+        CHECK(leaves[0].acceleration == 1000.f);
+        CHECK(leaves[1].acceleration == 400.f);
+        CHECK(leaves[2].acceleration == 1000.f);
+        for (const ObservedLeaf &leaf : leaves) {
+            REQUIRE(leaf.direct_process != nullptr);
+            CHECK(leaf.speed == 37.f);
+            CHECK(leaf.direct_process->pressure_adv == 0.05f);
+            CHECK(leaf.direct_process->fan_speed_percent == 42.f);
+            CHECK(leaf.direct_process->temperature_C == 210.f);
+        }
+
+        ExtrusionEntity &root = single_plan_root(prepared.print);
+        REQUIRE(root.child_count() == 1);
+        const ExtrusionEntity &split_leaf = root.child(0);
+        REQUIRE(split_leaf.child_count() == 3);
+        CHECK(split_leaf.child(0).last_point() == split_leaf.child(1).first_point());
+        CHECK(split_leaf.child(1).last_point() == split_leaf.child(2).first_point());
+
+        // Ordering cloned the source tree before the acceleration plugin split
+        // its plan copy. The layer-owned extrusion remains one unsplit path.
+        REQUIRE(prepared.source_roots.size() == 1);
+        REQUIRE(prepared.source_roots.front()->child_count() == 1);
+        CHECK(prepared.source_roots.front()->child(0).child_count() == 0);
+        const ExtrusionPropertySpeed *source_process =
+            prepared.source_roots.front()->child(0).get_property<ExtrusionPropertySpeed>();
+        REQUIRE(source_process != nullptr);
+        CHECK(source_process->accel_mm_per_s2 == -1.f);
+    }
+
+    SECTION("different raw settings with one final float do not split") {
+        PreparedSpeedPrint prepared;
+        const DynamicPrintConfig config = speed_config({
+            {"default_acceleration", "1000"},
+            {"perimeter_acceleration", "100%"},
+            {"first_layer_acceleration", "100%"},
+            {"machine_limits_usage", "limits"},
+            {"machine_max_acceleration_extruding", "500"}
+        });
+        prepare_regional_acceleration_plan(
+            prepared, config, {{"default_acceleration", "800"}},
+            ExtrusionSpec{ExtrusionRole::Perimeter, 0.2});
+
+        run_editors(prepared, {DEFAULT_ACCELERATION_PLUGIN});
+
+        const std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+        REQUIRE(leaves.size() == 1);
+        CHECK(leaves.front().acceleration == 500.f);
+        ExtrusionEntity &root = single_plan_root(prepared.print);
+        REQUIRE(root.child_count() == 1);
+        CHECK(root.child(0).child_count() == 0);
+        CHECK(root.child(0).has_polyline());
+    }
+
+    SECTION("an unresolved region remains distinct from a positive value") {
+        PreparedSpeedPrint prepared;
+        const DynamicPrintConfig config = speed_config({
+            {"default_acceleration", "0"},
+            {"perimeter_acceleration", "100%"},
+            {"first_layer_acceleration", "100%"},
+            {"machine_limits_usage", "ignore"}
+        });
+        prepare_regional_acceleration_plan(
+            prepared, config, {{"default_acceleration", "400"}},
+            ExtrusionSpec{ExtrusionRole::Perimeter, 0.2});
+
+        run_editors(prepared, {DEFAULT_ACCELERATION_PLUGIN});
+
+        const std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+        REQUIRE(leaves.size() == 3);
+        CHECK(leaves[0].acceleration == -1.f);
+        CHECK(leaves[1].acceleration == 400.f);
+        CHECK(leaves[2].acceleration == -1.f);
+    }
+
+    SECTION("a leaf contained in one region keeps its structure") {
+        PreparedSpeedPrint prepared;
+        const DynamicPrintConfig config = speed_config({
+            {"default_acceleration", "1000"},
+            {"perimeter_acceleration", "100%"},
+            {"first_layer_acceleration", "100%"},
+            {"machine_limits_usage", "ignore"}
+        });
+        prepare_regional_acceleration_plan(
+            prepared, config, {{"default_acceleration", "400"}},
+            ExtrusionSpec{ExtrusionRole::Perimeter, 0.2}, true);
+
+        run_editors(prepared, {DEFAULT_ACCELERATION_PLUGIN});
+
+        const std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+        REQUIRE(leaves.size() == 1);
+        CHECK(leaves.front().acceleration == 400.f);
+        ExtrusionEntity &root = single_plan_root(prepared.print);
+        REQUIRE(root.child_count() == 1);
+        CHECK(root.child(0).child_count() == 0);
+    }
+
+    SECTION("an existing effective acceleration bypasses regional splitting") {
+        PreparedSpeedPrint prepared;
+        const DynamicPrintConfig config = speed_config({
+            {"default_acceleration", "1000"},
+            {"perimeter_acceleration", "100%"},
+            {"first_layer_acceleration", "100%"},
+            {"machine_limits_usage", "ignore"}
+        });
+        ExtrusionSpec spec{ExtrusionRole::Perimeter, 0.2};
+        spec.existing_acceleration = 321.f;
+        prepare_regional_acceleration_plan(
+            prepared, config, {{"default_acceleration", "400"}}, spec);
+
+        run_editors(prepared, {DEFAULT_ACCELERATION_PLUGIN});
+
+        const std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+        REQUIRE(leaves.size() == 1);
+        CHECK(leaves.front().acceleration == 321.f);
+        ExtrusionEntity &root = single_plan_root(prepared.print);
+        REQUIRE(root.child_count() == 1);
+        CHECK(root.child(0).child_count() == 0);
     }
 }
 
