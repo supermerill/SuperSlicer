@@ -11,7 +11,6 @@ group:Vertical shells
 	setting:spiral_vase
 	recommended_thin_wall_thickness_description
 group:Horizontal shells
-	setting:step_layer_height_plugin
 	line:Solid layers
 		setting:top_solid_layers
 		setting:label$Bottom:bottom_solid_layers
@@ -144,6 +143,7 @@ group:Arachne perimeter generator (variable width)
 
 page:Slicing:layers
 group:Layer height
+	setting:step_layer_height_plugin
 	setting:layer_height
 	setting:first_layer_height
 group:Filtering
