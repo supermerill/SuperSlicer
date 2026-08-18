@@ -30,8 +30,10 @@ of the visible list and is written to activated.ini only when the user saves.
 #include <wx/button.h>
 #include <wx/choice.h>
 #include <wx/dataview.h>
+#include <wx/dcclient.h>
 #include <wx/panel.h>
 #include <wx/scrolwin.h>
+#include <wx/settings.h>
 #include <wx/srchctrl.h>
 #include <wx/sizer.h>
 #include <wx/statline.h>
@@ -81,6 +83,49 @@ struct NavigationScope {
 struct PluginSettingEntry {
     std::string key;
     raw_config_option_type type { RAW_CO_NONE };
+};
+
+class PluginSettingKeyText final : public wxStaticText
+{
+public:
+    PluginSettingKeyText(wxWindow *parent, const wxString &label);
+    ~PluginSettingKeyText() override = default;
+
+protected:
+    wxSize DoGetBestClientSize() const override;
+};
+
+class PluginSettingsPanel final : public wxPanel
+{
+public:
+    explicit PluginSettingsPanel(wxWindow *parent);
+    ~PluginSettingsPanel() override = default;
+
+    void set_settings(const std::vector<PluginSettingEntry> &settings,
+                      const wxString &empty_message);
+
+protected:
+    wxSize DoGetBestClientSize() const override;
+
+private:
+    wxBoxSizer *m_rows_sizer { nullptr };
+    int m_rows_height { 0 };
+};
+
+class PluginDetailsPanel final : public wxScrolledWindow
+{
+public:
+    PluginDetailsPanel(wxWindow *parent, const wxSize &initial_size, int vertical_scroll_rate);
+    ~PluginDetailsPanel() override = default;
+
+    void fit_contents();
+
+private:
+    void on_size(wxSizeEvent &event);
+    void fit_after_size();
+
+    bool m_fitting_contents { false };
+    bool m_fit_scheduled { false };
 };
 
 struct PluginCatalogEntry {
@@ -137,6 +182,23 @@ struct PluginListNode {
     std::vector<std::unique_ptr<PluginListNode>> children;
 };
 
+class PrimarySecondaryTextRenderer final : public wxDataViewCustomRenderer
+{
+public:
+    PrimarySecondaryTextRenderer();
+    ~PrimarySecondaryTextRenderer() override = default;
+
+    bool SetValue(const wxVariant &value) override;
+    bool GetValue(wxVariant &value) const override;
+    bool Render(wxRect cell, wxDC *dc, int state) override;
+    wxSize GetSize() const override;
+
+private:
+    wxString m_value;
+    wxString m_primary;
+    wxString m_secondary;
+};
+
 class PluginListModel final : public wxDataViewModel
 {
 public:
@@ -188,8 +250,8 @@ struct DetailWidgets {
     wxStaticText *priority { nullptr };
     wxStaticText *group { nullptr };
     wxStaticText *dependencies { nullptr };
-    wxDataViewListCtrl *defined_settings { nullptr };
-    wxDataViewListCtrl *other_used_settings { nullptr };
+    PluginSettingsPanel *defined_settings { nullptr };
+    PluginSettingsPanel *other_used_settings { nullptr };
     wxStaticText *diagnostic_label { nullptr };
     wxStaticText *diagnostic { nullptr };
 };
@@ -228,9 +290,7 @@ wxString searchable_plugin_text(const PluginCatalogEntry &entry);
 bool plugin_less(const PluginCatalogEntry *left, const PluginCatalogEntry *right);
 bool step_bucket_less(const StepBucket &left, const StepBucket &right);
 void set_detail_value(wxStaticText *widget, const wxString &value);
-void populate_setting_list(wxDataViewListCtrl *list,
-                           const std::vector<PluginSettingEntry> &settings,
-                           const wxString &empty_message);
+wxString primary_secondary_text(const wxString &primary, const wxString &secondary);
 
 } // namespace
 
@@ -248,7 +308,7 @@ public:
     wxTreeCtrl *navigation { nullptr };
     wxDataViewCtrl *plugin_list { nullptr };
     PluginListModel *plugin_list_model { nullptr };
-    wxScrolledWindow *details_panel { nullptr };
+    PluginDetailsPanel *details_panel { nullptr };
     DetailWidgets details;
 };
 
@@ -545,28 +605,195 @@ void set_detail_value(wxStaticText *widget, const wxString &value)
     widget->SetToolTip(value);
 }
 
-void populate_setting_list(wxDataViewListCtrl *list,
-                           const std::vector<PluginSettingEntry> &settings,
-                           const wxString &empty_message)
+PluginSettingKeyText::PluginSettingKeyText(wxWindow *parent, const wxString &label)
+    : wxStaticText(parent, wxID_ANY, label, wxDefaultPosition, wxDefaultSize,
+                   wxST_ELLIPSIZE_END | wxST_NO_AUTORESIZE)
 {
-    if (list == nullptr)
-        return;
+}
 
-    list->DeleteAllItems();
-    if (settings.empty()) {
-        wxVector<wxVariant> row;
-        row.push_back(wxVariant(empty_message));
-        row.push_back(wxVariant(wxEmptyString));
-        list->AppendItem(row);
-        return;
+wxSize PluginSettingKeyText::DoGetBestClientSize() const
+{
+    wxSize best_size = wxStaticText::DoGetBestClientSize();
+    best_size.SetWidth(0);
+    return best_size;
+}
+
+PluginSettingsPanel::PluginSettingsPanel(wxWindow *parent)
+    : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_SIMPLE)
+    , m_rows_sizer(new wxBoxSizer(wxVERTICAL))
+{
+    SetSizer(m_rows_sizer);
+}
+
+wxSize PluginSettingsPanel::DoGetBestClientSize() const
+{
+    return wxSize(0, m_rows_height);
+}
+
+void PluginSettingsPanel::set_settings(const std::vector<PluginSettingEntry> &settings,
+                                       const wxString &empty_message)
+{
+    // Rows are rebuilt because settings are metadata of the selected plugin.
+    // Their minimum width stays at zero so long keys cannot widen the details
+    // pane or create a horizontal scrollbar on its scrolling parent.
+    m_rows_sizer->Clear(true);
+    const size_t row_count = settings.empty() ? 1 : settings.size();
+    for (size_t row_idx = 0; row_idx < row_count; ++row_idx) {
+        const wxString key = settings.empty() ? empty_message : from_u8(settings[row_idx].key);
+        const wxString type = settings.empty() ? wxString() : config_option_type_name(settings[row_idx].type);
+
+        wxPanel *row = new wxPanel(this);
+        wxBoxSizer *row_sizer = new wxBoxSizer(wxHORIZONTAL);
+        PluginSettingKeyText *key_text = new PluginSettingKeyText(row, key);
+        key_text->SetToolTip(key);
+        row_sizer->Add(key_text, 1, wxALIGN_CENTER_VERTICAL | wxLEFT | wxTOP | wxBOTTOM, FromDIP(4));
+
+        // The type keeps its natural compact width while the key receives all
+        // remaining space. Right padding keeps text away from the panel border.
+        wxStaticText *type_text = new wxStaticText(
+            row, wxID_ANY, type, wxDefaultPosition, wxDefaultSize,
+            wxALIGN_RIGHT | wxST_NO_AUTORESIZE);
+        row_sizer->Add(type_text, 0,
+                       wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT | wxTOP | wxBOTTOM,
+                       FromDIP(6));
+        row->SetSizer(row_sizer);
+        row->SetMinSize(wxSize(0, std::max(FromDIP(24), key_text->GetBestSize().GetHeight() + FromDIP(8))));
+        m_rows_sizer->Add(row, 0, wxEXPAND);
+
+        // Separators preserve the scan-friendly table structure without
+        // introducing a child control that owns its own scrolling viewport.
+        if (row_idx + 1 < row_count)
+            m_rows_sizer->Add(new wxStaticLine(this), 0, wxEXPAND);
     }
 
-    for (const PluginSettingEntry &setting : settings) {
-        wxVector<wxVariant> row;
-        row.push_back(wxVariant(from_u8(setting.key)));
-        row.push_back(wxVariant(config_option_type_name(setting.type)));
-        list->AppendItem(row);
+    // Only the vertical minimum is fixed. The containing sizer remains free to
+    // assign the complete width of the details pane to every row.
+    m_rows_height = m_rows_sizer->GetMinSize().GetHeight() + FromDIP(2);
+    SetMinSize(wxSize(0, m_rows_height));
+    InvalidateBestSize();
+    Layout();
+}
+
+PluginDetailsPanel::PluginDetailsPanel(wxWindow *parent, const wxSize &initial_size,
+                                       int vertical_scroll_rate)
+    : wxScrolledWindow(parent, wxID_ANY, wxDefaultPosition, initial_size,
+                       wxVSCROLL | wxBORDER_SIMPLE)
+{
+    SetScrollRate(0, vertical_scroll_rate);
+    Bind(wxEVT_SIZE, &PluginDetailsPanel::on_size, this);
+}
+
+void PluginDetailsPanel::fit_contents()
+{
+    if (m_fitting_contents)
+        return;
+
+    // FitInside computes the complete content height. Its natural width may be
+    // larger than the viewport because of long metadata, but this panel owns
+    // vertical scrolling only, so constrain the virtual width afterwards.
+    m_fitting_contents = true;
+    Layout();
+    FitInside();
+    wxSize virtual_size = GetVirtualSize();
+    const int scrollbar_width = wxSystemSettings::GetMetric(wxSYS_VSCROLL_X, this);
+    const int viewport_width = std::max(0, GetSize().GetWidth() - scrollbar_width - FromDIP(2));
+    if (viewport_width > 0 && virtual_size.GetWidth() != viewport_width) {
+        virtual_size.SetWidth(viewport_width);
+        SetVirtualSize(virtual_size);
+        Layout();
     }
+    m_fitting_contents = false;
+}
+
+void PluginDetailsPanel::on_size(wxSizeEvent &event)
+{
+    event.Skip();
+    if (!m_fit_scheduled) {
+        m_fit_scheduled = true;
+        CallAfter(&PluginDetailsPanel::fit_after_size);
+    }
+}
+
+void PluginDetailsPanel::fit_after_size()
+{
+    m_fit_scheduled = false;
+    fit_contents();
+}
+
+wxString primary_secondary_text(const wxString &primary, const wxString &secondary)
+{
+    return primary + wxString(wxChar(0x1f)) + secondary;
+}
+
+PrimarySecondaryTextRenderer::PrimarySecondaryTextRenderer()
+    : wxDataViewCustomRenderer("string", wxDATAVIEW_CELL_INERT, wxDVR_DEFAULT_ALIGNMENT)
+{
+}
+
+bool PrimarySecondaryTextRenderer::SetValue(const wxVariant &value)
+{
+    m_value = value.GetString();
+    const int separator = m_value.Find(wxChar(0x1f));
+    if (separator == wxNOT_FOUND) {
+        m_primary = m_value;
+        m_secondary.clear();
+    } else {
+        m_primary = m_value.Left(size_t(separator));
+        m_secondary = m_value.Mid(size_t(separator + 1));
+    }
+    return true;
+}
+
+bool PrimarySecondaryTextRenderer::GetValue(wxVariant &value) const
+{
+    value = m_value;
+    return true;
+}
+
+bool PrimarySecondaryTextRenderer::Render(wxRect cell, wxDC *dc, int state)
+{
+    const int gap = GetView()->FromDIP(12);
+    const int right_padding = GetView()->FromDIP(6);
+    const wxSize secondary_size = dc->GetTextExtent(m_secondary);
+    const int secondary_width = m_secondary.empty() ? 0 : secondary_size.GetWidth();
+    wxRect primary_cell = cell;
+    primary_cell.SetWidth(std::max(0, cell.GetWidth() - secondary_width - gap - right_padding));
+
+#ifdef _WIN32
+    // Keep the established dark-mode behavior used by the other custom data
+    // view renderers in this application.
+    const int render_state = state & wxDATAVIEW_CELL_SELECTED ? 0 : state;
+#else
+    const int render_state = state;
+#endif
+    RenderText(m_primary, 0, primary_cell, dc, render_state);
+    if (!m_secondary.empty()) {
+        wxRect secondary_cell(
+            cell.GetRight() - secondary_width - right_padding + 1,
+            cell.GetTop(), secondary_width, cell.GetHeight());
+        RenderText(m_secondary, 0, secondary_cell, dc, render_state);
+    }
+    return true;
+}
+
+wxSize PrimarySecondaryTextRenderer::GetSize() const
+{
+    wxDataViewCtrl *view = GetView();
+    if (view == nullptr)
+        return wxSize(80, 20);
+
+    wxClientDC dc(view);
+    if (GetAttr().HasFont())
+        dc.SetFont(GetAttr().GetEffectiveFont(view->GetFont()));
+    else
+        dc.SetFont(view->GetFont());
+
+    const wxSize primary_size = dc.GetTextExtent(m_primary);
+    const wxSize secondary_size = dc.GetTextExtent(m_secondary);
+
+    // A negative width asks wxDataViewCustomRenderer to pass the complete cell
+    // rectangle to Render(), where the secondary text can remain right-aligned.
+    return wxSize(-1, std::max(primary_size.GetHeight(), secondary_size.GetHeight()));
 }
 
 unsigned int PluginListModel::GetColumnCount() const
@@ -589,7 +816,9 @@ void PluginListModel::GetValue(wxVariant &value, const wxDataViewItem &item, uns
     if (column == Column::Active)
         value = list_node->entry != nullptr && list_node->entry->active;
     else if (column == Column::Name)
-        value = list_node->entry != nullptr ? list_node->entry->name : list_node->label;
+        value = primary_secondary_text(
+            list_node->entry != nullptr ? list_node->entry->name : list_node->label,
+            list_node->entry != nullptr ? plugin_status(*list_node->entry) : list_node->status);
     else if (column == Column::Status)
         value = list_node->entry != nullptr ? plugin_status(*list_node->entry) : list_node->status;
 }
@@ -1131,20 +1360,17 @@ void PluginConfigDialog::refresh_details()
     }
 
     const std::vector<PluginSettingEntry> no_settings;
-    populate_setting_list(m_state->details.defined_settings,
-                          entry != nullptr ? entry->defined_settings : no_settings,
-                          unavailable_settings);
-    populate_setting_list(m_state->details.other_used_settings,
-                          entry != nullptr ? entry->other_used_settings : no_settings,
-                          unavailable_settings);
+    m_state->details.defined_settings->set_settings(
+        entry != nullptr ? entry->defined_settings : no_settings, unavailable_settings);
+    m_state->details.other_used_settings->set_settings(
+        entry != nullptr ? entry->other_used_settings : no_settings, unavailable_settings);
 
-    const int wrap_width = 29 * em_unit();
+    const int wrap_width = 35 * em_unit();
     m_state->details.description->Wrap(wrap_width);
     m_state->details.group->Wrap(wrap_width);
     m_state->details.dependencies->Wrap(wrap_width);
     m_state->details.diagnostic->Wrap(wrap_width);
-    m_state->details_panel->Layout();
-    m_state->details_panel->FitInside();
+    m_state->details_panel->fit_contents();
 }
 
 void PluginConfigDialog::build()
@@ -1186,6 +1412,9 @@ void PluginConfigDialog::build()
     m_state->navigation = new wxTreeCtrl(
         this, wxID_ANY, wxDefaultPosition, wxSize(25 * em_unit(), 32 * em_unit()),
         wxTR_HIDE_ROOT | wxTR_HAS_BUTTONS | wxTR_SINGLE | wxBORDER_SIMPLE);
+    // Navigation labels may scroll horizontally, but the filter pane itself
+    // remains stable while the plugin list and details consume extra width.
+    m_state->navigation->SetMinSize(wxSize(25 * em_unit(), -1));
     content->Add(m_state->navigation, 0, wxEXPAND | wxRIGHT, 8);
 
     m_state->plugin_list = new wxDataViewCtrl(
@@ -1196,20 +1425,17 @@ void PluginConfigDialog::build()
     m_state->plugin_list_model->DecRef();
     wxDataViewColumn *active_column = m_state->plugin_list->AppendToggleColumn(
         _L("Active"), PluginListModel::Active, wxDATAVIEW_CELL_ACTIVATABLE, 7 * em_unit());
-    wxDataViewColumn *name_column = m_state->plugin_list->AppendTextColumn(
-        _L("Plugin"), PluginListModel::Name, wxDATAVIEW_CELL_INERT, 30 * em_unit(), wxALIGN_LEFT,
-        wxDATAVIEW_COL_RESIZABLE);
-    m_state->plugin_list->AppendTextColumn(
-        _L("Status"), PluginListModel::Status, wxDATAVIEW_CELL_INERT, 13 * em_unit(), wxALIGN_LEFT,
-        wxDATAVIEW_COL_RESIZABLE);
+    wxDataViewColumn *name_column = new wxDataViewColumn(
+        _L("Plugin"), new PrimarySecondaryTextRenderer(), PluginListModel::Name,
+        43 * em_unit(), wxALIGN_LEFT, wxDATAVIEW_COL_RESIZABLE);
+    m_state->plugin_list->AppendColumn(name_column);
     m_state->plugin_list->SetExpanderColumn(name_column);
     (void) active_column;
     wxGetApp().UpdateDVCDarkUI(m_state->plugin_list);
-    content->Add(m_state->plugin_list, 1, wxEXPAND | wxRIGHT, 8);
+    content->Add(m_state->plugin_list, 2, wxEXPAND | wxRIGHT, 8);
 
-    m_state->details_panel = new wxScrolledWindow(
-        this, wxID_ANY, wxDefaultPosition, wxSize(32 * em_unit(), 32 * em_unit()), wxVSCROLL | wxBORDER_SIMPLE);
-    m_state->details_panel->SetScrollRate(0, em_unit());
+    m_state->details_panel = new PluginDetailsPanel(
+        this, wxSize(38 * em_unit(), 32 * em_unit()), em_unit());
     wxBoxSizer *details_sizer = new wxBoxSizer(wxVERTICAL);
     m_state->details.title = new wxStaticText(m_state->details_panel, wxID_ANY, _L("Select a plugin"));
     wxFont title_font = m_state->details.title->GetFont();
@@ -1256,28 +1482,14 @@ void PluginConfigDialog::build()
     settings_label_font.SetWeight(wxFONTWEIGHT_BOLD);
     defined_settings_label->SetFont(settings_label_font);
     details_sizer->Add(defined_settings_label, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 6);
-    m_state->details.defined_settings = new wxDataViewListCtrl(
-        m_state->details_panel, wxID_ANY, wxDefaultPosition, wxSize(-1, 10 * em_unit()),
-        wxDV_ROW_LINES | wxDV_VERT_RULES | wxBORDER_SIMPLE);
-    m_state->details.defined_settings->AppendTextColumn(
-        _L("Setting"), wxDATAVIEW_CELL_INERT, 19 * em_unit(), wxALIGN_LEFT, wxDATAVIEW_COL_RESIZABLE);
-    m_state->details.defined_settings->AppendTextColumn(
-        _L("Type"), wxDATAVIEW_CELL_INERT, 11 * em_unit(), wxALIGN_LEFT, wxDATAVIEW_COL_RESIZABLE);
-    wxGetApp().UpdateDVCDarkUI(m_state->details.defined_settings);
+    m_state->details.defined_settings = new PluginSettingsPanel(m_state->details_panel);
     details_sizer->Add(m_state->details.defined_settings, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
 
     wxStaticText *used_settings_label =
         new wxStaticText(m_state->details_panel, wxID_ANY, _L("Other settings used"));
     used_settings_label->SetFont(settings_label_font);
     details_sizer->Add(used_settings_label, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 6);
-    m_state->details.other_used_settings = new wxDataViewListCtrl(
-        m_state->details_panel, wxID_ANY, wxDefaultPosition, wxSize(-1, 10 * em_unit()),
-        wxDV_ROW_LINES | wxDV_VERT_RULES | wxBORDER_SIMPLE);
-    m_state->details.other_used_settings->AppendTextColumn(
-        _L("Setting"), wxDATAVIEW_CELL_INERT, 19 * em_unit(), wxALIGN_LEFT, wxDATAVIEW_COL_RESIZABLE);
-    m_state->details.other_used_settings->AppendTextColumn(
-        _L("Type"), wxDATAVIEW_CELL_INERT, 11 * em_unit(), wxALIGN_LEFT, wxDATAVIEW_COL_RESIZABLE);
-    wxGetApp().UpdateDVCDarkUI(m_state->details.other_used_settings);
+    m_state->details.other_used_settings = new PluginSettingsPanel(m_state->details_panel);
     details_sizer->Add(m_state->details.other_used_settings, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
 
     m_state->details.diagnostic_label = new wxStaticText(m_state->details_panel, wxID_ANY, _L("Diagnostic"));
@@ -1291,7 +1503,7 @@ void PluginConfigDialog::build()
     m_state->details.diagnostic->Show(false);
     details_sizer->AddStretchSpacer();
     m_state->details_panel->SetSizer(details_sizer);
-    content->Add(m_state->details_panel, 0, wxEXPAND);
+    content->Add(m_state->details_panel, 1, wxEXPAND);
     main_sizer->Add(content, 1, wxEXPAND | wxLEFT | wxRIGHT, 10);
 
     wxBoxSizer *buttons = new wxBoxSizer(wxHORIZONTAL);
@@ -1321,8 +1533,8 @@ void PluginConfigDialog::build()
     cancel->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { EndModal(wxID_CANCEL); });
 
     SetSizer(main_sizer);
-    SetMinSize(wxSize(100 * em_unit(), 36 * em_unit()));
-    SetSize(wxSize(120 * em_unit(), 50 * em_unit()));
+    SetMinSize(wxSize(106 * em_unit(), 36 * em_unit()));
+    SetSize(wxSize(126 * em_unit(), 50 * em_unit()));
     wxGetApp().UpdateDarkUI(this);
     Layout();
     CentreOnParent();
@@ -1419,10 +1631,11 @@ void PluginConfigDialog::save_and_restart(wxCommandEvent &)
 void PluginConfigDialog::on_dpi_changed(const wxRect &)
 {
     SetFont(wxGetApp().normal_font());
-    if (m_state->plugin_list != nullptr && m_state->plugin_list->GetColumnCount() == PluginListModel::Count) {
+    if (m_state->navigation != nullptr)
+        m_state->navigation->SetMinSize(wxSize(25 * em_unit(), -1));
+    if (m_state->plugin_list != nullptr && m_state->plugin_list->GetColumnCount() >= 2) {
         m_state->plugin_list->GetColumn(PluginListModel::Active)->SetWidth(7 * em_unit());
-        m_state->plugin_list->GetColumn(PluginListModel::Name)->SetWidth(30 * em_unit());
-        m_state->plugin_list->GetColumn(PluginListModel::Status)->SetWidth(13 * em_unit());
+        m_state->plugin_list->GetColumn(PluginListModel::Name)->SetWidth(43 * em_unit());
     }
     msw_buttons_rescale(this, em_unit(), { wxID_OK, wxID_CANCEL });
     refresh_details();
