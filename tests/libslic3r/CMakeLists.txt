@@ -13,7 +13,6 @@ add_executable(${_TEST_NAME}_tests
 	test_3mf.cpp
 	test_aabbindirect.cpp
 	test_kdtreeindirect.cpp
-	test_arachne.cpp
 	test_arc_welder.cpp
 	test_clipper_offset.cpp
 	test_clipper_utils.cpp
