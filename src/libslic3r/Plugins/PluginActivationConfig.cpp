@@ -236,6 +236,24 @@ bool is_valid_plugin_package_version(const std::string &version)
     return Semver::parse(version).has_value();
 }
 
+bool migrate_plugin_activation_id(PluginActivationConfig &config,
+                                  const std::string &obsolete_id,
+                                  std::initializer_list<std::string> replacement_ids)
+{
+    bool changed = config.plugin_packages.erase(obsolete_id) > 0;
+    const std::map<std::string, bool>::iterator obsolete = config.activated.find(obsolete_id);
+    if (obsolete == config.activated.end())
+        return changed;
+
+    // Preserve explicit successor choices. A missing successor inherits the
+    // old state, including false, before the default activations are merged.
+    const bool enabled = obsolete->second;
+    for (const std::string &replacement_id : replacement_ids)
+        config.activated.emplace(replacement_id, enabled);
+    config.activated.erase(obsolete);
+    return true;
+}
+
 boost::filesystem::path plugin_activation_config_path(const boost::filesystem::path &data_directory)
 {
     return data_directory / PLUGIN_DIRECTORY / ACTIVATED_PLUGINS_FILENAME;

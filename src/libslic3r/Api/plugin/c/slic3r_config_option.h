@@ -48,6 +48,20 @@ enum config_option_flags
 
 typedef struct config_option_handle config_option_handle;
 typedef struct config_option_vector_handle config_option_vector_handle;
+typedef struct config_handle config_handle;
+
+/*
+Resolve one numeric option through the host ConfigBase ratio chain.
+
+extruder_id selects vector values used directly or through ratio_over. The
+function returns zero when the key is absent, disabled, has no usable vector
+item, cannot be represented as a number, or cannot be resolved. No C++
+exception crosses the plugin ABI.
+*/
+SLIC3R_HOST_API int32_t config_get_computed_value(const config_handle *me,
+                                                  const char *key,
+                                                  int32_t extruder_id,
+                                                  double *value_out);
 
 SLIC3R_HOST_API config_option_type config_option_type_get(const config_option_handle *me);
 SLIC3R_HOST_API uint32_t           config_option_flags_get(const config_option_handle *me);

@@ -6,6 +6,7 @@
 #define slic3r_step_layer_extrusion_edit_h_
 
 #include "slic3r_step_common.h"
+#include "../slic3r_printing_plan.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,11 +15,18 @@ extern "C" {
 /*
 Payload for STEP_LAYER_EXTRUSION_EDIT.
 
-Plugins may edit generated extrusion at the layer level for one object.
+The host creates one payload per PrintingLayerGroup after STEP_ORDERING. The
+plan and group are read-only structural context: plugins must not append,
+remove, or reorder their vectors while layer runs may execute in parallel.
+Only the cloned extrusion roots owned by layer_group may be edited.
 */
 typedef struct run_ctx_layer_extrusion_edition {
     const print_handle *print;
-    const object_handle *object;
+    const printing_plan_handle *plan;
+    const printing_group_handle *group;
+    printing_layer_group_handle *layer_group;
+    uint32_t group_idx;
+    uint32_t layer_group_idx;
 } run_ctx_layer_extrusion_edition;
 
 static inline const run_ctx_layer_extrusion_edition *

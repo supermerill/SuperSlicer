@@ -412,3 +412,42 @@ TEST_CASE("Plugin activation configuration writes no removal section",
     CHECK(read_text_file(config_path).find("[removed]") == std::string::npos);
     boost::filesystem::remove_all(root);
 }
+
+TEST_CASE("Plugin activation migration splits an obsolete plugin id",
+          "[plugins][repository][activation][migration]")
+{
+    const std::string obsolete = "layer_extrusion_edit.speed_acceleration.default";
+    const std::string speed = "layer_extrusion_edit.speed.default";
+    const std::string acceleration = "layer_extrusion_edit.acceleration.default";
+
+    SECTION("the old enabled state initializes both missing successors") {
+        Slic3r::PluginActivationConfig config;
+        config.activated[obsolete] = true;
+        config.plugin_packages[obsolete] = "obsolete.package";
+
+        REQUIRE(Slic3r::migrate_plugin_activation_id(config, obsolete, {speed, acceleration}));
+        CHECK(config.activated.count(obsolete) == 0);
+        CHECK(config.plugin_packages.count(obsolete) == 0);
+        CHECK(config.activated.at(speed));
+        CHECK(config.activated.at(acceleration));
+    }
+
+    SECTION("an old disabled state stays disabled before defaults are merged") {
+        Slic3r::PluginActivationConfig config;
+        config.activated[obsolete] = false;
+
+        REQUIRE(Slic3r::migrate_plugin_activation_id(config, obsolete, {speed, acceleration}));
+        CHECK_FALSE(config.activated.at(speed));
+        CHECK_FALSE(config.activated.at(acceleration));
+    }
+
+    SECTION("explicit successor choices remain authoritative") {
+        Slic3r::PluginActivationConfig config;
+        config.activated[obsolete] = true;
+        config.activated[speed] = false;
+
+        REQUIRE(Slic3r::migrate_plugin_activation_id(config, obsolete, {speed, acceleration}));
+        CHECK_FALSE(config.activated.at(speed));
+        CHECK(config.activated.at(acceleration));
+    }
+}

@@ -861,6 +861,7 @@ public:
     coord_t print_z() const { return layer_get_print_z(handle()); }
     coord_t slice_z() const { return layer_get_slice_z(handle()); }
     coord_t bottom_z() const { return print_z() - height(); }
+    Object object() const;
 
     Layer upper_layer() const {
         return Layer(layer_get_upper_layer(handle()));
@@ -1011,6 +1012,11 @@ inline Layer LayerRegion::layer() const
 inline Layer LayerIsland::layer() const
 {
     return Layer(layer_island_get_layer(handle()));
+}
+
+inline Object Layer::object() const
+{
+    return Object(layer_get_object(handle()));
 }
 
 } // namespace slic3r_api

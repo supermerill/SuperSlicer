@@ -286,6 +286,8 @@ SLIC3R_HOST_API coord_t layer_get_height(const layer_handle *me);
 SLIC3R_HOST_API coord_t layer_get_print_z(const layer_handle *me);
 /* Center Z of the slicing plane. It is exactly print_z - height / 2. */
 SLIC3R_HOST_API coord_t layer_get_slice_z(const layer_handle *me);
+/* Borrow the object that owns this normal or auxiliary layer. */
+SLIC3R_HOST_API const object_handle *layer_get_object(const layer_handle *me);
 SLIC3R_HOST_API const expolygon_collection_handle *layer_get_slices(const layer_handle *me);
 
 /*

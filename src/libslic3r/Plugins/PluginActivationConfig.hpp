@@ -12,6 +12,7 @@
 #ifndef plugins_pluginactivationconfig_hpp_
 #define plugins_pluginactivationconfig_hpp_
 
+#include <initializer_list>
 #include <map>
 #include <string>
 #include <vector>
@@ -64,6 +65,13 @@ struct PluginActivationConfigReadResult {
 // removals. These helpers are public to keep that security boundary unique.
 bool is_valid_plugin_package_name(const std::string &package_name);
 bool is_valid_plugin_package_version(const std::string &version);
+
+// Replace one obsolete activation id with independent successor ids. Existing
+// successor choices are authoritative, while missing choices inherit the old
+// enabled state. The obsolete provider association is removed as well.
+bool migrate_plugin_activation_id(PluginActivationConfig &config,
+                                  const std::string &obsolete_id,
+                                  std::initializer_list<std::string> replacement_ids);
 
 // Return data_dir/plugins/activated.ini, the durable desired state consumed at
 // process startup and updated by package and activation dialogs.

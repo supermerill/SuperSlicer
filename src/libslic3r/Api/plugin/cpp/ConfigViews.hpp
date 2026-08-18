@@ -226,6 +226,11 @@ public:
         return c_float_or_percent_get_effective_value(&value, ratio);
     }
 
+    double computed_float_or_default(const char *key, int32_t extruder_id, double fallback) const {
+        double value = fallback;
+        return config_get_computed_value(handle(), key, extruder_id, &value) != 0 ? value : fallback;
+    }
+
     std::string string_or_default(const char *key, std::string fallback) const {
         const config_option_handle *option = option_if_enabled(key, 0);
         return option == nullptr ? fallback : option_string(option, 0);

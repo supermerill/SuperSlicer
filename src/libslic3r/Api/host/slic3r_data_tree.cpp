@@ -354,6 +354,11 @@ coord_t layer_get_slice_z(const layer_handle *me)
     return me == nullptr ? 0 : Slic3r::to_layer(me)->scaled_print_z() - Slic3r::to_layer(me)->scaled_height() / 2;
 }
 
+const object_handle *layer_get_object(const layer_handle *me)
+{
+    return me == nullptr ? nullptr : reinterpret_cast<const object_handle *>(Slic3r::to_layer(me)->object());
+}
+
 const expolygon_collection_handle *layer_get_slices(const layer_handle *me) {
     return me == nullptr ? nullptr : reinterpret_cast<const expolygon_collection_handle*>(&Slic3r::to_layer(me)->lslices());
 }

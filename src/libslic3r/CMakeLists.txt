@@ -164,6 +164,12 @@ set(SLIC3R_SOURCES
 	Plugins/Infill/LegacyInfillPatterns.hpp
 	Plugins/Infill/PostInfillGapFill.cpp
 	Plugins/Infill/PostInfillGapFill.hpp
+	Plugins/LayerExtrusionEdit/DefaultAcceleration.cpp
+	Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp
+	Plugins/LayerExtrusionEdit/DefaultSpeed.cpp
+	Plugins/LayerExtrusionEdit/DefaultSpeed.hpp
+	Plugins/LayerExtrusionEdit/ExtrusionProcessParameterHelpers.cpp
+	Plugins/LayerExtrusionEdit/ExtrusionProcessParameterHelpers.hpp
 	Plugins/MaxOverhangThreshold.cpp
 	Plugins/MaxOverhangThreshold.hpp
 	Plugins/Ordering/DefaultExtrusionTreeOrdering.cpp

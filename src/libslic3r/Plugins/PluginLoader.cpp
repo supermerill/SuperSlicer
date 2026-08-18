@@ -49,6 +49,8 @@
 #include "libslic3r/Plugins/Infill/DefaultInfillGenerator.hpp"
 #include "libslic3r/Plugins/Infill/LegacyInfillPatterns.hpp"
 #include "libslic3r/Plugins/Infill/PostInfillGapFill.hpp"
+#include "libslic3r/Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp"
+#include "libslic3r/Plugins/LayerExtrusionEdit/DefaultSpeed.hpp"
 #include "libslic3r/Plugins/MaxOverhangThreshold.hpp"
 #include "libslic3r/Plugins/Ordering/DefaultOrdering.hpp"
 #include "libslic3r/Plugins/SkirtBrim/DefaultBrimSkirtTrim.hpp"
@@ -497,6 +499,10 @@ void register_builtin_plugins(orchestrator_handle *orchestrator)
         slic3r_api::Infill::PostInfillGapFillPlugin::register_post_infill_gap_fill_plugin);
     register_builtin_plugin(orchestrator, "ordering.default",
         slic3r_api::Ordering::DefaultOrderingPlugin::register_default_ordering_plugins);
+    register_builtin_plugin(orchestrator, "layer_extrusion_edit.speed.default",
+        slic3r_api::LayerExtrusionEdit::DefaultSpeedPlugin::register_default_speed_plugin);
+    register_builtin_plugin(orchestrator, "layer_extrusion_edit.acceleration.default",
+        slic3r_api::LayerExtrusionEdit::DefaultAccelerationPlugin::register_default_acceleration_plugin);
     register_builtin_plugin(orchestrator, "skirt_brim.brim.default",
         slic3r_api::SkirtBrim::DefaultBrimGeneratorPlugin::register_default_brim_generator_plugin);
     register_builtin_plugin(orchestrator, "skirt_brim.skirt.default",
@@ -861,7 +867,14 @@ void load_plugins()
         // up the new default unless it explicitly keeps that id disabled.
         PluginActivationConfig default_plugin_config;
         bool ignored_from_user_config = false;
-        bool activation_config_changed = false;
+
+        // Split the former combined editor before merging defaults. Copying its
+        // false state now prevents the default merge from re-enabling either
+        // independent successor in a profile that disabled the old plugin.
+        bool activation_config_changed = migrate_plugin_activation_id(
+            plugin_config,
+            "layer_extrusion_edit.speed_acceleration.default",
+            {"layer_extrusion_edit.speed.default", "layer_extrusion_edit.acceleration.default"});
         if (ensure_plugin_activation_config(boost::filesystem::path(), default_plugin_config,
                                             ignored_from_user_config, plugin_config_error)) {
             for (const auto &[plugin_id, enabled] : default_plugin_config.activated)

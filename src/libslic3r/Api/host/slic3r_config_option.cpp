@@ -2,10 +2,12 @@
 ///|/
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
+#include <cmath>
 #include <cstring>
 #include <string>
 
 #include "libslic3r/Api/plugin/c/slic3r_config_option.h"
+#include "libslic3r/ConfigDef.hpp"
 #include "libslic3r/ConfigOption.hpp"
 
 namespace Slic3r {
@@ -18,6 +20,11 @@ static ConfigOption *to_option(config_option_handle *me)
 static const ConfigOption *to_option(const config_option_handle *me)
 {
     return reinterpret_cast<const ConfigOption*>(me);
+}
+
+static const ConfigBase *to_config(const config_handle *me)
+{
+    return reinterpret_cast<const ConfigBase *>(me);
 }
 
 static ConfigOptionVectorBase *to_option_vector(config_option_vector_handle *me)
@@ -57,6 +64,36 @@ static uint32_t copy_string_out(const std::string &value, char *out, uint32_t ma
 } // namespace Slic3r
 
 extern "C" {
+
+int32_t config_get_computed_value(const config_handle *me,
+                                  const char *key,
+                                  int32_t extruder_id,
+                                  double *value_out)
+{
+    if (me == nullptr || key == nullptr || value_out == nullptr)
+        return 0;
+
+    const Slic3r::ConfigBase *config = Slic3r::to_config(me);
+    const Slic3r::ConfigOption *option = config->option(key);
+    if (option == nullptr || option->size() == 0)
+        return 0;
+
+    // Disabled optional values are unresolved and therefore use the caller's
+    // fallback instead of entering the ConfigBase ratio chain.
+    const int32_t enabled_idx = option->is_vector() ? extruder_id : 0;
+    if (enabled_idx < 0 || uint32_t(enabled_idx) >= option->size() || !option->is_enabled(enabled_idx))
+        return 0;
+
+    try {
+        const double value = config->get_computed_value(key, extruder_id);
+        if (!std::isfinite(value))
+            return 0;
+        *value_out = value;
+        return 1;
+    } catch (...) {
+        return 0;
+    }
+}
 
 double c_float_or_percent_get_effective_value(const c_float_or_percent *me, double ratio_over)
 {

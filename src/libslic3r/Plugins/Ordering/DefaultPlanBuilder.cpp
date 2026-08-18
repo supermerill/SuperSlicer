@@ -594,6 +594,24 @@ void build_plan_by_layer(const Print &print, const PrintingPlan &plan)
                                                  object.instance_shift(instance_idx),
                                                  instance_idx);
         }
+
+        /*
+        Object-level auxiliary layers use the same local coordinate system as
+        normal object layers. Merge them by print Z and clone them once per
+        physical instance so downstream plan editors also see adhesion and
+        other plugin-owned object output.
+        */
+        for (uint32_t layer_idx = 0; layer_idx < object.auxiliary_layer_count(); ++layer_idx) {
+            const Layer layer = object.auxiliary_layer(layer_idx);
+            PrintingLayerGroup layer_group =
+                layer_group_for_print_z(group, layer_index_by_print_z, layer.print_z());
+            append_layer_once(layer_group, layer);
+            for (uint32_t instance_idx = 0; instance_idx < object.instance_count(); ++instance_idx)
+                append_layer_instance_extrusions(layer_group,
+                                                 layer,
+                                                 object.instance_shift(instance_idx),
+                                                 instance_idx);
+        }
     }
 
     append_print_auxiliary_layers_to_group(print, group, layer_index_by_print_z);
@@ -633,6 +651,19 @@ void build_plan_by_object(const Print &print, const PrintingPlan &plan)
             Unlike by-layer mode, only the selected object instance is cloned
             into this group. That keeps each complete-object batch independent.
             */
+            append_layer_instance_extrusions(layer_group, layer, source.shift, source.instance_idx);
+        }
+
+        /*
+        Complete-object groups own one physical instance, so auxiliary object
+        layers are cloned exactly once with the same instance shift as normal
+        layers. Print-level auxiliary layers remain in their leading group.
+        */
+        for (uint32_t layer_idx = 0; layer_idx < source.object.auxiliary_layer_count(); ++layer_idx) {
+            const Layer layer = source.object.auxiliary_layer(layer_idx);
+            PrintingLayerGroup layer_group =
+                layer_group_for_print_z(group, layer_index_by_print_z, layer.print_z());
+            append_layer_once(layer_group, layer);
             append_layer_instance_extrusions(layer_group, layer, source.shift, source.instance_idx);
         }
 
