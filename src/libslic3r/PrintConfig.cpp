@@ -650,6 +650,11 @@ void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_o
             // the "new" marlin firmware flavor used to be called "marlinfirmware" for some time during PrusaSlicer 2.4.0-alpha development.
             value() = "marlin2";
     }
+    if (has(dict, "gcode_firmware_plugin", "gcode.firmware.default")) {
+        // The former generic provider was the Marlin 2 implementation. Keep
+        // existing printer presets on the equivalent explicit dialect.
+        value() = "gcode.firmware.marlin2";
+    }
     if (has(dict, "host_type"s, "mainsail"s)) {
         // the "mainsail" key (introduced in 2.6.0-alpha6) was renamed to "moonraker" (in 2.6.0-rc1).
         set("host_type", "moonraker");

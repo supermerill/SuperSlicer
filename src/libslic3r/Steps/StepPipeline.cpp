@@ -236,6 +236,7 @@ raw_option_category option_category_for_step(slicing_step_t step)
     case STEP_SUPPORT_SPOT:
         return RAW_OPTION_CATEGORY_SUPPORT;
     case STEP_GCODE:
+    case GCODE_FIRMWARE:
     case STEP_PRE_GCODE:
     case STEP_ORDERING:
     case STEP_WIPETOWER:
@@ -255,7 +256,8 @@ raw_option_preset_type option_preset_type_for_step(slicing_step_t step)
     settings and therefore has to be stored in the printer preset.
     */
     static const std::map<slicing_step_t, raw_option_preset_type> s_step_preset_types = {
-        { STEP_GCODE, RAW_PRESET_TYPE_FFF_PRINTER }
+        { STEP_GCODE, RAW_PRESET_TYPE_FFF_PRINTER },
+        { GCODE_FIRMWARE, RAW_PRESET_TYPE_FFF_PRINTER }
     };
 
     const std::map<slicing_step_t, raw_option_preset_type>::const_iterator found =
@@ -286,7 +288,9 @@ StepExclusiveGroup make_exclusive_group(slicing_step_t step,
     def.option_preset_type = option_preset_type;
     def.printer_technology = RAW_PT_FFF;
     def.category = category;
-    def.invalidates_step = step;
+    // Service selectors invalidate the consuming pipeline step rather than
+    // pretending that the service itself is independently executable.
+    def.invalidates_step = step == GCODE_FIRMWARE ? STEP_GCODE : step;
     def.mode = RAW_CONFIG_OPTION_MODE_ADV_EXP | RAW_CONFIG_OPTION_MODE_SUSI;
     group.option_def = def;
 
@@ -432,7 +436,8 @@ const std::map<slicing_step_t, StepExclusiveGroup> &get_exclusive_steps()
         {STEP_SUPPORT,            make_exclusive_step_group(STEP_SUPPORT,            "step_support_plugin",            "Support plugin",            RAW_OPTION_CATEGORY_SUPPORT,   "Support step plugin")},
         {STEP_WIPETOWER,          make_exclusive_step_group(STEP_WIPETOWER,          "step_wipetower_plugin",          "Wipe tower plugin",         RAW_OPTION_CATEGORY_OUTPUT,    "Wipe tower step plugin")},
         {STEP_LAYER_STICHING,     make_exclusive_step_group(STEP_LAYER_STICHING,     "step_layer_stiching_plugin",     "Layer stitching plugin",    RAW_OPTION_CATEGORY_OUTPUT,    "Layer stitching step plugin")},
-        {STEP_GCODE,              make_exclusive_step_group(STEP_GCODE,              "step_gcode_plugin",              "G-code plugin",             RAW_OPTION_CATEGORY_OUTPUT,    "G-code step plugin")}
+        {STEP_GCODE,              make_exclusive_step_group(STEP_GCODE,              "step_gcode_plugin",              "G-code plugin",             RAW_OPTION_CATEGORY_OUTPUT,    "G-code step plugin")},
+        {GCODE_FIRMWARE,          make_exclusive_step_group(GCODE_FIRMWARE,          "gcode_firmware_plugin",          "G-code firmware",           RAW_OPTION_CATEGORY_OUTPUT,    "G-code firmware")}
     };
     return s_groups;
 }
@@ -447,7 +452,10 @@ std::vector<StepExclusivePluginGroup> active_exclusive_plugin_groups(Orchestrato
     // the same selection model.
     for (const std::pair<const slicing_step_t, StepExclusiveGroup> &entry : exclusive_steps) {
         std::vector<Plugin *> active_plugins = orchestrator.get_active_plugins_for_step(entry.first);
-        if (active_plugins.size() <= 1)
+        // The firmware selector is intentionally visible with its single
+        // reference provider so printer profiles already serialize the choice
+        // before additional firmware packages are installed.
+        if (active_plugins.empty() || (active_plugins.size() == 1 && entry.first != GCODE_FIRMWARE))
             continue;
 
         StepExclusivePluginGroup plugin_group;

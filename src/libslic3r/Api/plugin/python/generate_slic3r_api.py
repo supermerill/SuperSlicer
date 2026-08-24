@@ -35,6 +35,14 @@ HEADER_ORDER = [
     "slic3r_volume.h",
 ]
 
+# These callbacks intentionally expose C++ firmware sessions only in this
+# first pass. Keeping them out of the generated Python surface avoids creating
+# an accidental raw function-pointer API before a dedicated binding exists.
+PYTHON_EXCLUDED_HEADERS = {
+    "slic3r_gcode_firmware.h",
+    "slic3r_step_gcode_firmware.h",
+}
+
 
 TYPE_ALIASES = {
     "coord_t": "int64_t",
@@ -200,9 +208,15 @@ def remove_preprocessor_lines(text: str) -> str:
 
 
 def header_paths() -> list[Path]:
-    ordered = [HEADER_ROOT / name for name in HEADER_ORDER]
-    ordered += sorted((HEADER_ROOT / "steps").glob("*.h"))
-    remaining = sorted(p for p in HEADER_ROOT.glob("*.h") if p not in ordered)
+    ordered = [HEADER_ROOT / name for name in HEADER_ORDER if name not in PYTHON_EXCLUDED_HEADERS]
+    ordered += sorted(
+        p for p in (HEADER_ROOT / "steps").glob("*.h")
+        if p.name not in PYTHON_EXCLUDED_HEADERS
+    )
+    remaining = sorted(
+        p for p in HEADER_ROOT.glob("*.h")
+        if p not in ordered and p.name not in PYTHON_EXCLUDED_HEADERS
+    )
     return ordered + remaining
 
 

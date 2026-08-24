@@ -421,6 +421,7 @@ wxString step_name(slicing_step_t step)
     case STEP_EXTRUSION_EDIT:            return _L("Extrusion editing");
     case STEP_EXTRUSION_SIMPLIFICATION:  return _L("Extrusion simplification");
     case STEP_GCODE:                     return _L("G-code generation");
+    case GCODE_FIRMWARE:                 return _L("G-code firmware");
     case INFILL_PATTERN:                 return _L("Infill patterns");
     case INFILL_SURFACE_RECIPE_MODIFIER: return _L("Infill surface recipes");
     case BRIDGE_DETECTOR:                return _L("Bridge detectors");

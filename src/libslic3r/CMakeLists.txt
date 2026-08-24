@@ -96,6 +96,7 @@ set(SLIC3R_SOURCES
 	Api/plugin/c/slic3r_extrusion_property.h
 	Api/plugin/c/slic3r_extrusions.h
 	Api/plugin/c/slic3r_geometry.h
+	Api/plugin/c/slic3r_gcode_firmware.h
 	Api/plugin/c/slic3r_orchestrator.h
 	Api/plugin/c/slic3r_plugin.h
 	Api/plugin/c/slic3r_plugin_run_context.h
@@ -109,6 +110,7 @@ set(SLIC3R_SOURCES
 	Api/plugin/c/steps/slic3r_step_extrusion_edit.h
 	Api/plugin/c/steps/slic3r_step_extrusion_simplification.h
 	Api/plugin/c/steps/slic3r_step_gcode.h
+	Api/plugin/c/steps/slic3r_step_gcode_firmware.h
 	Api/plugin/c/steps/slic3r_step_infill.h
 	Api/plugin/c/steps/slic3r_step_infill_group.h
 	Api/plugin/c/steps/slic3r_step_layer_extrusion_edit.h
@@ -138,6 +140,32 @@ set(SLIC3R_SOURCES
 	Api/plugin/cpp/ExtrusionTreeVisitors.hpp
 	Api/plugin/cpp/ExtrusionViews.hpp
 	Api/plugin/cpp/GeometryViews.hpp
+	Api/plugin/cpp/gcode/EncodableState.hpp
+	Api/plugin/cpp/gcode/DefaultExtruder.cpp
+	Api/plugin/cpp/gcode/DefaultExtruder.hpp
+	Api/plugin/cpp/gcode/DefaultGCodeFirmwareSession.cpp
+	Api/plugin/cpp/gcode/DefaultGCodeFirmwareSession.hpp
+	Api/plugin/cpp/gcode/SingleAccelerationRegisterGCodeFirmwareSession.cpp
+	Api/plugin/cpp/gcode/SingleAccelerationRegisterGCodeFirmwareSession.hpp
+	Api/plugin/cpp/gcode/ExtrusionAxisState.cpp
+	Api/plugin/cpp/gcode/ExtrusionAxisState.hpp
+	Api/plugin/cpp/gcode/FanState.cpp
+	Api/plugin/cpp/gcode/FanState.hpp
+	Api/plugin/cpp/gcode/Gantry.cpp
+	Api/plugin/cpp/gcode/Gantry.hpp
+	Api/plugin/cpp/gcode/GCodeFirmwareViews.hpp
+	Api/plugin/cpp/gcode/GCodeFormatter.cpp
+	Api/plugin/cpp/gcode/GCodeFormatter.hpp
+	Api/plugin/cpp/gcode/HeaterState.cpp
+	Api/plugin/cpp/gcode/HeaterState.hpp
+	Api/plugin/cpp/gcode/MachineEnvelope.cpp
+	Api/plugin/cpp/gcode/MachineEnvelope.hpp
+	Api/plugin/cpp/gcode/PressureAdvanceState.cpp
+	Api/plugin/cpp/gcode/PressureAdvanceState.hpp
+	Api/plugin/cpp/gcode/Printer.cpp
+	Api/plugin/cpp/gcode/Printer.hpp
+	Api/plugin/cpp/gcode/Tool.cpp
+	Api/plugin/cpp/gcode/Tool.hpp
 	Api/plugin/cpp/LineDistancer.hpp
 	Api/plugin/cpp/ParallelFor.hpp
 	Api/plugin/cpp/PerimeterStepViews.hpp
@@ -153,6 +181,19 @@ set(SLIC3R_SOURCES
 	Api/plugin/cpp/Views.hpp
 	Plugins/BridgeDetector.cpp
 	Plugins/BridgeDetector.hpp
+	Plugins/GCode/Firmware/BuiltinGCodeFirmwares.cpp
+	Plugins/GCode/Firmware/BuiltinGCodeFirmwares.hpp
+	Plugins/GCode/Firmware/KlipperGCodeFirmware.cpp
+	Plugins/GCode/Firmware/KlipperGCodeFirmware.hpp
+	Plugins/GCode/Firmware/Marlin1GCodeFirmware.cpp
+	Plugins/GCode/Firmware/Marlin1GCodeFirmware.hpp
+	Plugins/GCode/Firmware/Marlin2GCodeFirmware.cpp
+	Plugins/GCode/Firmware/Marlin2GCodeFirmware.hpp
+	Plugins/GCode/Firmware/PrusaGCodeFirmware.hpp
+	Plugins/GCode/Firmware/RepRapGCodeFirmware.cpp
+	Plugins/GCode/Firmware/RepRapGCodeFirmware.hpp
+	Plugins/GCode/Firmware/SprinterGCodeFirmware.cpp
+	Plugins/GCode/Firmware/SprinterGCodeFirmware.hpp
 	Plugins/GCode/LegacyGCodeGenerator.cpp
 	Plugins/GCode/LegacyGCodeGenerator.hpp
 	Plugins/GCode/PrintingPlanFileWriter.cpp

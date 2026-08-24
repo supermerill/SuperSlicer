@@ -28,6 +28,7 @@
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/FFFPrintConfig.hpp"
+#include "libslic3r/Plugins/GCode/Firmware/BuiltinGCodeFirmwares.hpp"
 #include "libslic3r/Plugins/GCode/LegacyGCodeGenerator.hpp"
 #include "libslic3r/Plugins/GCode/PrintingPlanFileWriter.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp"
@@ -189,6 +190,8 @@ void ensure_plugin_test_runtime_initialized()
             orchestrator_handle_value);
         slic3r_api::GCodeGeneration::PrintingPlanFileWriterPlugin::register_printing_plan_file_writer_plugin(
             orchestrator_handle_value);
+        slic3r_api::GCodeGeneration::Firmware::register_builtin_gcode_firmware_plugins(
+            orchestrator_handle_value);
         slic3r_api::FlatAreaLayerHeightPlugin::register_flat_area_layer_height_plugin(orchestrator_handle_value);
         slic3r_api::DenseInfillPlugin::register_dense_infill_plugins(orchestrator_handle_value);
         slic3r_api::Ordering::DefaultOrderingPlugin::register_default_ordering_plugins(orchestrator_handle_value);
@@ -263,6 +266,12 @@ void ensure_plugin_test_runtime_initialized()
         activate_plugin_or_fail(orchestrator, "vase.multi_island_connector");
         activate_plugin_or_fail(orchestrator, "gcode.legacy");
         activate_plugin_or_fail(orchestrator, "gcode.printing_plan_file_writer");
+        activate_plugin_or_fail(orchestrator, "gcode.firmware.marlin1");
+        activate_plugin_or_fail(orchestrator, "gcode.firmware.marlin2");
+        activate_plugin_or_fail(orchestrator, "gcode.firmware.prusa");
+        activate_plugin_or_fail(orchestrator, "gcode.firmware.reprap");
+        activate_plugin_or_fail(orchestrator, "gcode.firmware.sprinter");
+        activate_plugin_or_fail(orchestrator, "gcode.firmware.klipper");
         activate_plugin_or_fail(orchestrator, "flat_area_layer_height");
         activate_plugin_or_fail(orchestrator, "dense_infill.surface_marker");
         activate_plugin_or_fail(orchestrator, "dense_infill.recipe_modifier");

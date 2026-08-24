@@ -18,6 +18,7 @@ add_executable(${_TEST_NAME}_tests
     test_plugin_repository.cpp
     test_plugin_translation_catalogs.cpp
     test_repository_updater.cpp
+    test_gcode_firmware_state.cpp
     test_gcode_printing_plan_file_writer.cpp
     test_layer_extrusion_edit_speed.cpp
     test_flat_area_layer_height.cpp

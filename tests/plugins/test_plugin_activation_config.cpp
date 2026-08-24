@@ -451,3 +451,17 @@ TEST_CASE("Plugin activation migration splits an obsolete plugin id",
         CHECK(config.activated.at(acceleration));
     }
 }
+
+TEST_CASE("Plugin activation migration replaces the generic firmware with Marlin 2",
+          "[plugins][repository][activation][migration][gcode]")
+{
+    Slic3r::PluginActivationConfig config;
+    config.activated["gcode.firmware.default"] = true;
+    config.plugin_packages["gcode.firmware.default"] = "obsolete.package";
+
+    REQUIRE(Slic3r::migrate_plugin_activation_id(
+        config, "gcode.firmware.default", {"gcode.firmware.marlin2"}));
+    CHECK(config.activated.count("gcode.firmware.default") == 0);
+    CHECK(config.plugin_packages.count("gcode.firmware.default") == 0);
+    CHECK(config.activated.at("gcode.firmware.marlin2"));
+}

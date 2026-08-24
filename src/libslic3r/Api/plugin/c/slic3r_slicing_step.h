@@ -85,7 +85,13 @@ typedef enum slicing_step_t : uint16_t
     a STEP_PERIMETER plugin asks for them and calls their start/before/after/end
     callbacks while it walks its perimeter-node tree.
     */
-    PERIMETER_GENERATION_MODULE    = 10200
+    PERIMETER_GENERATION_MODULE    = 10200,
+
+    /*
+    Service plugin that creates one stateful G-code firmware session for one
+    STEP_GCODE export.
+    */
+    GCODE_FIRMWARE                 = 10300
 
 } slicing_step_t;
 

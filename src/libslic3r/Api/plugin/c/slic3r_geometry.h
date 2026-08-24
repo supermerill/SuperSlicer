@@ -33,6 +33,17 @@ typedef struct c_vec3f {
     float z;
 } c_vec3f;
 
+typedef struct c_vec2d {
+    double x;
+    double y;
+} c_vec2d;
+
+typedef struct c_vec3d {
+    double x;
+    double y;
+    double z;
+} c_vec3d;
+
 /*
 4x4 transform matrix in row-major order:
     value[row * 4 + column]

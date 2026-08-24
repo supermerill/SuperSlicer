@@ -10,14 +10,13 @@
 namespace slic3r_api { namespace GCodeGeneration { namespace PrintingPlanFileWriterPlugin {
 
 /*
-Register the prototype STEP_GCODE writer.
+Register the sequential STEP_GCODE file writer.
 
-This built-in plugin is the first consumer of PrintingPlan at the G-code step.
-It is intentionally a small file writer, not a printer motion generator: the
-output helps developers verify that STEP_ORDERING produced a stable ordered
-plan and that STEP_GCODE receives the final destination path.
+This built-in plugin writes every chunk returned by the selected firmware
+session and publishes the resulting file atomically. It never interprets an
+extrusion or assembles a G-code command itself.
 */
-void register_printing_plan_file_writer_plugin(orchestrator_handle *orch);
+void register_printing_plan_file_writer_plugin(orchestrator_handle *orchestrator);
 
 }}} // namespace slic3r_api::GCodeGeneration::PrintingPlanFileWriterPlugin
 
