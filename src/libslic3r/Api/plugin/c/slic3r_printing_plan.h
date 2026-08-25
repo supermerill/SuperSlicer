@@ -51,6 +51,7 @@ typedef struct printing_group_handle printing_group_handle;
 typedef struct printing_layer_group_handle printing_layer_group_handle;
 typedef struct printing_tool_group_handle printing_tool_group_handle;
 typedef struct printing_extrusion_handle printing_extrusion_handle;
+typedef struct printing_scope_events_handle printing_scope_events_handle;
 
 typedef struct c_printing_object_instance
 {
@@ -60,6 +61,35 @@ typedef struct c_printing_object_instance
     uint64_t instance_idx;
 } c_printing_object_instance;
 
+/* ---- scope events -------------------------------------------------------
+
+Every plan hierarchy scope owns one before and one after event sequence. The
+sequence roots always exist and stay non-sortable and non-reversible. Plugins
+may inspect them and append complete event trees, but cannot replace or mutate
+the roots themselves.
+
+Returned event handles are borrowed children of the selected sequence. A later
+append may invalidate an earlier child handle if the child vector reallocates.
+*/
+SLIC3R_HOST_API int32_t printing_scope_events_has_before(const printing_scope_events_handle *me);
+SLIC3R_HOST_API int32_t printing_scope_events_has_after(const printing_scope_events_handle *me);
+SLIC3R_HOST_API const extrusion_entity_handle *printing_scope_events_get_before(
+    const printing_scope_events_handle *me);
+SLIC3R_HOST_API const extrusion_entity_handle *printing_scope_events_get_after(
+    const printing_scope_events_handle *me);
+SLIC3R_HOST_API extrusion_entity_handle *printing_scope_events_append_before_clone(
+    printing_scope_events_handle *me,
+    const extrusion_entity_handle *event);
+SLIC3R_HOST_API extrusion_entity_handle *printing_scope_events_append_before_move(
+    printing_scope_events_handle *me,
+    extrusion_entity_handle *event);
+SLIC3R_HOST_API extrusion_entity_handle *printing_scope_events_append_after_clone(
+    printing_scope_events_handle *me,
+    const extrusion_entity_handle *event);
+SLIC3R_HOST_API extrusion_entity_handle *printing_scope_events_append_after_move(
+    printing_scope_events_handle *me,
+    extrusion_entity_handle *event);
+
 /* ---- plan ---------------------------------------------------------------
 
 The plan owns all groups and all cloned extrusion roots stored under them.
@@ -68,6 +98,8 @@ plugins append groups, layer groups, tool groups, and cloned extrusion roots so
 the ordering strategy lives in the plugin that owns it.
 */
 SLIC3R_HOST_API void printing_plan_clear(printing_plan_handle *me);
+SLIC3R_HOST_API printing_scope_events_handle *printing_plan_get_events_mutable(printing_plan_handle *me);
+SLIC3R_HOST_API const printing_scope_events_handle *printing_plan_get_events(const printing_plan_handle *me);
 /* Count/read/append/reorder top-level groups. The move operation keeps the
    moved group and its cloned extrusion roots intact. */
 SLIC3R_HOST_API uint32_t printing_plan_count_group(const printing_plan_handle *me);
@@ -84,6 +116,8 @@ per object instance. The object-instance list is context only; it tells later
 code which source objects are represented by this batch.
 */
 SLIC3R_HOST_API void printing_group_clear(printing_group_handle *me);
+SLIC3R_HOST_API printing_scope_events_handle *printing_group_get_events_mutable(printing_group_handle *me);
+SLIC3R_HOST_API const printing_scope_events_handle *printing_group_get_events(const printing_group_handle *me);
 SLIC3R_HOST_API uint32_t printing_group_count_object_instance(const printing_group_handle *me);
 SLIC3R_HOST_API c_printing_object_instance printing_group_get_object_instance(const printing_group_handle *me,
                                                                               uint32_t idx);
@@ -109,6 +143,10 @@ source Layer objects, for example when multiple object instances have geometry
 at the same Z. The source Layer pointers are non-owning and are used only for
 context and settings lookup.
 */
+SLIC3R_HOST_API printing_scope_events_handle *printing_layer_group_get_events_mutable(
+    printing_layer_group_handle *me);
+SLIC3R_HOST_API const printing_scope_events_handle *printing_layer_group_get_events(
+    const printing_layer_group_handle *me);
 SLIC3R_HOST_API coord_t printing_layer_group_get_print_z(const printing_layer_group_handle *me);
 SLIC3R_HOST_API void printing_layer_group_set_print_z(printing_layer_group_handle *me, coord_t print_z);
 SLIC3R_HOST_API uint32_t printing_layer_group_count_layer(const printing_layer_group_handle *me);
@@ -137,6 +175,10 @@ region_islands is a compact source-context list: it records which
 LayerRegionIslands contributed work to this tool group. printing_extrusion
 entries store the actual cloned roots to print.
 */
+SLIC3R_HOST_API printing_scope_events_handle *printing_tool_group_get_events_mutable(
+    printing_tool_group_handle *me);
+SLIC3R_HOST_API const printing_scope_events_handle *printing_tool_group_get_events(
+    const printing_tool_group_handle *me);
 SLIC3R_HOST_API uint16_t printing_tool_group_get_extruder_id(const printing_tool_group_handle *me);
 SLIC3R_HOST_API void printing_tool_group_set_extruder_id(printing_tool_group_handle *me, uint16_t extruder_id);
 SLIC3R_HOST_API uint32_t printing_tool_group_count_region_island(const printing_tool_group_handle *me);

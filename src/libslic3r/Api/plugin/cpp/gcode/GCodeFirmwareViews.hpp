@@ -46,7 +46,9 @@ public:
           begin_group
             begin_layer
               begin_tool_group
+                write_event(before)
                 write_extrusion ...
+                write_event(after)
               end_tool_group
             end_layer
           end_group
@@ -83,6 +85,11 @@ public:
     // the policy for traversing its extrusion root and interpreting its
     // inherited properties; the file writer does not inspect that geometry.
     virtual std::string write_extrusion(const PrintingExtrusion &) = 0;
+
+    // Serialize one ordered scope-event tree. The matching begin_* callback
+    // has already established the scope context, and the matching end_* has
+    // not run yet. The event has no source-region metadata.
+    virtual std::string write_event(const ExtrusionEntity &) = 0;
 
     // Leave the current tool section after all its extrusions were written.
     // The session must retain any context needed here because no view is passed.
@@ -214,6 +221,17 @@ inline void write_extrusion_thunk(void *opaque,
     });
 }
 
+inline void write_event_thunk(void *opaque,
+                              const extrusion_entity_handle *event_root,
+                              raw_gcode_firmware_result *result) noexcept
+{
+    invoke_firmware_callback(opaque, result, [event_root](GCodeFirmwareSession &session) {
+        if (event_root == nullptr)
+            throw std::invalid_argument("Firmware write_event received a null event root.");
+        return session.write_event(ExtrusionEntity(event_root));
+    });
+}
+
 inline void end_tool_group_thunk(void *opaque, raw_gcode_firmware_result *result) noexcept
 {
     invoke_firmware_callback(opaque, result, [](GCodeFirmwareSession &session) {
@@ -252,6 +270,7 @@ inline const raw_gcode_firmware_vtable &firmware_session_vtable()
         &begin_layer_thunk,
         &begin_tool_group_thunk,
         &write_extrusion_thunk,
+        &write_event_thunk,
         &end_tool_group_thunk,
         &end_layer_thunk,
         &end_group_thunk,
@@ -321,6 +340,13 @@ public:
         return consume(result);
     }
 
+    std::string_view write_event(const ExtrusionEntity &event_root) const
+    {
+        raw_gcode_firmware_result result = make_result();
+        m_instance->vtable->write_event(m_instance->session, event_root.handle(), &result);
+        return consume(result);
+    }
+
     std::string_view end_tool_group() const { return invoke_end(m_instance->vtable->end_tool_group); }
     std::string_view end_layer() const { return invoke_end(m_instance->vtable->end_layer); }
     std::string_view end_group() const { return invoke_end(m_instance->vtable->end_group); }
@@ -365,7 +391,8 @@ private:
         if (vtable.struct_size < sizeof(raw_gcode_firmware_vtable) || vtable.destroy == nullptr ||
             vtable.begin_print == nullptr || vtable.begin_group == nullptr ||
             vtable.begin_layer == nullptr || vtable.begin_tool_group == nullptr ||
-            vtable.write_extrusion == nullptr || vtable.end_tool_group == nullptr ||
+            vtable.write_extrusion == nullptr || vtable.write_event == nullptr ||
+            vtable.end_tool_group == nullptr ||
             vtable.end_layer == nullptr || vtable.end_group == nullptr || vtable.end_print == nullptr)
             throw std::invalid_argument("The G-code firmware callback table is incomplete.");
     }

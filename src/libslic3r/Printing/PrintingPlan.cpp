@@ -330,6 +330,63 @@ void sort_layer_groups_by_print_z(PrintingGroup &group);
 
 } // namespace
 
+PrintingScopeEvents::PrintingScopeEvents()
+    : m_before(ExtrusionEntity::Children(), false, false, true)
+    , m_after(ExtrusionEntity::Children(), false, false, true)
+{
+}
+
+PrintingScopeEvents::PrintingScopeEvents(PrintingScopeEvents &&other) noexcept
+    : m_before(std::move(other.m_before))
+    , m_after(std::move(other.m_after))
+{
+}
+
+PrintingScopeEvents &PrintingScopeEvents::operator=(PrintingScopeEvents &&other) noexcept
+{
+    if (this != &other) {
+        m_before = std::move(other.m_before);
+        m_after = std::move(other.m_after);
+    }
+    return *this;
+}
+
+ExtrusionEntity &PrintingScopeEvents::append_before(const ExtrusionEntity &event)
+{
+    // Cloning lets the caller keep its source tree while the scope owns an
+    // independent event at the end of the fixed before sequence.
+    return m_before.append_child(event);
+}
+
+ExtrusionEntity &PrintingScopeEvents::append_before(ExtrusionEntity &&event)
+{
+    // Moving transfers the prepared event content into the scope without
+    // changing the identity or ordering contract of the before root.
+    return m_before.append_child(std::move(event));
+}
+
+ExtrusionEntity &PrintingScopeEvents::append_after(const ExtrusionEntity &event)
+{
+    // After events use the same ownership and stable insertion order as the
+    // before sequence so every PrintingPlan scope follows one contract.
+    return m_after.append_child(event);
+}
+
+ExtrusionEntity &PrintingScopeEvents::append_after(ExtrusionEntity &&event)
+{
+    // The moved-from source remains valid but empty, matching the extrusion
+    // tree move semantics already exposed by the plugin API.
+    return m_after.append_child(std::move(event));
+}
+
+void PrintingScopeEvents::clear()
+{
+    // Clearing content preserves the private roots and their immutable
+    // non-sortable/non-reversible flags for the next step execution.
+    m_before.clear_content();
+    m_after.clear_content();
+}
+
 PrintingExtrusion::PrintingExtrusion(const LayerRegionIsland &source,
                                      ExtrusionRole extrusion_role,
                                      const ExtrusionEntity &source_root)

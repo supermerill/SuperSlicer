@@ -14,11 +14,13 @@ extern "C" {
 /*
 Payload for STEP_EXTRUSION_EDIT.
 
-Plugins may edit the final object extrusion tree before simplification/G-code.
+Plugins run sequentially after layer-local extrusion editing. They may inspect
+the complete ordered PrintingPlan and append scope events before final
+simplification and G-code generation.
 */
 typedef struct run_ctx_extrusion_edition {
     const print_handle *print;
-    const object_handle *object;
+    printing_plan_handle *plan;
 } run_ctx_extrusion_edition;
 
 static inline const run_ctx_extrusion_edition *

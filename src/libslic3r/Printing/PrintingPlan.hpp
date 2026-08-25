@@ -24,6 +24,41 @@ class Print;
 namespace Slic3r::Printing {
 
 /*
+Ordered events executed around the contents of one PrintingPlan scope.
+
+The two roots always exist and remain non-sortable and non-reversible. Callers
+may append complete event trees, but they cannot replace the roots themselves.
+This keeps event ordering stable while allowing every plan, group, layer group,
+and tool group to expose the same before/after contract.
+*/
+class PrintingScopeEvents
+{
+public:
+    PrintingScopeEvents();
+    PrintingScopeEvents(const PrintingScopeEvents &) = delete;
+    PrintingScopeEvents &operator=(const PrintingScopeEvents &) = delete;
+    PrintingScopeEvents(PrintingScopeEvents &&other) noexcept;
+    PrintingScopeEvents &operator=(PrintingScopeEvents &&other) noexcept;
+
+    const ExtrusionEntity &before() const { return m_before; }
+    const ExtrusionEntity &after() const { return m_after; }
+    bool has_before() const { return m_before.child_count() != 0; }
+    bool has_after() const { return m_after.child_count() != 0; }
+
+    ExtrusionEntity &append_before(const ExtrusionEntity &event);
+    ExtrusionEntity &append_before(ExtrusionEntity &&event);
+    ExtrusionEntity &append_after(const ExtrusionEntity &event);
+    ExtrusionEntity &append_after(ExtrusionEntity &&event);
+
+    // Rebuilds keep the two fixed sequence roots and remove only their events.
+    void clear();
+
+private:
+    ExtrusionEntity m_before;
+    ExtrusionEntity m_after;
+};
+
+/*
 PrintingPlan is the data model that STEP_ORDERING will progressively refine
 before G-code generation.
 
@@ -108,6 +143,7 @@ separate visits.
 */
 struct PrintingToolGroup
 {
+    PrintingScopeEvents events;
     uint16_t extruder_id = uint16_t(-1);
     std::vector<const LayerRegionIsland*> region_islands;
     std::vector<PrintingExtrusion> extrusions;
@@ -125,6 +161,7 @@ rule.
 */
 struct PrintingLayerGroup
 {
+    PrintingScopeEvents events;
     coord_t print_z = 0;
     std::vector<const Layer*> layers;
     std::vector<PrintingToolGroup> tool_groups;
@@ -141,6 +178,7 @@ printed for it.
 */
 struct PrintingGroup
 {
+    PrintingScopeEvents events;
     std::vector<PrintingObjectInstance> object_instances;
     std::vector<PrintingLayerGroup> layers;
 };
@@ -155,8 +193,8 @@ context pointers.
 */
 struct PrintingPlan
 {
+    PrintingScopeEvents events;
     std::vector<PrintingGroup> groups;
-
 };
 
 /*

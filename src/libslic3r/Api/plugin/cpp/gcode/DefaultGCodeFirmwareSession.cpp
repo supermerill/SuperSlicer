@@ -235,10 +235,23 @@ std::string DefaultGCodeFirmwareSession::write_extrusion(const PrintingExtrusion
     if (root_handle == nullptr)
         throw std::invalid_argument("The PrintingExtrusion has no extrusion root.");
 
-    // A fresh visitor owns the requested-state stack for exactly one root. The
-    // session machine state remains alive across all roots in the print.
+    return write_extrusion_tree(ExtrusionEntity(root_handle));
+}
+
+std::string DefaultGCodeFirmwareSession::write_event(const ExtrusionEntity &event_root)
+{
+    if (!m_is_setup)
+        throw std::logic_error("The firmware session was not initialized by begin_print().");
+    return write_extrusion_tree(event_root);
+}
+
+std::string DefaultGCodeFirmwareSession::write_extrusion_tree(const ExtrusionEntity &root)
+{
+    // Scope events and printable roots share property inheritance and event
+    // handling. A fresh visitor isolates that lexical state while the session
+    // retains machine state across both kinds of tree.
     ExtrusionWriterVisitor visitor(*this);
-    return visitor.write(ExtrusionEntity(root_handle));
+    return visitor.write(root);
 }
 
 std::string DefaultGCodeFirmwareSession::end_tool_group()

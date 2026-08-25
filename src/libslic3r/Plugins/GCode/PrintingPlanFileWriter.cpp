@@ -94,6 +94,9 @@ void serialize_plan(boost::nowide::ofstream &stream,
                     PluginProgress &progress)
 {
     write_firmware_chunk(stream, firmware.begin_print(print));
+    const PrintingScopeEvents plan_events = plan.events();
+    if (plan_events.has_before())
+        write_firmware_chunk(stream, firmware.write_event(plan_events.before()));
 
     // Every begin call is matched before the enclosing scope is left. Empty
     // groups and layers are still observable because a firmware may need their
@@ -101,14 +104,23 @@ void serialize_plan(boost::nowide::ofstream &stream,
     for (uint32_t group_idx = 0; group_idx < plan.group_count(); ++group_idx) {
         const PrintingGroup group = plan.group(group_idx);
         write_firmware_chunk(stream, firmware.begin_group(group));
+        const PrintingScopeEvents group_events = group.events();
+        if (group_events.has_before())
+            write_firmware_chunk(stream, firmware.write_event(group_events.before()));
 
         for (uint32_t layer_idx = 0; layer_idx < group.layer_group_count(); ++layer_idx) {
             const PrintingLayerGroup layer = group.layer_group(layer_idx);
             write_firmware_chunk(stream, firmware.begin_layer(layer));
+            const PrintingScopeEvents layer_events = layer.events();
+            if (layer_events.has_before())
+                write_firmware_chunk(stream, firmware.write_event(layer_events.before()));
 
             for (uint32_t tool_idx = 0; tool_idx < layer.tool_group_count(); ++tool_idx) {
                 const PrintingToolGroup tool_group = layer.tool_group(tool_idx);
                 write_firmware_chunk(stream, firmware.begin_tool_group(tool_group));
+                const PrintingScopeEvents tool_events = tool_group.events();
+                if (tool_events.has_before())
+                    write_firmware_chunk(stream, firmware.write_event(tool_events.before()));
 
                 for (uint32_t extrusion_idx = 0;
                      extrusion_idx < tool_group.extrusion_count();
@@ -118,15 +130,23 @@ void serialize_plan(boost::nowide::ofstream &stream,
                     progress.increment();
                 }
 
+                if (tool_events.has_after())
+                    write_firmware_chunk(stream, firmware.write_event(tool_events.after()));
                 write_firmware_chunk(stream, firmware.end_tool_group());
             }
 
+            if (layer_events.has_after())
+                write_firmware_chunk(stream, firmware.write_event(layer_events.after()));
             write_firmware_chunk(stream, firmware.end_layer());
         }
 
+        if (group_events.has_after())
+            write_firmware_chunk(stream, firmware.write_event(group_events.after()));
         write_firmware_chunk(stream, firmware.end_group());
     }
 
+    if (plan_events.has_after())
+        write_firmware_chunk(stream, firmware.write_event(plan_events.after()));
     write_firmware_chunk(stream, firmware.end_print());
 }
 

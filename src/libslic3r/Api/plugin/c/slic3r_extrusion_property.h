@@ -253,8 +253,12 @@ typedef struct c_extrusion_property_modifier {
 } c_extrusion_property_modifier;
 
 typedef enum c_extrusion_custom_gcode_kind {
+    /* the property field contains raw gcode */
     C_EXTRUSION_CUSTOM_GCODE_GCODE = 0,
-    C_EXTRUSION_CUSTOM_GCODE_COMMENT = 1
+    /* the property field contains raw comment to place after a ";" if verbose */
+    C_EXTRUSION_CUSTOM_GCODE_COMMENT = 1,
+    /* the property field contains scripted gcode that needs to be executed to get the real gcode */
+    C_EXTRUSION_CUSTOM_GCODE_SCRIPT = 2
 } c_extrusion_custom_gcode_kind;
 
 /* Property type: EXTRUSION_PROPERTY_TYPE_CUSTOM_GCODE. */

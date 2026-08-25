@@ -60,6 +60,7 @@ public:
     std::string begin_layer(const PrintingLayerGroup &layer) override;
     std::string begin_tool_group(const PrintingToolGroup &tool_group) override;
     std::string write_extrusion(const PrintingExtrusion &extrusion) override;
+    std::string write_event(const ExtrusionEntity &event_root) override;
     std::string end_tool_group() override;
     std::string end_layer() override;
     std::string end_group() override;
@@ -161,6 +162,7 @@ private:
     class ExtrusionWriterVisitor;
 
     std::string select_extruder(uint16_t tool_id);
+    std::string write_extrusion_tree(const ExtrusionEntity &root);
     std::string write_lines(const PreparedMove &move);
     std::string write_leaf_geometry(const ExtrusionEntity &leaf, const RequestedState &state);
     std::string write_special_command(const EPropertySpecialCommand &command,

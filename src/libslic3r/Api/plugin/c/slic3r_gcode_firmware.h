@@ -65,6 +65,10 @@ typedef void (*gcode_firmware_write_extrusion_fn)(
     void *session,
     const printing_extrusion_handle *extrusion,
     raw_gcode_firmware_result *result);
+typedef void (*gcode_firmware_write_event_fn)(
+    void *session,
+    const extrusion_entity_handle *event_root,
+    raw_gcode_firmware_result *result);
 typedef void (*gcode_firmware_end_scope_fn)(
     void *session,
     raw_gcode_firmware_result *result);
@@ -77,6 +81,7 @@ typedef struct raw_gcode_firmware_vtable {
     gcode_firmware_begin_layer_fn begin_layer;
     gcode_firmware_begin_tool_group_fn begin_tool_group;
     gcode_firmware_write_extrusion_fn write_extrusion;
+    gcode_firmware_write_event_fn write_event;
     gcode_firmware_end_scope_fn end_tool_group;
     gcode_firmware_end_scope_fn end_layer;
     gcode_firmware_end_scope_fn end_group;

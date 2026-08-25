@@ -15,6 +15,7 @@
 namespace slic3r_api {
 
 class PrintingPlan;
+class PrintingScopeEvents;
 class PrintingGroup;
 class PrintingLayerGroup;
 class PrintingToolGroup;
@@ -64,6 +65,50 @@ public:
 
 private:
     c_printing_object_instance m_value;
+};
+
+/*
+Borrowed view over the fixed before/after sequences of one plan scope.
+
+The roots are intentionally read-only so plugin code cannot make the enclosing
+sequence sortable or replace it. Mutation is limited to appending complete
+event trees in their execution order.
+*/
+class PrintingScopeEvents
+{
+public:
+    explicit PrintingScopeEvents(printing_scope_events_handle *handle) : m_handle(handle) {}
+    explicit PrintingScopeEvents(const printing_scope_events_handle *handle) :
+        m_handle(const_cast<printing_scope_events_handle *>(handle)) {}
+
+    bool valid() const { return m_handle != nullptr; }
+    printing_scope_events_handle *mutable_handle() const { return m_handle; }
+    const printing_scope_events_handle *handle() const { return m_handle; }
+
+    bool has_before() const { return printing_scope_events_has_before(handle()) != 0; }
+    bool has_after() const { return printing_scope_events_has_after(handle()) != 0; }
+    ExtrusionEntity before() const { return ExtrusionEntity(printing_scope_events_get_before(handle())); }
+    ExtrusionEntity after() const { return ExtrusionEntity(printing_scope_events_get_after(handle())); }
+
+    MutableExtrusionEntity append_before_clone(const ExtrusionEntity &event) const {
+        return MutableExtrusionEntity(
+            printing_scope_events_append_before_clone(mutable_handle(), event.handle()));
+    }
+    MutableExtrusionEntity append_before_move(MutableExtrusionEntity event) const {
+        return MutableExtrusionEntity(
+            printing_scope_events_append_before_move(mutable_handle(), event.mutable_handle()));
+    }
+    MutableExtrusionEntity append_after_clone(const ExtrusionEntity &event) const {
+        return MutableExtrusionEntity(
+            printing_scope_events_append_after_clone(mutable_handle(), event.handle()));
+    }
+    MutableExtrusionEntity append_after_move(MutableExtrusionEntity event) const {
+        return MutableExtrusionEntity(
+            printing_scope_events_append_after_move(mutable_handle(), event.mutable_handle()));
+    }
+
+private:
+    printing_scope_events_handle *m_handle = nullptr;
 };
 
 class PrintingExtrusion
@@ -119,6 +164,10 @@ public:
     bool valid() const { return m_handle != nullptr; }
     printing_tool_group_handle *mutable_handle() const { return m_handle; }
     const printing_tool_group_handle *handle() const { return m_handle; }
+
+    PrintingScopeEvents events() const {
+        return PrintingScopeEvents(printing_tool_group_get_events_mutable(mutable_handle()));
+    }
 
     uint16_t extruder_id() const { return printing_tool_group_get_extruder_id(handle()); }
     void set_extruder_id(uint16_t extruder_id) const {
@@ -180,6 +229,10 @@ public:
     printing_layer_group_handle *mutable_handle() const { return m_handle; }
     const printing_layer_group_handle *handle() const { return m_handle; }
 
+    PrintingScopeEvents events() const {
+        return PrintingScopeEvents(printing_layer_group_get_events_mutable(mutable_handle()));
+    }
+
     coord_t print_z() const { return printing_layer_group_get_print_z(handle()); }
     void set_print_z(coord_t print_z) const { printing_layer_group_set_print_z(mutable_handle(), print_z); }
 
@@ -214,6 +267,10 @@ public:
     bool valid() const { return m_handle != nullptr; }
     printing_group_handle *mutable_handle() const { return m_handle; }
     const printing_group_handle *handle() const { return m_handle; }
+
+    PrintingScopeEvents events() const {
+        return PrintingScopeEvents(printing_group_get_events_mutable(mutable_handle()));
+    }
 
     void clear() const { printing_group_clear(mutable_handle()); }
 
@@ -250,6 +307,10 @@ public:
     bool valid() const { return m_handle != nullptr; }
     printing_plan_handle *mutable_handle() const { return m_handle; }
     const printing_plan_handle *handle() const { return m_handle; }
+
+    PrintingScopeEvents events() const {
+        return PrintingScopeEvents(printing_plan_get_events_mutable(mutable_handle()));
+    }
 
     void clear() const { printing_plan_clear(mutable_handle()); }
 

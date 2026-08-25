@@ -33,6 +33,16 @@ const Printing::PrintingPlan *to_plan(const printing_plan_handle *me)
     return reinterpret_cast<const Printing::PrintingPlan *>(me);
 }
 
+Printing::PrintingScopeEvents *to_scope_events(printing_scope_events_handle *me)
+{
+    return reinterpret_cast<Printing::PrintingScopeEvents *>(me);
+}
+
+const Printing::PrintingScopeEvents *to_scope_events(const printing_scope_events_handle *me)
+{
+    return reinterpret_cast<const Printing::PrintingScopeEvents *>(me);
+}
+
 Printing::PrintingGroup *to_group(printing_group_handle *me)
 {
     return reinterpret_cast<Printing::PrintingGroup *>(me);
@@ -150,10 +160,89 @@ std::unique_ptr<ExtrusionEntity> move_or_empty(extrusion_entity_handle *root)
 
 extern "C" {
 
+int32_t printing_scope_events_has_before(const printing_scope_events_handle *me)
+{
+    return me != nullptr && Slic3r::to_scope_events(me)->has_before();
+}
+
+int32_t printing_scope_events_has_after(const printing_scope_events_handle *me)
+{
+    return me != nullptr && Slic3r::to_scope_events(me)->has_after();
+}
+
+const extrusion_entity_handle *printing_scope_events_get_before(const printing_scope_events_handle *me)
+{
+    if (me == nullptr)
+        return nullptr;
+    return reinterpret_cast<const extrusion_entity_handle *>(&Slic3r::to_scope_events(me)->before());
+}
+
+const extrusion_entity_handle *printing_scope_events_get_after(const printing_scope_events_handle *me)
+{
+    if (me == nullptr)
+        return nullptr;
+    return reinterpret_cast<const extrusion_entity_handle *>(&Slic3r::to_scope_events(me)->after());
+}
+
+extrusion_entity_handle *printing_scope_events_append_before_clone(
+    printing_scope_events_handle *me,
+    const extrusion_entity_handle *event)
+{
+    if (me == nullptr || event == nullptr)
+        return nullptr;
+    Slic3r::ExtrusionEntity &appended = Slic3r::to_scope_events(me)->append_before(*Slic3r::to_extrusion(event));
+    return reinterpret_cast<extrusion_entity_handle *>(&appended);
+}
+
+extrusion_entity_handle *printing_scope_events_append_before_move(
+    printing_scope_events_handle *me,
+    extrusion_entity_handle *event)
+{
+    if (me == nullptr || event == nullptr)
+        return nullptr;
+    Slic3r::ExtrusionEntity &appended =
+        Slic3r::to_scope_events(me)->append_before(std::move(*Slic3r::to_extrusion(event)));
+    return reinterpret_cast<extrusion_entity_handle *>(&appended);
+}
+
+extrusion_entity_handle *printing_scope_events_append_after_clone(
+    printing_scope_events_handle *me,
+    const extrusion_entity_handle *event)
+{
+    if (me == nullptr || event == nullptr)
+        return nullptr;
+    Slic3r::ExtrusionEntity &appended = Slic3r::to_scope_events(me)->append_after(*Slic3r::to_extrusion(event));
+    return reinterpret_cast<extrusion_entity_handle *>(&appended);
+}
+
+extrusion_entity_handle *printing_scope_events_append_after_move(
+    printing_scope_events_handle *me,
+    extrusion_entity_handle *event)
+{
+    if (me == nullptr || event == nullptr)
+        return nullptr;
+    Slic3r::ExtrusionEntity &appended =
+        Slic3r::to_scope_events(me)->append_after(std::move(*Slic3r::to_extrusion(event)));
+    return reinterpret_cast<extrusion_entity_handle *>(&appended);
+}
+
 void printing_plan_clear(printing_plan_handle *me)
 {
-    if (me != nullptr)
+    if (me != nullptr) {
+        Slic3r::to_plan(me)->events.clear();
         Slic3r::to_plan(me)->groups.clear();
+    }
+}
+
+printing_scope_events_handle *printing_plan_get_events_mutable(printing_plan_handle *me)
+{
+    return me == nullptr ? nullptr : reinterpret_cast<printing_scope_events_handle *>(&Slic3r::to_plan(me)->events);
+}
+
+const printing_scope_events_handle *printing_plan_get_events(const printing_plan_handle *me)
+{
+    return me == nullptr ?
+               nullptr : reinterpret_cast<const printing_scope_events_handle *>(&Slic3r::to_plan(me)->events);
 }
 
 uint32_t printing_plan_count_group(const printing_plan_handle *me)
@@ -191,6 +280,17 @@ void printing_group_clear(printing_group_handle *me)
 {
     if (me != nullptr)
         *Slic3r::to_group(me) = Slic3r::Printing::PrintingGroup();
+}
+
+printing_scope_events_handle *printing_group_get_events_mutable(printing_group_handle *me)
+{
+    return me == nullptr ? nullptr : reinterpret_cast<printing_scope_events_handle *>(&Slic3r::to_group(me)->events);
+}
+
+const printing_scope_events_handle *printing_group_get_events(const printing_group_handle *me)
+{
+    return me == nullptr ?
+               nullptr : reinterpret_cast<const printing_scope_events_handle *>(&Slic3r::to_group(me)->events);
 }
 
 uint32_t printing_group_count_object_instance(const printing_group_handle *me)
@@ -256,6 +356,18 @@ int32_t printing_group_move_layer_group(printing_group_handle *me, uint32_t from
     return me != nullptr && Slic3r::move_vector_item(Slic3r::to_group(me)->layers, from_idx, to_idx);
 }
 
+printing_scope_events_handle *printing_layer_group_get_events_mutable(printing_layer_group_handle *me)
+{
+    return me == nullptr ?
+               nullptr : reinterpret_cast<printing_scope_events_handle *>(&Slic3r::to_layer_group(me)->events);
+}
+
+const printing_scope_events_handle *printing_layer_group_get_events(const printing_layer_group_handle *me)
+{
+    return me == nullptr ?
+               nullptr : reinterpret_cast<const printing_scope_events_handle *>(&Slic3r::to_layer_group(me)->events);
+}
+
 coord_t printing_layer_group_get_print_z(const printing_layer_group_handle *me)
 {
     return me == nullptr ? 0 : Slic3r::to_layer_group(me)->print_z;
@@ -319,6 +431,18 @@ printing_tool_group_handle *printing_layer_group_append_tool_group(printing_laye
 int32_t printing_layer_group_move_tool_group(printing_layer_group_handle *me, uint32_t from_idx, uint32_t to_idx)
 {
     return me != nullptr && Slic3r::move_vector_item(Slic3r::to_layer_group(me)->tool_groups, from_idx, to_idx);
+}
+
+printing_scope_events_handle *printing_tool_group_get_events_mutable(printing_tool_group_handle *me)
+{
+    return me == nullptr ?
+               nullptr : reinterpret_cast<printing_scope_events_handle *>(&Slic3r::to_tool_group(me)->events);
+}
+
+const printing_scope_events_handle *printing_tool_group_get_events(const printing_tool_group_handle *me)
+{
+    return me == nullptr ?
+               nullptr : reinterpret_cast<const printing_scope_events_handle *>(&Slic3r::to_tool_group(me)->events);
 }
 
 uint16_t printing_tool_group_get_extruder_id(const printing_tool_group_handle *me)

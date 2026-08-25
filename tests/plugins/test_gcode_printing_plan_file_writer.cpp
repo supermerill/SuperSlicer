@@ -107,6 +107,12 @@ public:
         return "write_extrusion\n";
     }
 
+    std::string write_event(const slic3r_api::ExtrusionEntity &) override
+    {
+        m_recorder.calls.emplace_back("write_event");
+        return "write_event\n";
+    }
+
     std::string end_tool_group() override
     {
         m_recorder.calls.emplace_back("end_tool_group");
@@ -1176,12 +1182,105 @@ TEST_CASE("Firmware C++ adapter validates tables and destroys its session once",
         CHECK_THROWS_AS(slic3r_api::GCodeFirmwareView(&invalid_size), std::invalid_argument);
 
         raw_gcode_firmware_vtable missing_callback = *owner.instance().vtable;
-        missing_callback.write_extrusion = nullptr;
+        missing_callback.write_event = nullptr;
         raw_gcode_firmware_instance invalid_callback = owner.instance();
         invalid_callback.vtable = &missing_callback;
         CHECK_THROWS_AS(slic3r_api::GCodeFirmwareView(&invalid_callback), std::invalid_argument);
     }
     CHECK(recorder.destruction_count == 1);
+}
+
+TEST_CASE("PrintingPlan file writer serializes populated scope events inside their boundaries",
+          "[plugins][gcode][firmware][printing][plan][events]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    FirmwareRecorder recorder;
+    FirmwareInstanceOwner firmware(slic3r_api::make_gcode_firmware_instance(
+        std::unique_ptr<slic3r_api::GCodeFirmwareSession>(new RecordingFirmwareSession(recorder))));
+    Print print;
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    PrintingGroup &group = plan.groups.front();
+    group.layers.emplace_back();
+    PrintingLayerGroup &layer = group.layers.front();
+    layer.tool_groups.emplace_back();
+    PrintingToolGroup &tool_group = layer.tool_groups.front();
+    const LayerRegionIsland *fake_region =
+        reinterpret_cast<const LayerRegionIsland *>(uintptr_t(0x3456));
+    append_empty_extrusion(tool_group, ExtrusionRole::None, 0, fake_region);
+
+    // One child makes each fixed event root observable without depending on a
+    // specific event property. The recording firmware marks every callback.
+    ExtrusionEntity event(true);
+    plan.events.append_before(event);
+    plan.events.append_after(event);
+    group.events.append_before(event);
+    group.events.append_after(event);
+    layer.events.append_before(event);
+    layer.events.append_after(event);
+    tool_group.events.append_before(event);
+    tool_group.events.append_after(event);
+
+    const boost::filesystem::path output_path = temporary_gcode_path();
+    remove_output_pair(output_path);
+    try {
+        run_file_writer_with_firmware(print, output_path, firmware.instance());
+
+        const std::vector<std::string> expected_calls{
+            "begin_print", "write_event",
+            "begin_group", "write_event",
+            "begin_layer", "write_event",
+            "begin_tool_group", "write_event",
+            "write_extrusion",
+            "write_event", "end_tool_group",
+            "write_event", "end_layer",
+            "write_event", "end_group",
+            "write_event", "end_print"
+        };
+        CHECK(recorder.calls == expected_calls);
+        CHECK(read_text_file(output_path) ==
+              "begin_print\nwrite_event\n"
+              "begin_group\nwrite_event\n"
+              "begin_layer\nwrite_event\n"
+              "begin_tool_group\nwrite_event\n"
+              "write_extrusion\n"
+              "write_event\nend_tool_group\n"
+              "write_event\nend_layer\n"
+              "write_event\nend_group\n"
+              "write_event\nend_print\n");
+    } catch (...) {
+        remove_output_pair(output_path);
+        throw;
+    }
+    remove_output_pair(output_path);
+}
+
+TEST_CASE("Default firmware interprets scope events with its extrusion visitor",
+          "[plugins][gcode][firmware][printing][plan][events]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    select_printing_plan_writer(print);
+    PrintingPlan &plan = print.mutable_printing_plan();
+    ExtrusionNop event;
+    event.add_property(ExtrusionPropertyCustomGcodeText("M117 scope event"));
+    plan.events.append_before(event);
+
+    FirmwareInstanceOwner firmware(slic3r_api::make_gcode_firmware_instance(
+        std::unique_ptr<slic3r_api::GCodeFirmwareSession>(
+            new slic3r_api::GCodeGeneration::DefaultGCodeFirmwareSession())));
+    const boost::filesystem::path output_path = temporary_gcode_path();
+    remove_output_pair(output_path);
+    try {
+        run_file_writer_with_firmware(print, output_path, firmware.instance());
+        CHECK(read_text_file(output_path) == "M117 scope event\n");
+    } catch (...) {
+        remove_output_pair(output_path);
+        throw;
+    }
+    remove_output_pair(output_path);
 }
 
 TEST_CASE("PrintingPlan file writer serializes every firmware boundary in order",

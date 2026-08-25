@@ -150,6 +150,7 @@ public:
     enum class Code : uint32_t {
         GCODE = C_EXTRUSION_CUSTOM_GCODE_GCODE,
         COMMENT = C_EXTRUSION_CUSTOM_GCODE_COMMENT,
+        SCRIPT = C_EXTRUSION_CUSTOM_GCODE_SCRIPT,
     };
 
     ExtrusionPropertyCustomGcode();

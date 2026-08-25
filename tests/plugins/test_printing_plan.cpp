@@ -1,6 +1,7 @@
 #include <catch2/catch.hpp>
 
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <initializer_list>
 #include <limits>
@@ -15,12 +16,14 @@
 #include "libslic3r/Api/plugin/c/slic3r_printing_plan.h"
 #include "libslic3r/Api/plugin/cpp/AuxiliaryLayerHelpers.hpp"
 #include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
+#include "libslic3r/Api/plugin/cpp/PrintingPlanViews.hpp"
 #include "libslic3r/ConfigOption.hpp"
 #include "libslic3r/ExPolygon.hpp"
 #include "libslic3r/ExtrusionEntityCollection.hpp"
 #include "libslic3r/Layer.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/Printing/PrintingPlan.hpp"
+#include "libslic3r/Steps/StepExtrusionEdition.hpp"
 #include "libslic3r/Steps/StepExtrusionOrdering.hpp"
 #include "libslic3r/Steps/StepPipeline.hpp"
 
@@ -195,6 +198,144 @@ public:
                                                        has_omitted_point);
     }
 };
+
+// Preserve the process-wide active plugin list while a runner test selects
+// only its local probes.
+class ScopedActivePlugins
+{
+public:
+    explicit ScopedActivePlugins(std::initializer_list<const char *> plugin_ids)
+        : m_orchestrator(Orchestrator::instance())
+    {
+        for (Plugin *plugin : m_orchestrator.active_plugins())
+            m_previous.push_back(plugin);
+        m_orchestrator.clear_active_plugins();
+        for (const char *plugin_id : plugin_ids)
+            REQUIRE(m_orchestrator.set_plugin_active(plugin_id, true));
+    }
+
+    ~ScopedActivePlugins()
+    {
+        m_orchestrator.clear_active_plugins();
+        for (Plugin *plugin : m_previous)
+            m_orchestrator.set_plugin_active(plugin, true);
+    }
+
+private:
+    Orchestrator &m_orchestrator;
+    std::vector<Plugin *> m_previous;
+};
+
+struct PlanEventEditorState
+{
+    const char *id = nullptr;
+    int32_t priority = 0;
+    uint32_t expected_event_count = 0;
+    std::atomic_uint32_t setup_count{0};
+    std::atomic_uint32_t setup_run_count{0};
+    std::atomic_uint32_t run_count{0};
+    std::atomic_bool payload_valid{true};
+};
+
+PlanEventEditorState g_first_plan_event_editor{"test.extrusion_edit.events.first", -10, 0};
+PlanEventEditorState g_second_plan_event_editor{"test.extrusion_edit.events.second", 10, 1};
+
+const char *plan_event_editor_id(void *ctx) { return static_cast<PlanEventEditorState *>(ctx)->id; }
+const char *plan_event_editor_name(void *ctx) { return static_cast<PlanEventEditorState *>(ctx)->id; }
+const char *plan_event_editor_description(void *) { return "Records global plan event scheduling."; }
+const char *plan_event_editor_group(void *) { return ""; }
+const char *plan_event_editor_group_label(void *) { return ""; }
+const char *plan_event_editor_group_tooltip(void *) { return ""; }
+slicing_step_t plan_event_editor_step(void *) { return STEP_EXTRUSION_EDIT; }
+int32_t plan_event_editor_priority(void *ctx) { return static_cast<PlanEventEditorState *>(ctx)->priority; }
+const_strings_t plan_event_editor_dependencies(void *) { return {}; }
+int32_t plan_event_editor_used_keys(void *, raw_used_config_key *) { return 0; }
+int32_t plan_event_editor_defined_keys(void *, const char **) { return 0; }
+void plan_event_editor_initialize(void *, storage_handle *) {}
+
+void plan_event_editor_setup(void *ctx, const plugin_run_context *run_ctx, uint32_t run_count)
+{
+    PlanEventEditorState &state = *static_cast<PlanEventEditorState *>(ctx);
+    const run_ctx_extrusion_edition *payload = plugin_ctx_as_extrusion_edition(run_ctx);
+    state.payload_valid = payload != nullptr && payload->print != nullptr && payload->plan != nullptr &&
+                          run_count == 1;
+    ++state.setup_count;
+}
+
+void plan_event_editor_setup_run(void *ctx, const plugin_run_context *run_ctx)
+{
+    PlanEventEditorState &state = *static_cast<PlanEventEditorState *>(ctx);
+    const run_ctx_extrusion_edition *payload = plugin_ctx_as_extrusion_edition(run_ctx);
+    if (payload == nullptr || payload->plan == nullptr)
+        state.payload_valid = false;
+    ++state.setup_run_count;
+}
+
+void plan_event_editor_run(void *ctx, const plugin_run_context *run_ctx)
+{
+    PlanEventEditorState &state = *static_cast<PlanEventEditorState *>(ctx);
+    const run_ctx_extrusion_edition *payload = plugin_ctx_as_extrusion_edition(run_ctx);
+    if (payload == nullptr || payload->plan == nullptr) {
+        state.payload_valid = false;
+        return;
+    }
+
+    printing_scope_events_handle *events = printing_plan_get_events_mutable(payload->plan);
+    const extrusion_entity_handle *before = printing_scope_events_get_before(events);
+    if (before == nullptr || extrusion_child_count(before) != state.expected_event_count)
+        state.payload_valid = false;
+
+    // Each probe appends one event. The second probe's expected count proves
+    // that lower-priority plugins complete before the next plugin starts.
+    ExtrusionEntity event(true);
+    if (printing_scope_events_append_before_clone(
+            events, reinterpret_cast<const extrusion_entity_handle *>(&event)) == nullptr)
+        state.payload_valid = false;
+    ++state.run_count;
+}
+
+const plugin_vtable *plan_event_editor_vtable()
+{
+    static const plugin_vtable table = {
+        SLIC3R_PLUGIN_ABI_VERSION,
+        &plan_event_editor_id,
+        &plan_event_editor_name,
+        &plan_event_editor_description,
+        &plan_event_editor_group,
+        &plan_event_editor_group_label,
+        &plan_event_editor_group_tooltip,
+        &plan_event_editor_step,
+        &plan_event_editor_dependencies,
+        &plan_event_editor_priority,
+        &plan_event_editor_used_keys,
+        &plan_event_editor_defined_keys,
+        &plan_event_editor_initialize,
+        &plan_event_editor_setup,
+        &plan_event_editor_setup_run,
+        &plan_event_editor_run
+    };
+    return &table;
+}
+
+void register_plan_event_editors()
+{
+    Orchestrator &orchestrator = Orchestrator::instance();
+    PlanEventEditorState *states[] = {&g_first_plan_event_editor, &g_second_plan_event_editor};
+    for (PlanEventEditorState *state : states) {
+        if (orchestrator.get_plugin(state->id) != nullptr)
+            continue;
+        plugin_instance instance = {state, plan_event_editor_vtable()};
+        REQUIRE(orchestrator.register_plugin(instance));
+    }
+}
+
+void reset_plan_event_editor(PlanEventEditorState &state)
+{
+    state.setup_count = 0;
+    state.setup_run_count = 0;
+    state.run_count = 0;
+    state.payload_valid = true;
+}
 
 } // namespace
 
@@ -593,6 +734,124 @@ TEST_CASE("PrintingPlan C API moves extrusion content into the plan", "[printing
     CHECK(source.empty());
     REQUIRE(printing_extrusion_get_root(extrusion_handle) != nullptr);
     CHECK(extrusion_child_count(printing_extrusion_get_root(extrusion_handle)) == 1);
+}
+
+TEST_CASE("PrintingPlan scopes expose fixed ordered event roots", "[printing][plan][events][api]")
+{
+    PrintingPlan plan;
+    printing_plan_handle *plan_handle = reinterpret_cast<printing_plan_handle *>(&plan);
+    printing_group_handle *group_handle = printing_plan_append_group(plan_handle);
+    printing_layer_group_handle *layer_handle = printing_group_append_layer_group(group_handle, 42);
+    printing_tool_group_handle *tool_handle = printing_layer_group_append_tool_group(layer_handle, 3);
+
+    const printing_scope_events_handle *scope_events[] = {
+        printing_plan_get_events(plan_handle),
+        printing_group_get_events(group_handle),
+        printing_layer_group_get_events(layer_handle),
+        printing_tool_group_get_events(tool_handle)
+    };
+    for (const printing_scope_events_handle *events : scope_events) {
+        REQUIRE(events != nullptr);
+        CHECK_FALSE(printing_scope_events_has_before(events));
+        CHECK_FALSE(printing_scope_events_has_after(events));
+
+        const extrusion_entity_handle *before = printing_scope_events_get_before(events);
+        const extrusion_entity_handle *after = printing_scope_events_get_after(events);
+        REQUIRE(before != nullptr);
+        REQUIRE(after != nullptr);
+        CHECK(extrusion_has_children(before));
+        CHECK(extrusion_has_children(after));
+        CHECK(extrusion_child_count(before) == 0);
+        CHECK(extrusion_child_count(after) == 0);
+        CHECK(extrusion_flags(before) == 0);
+        CHECK(extrusion_flags(after) == 0);
+    }
+
+    ExtrusionEntity cloned_event(true);
+    cloned_event.append_child(test_path({Point(0, 0), Point(10, 0)}));
+    const extrusion_entity_handle *cloned_event_handle =
+        reinterpret_cast<const extrusion_entity_handle *>(&cloned_event);
+    printing_scope_events_handle *plan_events = printing_plan_get_events_mutable(plan_handle);
+    REQUIRE(printing_scope_events_append_before_clone(plan_events, cloned_event_handle) != nullptr);
+    CHECK(printing_scope_events_has_before(plan_events));
+    CHECK(extrusion_child_count(printing_scope_events_get_before(plan_events)) == 1);
+    CHECK(cloned_event.child_count() == 1);
+
+    ExtrusionEntity moved_event(true);
+    moved_event.append_child(test_path({Point(20, 0), Point(30, 0)}));
+    extrusion_entity_handle *moved_event_handle = reinterpret_cast<extrusion_entity_handle *>(&moved_event);
+    slic3r_api::PrintingPlan plan_view(plan_handle);
+    slic3r_api::PrintingScopeEvents group_events = plan_view.group(0).events();
+    group_events.append_after_move(slic3r_api::MutableExtrusionEntity(moved_event_handle));
+    CHECK(group_events.has_after());
+    CHECK(group_events.after().child_count() == 1);
+    CHECK(moved_event.empty());
+
+    // Event sequences belong to their scope value, so vector reordering moves
+    // the sequence together with the group instead of leaving it at an index.
+    printing_group_handle *second_group = printing_plan_append_group(plan_handle);
+    ExtrusionEntity second_group_event(true);
+    REQUIRE(printing_scope_events_append_before_clone(
+                printing_group_get_events_mutable(second_group),
+                reinterpret_cast<const extrusion_entity_handle *>(&second_group_event)) != nullptr);
+    REQUIRE(printing_plan_move_group(plan_handle, 1, 0));
+    CHECK(printing_scope_events_has_before(
+        printing_group_get_events(printing_plan_get_group(plan_handle, 0))));
+
+    printing_plan_clear(plan_handle);
+    CHECK(printing_plan_count_group(plan_handle) == 0);
+    CHECK_FALSE(printing_scope_events_has_before(printing_plan_get_events(plan_handle)));
+    CHECK(extrusion_flags(printing_scope_events_get_before(printing_plan_get_events(plan_handle))) == 0);
+}
+
+TEST_CASE("STEP_EXTRUSION_EDIT rebuilds scope events in plugin priority order",
+          "[plugins][extrusion-edit][printing][plan][events]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    register_plan_event_editors();
+    reset_plan_event_editor(g_first_plan_event_editor);
+    reset_plan_event_editor(g_second_plan_event_editor);
+
+    Print print;
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.front().layers.emplace_back();
+    plan.groups.front().layers.front().tool_groups.emplace_back();
+
+    // Seed every scope with stale data. clean_and_prepare() must remove these
+    // events without changing the surrounding ordered plan hierarchy.
+    ExtrusionEntity stale_event(true);
+    plan.events.append_before(stale_event);
+    plan.groups.front().events.append_after(stale_event);
+    plan.groups.front().layers.front().events.append_before(stale_event);
+    plan.groups.front().layers.front().tool_groups.front().events.append_after(stale_event);
+
+    Steps::StepExtrusionEdition::clean_and_prepare(print);
+    CHECK_FALSE(plan.events.has_before());
+    CHECK_FALSE(plan.groups.front().events.has_after());
+    CHECK_FALSE(plan.groups.front().layers.front().events.has_before());
+    CHECK_FALSE(plan.groups.front().layers.front().tool_groups.front().events.has_after());
+
+    ScopedActivePlugins active({g_second_plan_event_editor.id, g_first_plan_event_editor.id});
+    Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
+
+    CHECK(g_first_plan_event_editor.payload_valid.load());
+    CHECK(g_second_plan_event_editor.payload_valid.load());
+    CHECK(g_first_plan_event_editor.setup_count.load() == 1);
+    CHECK(g_second_plan_event_editor.setup_count.load() == 1);
+    CHECK(g_first_plan_event_editor.setup_run_count.load() == 1);
+    CHECK(g_second_plan_event_editor.setup_run_count.load() == 1);
+    CHECK(g_first_plan_event_editor.run_count.load() == 1);
+    CHECK(g_second_plan_event_editor.run_count.load() == 1);
+    CHECK(plan.events.before().child_count() == 2);
+
+    // A repeated pipeline execution rebuilds the same ordered sequences. It
+    // must not retain the two events produced by the previous execution.
+    Steps::StepExtrusionEdition::clean_and_prepare(print);
+    Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
+    CHECK(g_first_plan_event_editor.run_count.load() == 2);
+    CHECK(g_second_plan_event_editor.run_count.load() == 2);
+    CHECK(plan.events.before().child_count() == 2);
 }
 
 TEST_CASE("STEP_ORDERING runs default plugin chain on a shared PrintingPlan", "[printing][plan][step-ordering]")
