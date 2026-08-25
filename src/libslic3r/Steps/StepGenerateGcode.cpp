@@ -5,6 +5,7 @@
 
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/host/Plugin.hpp"
+#include "libslic3r/Api/host/GCodeScriptProcessor.hpp"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_gcode.h"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_gcode_firmware.h"
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeFirmwareViews.hpp"
@@ -58,6 +59,7 @@ private:
 // STEP_GCODE writer can observe the borrowed instance.
 void create_firmware_session(Orchestrator &orchestrator,
                              Print &print,
+                             const raw_gcode_script_processor *script_processor,
                              FirmwareInstanceOwner &owner);
 
 FirmwareInstanceOwner::~FirmwareInstanceOwner()
@@ -84,6 +86,7 @@ const raw_gcode_firmware_instance *FirmwareInstanceOwner::instance() const
 
 void create_firmware_session(Orchestrator &orchestrator,
                              Print &print,
+                             const raw_gcode_script_processor *script_processor,
                              FirmwareInstanceOwner &owner)
 {
     Plugin *firmware_plugin = selected_or_active_plugin_for_step(
@@ -97,6 +100,7 @@ void create_firmware_session(Orchestrator &orchestrator,
         GCODE_FIRMWARE, firmware_plugin, &host_context);
     run_ctx_gcode_firmware payload = {};
     payload.print = reinterpret_cast<const print_handle *>(&print);
+    payload.script_processor = script_processor;
     run_context.data = &payload;
 
     firmware_plugin->setup(run_context, 1);
@@ -138,8 +142,11 @@ void run_step(Orchestrator &orchestrator, Print &print, const std::string &path)
     if (plugin == nullptr)
         throw RuntimeError("No active G-code generation plugin is available.");
 
+    // The host parser outlives the borrowed firmware view and is destroyed
+    // only after the firmware session has released every reference to it.
+    GCodeScriptProcessor scripts(print);
     FirmwareInstanceOwner firmware;
-    create_firmware_session(orchestrator, print, firmware);
+    create_firmware_session(orchestrator, print, scripts.c_processor(), firmware);
 
     // The G-code step consumes the PrintingPlan created by STEP_ORDERING. If a
     // caller runs this step directly in a test, mutable_printing_plan() still

@@ -19,7 +19,10 @@ commands without adding conditions to the Marlin implementation.
 namespace slic3r_api { namespace GCodeGeneration { namespace Firmware {
 
 class PrusaGCodeFirmwareSession : public Marlin2GCodeFirmwareSession
-{};
+{
+public:
+    using Marlin2GCodeFirmwareSession::Marlin2GCodeFirmwareSession;
+};
 
 }}} // namespace slic3r_api::GCodeGeneration::Firmware
 

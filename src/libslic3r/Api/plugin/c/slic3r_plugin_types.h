@@ -9,6 +9,7 @@
 
 #include "slic3r_config_types.h"
 #include "slic3r_gcode_firmware.h"
+#include "slic3r_gcode_script.h"
 #include "slic3r_plugin_run_context.h"
 #include "slic3r_printing_plan.h"
 #include "slic3r_slicing_step.h"
@@ -39,7 +40,7 @@
 #include "steps/slic3r_step_skirt_brim.h"
 #include "steps/slic3r_step_wipetower.h"
 
-#define SLIC3R_PLUGIN_ABI_VERSION 43u
+#define SLIC3R_PLUGIN_ABI_VERSION 44u
 
 #ifdef __cplusplus
 extern "C" {

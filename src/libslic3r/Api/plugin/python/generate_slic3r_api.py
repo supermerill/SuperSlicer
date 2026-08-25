@@ -40,6 +40,7 @@ HEADER_ORDER = [
 # an accidental raw function-pointer API before a dedicated binding exists.
 PYTHON_EXCLUDED_HEADERS = {
     "slic3r_gcode_firmware.h",
+    "slic3r_gcode_script.h",
     "slic3r_step_gcode_firmware.h",
 }
 

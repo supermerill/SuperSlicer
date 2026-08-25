@@ -3892,7 +3892,7 @@ CustomGcodeSpecificConfigDef::CustomGcodeSpecificConfigDef()
     def->label = L("Computed bed temperature");
     def->tooltip = L("It's the 'print_bed_temperature' if defined or the maximum of the 'bed_temperature'.");
 
-    def = this->add("layer_used_filament", coInt);
+    def = this->add("layer_used_filament", coFloats);
     def->label = L("Computed used filaent for each extruder");
     def->tooltip = L("It's an array of mm of extruded filament at this layer, the layer that ends now. The first extruder is at index 0, and this array has the same "
                      "number of entries as the number of extruders as the printer.");

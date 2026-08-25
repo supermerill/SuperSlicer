@@ -166,6 +166,35 @@ void ExtrusionAxisState::set_retracted(double retracted, double restart_extra)
     m_restart_extra = m_retracted > 0.0 && restart_extra > EPSILON ? restart_extra : 0.0;
 }
 
+bool ExtrusionAxisState::synchronize_after_external_gcode(
+    std::optional<double> e_position,
+    double retracted,
+    double restart_extra)
+{
+    if ((e_position && !std::isfinite(*e_position)) || !std::isfinite(retracted) ||
+        !std::isfinite(restart_extra))
+        throw std::invalid_argument("External G-code returned a non-finite extrusion state.");
+    if (retracted < -EPSILON || restart_extra < -EPSILON)
+        throw std::invalid_argument("External G-code returned a negative retraction state.");
+
+    const double normalized_retracted = retracted > EPSILON ? retracted : 0.0;
+    const double normalized_restart =
+        normalized_retracted > 0.0 && restart_extra > EPSILON ? restart_extra : 0.0;
+    const bool changed = (e_position && m_E != *e_position) ||
+        m_retracted != normalized_retracted || m_restart_extra != normalized_restart;
+    if (!changed)
+        return false;
+
+    // The script becomes authoritative only when one of its outputs changed.
+    // Preserve usage statistics, but discard the old quantization remainder.
+    if (e_position)
+        m_E = *e_position;
+    m_retracted = normalized_retracted;
+    m_restart_extra = normalized_restart;
+    m_dE_left = 0.0;
+    return true;
+}
+
 double ExtrusionAxisState::filament_crossection() const
 {
     return m_filament_diameter * m_filament_diameter * 0.25 * PI;

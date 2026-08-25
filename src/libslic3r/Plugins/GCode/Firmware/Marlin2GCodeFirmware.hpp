@@ -21,6 +21,9 @@ namespace slic3r_api { namespace GCodeGeneration { namespace Firmware {
 
 class Marlin2GCodeFirmwareSession : public DefaultGCodeFirmwareSession
 {
+public:
+    using DefaultGCodeFirmwareSession::DefaultGCodeFirmwareSession;
+
 protected:
     std::string encode_machine_envelope(const MachineEnvelope &envelope) const override;
     void synchronize_selected_extruder_state(const DefaultExtruder *previous,

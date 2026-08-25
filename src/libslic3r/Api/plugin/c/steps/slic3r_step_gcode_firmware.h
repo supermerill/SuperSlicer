@@ -7,6 +7,7 @@
 
 #include "slic3r_step_common.h"
 #include "../slic3r_gcode_firmware.h"
+#include "../slic3r_gcode_script.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,6 +22,7 @@ destroys it after the STEP_GCODE plugin has finished.
 */
 typedef struct run_ctx_gcode_firmware {
     const print_handle *print;
+    const raw_gcode_script_processor *script_processor;
     raw_gcode_firmware_instance instance;
 } run_ctx_gcode_firmware;
 

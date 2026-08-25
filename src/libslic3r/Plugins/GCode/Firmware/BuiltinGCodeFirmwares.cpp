@@ -18,6 +18,7 @@
 #include "SprinterGCodeFirmware.hpp"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_gcode_firmware.h"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
+#include "libslic3r/Api/plugin/cpp/gcode/GCodeScriptProcessorViews.hpp"
 
 /*
 Built-in G-code firmware provider implementation
@@ -31,7 +32,8 @@ leak between exports.
 namespace slic3r_api { namespace GCodeGeneration { namespace Firmware {
 namespace {
 
-typedef std::unique_ptr<GCodeFirmwareSession> (*FirmwareSessionFactory)();
+typedef std::unique_ptr<GCodeFirmwareSession> (*FirmwareSessionFactory)(
+    GCodeScriptProcessorView scripts);
 
 struct FirmwareDefinition
 {
@@ -46,9 +48,9 @@ struct FirmwareDefinition
 };
 
 template<class SessionType>
-std::unique_ptr<GCodeFirmwareSession> create_session()
+std::unique_ptr<GCodeFirmwareSession> create_session(GCodeScriptProcessorView scripts)
 {
-    return std::unique_ptr<GCodeFirmwareSession>(new SessionType());
+    return std::unique_ptr<GCodeFirmwareSession>(new SessionType(scripts));
 }
 
 const char *const k_no_dependencies[] = { nullptr };
@@ -224,7 +226,9 @@ void BuiltinGCodeFirmwarePlugin::run_impl(const plugin_run_context *run_ctx) con
 
     // Session ownership moves to the host and ends after the selected output
     // writer completes. A fresh instance isolates every export's machine state.
-    context->instance = make_gcode_firmware_instance(m_definition.factory());
+    const GCodeScriptProcessorView scripts = context->script_processor != nullptr ?
+        GCodeScriptProcessorView(context->script_processor) : GCodeScriptProcessorView();
+    context->instance = make_gcode_firmware_instance(m_definition.factory(scripts));
 }
 
 void register_firmware(orchestrator_handle *orchestrator,

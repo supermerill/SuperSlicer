@@ -372,6 +372,23 @@ void config_option_set_bool(config_option_handle *me, int32_t value, uint32_t id
     Slic3r::to_option(me)->set_bool(value != 0, idx);
 }
 
+void config_option_set_string(config_option_handle *me, const char *value, uint32_t idx)
+{
+    if (me == nullptr || value == nullptr)
+        return;
+
+    Slic3r::ConfigOption *option = Slic3r::to_option(me);
+    if (Slic3r::ConfigOptionString *scalar = dynamic_cast<Slic3r::ConfigOptionString *>(option)) {
+        if (idx == 0)
+            scalar->value = value;
+        return;
+    }
+    if (Slic3r::ConfigOptionStrings *values = dynamic_cast<Slic3r::ConfigOptionStrings *>(option)) {
+        if (idx < values->size())
+            values->get_at(idx) = value;
+    }
+}
+
 config_option_vector_handle *config_option_vector_cast_mutable(config_option_handle *me)
 {
     if (me == nullptr || !Slic3r::to_option(me)->is_vector())

@@ -16,11 +16,13 @@
 #include "plugin_test_helpers.hpp"
 
 #include "libslic3r/Api/host/ApiHostUtils.hpp"
+#include "libslic3r/Api/host/GCodeScriptProcessor.hpp"
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/host/Plugin.hpp"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_gcode.h"
 #include "libslic3r/Api/plugin/cpp/gcode/DefaultGCodeFirmwareSession.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeFirmwareViews.hpp"
+#include "libslic3r/Api/plugin/cpp/gcode/GCodeScriptProcessorViews.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/MachineEnvelope.hpp"
 #include "libslic3r/BoundingBox.hpp"
 #include "libslic3r/ExtrusionEntity.hpp"
@@ -187,6 +189,31 @@ class CustomGCodeFirmwareProbe final :
 {
 public:
     using DefaultGCodeFirmwareSession::encode_custom_gcode;
+};
+
+// Exposes the protected script bridge and machine state so tests can verify
+// that validated host outputs are imported only after the complete script.
+class ScriptStateFirmwareProbe final :
+    public slic3r_api::GCodeGeneration::DefaultGCodeFirmwareSession
+{
+public:
+    ScriptStateFirmwareProbe() = default;
+    explicit ScriptStateFirmwareProbe(
+        slic3r_api::GCodeGeneration::GCodeScriptProcessorView scripts) :
+        DefaultGCodeFirmwareSession(scripts)
+    {}
+
+    using DefaultGCodeFirmwareSession::process_script;
+
+    const slic3r_api::GCodeGeneration::Gantry &machine_gantry() const
+    {
+        return gantry();
+    }
+
+    slic3r_api::GCodeGeneration::DefaultExtruder &machine_extruder(size_t idx)
+    {
+        return extruders().at(idx);
+    }
 };
 
 // Exposes the parent begin-print orchestration without adding any dialect
@@ -1873,6 +1900,190 @@ TEST_CASE("Default firmware distinguishes raw G-code, comments and scripts",
         firmware.encode_custom_gcode(
             static_cast<c_extrusion_custom_gcode_kind>(99), "M117 unknown"),
         std::invalid_argument);
+}
+
+TEST_CASE("Host G-code script processor prepares typed isolated contexts",
+          "[plugins][gcode][firmware][custom-gcode]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    configure_standard_firmware(print, 2);
+    DynamicPrintConfig &full_config =
+        const_cast<DynamicPrintConfig &>(print.full_print_config());
+    full_config.set_key_value("travel_speed", new ConfigOptionFloat(100.0));
+    GCodeScriptProcessor host_processor(print);
+    const slic3r_api::GCodeGeneration::GCodeScriptProcessorView scripts(
+        host_processor.c_processor());
+
+    // Every name receives fresh machine state, while known names additionally
+    // expose the exact option types declared by the legacy placeholder table.
+    for (const auto &named_placeholders : custom_gcode_specific_placeholders()) {
+        const slic3r_api::GCodeGeneration::GCodeScriptContext context =
+            scripts.prepare(named_placeholders.first.c_str());
+        const slic3r_api::GCodeGeneration::GCodeScriptConfig config = context.config();
+        for (const std::string &key : named_placeholders.second) {
+            INFO(named_placeholders.first << ": " << key);
+            const ConfigOptionDef *definition = custom_gcode_specific_config_def.get(key);
+            REQUIRE(definition != nullptr);
+            const config_option_handle *option = config_get(config.handle(), key.c_str());
+            REQUIRE(option != nullptr);
+            CHECK(config_option_type_get(option) ==
+                  static_cast<config_option_type>(definition->type));
+        }
+    }
+
+    const slic3r_api::GCodeGeneration::GCodeScriptContext toolchange =
+        scripts.prepare("toolchange_gcode");
+    REQUIRE(toolchange.config().has("previous_extruder"));
+    REQUIRE(toolchange.config().has("next_extruder"));
+    toolchange.set("previous_extruder", int32_t(1));
+    toolchange.set("next_extruder", int32_t(0));
+    CHECK(toolchange.process(
+              "M117 T{previous_extruder}>{next_extruder}", 0) ==
+          "M117 T1>0");
+
+    // prepare() discards per-call values rather than leaking the previous
+    // toolchange context into the next script.
+    const slic3r_api::GCodeGeneration::GCodeScriptContext fresh_toolchange =
+        scripts.prepare("toolchange_gcode");
+    CHECK(fresh_toolchange.config().get_int("previous_extruder") == 0);
+    CHECK_THROWS_AS(
+        fresh_toolchange.set("previous_extruder", 1.5), std::invalid_argument);
+    CHECK(fresh_toolchange.process("", 0).empty());
+
+    const slic3r_api::GCodeGeneration::GCodeScriptContext color_change =
+        scripts.prepare("color_change_gcode");
+    color_change.set("next_color", std::string("#12ab34"));
+    CHECK(color_change.process("M117 {next_color}", 0) == "M117 #12ab34");
+
+    // Names unknown to the specific-placeholder table remain useful: they see
+    // the Print configuration and only the standard machine in/out options.
+    const slic3r_api::GCodeGeneration::GCodeScriptContext generic =
+        scripts.prepare("unknown_script");
+    CHECK(generic.process("M117 F{travel_speed}", 0) == "M117 F100");
+
+    const slic3r_api::GCodeGeneration::GCodeScriptContext before_layer =
+        scripts.prepare("before_layer_gcode");
+    const config_option_handle *used_filament =
+        config_get(before_layer.config().handle(), "layer_used_filament");
+    REQUIRE(used_filament != nullptr);
+    CHECK(config_option_type_get(used_filament) == SLIC3R_CONFIG_OPTION_FLOATS);
+    CHECK(config_option_size(used_filament) == 2);
+    CHECK(before_layer.process("", 0).empty());
+
+    // Parser globals deliberately survive between scripts handled by one
+    // export, but a new host processor starts with an independent dictionary.
+    CHECK(scripts.prepare("unknown_script").process(
+              "{global firmware_script_counter=7}", 0).empty());
+    CHECK(scripts.prepare("unknown_script").process(
+              "{firmware_script_counter}", 0) == "7");
+
+    GCodeScriptProcessor independent_host(print);
+    const slic3r_api::GCodeGeneration::GCodeScriptProcessorView independent_scripts(
+        independent_host.c_processor());
+    CHECK_THROWS(independent_scripts.prepare("unknown_script").process(
+        "{firmware_script_counter}", 0));
+}
+
+TEST_CASE("Firmware scripts import validated machine state atomically",
+          "[plugins][gcode][firmware][custom-gcode]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    configure_standard_firmware(print);
+    GCodeScriptProcessor host_processor(print);
+    const slic3r_api::GCodeGeneration::GCodeScriptProcessorView scripts(
+        host_processor.c_processor());
+    ScriptStateFirmwareProbe firmware(scripts);
+    const slic3r_api::Print print_view(
+        reinterpret_cast<const print_handle *>(&print));
+    CHECK(firmware.begin_print(print_view).empty());
+
+    // When the script itself leaves position untouched, the host derives the
+    // new machine position from the successfully produced movement commands.
+    CHECK(firmware.process_script(
+              "extrusion_custom_gcode_script", "G1 X12 Y34 Z5") ==
+          "G1 X12 Y34 Z5");
+    REQUIRE(firmware.machine_gantry().position());
+    CHECK(firmware.machine_gantry().position()->x == Approx(12.0));
+    CHECK(firmware.machine_gantry().position()->y == Approx(34.0));
+    CHECK(firmware.machine_gantry().position()->z == Approx(5.0));
+
+    CHECK(firmware.process_script(
+              "extrusion_custom_gcode_script",
+              "{position[0]=8}{position[1]=9}{position[2]=10}").empty());
+    REQUIRE(firmware.machine_gantry().position());
+    CHECK(firmware.machine_gantry().position()->x == Approx(8.0));
+    CHECK(firmware.machine_gantry().position()->y == Approx(9.0));
+    CHECK(firmware.machine_gantry().position()->z == Approx(10.0));
+
+    slic3r_api::GCodeGeneration::ExtrusionAxisState &axis =
+        firmware.machine_extruder(0).extrusion_axis();
+    CHECK_FALSE(axis.extrude(0.000004));
+    REQUIRE(axis.extruded_dE_left() == Approx(0.000004));
+    CHECK(firmware.process_script(
+              "extrusion_custom_gcode_script", "M117 unchanged").find(
+              "M117 unchanged") != std::string::npos);
+    CHECK(axis.extruded_dE_left() == Approx(0.000004));
+
+    CHECK(firmware.process_script(
+              "extrusion_custom_gcode_script",
+              "{e_position[0]=4}{e_retracted[0]=1.5}{e_restart_extra[0]=0.2}").empty());
+    CHECK(axis.position() == Approx(4.0));
+    CHECK(axis.retracted() == Approx(1.5));
+    CHECK(axis.restart_extra() == Approx(0.2));
+    CHECK(axis.extruded_dE_left() == Approx(0.0));
+
+    // Corrupting a prepared in/out vector simulates a hostile script or C
+    // caller. Validation fails before any session state can be imported.
+    const slic3r_api::GCodeGeneration::GCodeScriptContext invalid =
+        scripts.prepare("extrusion_custom_gcode_script");
+    DynamicConfig *prepared = dynamic_cast<DynamicConfig *>(
+        ApiHost::to_config(invalid.config().handle()));
+    REQUIRE(prepared != nullptr);
+    prepared->set_key_value("position", new ConfigOptionFloats({1.0, 2.0}));
+    CHECK_THROWS(invalid.process("", 0));
+    REQUIRE(firmware.machine_gantry().position());
+    CHECK(firmware.machine_gantry().position()->x == Approx(8.0));
+    CHECK(axis.position() == Approx(4.0));
+
+    ScriptStateFirmwareProbe processorless;
+    CHECK_THROWS_AS(
+        processorless.process_script(
+            "extrusion_custom_gcode_script", "M117 unavailable"),
+        std::invalid_argument);
+}
+
+TEST_CASE("PrintingPlan firmware executes host-owned scripts",
+          "[plugins][gcode][firmware][custom-gcode]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    select_printing_plan_writer(print);
+    configure_standard_firmware(print);
+    PrintingPlan &plan = print.mutable_printing_plan();
+    ExtrusionNop script(ExtrusionPropertyCustomGcodeText(
+        ExtrusionPropertyCustomGcodeText::Code::SCRIPT,
+        "M117 X{position[0]}"));
+    plan.events.append_before(script);
+
+    const boost::filesystem::path output_path = temporary_gcode_path();
+    remove_output_pair(output_path);
+    try {
+        Steps::StepGenerateGcode::run_step(
+            Orchestrator::instance(), print, output_path.string());
+        REQUIRE(boost::filesystem::exists(output_path));
+        const std::string output = read_text_file(output_path);
+        CHECK(output.find("M117 X0") != std::string::npos);
+        CHECK(output.find("{position") == std::string::npos);
+    } catch (...) {
+        remove_output_pair(output_path);
+        throw;
+    }
+    remove_output_pair(output_path);
 }
 
 TEST_CASE("ExtrusionPrinter names every custom G-code kind",

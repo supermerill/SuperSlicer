@@ -25,6 +25,9 @@ namespace slic3r_api { namespace GCodeGeneration {
 class SingleAccelerationRegisterGCodeFirmwareSession :
     public DefaultGCodeFirmwareSession
 {
+public:
+    using DefaultGCodeFirmwareSession::DefaultGCodeFirmwareSession;
+
 protected:
     std::string write_acceleration(PreparedMove::Kind kind) override;
 };

@@ -347,6 +347,29 @@ TEST_CASE("Extrusion axis state owns E quantization and its rounding remainder",
         CHECK_FALSE(axis.extrude(0.000002));
         CHECK(std::abs(axis.extruded_dE_left()) < 1e-12);
     }
+
+    SECTION("external synchronization resets rounding only after a real state change") {
+        DefaultExtruder tool(0);
+        tool.setup(config_view);
+        ExtrusionAxisState &axis = tool.extrusion_axis();
+
+        CHECK_FALSE(axis.extrude(0.000004));
+        REQUIRE(axis.extruded_dE_left() == Approx(0.000004));
+
+        // A script which merely round-trips the current values must not discard
+        // a sub-precision extrusion that belongs to the next generated command.
+        CHECK_FALSE(axis.synchronize_after_external_gcode(
+            axis.position(), axis.retracted(), axis.restart_extra()));
+        CHECK(axis.extruded_dE_left() == Approx(0.000004));
+
+        // Once external G-code really replaces E or retraction state, the old
+        // remainder was computed from a stale coordinate and must be cleared.
+        CHECK(axis.synchronize_after_external_gcode(2.5, 1.25, 0.2));
+        CHECK(axis.position() == Approx(2.5));
+        CHECK(axis.retracted() == Approx(1.25));
+        CHECK(axis.restart_extra() == Approx(0.2));
+        CHECK(axis.extruded_dE_left() == Approx(0.0));
+    }
 }
 
 } // namespace

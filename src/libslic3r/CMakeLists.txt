@@ -46,6 +46,8 @@ set(SLIC3R_SOURCES
     Algorithm/RegionExpansion.cpp
 	AnyPtr.hpp
 	Api/host/ApiHostUtils.hpp
+	Api/host/GCodeScriptProcessor.cpp
+	Api/host/GCodeScriptProcessor.hpp
 	Api/host/ClipperShapes.cpp
 	Api/host/ClipperShapes.hpp
 	Api/host/Orchestrator.cpp
@@ -97,6 +99,7 @@ set(SLIC3R_SOURCES
 	Api/plugin/c/slic3r_extrusions.h
 	Api/plugin/c/slic3r_geometry.h
 	Api/plugin/c/slic3r_gcode_firmware.h
+	Api/plugin/c/slic3r_gcode_script.h
 	Api/plugin/c/slic3r_orchestrator.h
 	Api/plugin/c/slic3r_plugin.h
 	Api/plugin/c/slic3r_plugin_run_context.h
@@ -154,6 +157,7 @@ set(SLIC3R_SOURCES
 	Api/plugin/cpp/gcode/Gantry.cpp
 	Api/plugin/cpp/gcode/Gantry.hpp
 	Api/plugin/cpp/gcode/GCodeFirmwareViews.hpp
+	Api/plugin/cpp/gcode/GCodeScriptProcessorViews.hpp
 	Api/plugin/cpp/gcode/GCodeFormatter.cpp
 	Api/plugin/cpp/gcode/GCodeFormatter.hpp
 	Api/plugin/cpp/gcode/HeaterState.cpp

@@ -571,7 +571,86 @@ std::string DefaultGCodeFirmwareSession::write_custom_gcode(
     const ExtrusionEntity &entity,
     const EPropertyCustomGcode &custom_gcode)
 {
-    return encode_custom_gcode(custom_gcode.kind, entity.stored_string(custom_gcode.text_id));
+    const std::string text = entity.stored_string(custom_gcode.text_id);
+    if (custom_gcode.kind == C_EXTRUSION_CUSTOM_GCODE_SCRIPT)
+        return process_script("extrusion_custom_gcode_script", text);
+    return encode_custom_gcode(custom_gcode.kind, text);
+}
+
+std::string DefaultGCodeFirmwareSession::process_script(
+    const char *script_name,
+    const std::string &script)
+{
+    if (!m_scripts.valid())
+        throw std::invalid_argument(
+            "Custom G-code scripts require a host script processor.");
+
+    GCodeScriptContext context = m_scripts.prepare(script_name);
+    GCodeScriptConfig config = context.config();
+
+    // Export the complete current machine snapshot before the parser runs.
+    // An unknown position uses a stable placeholder but remains unknown unless
+    // the script or the generated G-code actually changes that vector.
+    const std::optional<c_vec3d> old_position = m_gantry.position();
+    const std::vector<double> position = old_position ?
+        std::vector<double>{old_position->x, old_position->y, old_position->z} :
+        std::vector<double>{0.0, 0.0, 0.0};
+    config.set("position", position);
+
+    std::vector<double> old_e_positions;
+    std::vector<double> old_retracted;
+    std::vector<double> old_restart_extra;
+    old_e_positions.reserve(m_extruders.size());
+    old_retracted.reserve(m_extruders.size());
+    old_restart_extra.reserve(m_extruders.size());
+    for (const DefaultExtruder &tool : m_extruders) {
+        old_e_positions.push_back(tool.extrusion_axis().position());
+        old_retracted.push_back(tool.extrusion_axis().retracted());
+        old_restart_extra.push_back(tool.extrusion_axis().restart_extra());
+    }
+    config.set("e_retracted", old_retracted);
+    config.set("e_restart_extra", old_restart_extra);
+    if (config.has("e_position"))
+        config.set("e_position", old_e_positions);
+
+    const uint16_t current_tool = m_current_extruder_idx.value_or(0);
+    const std::string output = context.process(script, current_tool);
+
+    // Read and validate every output before mutating any session component.
+    // This keeps script application atomic even when the last vector is bad.
+    const std::vector<double> new_position = config.get_floats("position");
+    const std::vector<double> new_retracted = config.get_floats("e_retracted");
+    const std::vector<double> new_restart_extra = config.get_floats("e_restart_extra");
+    const std::vector<double> new_e_positions = config.has("e_position") ?
+        config.get_floats("e_position") : std::vector<double>();
+    if (new_position.size() != 3 || new_retracted.size() != m_extruders.size() ||
+        new_restart_extra.size() != m_extruders.size() ||
+        (!new_e_positions.empty() && new_e_positions.size() != m_extruders.size()))
+        throw std::invalid_argument("A G-code script returned an invalid machine-state vector size.");
+
+    for (double value : new_position) {
+        if (!std::isfinite(value))
+            throw std::invalid_argument("A G-code script returned a non-finite position.");
+    }
+    for (size_t tool_idx = 0; tool_idx < m_extruders.size(); ++tool_idx) {
+        if (!std::isfinite(new_retracted[tool_idx]) ||
+            !std::isfinite(new_restart_extra[tool_idx]) ||
+            new_retracted[tool_idx] < -EPSILON || new_restart_extra[tool_idx] < -EPSILON ||
+            (!new_e_positions.empty() && !std::isfinite(new_e_positions[tool_idx])))
+            throw std::invalid_argument("A G-code script returned an invalid extrusion state.");
+    }
+
+    // A script which leaves the placeholder position untouched must not turn
+    // an unknown Gantry position into an invented origin.
+    if (new_position != position)
+        m_gantry.set_position(c_vec3d{new_position[0], new_position[1], new_position[2]});
+    for (size_t tool_idx = 0; tool_idx < m_extruders.size(); ++tool_idx) {
+        const std::optional<double> e_position = new_e_positions.empty() ?
+            std::optional<double>() : std::optional<double>(new_e_positions[tool_idx]);
+        m_extruders[tool_idx].extrusion_axis().synchronize_after_external_gcode(
+            e_position, new_retracted[tool_idx], new_restart_extra[tool_idx]);
+    }
+    return output;
 }
 
 std::string DefaultGCodeFirmwareSession::write_acceleration(PreparedMove::Kind kind)
@@ -775,11 +854,10 @@ std::string DefaultGCodeFirmwareSession::encode_custom_gcode(
             output += '\n';
         return output;
     case C_EXTRUSION_CUSTOM_GCODE_SCRIPT:
-        // The PrintingPlan firmware pipeline does not yet own a placeholder
-        // parser with machine-state integration. Executing the script as raw
-        // G-code would silently bypass substitutions and state tracking.
+        // SCRIPT is routed through process_script() before syntax encoders are
+        // entered. Direct calls cannot safely bypass the machine-state import.
         throw std::invalid_argument(
-            "Custom G-code scripts are not supported by the PrintingPlan firmware pipeline yet.");
+            "Custom G-code scripts must be processed through the host script processor.");
     default:
         throw std::invalid_argument("A custom G-code property contains an unknown kind.");
     }

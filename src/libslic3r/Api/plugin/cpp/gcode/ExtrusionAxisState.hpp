@@ -72,6 +72,14 @@ public:
     void set_position(double e) { m_E = e; }
     void set_retracted(double retracted, double restart_extra);
 
+    // Import state reported by external G-code after the complete script was
+    // validated. The exact E position is omitted in relative mode. A genuine
+    // external change invalidates the old formatting remainder because it was
+    // calculated from a machine state the script has replaced.
+    bool synchronize_after_external_gcode(std::optional<double> e_position,
+                                          double retracted,
+                                          double restart_extra);
+
     double filament_diameter() const { return m_filament_diameter; }
     double filament_crossection() const;
     bool uses_relative_e_distances() const { return m_use_relative_e_distances; }

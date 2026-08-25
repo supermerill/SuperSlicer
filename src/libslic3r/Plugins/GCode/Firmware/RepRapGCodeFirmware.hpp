@@ -20,6 +20,9 @@ namespace slic3r_api { namespace GCodeGeneration { namespace Firmware {
 
 class RepRapGCodeFirmwareSession : public DefaultGCodeFirmwareSession
 {
+public:
+    using DefaultGCodeFirmwareSession::DefaultGCodeFirmwareSession;
+
 protected:
     std::string encode_machine_envelope(const MachineEnvelope &envelope) const override;
     std::string encode_tool_temperature(uint16_t tool_id,

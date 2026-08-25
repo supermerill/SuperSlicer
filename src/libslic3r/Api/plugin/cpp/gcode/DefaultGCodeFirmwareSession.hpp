@@ -13,6 +13,7 @@
 
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeFirmwareViews.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeFormatter.hpp"
+#include "libslic3r/Api/plugin/cpp/gcode/GCodeScriptProcessorViews.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/DefaultExtruder.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/Gantry.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/MachineEnvelope.hpp"
@@ -49,6 +50,9 @@ class DefaultGCodeFirmwareSession : public GCodeFirmwareSession
 {
 public:
     DefaultGCodeFirmwareSession() = default;
+    explicit DefaultGCodeFirmwareSession(GCodeScriptProcessorView scripts) :
+        m_scripts(scripts)
+    {}
     ~DefaultGCodeFirmwareSession() override = default;
 
     // Copy every setting needed during the export and reset all transient
@@ -103,6 +107,11 @@ protected:
     // valid comment also lets the caller mark the request as handled, instead
     // of retrying the same unavailable command before every movement.
     static std::string encode_unsupported_operation(const char *operation);
+
+    // Execute a host-owned placeholder script under an explicit semantic
+    // name. Derived firmwares can reuse this for start_gcode, toolchange_gcode
+    // and future scoped events without depending on PlaceholderParser.
+    std::string process_script(const char *script_name, const std::string &script);
 
     // A dialect may copy additional setup values after the generic machine
     // state has been initialized. The borrowed Config view remains valid only
@@ -182,6 +191,7 @@ private:
     std::unique_ptr<GCodeFormatter> m_formatter;
     coord_t m_layer_print_z = 0;
     bool m_is_setup = false;
+    GCodeScriptProcessorView m_scripts;
 };
 
 }} // namespace slic3r_api::GCodeGeneration

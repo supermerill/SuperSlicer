@@ -98,9 +98,11 @@ SLIC3R_HOST_API void               config_option_set_int(config_option_handle *m
 SLIC3R_HOST_API void               config_option_set_float(config_option_handle *me, double value, uint32_t idx);
 SLIC3R_HOST_API void               config_option_set_float_or_percent(config_option_handle *me, c_float_or_percent value, uint32_t idx);
 SLIC3R_HOST_API void               config_option_set_bool(config_option_handle *me, int32_t value, uint32_t idx);
+SLIC3R_HOST_API void               config_option_set_string(config_option_handle *me, const char *value, uint32_t idx);
 
 SLIC3R_HOST_API config_option_vector_handle *config_option_vector_cast_mutable(config_option_handle *me);
 SLIC3R_HOST_API const config_option_vector_handle *config_option_vector_cast(const config_option_handle *me);
+SLIC3R_HOST_API uint32_t config_option_vector_size(const config_option_vector_handle *me);
 SLIC3R_HOST_API int32_t config_option_vector_empty(const config_option_vector_handle *me);
 SLIC3R_HOST_API uint32_t  config_option_vector_serialize_at(const config_option_vector_handle *me, int32_t idx, char *out, uint32_t max_size);
 SLIC3R_HOST_API void   config_option_vector_resize(
