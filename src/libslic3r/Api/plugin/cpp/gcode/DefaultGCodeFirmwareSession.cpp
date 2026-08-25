@@ -751,7 +751,8 @@ std::string DefaultGCodeFirmwareSession::encode_custom_gcode(
     const std::string &text) const
 {
     std::string output;
-    if (kind == C_EXTRUSION_CUSTOM_GCODE_COMMENT) {
+    switch (kind) {
+    case C_EXTRUSION_CUSTOM_GCODE_COMMENT: {
         // Prefix every logical line so a multiline comment cannot accidentally
         // turn its second line into an executable machine command.
         size_t begin = 0;
@@ -768,11 +769,20 @@ std::string DefaultGCodeFirmwareSession::encode_custom_gcode(
         }
         return output;
     }
-
-    output = text;
-    if (!output.empty() && output.back() != '\n')
-        output += '\n';
-    return output;
+    case C_EXTRUSION_CUSTOM_GCODE_GCODE:
+        output = text;
+        if (!output.empty() && output.back() != '\n')
+            output += '\n';
+        return output;
+    case C_EXTRUSION_CUSTOM_GCODE_SCRIPT:
+        // The PrintingPlan firmware pipeline does not yet own a placeholder
+        // parser with machine-state integration. Executing the script as raw
+        // G-code would silently bypass substitutions and state tracking.
+        throw std::invalid_argument(
+            "Custom G-code scripts are not supported by the PrintingPlan firmware pipeline yet.");
+    default:
+        throw std::invalid_argument("A custom G-code property contains an unknown kind.");
+    }
 }
 
 std::string DefaultGCodeFirmwareSession::encode_save_speed_ratio(double ratio) const

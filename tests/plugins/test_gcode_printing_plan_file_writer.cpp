@@ -22,9 +22,14 @@
 #include "libslic3r/Api/plugin/cpp/gcode/DefaultGCodeFirmwareSession.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeFirmwareViews.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/MachineEnvelope.hpp"
+#include "libslic3r/BoundingBox.hpp"
 #include "libslic3r/ExtrusionEntity.hpp"
+#include "libslic3r/ExtrusionEntityVisitors.hpp"
+#include "libslic3r/GCode.hpp"
 #include "libslic3r/GCode/GCodeProcessor.hpp"
 #include "libslic3r/Geometry/ArcWelder.hpp"
+#include "libslic3r/Layer.hpp"
+#include "libslic3r/LayerRegion.hpp"
 #include "libslic3r/Plugins/GCode/Firmware/BuiltinGCodeFirmwares.hpp"
 #include "libslic3r/Plugins/GCode/Firmware/KlipperGCodeFirmware.hpp"
 #include "libslic3r/Plugins/GCode/Firmware/Marlin1GCodeFirmware.hpp"
@@ -34,9 +39,11 @@
 #include "libslic3r/Plugins/GCode/Firmware/SprinterGCodeFirmware.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/PrintObject.hpp"
 #include "libslic3r/Printing/PrintingPlan.hpp"
 #include "libslic3r/Steps/StepGenerateGcode.hpp"
 #include "libslic3r/Steps/StepPipeline.hpp"
+#include "test_data.hpp"
 
 /*
 PrintingPlan G-code firmware tests
@@ -171,6 +178,15 @@ protected:
         return "CUSTOM_FAN T" + std::to_string(tool_id) +
                " S" + std::to_string(int32_t(std::lround(speed_percent))) + "\n";
     }
+};
+
+// Exposes the protected syntax encoder so kind dispatch can be tested without
+// involving extrusion traversal or filesystem publication.
+class CustomGCodeFirmwareProbe final :
+    public slic3r_api::GCodeGeneration::DefaultGCodeFirmwareSession
+{
+public:
+    using DefaultGCodeFirmwareSession::encode_custom_gcode;
 };
 
 // Exposes the parent begin-print orchestration without adding any dialect
@@ -1837,6 +1853,112 @@ TEST_CASE("Default firmware handles ordered special commands and custom G-code",
         remove_output_pair(output_path);
         throw;
     }
+    remove_output_pair(output_path);
+}
+
+TEST_CASE("Default firmware distinguishes raw G-code, comments and scripts",
+          "[plugins][gcode][firmware][custom-gcode]")
+{
+    CustomGCodeFirmwareProbe firmware;
+
+    CHECK(firmware.encode_custom_gcode(
+              C_EXTRUSION_CUSTOM_GCODE_GCODE, "M117 raw") == "M117 raw\n");
+    CHECK(firmware.encode_custom_gcode(
+              C_EXTRUSION_CUSTOM_GCODE_COMMENT, "first\nsecond") ==
+          "; first\n; second\n");
+    CHECK_THROWS_AS(
+        firmware.encode_custom_gcode(C_EXTRUSION_CUSTOM_GCODE_SCRIPT, "M117 {layer_num}"),
+        std::invalid_argument);
+    CHECK_THROWS_AS(
+        firmware.encode_custom_gcode(
+            static_cast<c_extrusion_custom_gcode_kind>(99), "M117 unknown"),
+        std::invalid_argument);
+}
+
+TEST_CASE("ExtrusionPrinter names every custom G-code kind",
+          "[plugins][gcode][custom-gcode][diagnostic]")
+{
+    const auto printed_kind = [](ExtrusionPropertyCustomGcodeText::Code code) {
+        ExtrusionNop entity(ExtrusionPropertyCustomGcodeText(code, "test"));
+        ExtrusionPrinter printer(/*mult=*/1.0, /*trunc=*/0, /*json=*/true);
+        printer.traverse(entity);
+        return printer.str();
+    };
+
+    CHECK(printed_kind(ExtrusionPropertyCustomGcodeText::Code::GCODE).find(
+              "\"kind\":\"gcode\"") != std::string::npos);
+    CHECK(printed_kind(ExtrusionPropertyCustomGcodeText::Code::COMMENT).find(
+              "\"kind\":\"comment\"") != std::string::npos);
+    CHECK(printed_kind(ExtrusionPropertyCustomGcodeText::Code::SCRIPT).find(
+              "\"kind\":\"script\"") != std::string::npos);
+    CHECK(printed_kind(static_cast<ExtrusionPropertyCustomGcodeText::Code>(99)).find(
+              "\"kind\":\"unknown\"") != std::string::npos);
+}
+
+TEST_CASE("Legacy custom scripts substitute and update machine state",
+          "[plugins][gcode][legacy][custom-gcode]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    DynamicPrintConfig config = DynamicPrintConfig::full_print_config();
+    config.set_deserialize_strict({
+        { "step_gcode_plugin", "gcode.legacy" },
+        { "start_gcode", "" },
+        { "end_gcode", "" },
+        { "gcode_comments", "0" }
+    });
+
+    Print print;
+    Model model;
+    Test::init_print({Test::TestMesh::cube_20x20x20}, print, model, config);
+    print.process();
+
+    GCodeGenerator generator;
+    const boost::filesystem::path output_path = temporary_gcode_path();
+    remove_output_pair(output_path);
+    const std::string output_path_string = output_path.string();
+    generator.do_export(&print, output_path_string.c_str());
+    remove_output_pair(output_path);
+
+    // This is the same parser entry point and diagnostic name used by the
+    // SCRIPT branch of GCodeGenerator::apply_property().
+    const std::string move = generator.placeholder_parser_process(
+        "extrusion_custom_gcode_script", "G1 X123 Y45", uint16_t(-1));
+    CHECK(move.find("G1 X123 Y45") != std::string::npos);
+    CHECK(is_approx(generator.writer().get_position().x(), 123.));
+    CHECK(is_approx(generator.writer().get_position().y(), 45.));
+
+    const std::string state = generator.placeholder_parser_process(
+        "extrusion_custom_gcode_script",
+        "M117 X{current_position[0]} Y{current_position[1]}", uint16_t(-1));
+    CHECK(state.find("M117 X123 Y45") != std::string::npos);
+    CHECK(state.find("{current_position") == std::string::npos);
+}
+
+TEST_CASE("PrintingPlan scripts cannot replace a previously published file",
+          "[plugins][gcode][firmware][custom-gcode]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    select_printing_plan_writer(print);
+    PrintingPlan &plan = print.mutable_printing_plan();
+    ExtrusionNop script(ExtrusionPropertyCustomGcodeText(
+        ExtrusionPropertyCustomGcodeText::Code::SCRIPT,
+        "M117 {layer_num}"));
+    plan.events.append_before(script);
+
+    const boost::filesystem::path output_path = temporary_gcode_path();
+    remove_output_pair(output_path);
+    write_text_file(output_path, "previous output\n");
+    CHECK_THROWS_AS(
+        Steps::StepGenerateGcode::run_step(
+            Orchestrator::instance(), print, output_path.string()),
+        RuntimeError);
+    Orchestrator::instance().reset_plugin_cancel();
+    REQUIRE(boost::filesystem::exists(output_path));
+    CHECK(read_text_file(output_path) == "previous output\n");
+    CHECK_FALSE(boost::filesystem::exists(output_path.string() + ".tmp"));
     remove_output_pair(output_path);
 }
 

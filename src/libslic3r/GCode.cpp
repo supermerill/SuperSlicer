@@ -7488,7 +7488,8 @@ void GCodeGenerator::apply_property(const ExtrusionEntity &entity, const Extrusi
         return;
     }
     assert(visitor_in_use);
-    if (custom_gcode.code() == ExtrusionPropertyCustomGcode::Code::COMMENT) {
+    switch (custom_gcode.code()) {
+    case ExtrusionPropertyCustomGcode::Code::COMMENT:
         if (visitor_comment.empty()) {
             visitor_comment_storage = gcode;
             visitor_comment = visitor_comment_storage;
@@ -7499,11 +7500,27 @@ void GCodeGenerator::apply_property(const ExtrusionEntity &entity, const Extrusi
                 visitor_gcode += "\n";
             }
         }
-    } else {
+        break;
+    case ExtrusionPropertyCustomGcode::Code::GCODE:
         visitor_gcode += gcode;
         if (visitor_gcode.back() != '\n') {
             visitor_gcode += "\n";
         }
+        break;
+    case ExtrusionPropertyCustomGcode::Code::SCRIPT: {
+        // User scripts must run while the legacy writer still exposes its
+        // current tool and machine state. The parser also feeds any resulting
+        // position, E and retraction changes back into that writer.
+        const std::string processed = this->placeholder_parser_process(
+            "extrusion_custom_gcode_script", gcode, uint16_t(-1));
+        visitor_gcode += processed;
+        if (!processed.empty() && visitor_gcode.back() != '\n') {
+            visitor_gcode += "\n";
+        }
+        break;
+    }
+    default:
+        throw Slic3r::RuntimeError("An extrusion tree contains an unknown custom G-code kind.");
     }
 }
 

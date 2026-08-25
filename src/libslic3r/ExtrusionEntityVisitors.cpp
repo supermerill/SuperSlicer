@@ -164,7 +164,14 @@ bool ExtrusionPrinter::print_properties(const ExtrusionEntity &entity, const cha
         bool first_field = true;
         this->begin_property(first_property, "custom_gcode");
         this->begin_property_field(first_field, "kind");
-        this->print_string_value(property->kind == C_EXTRUSION_CUSTOM_GCODE_COMMENT ? "comment" : "gcode");
+        const char *kind_name = "unknown";
+        switch (property->kind) {
+        case C_EXTRUSION_CUSTOM_GCODE_GCODE:   kind_name = "gcode"; break;
+        case C_EXTRUSION_CUSTOM_GCODE_COMMENT: kind_name = "comment"; break;
+        case C_EXTRUSION_CUSTOM_GCODE_SCRIPT:  kind_name = "script"; break;
+        default: break;
+        }
+        this->print_string_value(kind_name);
         this->begin_property_field(first_field, "text_id");
         ss << property->text_id;
         const std::string text = entity.custom_gcode_string(*property);
