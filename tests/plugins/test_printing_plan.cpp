@@ -772,9 +772,12 @@ TEST_CASE("PrintingPlan scopes expose fixed ordered event roots", "[printing][pl
     const extrusion_entity_handle *cloned_event_handle =
         reinterpret_cast<const extrusion_entity_handle *>(&cloned_event);
     printing_scope_events_handle *plan_events = printing_plan_get_events_mutable(plan_handle);
-    REQUIRE(printing_scope_events_append_before_clone(plan_events, cloned_event_handle) != nullptr);
+    extrusion_entity_handle *appended_event =
+        printing_scope_events_append_before_clone(plan_events, cloned_event_handle);
+    REQUIRE(appended_event != nullptr);
     CHECK(printing_scope_events_has_before(plan_events));
     CHECK(extrusion_child_count(printing_scope_events_get_before(plan_events)) == 1);
+    CHECK(extrusion_child_count(appended_event) == 1);
     CHECK(cloned_event.child_count() == 1);
 
     ExtrusionEntity moved_event(true);

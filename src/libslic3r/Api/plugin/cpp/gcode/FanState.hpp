@@ -25,6 +25,8 @@ public:
     void setup(double speed_offset_percent);
     void reset_runtime_state();
     void synchronize_runtime_from(const FanState &source);
+    // Import a physical percentage already emitted by external G-code.
+    void synchronize_after_external_gcode(double effective_speed_percent);
 
     std::optional<double> requested_speed_percent() const { return m_speed.requested(); }
     std::optional<double> encoded_speed_percent() const { return m_speed.encoded(); }

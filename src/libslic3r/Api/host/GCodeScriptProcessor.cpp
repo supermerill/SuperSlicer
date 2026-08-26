@@ -93,9 +93,9 @@ std::array<std::optional<double>, 3> position_after_gcode(
     if (gcode.empty())
         return position;
 
-    // Match the legacy parser's conservative policy: ordinary G1/G2/G3 moves
-    // update mentioned axes, while an unrecognized command makes the inferred
-    // position unusable instead of guessing what the script did.
+    // Infer only absolute millimetre moves. Modal commands make following
+    // coordinates ambiguous without the firmware session's persistent state,
+    // so stop inference instead of inventing a machine position.
     GCodeReader parser;
     parser.parse_buffer(gcode, [&position](GCodeReader &, const GCodeReader::GCodeLine &line) {
         const std::string_view command = line.cmd();
@@ -114,7 +114,12 @@ std::array<std::optional<double>, 3> position_after_gcode(
             position = {};
             return;
         }
-        if (command[0] != 'G' || code < 1.0 || code > 3.0)
+        if (command[0] == 'G' &&
+            (code == 20.0 || code == 21.0 || code == 90.0 || code == 91.0 || code == 92.0)) {
+            position = {};
+            return;
+        }
+        if (command[0] != 'G' || code < 0.0 || code > 3.0)
             return;
         if (line.has(Axis::X))
             position[0] = line.value(Axis::X);

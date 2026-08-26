@@ -69,16 +69,19 @@ public:
     double extruded_dE_left() const { return m_dE_left; }
     double retracted() const { return m_retracted; }
     double restart_extra() const { return m_restart_extra; }
-    void set_position(double e) { m_E = e; }
+    void set_position(double e);
     void set_retracted(double retracted, double restart_extra);
 
-    // Import state reported by external G-code after the complete script was
+    // Import state reported after a complete external G-code block was
     // validated. The exact E position is omitted in relative mode. A genuine
     // external change invalidates the old formatting remainder because it was
-    // calculated from a machine state the script has replaced.
+    // calculated from a machine state that has been replaced.
     bool synchronize_after_external_gcode(std::optional<double> e_position,
                                           double retracted,
                                           double restart_extra);
+    // Observe an E word which was already emitted by external G-code.
+    void observe_external_move(double e_value, bool relative_mode);
+    void set_relative_mode(bool relative_mode);
 
     double filament_diameter() const { return m_filament_diameter; }
     double filament_crossection() const;
@@ -91,6 +94,9 @@ private:
     // Exact requested E-axis position since the last G92 E0 in absolute mode.
     // Relative mode keeps this at zero because every command is a delta.
     double m_E = 0.0;
+    // Logical coordinate retained by the firmware when M82/M83 changes how E
+    // words are interpreted. Unlike m_E, this also advances in relative mode.
+    double m_machine_E = 0.0;
     // Difference between the exact request and the quantized value. In
     // relative mode this is the pending sub-precision delta for a later call.
     double m_dE_left = 0.0;
@@ -109,6 +115,7 @@ private:
     // Addressing mode controls whether generated E values are deltas or an
     // absolute position measured from the latest reset.
     bool m_use_relative_e_distances = false;
+    bool m_configured_use_relative_e_distances = false;
     // Volumetric mode changes how E and the accumulated statistics are scaled.
     bool m_use_volumetric_e = false;
     // Conversion factor from deposited volume in mm3 to encoded E units.

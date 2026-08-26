@@ -169,8 +169,9 @@ protected:
 private:
     struct RequestedState;
     class ExtrusionWriterVisitor;
+    class GCodeStateInterpreter;
 
-    std::string select_extruder(uint16_t tool_id);
+    std::string select_extruder(uint16_t tool_id, bool emit_command = true);
     std::string write_extrusion_tree(const ExtrusionEntity &root);
     std::string write_lines(const PreparedMove &move);
     std::string write_leaf_geometry(const ExtrusionEntity &leaf, const RequestedState &state);
@@ -192,6 +193,15 @@ private:
     coord_t m_layer_print_z = 0;
     bool m_is_setup = false;
     GCodeScriptProcessorView m_scripts;
+    // Modal state may be changed by externally generated G-code. Host moves
+    // restore only the modes required by their absolute millimetre encoding.
+    bool m_xyz_relative_mode = false;
+    bool m_units_in_mm = true;
+    bool m_e_relative_mode = false;
+    // External G-code may run before the first tool-group. This temporary
+    // selection tells the state interpreter which per-tool register an
+    // unqualified command affects without inventing a physical T transition.
+    std::optional<uint16_t> m_external_gcode_processing_tool;
 };
 
 }} // namespace slic3r_api::GCodeGeneration

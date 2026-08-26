@@ -6,6 +6,7 @@
 #include "FanState.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 
 /*
@@ -32,6 +33,15 @@ void FanState::reset_runtime_state()
 void FanState::synchronize_runtime_from(const FanState &source)
 {
     m_speed.synchronize_runtime_from(source.m_speed);
+}
+
+void FanState::synchronize_after_external_gcode(double effective_speed_percent)
+{
+    if (!std::isfinite(effective_speed_percent))
+        throw std::invalid_argument("External G-code returned a non-finite fan speed.");
+    const double effective = std::clamp(effective_speed_percent, 0.0, 100.0);
+    m_speed.request(effective - m_speed_offset_percent);
+    m_speed.mark_encoded_as(effective);
 }
 
 double FanState::effective_speed_percent() const

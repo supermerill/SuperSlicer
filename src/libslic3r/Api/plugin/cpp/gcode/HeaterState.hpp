@@ -26,6 +26,8 @@ public:
     void setup(int16_t temperature_offset);
     void reset_runtime_state();
     void synchronize_runtime_from(const HeaterState &source);
+    // Import a physical target already emitted by external G-code.
+    void synchronize_after_external_gcode(int16_t effective_temperature, bool waited);
 
     std::optional<int16_t> requested_temperature() const { return m_temperature.requested(); }
     std::optional<int16_t> encoded_temperature() const { return m_temperature.encoded(); }

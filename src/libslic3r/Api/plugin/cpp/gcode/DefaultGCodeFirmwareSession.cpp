@@ -6,6 +6,7 @@
 #include "DefaultGCodeFirmwareSession.hpp"
 
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 #include <iomanip>
 #include <limits>
@@ -13,8 +14,10 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 
 #include "libslic3r/Api/plugin/cpp/ExtrusionTreeVisitors.hpp"
+#include "libslic3r/GCodeReader.hpp"
 
 /*
 Standard PrintingPlan firmware implementation
@@ -32,6 +35,9 @@ does not record the failed output as successfully generated.
 
 namespace slic3r_api { namespace GCodeGeneration {
 namespace {
+
+using Slic3r::Axis;
+using Slic3r::GCodeReader;
 
 uint32_t option_size_or_zero(const Config &config, const char *key)
 {
@@ -60,6 +66,19 @@ bool coordinates_differ(const c_vec3d &lhs, const c_vec3d &rhs)
     return lhs.x != rhs.x || lhs.y != rhs.y || lhs.z != rhs.z;
 }
 
+bool command_code(std::string_view command, char prefix, int32_t *code_out)
+{
+    // GCodeReader keeps the command letter and integer code together. Parse
+    // that compact token strictly so malformed or fractional commands never
+    // alter the machine state tracked by the session.
+    if (code_out == nullptr || command.size() < 2 || command.front() != prefix)
+        return false;
+    const char *begin = command.data() + 1;
+    const char *end = command.data() + command.size();
+    const std::from_chars_result parsed = std::from_chars(begin, end, *code_out);
+    return parsed.ec == std::errc() && parsed.ptr == end;
+}
+
 } // namespace
 
 // Holds the effective extrusion properties at the visitor's current position
@@ -76,6 +95,188 @@ struct DefaultGCodeFirmwareSession::RequestedState
     std::optional<float> temperature_c;
     std::optional<EPropertyAttributes> attributes;
     coord_t z_offset = 0;
+};
+
+/*
+Observe state-changing commands which were generated outside the normal
+movement encoder. The interpreter preserves the original text and updates only
+the session model, so the next host-generated command starts from the machine
+state established by that external G-code.
+*/
+class DefaultGCodeFirmwareSession::GCodeStateInterpreter
+{
+public:
+    explicit GCodeStateInterpreter(DefaultGCodeFirmwareSession &session) : m_session(session) {}
+
+    void apply(const std::string &gcode)
+    {
+        GCodeReader reader;
+        reader.parse_buffer(gcode, [this](GCodeReader &, const GCodeReader::GCodeLine &line) {
+            apply_line(line);
+        });
+    }
+
+private:
+    void apply_line(const GCodeReader::GCodeLine &line)
+    {
+        const std::string_view command = line.cmd();
+        int32_t code = 0;
+        if (command_code(command, 'T', &code)) {
+            if (code >= 0 && code <= int32_t(std::numeric_limits<uint16_t>::max()))
+                (void)m_session.select_extruder(uint16_t(code), false);
+            return;
+        }
+        if (command_code(command, 'G', &code)) {
+            if (code == 20) {
+                m_session.m_units_in_mm = false;
+                return;
+            }
+            if (code == 21) {
+                m_session.m_units_in_mm = true;
+                return;
+            }
+            if (code == 90) {
+                m_session.m_xyz_relative_mode = false;
+                return;
+            }
+            if (code == 91) {
+                m_session.m_xyz_relative_mode = true;
+                return;
+            }
+            if (code == 92) {
+                apply_coordinate_reset(line);
+                return;
+            }
+            if (code >= 0 && code <= 3)
+                apply_move(line);
+            return;
+        }
+        if (!command_code(command, 'M', &code))
+            return;
+        if (code == 82 || code == 83) {
+            m_session.m_e_relative_mode = code == 83;
+            for (DefaultExtruder &tool : m_session.m_extruders)
+                tool.extrusion_axis().set_relative_mode(m_session.m_e_relative_mode);
+            return;
+        }
+        if (code == 104 || code == 109) {
+            apply_tool_temperature(line, code == 109);
+            return;
+        }
+        if (code == 140 || code == 190) {
+            apply_heater(line, m_session.m_printer.bed_heater(), code == 190);
+            return;
+        }
+        if (code == 141 || code == 191) {
+            apply_heater(line, m_session.m_printer.chamber_heater(), code == 191);
+            return;
+        }
+        if (code == 106 || code == 107)
+            apply_fan(line, code == 107);
+    }
+
+    double unit_scale() const { return m_session.m_units_in_mm ? 1.0 : 25.4; }
+
+    std::optional<uint16_t> addressed_tool(const GCodeReader::GCodeLine &line,
+                                           char selector) const
+    {
+        int32_t tool_id = -1;
+        if (line.has_value(selector, tool_id)) {
+            if (tool_id < 0 || tool_id >= int32_t(m_session.m_extruders.size()))
+                return std::nullopt;
+            return uint16_t(tool_id);
+        }
+        if (m_session.m_current_extruder_idx)
+            return m_session.m_current_extruder_idx;
+        return m_session.m_external_gcode_processing_tool;
+    }
+
+    void apply_coordinate_reset(const GCodeReader::GCodeLine &line)
+    {
+        const double scale = unit_scale();
+        if (line.has(Axis::E)) {
+            const std::optional<uint16_t> tool_id = addressed_tool(line, 'T');
+            if (tool_id)
+                m_session.extruder(*tool_id).extrusion_axis().set_position(line.value(Axis::E) * scale);
+        }
+
+        // A partial G92 is useful only when the preceding XYZ position is
+        // known. A complete XYZ tuple can establish a position from scratch.
+        const std::optional<c_vec3d> old_position = m_session.m_gantry.position();
+        if (!old_position && !(line.has(Axis::X) && line.has(Axis::Y) && line.has(Axis::Z)))
+            return;
+        c_vec3d position = old_position.value_or(c_vec3d{});
+        if (line.has(Axis::X))
+            position.x = line.value(Axis::X) * scale;
+        if (line.has(Axis::Y))
+            position.y = line.value(Axis::Y) * scale;
+        if (line.has(Axis::Z))
+            position.z = line.value(Axis::Z) * scale;
+        m_session.m_gantry.set_position(position);
+    }
+
+    void apply_move(const GCodeReader::GCodeLine &line)
+    {
+        const double scale = unit_scale();
+        if (line.has(Axis::F)) {
+            m_session.m_gantry.request_speed(line.value(Axis::F) * scale / 60.0);
+            m_session.m_gantry.mark_speed_encoded();
+        }
+
+        const std::optional<c_vec3d> old_position = m_session.m_gantry.position();
+        if (old_position || (line.has(Axis::X) && line.has(Axis::Y) && line.has(Axis::Z))) {
+            c_vec3d position = old_position.value_or(c_vec3d{});
+            if (line.has(Axis::X))
+                position.x = m_session.m_xyz_relative_mode ? position.x + line.value(Axis::X) * scale :
+                                                            line.value(Axis::X) * scale;
+            if (line.has(Axis::Y))
+                position.y = m_session.m_xyz_relative_mode ? position.y + line.value(Axis::Y) * scale :
+                                                            line.value(Axis::Y) * scale;
+            if (line.has(Axis::Z))
+                position.z = m_session.m_xyz_relative_mode ? position.z + line.value(Axis::Z) * scale :
+                                                            line.value(Axis::Z) * scale;
+            m_session.m_gantry.set_position(position);
+        }
+
+        if (line.has(Axis::E)) {
+            const std::optional<uint16_t> tool_id = addressed_tool(line, 'T');
+            if (tool_id)
+                m_session.extruder(*tool_id).extrusion_axis().observe_external_move(
+                    line.value(Axis::E) * scale, m_session.m_e_relative_mode);
+        }
+    }
+
+    void apply_heater(const GCodeReader::GCodeLine &line, HeaterState &heater, bool waited)
+    {
+        float temperature = 0.f;
+        const bool has_temperature = line.has_value('S', temperature) ||
+                                     (waited && line.has_value('R', temperature));
+        if (has_temperature && std::isfinite(temperature) &&
+            temperature >= double(std::numeric_limits<int16_t>::min()) &&
+            temperature <= double(std::numeric_limits<int16_t>::max()))
+            heater.synchronize_after_external_gcode(int16_t(std::lround(temperature)), waited);
+    }
+
+    void apply_tool_temperature(const GCodeReader::GCodeLine &line, bool waited)
+    {
+        const std::optional<uint16_t> tool_id = addressed_tool(line, 'T');
+        if (tool_id)
+            apply_heater(line, m_session.extruder(*tool_id).heater(), waited);
+    }
+
+    void apply_fan(const GCodeReader::GCodeLine &line, bool stopped)
+    {
+        const std::optional<uint16_t> tool_id = addressed_tool(line, 'P');
+        if (!tool_id)
+            return;
+        float pwm = stopped ? 0.f : 255.f;
+        if (!stopped)
+            (void)line.has_value('S', pwm);
+        m_session.extruder(*tool_id).fan().synchronize_after_external_gcode(
+            std::clamp(double(pwm) * 100.0 / 255.0, 0.0, 100.0));
+    }
+
+    DefaultGCodeFirmwareSession &m_session;
 };
 
 // Resolves inherited properties and visits leaves in geometric output order
@@ -188,6 +389,10 @@ void DefaultGCodeFirmwareSession::setup(const Config &config)
     m_formatter.reset(new GCodeFormatter(uint16_t(xyz_precision), uint16_t(e_precision)));
     m_current_extruder_idx.reset();
     m_layer_print_z = 0;
+    m_external_gcode_processing_tool.reset();
+    m_xyz_relative_mode = false;
+    m_units_in_mm = true;
+    m_e_relative_mode = config.bool_or_default("use_relative_e_distances", false);
     setup_firmware(config);
     m_is_setup = true;
 }
@@ -365,7 +570,7 @@ const DefaultExtruder &DefaultGCodeFirmwareSession::current_extruder() const
     return extruder(*m_current_extruder_idx);
 }
 
-std::string DefaultGCodeFirmwareSession::select_extruder(uint16_t tool_id)
+std::string DefaultGCodeFirmwareSession::select_extruder(uint16_t tool_id, bool emit_command)
 {
     DefaultExtruder &selected = extruder(tool_id);
     if (m_current_extruder_idx && *m_current_extruder_idx == tool_id)
@@ -376,7 +581,7 @@ std::string DefaultGCodeFirmwareSession::select_extruder(uint16_t tool_id)
 
     // Generate the tool command before committing the selected index. A
     // derived encoder may throw without leaving the session on a fictive tool.
-    const std::string output = encode_tool_change(selected.id());
+    const std::string output = emit_command ? encode_tool_change(selected.id()) : std::string();
     synchronize_selected_extruder_state(previous, selected);
     m_current_extruder_idx = tool_id;
     return output;
@@ -614,10 +819,23 @@ std::string DefaultGCodeFirmwareSession::process_script(
         config.set("e_position", old_e_positions);
 
     const uint16_t current_tool = m_current_extruder_idx.value_or(0);
-    const std::string output = context.process(script, current_tool);
+    m_external_gcode_processing_tool = current_tool;
+    std::string output;
+    try {
+        output = context.process(script, current_tool);
+        // Placeholder outputs describe explicit state assignments, while the
+        // resulting text may contain additional modal and machine commands.
+        // Observe both sources before the next host-generated movement.
+        GCodeStateInterpreter(*this).apply(output);
+        m_external_gcode_processing_tool.reset();
+    } catch (...) {
+        m_external_gcode_processing_tool.reset();
+        throw;
+    }
 
-    // Read and validate every output before mutating any session component.
-    // This keeps script application atomic even when the last vector is bad.
+    // Read and validate every output before importing the explicit Config
+    // values. A malformed vector therefore cannot partially replace those
+    // machine-state fields.
     const std::vector<double> new_position = config.get_floats("position");
     const std::vector<double> new_retracted = config.get_floats("e_retracted");
     const std::vector<double> new_restart_extra = config.get_floats("e_restart_extra");
@@ -645,10 +863,16 @@ std::string DefaultGCodeFirmwareSession::process_script(
     if (new_position != position)
         m_gantry.set_position(c_vec3d{new_position[0], new_position[1], new_position[2]});
     for (size_t tool_idx = 0; tool_idx < m_extruders.size(); ++tool_idx) {
-        const std::optional<double> e_position = new_e_positions.empty() ?
-            std::optional<double>() : std::optional<double>(new_e_positions[tool_idx]);
-        m_extruders[tool_idx].extrusion_axis().synchronize_after_external_gcode(
-            e_position, new_retracted[tool_idx], new_restart_extra[tool_idx]);
+        const bool e_position_changed = !new_e_positions.empty() &&
+                                        new_e_positions[tool_idx] != old_e_positions[tool_idx];
+        const bool retraction_changed = new_retracted[tool_idx] != old_retracted[tool_idx] ||
+                                        new_restart_extra[tool_idx] != old_restart_extra[tool_idx];
+        if (e_position_changed || retraction_changed) {
+            const std::optional<double> e_position = e_position_changed ?
+                std::optional<double>(new_e_positions[tool_idx]) : std::optional<double>();
+            m_extruders[tool_idx].extrusion_axis().synchronize_after_external_gcode(
+                e_position, new_retracted[tool_idx], new_restart_extra[tool_idx]);
+        }
     }
     return output;
 }
@@ -678,6 +902,19 @@ std::string DefaultGCodeFirmwareSession::write_acceleration(PreparedMove::Kind k
 std::string DefaultGCodeFirmwareSession::write_lines(const PreparedMove &prepared_move)
 {
     std::string output;
+
+    // Host-generated coordinates are always absolute millimetres. External
+    // G-code may select inches or relative XYZ; restore the neutral mode only
+    // when a generated movement actually needs it, leaving adjacent external
+    // chunks to observe the exact state established by their predecessor.
+    if ((prepared_move.destination || prepared_move.extrusion) && !m_units_in_mm) {
+        output += "G21\n";
+        m_units_in_mm = true;
+    }
+    if (prepared_move.destination && m_xyz_relative_mode) {
+        output += "G90\n";
+        m_xyz_relative_mode = false;
+    }
 
     // State commands precede motion in a stable order so derived encoders can
     // reason about the machine state observed by the movement command.

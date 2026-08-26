@@ -161,6 +161,15 @@ TEST_CASE("Reusable heater and fan states preserve destination configuration",
     CHECK(destination_heater.effective_temperature() == 205);
     CHECK(destination_heater.needs_encoding());
 
+    // Importing an already emitted physical target keeps the destination
+    // offset authoritative while recording both the logical request and the
+    // exact value observed in the external command.
+    destination_heater.synchronize_after_external_gcode(220, true);
+    CHECK(destination_heater.requested_temperature() == 225);
+    CHECK(destination_heater.effective_temperature() == 220);
+    CHECK(destination_heater.encoded_temperature() == 220);
+    CHECK(destination_heater.encoded_temperature_with_wait() == 220);
+
     FanState source_fan;
     source_fan.setup(10.0);
     source_fan.request_speed_percent(20.0);
@@ -174,6 +183,12 @@ TEST_CASE("Reusable heater and fan states preserve destination configuration",
     CHECK(destination_fan.encoded_speed_percent() == 30.0);
     CHECK(destination_fan.effective_speed_percent() == 15.0);
     CHECK(destination_fan.needs_encoding());
+
+    destination_fan.synchronize_after_external_gcode(40.0);
+    CHECK(destination_fan.requested_speed_percent() == 45.0);
+    CHECK(destination_fan.effective_speed_percent() == 40.0);
+    CHECK(destination_fan.encoded_speed_percent() == 40.0);
+    CHECK_FALSE(destination_fan.needs_encoding());
 }
 
 TEST_CASE("Generic firmware state distinguishes normal and wait temperature encodings",
@@ -369,6 +384,28 @@ TEST_CASE("Extrusion axis state owns E quantization and its rounding remainder",
         CHECK(axis.retracted() == Approx(1.25));
         CHECK(axis.restart_extra() == Approx(0.2));
         CHECK(axis.extruded_dE_left() == Approx(0.0));
+    }
+
+    SECTION("external E words preserve the machine coordinate across addressing modes") {
+        DefaultExtruder tool(0);
+        tool.setup(config_view);
+        ExtrusionAxisState &axis = tool.extrusion_axis();
+
+        axis.observe_external_move(5.0, false);
+        CHECK(axis.position() == Approx(5.0));
+        CHECK(axis.used_filament() == Approx(5.0));
+
+        axis.observe_external_move(2.0, true);
+        CHECK(axis.uses_relative_e_distances());
+        CHECK(axis.position() == Approx(0.0));
+        CHECK(axis.used_filament() == Approx(7.0));
+
+        axis.set_relative_mode(false);
+        CHECK_FALSE(axis.uses_relative_e_distances());
+        CHECK(axis.position() == Approx(7.0));
+        axis.observe_external_move(8.0, false);
+        CHECK(axis.position() == Approx(8.0));
+        CHECK(axis.used_filament() == Approx(8.0));
     }
 }
 

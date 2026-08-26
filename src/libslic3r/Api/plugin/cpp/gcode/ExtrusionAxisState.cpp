@@ -27,7 +27,8 @@ namespace slic3r_api { namespace GCodeGeneration {
 
 void ExtrusionAxisState::setup(const ExtrusionAxisSettings &settings)
 {
-    m_use_relative_e_distances = settings.use_relative_e_distances;
+    m_configured_use_relative_e_distances = settings.use_relative_e_distances;
+    m_use_relative_e_distances = m_configured_use_relative_e_distances;
     m_use_volumetric_e = settings.use_volumetric_e;
     m_filament_diameter = settings.filament_diameter;
     m_retract_speed = settings.retract_speed;
@@ -52,7 +53,9 @@ void ExtrusionAxisState::setup(const ExtrusionAxisSettings &settings)
 
 void ExtrusionAxisState::reset_runtime_state()
 {
+    m_use_relative_e_distances = m_configured_use_relative_e_distances;
     m_E = 0.0;
+    m_machine_E = 0.0;
     m_dE_left = 0.0;
     m_absolute_E = 0.0;
     m_retracted = 0.0;
@@ -60,11 +63,36 @@ void ExtrusionAxisState::reset_runtime_state()
     m_restart_extra_toolchange = 0.0;
 }
 
+void ExtrusionAxisState::set_relative_mode(bool relative_mode)
+{
+    if (m_use_relative_e_distances == relative_mode)
+        return;
+    m_use_relative_e_distances = relative_mode;
+    // The formatting remainder belongs to the previous addressing mode.
+    // Relative output starts from a local zero. Absolute output resumes from
+    // the logical E coordinate retained by the printer across M82/M83.
+    m_E = relative_mode ? 0.0 : m_machine_E;
+    m_dE_left = 0.0;
+}
+
+void ExtrusionAxisState::observe_external_move(double e_value, bool relative_mode)
+{
+    if (!std::isfinite(e_value))
+        throw std::invalid_argument("External G-code contains a non-finite E value.");
+    set_relative_mode(relative_mode);
+    const double delta = relative_mode ? e_value : e_value - m_machine_E;
+    (void)extrude(delta);
+    // Text already contains the exact displayed value. No rounding remainder
+    // may be carried into the next host-generated command.
+    m_dE_left = 0.0;
+}
+
 void ExtrusionAxisState::synchronize_runtime_from(const ExtrusionAxisState &source)
 {
     // Transfer the exact physical and accounting snapshot. Conversion and
     // formatting caches remain those configured for the destination tool.
     m_E = source.m_E;
+    m_machine_E = source.m_machine_E;
     m_dE_left = source.m_dE_left;
     m_absolute_E = source.m_absolute_E;
     m_retracted = source.m_retracted;
@@ -97,6 +125,7 @@ std::optional<double> ExtrusionAxisState::extrude(double delta_e)
 
     // Physical statistics and retraction follow the requested distance even
     // when no visible E word is produced at the configured precision.
+    m_machine_E += delta_e;
     m_absolute_E += delta_e;
     if (delta_e < 0.0)
         m_retracted -= delta_e;
@@ -152,10 +181,20 @@ double ExtrusionAxisState::retract_to_go(double retract_length) const
 
 bool ExtrusionAxisState::reset_E()
 {
-    const bool modified = m_E != 0.0;
+    const bool modified = m_machine_E != 0.0;
     m_E = 0.0;
+    m_machine_E = 0.0;
     m_dE_left = 0.0;
     return modified;
+}
+
+void ExtrusionAxisState::set_position(double e)
+{
+    if (!std::isfinite(e))
+        throw std::invalid_argument("The extrusion position must be finite.");
+    m_machine_E = e;
+    m_E = m_use_relative_e_distances ? 0.0 : e;
+    m_dE_left = 0.0;
 }
 
 void ExtrusionAxisState::set_retracted(double retracted, double restart_extra)
@@ -185,10 +224,10 @@ bool ExtrusionAxisState::synchronize_after_external_gcode(
     if (!changed)
         return false;
 
-    // The script becomes authoritative only when one of its outputs changed.
+    // External state becomes authoritative only when one of its outputs changed.
     // Preserve usage statistics, but discard the old quantization remainder.
     if (e_position)
-        m_E = *e_position;
+        set_position(*e_position);
     m_retracted = normalized_retracted;
     m_restart_extra = normalized_restart;
     m_dE_left = 0.0;

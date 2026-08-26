@@ -5,6 +5,7 @@
 
 #include "HeaterState.hpp"
 
+#include <limits>
 #include <stdexcept>
 
 /*
@@ -31,6 +32,21 @@ void HeaterState::reset_runtime_state()
 void HeaterState::synchronize_runtime_from(const HeaterState &source)
 {
     m_temperature.synchronize_runtime_from(source.m_temperature);
+}
+
+void HeaterState::synchronize_after_external_gcode(int16_t effective_temperature, bool waited)
+{
+    // Requests are stored before the device correction, while encoded values
+    // describe the physical value which was present in the imported command.
+    const int32_t requested = int32_t(effective_temperature) - int32_t(m_temperature_offset);
+    if (requested < int32_t(std::numeric_limits<int16_t>::min()) ||
+        requested > int32_t(std::numeric_limits<int16_t>::max()))
+        throw std::invalid_argument("External G-code temperature is outside the corrected heater range.");
+    m_temperature.request(int16_t(requested));
+    if (waited)
+        m_temperature.mark_encoded_with_wait_as(effective_temperature);
+    else
+        m_temperature.mark_encoded_as(effective_temperature);
 }
 
 int16_t HeaterState::effective_temperature() const

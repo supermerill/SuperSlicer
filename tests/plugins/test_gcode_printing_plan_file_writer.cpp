@@ -2067,8 +2067,25 @@ TEST_CASE("PrintingPlan firmware executes host-owned scripts",
     PrintingPlan &plan = print.mutable_printing_plan();
     ExtrusionNop script(ExtrusionPropertyCustomGcodeText(
         ExtrusionPropertyCustomGcodeText::Code::SCRIPT,
-        "M117 X{position[0]}"));
+        "G20\nG91\nM117 X{position[0]}\n"));
     plan.events.append_before(script);
+
+    // A normal path following the external block requires absolute
+    // millimetres. The session must restore those modal states before it
+    // encodes coordinates, independently from placeholder processing.
+    plan.groups.emplace_back();
+    plan.groups.front().layers.emplace_back();
+    PrintingLayerGroup &layer = plan.groups.front().layers.front();
+    layer.print_z = scale_i(0.2);
+    layer.tool_groups.emplace_back();
+    PrintingToolGroup &tool_group = layer.tool_groups.front();
+    tool_group.extruder_id = 0;
+    append_path_extrusion(
+        tool_group,
+        make_firmware_path(
+            ArcPolyline(Points{Point(0, 0), Point(scale_i(10.0), 0)}),
+            20.f,
+            500.f));
 
     const boost::filesystem::path output_path = temporary_gcode_path();
     remove_output_pair(output_path);
@@ -2079,6 +2096,20 @@ TEST_CASE("PrintingPlan firmware executes host-owned scripts",
         const std::string output = read_text_file(output_path);
         CHECK(output.find("M117 X0") != std::string::npos);
         CHECK(output.find("{position") == std::string::npos);
+        const size_t inch_mode = output.find("G20\n");
+        const size_t relative_mode = output.find("G91\n");
+        const size_t millimetre_mode = output.find("G21\n");
+        const size_t absolute_mode = output.find("G90\n");
+        const size_t first_move = output.find("G0 X0 Y0 Z.2");
+        REQUIRE(inch_mode != std::string::npos);
+        REQUIRE(relative_mode != std::string::npos);
+        REQUIRE(millimetre_mode != std::string::npos);
+        REQUIRE(absolute_mode != std::string::npos);
+        REQUIRE(first_move != std::string::npos);
+        CHECK(inch_mode < millimetre_mode);
+        CHECK(relative_mode < absolute_mode);
+        CHECK(millimetre_mode < first_move);
+        CHECK(absolute_mode < first_move);
     } catch (...) {
         remove_output_pair(output_path);
         throw;
