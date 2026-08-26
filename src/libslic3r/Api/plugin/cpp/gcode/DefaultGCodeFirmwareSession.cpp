@@ -14,9 +14,9 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 
 #include "libslic3r/Api/plugin/cpp/ExtrusionTreeVisitors.hpp"
+#include "libslic3r/ExtrusionRole.hpp"
 #include "libslic3r/GCodeReader.hpp"
 
 /*
@@ -34,10 +34,10 @@ does not record the failed output as successfully generated.
 */
 
 namespace slic3r_api { namespace GCodeGeneration {
-namespace {
-
 using Slic3r::Axis;
 using Slic3r::GCodeReader;
+
+namespace {
 
 uint32_t option_size_or_zero(const Config &config, const char *key)
 {
@@ -68,15 +68,99 @@ bool coordinates_differ(const c_vec3d &lhs, const c_vec3d &rhs)
 
 bool command_code(std::string_view command, char prefix, int32_t *code_out)
 {
-    // GCodeReader keeps the command letter and integer code together. Parse
-    // that compact token strictly so malformed or fractional commands never
-    // alter the machine state tracked by the session.
     if (code_out == nullptr || command.size() < 2 || command.front() != prefix)
         return false;
     const char *begin = command.data() + 1;
     const char *end = command.data() + command.size();
     const std::from_chars_result parsed = std::from_chars(begin, end, *code_out);
     return parsed.ec == std::errc() && parsed.ptr == end;
+}
+
+// Return true when this event tree contains a non-empty toolchange script.
+// Its target is reconstructed from the final tool-group boundary at runtime.
+bool has_toolchange_script(const ExtrusionEntity &root)
+{
+    const EPropertyCustomGcode *custom_gcode = root.property<EPropertyCustomGcode>();
+    if (custom_gcode != nullptr &&
+        custom_gcode->kind == C_EXTRUSION_CUSTOM_GCODE_SCRIPT &&
+        custom_gcode->script_type == GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE &&
+        root.stored_string(custom_gcode->text_id).find_first_not_of(" \t\r\n") != std::string::npos)
+        return true;
+
+    for (uint32_t child_idx = 0; child_idx < root.child_count(); ++child_idx)
+        if (has_toolchange_script(root.child(child_idx)))
+            return true;
+    return false;
+}
+
+// Find the first geometric descendant's effective role. Feature scripts may
+// live on a transparent wrapper above the leaf they announce, so the direct
+// property on the script node is not always sufficient.
+std::optional<raw_extrusion_role> first_effective_role(
+    const ExtrusionEntity &entity,
+    std::optional<EPropertyAttributes> inherited_attributes)
+{
+    const EPropertyAttributes *direct_attributes = entity.property<EPropertyAttributes>();
+    if (direct_attributes != nullptr)
+        inherited_attributes = *direct_attributes;
+    if (entity.segment_count() > 0 && inherited_attributes)
+        return inherited_attributes->extrusion_role();
+    for (uint32_t child_idx = 0; child_idx < entity.child_count(); ++child_idx) {
+        const std::optional<raw_extrusion_role> role =
+            first_effective_role(entity.child(child_idx), inherited_attributes);
+        if (role)
+            return role;
+    }
+    return std::nullopt;
+}
+
+// Convert one effective ABI role to the text historically exposed by
+// feature_gcode placeholders.
+std::string script_role_name(raw_extrusion_role raw_role)
+{
+    constexpr uint16_t known_mask = (uint16_t(1) << 13) - 1;
+    constexpr uint16_t base_mask = uint16_t(Slic3r::ExtrusionRoleModifier::ERM_Perimeter) |
+                                   uint16_t(Slic3r::ExtrusionRoleModifier::ERM_Infill) |
+                                   uint16_t(Slic3r::ExtrusionRoleModifier::ERM_Support) |
+                                   uint16_t(Slic3r::ExtrusionRoleModifier::ERM_Skirt) |
+                                   uint16_t(Slic3r::ExtrusionRoleModifier::ERM_WipeTower) |
+                                   uint16_t(Slic3r::ExtrusionRoleModifier::ERM_Mill) |
+                                   uint16_t(Slic3r::ExtrusionRoleModifier::ERM_Mixed) |
+                                   uint16_t(Slic3r::ExtrusionRoleModifier::ERM_Travel);
+    const uint16_t base = raw_role & base_mask;
+
+    // Validate plugin-provided role bits before constructing the core C++
+    // value. This keeps malformed ABI data away from assertion-based role
+    // conversion helpers.
+    if ((raw_role & ~known_mask) != 0 ||
+        (raw_role != 0 && (base == 0 || (base & (base - 1)) != 0)))
+        throw std::invalid_argument("A feature G-code script has an invalid extrusion role.");
+
+    const Slic3r::ExtrusionRole role{Slic3r::ExtrusionRoleModifier(raw_role)};
+    const bool supported =
+        role == Slic3r::ExtrusionRole::None ||
+        role == Slic3r::ExtrusionRole::Perimeter ||
+        role == Slic3r::ExtrusionRole::ExternalPerimeter ||
+        role == Slic3r::ExtrusionRole::OverhangPerimeter ||
+        role == Slic3r::ExtrusionRole::OverhangExternalPerimeter ||
+        role == Slic3r::ExtrusionRole::InternalInfill ||
+        role == Slic3r::ExtrusionRole::SolidInfill ||
+        role == Slic3r::ExtrusionRole::TopSolidInfill ||
+        role == Slic3r::ExtrusionRole::Ironing ||
+        role == Slic3r::ExtrusionRole::BridgeInfill ||
+        role == Slic3r::ExtrusionRole::InternalBridgeInfill ||
+        role == Slic3r::ExtrusionRole::ThinWall ||
+        role == Slic3r::ExtrusionRole::GapFill ||
+        role == Slic3r::ExtrusionRole::Skirt ||
+        role == Slic3r::ExtrusionRole::SupportMaterial ||
+        role == Slic3r::ExtrusionRole::SupportMaterialInterface ||
+        role == Slic3r::ExtrusionRole::WipeTower ||
+        role == Slic3r::ExtrusionRole::WipeTowerRamming ||
+        role == Slic3r::ExtrusionRole::WipeTowerWipe ||
+        role == Slic3r::ExtrusionRole::Milling ||
+        role == Slic3r::ExtrusionRole::Travel;
+    return supported ? Slic3r::er_to_string(role) :
+                       Slic3r::gcode_extrusion_role_to_string(Slic3r::GCodeExtrusionRole::Custom);
 }
 
 } // namespace
@@ -98,10 +182,11 @@ struct DefaultGCodeFirmwareSession::RequestedState
 };
 
 /*
-Observe state-changing commands which were generated outside the normal
-movement encoder. The interpreter preserves the original text and updates only
-the session model, so the next host-generated command starts from the machine
-state established by that external G-code.
+Observe state-changing commands emitted by a resolved user script.
+
+The interpreter never rewrites the text and ignores commands it does not know.
+Its only job is to make the next host-generated movement start from the state
+the printer will actually have after executing that text.
 */
 class DefaultGCodeFirmwareSession::GCodeStateInterpreter
 {
@@ -126,6 +211,7 @@ private:
                 (void)m_session.select_extruder(uint16_t(code), false);
             return;
         }
+
         if (command_code(command, 'G', &code)) {
             if (code == 20) {
                 m_session.m_units_in_mm = false;
@@ -151,6 +237,7 @@ private:
                 apply_move(line);
             return;
         }
+
         if (!command_code(command, 'M', &code))
             return;
         if (code == 82 || code == 83) {
@@ -177,8 +264,7 @@ private:
 
     double unit_scale() const { return m_session.m_units_in_mm ? 1.0 : 25.4; }
 
-    std::optional<uint16_t> addressed_tool(const GCodeReader::GCodeLine &line,
-                                           char selector) const
+    std::optional<uint16_t> addressed_tool(const GCodeReader::GCodeLine &line, char selector) const
     {
         int32_t tool_id = -1;
         if (line.has_value(selector, tool_id)) {
@@ -188,7 +274,7 @@ private:
         }
         if (m_session.m_current_extruder_idx)
             return m_session.m_current_extruder_idx;
-        return m_session.m_external_gcode_processing_tool;
+        return m_session.m_script_processing_tool;
     }
 
     void apply_coordinate_reset(const GCodeReader::GCodeLine &line)
@@ -200,18 +286,13 @@ private:
                 m_session.extruder(*tool_id).extrusion_axis().set_position(line.value(Axis::E) * scale);
         }
 
-        // A partial G92 is useful only when the preceding XYZ position is
-        // known. A complete XYZ tuple can establish a position from scratch.
         const std::optional<c_vec3d> old_position = m_session.m_gantry.position();
         if (!old_position && !(line.has(Axis::X) && line.has(Axis::Y) && line.has(Axis::Z)))
             return;
         c_vec3d position = old_position.value_or(c_vec3d{});
-        if (line.has(Axis::X))
-            position.x = line.value(Axis::X) * scale;
-        if (line.has(Axis::Y))
-            position.y = line.value(Axis::Y) * scale;
-        if (line.has(Axis::Z))
-            position.z = line.value(Axis::Z) * scale;
+        if (line.has(Axis::X)) position.x = line.value(Axis::X) * scale;
+        if (line.has(Axis::Y)) position.y = line.value(Axis::Y) * scale;
+        if (line.has(Axis::Z)) position.z = line.value(Axis::Z) * scale;
         m_session.m_gantry.set_position(position);
     }
 
@@ -329,7 +410,7 @@ protected:
         m_session.apply_requested_state(m_state);
         m_output += m_session.enter_extrusion_node(entity);
         if (const EPropertyCustomGcode *custom_gcode = entity.property<EPropertyCustomGcode>())
-            m_output += m_session.write_custom_gcode(entity, *custom_gcode);
+            m_output += m_session.write_custom_gcode(entity, *custom_gcode, m_state);
         if (const EPropertySpecialCommand *command = entity.property<EPropertySpecialCommand>())
             m_output += m_session.write_special_command(*command, m_state);
     }
@@ -339,8 +420,11 @@ protected:
         // Give derived firmware state a chance to react before this leaf emits
         // any standard process command or movement.
         m_output += m_session.visit_extrusion_leaf(entity);
-        if (entity.segment_count() > 0)
+        if (entity.segment_count() > 0) {
             m_output += m_session.write_leaf_geometry(entity, m_state);
+            if (m_state.attributes)
+                m_session.m_previous_extrusion_role = m_state.attributes->extrusion_role();
+        }
     }
 
     void leave_node(ExtrusionEntity entity) override
@@ -389,19 +473,23 @@ void DefaultGCodeFirmwareSession::setup(const Config &config)
     m_formatter.reset(new GCodeFormatter(uint16_t(xyz_precision), uint16_t(e_precision)));
     m_current_extruder_idx.reset();
     m_layer_print_z = 0;
-    m_external_gcode_processing_tool.reset();
+    m_last_layer_used_filament.assign(m_extruders.size(), 0.0);
+    m_script_processing_tool.reset();
     m_xyz_relative_mode = false;
     m_units_in_mm = true;
     m_e_relative_mode = config.bool_or_default("use_relative_e_distances", false);
+    m_seen_object_group = false;
+    m_previous_extrusion_role.reset();
     setup_firmware(config);
     m_is_setup = true;
 }
 
-std::string DefaultGCodeFirmwareSession::begin_print(const Print &print)
+std::string DefaultGCodeFirmwareSession::begin_print(const Print &print, const PrintingPlan &plan)
 {
     // Establish the complete export state before invoking a dialect encoder,
     // because that encoder may inspect configured tools or the formatter.
     setup(print.config());
+    m_script_execution.initialize(print, plan);
 
     // MachineEnvelope is the neutral boundary between printer settings and
     // firmware syntax. A disabled envelope produces no startup command.
@@ -410,26 +498,54 @@ std::string DefaultGCodeFirmwareSession::begin_print(const Print &print)
     return envelope ? encode_machine_envelope(*envelope) : std::string();
 }
 
-std::string DefaultGCodeFirmwareSession::begin_group(const PrintingGroup &)
+std::string DefaultGCodeFirmwareSession::begin_group(const PrintingGroup &group)
 {
     if (!m_is_setup)
         throw std::logic_error("The firmware session was not initialized by begin_print().");
-    return {};
+    m_script_execution.begin_group(group);
+    // Ordering represents a sequential object as a group with exactly one
+    // source instance. Auxiliary groups carry none, while layer-wise plans may
+    // carry several. Skipping both keeps ordinary first-path travel unchanged.
+    if (group.object_instance_count() != 1)
+        return {};
+    if (!m_seen_object_group) {
+        m_seen_object_group = true;
+        return {};
+    }
+    return move_to_group_start(group);
 }
 
 std::string DefaultGCodeFirmwareSession::begin_layer(const PrintingLayerGroup &layer)
 {
     if (!m_is_setup)
         throw std::logic_error("The firmware session was not initialized by begin_print().");
+    m_script_execution.begin_layer(layer);
     m_layer_print_z = layer.print_z();
-    return {};
+    if (!m_current_extruder_idx || !m_gantry.position())
+        return {};
+
+    const c_vec3d current = *m_gantry.position();
+    const double target_z = unscaled(m_layer_print_z) + m_gantry.z_offset() - current_extruder().z_offset();
+    if (current.z == target_z)
+        return {};
+    const std::optional<double> inherited_speed = m_gantry.requested_speed();
+    m_gantry.request_speed(m_gantry.travel_speed());
+    PreparedMove move;
+    move.kind = PreparedMove::Kind::Travel;
+    move.destination = c_vec3d{current.x, current.y, target_z};
+    const std::string output = write_lines(move);
+    m_gantry.request_speed(inherited_speed);
+    return output;
 }
 
 std::string DefaultGCodeFirmwareSession::begin_tool_group(const PrintingToolGroup &tool_group)
 {
     if (!m_is_setup)
         throw std::logic_error("The firmware session was not initialized by begin_print().");
-    return select_extruder(tool_group.extruder_id());
+    m_script_execution.begin_tool_group(tool_group);
+    const bool custom_toolchange = has_toolchange_script(tool_group.events().before());
+    const std::string output = select_extruder(tool_group.extruder_id(), !custom_toolchange);
+    return output;
 }
 
 std::string DefaultGCodeFirmwareSession::write_extrusion(const PrintingExtrusion &extrusion)
@@ -447,7 +563,18 @@ std::string DefaultGCodeFirmwareSession::write_event(const ExtrusionEntity &even
 {
     if (!m_is_setup)
         throw std::logic_error("The firmware session was not initialized by begin_print().");
-    return write_extrusion_tree(event_root);
+    // The root identifies the exact before/after boundary preindexed from the
+    // final plan. Always clear it, including when script processing throws, so
+    // later printable roots use only the current scope state.
+    m_script_execution.activate_event(event_root);
+    try {
+        const std::string output = write_extrusion_tree(event_root);
+        m_script_execution.clear_event();
+        return output;
+    } catch (...) {
+        m_script_execution.clear_event();
+        throw;
+    }
 }
 
 std::string DefaultGCodeFirmwareSession::write_extrusion_tree(const ExtrusionEntity &root)
@@ -585,6 +712,41 @@ std::string DefaultGCodeFirmwareSession::select_extruder(uint16_t tool_id, bool 
     synchronize_selected_extruder_state(previous, selected);
     m_current_extruder_idx = tool_id;
     return output;
+}
+
+std::string DefaultGCodeFirmwareSession::move_to_group_start(const PrintingGroup &group)
+{
+    // The caller has already established that this is a transition between
+    // real object groups. A missing tool or position still makes the first
+    // regular path responsible for establishing the machine position.
+    if (!m_current_extruder_idx || !m_gantry.position())
+        return {};
+    for (uint32_t layer_idx = 0; layer_idx < group.layer_group_count(); ++layer_idx) {
+        const PrintingLayerGroup layer = group.layer_group(layer_idx);
+        for (uint32_t tool_idx = 0; tool_idx < layer.tool_group_count(); ++tool_idx) {
+            const PrintingToolGroup tool_group = layer.tool_group(tool_idx);
+            for (uint32_t extrusion_idx = 0; extrusion_idx < tool_group.extrusion_count(); ++extrusion_idx) {
+                const ExtrusionEntity root = tool_group.extrusion(extrusion_idx).root();
+                if (root.empty())
+                    continue;
+                const c_point first_point = root.front();
+                const c_vec3d destination = {
+                    unscaled(first_point.x) - current_extruder().xy_offset().x,
+                    unscaled(first_point.y) - current_extruder().xy_offset().y,
+                    m_gantry.position()->z
+                };
+                const std::optional<double> inherited_speed = m_gantry.requested_speed();
+                m_gantry.request_speed(m_gantry.travel_speed());
+                PreparedMove move;
+                move.kind = PreparedMove::Kind::Travel;
+                move.destination = destination;
+                const std::string output = write_lines(move);
+                m_gantry.request_speed(inherited_speed);
+                return output;
+            }
+        }
+    }
+    return {};
 }
 
 void DefaultGCodeFirmwareSession::apply_requested_state(const RequestedState &state)
@@ -774,24 +936,161 @@ std::string DefaultGCodeFirmwareSession::write_special_command(
 
 std::string DefaultGCodeFirmwareSession::write_custom_gcode(
     const ExtrusionEntity &entity,
-    const EPropertyCustomGcode &custom_gcode)
+    const EPropertyCustomGcode &custom_gcode,
+    const RequestedState &state)
 {
     const std::string text = entity.stored_string(custom_gcode.text_id);
-    if (custom_gcode.kind == C_EXTRUSION_CUSTOM_GCODE_SCRIPT)
-        return process_script("extrusion_custom_gcode_script", text);
+    if (custom_gcode.kind == C_EXTRUSION_CUSTOM_GCODE_SCRIPT) {
+        if (custom_gcode.script_type == GCODE_SCRIPT_TYPE_INVALID)
+            throw std::invalid_argument("A custom G-code script has no script type.");
+        const std::optional<raw_extrusion_role> next_role =
+            custom_gcode.script_type == GCODE_SCRIPT_TYPE_FEATURE_GCODE ?
+                first_effective_role(entity, state.attributes) : std::nullopt;
+        std::string output = process_script(
+            custom_gcode.script_type, text, custom_gcode.target_extruder_id, next_role);
+        if (!output.empty() && output.back() != '\n')
+            output += '\n';
+        return output;
+    }
+    if (custom_gcode.script_type != GCODE_SCRIPT_TYPE_INVALID ||
+        custom_gcode.target_extruder_id != GCODE_SCRIPT_TARGET_EXTRUDER_INVALID)
+        throw std::invalid_argument("Raw G-code and comments cannot carry script metadata.");
     return encode_custom_gcode(custom_gcode.kind, text);
 }
 
 std::string DefaultGCodeFirmwareSession::process_script(
-    const char *script_name,
-    const std::string &script)
+    gcode_script_type script_type,
+    const std::string &script,
+    uint16_t target_extruder_id,
+    std::optional<raw_extrusion_role> next_extrusion_role)
 {
     if (!m_scripts.valid())
         throw std::invalid_argument(
             "Custom G-code scripts require a host script processor.");
 
-    GCodeScriptContext context = m_scripts.prepare(script_name);
+    // A feature marker inserted earlier may become redundant after another
+    // plan editor changes the final role order. Avoid running the user script
+    // when no effective transition remains.
+    if (script_type == GCODE_SCRIPT_TYPE_FEATURE_GCODE) {
+        if (!next_extrusion_role)
+            throw std::invalid_argument("A feature G-code script has no following extrusion role.");
+        if (m_previous_extrusion_role && *m_previous_extrusion_role == *next_extrusion_role)
+            return {};
+    }
+
+    GCodeScriptContext context = m_scripts.prepare(script_type);
     GCodeScriptConfig config = context.config();
+
+    // before_layer may live in the previous layer's after-root. Use the
+    // active event boundary to select the next final layer, while ordinary
+    // scripts use the layer already entered by the writer.
+    std::optional<GCodeScriptExecutionContext::LayerPosition> script_layer =
+        m_script_execution.current_layer();
+    std::optional<GCodeScriptExecutionContext::LayerPosition> previous_layer =
+        m_script_execution.previous_layer();
+    if (script_type == GCODE_SCRIPT_TYPE_BEFORE_LAYER_GCODE) {
+        const std::optional<GCodeScriptExecutionContext::LayerPosition> event_layer =
+            m_script_execution.event_next_layer();
+        if (event_layer)
+            script_layer = event_layer;
+        const std::optional<GCodeScriptExecutionContext::LayerPosition> event_previous =
+            m_script_execution.event_previous_layer();
+        if (event_previous)
+            previous_layer = event_previous;
+    }
+    if (config.has("layer_num"))
+        config.set("layer_num", script_layer ? script_layer->number : int32_t(-1));
+    if (config.has("layer_z"))
+        config.set("layer_z", script_layer ? unscaled(script_layer->print_z) : 0.0);
+    if (config.has("previous_layer_z"))
+        config.set("previous_layer_z", previous_layer ? unscaled(previous_layer->print_z) : 0.0);
+    if (config.has("max_layer_z"))
+        config.set("max_layer_z", unscaled(m_script_execution.max_print_z()));
+    if (config.has("toolchange_z"))
+        config.set("toolchange_z", script_layer ? unscaled(script_layer->print_z) : 0.0);
+
+    // Object scripts are placed on either side of the group transition. The
+    // root index gives both objects independently of whether the script runs
+    // before or after the positioning move.
+    if (config.has("previous_object_id")) {
+        const std::optional<uint32_t> object = m_script_execution.event_previous_object();
+        if (!object)
+            throw std::invalid_argument("A between-objects script has no previous final object.");
+        config.set("previous_object_id", int32_t(*object));
+    }
+    if (config.has("next_object_id")) {
+        const std::optional<uint32_t> object = m_script_execution.event_next_object();
+        if (!object)
+            throw std::invalid_argument("A between-objects script has no next final object.");
+        config.set("next_object_id", int32_t(*object));
+    }
+
+    // Tool neighbours come from the active event boundary. Fall back to the
+    // current structural tool for scripts embedded in printable extrusion
+    // trees rather than scope events.
+    std::optional<uint16_t> previous_tool = m_script_execution.event_previous_extruder();
+    std::optional<uint16_t> next_tool = m_script_execution.event_next_extruder();
+    if (!m_script_execution.has_active_event()) {
+        previous_tool = m_script_execution.previous_extruder();
+        next_tool = m_script_execution.current_extruder();
+    }
+    if (script_type == GCODE_SCRIPT_TYPE_END_GCODE) {
+        previous_tool = m_script_execution.last_extruder();
+        next_tool.reset();
+    }
+    if (config.has("previous_extruder"))
+        config.set("previous_extruder", previous_tool ? int32_t(*previous_tool) : int32_t(-1));
+    if (config.has("next_extruder"))
+        config.set("next_extruder", next_tool ? int32_t(*next_tool) : int32_t(-1));
+
+    // Only filament scripts carry an immutable target. It selects the vector
+    // setting whose text was inserted, while all physical state still reflects
+    // the machine at the moment this script executes.
+    const bool has_target = target_extruder_id != GCODE_SCRIPT_TARGET_EXTRUDER_INVALID;
+    if (has_target && script_type != GCODE_SCRIPT_TYPE_START_FILAMENT_GCODE &&
+        script_type != GCODE_SCRIPT_TYPE_END_FILAMENT_GCODE)
+        throw std::invalid_argument("Only filament G-code scripts may target an extruder.");
+    if (has_target && target_extruder_id >= m_extruders.size())
+        throw std::invalid_argument("A custom G-code script references an unknown target extruder.");
+    if (config.has("filament_extruder_id")) {
+        const uint16_t filament_tool = has_target ? target_extruder_id :
+            m_current_extruder_idx.value_or(m_script_execution.last_extruder().value_or(0));
+        config.set("filament_extruder_id", int32_t(filament_tool));
+    }
+
+    // Feature roles come from the effective final visitor state, never from a
+    // property snapshot. The deprecated aliases remain synchronized for old
+    // user scripts.
+    if (script_type == GCODE_SCRIPT_TYPE_FEATURE_GCODE && next_extrusion_role) {
+        const std::string previous_role = script_role_name(
+            m_previous_extrusion_role.value_or(RAW_EXTRUSION_ROLE_NONE));
+        const std::string next_role = script_role_name(*next_extrusion_role);
+        if (config.has("previous_extrusion_role"))
+            config.set("previous_extrusion_role", previous_role);
+        if (config.has("last_extrusion_role"))
+            config.set("last_extrusion_role", previous_role);
+        if (config.has("next_extrusion_role"))
+            config.set("next_extrusion_role", next_role);
+        if (config.has("extrusion_role"))
+            config.set("extrusion_role", next_role);
+    }
+
+    complete_script_context(script_type, target_extruder_id, config);
+
+    std::vector<double> used_filament_snapshot;
+    if (script_type == GCODE_SCRIPT_TYPE_BEFORE_LAYER_GCODE && config.has("layer_used_filament")) {
+        used_filament_snapshot.reserve(m_extruders.size());
+        std::vector<double> layer_used_filament;
+        layer_used_filament.reserve(m_extruders.size());
+        for (size_t tool_idx = 0; tool_idx < m_extruders.size(); ++tool_idx) {
+            const double used = m_extruders[tool_idx].extrusion_axis().used_filament();
+            used_filament_snapshot.push_back(used);
+            layer_used_filament.push_back(used - m_last_layer_used_filament[tool_idx]);
+        }
+        config.set("layer_used_filament", layer_used_filament);
+    }
+    if (config.has("gcode_bed_temperature") && m_printer.bed_heater().requested_temperature())
+        config.set("gcode_bed_temperature", int32_t(m_printer.bed_heater().effective_temperature()));
 
     // Export the complete current machine snapshot before the parser runs.
     // An unknown position uses a stable placeholder but remains unknown unless
@@ -818,24 +1117,28 @@ std::string DefaultGCodeFirmwareSession::process_script(
     if (config.has("e_position"))
         config.set("e_position", old_e_positions);
 
-    const uint16_t current_tool = m_current_extruder_idx.value_or(0);
-    m_external_gcode_processing_tool = current_tool;
+    uint16_t processing_tool = m_current_extruder_idx.value_or(0);
+    if (has_target)
+        processing_tool = target_extruder_id;
+    else if (script_type == GCODE_SCRIPT_TYPE_START_GCODE)
+        processing_tool = m_script_execution.first_extruder().value_or(0);
+    else if (script_type == GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE && next_tool)
+        processing_tool = *next_tool;
+    if (processing_tool >= m_extruders.size())
+        throw std::invalid_argument("A custom G-code script references an unknown processing extruder.");
+    m_script_processing_tool = processing_tool;
     std::string output;
     try {
-        output = context.process(script, current_tool);
-        // Placeholder outputs describe explicit state assignments, while the
-        // resulting text may contain additional modal and machine commands.
-        // Observe both sources before the next host-generated movement.
+        output = context.process(script, processing_tool);
         GCodeStateInterpreter(*this).apply(output);
-        m_external_gcode_processing_tool.reset();
+        m_script_processing_tool.reset();
     } catch (...) {
-        m_external_gcode_processing_tool.reset();
+        m_script_processing_tool.reset();
         throw;
     }
 
-    // Read and validate every output before importing the explicit Config
-    // values. A malformed vector therefore cannot partially replace those
-    // machine-state fields.
+    // Read and validate every output before mutating any session component.
+    // This keeps script application atomic even when the last vector is bad.
     const std::vector<double> new_position = config.get_floats("position");
     const std::vector<double> new_retracted = config.get_floats("e_retracted");
     const std::vector<double> new_restart_extra = config.get_floats("e_restart_extra");
@@ -874,7 +1177,26 @@ std::string DefaultGCodeFirmwareSession::process_script(
                 e_position, new_retracted[tool_idx], new_restart_extra[tool_idx]);
         }
     }
+    if (!used_filament_snapshot.empty())
+        m_last_layer_used_filament = std::move(used_filament_snapshot);
+    // Event chunks are concatenated directly by the plan writer. Collapse all
+    // trailing line breaks to one so an empty line cannot accumulate at every
+    // scope boundary and the following command can never join this script.
+    while (!output.empty() && (output.back() == '\n' || output.back() == '\r'))
+        output.pop_back();
+    if (!output.empty())
+        output += '\n';
     return output;
+}
+
+void DefaultGCodeFirmwareSession::complete_script_context(
+    gcode_script_type,
+    uint16_t,
+    GCodeScriptConfig &)
+{
+    // The standard script types are fully described by the final plan and the
+    // generic machine state. Derived firmware sessions may fill extra options
+    // declared by a custom script type.
 }
 
 std::string DefaultGCodeFirmwareSession::write_acceleration(PreparedMove::Kind kind)
@@ -903,10 +1225,10 @@ std::string DefaultGCodeFirmwareSession::write_lines(const PreparedMove &prepare
 {
     std::string output;
 
-    // Host-generated coordinates are always absolute millimetres. External
-    // G-code may select inches or relative XYZ; restore the neutral mode only
-    // when a generated movement actually needs it, leaving adjacent external
-    // chunks to observe the exact state established by their predecessor.
+    // Host-generated coordinates are always absolute millimetres. Scripts may
+    // temporarily select inches or relative XYZ; restore the neutral mode only
+    // when a generated movement actually needs it, leaving adjacent scripts to
+    // observe the exact state established by their predecessor.
     if ((prepared_move.destination || prepared_move.extrusion) && !m_units_in_mm) {
         output += "G21\n";
         m_units_in_mm = true;

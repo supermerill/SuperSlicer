@@ -154,7 +154,9 @@ public:
     };
 
     ExtrusionPropertyCustomGcode();
-    ExtrusionPropertyCustomGcode(Code c, extrusion_data_id text_id);
+    ExtrusionPropertyCustomGcode(Code c,
+                                 extrusion_data_id text_id,
+                                 gcode_script_type script_type = GCODE_SCRIPT_TYPE_INVALID);
 
     Code code() const { return Code(this->kind); }
     ExtrusionPropertyUPtr clone() const;
@@ -166,10 +168,13 @@ public:
     using Code = ExtrusionPropertyCustomGcode::Code;
 
     Code code = Code::GCODE;
+    gcode_script_type script_type = GCODE_SCRIPT_TYPE_INVALID;
     std::string gcode;
 
     explicit ExtrusionPropertyCustomGcodeText(const std::string &str);
-    ExtrusionPropertyCustomGcodeText(Code c, const std::string &str) : code(c), gcode(str) {}
+    ExtrusionPropertyCustomGcodeText(Code c,
+                                     const std::string &str,
+                                     gcode_script_type script_type = GCODE_SCRIPT_TYPE_INVALID);
 };
 
 class ExtrusionPropertySpecialCommand : public c_extrusion_property_special_command

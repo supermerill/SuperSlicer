@@ -632,7 +632,6 @@ private:
     std::pair<double, double> _compute_pressure_advance(const ExtrusionPath &path);
     std::string               _after_extrude(const ExtrusionPath &path);
     void print_machine_envelope(GCodeOutputStream &file, const Print &print);
-    int32_t _compute_first_layer_bed_temperature(const Print &print);
     int32_t _compute_bed_temperature(const Print &print);
     void _print_first_layer_bed_temperature(std::string &out, const Print &print, const std::string &gcode, uint16_t first_printing_extruder_id, bool wait);
     void _print_second_layer_bed_temperature(std::string &out, const Print &print, const std::string &gcode, uint16_t first_printing_extruder_id, bool wait);

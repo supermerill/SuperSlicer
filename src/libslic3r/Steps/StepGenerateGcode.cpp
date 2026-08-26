@@ -142,16 +142,16 @@ void run_step(Orchestrator &orchestrator, Print &print, const std::string &path)
     if (plugin == nullptr)
         throw RuntimeError("No active G-code generation plugin is available.");
 
-    // The host parser outlives the borrowed firmware view and is destroyed
-    // only after the firmware session has released every reference to it.
-    GCodeScriptProcessor scripts(print);
-    FirmwareInstanceOwner firmware;
-    create_firmware_session(orchestrator, print, scripts.c_processor(), firmware);
-
     // The G-code step consumes the PrintingPlan created by STEP_ORDERING. If a
     // caller runs this step directly in a test, mutable_printing_plan() still
     // gives the plugin a valid empty plan instead of a null handle.
     Printing::PrintingPlan &plan = print.mutable_printing_plan();
+
+    // The host parser outlives the borrowed firmware view and is destroyed
+    // only after the firmware session has released every reference to it.
+    GCodeScriptProcessor scripts(print, orchestrator);
+    FirmwareInstanceOwner firmware;
+    create_firmware_session(orchestrator, print, scripts.c_processor(), firmware);
     run_ctx_generate_gcode payload = {};
     payload.print = reinterpret_cast<const print_handle *>(&print);
     payload.plan = reinterpret_cast<printing_plan_handle *>(&plan);

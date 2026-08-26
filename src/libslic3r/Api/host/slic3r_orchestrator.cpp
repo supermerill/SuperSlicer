@@ -28,6 +28,43 @@ struct GenericPropertyInfo
     uint32_t alignment;
 };
 
+struct BuiltinGCodeScriptTypeInfo
+{
+    gcode_script_type type;
+    const char *name;
+};
+
+const std::vector<BuiltinGCodeScriptTypeInfo> &builtin_gcode_script_type_infos() {
+    static const std::vector<BuiltinGCodeScriptTypeInfo> infos = {
+        {GCODE_SCRIPT_TYPE_START_GCODE, "start_gcode"},
+        {GCODE_SCRIPT_TYPE_END_GCODE, "end_gcode"},
+        {GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM, "extrusion_custom_gcode_script"},
+        {GCODE_SCRIPT_TYPE_START_FILAMENT_GCODE, "start_filament_gcode"},
+        {GCODE_SCRIPT_TYPE_END_FILAMENT_GCODE, "end_filament_gcode"},
+        {GCODE_SCRIPT_TYPE_BEFORE_LAYER_GCODE, "before_layer_gcode"},
+        {GCODE_SCRIPT_TYPE_LAYER_GCODE, "layer_gcode"},
+        {GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE, "toolchange_gcode"},
+        {GCODE_SCRIPT_TYPE_BETWEEN_OBJECTS_GCODE, "between_objects_gcode"},
+    };
+    return infos;
+}
+
+const BuiltinGCodeScriptTypeInfo *builtin_gcode_script_type_info(gcode_script_type type) {
+    for (const BuiltinGCodeScriptTypeInfo &info : builtin_gcode_script_type_infos())
+        if (info.type == type)
+            return &info;
+    return nullptr;
+}
+
+const BuiltinGCodeScriptTypeInfo *builtin_gcode_script_type_info(const char *name) {
+    if (name == nullptr)
+        return nullptr;
+    for (const BuiltinGCodeScriptTypeInfo &info : builtin_gcode_script_type_infos())
+        if (std::string(info.name) == name)
+            return &info;
+    return nullptr;
+}
+
 const std::vector<GenericPropertyInfo> &builtin_property_infos()
 {
     static const std::vector<GenericPropertyInfo> infos = {
@@ -185,6 +222,27 @@ int32_t orchestrator_register_translation_catalog(orchestrator_handle *orch,
     } catch (...) {
         return -3;
     }
+}
+
+gcode_script_type gcode_script_register_type(orchestrator_handle *orch, const char *namespaced_name) {
+    if (namespaced_name == nullptr || namespaced_name[0] == '\0')
+        return GCODE_SCRIPT_TYPE_INVALID;
+    if (const BuiltinGCodeScriptTypeInfo *info = builtin_gcode_script_type_info(namespaced_name))
+        return info->type;
+
+    Slic3r::Orchestrator *orchestrator = to_orchestrator(orch);
+    return orchestrator == nullptr ? GCODE_SCRIPT_TYPE_INVALID :
+                                     orchestrator->register_gcode_script_type(namespaced_name);
+}
+
+const char *gcode_script_type_name(const orchestrator_handle *orch, gcode_script_type type) {
+    if (const BuiltinGCodeScriptTypeInfo *info = builtin_gcode_script_type_info(type))
+        return info->name;
+    const Slic3r::Orchestrator *orchestrator = to_orchestrator(orch);
+    const Slic3r::Orchestrator::GCodeScriptTypeInfo *info = orchestrator == nullptr ?
+        nullptr :
+        orchestrator->gcode_script_type_info(type);
+    return info == nullptr ? nullptr : info->name.c_str();
 }
 
 bridge_detector_instance orchestrator_create_bridge_detector(orchestrator_handle *orch,

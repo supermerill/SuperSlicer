@@ -93,7 +93,7 @@ void serialize_plan(boost::nowide::ofstream &stream,
                     const GCodeFirmwareView &firmware,
                     PluginProgress &progress)
 {
-    write_firmware_chunk(stream, firmware.begin_print(print));
+    write_firmware_chunk(stream, firmware.begin_print(print, plan));
     const PrintingScopeEvents plan_events = plan.events();
     if (plan_events.has_before())
         write_firmware_chunk(stream, firmware.write_event(plan_events.before()));

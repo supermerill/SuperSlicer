@@ -31,6 +31,7 @@
 #include "libslic3r/Plugins/GCode/Firmware/BuiltinGCodeFirmwares.hpp"
 #include "libslic3r/Plugins/GCode/LegacyGCodeGenerator.hpp"
 #include "libslic3r/Plugins/GCode/PrintingPlanFileWriter.hpp"
+#include "libslic3r/Plugins/GCode/SettingsGCodeScripts.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultSpeed.hpp"
 #include "libslic3r/Plugins/Ordering/DefaultOrdering.hpp"
@@ -190,6 +191,8 @@ void ensure_plugin_test_runtime_initialized()
             orchestrator_handle_value);
         slic3r_api::GCodeGeneration::PrintingPlanFileWriterPlugin::register_printing_plan_file_writer_plugin(
             orchestrator_handle_value);
+        slic3r_api::GCodeGeneration::SettingsGCodeScriptsPlugin::register_settings_gcode_scripts_plugin(
+            orchestrator_handle_value);
         slic3r_api::GCodeGeneration::Firmware::register_builtin_gcode_firmware_plugins(
             orchestrator_handle_value);
         slic3r_api::FlatAreaLayerHeightPlugin::register_flat_area_layer_height_plugin(orchestrator_handle_value);
@@ -266,6 +269,7 @@ void ensure_plugin_test_runtime_initialized()
         activate_plugin_or_fail(orchestrator, "vase.multi_island_connector");
         activate_plugin_or_fail(orchestrator, "gcode.legacy");
         activate_plugin_or_fail(orchestrator, "gcode.printing_plan_file_writer");
+        activate_plugin_or_fail(orchestrator, "gcode.settings_scripts");
         activate_plugin_or_fail(orchestrator, "gcode.firmware.marlin1");
         activate_plugin_or_fail(orchestrator, "gcode.firmware.marlin2");
         activate_plugin_or_fail(orchestrator, "gcode.firmware.prusa");

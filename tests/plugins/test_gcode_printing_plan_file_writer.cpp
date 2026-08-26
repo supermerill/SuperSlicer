@@ -20,6 +20,7 @@
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/host/Plugin.hpp"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_gcode.h"
+#include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/DefaultGCodeFirmwareSession.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeFirmwareViews.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeScriptProcessorViews.hpp"
@@ -43,6 +44,7 @@
 #include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/PrintObject.hpp"
 #include "libslic3r/Printing/PrintingPlan.hpp"
+#include "libslic3r/Steps/StepExtrusionEdition.hpp"
 #include "libslic3r/Steps/StepGenerateGcode.hpp"
 #include "libslic3r/Steps/StepPipeline.hpp"
 #include "test_data.hpp"
@@ -79,7 +81,8 @@ public:
     explicit RecordingFirmwareSession(FirmwareRecorder &recorder) : m_recorder(recorder) {}
     ~RecordingFirmwareSession() override { ++m_recorder.destruction_count; }
 
-    std::string begin_print(const slic3r_api::Print &) override
+    std::string begin_print(const slic3r_api::Print &,
+                            const slic3r_api::PrintingPlan &) override
     {
         m_recorder.calls.emplace_back("begin_print");
         return "begin_print\n";
@@ -214,6 +217,41 @@ public:
     {
         return extruders().at(idx);
     }
+
+    const slic3r_api::GCodeGeneration::Printer &machine_printer() const
+    {
+        return printer();
+    }
+};
+
+// Verifies that a derived firmware may augment the host-prepared context at
+// execution time without owning or exposing the PlaceholderParser itself.
+class ScriptContextCompletingFirmwareProbe final :
+    public slic3r_api::GCodeGeneration::DefaultGCodeFirmwareSession
+{
+public:
+    explicit ScriptContextCompletingFirmwareProbe(
+        slic3r_api::GCodeGeneration::GCodeScriptProcessorView scripts) :
+        DefaultGCodeFirmwareSession(scripts)
+    {}
+
+    using DefaultGCodeFirmwareSession::process_script;
+
+    uint32_t completion_count() const { return m_completion_count; }
+
+protected:
+    void complete_script_context(
+        gcode_script_type script_type,
+        uint16_t,
+        slic3r_api::GCodeGeneration::GCodeScriptConfig &config) override
+    {
+        ++m_completion_count;
+        if (script_type == GCODE_SCRIPT_TYPE_START_GCODE && config.has("max_layer_z"))
+            config.set("max_layer_z", 12.5);
+    }
+
+private:
+    uint32_t m_completion_count = 0;
 };
 
 // Exposes the parent begin-print orchestration without adding any dialect
@@ -357,10 +395,11 @@ std::unique_ptr<ExtrusionPath> make_firmware_path(const ArcPolyline &polyline,
                                                   float acceleration,
                                                   float pressure_advance = -1.f,
                                                   float fan_speed = -1.f,
-                                                  float temperature = -1.f)
+                                                  float temperature = -1.f,
+                                                  ExtrusionRole role = ExtrusionRole::Perimeter)
 {
     const ExtrusionAttributes attributes(
-        ExtrusionRole::Perimeter,
+        role,
         ExtrusionFlow(0.08, 0.4f, 0.2f));
     std::unique_ptr<ExtrusionPath> path(
         new ExtrusionPath(polyline, attributes, nullptr, true));
@@ -484,6 +523,14 @@ size_t count_command_lines(const std::string &text, const std::string &command)
     return count;
 }
 
+gcode_script_type registered_script_type(Orchestrator &orchestrator, const std::string &name) {
+    const gcode_script_type type = gcode_script_register_type(reinterpret_cast<orchestrator_handle *>(&orchestrator),
+                                                              name.c_str());
+    if (type == GCODE_SCRIPT_TYPE_INVALID)
+        throw std::runtime_error("The test could not register G-code script type '" + name + "'.");
+    return type;
+}
+
 std::unique_ptr<ExtrusionEntity> special_command_entity(
     ExtrusionPropertySpecialCommand::Code code,
     double value = 0.0)
@@ -501,6 +548,12 @@ void select_printing_plan_writer(
     DynamicPrintConfig &config = const_cast<DynamicPrintConfig &>(print.full_print_config());
     config.set_deserialize("step_gcode_plugin", "gcode.printing_plan_file_writer");
     config.set_deserialize("gcode_firmware_plugin", firmware_id);
+}
+
+slic3r_api::PrintingPlan printing_plan_view(Print &print)
+{
+    return slic3r_api::PrintingPlan(
+        reinterpret_cast<printing_plan_handle *>(&print.mutable_printing_plan()));
 }
 
 std::string export_with_firmware(Print &print, const std::string &firmware_id)
@@ -754,7 +807,7 @@ TEST_CASE("Default firmware owns machine envelope initialization",
         const slic3r_api::Print print_view(
             reinterpret_cast<const print_handle *>(&print));
         MachineEnvelopeFirmwareSession session;
-        CHECK(session.begin_print(print_view).empty());
+        CHECK(session.begin_print(print_view, printing_plan_view(print)).empty());
         CHECK(session.formatter_initialized());
         CHECK(session.encode_count() == 0);
     }
@@ -766,7 +819,7 @@ TEST_CASE("Default firmware owns machine envelope initialization",
         const slic3r_api::Print print_view(
             reinterpret_cast<const print_handle *>(&print));
         MachineEnvelopeFirmwareSession session;
-        CHECK(session.begin_print(print_view) == "machine-envelope\n");
+        CHECK(session.begin_print(print_view, printing_plan_view(print)) == "machine-envelope\n");
         CHECK(session.encode_count() == 1);
         CHECK(session.initialized_during_encoding());
         REQUIRE(session.encoded_envelope());
@@ -775,7 +828,7 @@ TEST_CASE("Default firmware owns machine envelope initialization",
         // The neutral base remains directly usable and deliberately has no
         // firmware-specific envelope syntax.
         slic3r_api::GCodeGeneration::DefaultGCodeFirmwareSession neutral_session;
-        CHECK(neutral_session.begin_print(print_view).empty());
+        CHECK(neutral_session.begin_print(print_view, printing_plan_view(print)).empty());
     }
 
     SECTION("invalid limits fail before entering the dialect hook") {
@@ -787,7 +840,8 @@ TEST_CASE("Default firmware owns machine envelope initialization",
         const slic3r_api::Print print_view(
             reinterpret_cast<const print_handle *>(&print));
         MachineEnvelopeFirmwareSession session;
-        CHECK_THROWS_AS(session.begin_print(print_view), std::invalid_argument);
+        CHECK_THROWS_AS(
+            session.begin_print(print_view, printing_plan_view(print)), std::invalid_argument);
         CHECK(session.formatter_initialized());
         CHECK(session.encode_count() == 0);
     }
@@ -1453,7 +1507,7 @@ TEST_CASE("Default firmware emits inherited process state and ordered linear mov
 
     Print print;
     select_printing_plan_writer(print);
-    configure_standard_firmware(print);
+    configure_standard_firmware(print, 2);
     PrintingPlan &plan = print.mutable_printing_plan();
     plan.groups.emplace_back();
     plan.groups.front().layers.emplace_back();
@@ -1886,6 +1940,8 @@ TEST_CASE("Default firmware handles ordered special commands and custom G-code",
 TEST_CASE("Default firmware distinguishes raw G-code, comments and scripts",
           "[plugins][gcode][firmware][custom-gcode]")
 {
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
     CustomGCodeFirmwareProbe firmware;
 
     CHECK(firmware.encode_custom_gcode(
@@ -1900,6 +1956,28 @@ TEST_CASE("Default firmware distinguishes raw G-code, comments and scripts",
         firmware.encode_custom_gcode(
             static_cast<c_extrusion_custom_gcode_kind>(99), "M117 unknown"),
         std::invalid_argument);
+
+    Print print;
+    configure_standard_firmware(print);
+    const slic3r_api::Print print_view(reinterpret_cast<const print_handle *>(&print));
+    CHECK(firmware.begin_print(print_view, printing_plan_view(print)).empty());
+
+    ExtrusionNop typed_raw(ExtrusionPropertyCustomGcodeText("M117 raw"));
+    ExtrusionPropertyCustomGcode *typed_raw_property = typed_raw.get_property<ExtrusionPropertyCustomGcode>();
+    REQUIRE(typed_raw_property != nullptr);
+    typed_raw_property->script_type = GCODE_SCRIPT_TYPE_START_GCODE;
+    CHECK_THROWS_AS(firmware.write_event(
+                        slic3r_api::ExtrusionEntity(reinterpret_cast<const extrusion_entity_handle *>(&typed_raw))),
+                    std::invalid_argument);
+
+    ExtrusionNop untyped_script(
+        ExtrusionPropertyCustomGcodeText(ExtrusionPropertyCustomGcodeText::Code::SCRIPT, "M117 script"));
+    ExtrusionPropertyCustomGcode *untyped_script_property = untyped_script.get_property<ExtrusionPropertyCustomGcode>();
+    REQUIRE(untyped_script_property != nullptr);
+    untyped_script_property->script_type = GCODE_SCRIPT_TYPE_INVALID;
+    CHECK_THROWS_AS(firmware.write_event(slic3r_api::ExtrusionEntity(
+                        reinterpret_cast<const extrusion_entity_handle *>(&untyped_script))),
+                    std::invalid_argument);
 }
 
 TEST_CASE("Host G-code script processor prepares typed isolated contexts",
@@ -1912,15 +1990,46 @@ TEST_CASE("Host G-code script processor prepares typed isolated contexts",
     DynamicPrintConfig &full_config =
         const_cast<DynamicPrintConfig &>(print.full_print_config());
     full_config.set_key_value("travel_speed", new ConfigOptionFloat(100.0));
-    GCodeScriptProcessor host_processor(print);
+    Orchestrator &orchestrator = Orchestrator::instance();
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.front().layers.emplace_back();
+    plan.groups.front().layers.front().tool_groups.emplace_back();
+    plan.groups.front().layers.front().tool_groups.front().extruder_id = 1;
+    GCodeScriptProcessor host_processor(print, orchestrator);
     const slic3r_api::GCodeGeneration::GCodeScriptProcessorView scripts(
         host_processor.c_processor());
+    CHECK_THROWS(scripts.prepare(GCODE_SCRIPT_TYPE_CUSTOM_BEGIN - 1));
+
+    const slic3r_api::GCodeGeneration::GCodeScriptContext prepared_layer =
+        scripts.prepare(GCODE_SCRIPT_TYPE_BEFORE_LAYER_GCODE);
+    prepared_layer.set("layer_num", int32_t(12));
+    prepared_layer.set("layer_z", 2.6);
+    prepared_layer.set("previous_layer_z", 2.4);
+    prepared_layer.set("max_layer_z", 20.0);
+    CHECK(prepared_layer.config().get_int("layer_num") == 12);
+    CHECK(prepared_layer.config().get_float("layer_z") == Approx(2.6));
+    CHECK(prepared_layer.config().get_float("previous_layer_z") == Approx(2.4));
+    CHECK(prepared_layer.config().get_float("max_layer_z") == Approx(20.0));
+    CHECK(prepared_layer.process("L[layer_num] Z[layer_z] P[previous_layer_z] M[max_layer_z]", 0) ==
+          "L12 Z2.6 P2.4 M20");
+
+    const slic3r_api::GCodeGeneration::GCodeScriptContext prepared_feature =
+        scripts.prepare(GCODE_SCRIPT_TYPE_FEATURE_GCODE);
+    prepared_feature.set("previous_extrusion_role", std::string("Travel"));
+    prepared_feature.set("last_extrusion_role", std::string("Travel"));
+    prepared_feature.set("next_extrusion_role", std::string("Internal infill"));
+    prepared_feature.set("extrusion_role", std::string("Internal infill"));
+    CHECK(prepared_feature.process(
+              "[previous_extrusion_role]>[next_extrusion_role] "
+              "[last_extrusion_role]>[extrusion_role]", 0) ==
+          "Travel>Internal infill Travel>Internal infill");
 
     // Every name receives fresh machine state, while known names additionally
     // expose the exact option types declared by the legacy placeholder table.
     for (const auto &named_placeholders : custom_gcode_specific_placeholders()) {
-        const slic3r_api::GCodeGeneration::GCodeScriptContext context =
-            scripts.prepare(named_placeholders.first.c_str());
+        const slic3r_api::GCodeGeneration::GCodeScriptContext context = scripts.prepare(
+            registered_script_type(orchestrator, named_placeholders.first));
         const slic3r_api::GCodeGeneration::GCodeScriptConfig config = context.config();
         for (const std::string &key : named_placeholders.second) {
             INFO(named_placeholders.first << ": " << key);
@@ -1933,8 +2042,8 @@ TEST_CASE("Host G-code script processor prepares typed isolated contexts",
         }
     }
 
-    const slic3r_api::GCodeGeneration::GCodeScriptContext toolchange =
-        scripts.prepare("toolchange_gcode");
+    const slic3r_api::GCodeGeneration::GCodeScriptContext toolchange = scripts.prepare(
+        registered_script_type(orchestrator, "toolchange_gcode"));
     REQUIRE(toolchange.config().has("previous_extruder"));
     REQUIRE(toolchange.config().has("next_extruder"));
     toolchange.set("previous_extruder", int32_t(1));
@@ -1945,26 +2054,26 @@ TEST_CASE("Host G-code script processor prepares typed isolated contexts",
 
     // prepare() discards per-call values rather than leaking the previous
     // toolchange context into the next script.
-    const slic3r_api::GCodeGeneration::GCodeScriptContext fresh_toolchange =
-        scripts.prepare("toolchange_gcode");
+    const slic3r_api::GCodeGeneration::GCodeScriptContext fresh_toolchange = scripts.prepare(
+        registered_script_type(orchestrator, "toolchange_gcode"));
     CHECK(fresh_toolchange.config().get_int("previous_extruder") == 0);
     CHECK_THROWS_AS(
         fresh_toolchange.set("previous_extruder", 1.5), std::invalid_argument);
     CHECK(fresh_toolchange.process("", 0).empty());
 
-    const slic3r_api::GCodeGeneration::GCodeScriptContext color_change =
-        scripts.prepare("color_change_gcode");
+    const slic3r_api::GCodeGeneration::GCodeScriptContext color_change = scripts.prepare(
+        registered_script_type(orchestrator, "color_change_gcode"));
     color_change.set("next_color", std::string("#12ab34"));
     CHECK(color_change.process("M117 {next_color}", 0) == "M117 #12ab34");
 
     // Names unknown to the specific-placeholder table remain useful: they see
     // the Print configuration and only the standard machine in/out options.
-    const slic3r_api::GCodeGeneration::GCodeScriptContext generic =
-        scripts.prepare("unknown_script");
+    const slic3r_api::GCodeGeneration::GCodeScriptContext generic = scripts.prepare(
+        registered_script_type(orchestrator, "unknown_script"));
     CHECK(generic.process("M117 F{travel_speed}", 0) == "M117 F100");
 
-    const slic3r_api::GCodeGeneration::GCodeScriptContext before_layer =
-        scripts.prepare("before_layer_gcode");
+    const slic3r_api::GCodeGeneration::GCodeScriptContext before_layer = scripts.prepare(
+        registered_script_type(orchestrator, "before_layer_gcode"));
     const config_option_handle *used_filament =
         config_get(before_layer.config().handle(), "layer_used_filament");
     REQUIRE(used_filament != nullptr);
@@ -1974,16 +2083,17 @@ TEST_CASE("Host G-code script processor prepares typed isolated contexts",
 
     // Parser globals deliberately survive between scripts handled by one
     // export, but a new host processor starts with an independent dictionary.
-    CHECK(scripts.prepare("unknown_script").process(
-              "{global firmware_script_counter=7}", 0).empty());
-    CHECK(scripts.prepare("unknown_script").process(
-              "{firmware_script_counter}", 0) == "7");
+    CHECK(scripts.prepare(registered_script_type(orchestrator, "unknown_script"))
+              .process("{global firmware_script_counter=7}", 0)
+              .empty());
+    CHECK(scripts.prepare(registered_script_type(orchestrator, "unknown_script"))
+              .process("{firmware_script_counter}", 0) == "7");
 
-    GCodeScriptProcessor independent_host(print);
+    GCodeScriptProcessor independent_host(print, orchestrator);
     const slic3r_api::GCodeGeneration::GCodeScriptProcessorView independent_scripts(
         independent_host.c_processor());
-    CHECK_THROWS(independent_scripts.prepare("unknown_script").process(
-        "{firmware_script_counter}", 0));
+    CHECK_THROWS(independent_scripts.prepare(registered_script_type(orchestrator, "unknown_script"))
+                     .process("{firmware_script_counter}", 0));
 }
 
 TEST_CASE("Firmware scripts import validated machine state atomically",
@@ -1992,28 +2102,39 @@ TEST_CASE("Firmware scripts import validated machine state atomically",
     Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
 
     Print print;
-    configure_standard_firmware(print);
-    GCodeScriptProcessor host_processor(print);
+    configure_standard_firmware(print, 2);
+    Orchestrator &orchestrator = Orchestrator::instance();
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.front().layers.emplace_back();
+    plan.groups.front().layers.front().tool_groups.emplace_back();
+    plan.groups.front().layers.front().tool_groups.front().extruder_id = 1;
+    GCodeScriptProcessor host_processor(print, orchestrator);
     const slic3r_api::GCodeGeneration::GCodeScriptProcessorView scripts(
         host_processor.c_processor());
     ScriptStateFirmwareProbe firmware(scripts);
     const slic3r_api::Print print_view(
         reinterpret_cast<const print_handle *>(&print));
-    CHECK(firmware.begin_print(print_view).empty());
+    CHECK(firmware.begin_print(print_view, printing_plan_view(print)).empty());
+
+    CHECK(firmware.process_script(
+              GCODE_SCRIPT_TYPE_START_GCODE, "M104 S175") ==
+          "M104 S175\n");
+    REQUIRE(firmware.machine_extruder(1).heater().requested_temperature());
+    CHECK(*firmware.machine_extruder(1).heater().requested_temperature() == 175);
+    CHECK_FALSE(firmware.machine_extruder(0).heater().requested_temperature());
 
     // When the script itself leaves position untouched, the host derives the
     // new machine position from the successfully produced movement commands.
-    CHECK(firmware.process_script(
-              "extrusion_custom_gcode_script", "G1 X12 Y34 Z5") ==
-          "G1 X12 Y34 Z5");
+    CHECK(firmware.process_script(GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM, "G1 X12 Y34 Z5") == "G1 X12 Y34 Z5\n");
     REQUIRE(firmware.machine_gantry().position());
     CHECK(firmware.machine_gantry().position()->x == Approx(12.0));
     CHECK(firmware.machine_gantry().position()->y == Approx(34.0));
     CHECK(firmware.machine_gantry().position()->z == Approx(5.0));
 
-    CHECK(firmware.process_script(
-              "extrusion_custom_gcode_script",
-              "{position[0]=8}{position[1]=9}{position[2]=10}").empty());
+    CHECK(
+        firmware.process_script(GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM, "{position[0]=8}{position[1]=9}{position[2]=10}")
+            .empty());
     REQUIRE(firmware.machine_gantry().position());
     CHECK(firmware.machine_gantry().position()->x == Approx(8.0));
     CHECK(firmware.machine_gantry().position()->y == Approx(9.0));
@@ -2021,39 +2142,178 @@ TEST_CASE("Firmware scripts import validated machine state atomically",
 
     slic3r_api::GCodeGeneration::ExtrusionAxisState &axis =
         firmware.machine_extruder(0).extrusion_axis();
+    CHECK(firmware.process_script(
+              GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM,
+              "M82\nG1 E5\nM83\nG1 E2\nM82\nG1 E8") ==
+          "M82\nG1 E5\nM83\nG1 E2\nM82\nG1 E8\n");
+    CHECK(axis.position() == Approx(8.0));
+    CHECK(axis.used_filament() == Approx(8.0));
     CHECK_FALSE(axis.extrude(0.000004));
     REQUIRE(axis.extruded_dE_left() == Approx(0.000004));
-    CHECK(firmware.process_script(
-              "extrusion_custom_gcode_script", "M117 unchanged").find(
-              "M117 unchanged") != std::string::npos);
+    CHECK(firmware.process_script(GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM, "M117 unchanged").find("M117 unchanged") !=
+          std::string::npos);
     CHECK(axis.extruded_dE_left() == Approx(0.000004));
 
-    CHECK(firmware.process_script(
-              "extrusion_custom_gcode_script",
-              "{e_position[0]=4}{e_retracted[0]=1.5}{e_restart_extra[0]=0.2}").empty());
+    CHECK(firmware
+              .process_script(GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM,
+                              "{e_position[0]=4}{e_retracted[0]=1.5}{e_restart_extra[0]=0.2}")
+              .empty());
     CHECK(axis.position() == Approx(4.0));
+
+    CHECK(firmware.process_script(
+              GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM,
+              "G91\nG1 X1 Y2 Z3\nG90") ==
+          "G91\nG1 X1 Y2 Z3\nG90\n");
+    REQUIRE(firmware.machine_gantry().position());
+    CHECK(firmware.machine_gantry().position()->x == Approx(9.0));
+    CHECK(firmware.machine_gantry().position()->y == Approx(11.0));
+    CHECK(firmware.machine_gantry().position()->z == Approx(13.0));
+
+    CHECK(firmware.process_script(
+              GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM,
+              "G20\nG91\nG1 X1\nG90\nG21") ==
+          "G20\nG91\nG1 X1\nG90\nG21\n");
+    REQUIRE(firmware.machine_gantry().position());
+    CHECK(firmware.machine_gantry().position()->x == Approx(34.4));
+
+    CHECK(firmware.process_script(
+              GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM,
+              "T1\nM104 S205\nM140 S60\nM141 S35\nM106 S128") ==
+          "T1\nM104 S205\nM140 S60\nM141 S35\nM106 S128\n");
+    const slic3r_api::GCodeGeneration::DefaultExtruder &tool_one = firmware.machine_extruder(1);
+    REQUIRE(tool_one.heater().requested_temperature());
+    CHECK(*tool_one.heater().requested_temperature() == 205);
+    REQUIRE(tool_one.fan().encoded_speed_percent());
+    CHECK(*tool_one.fan().encoded_speed_percent() == Approx(128.0 * 100.0 / 255.0));
+    REQUIRE(firmware.machine_printer().bed_heater().requested_temperature());
+    CHECK(*firmware.machine_printer().bed_heater().requested_temperature() == 60);
+    REQUIRE(firmware.machine_printer().chamber_heater().requested_temperature());
+    CHECK(*firmware.machine_printer().chamber_heater().requested_temperature() == 35);
+
+    CHECK(firmware.process_script(
+              GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM,
+              "M83\nG1 E2\nM82\nG92 E5\nG1 E6\nM107") ==
+          "M83\nG1 E2\nM82\nG92 E5\nG1 E6\nM107\n");
+    CHECK(firmware.machine_extruder(1).extrusion_axis().position() == Approx(6.0));
+    CHECK(firmware.machine_extruder(1).extrusion_axis().used_filament() == Approx(3.0));
+    REQUIRE(firmware.machine_extruder(1).fan().encoded_speed_percent());
+    CHECK(*firmware.machine_extruder(1).fan().encoded_speed_percent() == Approx(0.0));
+
+    CHECK(firmware.process_script(
+              GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM,
+              "{position[0]=50}G91\nG1 X1") ==
+          "G91\nG1 X1\n");
+    REQUIRE(firmware.machine_gantry().position());
+    CHECK(firmware.machine_gantry().position()->x == Approx(50.0));
+    CHECK(firmware.process_script(
+              GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM,
+              "M117 one newline\n\n") ==
+          "M117 one newline\n");
     CHECK(axis.retracted() == Approx(1.5));
     CHECK(axis.restart_extra() == Approx(0.2));
     CHECK(axis.extruded_dE_left() == Approx(0.0));
 
     // Corrupting a prepared in/out vector simulates a hostile script or C
     // caller. Validation fails before any session state can be imported.
-    const slic3r_api::GCodeGeneration::GCodeScriptContext invalid =
-        scripts.prepare("extrusion_custom_gcode_script");
+    const slic3r_api::GCodeGeneration::GCodeScriptContext invalid = scripts.prepare(
+        GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM);
     DynamicConfig *prepared = dynamic_cast<DynamicConfig *>(
         ApiHost::to_config(invalid.config().handle()));
     REQUIRE(prepared != nullptr);
     prepared->set_key_value("position", new ConfigOptionFloats({1.0, 2.0}));
     CHECK_THROWS(invalid.process("", 0));
     REQUIRE(firmware.machine_gantry().position());
-    CHECK(firmware.machine_gantry().position()->x == Approx(8.0));
+    CHECK(firmware.machine_gantry().position()->x == Approx(50.0));
     CHECK(axis.position() == Approx(4.0));
 
     ScriptStateFirmwareProbe processorless;
+    CHECK_THROWS_AS(processorless.process_script(GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM, "M117 unavailable"),
+                    std::invalid_argument);
     CHECK_THROWS_AS(
-        processorless.process_script(
-            "extrusion_custom_gcode_script", "M117 unavailable"),
+        firmware.process_script(GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM, "M117 invalid target", uint16_t(1)),
         std::invalid_argument);
+}
+
+TEST_CASE("Derived firmware completes a script context immediately before parsing",
+          "[plugins][gcode][firmware][custom-gcode]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    configure_standard_firmware(print);
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.front().layers.emplace_back();
+    plan.groups.front().layers.front().print_z = scale_i(0.4);
+    plan.groups.front().layers.front().tool_groups.emplace_back();
+    plan.groups.front().layers.front().tool_groups.front().extruder_id = 0;
+
+    GCodeScriptProcessor host_processor(print, Orchestrator::instance());
+    const slic3r_api::GCodeGeneration::GCodeScriptProcessorView scripts(
+        host_processor.c_processor());
+    ScriptContextCompletingFirmwareProbe firmware(scripts);
+    const slic3r_api::Print print_view(
+        reinterpret_cast<const print_handle *>(&print));
+
+    REQUIRE(firmware.begin_print(print_view, printing_plan_view(print)).empty());
+    CHECK(firmware.process_script(
+              GCODE_SCRIPT_TYPE_START_GCODE, "M117 Z[max_layer_z]") ==
+          "M117 Z12.5\n");
+    CHECK(firmware.completion_count() == 1);
+}
+
+TEST_CASE("Toolchange scripts use the final tool order instead of insertion metadata",
+          "[plugins][gcode][firmware][custom-gcode][printing-plan]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    configure_standard_firmware(print, 2);
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    PrintingGroup &group = plan.groups.front();
+    group.layers.emplace_back();
+    PrintingLayerGroup &layer = group.layers.front();
+    layer.print_z = scale_i(0.2);
+    layer.tool_groups.emplace_back();
+    layer.tool_groups.back().extruder_id = 0;
+    layer.tool_groups.emplace_back();
+    layer.tool_groups.back().extruder_id = 1;
+
+    // Insert the semantic event first, then alter the plan. The property has
+    // no saved previous/next tools, so begin_print() must derive both values
+    // from the finalized tool-group sequence below.
+    ExtrusionNop toolchange_script(ExtrusionPropertyCustomGcodeText(
+        ExtrusionPropertyCustomGcodeText::Code::SCRIPT,
+        "; FINAL_TOOL P[previous_extruder] N[next_extruder]"));
+    ExtrusionPropertyCustomGcode *script_property =
+        toolchange_script.get_property<ExtrusionPropertyCustomGcode>();
+    REQUIRE(script_property != nullptr);
+    script_property->script_type = GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE;
+    layer.tool_groups[1].events.append_before(toolchange_script);
+    layer.tool_groups[0].extruder_id = 1;
+    layer.tool_groups[1].extruder_id = 0;
+
+    GCodeScriptProcessor host_processor(print, Orchestrator::instance());
+    ScriptStateFirmwareProbe firmware(
+        slic3r_api::GCodeGeneration::GCodeScriptProcessorView(
+            host_processor.c_processor()));
+    const slic3r_api::Print print_view(
+        reinterpret_cast<const print_handle *>(&print));
+    const slic3r_api::PrintingPlan plan_view = printing_plan_view(print);
+    const slic3r_api::PrintingGroup group_view = plan_view.group(0);
+    const slic3r_api::PrintingLayerGroup layer_view = group_view.layer_group(0);
+    const slic3r_api::PrintingToolGroup first_tool = layer_view.tool_group(0);
+    const slic3r_api::PrintingToolGroup second_tool = layer_view.tool_group(1);
+
+    REQUIRE(firmware.begin_print(print_view, plan_view).empty());
+    REQUIRE(firmware.begin_group(group_view).empty());
+    REQUIRE(firmware.begin_layer(layer_view).empty());
+    CHECK(firmware.begin_tool_group(first_tool) == "T1\n");
+    REQUIRE(firmware.end_tool_group().empty());
+    REQUIRE(firmware.begin_tool_group(second_tool).empty());
+    CHECK(firmware.write_event(second_tool.events().before()) ==
+          "; FINAL_TOOL P1 N0\n");
 }
 
 TEST_CASE("PrintingPlan firmware executes host-owned scripts",
@@ -2067,25 +2327,8 @@ TEST_CASE("PrintingPlan firmware executes host-owned scripts",
     PrintingPlan &plan = print.mutable_printing_plan();
     ExtrusionNop script(ExtrusionPropertyCustomGcodeText(
         ExtrusionPropertyCustomGcodeText::Code::SCRIPT,
-        "G20\nG91\nM117 X{position[0]}\n"));
+        "M117 X{position[0]}"));
     plan.events.append_before(script);
-
-    // A normal path following the external block requires absolute
-    // millimetres. The session must restore those modal states before it
-    // encodes coordinates, independently from placeholder processing.
-    plan.groups.emplace_back();
-    plan.groups.front().layers.emplace_back();
-    PrintingLayerGroup &layer = plan.groups.front().layers.front();
-    layer.print_z = scale_i(0.2);
-    layer.tool_groups.emplace_back();
-    PrintingToolGroup &tool_group = layer.tool_groups.front();
-    tool_group.extruder_id = 0;
-    append_path_extrusion(
-        tool_group,
-        make_firmware_path(
-            ArcPolyline(Points{Point(0, 0), Point(scale_i(10.0), 0)}),
-            20.f,
-            500.f));
 
     const boost::filesystem::path output_path = temporary_gcode_path();
     remove_output_pair(output_path);
@@ -2096,24 +2339,795 @@ TEST_CASE("PrintingPlan firmware executes host-owned scripts",
         const std::string output = read_text_file(output_path);
         CHECK(output.find("M117 X0") != std::string::npos);
         CHECK(output.find("{position") == std::string::npos);
-        const size_t inch_mode = output.find("G20\n");
-        const size_t relative_mode = output.find("G91\n");
-        const size_t millimetre_mode = output.find("G21\n");
-        const size_t absolute_mode = output.find("G90\n");
-        const size_t first_move = output.find("G0 X0 Y0 Z.2");
-        REQUIRE(inch_mode != std::string::npos);
-        REQUIRE(relative_mode != std::string::npos);
-        REQUIRE(millimetre_mode != std::string::npos);
-        REQUIRE(absolute_mode != std::string::npos);
-        REQUIRE(first_move != std::string::npos);
-        CHECK(inch_mode < millimetre_mode);
-        CHECK(relative_mode < absolute_mode);
-        CHECK(millimetre_mode < first_move);
-        CHECK(absolute_mode < first_move);
     } catch (...) {
         remove_output_pair(output_path);
         throw;
     }
+    remove_output_pair(output_path);
+}
+
+TEST_CASE("G-code script types have stable built-in and runtime identities", "[plugins][gcode][script-type]") {
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Orchestrator &orchestrator = Orchestrator::instance();
+    orchestrator_handle *handle = reinterpret_cast<orchestrator_handle *>(&orchestrator);
+
+    CHECK(gcode_script_register_type(handle, "start_gcode") == GCODE_SCRIPT_TYPE_START_GCODE);
+    CHECK(gcode_script_register_type(handle, "end_gcode") == GCODE_SCRIPT_TYPE_END_GCODE);
+    CHECK(gcode_script_register_type(handle, "extrusion_custom_gcode_script") == GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM);
+    CHECK(gcode_script_register_type(handle, "start_filament_gcode") == GCODE_SCRIPT_TYPE_START_FILAMENT_GCODE);
+    CHECK(gcode_script_register_type(handle, "end_filament_gcode") == GCODE_SCRIPT_TYPE_END_FILAMENT_GCODE);
+    CHECK(gcode_script_register_type(handle, "before_layer_gcode") == GCODE_SCRIPT_TYPE_BEFORE_LAYER_GCODE);
+    CHECK(gcode_script_register_type(handle, "layer_gcode") == GCODE_SCRIPT_TYPE_LAYER_GCODE);
+    CHECK(gcode_script_register_type(handle, "toolchange_gcode") == GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE);
+    CHECK(gcode_script_register_type(handle, "between_objects_gcode") == GCODE_SCRIPT_TYPE_BETWEEN_OBJECTS_GCODE);
+    CHECK(std::string(gcode_script_type_name(handle, GCODE_SCRIPT_TYPE_START_GCODE)) == "start_gcode");
+
+    const gcode_script_type first = gcode_script_register_type(handle, "test.script_type.first");
+    const gcode_script_type repeated = gcode_script_register_type(handle, "test.script_type.first");
+    const gcode_script_type second = gcode_script_register_type(handle, "test.script_type.second");
+    REQUIRE(first >= GCODE_SCRIPT_TYPE_CUSTOM_BEGIN);
+    CHECK(repeated == first);
+    CHECK(second != first);
+    CHECK(std::string(gcode_script_type_name(handle, first)) == "test.script_type.first");
+
+    CHECK(gcode_script_register_type(handle, "") == GCODE_SCRIPT_TYPE_INVALID);
+    CHECK(gcode_script_type_name(handle, GCODE_SCRIPT_TYPE_INVALID) == nullptr);
+    CHECK(gcode_script_type_name(handle, GCODE_SCRIPT_TYPE_CUSTOM_BEGIN - 1) == nullptr);
+}
+
+TEST_CASE("Configured G-code scripts become typed global plan events",
+          "[plugins][gcode][script-type][extrusion-edit]") {
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    PrintConfig &config = const_cast<PrintConfig &>(print.config());
+    config.start_gcode.value = "M117 configured start";
+    config.end_gcode.value = "M117 configured end";
+    PrintingPlan &plan = print.mutable_printing_plan();
+
+    Steps::StepExtrusionEdition::clean_and_prepare(print);
+    Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
+
+    REQUIRE(plan.events.before().child_count() == 1);
+    REQUIRE(plan.events.after().child_count() == 1);
+    const ExtrusionEntity &start = plan.events.before().child(0);
+    const ExtrusionEntity &end = plan.events.after().child(0);
+    const ExtrusionPropertyCustomGcode *start_property = start.get_property<ExtrusionPropertyCustomGcode>();
+    const ExtrusionPropertyCustomGcode *end_property = end.get_property<ExtrusionPropertyCustomGcode>();
+    REQUIRE(start_property != nullptr);
+    REQUIRE(end_property != nullptr);
+    CHECK(start_property->kind == C_EXTRUSION_CUSTOM_GCODE_SCRIPT);
+    CHECK(start_property->script_type == GCODE_SCRIPT_TYPE_START_GCODE);
+    CHECK(start.custom_gcode_string(*start_property) == "M117 configured start");
+    CHECK(end_property->kind == C_EXTRUSION_CUSTOM_GCODE_SCRIPT);
+    CHECK(end_property->script_type == GCODE_SCRIPT_TYPE_END_GCODE);
+    CHECK(end.custom_gcode_string(*end_property) == "M117 configured end");
+
+    config.start_gcode.value.clear();
+    config.end_gcode.value.clear();
+    Steps::StepExtrusionEdition::clean_and_prepare(print);
+    Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
+    CHECK_FALSE(plan.events.has_before());
+    CHECK_FALSE(plan.events.has_after());
+}
+
+TEST_CASE("Feature G-code follows explicit role transitions without duplicating annotations",
+          "[plugins][gcode][feature-gcode][extrusion-edit][firmware]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    select_printing_plan_writer(print);
+    configure_standard_firmware(print);
+    PrintConfig &config = const_cast<PrintConfig &>(print.config());
+    config.start_gcode.value.clear();
+    config.end_gcode.value.clear();
+    config.before_layer_gcode.value.clear();
+    config.layer_gcode.value.clear();
+    config.toolchange_gcode.value.clear();
+    config.between_objects_gcode.value.clear();
+    config.start_filament_gcode.set(std::vector<std::string>{""});
+    config.end_filament_gcode.set(std::vector<std::string>{""});
+    config.feature_gcode.value =
+        "; FEATURE [previous_extrusion_role]>[next_extrusion_role]";
+
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.emplace_back();
+
+    PrintingGroup &first_group = plan.groups[0];
+    first_group.layers.reserve(2);
+    first_group.layers.emplace_back();
+    first_group.layers.front().print_z = scale_i(0.2);
+    first_group.layers.front().tool_groups.emplace_back();
+    PrintingToolGroup &first_tool = first_group.layers.front().tool_groups.front();
+    first_tool.extruder_id = 0;
+
+    append_path_extrusion(
+        first_tool,
+        make_firmware_path(
+            ArcPolyline(Points{Point(scale_i(0.0), scale_i(0.0)), Point(scale_i(1.0), scale_i(0.0))}),
+            15.f, 400.f));
+    append_path_extrusion(
+        first_tool,
+        make_firmware_path(
+            ArcPolyline(Points{Point(scale_i(1.0), scale_i(0.0)), Point(scale_i(2.0), scale_i(0.0))}),
+            15.f, 400.f));
+    std::unique_ptr<ExtrusionPath> travel = make_firmware_travel(
+        ArcPolyline(Points{Point(scale_i(2.0), scale_i(0.0)), Point(scale_i(5.0), scale_i(0.0))}),
+        80.f, 800.f);
+    travel->add_property(ExtrusionPropertyCustomGcodeText(
+        ExtrusionPropertyCustomGcodeText::Code::GCODE, "M117 existing travel"));
+    append_path_extrusion(first_tool, std::move(travel));
+
+    first_group.layers.emplace_back();
+    PrintingLayerGroup &second_layer = first_group.layers.back();
+    second_layer.print_z = scale_i(0.4);
+    second_layer.tool_groups.reserve(2);
+    second_layer.tool_groups.emplace_back();
+    PrintingToolGroup &same_role_next_layer = second_layer.tool_groups.back();
+    same_role_next_layer.extruder_id = 0;
+    append_path_extrusion(
+        same_role_next_layer,
+        make_firmware_travel(
+            ArcPolyline(Points{Point(scale_i(5.0), scale_i(0.0)), Point(scale_i(5.2), scale_i(0.0))}),
+            80.f, 800.f));
+
+    second_layer.tool_groups.emplace_back();
+    PrintingToolGroup &same_role_next_tool = second_layer.tool_groups.back();
+    same_role_next_tool.extruder_id = 0;
+    append_path_extrusion(
+        same_role_next_tool,
+        make_firmware_travel(
+            ArcPolyline(Points{Point(scale_i(5.2), scale_i(0.0)), Point(scale_i(5.4), scale_i(0.0))}),
+            80.f, 800.f));
+
+    PrintingGroup &second_group = plan.groups[1];
+    second_group.layers.emplace_back();
+    second_group.layers.front().print_z = scale_i(0.2);
+    second_group.layers.front().tool_groups.emplace_back();
+    PrintingToolGroup &second_tool = second_group.layers.front().tool_groups.front();
+    second_tool.extruder_id = 0;
+    append_path_extrusion(
+        second_tool,
+        make_firmware_path(
+            ArcPolyline(Points{Point(scale_i(5.0), scale_i(0.0)), Point(scale_i(6.0), scale_i(0.0))}),
+            15.f, 400.f, -1.f, -1.f, -1.f, ExtrusionRole::InternalInfill));
+
+    Steps::StepExtrusionEdition::clean_and_prepare(print);
+    Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
+
+    const ExtrusionEntity &first_root = *first_tool.extrusions[0].root;
+    const slic3r_api::ExtrusionEntity first_view(
+        reinterpret_cast<const extrusion_entity_handle *>(&first_root));
+    const slic3r_api::EPropertyCustomGcode *first_property =
+        first_view.property<slic3r_api::EPropertyCustomGcode>();
+    REQUIRE(first_property != nullptr);
+    CHECK(first_property->script_type == GCODE_SCRIPT_TYPE_FEATURE_GCODE);
+    CHECK(first_property->target_extruder_id == GCODE_SCRIPT_TARGET_EXTRUDER_INVALID);
+
+    const ExtrusionEntity &same_role_root = *first_tool.extrusions[1].root;
+    const slic3r_api::ExtrusionEntity same_role_view(
+        reinterpret_cast<const extrusion_entity_handle *>(&same_role_root));
+    CHECK(same_role_view.property<slic3r_api::EPropertyCustomGcode>() == nullptr);
+
+    const ExtrusionEntity &travel_root = *first_tool.extrusions[2].root;
+    REQUIRE(travel_root.child_count() == 1);
+    const slic3r_api::ExtrusionEntity travel_view(
+        reinterpret_cast<const extrusion_entity_handle *>(&travel_root));
+    const slic3r_api::EPropertyCustomGcode *travel_property =
+        travel_view.property<slic3r_api::EPropertyCustomGcode>();
+    REQUIRE(travel_property != nullptr);
+    CHECK(travel_property->script_type == GCODE_SCRIPT_TYPE_FEATURE_GCODE);
+    CHECK(travel_property->target_extruder_id == GCODE_SCRIPT_TARGET_EXTRUDER_INVALID);
+    const ExtrusionPropertyCustomGcode *preserved_property =
+        travel_root.child(0).get_property<ExtrusionPropertyCustomGcode>();
+    REQUIRE(preserved_property != nullptr);
+    CHECK(travel_root.child(0).custom_gcode_string(*preserved_property) == "M117 existing travel");
+
+    const slic3r_api::ExtrusionEntity same_role_layer_view(
+        reinterpret_cast<const extrusion_entity_handle *>(same_role_next_layer.extrusions[0].root.get()));
+    const slic3r_api::ExtrusionEntity same_role_tool_view(
+        reinterpret_cast<const extrusion_entity_handle *>(same_role_next_tool.extrusions[0].root.get()));
+    CHECK(same_role_layer_view.property<slic3r_api::EPropertyCustomGcode>() == nullptr);
+    CHECK(same_role_tool_view.property<slic3r_api::EPropertyCustomGcode>() == nullptr);
+
+    const ExtrusionEntity &infill_root = *second_tool.extrusions[0].root;
+    const slic3r_api::ExtrusionEntity infill_view(
+        reinterpret_cast<const extrusion_entity_handle *>(&infill_root));
+    const slic3r_api::EPropertyCustomGcode *infill_property =
+        infill_view.property<slic3r_api::EPropertyCustomGcode>();
+    REQUIRE(infill_property != nullptr);
+    CHECK(infill_property->target_extruder_id == GCODE_SCRIPT_TARGET_EXTRUDER_INVALID);
+
+    // A second execution removes and recreates only this plugin's annotations.
+    // The custom travel event remains one child below exactly one wrapper.
+    Steps::StepExtrusionEdition::clean_and_prepare(print);
+    Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
+    CHECK(first_root.child_count() == 0);
+    REQUIRE(travel_root.child_count() == 1);
+    CHECK(travel_root.child(0).child_count() == 0);
+
+    const std::string output = export_with_firmware(print, "gcode.firmware.marlin2");
+    INFO(output);
+    CHECK(count_occurrences(output, "; FEATURE ") == 3);
+    const size_t first_feature = output.find("; FEATURE Unknown>Perimeter\n");
+    const size_t travel_feature = output.find("; FEATURE Perimeter>Travel\n");
+    const size_t preserved_event = output.find("M117 existing travel\n");
+    const size_t travel_move = output.find("G0 X5", travel_feature);
+    const size_t infill_feature = output.find("; FEATURE Travel>Internal infill\n", travel_move);
+    const size_t infill_move = output.find("G1 X6", infill_feature);
+    REQUIRE(first_feature != std::string::npos);
+    REQUIRE(travel_feature != std::string::npos);
+    REQUIRE(preserved_event != std::string::npos);
+    REQUIRE(travel_move != std::string::npos);
+    REQUIRE(infill_feature != std::string::npos);
+    REQUIRE(infill_move != std::string::npos);
+    CHECK(first_feature < travel_feature);
+    CHECK(travel_feature < preserved_event);
+    CHECK(preserved_event < travel_move);
+    CHECK(travel_move < infill_feature);
+    CHECK(infill_feature < infill_move);
+
+    config.feature_gcode.value.clear();
+    Steps::StepExtrusionEdition::clean_and_prepare(print);
+    Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
+    const slic3r_api::ExtrusionEntity cleaned_first_view(
+        reinterpret_cast<const extrusion_entity_handle *>(&first_root));
+    const slic3r_api::ExtrusionEntity cleaned_travel_view(
+        reinterpret_cast<const extrusion_entity_handle *>(&travel_root));
+    const slic3r_api::ExtrusionEntity cleaned_infill_view(
+        reinterpret_cast<const extrusion_entity_handle *>(&infill_root));
+    CHECK(cleaned_first_view.property<slic3r_api::EPropertyCustomGcode>() == nullptr);
+    CHECK(travel_root.child_count() == 0);
+    const slic3r_api::EPropertyCustomGcode *cleaned_travel_property =
+        cleaned_travel_view.property<slic3r_api::EPropertyCustomGcode>();
+    REQUIRE(cleaned_travel_property != nullptr);
+    CHECK(cleaned_travel_property->script_type == GCODE_SCRIPT_TYPE_INVALID);
+    CHECK(cleaned_infill_view.property<slic3r_api::EPropertyCustomGcode>() == nullptr);
+}
+
+TEST_CASE("Configured layer and tool scripts become scoped plan events",
+          "[plugins][gcode][script-type][extrusion-edit]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    configure_standard_firmware(print, 2);
+    PrintConfig &config = const_cast<PrintConfig &>(print.config());
+    config.before_layer_gcode.value = "; before layer";
+    config.layer_gcode.value = "; after layer move";
+    config.toolchange_gcode.value = "; custom toolchange";
+    config.start_filament_gcode.set(std::vector<std::string>{"; start filament 0", "; start filament 1"});
+    config.end_filament_gcode.set(std::vector<std::string>{"; end filament 0", "; end filament 1"});
+    config.end_gcode.value = "; end print";
+
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    PrintingGroup &group = plan.groups.front();
+    group.layers.emplace_back();
+    group.layers.back().print_z = scale_i(0.2);
+    group.layers.back().tool_groups.emplace_back();
+    group.layers.back().tool_groups.back().extruder_id = 1;
+    group.layers.emplace_back();
+    group.layers.back().print_z = scale_i(0.4);
+    group.layers.back().tool_groups.emplace_back();
+    group.layers.back().tool_groups.back().extruder_id = 1;
+    group.layers.back().tool_groups.emplace_back();
+    group.layers.back().tool_groups.back().extruder_id = 0;
+
+    Steps::StepExtrusionEdition::clean_and_prepare(print);
+    Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
+
+    REQUIRE(group.events.before().child_count() == 1);
+    const ExtrusionPropertyCustomGcode *first_before_layer =
+        group.events.before().child(0).get_property<ExtrusionPropertyCustomGcode>();
+    REQUIRE(first_before_layer != nullptr);
+    CHECK(first_before_layer->script_type == GCODE_SCRIPT_TYPE_BEFORE_LAYER_GCODE);
+    CHECK_FALSE(group.layers[0].events.has_before());
+
+    REQUIRE(group.layers[0].events.after().child_count() == 1);
+    const ExtrusionPropertyCustomGcode *second_before_layer =
+        group.layers[0].events.after().child(0).get_property<ExtrusionPropertyCustomGcode>();
+    REQUIRE(second_before_layer != nullptr);
+    CHECK(second_before_layer->script_type == GCODE_SCRIPT_TYPE_BEFORE_LAYER_GCODE);
+    REQUIRE(group.layers[1].events.before().child_count() == 1);
+    const ExtrusionPropertyCustomGcode *second_layer_script =
+        group.layers[1].events.before().child(0).get_property<ExtrusionPropertyCustomGcode>();
+    REQUIRE(second_layer_script != nullptr);
+    CHECK(second_layer_script->script_type == GCODE_SCRIPT_TYPE_LAYER_GCODE);
+    const slic3r_api::ExtrusionEntity second_layer_event(
+        reinterpret_cast<const extrusion_entity_handle *>(&group.layers[1].events.before().child(0)));
+    const slic3r_api::EPropertyCustomGcode *second_layer_payload =
+        second_layer_event.property<slic3r_api::EPropertyCustomGcode>();
+    REQUIRE(second_layer_payload != nullptr);
+    CHECK(second_layer_payload->target_extruder_id == GCODE_SCRIPT_TARGET_EXTRUDER_INVALID);
+
+    PrintingToolGroup &initial_tool = group.layers[0].tool_groups[0];
+    REQUIRE(initial_tool.events.before().child_count() == 1);
+    const ExtrusionPropertyCustomGcode *initial_start =
+        initial_tool.events.before().child(0).get_property<ExtrusionPropertyCustomGcode>();
+    REQUIRE(initial_start != nullptr);
+    CHECK(initial_start->script_type == GCODE_SCRIPT_TYPE_START_FILAMENT_GCODE);
+    CHECK(initial_start->target_extruder_id == 1);
+
+    PrintingToolGroup &unchanged_tool = group.layers[1].tool_groups[0];
+    CHECK_FALSE(unchanged_tool.events.has_before());
+    REQUIRE(unchanged_tool.events.after().child_count() == 1);
+
+    PrintingToolGroup &changed_tool = group.layers[1].tool_groups[1];
+    REQUIRE(changed_tool.events.before().child_count() == 2);
+    const ExtrusionPropertyCustomGcode *end_filament =
+        unchanged_tool.events.after().child(0).get_property<ExtrusionPropertyCustomGcode>();
+    const ExtrusionPropertyCustomGcode *toolchange =
+        changed_tool.events.before().child(0).get_property<ExtrusionPropertyCustomGcode>();
+    const ExtrusionPropertyCustomGcode *start_filament =
+        changed_tool.events.before().child(1).get_property<ExtrusionPropertyCustomGcode>();
+    REQUIRE(end_filament != nullptr);
+    REQUIRE(toolchange != nullptr);
+    REQUIRE(start_filament != nullptr);
+    CHECK(end_filament->script_type == GCODE_SCRIPT_TYPE_END_FILAMENT_GCODE);
+    CHECK(end_filament->target_extruder_id == 1);
+    CHECK(toolchange->script_type == GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE);
+    CHECK(toolchange->target_extruder_id == GCODE_SCRIPT_TARGET_EXTRUDER_INVALID);
+    CHECK(start_filament->script_type == GCODE_SCRIPT_TYPE_START_FILAMENT_GCODE);
+    CHECK(start_filament->target_extruder_id == 0);
+
+    REQUIRE(plan.events.after().child_count() == 3);
+    const ExtrusionPropertyCustomGcode *final_tool_zero =
+        plan.events.after().child(0).get_property<ExtrusionPropertyCustomGcode>();
+    const ExtrusionPropertyCustomGcode *final_tool_one =
+        plan.events.after().child(1).get_property<ExtrusionPropertyCustomGcode>();
+    const ExtrusionPropertyCustomGcode *end_print =
+        plan.events.after().child(2).get_property<ExtrusionPropertyCustomGcode>();
+    REQUIRE(final_tool_zero != nullptr);
+    REQUIRE(final_tool_one != nullptr);
+    REQUIRE(end_print != nullptr);
+    CHECK(final_tool_zero->script_type == GCODE_SCRIPT_TYPE_END_FILAMENT_GCODE);
+    CHECK(final_tool_zero->target_extruder_id == 0);
+    CHECK(final_tool_one->script_type == GCODE_SCRIPT_TYPE_END_FILAMENT_GCODE);
+    CHECK(final_tool_one->target_extruder_id == 1);
+    CHECK(end_print->script_type == GCODE_SCRIPT_TYPE_END_GCODE);
+    CHECK(end_print->target_extruder_id == GCODE_SCRIPT_TARGET_EXTRUDER_INVALID);
+
+    config.before_layer_gcode.value.clear();
+    config.layer_gcode.value.clear();
+    config.toolchange_gcode.value.clear();
+    config.start_filament_gcode.set(std::vector<std::string>{"", ""});
+    config.end_filament_gcode.set(std::vector<std::string>{"", ""});
+    config.end_gcode.value.clear();
+    Steps::StepExtrusionEdition::clean_and_prepare(print);
+    Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
+    CHECK_FALSE(group.events.has_before());
+    CHECK_FALSE(group.layers[0].events.has_after());
+    CHECK_FALSE(group.layers[1].events.has_before());
+    CHECK_FALSE(unchanged_tool.events.has_after());
+    CHECK_FALSE(changed_tool.events.has_before());
+    CHECK_FALSE(plan.events.has_after());
+}
+
+TEST_CASE("Between-object scripts select the requested side of the group move",
+          "[plugins][gcode][script-type][extrusion-edit][sequential]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    DynamicPrintConfig source_config = DynamicPrintConfig::full_print_config();
+    Print print;
+    Model model;
+    Test::init_print({make_cube(5., 5., 0.2), make_cube(4., 4., 0.2)}, print, model, source_config);
+    REQUIRE(print.objects().size() == 2);
+    print.objects()[0].model_object()->name = "First object";
+    print.objects()[1].model_object()->name = "Second/object";
+
+    PrintConfig &config = const_cast<PrintConfig &>(print.config());
+    config.start_gcode.value.clear();
+    config.end_gcode.value.clear();
+    config.before_layer_gcode.value.clear();
+    config.layer_gcode.value.clear();
+    config.toolchange_gcode.value.clear();
+    config.start_filament_gcode.set(std::vector<std::string>{""});
+    config.end_filament_gcode.set(std::vector<std::string>{""});
+    config.between_objects_gcode.value =
+        "; between [previous_object_id]:[previous_object_name] [next_object_id]:[next_object_name]";
+
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.back().object_instances.push_back(PrintingObjectInstance{&print.objects()[0], 0});
+    // Auxiliary groups do not participate in object-to-object script
+    // selection, even when they sit between two real object groups.
+    plan.groups.emplace_back();
+    plan.groups.emplace_back();
+    plan.groups.back().object_instances.push_back(PrintingObjectInstance{&print.objects()[1], 0});
+
+    config.between_objects_gcode_before_move.value = false;
+    Steps::StepExtrusionEdition::clean_and_prepare(print);
+    Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
+    CHECK_FALSE(plan.groups[0].events.has_after());
+    CHECK_FALSE(plan.groups[1].events.has_before());
+    CHECK_FALSE(plan.groups[1].events.has_after());
+    REQUIRE(plan.groups[2].events.before().child_count() == 1);
+
+    const ExtrusionEntity &event = plan.groups[2].events.before().child(0);
+    const slic3r_api::ExtrusionEntity event_view(
+        reinterpret_cast<const extrusion_entity_handle *>(&event));
+    const slic3r_api::EPropertyCustomGcode *property =
+        event_view.property<slic3r_api::EPropertyCustomGcode>();
+    REQUIRE(property != nullptr);
+    REQUIRE(property->script_type == GCODE_SCRIPT_TYPE_BETWEEN_OBJECTS_GCODE);
+    GCodeScriptProcessor host_processor(print, Orchestrator::instance());
+    const slic3r_api::GCodeGeneration::GCodeScriptProcessorView scripts(host_processor.c_processor());
+    ScriptStateFirmwareProbe firmware(scripts);
+    const slic3r_api::Print print_view(reinterpret_cast<const print_handle *>(&print));
+    const slic3r_api::PrintingPlan plan_view = printing_plan_view(print);
+    CHECK(firmware.begin_print(print_view, plan_view).empty());
+    CHECK(firmware.begin_group(plan_view.group(0)).empty());
+    CHECK(firmware.begin_group(plan_view.group(1)).empty());
+    CHECK(firmware.begin_group(plan_view.group(2)).empty());
+    CHECK(firmware.write_event(plan_view.group(2).events().before()) ==
+          "; between 0:First_object 1:Second_object\n");
+
+    config.between_objects_gcode_before_move.value = true;
+    Steps::StepExtrusionEdition::clean_and_prepare(print);
+    Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
+    REQUIRE(plan.groups[0].events.after().child_count() == 1);
+    CHECK_FALSE(plan.groups[1].events.has_before());
+    CHECK_FALSE(plan.groups[1].events.has_after());
+    CHECK_FALSE(plan.groups[2].events.has_before());
+
+    ScriptStateFirmwareProbe before_move_firmware(scripts);
+    const slic3r_api::PrintingPlan refreshed_plan_view = printing_plan_view(print);
+    CHECK(before_move_firmware.begin_print(print_view, refreshed_plan_view).empty());
+    CHECK(before_move_firmware.begin_group(refreshed_plan_view.group(0)).empty());
+    CHECK(before_move_firmware.write_event(refreshed_plan_view.group(0).events().after()) ==
+          "; between 0:First_object 1:Second_object\n");
+}
+
+TEST_CASE("Single-extruder multimaterial finalizes only the active logical tool",
+          "[plugins][gcode][script-type][extrusion-edit]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    configure_standard_firmware(print, 2);
+    PrintConfig &config = const_cast<PrintConfig &>(print.config());
+    config.start_gcode.value.clear();
+    config.end_gcode.value.clear();
+    config.toolchange_gcode.value.clear();
+    config.start_filament_gcode.set(std::vector<std::string>{"", ""});
+    config.end_filament_gcode.set(std::vector<std::string>{"; finalize 0", "; finalize 1"});
+    config.single_extruder_multi_material.value = true;
+
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.front().layers.emplace_back();
+    plan.groups.front().layers.front().print_z = scale_i(0.2);
+    plan.groups.front().layers.front().tool_groups.emplace_back();
+    plan.groups.front().layers.front().tool_groups.back().extruder_id = 0;
+    plan.groups.front().layers.front().tool_groups.emplace_back();
+    plan.groups.front().layers.front().tool_groups.back().extruder_id = 1;
+
+    Steps::StepExtrusionEdition::clean_and_prepare(print);
+    Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
+
+    REQUIRE(plan.events.after().child_count() == 1);
+    const ExtrusionEntity &event = plan.events.after().child(0);
+    const ExtrusionPropertyCustomGcode *host_property =
+        event.get_property<ExtrusionPropertyCustomGcode>();
+    REQUIRE(host_property != nullptr);
+    CHECK(event.custom_gcode_string(*host_property) == "; finalize 1");
+    const slic3r_api::ExtrusionEntity event_view(
+        reinterpret_cast<const extrusion_entity_handle *>(&event));
+    const slic3r_api::EPropertyCustomGcode *property =
+        event_view.property<slic3r_api::EPropertyCustomGcode>();
+    REQUIRE(property != nullptr);
+    CHECK(property->target_extruder_id == 1);
+}
+
+TEST_CASE("G-code script type survives entity copies moves and diagnostics",
+          "[plugins][gcode][script-type][diagnostic]") {
+    const gcode_script_type script_type = GCODE_SCRIPT_TYPE_CUSTOM_BEGIN + 42;
+    ExtrusionNop source(
+        ExtrusionPropertyCustomGcodeText(ExtrusionPropertyCustomGcodeText::Code::SCRIPT, "M117 typed", script_type));
+
+    std::unique_ptr<ExtrusionEntity> copied(source.clone());
+    const ExtrusionPropertyCustomGcode *copied_property = copied->get_property<ExtrusionPropertyCustomGcode>();
+    REQUIRE(copied_property != nullptr);
+    CHECK(copied_property->script_type == script_type);
+
+    ExtrusionNop moved(std::move(source));
+    const ExtrusionPropertyCustomGcode *moved_property = moved.get_property<ExtrusionPropertyCustomGcode>();
+    REQUIRE(moved_property != nullptr);
+    CHECK(moved_property->script_type == script_type);
+
+    ExtrusionPrinter printer(/*mult=*/1.0, /*trunc=*/0, /*json=*/true);
+    printer.traverse(moved);
+    CHECK(printer.str().find("\"script_type\":2147483690") != std::string::npos);
+}
+
+TEST_CASE("G-code script target survives stored entity copies moves and diagnostics",
+          "[plugins][gcode][script-type][diagnostic]")
+{
+    PluginStorage plugin_storage;
+    storage_handle *storage = reinterpret_cast<storage_handle *>(&plugin_storage);
+
+    slic3r_api::StoredExtrusionEntity source(storage);
+    const slic3r_api::EPropertyCustomGcode &source_property =
+        source.script_gcode("M117 stored", GCODE_SCRIPT_TYPE_END_FILAMENT_GCODE, uint16_t(2));
+    CHECK(source_property.target_extruder_id == 2);
+
+    slic3r_api::StoredExtrusionEntity copied(storage, source.readonly());
+    const slic3r_api::EPropertyCustomGcode *copied_property =
+        copied.property<slic3r_api::EPropertyCustomGcode>();
+    REQUIRE(copied_property != nullptr);
+    CHECK(copied_property->target_extruder_id == 2);
+    copied.custom_gcode("M117 raw", C_EXTRUSION_CUSTOM_GCODE_GCODE);
+    copied_property = copied.property<slic3r_api::EPropertyCustomGcode>();
+    REQUIRE(copied_property != nullptr);
+    CHECK(copied_property->target_extruder_id == GCODE_SCRIPT_TARGET_EXTRUDER_INVALID);
+
+    slic3r_api::StoredExtrusionEntity moved(std::move(source));
+    const slic3r_api::EPropertyCustomGcode *moved_property =
+        moved.property<slic3r_api::EPropertyCustomGcode>();
+    REQUIRE(moved_property != nullptr);
+    CHECK(moved_property->target_extruder_id == 2);
+
+    const ExtrusionEntity &host_entity =
+        *reinterpret_cast<const ExtrusionEntity *>(moved.handle());
+    ExtrusionPrinter printer(/*mult=*/1.0, /*trunc=*/0, /*json=*/true);
+    printer.traverse(host_entity);
+    CHECK(printer.str().find("\"target_extruder_id\":2") != std::string::npos);
+}
+
+TEST_CASE("Configured scripts use ordered plan tools and final layer state",
+          "[plugins][gcode][script-type][firmware][integration]") {
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    select_printing_plan_writer(print);
+    configure_standard_firmware(print, 2);
+    PrintConfig &config = const_cast<PrintConfig &>(print.config());
+    config.filament_diameter.set(std::vector<double>{1.75, 2.85});
+    DynamicPrintConfig &full_config = const_cast<DynamicPrintConfig &>(print.full_print_config());
+    full_config.set_key_value("filament_diameter", new ConfigOptionFloats(std::vector<double>{1.75, 2.85}));
+    config.print_first_layer_bed_temperature.value = 71;
+    config.print_first_layer_bed_temperature.set_enabled(true);
+    config.start_gcode.value = "; SCRIPT_START T[current_extruder] D{filament_diameter[current_extruder]} "
+                               "B[start_gcode_bed_temperature]";
+    config.before_layer_gcode.value = "; BEFORE_LAYER L[layer_num] Z[layer_z] P[previous_layer_z]";
+    config.layer_gcode.value = "; LAYER L[layer_num] Z[layer_z]";
+    config.toolchange_gcode.value = "; CUSTOM_TOOL P[previous_extruder] N[next_extruder]";
+    config.start_filament_gcode.set(std::vector<std::string>{
+        "; START_FILAMENT F[filament_extruder_id] P[previous_extruder] N[next_extruder]",
+        "; START_FILAMENT F[filament_extruder_id] P[previous_extruder] N[next_extruder]"
+    });
+    config.end_filament_gcode.set(std::vector<std::string>{
+        "; END_FILAMENT F[filament_extruder_id] P[previous_extruder] N[next_extruder]",
+        "; END_FILAMENT F[filament_extruder_id] P[previous_extruder] N[next_extruder]"
+    });
+    config.end_gcode.value = "; SCRIPT_END L[layer_num] Z[layer_z] M[max_layer_z] F[filament_extruder_id] "
+                             "P[previous_extruder] N[next_extruder]";
+
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    PrintingGroup &group = plan.groups.front();
+    group.layers.emplace_back();
+    group.layers.back().print_z = scale_i(0.2);
+    group.layers.back().tool_groups.emplace_back();
+    group.layers.back().tool_groups.back().extruder_id = 1;
+    group.layers.emplace_back();
+    group.layers.back().print_z = scale_i(0.6);
+    group.layers.back().tool_groups.emplace_back();
+    group.layers.back().tool_groups.back().extruder_id = 0;
+
+    Steps::StepExtrusionEdition::clean_and_prepare(print);
+    Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
+
+    // Change geometry-derived plan values after scripts have been inserted.
+    // Runtime placeholders must observe this final serialization state rather
+    // than the values which existed during STEP_EXTRUSION_EDIT.
+    group.layers[0].print_z = scale_i(0.25);
+    group.layers[1].print_z = scale_i(0.75);
+
+    const boost::filesystem::path output_path = temporary_gcode_path();
+    remove_output_pair(output_path);
+    Orchestrator &orchestrator = Orchestrator::instance();
+    orchestrator.reset_plugin_cancel();
+    try {
+        Steps::StepGenerateGcode::run_step(orchestrator, print, output_path.string());
+        const std::string output = read_text_file(output_path);
+        INFO(output);
+
+        const std::string start = "; SCRIPT_START T1 D2.85 B71\n";
+        const std::string first_before_layer = "; BEFORE_LAYER L0 Z0.25 P0\n";
+        const std::string first_start_filament = "; START_FILAMENT F1 P-1 N1\n";
+        const std::string second_before_layer = "; BEFORE_LAYER L1 Z0.75 P0.25\n";
+        const std::string second_layer = "; LAYER L1 Z0.75\n";
+        const std::string transition_end_filament = "; END_FILAMENT F1 P1 N0\n";
+        const std::string custom_toolchange = "; CUSTOM_TOOL P1 N0\n";
+        const std::string second_start_filament = "; START_FILAMENT F0 P1 N0\n";
+        const std::string final_end_filament_zero = "; END_FILAMENT F0 P0 N-1\n";
+        const std::string final_end_filament_one = "; END_FILAMENT F1 P0 N-1\n";
+        const std::string end = "; SCRIPT_END L1 Z0.75 M0.75 F0 P0 N-1\n";
+        const size_t start_position = output.find(start);
+        const size_t first_before_layer_position = output.find(first_before_layer);
+        const size_t first_tool_position = output.find("T1\n");
+        const size_t first_start_filament_position = output.find(first_start_filament);
+        const size_t second_before_layer_position = output.find(second_before_layer);
+        const size_t second_layer_position = output.find(second_layer);
+        const size_t transition_end_position = output.find(transition_end_filament);
+        const size_t custom_toolchange_position = output.find(custom_toolchange);
+        const size_t second_start_filament_position = output.find(second_start_filament);
+        const size_t final_zero_position = output.find(final_end_filament_zero);
+        const size_t final_one_position = output.find(final_end_filament_one);
+        const size_t end_position = output.find(end);
+        REQUIRE(start_position != std::string::npos);
+        REQUIRE(first_before_layer_position != std::string::npos);
+        REQUIRE(first_tool_position != std::string::npos);
+        REQUIRE(first_start_filament_position != std::string::npos);
+        REQUIRE(second_before_layer_position != std::string::npos);
+        REQUIRE(second_layer_position != std::string::npos);
+        REQUIRE(transition_end_position != std::string::npos);
+        REQUIRE(custom_toolchange_position != std::string::npos);
+        REQUIRE(second_start_filament_position != std::string::npos);
+        REQUIRE(final_zero_position != std::string::npos);
+        REQUIRE(final_one_position != std::string::npos);
+        REQUIRE(end_position != std::string::npos);
+        CHECK(start_position < first_before_layer_position);
+        CHECK(first_before_layer_position < first_tool_position);
+        CHECK(first_tool_position < first_start_filament_position);
+        CHECK(first_start_filament_position < transition_end_position);
+        CHECK(transition_end_position < second_before_layer_position);
+        CHECK(second_before_layer_position < second_layer_position);
+        CHECK(second_layer_position < custom_toolchange_position);
+        CHECK(custom_toolchange_position < second_start_filament_position);
+        CHECK(second_start_filament_position < final_zero_position);
+        CHECK(final_zero_position < final_one_position);
+        CHECK(final_one_position < end_position);
+        CHECK(count_command_lines(output, "T1") == 1);
+        CHECK(count_command_lines(output, "T0") == 0);
+        CHECK(output.back() == '\n');
+    } catch (...) {
+        orchestrator.reset_plugin_cancel();
+        remove_output_pair(output_path);
+        throw;
+    }
+    orchestrator.reset_plugin_cancel();
+    remove_output_pair(output_path);
+}
+
+TEST_CASE("Layer scripts report consumed filament",
+          "[plugins][gcode][script-type][firmware][integration]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    select_printing_plan_writer(print);
+    configure_standard_firmware(print);
+    PrintConfig &config = const_cast<PrintConfig &>(print.config());
+    config.start_gcode.value.clear();
+    config.end_gcode.value.clear();
+    config.start_filament_gcode.set(std::vector<std::string>{""});
+    config.end_filament_gcode.set(std::vector<std::string>{""});
+    config.before_layer_gcode.value = "; USED L[layer_num] F{layer_used_filament[0]}";
+
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    PrintingGroup &group = plan.groups.front();
+    group.layers.emplace_back();
+    group.layers.back().print_z = scale_i(0.2);
+    group.layers.back().tool_groups.emplace_back();
+    PrintingToolGroup &first_tool = group.layers.back().tool_groups.back();
+    first_tool.extruder_id = 0;
+    append_path_extrusion(
+        first_tool,
+        make_firmware_path(
+            ArcPolyline(Points{Point(scale_i(0.0), scale_i(0.0)), Point(scale_i(1.0), scale_i(0.0))}),
+            15.f, 400.f));
+    append_path_extrusion(
+        first_tool,
+        make_firmware_travel(
+            ArcPolyline(Points{Point(scale_i(1.0), scale_i(0.0)), Point(scale_i(5.0), scale_i(0.0))}),
+            80.f, 800.f));
+    append_path_extrusion(
+        first_tool,
+        make_firmware_path(
+            ArcPolyline(Points{Point(scale_i(5.0), scale_i(0.0)), Point(scale_i(6.0), scale_i(0.0))}),
+            15.f, 400.f));
+    append_path_extrusion(
+        first_tool,
+        make_firmware_path(
+            ArcPolyline(Points{Point(scale_i(10.0), scale_i(0.0)), Point(scale_i(11.0), scale_i(0.0))}),
+            15.f, 400.f, -1.f, -1.f, -1.f, ExtrusionRole::InternalInfill));
+    group.layers.emplace_back();
+    group.layers.back().print_z = scale_i(0.4);
+    group.layers.back().tool_groups.emplace_back();
+    group.layers.back().tool_groups.back().extruder_id = 0;
+
+    Steps::StepExtrusionEdition::clean_and_prepare(print);
+    Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
+
+    const boost::filesystem::path output_path = temporary_gcode_path();
+    remove_output_pair(output_path);
+    Orchestrator &orchestrator = Orchestrator::instance();
+    orchestrator.reset_plugin_cancel();
+    try {
+        Steps::StepGenerateGcode::run_step(orchestrator, print, output_path.string());
+        const std::string output = read_text_file(output_path);
+        INFO(output);
+
+        CHECK(output.find("; USED L0 F0\n") != std::string::npos);
+        const std::string second_layer_prefix = "; USED L1 F";
+        const size_t second_layer_position = output.find(second_layer_prefix);
+        REQUIRE(second_layer_position != std::string::npos);
+        const size_t second_layer_value_begin = second_layer_position + second_layer_prefix.size();
+        const size_t second_layer_value_end = output.find('\n', second_layer_value_begin);
+        REQUIRE(second_layer_value_end != std::string::npos);
+        CHECK(std::stod(output.substr(
+                  second_layer_value_begin,
+                  second_layer_value_end - second_layer_value_begin)) > 0.0);
+    } catch (...) {
+        orchestrator.reset_plugin_cancel();
+        remove_output_pair(output_path);
+        throw;
+    }
+    orchestrator.reset_plugin_cancel();
+    remove_output_pair(output_path);
+}
+
+TEST_CASE("First layer bed temperature follows used tools unless overridden",
+          "[plugins][gcode][script-type][temperature]") {
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    DynamicPrintConfig config = DynamicPrintConfig::full_print_config();
+    config.set_num_extruders(2);
+    config.option<ConfigOptionInts>("first_layer_bed_temperature")->set(std::vector<int32_t>{55, 73});
+    config.option<ConfigOptionInt>("print_first_layer_bed_temperature")->set_enabled(false);
+    config.set_deserialize_strict({{"perimeter_extruder", 2}, {"infill_extruder", 2}, {"solid_infill_extruder", 2}});
+
+    Print print;
+    Model model;
+    Test::init_print({make_cube(5., 5., 0.2)}, print, model, config);
+    print.process();
+    CHECK(print.first_layer_bed_temperature() == 73);
+
+    PrintConfig &print_config = const_cast<PrintConfig &>(print.config());
+    print_config.print_first_layer_bed_temperature.value = 64;
+    print_config.print_first_layer_bed_temperature.set_enabled(true);
+    CHECK(print.first_layer_bed_temperature() == 64);
+}
+
+TEST_CASE("End script uses stable defaults when a plan has no layers",
+          "[plugins][gcode][script-type][firmware][integration]") {
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    select_printing_plan_writer(print);
+    configure_standard_firmware(print);
+    PrintConfig &config = const_cast<PrintConfig &>(print.config());
+    config.start_gcode.value.clear();
+    config.end_gcode.value = "; EMPTY_END L[layer_num] Z[layer_z] M[max_layer_z] F[filament_extruder_id] "
+                             "P[previous_extruder] N[next_extruder]";
+    print.mutable_printing_plan();
+
+    Steps::StepExtrusionEdition::clean_and_prepare(print);
+    Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
+
+    const boost::filesystem::path output_path = temporary_gcode_path();
+    remove_output_pair(output_path);
+    Orchestrator &orchestrator = Orchestrator::instance();
+    orchestrator.reset_plugin_cancel();
+    try {
+        Steps::StepGenerateGcode::run_step(orchestrator, print, output_path.string());
+        const std::string output = read_text_file(output_path);
+        INFO(output);
+        CHECK(output == "; EMPTY_END L-1 Z0 M0 F0 P-1 N-1\n");
+    } catch (...) {
+        orchestrator.reset_plugin_cancel();
+        remove_output_pair(output_path);
+        throw;
+    }
+    orchestrator.reset_plugin_cancel();
     remove_output_pair(output_path);
 }
 
@@ -2441,6 +3455,9 @@ TEST_CASE("Orchestrator export_gcode still routes through ordering and STEP_GCOD
 
     Print print;
     select_printing_plan_writer(print);
+    PrintConfig &config = const_cast<PrintConfig &>(print.config());
+    config.start_gcode.value.clear();
+    config.end_gcode.value.clear();
     for (slicing_step_t step : Steps::execution_order())
         print.mark_step_executed(step);
 

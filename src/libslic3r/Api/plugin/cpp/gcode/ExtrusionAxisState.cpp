@@ -224,7 +224,7 @@ bool ExtrusionAxisState::synchronize_after_external_gcode(
     if (!changed)
         return false;
 
-    // External state becomes authoritative only when one of its outputs changed.
+    // The script becomes authoritative only when one of its outputs changed.
     // Preserve usage statistics, but discard the old quantization remainder.
     if (e_position)
         set_position(*e_position);

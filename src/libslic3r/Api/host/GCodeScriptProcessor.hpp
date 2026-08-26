@@ -21,11 +21,12 @@ only the compact raw_gcode_script_processor table returned by c_processor().
 namespace Slic3r {
 
 class Print;
+class Orchestrator;
 
 class GCodeScriptProcessor
 {
 public:
-    explicit GCodeScriptProcessor(const Print &print);
+    GCodeScriptProcessor(const Print &print, const Orchestrator &orchestrator);
     ~GCodeScriptProcessor();
 
     GCodeScriptProcessor(const GCodeScriptProcessor &) = delete;

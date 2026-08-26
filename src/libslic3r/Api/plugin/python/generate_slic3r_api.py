@@ -24,6 +24,7 @@ HEADER_ORDER = [
     "slic3r_slicing_step.h",
     "slic3r_plugin_run_context.h",
     "slic3r_extrusions.h",
+    "slic3r_gcode_script.h",
     "slic3r_extrusion_property.h",
     "slic3r_extrusion_polyline.h",
     "slic3r_extrusion_entity.h",
@@ -40,7 +41,6 @@ HEADER_ORDER = [
 # an accidental raw function-pointer API before a dedicated binding exists.
 PYTHON_EXCLUDED_HEADERS = {
     "slic3r_gcode_firmware.h",
-    "slic3r_gcode_script.h",
     "slic3r_step_gcode_firmware.h",
 }
 
@@ -62,9 +62,11 @@ TYPE_ALIASES = {
     "plugin_property_type": "uint32_t",
     "extrusion_property_type": "uint32_t",
     "extrusion_data_id": "uint32_t",
+    "gcode_script_type": "uint32_t",
     "infill_pattern_runtime_id": "uint32_t",
     "expolygon_status": "int32_t",
     "raw_extrusion_split_status": "int32_t",
+    "raw_gcode_script_status": "int",
     "c_extrusion_custom_gcode_kind": "int",
     "c_extrusion_special_command": "int",
     "clipper_end_type_t": "int",
@@ -244,7 +246,7 @@ def clean_type(c_type: str) -> str:
 
 def strip_casts(expr: str) -> str:
     return re.sub(
-        r"\(\s*(?:uint\d+_t|int\d+_t|coord_t|distf_t|coordf_t|slic3r_property_type|plugin_property_type|extrusion_property_type|extrusion_data_id)\s*\)",
+        r"\(\s*(?:uint\d+_t|int\d+_t|coord_t|distf_t|coordf_t|slic3r_property_type|plugin_property_type|extrusion_property_type|extrusion_data_id|gcode_script_type)\s*\)",
         "",
         expr,
     )
@@ -252,6 +254,7 @@ def strip_casts(expr: str) -> str:
 
 def sanitize_expr(expr: str) -> str:
     expr = strip_casts(expr)
+    expr = expr.replace("UINT16_MAX", "0xFFFF")
     expr = expr.replace("UINT32_MAX", "0xFFFFFFFF")
     expr = expr.replace("UINT64_MAX", "0xFFFFFFFFFFFFFFFF")
     expr = re.sub(r"(?<=\d)[uUlLfF]+", "", expr)

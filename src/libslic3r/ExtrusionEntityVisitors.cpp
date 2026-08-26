@@ -172,8 +172,15 @@ bool ExtrusionPrinter::print_properties(const ExtrusionEntity &entity, const cha
         default: break;
         }
         this->print_string_value(kind_name);
+        this->begin_property_field(first_field, "script_type");
+        ss << property->script_type;
         this->begin_property_field(first_field, "text_id");
         ss << property->text_id;
+        this->begin_property_field(first_field, "target_extruder_id");
+        if (property->target_extruder_id == GCODE_SCRIPT_TARGET_EXTRUDER_INVALID)
+            ss << "none";
+        else
+            ss << property->target_extruder_id;
         const std::string text = entity.custom_gcode_string(*property);
         if (!text.empty()) {
             this->begin_property_field(first_field, "text");

@@ -184,6 +184,12 @@ public:
 
     using PropertyInfo = CustomExtrusionPropertyInfo;
 
+    struct GCodeScriptTypeInfo
+    {
+        gcode_script_type type;
+        std::string name;
+    };
+
     struct PluginUiFragment
     {
         // One plugin contribution to a .ui file.
@@ -357,6 +363,9 @@ public:
                                                                uint32_t alignment);
     const CustomExtrusionPropertyInfo *custom_extrusion_property_info(extrusion_property_type type) const;
     const CustomExtrusionPropertyInfo *custom_extrusion_property_info(const char *namespaced_name) const;
+    gcode_script_type register_gcode_script_type(const char *namespaced_name);
+    const GCodeScriptTypeInfo *gcode_script_type_info(gcode_script_type type) const;
+    const GCodeScriptTypeInfo *gcode_script_type_info(const char *namespaced_name) const;
     bool register_generic_facets_annotation(GenericFacetsAnnotationDefinition def);
     const std::vector<GenericFacetsAnnotationDefinition> &generic_facets_annotations() const { return m_generic_facets_annotations; }
 
@@ -386,6 +395,8 @@ private:
     std::map<std::string, PluginPackageLoadReport> m_plugin_package_load_reports;
     std::vector<PropertyInfo> m_custom_property_infos;
     slic3r_property_type m_next_custom_property_type { SLIC3R_PROPERTY_TYPE_CUSTOM_BEGIN };
+    std::vector<GCodeScriptTypeInfo> m_custom_gcode_script_type_infos;
+    gcode_script_type m_next_custom_gcode_script_type{GCODE_SCRIPT_TYPE_CUSTOM_BEGIN};
     std::vector<GenericFacetsAnnotationDefinition> m_generic_facets_annotations;
     std::atomic_bool m_plugin_cancel_requested { false };
     std::mutex m_plugin_messages_mutex;

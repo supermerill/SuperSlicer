@@ -44,14 +44,18 @@ ExtrusionPropertyModifier::ExtrusionPropertyModifier()
 }
 
 ExtrusionPropertyCustomGcode::ExtrusionPropertyCustomGcode()
-    : c_extrusion_property_custom_gcode{ C_EXTRUSION_CUSTOM_GCODE_GCODE, EXTRUSION_DATA_ID_INVALID }
-{
-}
+    : c_extrusion_property_custom_gcode{C_EXTRUSION_CUSTOM_GCODE_GCODE, GCODE_SCRIPT_TYPE_INVALID,
+                                        EXTRUSION_DATA_ID_INVALID, GCODE_SCRIPT_TARGET_EXTRUDER_INVALID} {}
 
-ExtrusionPropertyCustomGcode::ExtrusionPropertyCustomGcode(Code c, extrusion_data_id text_id)
-    : c_extrusion_property_custom_gcode{ c_extrusion_custom_gcode_kind(c), text_id }
-{
-}
+ExtrusionPropertyCustomGcode::ExtrusionPropertyCustomGcode(Code c,
+                                                           extrusion_data_id text_id,
+                                                           gcode_script_type script_type)
+    : c_extrusion_property_custom_gcode{c_extrusion_custom_gcode_kind(c),
+                                        c == Code::SCRIPT && script_type == GCODE_SCRIPT_TYPE_INVALID ?
+                                            GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM :
+                                            script_type,
+                                        text_id,
+                                        GCODE_SCRIPT_TARGET_EXTRUDER_INVALID} {}
 
 ExtrusionPropertyCustomGcodeText::ExtrusionPropertyCustomGcodeText(const std::string &str)
     : code(Code::GCODE)
@@ -65,6 +69,14 @@ ExtrusionPropertyCustomGcodeText::ExtrusionPropertyCustomGcodeText(const std::st
             gcode = gcode.substr(1);
     }
 }
+
+ExtrusionPropertyCustomGcodeText::ExtrusionPropertyCustomGcodeText(Code c,
+                                                                   const std::string &str,
+                                                                   gcode_script_type script_type)
+    : code(c)
+    , script_type(c == Code::SCRIPT && script_type == GCODE_SCRIPT_TYPE_INVALID ? GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM :
+                                                                                  script_type)
+    , gcode(str) {}
 
 ExtrusionPropertyOverhang::ExtrusionPropertyOverhang()
     : c_extrusion_property_overhang{ -1.f, -1.f, 0.f, 0, 0, 0, 0 }
@@ -147,6 +159,8 @@ ExtrusionPropertyContainer::add_property(const ExtrusionPropertyCustomGcodeText 
 {
     ExtrusionPropertyCustomGcode &out = this->get_or_add_property<ExtrusionPropertyCustomGcode>();
     out.kind = c_extrusion_custom_gcode_kind(property.code);
+    out.script_type = property.script_type;
+    out.target_extruder_id = GCODE_SCRIPT_TARGET_EXTRUDER_INVALID;
     this->store_property_data_aligned(
         ExtrusionPropertyCustomGcode::property_type, &out.text_id,
         property.gcode.c_str(), property.gcode.size() + 1, alignof(char));

@@ -300,6 +300,7 @@ private:
 class PrintingPlan
 {
 public:
+    PrintingPlan() = default;
     explicit PrintingPlan(printing_plan_handle *handle) : m_handle(handle) {}
     explicit PrintingPlan(const printing_plan_handle *handle) :
         m_handle(const_cast<printing_plan_handle *>(handle)) {}

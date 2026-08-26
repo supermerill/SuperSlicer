@@ -71,6 +71,7 @@ from slic3r_api_generated import (
     C_EXTRUSION_CUSTOM_GCODE_GCODE,
     EXTRUSION_DATA_ID_INVALID,
     EXTRUSION_INDEX_INVALID,
+    GCODE_SCRIPT_TARGET_EXTRUDER_INVALID,
     EXTRUSION_PROPERTY_TYPE_ATTRIBUTES,
     EXTRUSION_PROPERTY_TYPE_CUSTOM_GCODE,
     EXTRUSION_PROPERTY_TYPE_INFILL,
@@ -308,7 +309,22 @@ class ExtrusionPropertyMutableMixin:
     def custom_gcode(self, text: str, kind: int = C_EXTRUSION_CUSTOM_GCODE_GCODE):
         payload = self.property(CExtrusionPropertyCustomGcode)
         payload.kind = int(kind)
+        payload.script_type = int(
+            GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM
+            if kind == C_EXTRUSION_CUSTOM_GCODE_SCRIPT
+            else GCODE_SCRIPT_TYPE_INVALID
+        )
+        payload.target_extruder_id = GCODE_SCRIPT_TARGET_EXTRUDER_INVALID
         self.store_property_string(CExtrusionPropertyCustomGcode, payload, "text_id", text)
+        return payload
+
+    def script_gcode(self, text: str, script_type: int, target_extruder_id: int | None = None):
+        payload = self.custom_gcode(text, C_EXTRUSION_CUSTOM_GCODE_SCRIPT)
+        payload.script_type = int(script_type)
+        if target_extruder_id is not None:
+            if target_extruder_id < 0 or target_extruder_id >= GCODE_SCRIPT_TARGET_EXTRUDER_INVALID:
+                raise ValueError("A script target extruder must fit in uint16_t.")
+            payload.target_extruder_id = int(target_extruder_id)
         return payload
 
 

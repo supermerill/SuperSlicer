@@ -72,10 +72,10 @@ public:
     void set_position(double e);
     void set_retracted(double retracted, double restart_extra);
 
-    // Import state reported after a complete external G-code block was
+    // Import state reported by external G-code after the complete script was
     // validated. The exact E position is omitted in relative mode. A genuine
     // external change invalidates the old formatting remainder because it was
-    // calculated from a machine state that has been replaced.
+    // calculated from a machine state the script has replaced.
     bool synchronize_after_external_gcode(std::optional<double> e_position,
                                           double retracted,
                                           double restart_extra);

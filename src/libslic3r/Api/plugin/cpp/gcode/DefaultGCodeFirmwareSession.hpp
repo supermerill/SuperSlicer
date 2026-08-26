@@ -13,6 +13,7 @@
 
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeFirmwareViews.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeFormatter.hpp"
+#include "libslic3r/Api/plugin/cpp/gcode/GCodeScriptExecutionContext.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeScriptProcessorViews.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/DefaultExtruder.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/Gantry.hpp"
@@ -59,7 +60,7 @@ public:
     // machine state. The borrowed Config view is not retained.
     void setup(const Config &config);
 
-    std::string begin_print(const Print &print) override;
+    std::string begin_print(const Print &print, const PrintingPlan &plan) override;
     std::string begin_group(const PrintingGroup &group) override;
     std::string begin_layer(const PrintingLayerGroup &layer) override;
     std::string begin_tool_group(const PrintingToolGroup &tool_group) override;
@@ -109,9 +110,20 @@ protected:
     static std::string encode_unsupported_operation(const char *operation);
 
     // Execute a host-owned placeholder script under an explicit semantic
-    // name. Derived firmwares can reuse this for start_gcode, toolchange_gcode
+    // type. Derived firmwares can reuse this for start_gcode, toolchange_gcode
     // and future scoped events without depending on PlaceholderParser.
-    std::string process_script(const char *script_name, const std::string &script);
+    std::string process_script(
+        gcode_script_type script_type,
+        const std::string &script,
+        uint16_t target_extruder_id = GCODE_SCRIPT_TARGET_EXTRUDER_INVALID,
+        std::optional<raw_extrusion_role> next_extrusion_role = std::nullopt);
+
+    // Custom script types still receive the standard final-plan and machine
+    // context. A derived firmware may fill additional host-declared options
+    // here without changing the generic script processor ABI.
+    virtual void complete_script_context(gcode_script_type script_type,
+                                         uint16_t target_extruder_id,
+                                         GCodeScriptConfig &config);
 
     // A dialect may copy additional setup values after the generic machine
     // state has been initialized. The borrowed Config view remains valid only
@@ -172,13 +184,15 @@ private:
     class GCodeStateInterpreter;
 
     std::string select_extruder(uint16_t tool_id, bool emit_command = true);
+    std::string move_to_group_start(const PrintingGroup &group);
     std::string write_extrusion_tree(const ExtrusionEntity &root);
     std::string write_lines(const PreparedMove &move);
     std::string write_leaf_geometry(const ExtrusionEntity &leaf, const RequestedState &state);
     std::string write_special_command(const EPropertySpecialCommand &command,
                                       const RequestedState &state);
     std::string write_custom_gcode(const ExtrusionEntity &entity,
-                                   const EPropertyCustomGcode &custom_gcode);
+                                   const EPropertyCustomGcode &custom_gcode,
+                                   const RequestedState &state);
     void apply_requested_state(const RequestedState &state);
     c_vec3d machine_position(c_point point, coord_t z_offset) const;
     double segment_length_mm(const c_extrusion_segment &segment) const;
@@ -191,17 +205,16 @@ private:
     std::optional<uint16_t> m_current_extruder_idx;
     std::unique_ptr<GCodeFormatter> m_formatter;
     coord_t m_layer_print_z = 0;
-    bool m_is_setup = false;
-    GCodeScriptProcessorView m_scripts;
-    // Modal state may be changed by externally generated G-code. Host moves
-    // restore only the modes required by their absolute millimetre encoding.
+    std::vector<double> m_last_layer_used_filament;
+    std::optional<uint16_t> m_script_processing_tool;
     bool m_xyz_relative_mode = false;
     bool m_units_in_mm = true;
     bool m_e_relative_mode = false;
-    // External G-code may run before the first tool-group. This temporary
-    // selection tells the state interpreter which per-tool register an
-    // unqualified command affects without inventing a physical T transition.
-    std::optional<uint16_t> m_external_gcode_processing_tool;
+    bool m_seen_object_group = false;
+    bool m_is_setup = false;
+    GCodeScriptProcessorView m_scripts;
+    GCodeScriptExecutionContext m_script_execution;
+    std::optional<raw_extrusion_role> m_previous_extrusion_role;
 };
 
 }} // namespace slic3r_api::GCodeGeneration

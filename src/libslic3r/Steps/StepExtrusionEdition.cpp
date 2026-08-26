@@ -23,7 +23,7 @@ namespace Slic3r::Steps::StepExtrusionEdition {
 namespace {
 
 // Remove every event produced by an earlier execution while preserving the
-// ordered extrusion work and the fixed before/after roots themselves.
+// ordered extrusion work and the fixed event roots themselves.
 void clear_scope_events(Printing::PrintingPlan &plan);
 
 void clear_scope_events(Printing::PrintingPlan &plan)

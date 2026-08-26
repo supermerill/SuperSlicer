@@ -2401,7 +2401,7 @@ void GCodeGenerator::_do_export(Print& print_mod, GCodeOutputStream &file, Thumb
     std::string start_gcode ;
     {
         DynamicConfig config;
-        config.set_key_value("start_gcode_bed_temperature", new ConfigOptionInt((int)_compute_first_layer_bed_temperature(print)));
+        config.set_key_value("start_gcode_bed_temperature", new ConfigOptionInt(print.first_layer_bed_temperature()));
         start_gcode = this->placeholder_parser_process("start_gcode", print.config().start_gcode.value, initial_extruder_id, &config);
     }
     // get the start_filament_gcode to check if M109 or others are inside it
@@ -3960,31 +3960,10 @@ void GCodeGenerator::print_machine_envelope(GCodeOutputStream &file, const Print
 // Only do that if the start G-code does not already contain any M-code controlling the bed temperature.
 // M140 - Set Bed Temperature
 // M190 - Set Bed Temperature and Wait
-int32_t GCodeGenerator::_compute_first_layer_bed_temperature(const Print &print)
-{
-    int32_t  temp = 0;
-    //is overriden by print_first_layer_bed_temperature?
-    if (print.config().print_first_layer_bed_temperature.is_enabled()) {
-        temp = print.config().print_first_layer_bed_temperature.value;
-    } else {
-        // Initial bed temperature based on the first layer extruders
-        std::set<uint16_t> extruders = print.extruders(0);
-        //get max temp
-        for (uint16_t tool_idx : extruders) {
-            temp = std::max(temp, print.config().first_layer_bed_temperature.get_at(tool_idx));
-        }
-    }
-    return temp;
-}
-
-// Write 1st layer bed temperatures into the G-code.
-// Only do that if the start G-code does not already contain any M-code controlling the bed temperature.
-// M140 - Set Bed Temperature
-// M190 - Set Bed Temperature and Wait
 void GCodeGenerator::_print_first_layer_bed_temperature(std::string &out, const Print &print, const std::string &gcode, uint16_t /*first_printing_extruder_id*/, bool wait)
 {
     bool autoemit = print.config().autoemit_temperature_commands;
-    int32_t  temp = _compute_first_layer_bed_temperature(print);
+    int32_t temp = print.first_layer_bed_temperature();
     //disable bed temp control if 0
     if (temp == 0) return;
     // Is the bed temperature set by the provided custom G-code?

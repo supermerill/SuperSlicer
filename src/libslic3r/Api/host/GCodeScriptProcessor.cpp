@@ -14,6 +14,7 @@
 #include <map>
 #include <optional>
 #include <random>
+#include <regex>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -22,11 +23,14 @@
 #include <fast_float/fast_float.h>
 
 #include "ApiHostUtils.hpp"
+#include "Orchestrator.hpp"
 #include "libslic3r/ConfigDef.hpp"
 #include "libslic3r/GCodeReader.hpp"
+#include "libslic3r/Model.hpp"
 #include "libslic3r/PlaceholderParser.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/PrintObject.hpp"
 
 /*
 Host G-code script processor implementation
@@ -93,9 +97,9 @@ std::array<std::optional<double>, 3> position_after_gcode(
     if (gcode.empty())
         return position;
 
-    // Infer only absolute millimetre moves. Modal commands make following
-    // coordinates ambiguous without the firmware session's persistent state,
-    // so stop inference instead of inventing a machine position.
+    // Match the legacy parser's conservative policy: ordinary G1/G2/G3 moves
+    // update mentioned axes, while an unrecognized command makes the inferred
+    // position unusable instead of guessing what the script did.
     GCodeReader parser;
     parser.parse_buffer(gcode, [&position](GCodeReader &, const GCodeReader::GCodeLine &line) {
         const std::string_view command = line.cmd();
@@ -114,8 +118,10 @@ std::array<std::optional<double>, 3> position_after_gcode(
             position = {};
             return;
         }
-        if (command[0] == 'G' &&
-            (code == 20.0 || code == 21.0 || code == 90.0 || code == 91.0 || code == 92.0)) {
+        // Relative/unit changes need the firmware's persistent modal state.
+        // The standalone processor deliberately stops inferring instead of
+        // treating a following coordinate as an absolute millimetre value.
+        if (command[0] == 'G' && (code == 20.0 || code == 21.0 || code == 90.0 || code == 91.0 || code == 92.0)) {
             position = {};
             return;
         }
@@ -136,21 +142,23 @@ std::array<std::optional<double>, 3> position_after_gcode(
 class GCodeScriptProcessor::Impl
 {
 public:
-    explicit Impl(const Print &print);
+    Impl(const Print &print, const Orchestrator &orchestrator);
 
     const raw_gcode_script_processor *c_processor() const { return &m_c_processor; }
 
 private:
-    static config_handle *prepare_thunk(void *context, const char *script_name) noexcept;
+    static config_handle *prepare_thunk(void *context,
+                                        gcode_script_type script_type) noexcept;
     static void process_thunk(void *context,
                               const char *script,
                               uint16_t current_extruder,
                               raw_gcode_script_result *result) noexcept;
 
-    config_handle *prepare(const std::string &script_name);
+    config_handle *prepare(gcode_script_type script_type);
     std::string process(const std::string &script, uint16_t current_extruder);
     void create_machine_options();
     void create_specific_options(const std::string &script_name);
+    void resolve_object_names();
     void validate_outputs(const DynamicConfig &outputs) const;
     void infer_position_from_gcode(const DynamicConfig &before,
                                    DynamicConfig &outputs,
@@ -165,22 +173,23 @@ private:
     bool m_absolute_e = false;
     bool m_prepared = false;
     bool m_processing = false;
+    const Orchestrator &m_orchestrator;
+    int32_t m_first_layer_bed_temperature = 0;
+    std::vector<std::string> m_object_names;
     std::string m_output;
     std::string m_error;
     raw_gcode_script_processor m_c_processor = {};
 };
 
-GCodeScriptProcessor::Impl::Impl(const Print &print) :
-    m_parser(print.placeholder_parser().external_config()),
-    m_extruder_count(std::max<size_t>({
-        size_t(1),
-        print.config().nozzle_diameter.size(),
-        print.config().filament_diameter.size(),
-        print.config().extruder_offset.size(),
-        print.config().extrusion_multiplier.size()
-    })),
-    m_absolute_e(!print.config().use_relative_e_distances.value)
-{
+GCodeScriptProcessor::Impl::Impl(const Print &print,
+                                 const Orchestrator &orchestrator)
+    : m_parser(print.placeholder_parser().external_config())
+    , m_extruder_count(
+          std::max<size_t>({size_t(1), print.config().nozzle_diameter.size(), print.config().filament_diameter.size(),
+                            print.config().extruder_offset.size(), print.config().extrusion_multiplier.size()}))
+    , m_absolute_e(!print.config().use_relative_e_distances.value)
+    , m_orchestrator(orchestrator)
+    , m_first_layer_bed_temperature(print.first_layer_bed_temperature()) {
     // Reproduce the persistent part of the legacy export context once. The
     // parser, random generator and global variables then remain shared by all
     // scripts handled during this export only.
@@ -210,6 +219,13 @@ GCodeScriptProcessor::Impl::Impl(const Print &print) :
         m_parser.parse_custom_variables(print.config().filament_custom_variables);
     m_parser.apply_config(print.physical_printer_config());
 
+    // Object script contexts store compact indices. Copy sanitized labels now
+    // so processing later never retains model pointers from the Print view.
+    const std::regex invalid_name("[^\\w]+", std::regex_constants::ECMAScript);
+    m_object_names.reserve(print.objects().size());
+    for (const PrintObject &object : print.objects())
+        m_object_names.emplace_back(std::regex_replace(object.model_object()->name, invalid_name, std::string("_")));
+
     m_c_processor.struct_size = sizeof(m_c_processor);
     m_c_processor.context = this;
     m_c_processor.prepare = &prepare_thunk;
@@ -218,13 +234,13 @@ GCodeScriptProcessor::Impl::Impl(const Print &print) :
 
 config_handle *GCodeScriptProcessor::Impl::prepare_thunk(
     void *context,
-    const char *script_name) noexcept
+    gcode_script_type script_type) noexcept
 {
-    if (context == nullptr || script_name == nullptr)
+    if (context == nullptr || script_type == GCODE_SCRIPT_TYPE_INVALID)
         return nullptr;
     Impl *self = static_cast<Impl *>(context);
     try {
-        return self->prepare(script_name);
+        return self->prepare(script_type);
     } catch (const std::exception &exception) {
         self->m_error = exception.what();
     } catch (...) {
@@ -277,7 +293,7 @@ void GCodeScriptProcessor::Impl::process_thunk(
     }
 }
 
-config_handle *GCodeScriptProcessor::Impl::prepare(const std::string &script_name)
+config_handle *GCodeScriptProcessor::Impl::prepare(gcode_script_type script_type)
 {
     if (m_processing)
         throw std::logic_error("The G-code script processor is not reentrant.");
@@ -288,10 +304,37 @@ config_handle *GCodeScriptProcessor::Impl::prepare(const std::string &script_nam
     m_specific_keys.clear();
     m_output.clear();
     m_error.clear();
+    const char *script_name = gcode_script_type_name(reinterpret_cast<const orchestrator_handle *>(&m_orchestrator),
+                                                     script_type);
+    if (script_name == nullptr)
+        throw std::invalid_argument("Unknown G-code script type.");
     create_machine_options();
     create_specific_options(script_name);
+    if (script_type == GCODE_SCRIPT_TYPE_START_GCODE)
+        m_public_config.option<ConfigOptionInt>("start_gcode_bed_temperature")->value = m_first_layer_bed_temperature;
+    if (script_type == GCODE_SCRIPT_TYPE_BEFORE_LAYER_GCODE || script_type == GCODE_SCRIPT_TYPE_LAYER_GCODE)
+        m_public_config.option<ConfigOptionInt>("gcode_bed_temperature")->value = m_first_layer_bed_temperature;
     m_prepared = true;
     return ApiHost::to_config_handle(&m_public_config);
+}
+
+void GCodeScriptProcessor::Impl::resolve_object_names()
+{
+    // Object IDs are inexpensive scalar ABI values. Resolve their display
+    // names inside the host so plugins never need access to Model objects or
+    // the PlaceholderParser naming rules.
+    const char *const id_keys[] = {"previous_object_id", "next_object_id"};
+    const char *const name_keys[] = {"previous_object_name", "next_object_name"};
+    for (size_t idx = 0; idx < 2; ++idx) {
+        ConfigOptionInt *object_id = m_public_config.option<ConfigOptionInt>(id_keys[idx]);
+        ConfigOptionString *object_name = m_public_config.option<ConfigOptionString>(name_keys[idx]);
+        if (object_id == nullptr || object_name == nullptr)
+            continue;
+        if (object_id->value < 0 || static_cast<size_t>(object_id->value) >= m_object_names.size())
+            throw std::invalid_argument(std::string("A G-code script references an unknown object in ") +
+                                        id_keys[idx] + ".");
+        object_name->value = m_object_names[static_cast<size_t>(object_id->value)];
+    }
 }
 
 std::string GCodeScriptProcessor::Impl::process(
@@ -305,6 +348,10 @@ std::string GCodeScriptProcessor::Impl::process(
 
     m_processing = true;
     try {
+        // Script-specific values are now filled by the firmware immediately
+        // before process(). Complete host-owned derived values only after that
+        // runtime context has been supplied.
+        resolve_object_names();
         DynamicConfig specific;
         for (const std::string &key : m_specific_keys)
             copy_option(specific, m_public_config, key);
@@ -322,8 +369,11 @@ std::string GCodeScriptProcessor::Impl::process(
         m_parser.set("current_position", new ConfigOptionFloats(position->get_values()));
         m_parser.set("zhop", new ConfigOptionFloat(0.0));
 
-        std::string result = m_parser.process(
-            script, current_extruder, &specific, &outputs, &m_context);
+        // PlaceholderParser uses the numeric process argument to select vector
+        // settings, while [current_extruder] is a regular named option. Keep
+        // both representations synchronized for every script invocation.
+        m_parser.set("current_extruder", new ConfigOptionInt(current_extruder));
+        std::string result = m_parser.process(script, current_extruder, &specific, &outputs, &m_context);
         validate_outputs(outputs);
         infer_position_from_gcode(before, outputs, result);
         validate_outputs(outputs);
@@ -414,9 +464,9 @@ void GCodeScriptProcessor::Impl::publish_outputs(const DynamicConfig &outputs)
     }
 }
 
-GCodeScriptProcessor::GCodeScriptProcessor(const Print &print) :
-    m_impl(new Impl(print))
-{}
+GCodeScriptProcessor::GCodeScriptProcessor(const Print &print,
+                                           const Orchestrator &orchestrator)
+    : m_impl(new Impl(print, orchestrator)) {}
 
 GCodeScriptProcessor::~GCodeScriptProcessor() = default;
 

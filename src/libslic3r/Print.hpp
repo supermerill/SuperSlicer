@@ -251,6 +251,8 @@ public:
     std::set<uint16_t>  support_material_extruders(coord_t z = -1) const;
     // all extruder to print layers that extrude at this z.
     std::set<uint16_t>  extruders(coord_t z = -1) const;
+    // Effective first-layer bed temperature across every tool used at Z=0.
+    int32_t first_layer_bed_temperature() const;
     double              max_allowed_layer_height() const;
     bool                has_support_material() const;
     // Make sure the background processing has no access to this model_object during this call!

@@ -182,8 +182,18 @@ the string buffer referenced by text_id.
 struct EPropertyCustomGcode :
     EPropertyPayload<c_extrusion_property_custom_gcode, EXTRUSION_PROPERTY_TYPE_CUSTOM_GCODE>
 {
-    EPropertyCustomGcode &set_kind(c_extrusion_custom_gcode_kind value) { kind = value; return *this; }
+    EPropertyCustomGcode &set_kind(c_extrusion_custom_gcode_kind value) {
+        kind = value;
+        script_type = value == C_EXTRUSION_CUSTOM_GCODE_SCRIPT ? GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM :
+                                                                 GCODE_SCRIPT_TYPE_INVALID;
+        return *this;
+    }
+    EPropertyCustomGcode &set_script_type(gcode_script_type value) {
+        script_type = value;
+        return *this;
+    }
     EPropertyCustomGcode &text(extrusion_data_id value) { text_id = value; return *this; }
+    EPropertyCustomGcode &target_extruder(uint16_t value) { target_extruder_id = value; return *this; }
 };
 
 /* Special non-geometric commands carried in the extrusion stream. */
@@ -347,6 +357,15 @@ public:
         return extrusion_data(self().handle(), id, byte_size_out);
     }
 
+    /* Return a typed stored POD only when the buffer has its exact size. */
+    template<class Payload> const Payload *stored_value(extrusion_data_id id) const {
+        static_assert(std::is_trivially_copyable<Payload>::value, "Stored data payloads must be trivially copyable");
+        uint32_t byte_size = 0;
+        const void *data = stored_data(id, &byte_size);
+        return data != nullptr && byte_size == sizeof(Payload) ?
+            reinterpret_cast<const Payload *>(data) : nullptr;
+    }
+
     /*
     Copy a stored data buffer into a std::string.
 
@@ -483,8 +502,20 @@ public:
                                        c_extrusion_custom_gcode_kind kind = C_EXTRUSION_CUSTOM_GCODE_GCODE)
     {
         EPropertyCustomGcode &payload = get_or_add_property<EPropertyCustomGcode>();
-        payload.kind = kind;
+        payload.set_kind(kind);
+        payload.target_extruder_id = GCODE_SCRIPT_TARGET_EXTRUDER_INVALID;
         store_property_string(EPropertyCustomGcode::property_type, &payload.text_id, text);
+        return payload;
+    }
+
+    /* Store a PlaceholderParser script with an explicit semantic context. */
+    EPropertyCustomGcode &script_gcode(
+        std::string_view text,
+        gcode_script_type script_type,
+        uint16_t target_extruder_id = GCODE_SCRIPT_TARGET_EXTRUDER_INVALID) {
+        EPropertyCustomGcode &payload = custom_gcode(text, C_EXTRUSION_CUSTOM_GCODE_SCRIPT);
+        payload.script_type = script_type;
+        payload.target_extruder_id = target_extruder_id;
         return payload;
     }
 

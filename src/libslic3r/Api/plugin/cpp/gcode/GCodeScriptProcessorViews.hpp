@@ -207,12 +207,11 @@ public:
 
     bool valid() const { return m_processor != nullptr; }
 
-    GCodeScriptContext prepare(const char *script_name) const
-    {
+    GCodeScriptContext prepare(gcode_script_type script_type) const {
         validate();
-        if (script_name == nullptr)
-            throw std::invalid_argument("A G-code script needs a name.");
-        config_handle *config = m_processor->prepare(m_processor->context, script_name);
+        if (script_type == GCODE_SCRIPT_TYPE_INVALID)
+            throw std::invalid_argument("A G-code script needs a valid type.");
+        config_handle *config = m_processor->prepare(m_processor->context, script_type);
         if (config == nullptr)
             throw std::runtime_error("The host could not prepare the G-code script context.");
         return GCodeScriptContext(m_processor, config);

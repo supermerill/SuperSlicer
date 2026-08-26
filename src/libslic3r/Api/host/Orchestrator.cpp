@@ -878,6 +878,30 @@ extrusion_property_type Orchestrator::register_custom_extrusion_property(const c
     return static_cast<extrusion_property_type>(this->register_property(namespaced_name, byte_count, alignment));
 }
 
+gcode_script_type Orchestrator::register_gcode_script_type(const char *namespaced_name) {
+    if (namespaced_name == nullptr || namespaced_name[0] == '\0')
+        return GCODE_SCRIPT_TYPE_INVALID;
+
+    /*
+    Script ids follow the same runtime-registry contract as custom property
+    ids. The stable name crosses plugin boundaries; the integer is only the
+    compact key carried by one in-memory PrintingPlan.
+    */
+    if (const GCodeScriptTypeInfo *existing = this->gcode_script_type_info(namespaced_name))
+        return existing->type;
+
+    // Once uint32_t wraps, stay exhausted instead of entering the reserved
+    // built-in range on a later registration attempt.
+    if (m_next_custom_gcode_script_type < GCODE_SCRIPT_TYPE_CUSTOM_BEGIN)
+        return GCODE_SCRIPT_TYPE_INVALID;
+
+    GCodeScriptTypeInfo info;
+    info.type = m_next_custom_gcode_script_type++;
+    info.name = namespaced_name;
+    m_custom_gcode_script_type_infos.emplace_back(std::move(info));
+    return m_custom_gcode_script_type_infos.back().type;
+}
+
 bool Orchestrator::register_generic_facets_annotation(GenericFacetsAnnotationDefinition def)
 {
     if (def.key.empty() || def.label.empty() || def.enforce_label.empty() || def.block_label.empty())
@@ -949,6 +973,22 @@ Orchestrator::property_info(const char *namespaced_name) const
         return nullptr;
 
     for (const PropertyInfo &info : m_custom_property_infos)
+        if (info.name == namespaced_name)
+            return &info;
+    return nullptr;
+}
+
+const Orchestrator::GCodeScriptTypeInfo *Orchestrator::gcode_script_type_info(gcode_script_type type) const {
+    for (const GCodeScriptTypeInfo &info : m_custom_gcode_script_type_infos)
+        if (info.type == type)
+            return &info;
+    return nullptr;
+}
+
+const Orchestrator::GCodeScriptTypeInfo *Orchestrator::gcode_script_type_info(const char *namespaced_name) const {
+    if (namespaced_name == nullptr)
+        return nullptr;
+    for (const GCodeScriptTypeInfo &info : m_custom_gcode_script_type_infos)
         if (info.name == namespaced_name)
             return &info;
     return nullptr;

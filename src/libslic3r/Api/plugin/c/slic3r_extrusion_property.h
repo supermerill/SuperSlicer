@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "slic3r_def.h"
+#include "slic3r_gcode_script.h"
 #include "slic3r_utils.h"
 
 #ifdef __cplusplus
@@ -261,10 +262,15 @@ typedef enum c_extrusion_custom_gcode_kind {
     C_EXTRUSION_CUSTOM_GCODE_SCRIPT = 2
 } c_extrusion_custom_gcode_kind;
 
+#define GCODE_SCRIPT_TARGET_EXTRUDER_INVALID UINT16_MAX
+
 /* Property type: EXTRUSION_PROPERTY_TYPE_CUSTOM_GCODE. */
 typedef struct c_extrusion_property_custom_gcode {
     c_extrusion_custom_gcode_kind kind;
+    gcode_script_type script_type;
     extrusion_data_id text_id;
+    /* Immutable target of a tool-specific script, or the invalid value when absent. */
+    uint16_t target_extruder_id;
 } c_extrusion_property_custom_gcode;
 
 /*

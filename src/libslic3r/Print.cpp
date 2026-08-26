@@ -679,6 +679,16 @@ std::set<uint16_t> Print::extruders(coord_t z /*= -1*/) const
     return extruders;
 }
 
+int32_t Print::first_layer_bed_temperature() const {
+    if (m_config.print_first_layer_bed_temperature.is_enabled())
+        return m_config.print_first_layer_bed_temperature.value;
+
+    int32_t temperature = 0;
+    for (uint16_t extruder_id : this->extruders(0))
+        temperature = std::max(temperature, m_config.first_layer_bed_temperature.get_at(extruder_id));
+    return temperature;
+}
+
 uint16_t Print::num_object_instances() const
 {
     uint16_t instances = 0;

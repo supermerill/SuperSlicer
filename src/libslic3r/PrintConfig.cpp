@@ -3798,7 +3798,7 @@ static std::map<t_custom_gcode_key, t_config_option_keys> s_CustomGcodeSpecificP
     {"end_filament_gcode",      {"layer_num", "layer_z", "max_layer_z", "filament_extruder_id", "previous_extruder", "next_extruder"}},
     {"milling_toolchange_start_gcode", {"layer_num", "layer_z", "previous_layer_z", "max_layer_z", "previous_extruder", "next_extruder"}},
     {"milling_toolchange_end_gcode",   {"layer_num", "layer_z", "previous_layer_z", "max_layer_z", "previous_extruder", "next_extruder"}},
-    {"start_gcode",             {"start_gcode_bed_temperature"}},
+    {"start_gcode",             {"start_gcode_bed_temperature", "max_layer_z"}},
     {"end_gcode",               {"layer_num", "layer_z", "max_layer_z", "filament_extruder_id", "previous_extruder", "next_extruder"}},
     {"before_layer_gcode",      {"layer_num", "layer_z", "previous_layer_z", "max_layer_z", "gcode_bed_temperature", "layer_used_filament"}},
     {"layer_gcode",             {"layer_num", "layer_z", "previous_layer_z", "max_layer_z", "gcode_bed_temperature"}},
