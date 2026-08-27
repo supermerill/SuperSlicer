@@ -1,7 +1,7 @@
 #ifndef SLIC3R_TEST_DATA_HPP
 #define SLIC3R_TEST_DATA_HPP
 
-#include "libslic3r/ConfigDef.hpp"
+#include "libslic3r/Config/ConfigDef.hpp"
 #include "libslic3r/Geometry.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/Point.hpp"

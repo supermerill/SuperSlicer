@@ -10,8 +10,8 @@
 
 #include <memory>
 
-#include "libslic3r/Preset.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/Preset.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 namespace Slic3r {
 
 class AppConfig;

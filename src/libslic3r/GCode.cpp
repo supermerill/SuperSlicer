@@ -49,7 +49,7 @@
 
 #include "ClipperUtils.hpp"
 #include "Color.hpp"
-#include "ConfigDef.hpp"
+#include "Config/ConfigDef.hpp"
 #include "Exception.hpp"
 #include "ExtrusionEntity.hpp"
 #include "format.hpp"
@@ -84,7 +84,7 @@
 #include "Point.hpp"
 #include "PointUtils.hpp"
 #include "Polygon.hpp"
-#include "PrintConfig.hpp"
+#include "Config/PrintConfig.hpp"
 #include "PrintObject.hpp"
 #include "PrintRegion.hpp"
 #include "ShortestPath.hpp"

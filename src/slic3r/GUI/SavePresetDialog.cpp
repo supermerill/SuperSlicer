@@ -17,7 +17,7 @@
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
 
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 
 #include "format.hpp"
 #include "GUI.hpp"

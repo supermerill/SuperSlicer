@@ -19,11 +19,11 @@
 
 #include <wx/richmsgdlg.h>
 
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 #include "libslic3r/FileParserError.hpp"
 #include "libslic3r/format.hpp"
 #include "libslic3r/libslic3r.h"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 #include "libslic3r/Time.hpp"
 #include "libslic3r/Utils.hpp"
 

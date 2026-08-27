@@ -14,7 +14,7 @@
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/uuid/detail/md5.hpp>
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/BlacklistedLibraryCheck.hpp"
 #include "libslic3r/Color.hpp"
 #include "libslic3r/Platform.hpp"

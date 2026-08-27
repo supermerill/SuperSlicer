@@ -16,7 +16,7 @@
 #include <wx/filename.h>
 #include <wx/filepicker.h>
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/Format/SLAArchiveReader.hpp"
 #include "libslic3r/Format/SLAArchiveFormatRegistry.hpp"
 
@@ -29,7 +29,7 @@
 #include <boost/algorithm/string.hpp>
 
 //#include "libslic3r/Model.hpp"
-//#include "libslic3r/PresetBundle.hpp"
+//#include "libslic3r/Config/PresetBundle.hpp"
 
 namespace Slic3r { namespace GUI {
 

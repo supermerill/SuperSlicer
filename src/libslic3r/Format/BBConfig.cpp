@@ -15,9 +15,9 @@
 #include <boost/property_tree/ptree.hpp>
 #include <nlohmann/json.hpp>
 
-#include "libslic3r/ConfigDef.hpp"
+#include "libslic3r/Config/ConfigDef.hpp"
 #include "libslic3r/Model.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 
 namespace Slic3r {
     

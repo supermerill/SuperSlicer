@@ -17,7 +17,7 @@
 #include <wx/dialog.h>
 #include <wx/string.h>
 
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 class wxListView;
 class wxStaticText;
 class wxTimer;

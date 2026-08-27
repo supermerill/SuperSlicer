@@ -11,10 +11,10 @@
 #include <wx/file.h>
 #include <wx/scrolwin.h>
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/LocalesUtils.hpp"
 #include "libslic3r/Model.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #include "libslic3r/Utils.hpp"
 
 #include "GLCanvas3D.hpp"

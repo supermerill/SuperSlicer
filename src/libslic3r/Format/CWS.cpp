@@ -9,7 +9,7 @@
 #include <boost/filesystem/path.hpp>
 #include <boost/log/trivial.hpp>
 
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #include "libslic3r/SLAPrint.hpp"
 #include "libslic3r/Time.hpp"
 #include "libslic3r/Zipper.hpp"

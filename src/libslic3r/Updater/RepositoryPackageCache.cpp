@@ -26,7 +26,7 @@
 #include <boost/property_tree/ini_parser.hpp>
 
 #include "libslic3r/FilesystemTransaction.hpp"
-#include "libslic3r/Preset.hpp"
+#include "libslic3r/Config/Preset.hpp"
 #include "libslic3r/Plugins/PluginBinaryMetadata.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/libslic3r.h"

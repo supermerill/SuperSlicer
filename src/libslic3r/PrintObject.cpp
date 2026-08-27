@@ -63,7 +63,7 @@
 #include "PluginProperty.hpp"
 #include "Print.hpp"
 #include "PrintBase.hpp"
-#include "PrintConfig.hpp"
+#include "Config/PrintConfig.hpp"
 #include "PrintObjectRegion.hpp"
 #include "PrintRegion.hpp"
 #include "Slicing.hpp"

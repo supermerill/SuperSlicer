@@ -10,7 +10,7 @@
 #ifndef slic3r_SLAPrintConfig_hpp_
 #define slic3r_SLAPrintConfig_hpp_
 
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #include "libslic3r/SLA/SupportTreeStrategies.hpp"
 
 namespace Slic3r {

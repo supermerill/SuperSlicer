@@ -11,15 +11,15 @@
 
 #include "ClipboardXX/include/clipboardxx.hpp"
 
-#include <libslic3r/Preset.hpp>
-#include <libslic3r/PresetBundle.hpp>
+#include <libslic3r/Config/Preset.hpp>
+#include <libslic3r/Config/PresetBundle.hpp>
 #include <libslic3r/LocalesUtils.hpp>
 #include <libslic3r/libslic3r.h>
-#include <libslic3r/PresetBundle.hpp>
+#include <libslic3r/Config/PresetBundle.hpp>
 #include <libslic3r/Utils.hpp>
 #include <libslic3r/Model.hpp>
 #include <libslic3r/format.hpp>
-#include <libslic3r/PrintConfig.hpp>
+#include <libslic3r/Config/PrintConfig.hpp>
 
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/clamp.hpp>

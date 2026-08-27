@@ -11,7 +11,7 @@
 #include <GL/glew.h>
 
 #include "libslic3r/Model.hpp"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 
 #include "slic3r/GUI/BitmapCache.hpp"
 #include "slic3r/GUI/Camera.hpp"

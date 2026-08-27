@@ -3,12 +3,12 @@
 #include <numeric>
 #include <sstream>
 
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/Layer.hpp"
 #include "libslic3r/PerimeterGenerator.hpp"
 #include "libslic3r/Print.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #include "libslic3r/SurfaceCollection.hpp"
 #include "libslic3r/libslic3r.h"
 

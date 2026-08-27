@@ -3,7 +3,7 @@
 #include "libslic3r/TriangleMesh.hpp"
 #include "libslic3r/TriangleMeshSlicer.hpp"
 #include "libslic3r/Point.hpp"
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/libslic3r.h"
 

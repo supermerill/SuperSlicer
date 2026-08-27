@@ -19,8 +19,8 @@
 #include "BackgroundSlicingProcess.hpp"
 #include "OpenGLManager.hpp"
 #include "GLCanvas3D.hpp"
-#include "libslic3r/PresetBundle.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #include "DoubleSlider.hpp"
 
 #include "BitmapCache.hpp"

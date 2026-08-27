@@ -1,7 +1,7 @@
 #include <catch2/catch.hpp>
 
-#include "libslic3r/ConfigOption.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 
 #include <libslic3r/GCode/Thumbnails.hpp>
 
@@ -232,4 +232,3 @@ TEST_CASE("Validate Old Thumbnails", "[Thumbnails in Config]") {
 
 
         
-

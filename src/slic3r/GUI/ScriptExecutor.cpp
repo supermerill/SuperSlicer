@@ -26,7 +26,7 @@
 #include <boost/log/trivial.hpp>
 #include <boost/nowide/fstream.hpp>
 
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 #include "libslic3r/Print.hpp"
 
 #include "GUI_App.hpp"

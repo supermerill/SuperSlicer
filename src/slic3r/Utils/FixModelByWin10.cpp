@@ -37,7 +37,7 @@
 
 #include "libslic3r/Model.hpp"
 #include "libslic3r/Print.hpp"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 #include "libslic3r/Format/3mf.hpp"
 #include "slic3r/GUI/GUI.hpp"
 #include "slic3r/GUI/I18N.hpp"

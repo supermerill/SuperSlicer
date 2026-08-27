@@ -20,7 +20,7 @@
 #include <wx/notebook.h>
 #include <wx/scrolwin.h>
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 
 #include "ButtonsDescription.hpp"
 #include "ConfigWizard.hpp"

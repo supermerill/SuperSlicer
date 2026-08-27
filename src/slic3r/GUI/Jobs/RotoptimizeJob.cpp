@@ -7,11 +7,11 @@
 
 #include "RotoptimizeJob.hpp"
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/MinAreaBoundingBox.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/MTUtils.hpp"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 #include "libslic3r/SLA/Rotfinder.hpp"
 #include "libslic3r/SLAPrint.hpp"
 

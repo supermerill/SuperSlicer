@@ -22,7 +22,7 @@
 #include <wx/slider.h>
 #include <wx/statline.h>
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/GCode.hpp"
 #include "libslic3r/GCode/GCodeWriter.hpp"
 #include "libslic3r/libslic3r.h"

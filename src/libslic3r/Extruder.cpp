@@ -12,7 +12,7 @@
 #include "Extruder.hpp"
 
 #include "GCode/GCodeWriter.hpp"
-#include "PrintConfig.hpp"
+#include "Config/PrintConfig.hpp"
 
 namespace Slic3r {
 

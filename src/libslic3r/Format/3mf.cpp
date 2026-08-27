@@ -38,7 +38,7 @@
 #include "libslic3r/Model.hpp"
 #include "libslic3r/NSVGUtils.hpp"
 #include "libslic3r/PointSerialize.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #include "libslic3r/Semver.hpp"
 #include "libslic3r/TextConfiguration.hpp"
 #include "libslic3r/Time.hpp"

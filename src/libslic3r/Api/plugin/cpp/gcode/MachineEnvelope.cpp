@@ -11,7 +11,7 @@
 #include <string>
 
 #include "libslic3r/Api/plugin/cpp/ConfigViews.hpp"
-#include "libslic3r/FFFPrintConfig.hpp"
+#include "libslic3r/Config/FFFPrintConfig.hpp"
 
 /*
 Firmware-neutral machine envelope implementation

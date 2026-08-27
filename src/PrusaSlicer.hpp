@@ -3,7 +3,7 @@
 
 #include <memory>
 
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 #include "libslic3r/Model.hpp"
 
 namespace Slic3r {

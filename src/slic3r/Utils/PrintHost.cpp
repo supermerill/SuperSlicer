@@ -25,7 +25,7 @@
 #include <wx/string.h>
 
 #include "libslic3r/Channel.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 
 #include "AstroBox.hpp"
 #include "Duet.hpp"

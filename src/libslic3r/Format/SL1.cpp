@@ -24,7 +24,7 @@
 #include "libslic3r/miniz_extension.hpp"
 #include "libslic3r/MTUtils.hpp"
 #include "libslic3r/PNGReadWrite.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #include "libslic3r/SLA/RasterBase.hpp"
 #include "libslic3r/SLAPrint.hpp"
 #include "libslic3r/Time.hpp"

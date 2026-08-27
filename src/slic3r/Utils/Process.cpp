@@ -7,7 +7,7 @@
 
 #include "Process.hpp"
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/Utils.hpp"
 
 #include "slic3r/GUI/GUI.hpp"

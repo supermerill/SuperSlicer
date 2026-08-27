@@ -12,7 +12,7 @@
 
 #include <wx/wxprec.h>
 
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 #ifndef WX_PRECOMP
     #include <wx/wx.h>
 #endif

@@ -23,8 +23,8 @@
 
 #include "libslic3r/enum_bitmask.hpp"
 #include "libslic3r/GCode/Thumbnails.hpp"
-#include "libslic3r/PresetBundle.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 
 #include "BitmapComboBox.hpp"
 #include "format.hpp"

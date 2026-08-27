@@ -11,7 +11,7 @@
 #include <map>
 
 #include "libslic3r/CustomGCode.hpp"
-#include "libslic3r/Preset.hpp"
+#include "libslic3r/Config/Preset.hpp"
 namespace Slic3r {
 namespace GUI {
 

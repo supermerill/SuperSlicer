@@ -13,7 +13,7 @@
 #include <wx/bmpbndl.h>
 #include <wx/dialog.h>
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 
 #include "BitmapComboBox.hpp"
 class ScalableBitmap;

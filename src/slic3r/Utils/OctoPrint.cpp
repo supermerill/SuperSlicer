@@ -25,8 +25,8 @@
 
 #include <wx/progdlg.h>
 
-#include "libslic3r/AppConfig.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 
 #include "Bonjour.hpp"
 #include "libslic3r/Updater/Http.hpp"

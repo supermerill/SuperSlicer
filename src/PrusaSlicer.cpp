@@ -39,9 +39,9 @@
 #if ENABLE_GL_CORE_PROFILE
 #include <boost/algorithm/string/split.hpp>
 #endif // ENABLE_GL_CORE_PROFILE
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/Api/host/Orchestrator.hpp"
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 #include "libslic3r/Geometry.hpp"
 #include "libslic3r/GCode/PostProcessor.hpp"
 #include "libslic3r/Model.hpp"
@@ -57,9 +57,9 @@
 #include "libslic3r/Format/OBJ.hpp"
 #include "libslic3r/Format/SL1.hpp"
 #include "libslic3r/Format/CWS.hpp"
-#include "libslic3r/FFFPrintConfig.hpp"
+#include "libslic3r/Config/FFFPrintConfig.hpp"
 #include "libslic3r/Plugins/PluginLoader.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #include "libslic3r/SLA/SLAPrintConfig.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/Thread.hpp"

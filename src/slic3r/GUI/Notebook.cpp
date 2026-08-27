@@ -10,7 +10,7 @@
 #include <wx/button.h>
 #include <wx/sizer.h>
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 
 #include "GUI_App.hpp"
 #include "GUI_Tags.hpp"

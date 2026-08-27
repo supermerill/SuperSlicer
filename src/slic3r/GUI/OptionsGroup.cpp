@@ -23,9 +23,9 @@
 #include <wx/bookctrl.h>
 #include <wx/numformatter.h>
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/Exception.hpp"
-#include "libslic3r/Preset.hpp"
+#include "libslic3r/Config/Preset.hpp"
 #include "libslic3r/Utils.hpp"
 
 #include "ConfigExceptions.hpp"

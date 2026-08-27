@@ -11,7 +11,7 @@
 
 #include <wx/utils.h>
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/Utils.hpp"
 
 #include "format.hpp"

@@ -7,7 +7,7 @@
 
 #include <wx/dcmemory.h>
 
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 #include "libslic3r/Point.hpp"
 
 #include "slic3r/GUI/GUI_App.hpp"

@@ -21,7 +21,7 @@
 #include "libslic3r/Extruder.hpp"
 #include "libslic3r/libslic3r.h"
 #include "libslic3r/Point.hpp"
-#include "libslic3r/FFFPrintConfig.hpp"
+#include "libslic3r/Config/FFFPrintConfig.hpp"
 
 #include "GCodeFormatter.hpp"
 

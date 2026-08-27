@@ -7,7 +7,7 @@
 
 #include "Camera.hpp"
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/libslic3r.h"
 
 #include "3DScene.hpp"

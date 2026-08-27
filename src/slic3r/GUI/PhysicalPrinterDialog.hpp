@@ -12,7 +12,7 @@
 
 #include <wx/gdicmn.h>
 
-#include "libslic3r/Preset.hpp"
+#include "libslic3r/Config/Preset.hpp"
 
 #include "GUI_Utils.hpp"
 #include "Widgets/TextInput.hpp"

@@ -9,7 +9,7 @@
 
 #include "libslic3r/PointUtils.hpp"
 #include "libslic3r/Print.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #include "libslic3r/PrintRegion.hpp"
 
 namespace Slic3r { namespace ExtrusionProcessor {

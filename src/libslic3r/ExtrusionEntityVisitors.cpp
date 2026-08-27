@@ -12,7 +12,7 @@
 #include <cstdint>
 #include <iostream>
 
-#include "ConfigOption.hpp"
+#include "Config/ConfigOption.hpp"
 
 namespace Slic3r {
 

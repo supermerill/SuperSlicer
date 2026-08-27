@@ -29,8 +29,8 @@
 #include <wx/wrapsizer.h>
 #include <wx/wx.h>
 
-#include "libslic3r/AppConfig.hpp"
-#include "libslic3r/ConfigDef.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
+#include "libslic3r/Config/ConfigDef.hpp"
 #include "libslic3r/Format/STL.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/TriangleMesh.hpp"

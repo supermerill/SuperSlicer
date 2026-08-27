@@ -16,7 +16,7 @@
 
 #include <imgui/imgui_internal.h> // ImTextCharFromUtf8
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/Utils.hpp" // ScopeGuard
 
 #include "slic3r/GUI/3DScene.hpp" // ::glsafe
@@ -543,7 +543,7 @@ bool StyleManager::set_wx_font(const wxFont &wx_font, std::unique_ptr<FontFile> 
     return true;
 }
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "WxFontUtils.hpp"
 #include "fast_float/fast_float.h"
 

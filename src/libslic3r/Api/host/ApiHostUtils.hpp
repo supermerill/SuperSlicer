@@ -6,7 +6,7 @@
 #define slic3r_Api_host_ApiHostUtils_hpp_
 
 #include "libslic3r/Api/plugin/c/slic3r_data_tree.h"
-#include "libslic3r/ConfigDef.hpp"
+#include "libslic3r/Config/ConfigDef.hpp"
 
 namespace Slic3r::ApiHost {
 

@@ -7,7 +7,7 @@
 
 #include "ArrangeSettingsDialogImgui.hpp"
 
-#include "libslic3r/FFFPrintConfig.hpp"
+#include "libslic3r/Config/FFFPrintConfig.hpp"
 
 #include "I18N.hpp"
 #include "slic3r/GUI/format.hpp"

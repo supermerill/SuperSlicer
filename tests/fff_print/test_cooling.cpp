@@ -5,7 +5,7 @@
 
 #include "test_data.hpp" // get access to init_print, etc
 
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 #include "libslic3r/GCode.hpp"
 #include "libslic3r/GCodeReader.hpp"
 #include "libslic3r/GCode/CoolingBuffer.hpp"

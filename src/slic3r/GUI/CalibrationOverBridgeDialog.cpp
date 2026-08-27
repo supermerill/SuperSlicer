@@ -8,7 +8,7 @@
 #include "I18N.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/Utils.hpp"
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 // #include "Jobs/ArrangeJob2.hpp"
 #include "GLCanvas3D.hpp"
 #include "GUI.hpp"

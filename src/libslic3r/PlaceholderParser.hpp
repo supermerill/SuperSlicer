@@ -15,7 +15,7 @@
 #include <string_view>
 #include <vector>
 
-#include "ConfigDef.hpp"
+#include "Config/ConfigDef.hpp"
 #include "libslic3r.h"
 
 namespace Slic3r {

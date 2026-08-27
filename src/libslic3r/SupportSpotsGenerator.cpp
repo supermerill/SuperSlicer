@@ -46,7 +46,7 @@
 #include "Print.hpp"
 #include "PrintObject.hpp"
 #include "PrintBase.hpp"
-#include "PrintConfig.hpp"
+#include "Config/PrintConfig.hpp"
 #include <tbb/blocked_range.h>
 #include <tbb/blocked_range2d.h>
 #include <tbb/parallel_reduce.h>

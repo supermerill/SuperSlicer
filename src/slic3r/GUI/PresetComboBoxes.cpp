@@ -30,8 +30,8 @@
 #endif
 
 #include "libslic3r/libslic3r.h"
-#include "libslic3r/PrintConfig.hpp"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 #include "libslic3r/Color.hpp"
 
 #include "GUI.hpp"

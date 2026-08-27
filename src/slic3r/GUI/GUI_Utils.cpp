@@ -16,7 +16,7 @@
 #include "GUI_App.hpp"
 #ifdef _WIN32
     #include <Windows.h>
-    #include "libslic3r/AppConfig.hpp"
+    #include "libslic3r/Config/AppConfig.hpp"
     #include <wx/msw/registry.h>
 #endif // _WIN32
 
@@ -27,7 +27,7 @@
 #include <wx/font.h>
 #include <wx/fontutil.h>
 
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 
 namespace Slic3r {
 namespace GUI {

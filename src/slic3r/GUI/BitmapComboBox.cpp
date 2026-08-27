@@ -33,7 +33,7 @@
 #endif
 
 #include "libslic3r/libslic3r.h"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 
 #include "GUI.hpp"
 #include "GUI_App.hpp"

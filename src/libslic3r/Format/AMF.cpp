@@ -37,7 +37,7 @@
 #include "libslic3r/LocalesUtils.hpp"
 #include "libslic3r/miniz_extension.hpp"
 #include "libslic3r/Model.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #include "libslic3r/Utils.hpp"
 
 namespace pt = boost::property_tree;

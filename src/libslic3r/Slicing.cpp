@@ -8,7 +8,7 @@
 
 #include <limits>
 
-#include "FFFPrintConfig.hpp"
+#include "Config/FFFPrintConfig.hpp"
 #include "Flow.hpp"
 #include "libslic3r.h"
 #include "Model.hpp"

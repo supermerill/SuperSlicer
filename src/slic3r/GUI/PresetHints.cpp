@@ -14,7 +14,7 @@
 
 #include "libslic3r/Flow.hpp"
 #include "libslic3r/libslic3r.h"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 #include "libslic3r/Slicing.hpp"
 
 #include "format.hpp"

@@ -16,7 +16,7 @@
 #include "Flow.hpp"
 #include "libslic3r.h"
 #include "Polygon.hpp"
-#include "FFFPrintConfig.hpp"
+#include "Config/FFFPrintConfig.hpp"
 #include "RegionSettings.hpp"
 #include "SurfaceCollection.hpp"
 

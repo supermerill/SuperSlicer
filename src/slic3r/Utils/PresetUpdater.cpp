@@ -18,8 +18,8 @@
 
 #include <boost/log/trivial.hpp>
 
-#include "libslic3r/AppConfig.hpp"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 
 #include "slic3r/Config/Snapshot.hpp"
 

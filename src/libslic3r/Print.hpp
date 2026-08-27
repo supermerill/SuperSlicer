@@ -43,7 +43,7 @@
 #include "libslic3r.h"
 #include "Point.hpp"
 #include "PrintBase.hpp"
-#include "FFFPrintConfig.hpp"
+#include "Config/FFFPrintConfig.hpp"
 #include "PrintSteps.hpp"
 
 namespace Slic3r {

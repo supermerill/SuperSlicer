@@ -21,7 +21,7 @@
 #include <boost/format.hpp>
 
 #include "libslic3r/enum_bitmask.hpp"
-#include "libslic3r/FFFPrintConfig.hpp"
+#include "libslic3r/Config/FFFPrintConfig.hpp"
 #include "libslic3r/Point.hpp"
 
 #include "LibBGCode/binarize/binarize.hpp"

@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-#include "libslic3r/Preset.hpp"
+#include "libslic3r/Config/Preset.hpp"
 
 #include "GUI_Utils.hpp"
 #include "wxExtensions.hpp"

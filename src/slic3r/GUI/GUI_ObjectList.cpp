@@ -18,7 +18,7 @@
 
 #include "libslic3r/libslic3r.h"
 #include "libslic3r/Model.hpp"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 #include "libslic3r/TextConfiguration.hpp"
 
 #include "BitmapComboBox.hpp"

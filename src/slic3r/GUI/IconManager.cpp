@@ -14,7 +14,7 @@
 #include <boost/log/trivial.hpp>
 #include <boost/nowide/cstdio.hpp>
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/Utils.hpp" // ScopeGuard
 
 #include "3DScene.hpp" // glsafe

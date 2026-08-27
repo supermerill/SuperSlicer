@@ -19,9 +19,9 @@
 #include <wx/tokenzr.h>
 
 #include "libslic3r/Color.hpp"
-#include "libslic3r/ConfigDef.hpp"
-#include "libslic3r/PresetBundle.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/ConfigDef.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 
 #include "ExtraRenderers.hpp"
 #include "format.hpp"

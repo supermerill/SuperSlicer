@@ -32,7 +32,7 @@
 #include "libslic3r/GCode/Thumbnails.hpp"
 #include "libslic3r/Log.hpp"
 #include "libslic3r/Model.hpp"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 #include "libslic3r/SLA/SLAPrintConfig.hpp"
 #include "libslic3r/Slicing.hpp"
 #include "libslic3r/Utils.hpp"

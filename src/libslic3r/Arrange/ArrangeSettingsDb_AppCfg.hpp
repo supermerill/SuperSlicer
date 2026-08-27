@@ -5,7 +5,7 @@
 #ifndef ARRANGESETTINGSDB_APPCFG_HPP
 #define ARRANGESETTINGSDB_APPCFG_HPP
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 
 #include "ArrangeSettingsView.hpp"
 

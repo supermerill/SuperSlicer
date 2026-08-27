@@ -31,7 +31,7 @@
 #include <imgui/imgui_internal.h>
 
 #include "libslic3r/libslic3r.h"
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/Color.hpp"
 

@@ -1,7 +1,7 @@
 #include <catch2/catch.hpp>
 
 #include "libslic3r/PlaceholderParser.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 
 using namespace Slic3r;
 

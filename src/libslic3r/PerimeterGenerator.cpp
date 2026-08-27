@@ -60,7 +60,7 @@
 #include "Polygon.hpp"
 #include "Polyline.hpp"
 #include "Print.hpp"
-#include "PrintConfig.hpp"
+#include "Config/PrintConfig.hpp"
 #include "ShortestPath.hpp"
 #include "Surface.hpp"
 #include "SurfaceCollection.hpp"

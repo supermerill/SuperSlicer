@@ -12,7 +12,7 @@
 #include <set>
 
 #include "AnycubicSLA.hpp"
-#include "ConfigOption.hpp"
+#include "Config/ConfigOption.hpp"
 #include "CWS.hpp"
 #include "I18N.hpp"
 #include "SL1.hpp"

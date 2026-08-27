@@ -16,7 +16,7 @@
 #include <wx/dataview.h>
 #include <wx/menu.h>
 
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 
 #include "Event.hpp"
 #include "ObjectDataViewModel.hpp"

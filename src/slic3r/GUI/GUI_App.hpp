@@ -21,7 +21,7 @@
 #include <wx/snglinst.h>
 #include <wx/string.h>
 
-#include "libslic3r/Preset.hpp"
+#include "libslic3r/Config/Preset.hpp"
 
 #include "ConfigWizard.hpp"
 #include "ImGuiWrapper.hpp"

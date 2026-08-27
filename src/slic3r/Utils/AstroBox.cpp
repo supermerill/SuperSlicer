@@ -21,7 +21,7 @@
 
 #include <wx/progdlg.h>
 
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 
 #include "libslic3r/Updater/Http.hpp"
 #include "slic3r/GUI/format.hpp"

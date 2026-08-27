@@ -9,7 +9,7 @@
 
 #include "libslic3r/Technologies.hpp"
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/BlacklistedLibraryCheck.hpp"
 
 #include "slic3r/GUI/GUI.hpp"

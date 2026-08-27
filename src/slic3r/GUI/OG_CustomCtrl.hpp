@@ -14,7 +14,7 @@
 #include <wx/settings.h>
 #include <wx/stattext.h>
 
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 
 #include "OptionsGroup.hpp"
 

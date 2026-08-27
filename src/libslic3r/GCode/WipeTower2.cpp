@@ -35,7 +35,7 @@
 #include "libslic3r/LocalesUtils.hpp"
 #include "libslic3r/PointUtils.hpp"
 #include "libslic3r/PrintObject.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #include "libslic3r/Surface.hpp"
 
 #include "GCodeProcessor.hpp"

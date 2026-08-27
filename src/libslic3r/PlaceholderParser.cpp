@@ -18,7 +18,7 @@
 
 #include "Exception.hpp"
 #include "Flow.hpp"
-#include "PrintConfig.hpp"
+#include "Config/PrintConfig.hpp"
 #include "Utils.hpp"
 
 #ifdef _MSC_VER

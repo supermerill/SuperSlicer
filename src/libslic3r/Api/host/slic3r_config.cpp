@@ -24,8 +24,8 @@ can be tested and reused without plugin handles or orchestrator state.
 
 #include "ApiHostUtils.hpp"
 #include "Orchestrator.hpp"
-#include "libslic3r/ConfigDef.hpp"
-#include "libslic3r/ConfigSnapshotSerialization.hpp"
+#include "libslic3r/Config/ConfigDef.hpp"
+#include "libslic3r/Config/ConfigSnapshotSerialization.hpp"
 
 namespace Slic3r {
 

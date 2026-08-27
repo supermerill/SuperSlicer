@@ -3,7 +3,7 @@
 #include "test_utils.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/Format/AMF.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 
 using namespace Slic3r;
 using namespace std::literals::string_literals;

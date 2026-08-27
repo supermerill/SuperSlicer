@@ -35,7 +35,7 @@
 #include "ExPolygon.hpp"
 #include "ExtrusionEntity.hpp"
 #include "ExtrusionEntityVisitors.hpp"
-#include "FFFPrintConfig.hpp"
+#include "Config/FFFPrintConfig.hpp"
 #include "GCode/GCodeWriter.hpp"
 #include "GCode/ThumbnailData.hpp"
 #include "Layer.hpp"

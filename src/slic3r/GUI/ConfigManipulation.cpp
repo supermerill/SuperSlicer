@@ -14,9 +14,9 @@
 #include <wx/msgdlg.h>
 
 #include "libslic3r/Api/host/Orchestrator.hpp"
-#include "libslic3r/FFFPrintConfig.hpp"
+#include "libslic3r/Config/FFFPrintConfig.hpp"
 #include "libslic3r/Model.hpp"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 #include "libslic3r/SLA/SupportTreeStrategies.hpp"
 
 #include "format.hpp"

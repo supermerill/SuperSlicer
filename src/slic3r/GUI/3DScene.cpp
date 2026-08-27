@@ -27,7 +27,7 @@
 
 #include <GL/glew.h>
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/BuildVolume.hpp"
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/ExtrusionEntity.hpp"
@@ -35,9 +35,9 @@
 #include "libslic3r/Format/STL.hpp"
 #include "libslic3r/Geometry.hpp"
 #include "libslic3r/PointUtils.hpp"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 #include "libslic3r/Print.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #include "libslic3r/SLAPrint.hpp"
 #include "libslic3r/Slicing.hpp"
 #include "libslic3r/Tesselate.hpp"

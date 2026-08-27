@@ -12,7 +12,7 @@
 #include "libslic3r/Format/SL1.hpp"
 #include "libslic3r/Format/SLAArchiveReader.hpp"
 #include "libslic3r/Model.hpp"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 #include "libslic3r/SLAPrint.hpp"
 
 #include "slic3r/GUI/GUI.hpp"

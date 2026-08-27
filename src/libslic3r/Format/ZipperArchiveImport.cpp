@@ -13,7 +13,7 @@
 
 #include "libslic3r/Exception.hpp"
 #include "libslic3r/miniz_extension.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 
 namespace Slic3r {
 

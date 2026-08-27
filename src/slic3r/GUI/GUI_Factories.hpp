@@ -14,7 +14,7 @@
 
 #include <wx/bitmap.h>
 
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 
 #include "wxExtensions.hpp"
 class wxMenu;

@@ -13,7 +13,7 @@
 #include "libslic3r/Api/plugin/cpp/gcode/Gantry.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/HeaterState.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/Printer.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 
 /*
 Generic G-code firmware state tests

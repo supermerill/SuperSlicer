@@ -14,9 +14,9 @@ namespace boost::filesystem { class path; }
 
 #include <wx/string.h>
 
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 
-#include "libslic3r/Preset.hpp"
+#include "libslic3r/Config/Preset.hpp"
 class wxWindow;
 class wxMenuBar;
 class wxComboCtrl;

@@ -8,9 +8,9 @@
 
 #include "test_data.hpp" // get access to init_print, etc
 
-#include <libslic3r/ConfigOption.hpp>
+#include <libslic3r/Config/ConfigOption.hpp>
 #include <libslic3r/Model.hpp>"
-#include <libslic3r/ConfigOption.hpp>
+#include <libslic3r/Config/ConfigOption.hpp>
 #include <libslic3r/GCodeReader.hpp>
 #include <libslic3r/Flow.hpp>
 #include <libslic3r/libslic3r.h>

@@ -20,7 +20,7 @@
 #include "libslic3r/KDTreeIndirect.hpp"
 #include "libslic3r/libslic3r.h"
 #include "libslic3r/Polygon.hpp"
-#include "libslic3r/FFFPrintConfig.hpp"
+#include "libslic3r/Config/FFFPrintConfig.hpp"
 #include "libslic3r/TriangleMesh.hpp"
 
 namespace Slic3r {

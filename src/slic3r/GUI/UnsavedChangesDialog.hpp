@@ -17,8 +17,8 @@
 
 #include <wx/dataview.h>
 
-#include "libslic3r/ConfigOption.hpp"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 
 #include "GUI_Utils.hpp"
 #include "wxExtensions.hpp"

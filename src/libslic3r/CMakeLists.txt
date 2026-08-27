@@ -384,12 +384,12 @@ set(SLIC3R_SOURCES
     ClipperZUtils.hpp
     Color.cpp
     Color.hpp
-    ConfigDef.cpp
-    ConfigDef.hpp
-    ConfigOption.cpp
-    ConfigOption.hpp
-    ConfigSnapshotSerialization.cpp
-    ConfigSnapshotSerialization.hpp
+    Config/ConfigDef.cpp
+    Config/ConfigDef.hpp
+    Config/ConfigOption.cpp
+    Config/ConfigOption.hpp
+    Config/ConfigSnapshotSerialization.cpp
+    Config/ConfigSnapshotSerialization.hpp
     ContainerUtils.hpp
     CSGMesh/CSGMesh.hpp
     CSGMesh/SliceCSGMesh.hpp
@@ -425,8 +425,8 @@ set(SLIC3R_SOURCES
     ExtrusionRole.hpp
     ExtrusionSimulator.cpp
     ExtrusionSimulator.hpp
-    FFFPrintConfig.cpp
-    FFFPrintConfig.hpp
+    Config/FFFPrintConfig.cpp
+    Config/FFFPrintConfig.hpp
     FileParserError.hpp
     FilesystemTransaction.cpp
     FilesystemTransaction.hpp
@@ -698,14 +698,14 @@ set(SLIC3R_SOURCES
     PolygonTrimmer.hpp
     Polyline.cpp
     Polyline.hpp
-    Preset.cpp
-    Preset.hpp
-    PresetBundle.cpp
-    PresetBundle.hpp
+    Config/Preset.cpp
+    Config/Preset.hpp
+    Config/PresetBundle.cpp
+    Config/PresetBundle.hpp
     PrincipalComponents2D.hpp
     PrincipalComponents2D.cpp
-    AppConfig.cpp
-    AppConfig.hpp
+    Config/AppConfig.cpp
+    Config/AppConfig.hpp
     UiLayoutMerger.cpp
     UiLayoutMerger.hpp
     Print.cpp
@@ -713,8 +713,8 @@ set(SLIC3R_SOURCES
     PrintApply.cpp
     PrintBase.cpp
     PrintBase.hpp
-    PrintConfig.cpp
-    PrintConfig.hpp
+    Config/PrintConfig.cpp
+    Config/PrintConfig.hpp
     PrintObject.cpp
     PrintObject.hpp
     PrintObjectRegion.cpp

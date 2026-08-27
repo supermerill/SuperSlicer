@@ -17,7 +17,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/log/trivial.hpp>
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/LocalesUtils.hpp"
 
 #include "format.hpp"

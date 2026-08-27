@@ -185,8 +185,8 @@
 #include <wx/wxprec.h>
 #include <wx/zipstrm.h>
 
-#include "libslic3r/ConfigOption.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #include "libslic3r/TriangleMesh.hpp"
 #include "libslic3r/Point.hpp"
 #include "libslic3r/MultiPoint.hpp"

@@ -54,11 +54,11 @@
 
 #include "libslic3r/Platform.hpp"
 #include "libslic3r/Utils.hpp"
-#include "libslic3r/ConfigDef.hpp"
+#include "libslic3r/Config/ConfigDef.hpp"
 #include "libslic3r/libslic3r.h"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/Color.hpp"
-#include "libslic3r/FFFPrintConfig.hpp"
+#include "libslic3r/Config/FFFPrintConfig.hpp"
 #include "libslic3r/Updater/RepositoryPackageCache.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"

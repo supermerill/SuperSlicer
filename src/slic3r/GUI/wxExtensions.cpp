@@ -15,9 +15,9 @@
 
 #include <wx/sizer.h>
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/Color.hpp"
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 #include "libslic3r/Utils.hpp"
 
 #include "BitmapCache.hpp"

@@ -19,7 +19,7 @@
 
 #include "libslic3r/format.hpp"
 #include "libslic3r/I18N.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #include "libslic3r/Utils.hpp"
 
 #ifdef WIN32

@@ -26,7 +26,7 @@
 #include <boost/nowide/fstream.hpp>
 #include "libslic3r/FilesystemTransaction.hpp"
 #include "libslic3r/Plugins/PluginRepository.hpp"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 #include "libslic3r/Updater/RepositoryPackageCache.hpp"
 #include "libslic3r/Updater/UpdaterHttp.hpp"
 #include "libslic3r/Utils.hpp"

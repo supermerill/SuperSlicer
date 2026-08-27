@@ -29,7 +29,7 @@
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
 
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 
 #include "libslic3r/Updater/Http.hpp"
 #include "TCPConsole.hpp"

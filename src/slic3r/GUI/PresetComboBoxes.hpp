@@ -11,7 +11,7 @@
 #include <wx/bmpbndl.h>
 #include <wx/gdicmn.h>
 
-#include "libslic3r/Preset.hpp"
+#include "libslic3r/Config/Preset.hpp"
 
 #include "BitmapComboBox.hpp"
 #include "GUI_Utils.hpp"

@@ -1,7 +1,7 @@
 #include <catch2/catch.hpp>
 
 #include "libslic3r/GCodeReader.hpp"
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 #include "libslic3r/Geometry.hpp"
 
 #include <boost/algorithm/string.hpp>

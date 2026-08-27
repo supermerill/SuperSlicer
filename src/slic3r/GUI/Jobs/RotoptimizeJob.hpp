@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #include "libslic3r/SLA/Rotfinder.hpp"
 
 #include "Job.hpp"

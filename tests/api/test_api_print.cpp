@@ -19,8 +19,8 @@
 #include <libslic3r/Plugins/SliceVolume.hpp>
 #include <libslic3r/Plugins/StandardLayerHeightGenerator.hpp>
 #include <libslic3r/Plugins/Support/SupportDemandBridgeRemoval.hpp>
-#include <libslic3r/FFFPrintConfig.hpp>
-#include <libslic3r/PrintConfig.hpp>
+#include <libslic3r/Config/FFFPrintConfig.hpp>
+#include <libslic3r/Config/PrintConfig.hpp>
 #include <libslic3r/SLA/SLAPrintConfig.hpp>
 #include <libslic3r/Steps/StepPipeline.hpp>
 //#include <libslic3r/config.hpp>

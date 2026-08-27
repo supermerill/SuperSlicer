@@ -14,7 +14,7 @@
 #include "GUI_ObjectSettings.hpp"
 #include "wxExtensions.hpp"
 #ifdef __WXOSX__
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #endif
 
 class wxBoxSizer;

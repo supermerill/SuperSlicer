@@ -16,7 +16,7 @@
 #include "GUI_App.hpp"
 #include "GUI_ObjectList.hpp"
 #include "wxExtensions.hpp"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/Geometry.hpp"
 #include "Selection.hpp"

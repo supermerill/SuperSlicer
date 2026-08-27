@@ -32,7 +32,7 @@
 #include "libslic3r.h"
 #include "ObjectID.hpp"
 #include "Point.hpp"
-#include "PrintConfig.hpp"
+#include "Config/PrintConfig.hpp"
 #include "SLA/DrainHole.hpp"
 #include "SLA/SupportPoint.hpp"
 #include "Slicing.hpp"

@@ -23,8 +23,8 @@ by libslic3r tests; this suite verifies the ABI buffer and merge semantics.
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/plugin/c/slic3r_config.h"
 #include "libslic3r/Api/plugin/cpp/ConfigViews.hpp"
-#include "libslic3r/ConfigDef.hpp"
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigDef.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 
 namespace {
 

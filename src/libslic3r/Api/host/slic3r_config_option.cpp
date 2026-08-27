@@ -7,8 +7,8 @@
 #include <string>
 
 #include "libslic3r/Api/plugin/c/slic3r_config_option.h"
-#include "libslic3r/ConfigDef.hpp"
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigDef.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 
 namespace Slic3r {
 

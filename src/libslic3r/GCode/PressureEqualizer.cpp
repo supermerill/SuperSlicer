@@ -16,7 +16,7 @@
 #include "libslic3r/GCode.hpp"
 #include "libslic3r/libslic3r.h"
 #include "libslic3r/LocalesUtils.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 
 #include "GCodeWriter.hpp"
 

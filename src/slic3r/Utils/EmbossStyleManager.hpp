@@ -20,7 +20,7 @@
 
 #include <wx/font.h>
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/BoundingBox.hpp"
 #include "libslic3r/Emboss.hpp"
 #include "libslic3r/EmbossShape.hpp"

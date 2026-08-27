@@ -26,8 +26,8 @@
 #include <wx/radiobut.h>
 #include <wx/spinctrl.h>
 
-#include "libslic3r/PresetBundle.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 
 #include "BedShapeDialog.hpp"
 #include "ConfigWizard.hpp"

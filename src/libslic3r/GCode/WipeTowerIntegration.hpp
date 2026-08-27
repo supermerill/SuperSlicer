@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "libslic3r/FFFPrintConfig.hpp"
+#include "libslic3r/Config/FFFPrintConfig.hpp"
 
 #include "WipeTower.hpp"
 

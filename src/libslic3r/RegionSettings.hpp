@@ -15,7 +15,7 @@
 #include "DataTreeFwd.hpp"
 #include "ExPolygon.hpp"
 #include "libslic3r.h"
-#include "FFFPrintConfig.hpp"
+#include "Config/FFFPrintConfig.hpp"
 
 namespace Slic3r {
 

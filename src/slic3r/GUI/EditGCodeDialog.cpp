@@ -16,9 +16,9 @@
 #include <wx/wupdlock.h>
 
 #include "libslic3r/PlaceholderParser.hpp"
-#include "libslic3r/Preset.hpp"
+#include "libslic3r/Config/Preset.hpp"
 #include "libslic3r/Print.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 
 #include "BitmapCache.hpp"
 #include "ExtraRenderers.hpp"

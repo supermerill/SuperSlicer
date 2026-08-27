@@ -13,7 +13,7 @@
 
 #include <wx/progdlg.h>
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 #include "libslic3r/PointUtils.hpp"
 #include "libslic3r/TriangleMeshSlicer.hpp"
 

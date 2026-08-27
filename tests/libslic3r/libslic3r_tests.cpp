@@ -1,8 +1,8 @@
 #include <catch_main.hpp>
 
 #include "libslic3r/ContainerUtils.hpp"
-#include "libslic3r/FFFPrintConfig.hpp"
-#include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/Config/FFFPrintConfig.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
 #include "libslic3r/SLA/SLAPrintConfig.hpp"
 #include "libslic3r/Utils.hpp"
 #include "../plugins/plugin_test_helpers.hpp"

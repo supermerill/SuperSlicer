@@ -28,7 +28,7 @@
 #include "Geometry.hpp"
 #include "LocalesUtils.hpp"
 #include "PointUtils.hpp"
-#include "PrintConfig.hpp"
+#include "Config/PrintConfig.hpp"
 #include "Surface.hpp"
 
 namespace Slic3r

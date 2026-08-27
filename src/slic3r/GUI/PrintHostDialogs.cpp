@@ -27,7 +27,7 @@
 #include <wx/textctrl.h>
 #include <wx/wupdlock.h>
 
-#include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Config/AppConfig.hpp"
 
 #include "ExtraRenderers.hpp"
 #include "format.hpp"

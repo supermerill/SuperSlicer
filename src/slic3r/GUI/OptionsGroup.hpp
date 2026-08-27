@@ -27,7 +27,7 @@
 #include <wx/settings.h>
 #include <wx/stattext.h>
 
-#include "libslic3r/ConfigDef.hpp"
+#include "libslic3r/Config/ConfigDef.hpp"
 
 #include "Field.hpp"
 #include "I18N.hpp"

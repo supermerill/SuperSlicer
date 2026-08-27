@@ -33,7 +33,7 @@
 #include "libslic3r/enum_bitmask.hpp"
 #include "libslic3r/Point.hpp"
 #include "libslic3r/PrintSteps.hpp"
-#include "libslic3r/Preset.hpp"
+#include "libslic3r/Config/Preset.hpp"
 
 #include "GUI_Preview.hpp"
 #include "Search.hpp"

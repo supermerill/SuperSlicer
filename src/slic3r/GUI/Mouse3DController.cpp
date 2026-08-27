@@ -9,7 +9,7 @@
 #include "Mouse3DController.hpp"
 
 #include "libslic3r/libslic3r.h"
-#include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Config/PresetBundle.hpp"
 
 #include "Camera.hpp"
 #include "GUI_App.hpp"

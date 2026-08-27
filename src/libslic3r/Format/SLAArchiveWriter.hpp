@@ -10,7 +10,7 @@
 
 #include <vector>
 
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 #include "libslic3r/Execution/ExecutionTBB.hpp"
 #include "libslic3r/GCode/ThumbnailData.hpp"
 #include "libslic3r/SLA/RasterBase.hpp"

@@ -12,7 +12,7 @@
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
 
-#include "libslic3r/ConfigOption.hpp" // for GraphSettings
+#include "libslic3r/Config/ConfigOption.hpp" // for GraphSettings
 
 #include "RammingChart.hpp"
 #include "Widgets/SpinInput.hpp"

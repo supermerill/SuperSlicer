@@ -18,7 +18,7 @@
 #include <boost/nowide/fstream.hpp>
 #endif
 
-#include "libslic3r/ConfigOption.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
 #include "libslic3r/Semver.hpp"
 
 namespace Slic3r {

@@ -1,7 +1,7 @@
 
 //#define CATCH_CONFIG_DISABLE
 #include <catch_main.hpp>
-#include <libslic3r/ConfigOption.hpp>
+#include <libslic3r/Config/ConfigOption.hpp>
 #include <libslic3r/Print.hpp>
 #include <libslic3r/Model.hpp>
 #include <libslic3r/ModelArrange.hpp>

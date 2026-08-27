@@ -25,7 +25,7 @@
 
 #include <boost/filesystem/path.hpp>
 
-#include "libslic3r/Preset.hpp"
+#include "libslic3r/Config/Preset.hpp"
 #include "libslic3r/Semver.hpp"
 #include "libslic3r/Updater/RepositoryUpdater.hpp"
 #include "libslic3r/Updater/UpdaterError.hpp"
