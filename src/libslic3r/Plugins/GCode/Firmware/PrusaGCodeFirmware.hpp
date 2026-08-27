@@ -22,6 +22,10 @@ class PrusaGCodeFirmwareSession : public Marlin2GCodeFirmwareSession
 {
 public:
     using Marlin2GCodeFirmwareSession::Marlin2GCodeFirmwareSession;
+
+protected:
+    std::string resolve_empty_script(gcode_script_type script_type,
+                                     const Config *producer_config) const override;
 };
 
 }}} // namespace slic3r_api::GCodeGeneration::Firmware

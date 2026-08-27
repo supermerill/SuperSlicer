@@ -46,6 +46,9 @@ const std::vector<BuiltinGCodeScriptTypeInfo> &builtin_gcode_script_type_infos()
         {GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE, "toolchange_gcode"},
         {GCODE_SCRIPT_TYPE_BETWEEN_OBJECTS_GCODE, "between_objects_gcode"},
         {GCODE_SCRIPT_TYPE_FEATURE_GCODE, "feature_gcode"},
+        {GCODE_SCRIPT_TYPE_COLOR_CHANGE_GCODE, "color_change_gcode"},
+        {GCODE_SCRIPT_TYPE_PAUSE_PRINT_GCODE, "pause_print_gcode"},
+        {GCODE_SCRIPT_TYPE_TEMPLATE_CUSTOM_GCODE, "template_custom_gcode"},
     };
     return infos;
 }

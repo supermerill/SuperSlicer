@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <type_traits>
 #include <utility>
 
 #include "libslic3r/ExtrusionEntity.hpp"
@@ -111,6 +112,56 @@ ExtrusionEntity *to_extrusion(extrusion_entity_handle *me)
 const ExtrusionEntity *to_extrusion(const extrusion_entity_handle *me)
 {
     return reinterpret_cast<const ExtrusionEntity *>(me);
+}
+
+/* Rebuild the compact source-context list from the extrusions that remain in
+   a tool group. Ordering mutations use this instead of trying to update the
+   list incrementally, which also removes duplicates left by merged sources. */
+std::vector<const LayerRegionIsland *> region_islands_for_extrusions(
+    const std::vector<Printing::PrintingExtrusion> &extrusions)
+{
+    std::vector<const LayerRegionIsland *> result;
+    result.reserve(extrusions.size());
+    for (const Printing::PrintingExtrusion &extrusion : extrusions)
+        if (extrusion.region_island != nullptr &&
+            std::find(result.begin(), result.end(), extrusion.region_island) == result.end())
+            result.push_back(extrusion.region_island);
+    return result;
+}
+
+/* Build the source context remaining after one extrusion is removed. Keeping
+   this helper pointer-only avoids constructing temporary ownership objects
+   while the transfer is still in its strongly guaranteed preparation phase. */
+std::vector<const LayerRegionIsland *> region_islands_without_extrusion(
+    const Printing::PrintingToolGroup &source,
+    uint32_t removed_idx)
+{
+    std::vector<const LayerRegionIsland *> result;
+    result.reserve(source.extrusions.size() - 1);
+    for (uint32_t idx = 0; idx < source.extrusions.size(); ++idx) {
+        if (idx == removed_idx)
+            continue;
+        const LayerRegionIsland *region_island = source.extrusions[idx].region_island;
+        if (region_island != nullptr &&
+            std::find(result.begin(), result.end(), region_island) == result.end())
+            result.push_back(region_island);
+    }
+    return result;
+}
+
+/* Prepare the context list that a destination will expose after receiving one
+   more extrusion. This allocation happens before ownership is moved so an
+   allocation failure leaves both live groups unchanged. */
+std::vector<const LayerRegionIsland *> region_islands_after_append(
+    const Printing::PrintingToolGroup &destination,
+    const Printing::PrintingExtrusion &extrusion)
+{
+    std::vector<const LayerRegionIsland *> result =
+        region_islands_for_extrusions(destination.extrusions);
+    if (extrusion.region_island != nullptr &&
+        std::find(result.begin(), result.end(), extrusion.region_island) == result.end())
+        result.push_back(extrusion.region_island);
+    return result;
 }
 
 ExtrusionRole to_extrusion_role(raw_extrusion_role role)
@@ -433,6 +484,20 @@ int32_t printing_layer_group_move_tool_group(printing_layer_group_handle *me, ui
     return me != nullptr && Slic3r::move_vector_item(Slic3r::to_layer_group(me)->tool_groups, from_idx, to_idx);
 }
 
+int32_t printing_layer_group_remove_empty_tool_group(printing_layer_group_handle *me, uint32_t idx)
+{
+    if (me == nullptr || idx >= Slic3r::to_layer_group(me)->tool_groups.size())
+        return 0;
+
+    Slic3r::Printing::PrintingToolGroup &tool_group = Slic3r::to_layer_group(me)->tool_groups[idx];
+    if (!tool_group.extrusions.empty() || tool_group.events.has_before() || tool_group.events.has_after())
+        return 0;
+
+    Slic3r::to_layer_group(me)->tool_groups.erase(
+        Slic3r::to_layer_group(me)->tool_groups.begin() + idx);
+    return 1;
+}
+
 printing_scope_events_handle *printing_tool_group_get_events_mutable(printing_tool_group_handle *me)
 {
     return me == nullptr ?
@@ -556,6 +621,39 @@ printing_extrusion_handle *printing_tool_group_append_extrusion_move(
 int32_t printing_tool_group_move_extrusion(printing_tool_group_handle *me, uint32_t from_idx, uint32_t to_idx)
 {
     return me != nullptr && Slic3r::move_vector_item(Slic3r::to_tool_group(me)->extrusions, from_idx, to_idx);
+}
+
+int32_t printing_tool_group_transfer_extrusion(printing_tool_group_handle *source,
+                                               uint32_t source_idx,
+                                               printing_tool_group_handle *destination)
+{
+    static_assert(std::is_nothrow_move_constructible_v<Slic3r::Printing::PrintingExtrusion>);
+    static_assert(std::is_nothrow_move_assignable_v<Slic3r::Printing::PrintingExtrusion>);
+    if (source == nullptr || destination == nullptr || source == destination ||
+        source_idx >= Slic3r::to_tool_group(source)->extrusions.size())
+        return 0;
+
+    try {
+        Slic3r::Printing::PrintingToolGroup &source_group = *Slic3r::to_tool_group(source);
+        Slic3r::Printing::PrintingToolGroup &destination_group = *Slic3r::to_tool_group(destination);
+
+        /* Build every allocation-prone result first. Once reserve succeeds,
+           moving the unique extrusion root and erasing its old slot are
+           noexcept operations, so callers never observe a half transfer. */
+        std::vector<const Slic3r::LayerRegionIsland *> source_islands =
+            Slic3r::region_islands_without_extrusion(source_group, source_idx);
+        std::vector<const Slic3r::LayerRegionIsland *> destination_islands =
+            Slic3r::region_islands_after_append(destination_group, source_group.extrusions[source_idx]);
+        destination_group.extrusions.reserve(destination_group.extrusions.size() + 1);
+
+        destination_group.extrusions.push_back(std::move(source_group.extrusions[source_idx]));
+        source_group.extrusions.erase(source_group.extrusions.begin() + source_idx);
+        source_group.region_islands.swap(source_islands);
+        destination_group.region_islands.swap(destination_islands);
+        return 1;
+    } catch (...) {
+        return 0;
+    }
 }
 
 const layer_region_island_handle *printing_extrusion_get_region_island(const printing_extrusion_handle *me)

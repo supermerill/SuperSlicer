@@ -17,6 +17,17 @@ base session remains responsible for deciding when each state changed.
 
 namespace slic3r_api { namespace GCodeGeneration { namespace Firmware {
 
+std::string RepRapGCodeFirmwareSession::resolve_empty_script(
+    gcode_script_type script_type,
+    const Config *producer_config) const
+{
+    if (script_type == GCODE_SCRIPT_TYPE_COLOR_CHANGE_GCODE)
+        return "M600\n";
+    if (script_type == GCODE_SCRIPT_TYPE_PAUSE_PRINT_GCODE)
+        return "M226\n";
+    return DefaultGCodeFirmwareSession::resolve_empty_script(script_type, producer_config);
+}
+
 std::string RepRapGCodeFirmwareSession::encode_machine_envelope(
     const MachineEnvelope &envelope) const
 {

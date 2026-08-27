@@ -15,6 +15,42 @@ the one temperature detail that needs access to the previous encoded target.
 
 namespace slic3r_api { namespace GCodeGeneration { namespace Firmware {
 
+namespace {
+
+/*
+Read the optional pause message supplied by the script producer and make it
+safe for Marlin's single-line M0 parameter. Newlines are flattened rather than
+allowed to become unintended G-code commands.
+*/
+std::string marlin_pause_message(const Config *config);
+
+std::string marlin_pause_message(const Config *config)
+{
+    if (config == nullptr || !config->has("pause_message") ||
+        config->get("pause_message").type() != SLIC3R_CONFIG_OPTION_STRING)
+        return {};
+    std::string message = config->get("pause_message").get_string();
+    for (char &character : message)
+        if (character == '\r' || character == '\n')
+            character = ' ';
+    return message;
+}
+
+} // namespace
+
+std::string Marlin2GCodeFirmwareSession::resolve_empty_script(
+    gcode_script_type script_type,
+    const Config *producer_config) const
+{
+    if (script_type == GCODE_SCRIPT_TYPE_COLOR_CHANGE_GCODE)
+        return "M600\n";
+    if (script_type == GCODE_SCRIPT_TYPE_PAUSE_PRINT_GCODE) {
+        const std::string message = marlin_pause_message(producer_config);
+        return message.empty() ? "M0\n" : "M0 " + message + "\n";
+    }
+    return DefaultGCodeFirmwareSession::resolve_empty_script(script_type, producer_config);
+}
+
 std::string Marlin2GCodeFirmwareSession::encode_machine_envelope(
     const MachineEnvelope &envelope) const
 {

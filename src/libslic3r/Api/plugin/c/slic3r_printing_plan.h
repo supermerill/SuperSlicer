@@ -167,6 +167,11 @@ SLIC3R_HOST_API printing_tool_group_handle *printing_layer_group_append_tool_gro
 SLIC3R_HOST_API int32_t printing_layer_group_move_tool_group(printing_layer_group_handle *me,
                                                              uint32_t from_idx,
                                                              uint32_t to_idx);
+/* Remove one tool group only when it contains neither extrusion nor scope
+   event. This lets structural ordering passes discard groups made empty by
+   transfers without accidentally dropping executable work. */
+SLIC3R_HOST_API int32_t printing_layer_group_remove_empty_tool_group(printing_layer_group_handle *me,
+                                                                     uint32_t idx);
 
 /* ---- tool group ---------------------------------------------------------
 
@@ -223,6 +228,12 @@ SLIC3R_HOST_API printing_extrusion_handle *printing_tool_group_append_extrusion_
 SLIC3R_HOST_API int32_t printing_tool_group_move_extrusion(printing_tool_group_handle *me,
                                                            uint32_t from_idx,
                                                            uint32_t to_idx);
+/* Move one owned extrusion to the end of another tool group. Both groups must
+   belong to the same layer group. Source and destination region-island context
+   lists are rebuilt after the move. */
+SLIC3R_HOST_API int32_t printing_tool_group_transfer_extrusion(printing_tool_group_handle *source,
+                                                               uint32_t source_idx,
+                                                               printing_tool_group_handle *destination);
 
 /* ---- extrusion ----------------------------------------------------------
 

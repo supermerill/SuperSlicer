@@ -195,6 +195,7 @@ set(SLIC3R_SOURCES
 	Plugins/GCode/Firmware/Marlin1GCodeFirmware.hpp
 	Plugins/GCode/Firmware/Marlin2GCodeFirmware.cpp
 	Plugins/GCode/Firmware/Marlin2GCodeFirmware.hpp
+	Plugins/GCode/Firmware/PrusaGCodeFirmware.cpp
 	Plugins/GCode/Firmware/PrusaGCodeFirmware.hpp
 	Plugins/GCode/Firmware/RepRapGCodeFirmware.cpp
 	Plugins/GCode/Firmware/RepRapGCodeFirmware.hpp
@@ -202,6 +203,11 @@ set(SLIC3R_SOURCES
 	Plugins/GCode/Firmware/SprinterGCodeFirmware.hpp
 	Plugins/GCode/FeatureGCode.cpp
 	Plugins/GCode/FeatureGCode.hpp
+	Plugins/GCode/CustomGCodePerPrintZ.cpp
+	Plugins/GCode/CustomGCodePerPrintZ.hpp
+	Plugins/GCode/CustomGCodePerPrintZOrdering.cpp
+	Plugins/GCode/CustomGCodePerPrintZRecord.cpp
+	Plugins/GCode/CustomGCodePerPrintZRecord.hpp
 	Plugins/GCode/LegacyGCodeGenerator.cpp
 	Plugins/GCode/LegacyGCodeGenerator.hpp
 	Plugins/GCode/PrintingPlanFileWriter.cpp

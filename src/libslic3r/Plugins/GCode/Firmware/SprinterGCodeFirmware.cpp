@@ -15,6 +15,18 @@ choices while mapping the two generic acceleration histories to one command.
 
 namespace slic3r_api { namespace GCodeGeneration { namespace Firmware {
 
+std::string SprinterGCodeFirmwareSession::resolve_empty_script(
+    gcode_script_type script_type,
+    const Config *producer_config) const
+{
+    if (script_type == GCODE_SCRIPT_TYPE_COLOR_CHANGE_GCODE)
+        return encode_unsupported_operation("color change");
+    if (script_type == GCODE_SCRIPT_TYPE_PAUSE_PRINT_GCODE)
+        return encode_unsupported_operation("pause print");
+    return SingleAccelerationRegisterGCodeFirmwareSession::resolve_empty_script(
+        script_type, producer_config);
+}
+
 std::string SprinterGCodeFirmwareSession::encode_machine_envelope(
     const MachineEnvelope &envelope) const
 {

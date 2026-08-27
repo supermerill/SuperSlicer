@@ -904,6 +904,9 @@ std::string DefaultGCodeFirmwareSession::process_script(
         throw std::invalid_argument(
             "Custom G-code scripts require a host script processor.");
 
+    const std::string resolved_script = script.empty() ?
+        resolve_empty_script(script_type, producer_config) : script;
+
     // The script producer has already frozen every structural placeholder in
     // its Config. The firmware adds only values that depend on the machine at
     // this exact execution point.
@@ -962,7 +965,7 @@ std::string DefaultGCodeFirmwareSession::process_script(
     m_script_processing_tool = processing_tool;
     std::string output;
     try {
-        output = context.process(script, processing_tool);
+        output = context.process(resolved_script, processing_tool);
         GCodeStateInterpreter(*this).apply(output);
         m_script_processing_tool.reset();
     } catch (...) {
@@ -1020,6 +1023,13 @@ std::string DefaultGCodeFirmwareSession::process_script(
     if (!output.empty())
         output += '\n';
     return output;
+}
+
+std::string DefaultGCodeFirmwareSession::resolve_empty_script(
+    gcode_script_type,
+    const Config *) const
+{
+    return {};
 }
 
 void DefaultGCodeFirmwareSession::complete_script_context(

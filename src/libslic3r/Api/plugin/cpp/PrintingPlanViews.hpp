@@ -214,6 +214,11 @@ public:
         return printing_tool_group_move_extrusion(mutable_handle(), from_idx, to_idx) != 0;
     }
 
+    bool transfer_extrusion_to(uint32_t source_idx, const PrintingToolGroup &destination) const {
+        return printing_tool_group_transfer_extrusion(
+                   mutable_handle(), source_idx, destination.mutable_handle()) != 0;
+    }
+
 private:
     printing_tool_group_handle *m_handle = nullptr;
 };
@@ -251,6 +256,9 @@ public:
     }
     bool move_tool_group(uint32_t from_idx, uint32_t to_idx) const {
         return printing_layer_group_move_tool_group(mutable_handle(), from_idx, to_idx) != 0;
+    }
+    bool remove_empty_tool_group(uint32_t idx) const {
+        return printing_layer_group_remove_empty_tool_group(mutable_handle(), idx) != 0;
     }
 
 private:

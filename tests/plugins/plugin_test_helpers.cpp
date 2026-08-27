@@ -29,6 +29,7 @@
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Config/FFFPrintConfig.hpp"
 #include "libslic3r/Plugins/GCode/FeatureGCode.hpp"
+#include "libslic3r/Plugins/GCode/CustomGCodePerPrintZ.hpp"
 #include "libslic3r/Plugins/GCode/Firmware/BuiltinGCodeFirmwares.hpp"
 #include "libslic3r/Plugins/GCode/LegacyGCodeGenerator.hpp"
 #include "libslic3r/Plugins/GCode/PrintingPlanFileWriter.hpp"
@@ -196,6 +197,8 @@ void ensure_plugin_test_runtime_initialized()
             orchestrator_handle_value);
         slic3r_api::GCodeGeneration::FeatureGCodePlugin::register_feature_gcode_plugin(
             orchestrator_handle_value);
+        slic3r_api::GCodeGeneration::CustomGCodePerPrintZPlugin::register_custom_gcode_per_print_z_plugins(
+            orchestrator_handle_value);
         slic3r_api::GCodeGeneration::Firmware::register_builtin_gcode_firmware_plugins(
             orchestrator_handle_value);
         slic3r_api::FlatAreaLayerHeightPlugin::register_flat_area_layer_height_plugin(orchestrator_handle_value);
@@ -274,6 +277,7 @@ void ensure_plugin_test_runtime_initialized()
         activate_plugin_or_fail(orchestrator, "gcode.printing_plan_file_writer");
         activate_plugin_or_fail(orchestrator, "gcode.settings_scripts");
         activate_plugin_or_fail(orchestrator, "gcode.feature_gcode");
+        activate_plugin_or_fail(orchestrator, "gcode.custom_gcode_per_print_z");
         activate_plugin_or_fail(orchestrator, "gcode.firmware.marlin1");
         activate_plugin_or_fail(orchestrator, "gcode.firmware.marlin2");
         activate_plugin_or_fail(orchestrator, "gcode.firmware.prusa");
@@ -285,7 +289,9 @@ void ensure_plugin_test_runtime_initialized()
         activate_plugin_or_fail(orchestrator, "dense_infill.recipe_modifier");
         activate_plugin_or_fail(orchestrator, "dense_infill.post_infill_order");
         activate_plugin_or_fail(orchestrator, "ordering.plan_builder.default");
+        activate_plugin_or_fail(orchestrator, "ordering.custom_gcode_tool_overrides");
         activate_plugin_or_fail(orchestrator, "ordering.tool_groups.default");
+        activate_plugin_or_fail(orchestrator, "ordering.custom_gcode_event_tools");
         activate_plugin_or_fail(orchestrator, "ordering.extrusion_tree.default");
         activate_plugin_or_fail(orchestrator, "layer_extrusion_edit.speed.default");
         activate_plugin_or_fail(orchestrator, "layer_extrusion_edit.acceleration.default");

@@ -123,6 +123,13 @@ protected:
                                          uint16_t processing_extruder_id,
                                          GCodeScriptConfig &config);
 
+    // Resolve a configured script whose setting is empty. The neutral session
+    // has no firmware policy and returns an empty string; concrete dialects may
+    // supply a safe native pause or filament-change command. A non-empty user
+    // setting never reaches this hook.
+    virtual std::string resolve_empty_script(gcode_script_type script_type,
+                                             const Config *producer_config) const;
+
     // A dialect may copy additional setup values after the generic machine
     // state has been initialized. The borrowed Config view remains valid only
     // for the duration of this call.

@@ -736,6 +736,39 @@ TEST_CASE("PrintingPlan C API moves extrusion content into the plan", "[printing
     CHECK(extrusion_child_count(printing_extrusion_get_root(extrusion_handle)) == 1);
 }
 
+TEST_CASE("PrintingPlan C API transfers extrusions between tool groups",
+          "[printing][plan][api][plugins][ordering]")
+{
+    /* A transfer updates both cached region-island lists before the source
+       group is removed. This is the mutation sequence used by ordering plugins
+       when a marker changes the tool assigned to an object extrusion. */
+    PrintingPlan plan;
+    printing_plan_handle *plan_handle = reinterpret_cast<printing_plan_handle *>(&plan);
+    printing_group_handle *group_handle = printing_plan_append_group(plan_handle);
+    printing_layer_group_handle *layer_handle = printing_group_append_layer_group(group_handle, 0);
+    printing_tool_group_handle *source = printing_layer_group_append_tool_group(layer_handle, 0);
+    printing_tool_group_handle *destination = printing_layer_group_append_tool_group(layer_handle, 1);
+    const layer_region_island_handle *region_island =
+        reinterpret_cast<const layer_region_island_handle *>(uintptr_t(0x3456));
+
+    ExtrusionEntity root(true);
+    root.append_child(test_path({Point(0, 0), Point(10, 0)}));
+    REQUIRE(printing_tool_group_append_extrusion_clone(
+                source, region_island, RAW_EXTRUSION_ROLE_PERIMETER,
+                reinterpret_cast<const extrusion_entity_handle *>(&root), 0) != nullptr);
+    REQUIRE(printing_tool_group_transfer_extrusion(source, 0, destination) == 1);
+
+    CHECK(printing_tool_group_count_extrusion(source) == 0);
+    CHECK(printing_tool_group_count_region_island(source) == 0);
+    CHECK(printing_tool_group_count_extrusion(destination) == 1);
+    CHECK(printing_tool_group_count_region_island(destination) == 1);
+    CHECK(printing_tool_group_get_region_island(destination, 0) == region_island);
+    CHECK(printing_layer_group_remove_empty_tool_group(layer_handle, 0) == 1);
+    CHECK(printing_layer_group_count_tool_group(layer_handle) == 1);
+    CHECK(printing_tool_group_get_extruder_id(
+              printing_layer_group_get_tool_group(layer_handle, 0)) == 1);
+}
+
 TEST_CASE("PrintingPlan scopes expose fixed ordered event roots", "[printing][plan][events][api]")
 {
     PrintingPlan plan;
@@ -868,10 +901,12 @@ TEST_CASE("STEP_ORDERING runs default plugin chain on a shared PrintingPlan", "[
 
     const std::vector<Plugin *> plugins =
         Steps::selected_or_active_plugins_for_step(orchestrator, STEP_ORDERING, &print.full_print_config());
-    REQUIRE(plugins.size() >= 3);
+    REQUIRE(plugins.size() >= 5);
     CHECK(plugins[0]->get_id() == "ordering.plan_builder.default");
-    CHECK(plugins[1]->get_id() == "ordering.tool_groups.default");
-    CHECK(plugins[2]->get_id() == "ordering.extrusion_tree.default");
+    CHECK(plugins[1]->get_id() == "ordering.custom_gcode_tool_overrides");
+    CHECK(plugins[2]->get_id() == "ordering.tool_groups.default");
+    CHECK(plugins[3]->get_id() == "ordering.custom_gcode_event_tools");
+    CHECK(plugins[4]->get_id() == "ordering.extrusion_tree.default");
     CHECK(Steps::get_exclusive_steps().find(STEP_ORDERING) == Steps::get_exclusive_steps().end());
 
     Steps::StepExtrusionOrdering::run_step(orchestrator, print);

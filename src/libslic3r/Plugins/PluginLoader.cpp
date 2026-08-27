@@ -44,6 +44,7 @@
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Config/FFFPrintConfig.hpp"
 #include "libslic3r/Config/PrintConfig.hpp"
+#include "libslic3r/Plugins/GCode/CustomGCodePerPrintZ.hpp"
 #include "libslic3r/Plugins/GCode/FeatureGCode.hpp"
 #include "libslic3r/Plugins/GCode/Firmware/BuiltinGCodeFirmwares.hpp"
 #include "libslic3r/Plugins/GCode/LegacyGCodeGenerator.hpp"
@@ -500,6 +501,9 @@ void register_builtin_plugins(orchestrator_handle *orchestrator)
     register_builtin_plugin(
         orchestrator, "gcode.feature_gcode",
         slic3r_api::GCodeGeneration::FeatureGCodePlugin::register_feature_gcode_plugin);
+    register_builtin_plugin(
+        orchestrator, "custom G-code at height",
+        slic3r_api::GCodeGeneration::CustomGCodePerPrintZPlugin::register_custom_gcode_per_print_z_plugins);
     register_builtin_plugin(orchestrator, "gcode firmware dialects",
         slic3r_api::GCodeGeneration::Firmware::register_builtin_gcode_firmware_plugins);
     register_builtin_plugin(orchestrator, "infill.generator.default",

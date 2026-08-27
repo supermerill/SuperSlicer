@@ -29,6 +29,8 @@ public:
     using SingleAccelerationRegisterGCodeFirmwareSession::SingleAccelerationRegisterGCodeFirmwareSession;
 
 protected:
+    std::string resolve_empty_script(gcode_script_type script_type,
+                                     const Config *producer_config) const override;
     std::string encode_machine_envelope(const MachineEnvelope &envelope) const override;
     void setup_firmware(const Config &config) override;
     void synchronize_selected_extruder_state(const DefaultExtruder *previous,
