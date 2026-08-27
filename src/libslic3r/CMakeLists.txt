@@ -200,6 +200,8 @@ set(SLIC3R_SOURCES
 	Plugins/GCode/Firmware/RepRapGCodeFirmware.hpp
 	Plugins/GCode/Firmware/SprinterGCodeFirmware.cpp
 	Plugins/GCode/Firmware/SprinterGCodeFirmware.hpp
+	Plugins/GCode/FeatureGCode.cpp
+	Plugins/GCode/FeatureGCode.hpp
 	Plugins/GCode/LegacyGCodeGenerator.cpp
 	Plugins/GCode/LegacyGCodeGenerator.hpp
 	Plugins/GCode/PrintingPlanFileWriter.cpp

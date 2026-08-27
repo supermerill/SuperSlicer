@@ -11,6 +11,7 @@ vase.multi_island_connector = 1
 gcode.legacy = 1
 gcode.printing_plan_file_writer = 1
 gcode.settings_scripts = 1
+gcode.feature_gcode = 1
 gcode.firmware.marlin1 = 1
 gcode.firmware.marlin2 = 1
 gcode.firmware.prusa = 1

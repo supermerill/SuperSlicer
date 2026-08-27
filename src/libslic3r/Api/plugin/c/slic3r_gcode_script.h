@@ -55,6 +55,7 @@ typedef uint32_t gcode_script_type;
 #define GCODE_SCRIPT_TYPE_LAYER_GCODE ((gcode_script_type) 7u)
 #define GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE ((gcode_script_type) 8u)
 #define GCODE_SCRIPT_TYPE_BETWEEN_OBJECTS_GCODE ((gcode_script_type) 9u)
+#define GCODE_SCRIPT_TYPE_FEATURE_GCODE ((gcode_script_type) 10u)
 #define GCODE_SCRIPT_TYPE_CUSTOM_BEGIN ((gcode_script_type) 0x80000000u)
 
 typedef struct config_handle config_handle;

@@ -45,6 +45,7 @@ const std::vector<BuiltinGCodeScriptTypeInfo> &builtin_gcode_script_type_infos()
         {GCODE_SCRIPT_TYPE_LAYER_GCODE, "layer_gcode"},
         {GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE, "toolchange_gcode"},
         {GCODE_SCRIPT_TYPE_BETWEEN_OBJECTS_GCODE, "between_objects_gcode"},
+        {GCODE_SCRIPT_TYPE_FEATURE_GCODE, "feature_gcode"},
     };
     return infos;
 }
