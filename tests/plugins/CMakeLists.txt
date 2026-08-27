@@ -6,6 +6,7 @@ add_executable(${_TEST_NAME}_tests
     ../../src/plugins_cpp/ExtraPerimeterOverhangWave/ExtraPerimeterOverhangWave.cpp
     ../../src/plugins_cpp/FlatAreaLayerHeight/FlatAreaLayerHeight.cpp
     ../../src/plugins_cpp/Polyholes/Polyholes.cpp
+    gcode_test_helpers.cpp
     perimeter_test_helpers.cpp
     plugin_test_helpers.cpp
     test_auxiliary_layer_helpers.cpp
@@ -19,8 +20,13 @@ add_executable(${_TEST_NAME}_tests
     test_plugin_repository.cpp
     test_plugin_translation_catalogs.cpp
     test_repository_updater.cpp
+    test_gcode_default_firmware_session.cpp
+    test_gcode_feature_gcode.cpp
+    test_gcode_firmware_dialects.cpp
     test_gcode_firmware_state.cpp
     test_gcode_printing_plan_file_writer.cpp
+    test_gcode_script_processor.cpp
+    test_gcode_settings_scripts.cpp
     test_layer_extrusion_edit_speed.cpp
     test_flat_area_layer_height.cpp
     test_perimeter_empty_steps.cpp
