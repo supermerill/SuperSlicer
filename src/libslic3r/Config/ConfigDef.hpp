@@ -38,9 +38,9 @@
 
 #include <boost/property_tree/ptree_fwd.hpp>
 
-#include "Api/plugin/c/slic3r_slicing_step.h"
+#include "libslic3r/Api/plugin/c/slic3r_slicing_step.h"
 #include "ConfigOption.hpp"
-#include "clonable_ptr.hpp"
+#include "libslic3r/clonable_ptr.hpp"
 
 namespace Slic3r {
 

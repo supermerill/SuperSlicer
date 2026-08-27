@@ -26,6 +26,7 @@
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeScriptProcessorViews.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/MachineEnvelope.hpp"
 #include "libslic3r/BoundingBox.hpp"
+#include "libslic3r/Config/ConfigSnapshotSerialization.hpp"
 #include "libslic3r/ExtrusionEntity.hpp"
 #include "libslic3r/ExtrusionEntityVisitors.hpp"
 #include "libslic3r/GCode.hpp"
@@ -201,8 +202,9 @@ class ScriptStateFirmwareProbe final :
 public:
     ScriptStateFirmwareProbe() = default;
     explicit ScriptStateFirmwareProbe(
-        slic3r_api::GCodeGeneration::GCodeScriptProcessorView scripts) :
-        DefaultGCodeFirmwareSession(scripts)
+        slic3r_api::GCodeGeneration::GCodeScriptProcessorView scripts,
+        storage_handle *storage = nullptr) :
+        DefaultGCodeFirmwareSession(scripts, storage)
     {}
 
     using DefaultGCodeFirmwareSession::process_script;
@@ -230,8 +232,9 @@ class ScriptContextCompletingFirmwareProbe final :
 {
 public:
     explicit ScriptContextCompletingFirmwareProbe(
-        slic3r_api::GCodeGeneration::GCodeScriptProcessorView scripts) :
-        DefaultGCodeFirmwareSession(scripts)
+        slic3r_api::GCodeGeneration::GCodeScriptProcessorView scripts,
+        storage_handle *storage = nullptr) :
+        DefaultGCodeFirmwareSession(scripts, storage)
     {}
 
     using DefaultGCodeFirmwareSession::process_script;
@@ -530,22 +533,50 @@ gcode_script_type registered_script_type(Orchestrator &orchestrator, const std::
     return type;
 }
 
-raw_gcode_script_argument stored_script_argument(
+DynamicConfig stored_script_config(
+    const ExtrusionEntity &entity,
+    const ExtrusionPropertyCustomGcode &property)
+{
+    if (property.config_id == EXTRUSION_DATA_ID_INVALID)
+        throw std::runtime_error("The scripted event has no stored Config snapshot.");
+
+    const slic3r_api::ExtrusionEntity view(
+        reinterpret_cast<const extrusion_entity_handle *>(&entity));
+    uint32_t byte_size = 0;
+    const char *serialized = static_cast<const char *>(
+        view.stored_data(property.config_id, &byte_size));
+    if (serialized == nullptr || byte_size == 0 || serialized[byte_size - 1] != '\0')
+        throw std::runtime_error("The scripted event has an invalid Config buffer.");
+
+    DynamicConfig config;
+    if (!ConfigSnapshotSerialization::deserialize_all(
+            std::string(serialized, serialized + byte_size - 1), config))
+        throw std::runtime_error("The scripted event has an invalid Config snapshot.");
+    return config;
+}
+
+int32_t stored_script_int(
     const ExtrusionEntity &entity,
     const ExtrusionPropertyCustomGcode &property,
-    const std::string &key)
+    const char *key)
 {
-    const raw_gcode_script_arguments *arguments = extrusion_custom_gcode_arguments(
-        reinterpret_cast<const extrusion_entity_handle *>(&entity), property.arguments_id);
-    if (arguments == nullptr)
-        throw std::runtime_error("The scripted event has no stored arguments.");
-    for (uint32_t index = 0; index < gcode_script_arguments_count(arguments); ++index) {
-        raw_gcode_script_argument argument = {};
-        if (gcode_script_arguments_get(arguments, index, &argument) &&
-            argument.key != nullptr && key == argument.key)
-            return argument;
-    }
-    throw std::runtime_error("Missing stored G-code script argument: " + key);
+    DynamicConfig config = stored_script_config(entity, property);
+    const ConfigOptionInt *option = config.option<ConfigOptionInt>(key);
+    if (option == nullptr)
+        throw std::runtime_error(std::string("Missing stored integer option: ") + key);
+    return option->value;
+}
+
+double stored_script_float(
+    const ExtrusionEntity &entity,
+    const ExtrusionPropertyCustomGcode &property,
+    const char *key)
+{
+    DynamicConfig config = stored_script_config(entity, property);
+    const ConfigOptionFloat *option = config.option<ConfigOptionFloat>(key);
+    if (option == nullptr)
+        throw std::runtime_error(std::string("Missing stored float option: ") + key);
+    return option->value;
 }
 
 std::unique_ptr<ExtrusionEntity> special_command_entity(
@@ -2019,24 +2050,33 @@ TEST_CASE("Host G-code script processor prepares typed isolated contexts",
     CHECK_THROWS(scripts.prepare(GCODE_SCRIPT_TYPE_CUSTOM_BEGIN - 1));
 
     PluginStorage argument_storage;
+    storage_handle *argument_storage_handle =
+        reinterpret_cast<storage_handle *>(&argument_storage);
     slic3r_api::StoredExtrusionEntity layer_event(
-        reinterpret_cast<storage_handle *>(&argument_storage));
-    slic3r_api::GCodeScriptArguments layer_arguments;
-    layer_arguments.set("layer_num", int32_t(12))
-        .set("layer_z", 2.6)
-        .set("previous_layer_z", 2.4)
-        .set("max_layer_z", 20.0)
-        .set("custom_bool", true)
-        .set("custom_int", int32_t(-7))
-        .set("custom_float", 3.25)
-        .set("custom_string", std::string("typed"))
-        .set("custom_ints", std::vector<int32_t>{2, 4})
-        .set("custom_floats", std::vector<double>{1.5, 2.5});
+        argument_storage_handle);
+    slic3r_api::StoredConfig layer_arguments(argument_storage_handle);
+    layer_arguments.get_or_add("layer_num", SLIC3R_CONFIG_OPTION_INT).set_int(12);
+    layer_arguments.get_or_add("layer_z", SLIC3R_CONFIG_OPTION_FLOAT).set_float(2.6);
+    layer_arguments.get_or_add("previous_layer_z", SLIC3R_CONFIG_OPTION_FLOAT).set_float(2.4);
+    layer_arguments.get_or_add("max_layer_z", SLIC3R_CONFIG_OPTION_FLOAT).set_float(20.0);
+    layer_arguments.get_or_add("custom_bool", SLIC3R_CONFIG_OPTION_BOOL).set_bool(true);
+    layer_arguments.get_or_add("custom_int", SLIC3R_CONFIG_OPTION_INT).set_int(-7);
+    layer_arguments.get_or_add("custom_float", SLIC3R_CONFIG_OPTION_FLOAT).set_float(3.25);
+    layer_arguments.get_or_add("custom_string", SLIC3R_CONFIG_OPTION_STRING).set_string("typed");
+    slic3r_api::MutableConfigOption custom_ints =
+        layer_arguments.get_or_add("custom_ints", SLIC3R_CONFIG_OPTION_INTS);
+    custom_ints.resize(2);
+    custom_ints.set_int(2, 0);
+    custom_ints.set_int(4, 1);
+    slic3r_api::MutableConfigOption custom_floats =
+        layer_arguments.get_or_add("custom_floats", SLIC3R_CONFIG_OPTION_FLOATS);
+    custom_floats.resize(2);
+    custom_floats.set_float(1.5, 0);
+    custom_floats.set_float(2.5, 1);
     const slic3r_api::EPropertyCustomGcode &layer_property = layer_event.script_gcode(
         "M117 layer", GCODE_SCRIPT_TYPE_BEFORE_LAYER_GCODE, layer_arguments);
-    const raw_gcode_script_arguments *stored_arguments = extrusion_custom_gcode_arguments(
-        layer_event.handle(), layer_property.arguments_id);
-    REQUIRE(stored_arguments != nullptr);
+    slic3r_api::StoredConfig stored_arguments(argument_storage_handle);
+    stored_arguments.deserialize_all(layer_event.stored_string(layer_property.config_id));
 
     const slic3r_api::GCodeGeneration::GCodeScriptContext prepared_layer =
         scripts.prepare(GCODE_SCRIPT_TYPE_BEFORE_LAYER_GCODE, stored_arguments);
@@ -2056,27 +2096,31 @@ TEST_CASE("Host G-code script processor prepares typed isolated contexts",
     // Producers may populate structural placeholders, but they cannot change
     // the type promised by the host's built-in script definition.
     slic3r_api::StoredExtrusionEntity wrong_type_event(
-        reinterpret_cast<storage_handle *>(&argument_storage));
-    slic3r_api::GCodeScriptArguments wrong_type_arguments;
-    wrong_type_arguments.set("layer_num", 12.0);
+        argument_storage_handle);
+    slic3r_api::StoredConfig wrong_type_arguments(argument_storage_handle);
+    wrong_type_arguments.get_or_add("layer_num", SLIC3R_CONFIG_OPTION_FLOAT).set_float(12.0);
     const slic3r_api::EPropertyCustomGcode &wrong_type_property = wrong_type_event.script_gcode(
         "M117 wrong", GCODE_SCRIPT_TYPE_BEFORE_LAYER_GCODE, wrong_type_arguments);
-    CHECK_THROWS(scripts.prepare(
-        GCODE_SCRIPT_TYPE_BEFORE_LAYER_GCODE,
-        extrusion_custom_gcode_arguments(
-            wrong_type_event.handle(), wrong_type_property.arguments_id)));
+    slic3r_api::StoredConfig stored_wrong_type(argument_storage_handle);
+    stored_wrong_type.deserialize_all(wrong_type_event.stored_string(wrong_type_property.config_id));
+    CHECK_THROWS(scripts.prepare(GCODE_SCRIPT_TYPE_BEFORE_LAYER_GCODE, stored_wrong_type));
 
     // Runtime machine values are owned by the firmware and remain protected
     // even when a producer transports an otherwise valid typed vector.
     slic3r_api::StoredExtrusionEntity reserved_event(
-        reinterpret_cast<storage_handle *>(&argument_storage));
-    slic3r_api::GCodeScriptArguments reserved_arguments;
-    reserved_arguments.set("position", std::vector<double>{1.0, 2.0, 3.0});
+        argument_storage_handle);
+    slic3r_api::StoredConfig reserved_arguments(argument_storage_handle);
+    slic3r_api::MutableConfigOption position =
+        reserved_arguments.get_or_add("position", SLIC3R_CONFIG_OPTION_FLOATS);
+    position.resize(3);
+    position.set_float(1.0, 0);
+    position.set_float(2.0, 1);
+    position.set_float(3.0, 2);
     const slic3r_api::EPropertyCustomGcode &reserved_property = reserved_event.script_gcode(
         "M117 reserved", GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM, reserved_arguments);
-    CHECK_THROWS(scripts.prepare(
-        GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM,
-        extrusion_custom_gcode_arguments(reserved_event.handle(), reserved_property.arguments_id)));
+    slic3r_api::StoredConfig stored_reserved(argument_storage_handle);
+    stored_reserved.deserialize_all(reserved_event.stored_string(reserved_property.config_id));
+    CHECK_THROWS(scripts.prepare(GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM, stored_reserved));
 
     // Every name receives fresh machine state, while known names additionally
     // expose the exact option types declared by the legacy placeholder table.
@@ -2315,7 +2359,7 @@ TEST_CASE("Derived firmware completes a script context immediately before parsin
     CHECK(firmware.completion_count() == 1);
 }
 
-TEST_CASE("Toolchange scripts use the structural arguments stored at insertion",
+TEST_CASE("Toolchange scripts use the structural Config stored at insertion",
           "[plugins][gcode][firmware][custom-gcode][printing-plan]")
 {
     Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
@@ -2337,13 +2381,16 @@ TEST_CASE("Toolchange scripts use the structural arguments stored at insertion",
     layer.tool_groups[1].extruder_id = 0;
     // The producer freezes only structural facts. The firmware will still add
     // position, E and retraction from the exact execution point.
+    PluginStorage script_storage;
+    storage_handle *script_storage_handle =
+        reinterpret_cast<storage_handle *>(&script_storage);
     ExtrusionNop toolchange_script;
     slic3r_api::MutableExtrusionEntity toolchange_view(
         reinterpret_cast<extrusion_entity_handle *>(&toolchange_script));
-    slic3r_api::GCodeScriptArguments toolchange_arguments;
-    toolchange_arguments.set("previous_extruder", int32_t(1));
-    toolchange_arguments.set("next_extruder", int32_t(0));
-    toolchange_arguments.set("toolchange_z", 0.2);
+    slic3r_api::StoredConfig toolchange_arguments(script_storage_handle);
+    toolchange_arguments.get_or_add("previous_extruder", SLIC3R_CONFIG_OPTION_INT).set_int(1);
+    toolchange_arguments.get_or_add("next_extruder", SLIC3R_CONFIG_OPTION_INT).set_int(0);
+    toolchange_arguments.get_or_add("toolchange_z", SLIC3R_CONFIG_OPTION_FLOAT).set_float(0.2);
     toolchange_view.script_gcode(
         "; FINAL_TOOL P[previous_extruder] N[next_extruder]",
         GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE,
@@ -2354,7 +2401,8 @@ TEST_CASE("Toolchange scripts use the structural arguments stored at insertion",
     GCodeScriptProcessor host_processor(print, Orchestrator::instance());
     ScriptStateFirmwareProbe firmware(
         slic3r_api::GCodeGeneration::GCodeScriptProcessorView(
-            host_processor.c_processor()));
+            host_processor.c_processor()),
+        script_storage_handle);
     const slic3r_api::Print print_view(
         reinterpret_cast<const print_handle *>(&print));
     const slic3r_api::PrintingPlan plan_view = printing_plan_view(print);
@@ -2525,10 +2573,10 @@ TEST_CASE("Configured layer and tool scripts become scoped plan events",
         second_layer_event.property<slic3r_api::EPropertyCustomGcode>();
     REQUIRE(second_layer_payload != nullptr);
     CHECK(second_layer_payload->processing_extruder_id == GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID);
-    CHECK(stored_script_argument(second_layer_entity, *second_layer_script, "layer_num").value.integer == 1);
-    CHECK(stored_script_argument(second_layer_entity, *second_layer_script, "layer_z").value.floating == Approx(0.4));
-    CHECK(stored_script_argument(second_layer_entity, *second_layer_script, "previous_layer_z").value.floating == Approx(0.2));
-    CHECK(stored_script_argument(second_layer_entity, *second_layer_script, "max_layer_z").value.floating == Approx(0.4));
+    CHECK(stored_script_int(second_layer_entity, *second_layer_script, "layer_num") == 1);
+    CHECK(stored_script_float(second_layer_entity, *second_layer_script, "layer_z") == Approx(0.4));
+    CHECK(stored_script_float(second_layer_entity, *second_layer_script, "previous_layer_z") == Approx(0.2));
+    CHECK(stored_script_float(second_layer_entity, *second_layer_script, "max_layer_z") == Approx(0.4));
 
     PrintingToolGroup &initial_tool = group.layers[0].tool_groups[0];
     REQUIRE(initial_tool.events.before().child_count() == 1);
@@ -2557,10 +2605,10 @@ TEST_CASE("Configured layer and tool scripts become scoped plan events",
     CHECK(end_filament->processing_extruder_id == 1);
     CHECK(toolchange->script_type == GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE);
     CHECK(toolchange->processing_extruder_id == 0);
-    CHECK(stored_script_argument(
-              changed_tool.events.before().child(0), *toolchange, "previous_extruder").value.integer == 1);
-    CHECK(stored_script_argument(
-              changed_tool.events.before().child(0), *toolchange, "next_extruder").value.integer == 0);
+    CHECK(stored_script_int(
+              changed_tool.events.before().child(0), *toolchange, "previous_extruder") == 1);
+    CHECK(stored_script_int(
+              changed_tool.events.before().child(0), *toolchange, "next_extruder") == 0);
     CHECK(start_filament->script_type == GCODE_SCRIPT_TYPE_START_FILAMENT_GCODE);
     CHECK(start_filament->processing_extruder_id == 0);
 
@@ -2580,10 +2628,10 @@ TEST_CASE("Configured layer and tool scripts become scoped plan events",
     CHECK(final_tool_one->processing_extruder_id == 1);
     CHECK(end_print->script_type == GCODE_SCRIPT_TYPE_END_GCODE);
     CHECK(end_print->processing_extruder_id == 0);
-    CHECK(stored_script_argument(
-              plan.events.after().child(2), *end_print, "layer_num").value.integer == 1);
-    CHECK(stored_script_argument(
-              plan.events.after().child(2), *end_print, "previous_layer_z").value.floating == Approx(0.2));
+    CHECK(stored_script_int(
+              plan.events.after().child(2), *end_print, "layer_num") == 1);
+    CHECK(stored_script_float(
+              plan.events.after().child(2), *end_print, "previous_layer_z") == Approx(0.2));
 
     config.before_layer_gcode.value.clear();
     config.layer_gcode.value.clear();
@@ -2651,7 +2699,10 @@ TEST_CASE("Between-object scripts select the requested side of the group move",
     REQUIRE(property->script_type == GCODE_SCRIPT_TYPE_BETWEEN_OBJECTS_GCODE);
     GCodeScriptProcessor host_processor(print, Orchestrator::instance());
     const slic3r_api::GCodeGeneration::GCodeScriptProcessorView scripts(host_processor.c_processor());
-    ScriptStateFirmwareProbe firmware(scripts);
+    PluginStorage script_storage;
+    storage_handle *script_storage_handle =
+        reinterpret_cast<storage_handle *>(&script_storage);
+    ScriptStateFirmwareProbe firmware(scripts, script_storage_handle);
     const slic3r_api::Print print_view(reinterpret_cast<const print_handle *>(&print));
     const slic3r_api::PrintingPlan plan_view = printing_plan_view(print);
     CHECK(firmware.begin_print(print_view).empty());
@@ -2669,7 +2720,7 @@ TEST_CASE("Between-object scripts select the requested side of the group move",
     CHECK_FALSE(plan.groups[1].events.has_after());
     CHECK_FALSE(plan.groups[2].events.has_before());
 
-    ScriptStateFirmwareProbe before_move_firmware(scripts);
+    ScriptStateFirmwareProbe before_move_firmware(scripts, script_storage_handle);
     const slic3r_api::PrintingPlan refreshed_plan_view = printing_plan_view(print);
     CHECK(before_move_firmware.begin_print(print_view).empty());
     CHECK(before_move_firmware.begin_group(refreshed_plan_view.group(0)).empty());
@@ -2745,100 +2796,144 @@ TEST_CASE("G-code script processing tool survives stored entity copies moves and
     PluginStorage plugin_storage;
     storage_handle *storage = reinterpret_cast<storage_handle *>(&plugin_storage);
 
-    slic3r_api::GCodeScriptArguments arguments;
-    arguments.set("filament_extruder_id", int32_t(2))
-        .set("producer_note", std::string("owned with event"));
+    slic3r_api::StoredConfig arguments(storage);
+    arguments.get_or_add("filament_extruder_id", SLIC3R_CONFIG_OPTION_INT).set_int(2);
+    arguments.get_or_add("producer_note", SLIC3R_CONFIG_OPTION_STRING).set_string("owned with event");
     slic3r_api::StoredExtrusionEntity source(storage);
     const slic3r_api::EPropertyCustomGcode &source_property =
         source.script_gcode(
             "M117 stored", GCODE_SCRIPT_TYPE_END_FILAMENT_GCODE, arguments, uint16_t(2));
     CHECK(source_property.processing_extruder_id == 2);
-    const raw_gcode_script_arguments *source_arguments = extrusion_custom_gcode_arguments(
-        source.handle(), source_property.arguments_id);
-    REQUIRE(source_arguments != nullptr);
-    CHECK(gcode_script_arguments_count(source_arguments) == 2);
+    REQUIRE(source_property.config_id != EXTRUSION_DATA_ID_INVALID);
+    slic3r_api::StoredConfig source_config(storage);
+    source_config.deserialize_all(source.stored_string(source_property.config_id));
+    CHECK(source_config.keys().size() == 2);
 
     slic3r_api::StoredExtrusionEntity copied(storage, source.readonly());
     const slic3r_api::EPropertyCustomGcode *copied_property =
         copied.property<slic3r_api::EPropertyCustomGcode>();
     REQUIRE(copied_property != nullptr);
     CHECK(copied_property->processing_extruder_id == 2);
-    const raw_gcode_script_arguments *copied_arguments = extrusion_custom_gcode_arguments(
-        copied.handle(), copied_property->arguments_id);
-    REQUIRE(copied_arguments != nullptr);
-    CHECK(copied_arguments != source_arguments);
-    raw_gcode_script_argument copied_note = {};
-    REQUIRE(gcode_script_arguments_get(copied_arguments, 1, &copied_note));
-    CHECK(std::string(copied_note.value.string.data, copied_note.value.string.size) ==
-          "owned with event");
+    REQUIRE(copied_property->config_id != EXTRUSION_DATA_ID_INVALID);
+    slic3r_api::StoredConfig copied_config(storage);
+    copied_config.deserialize_all(copied.stored_string(copied_property->config_id));
+    CHECK(copied_config.get("producer_note").get_string() == "owned with event");
     copied.custom_gcode("M117 raw", C_EXTRUSION_CUSTOM_GCODE_GCODE);
     copied_property = copied.property<slic3r_api::EPropertyCustomGcode>();
     REQUIRE(copied_property != nullptr);
     CHECK(copied_property->processing_extruder_id == GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID);
-    CHECK(copied_property->arguments_id == EXTRUSION_DATA_ID_INVALID);
+    CHECK(copied_property->config_id == EXTRUSION_DATA_ID_INVALID);
 
     slic3r_api::StoredExtrusionEntity moved(std::move(source));
     const slic3r_api::EPropertyCustomGcode *moved_property =
         moved.property<slic3r_api::EPropertyCustomGcode>();
     REQUIRE(moved_property != nullptr);
     CHECK(moved_property->processing_extruder_id == 2);
-    REQUIRE(extrusion_custom_gcode_arguments(moved.handle(), moved_property->arguments_id) != nullptr);
+    REQUIRE(moved_property->config_id != EXTRUSION_DATA_ID_INVALID);
+    slic3r_api::StoredConfig moved_config(storage);
+    moved_config.deserialize_all(moved.stored_string(moved_property->config_id));
+    CHECK(moved_config.get("filament_extruder_id").get_int() == 2);
 
     const ExtrusionEntity &host_entity =
         *reinterpret_cast<const ExtrusionEntity *>(moved.handle());
     ExtrusionPrinter printer(/*mult=*/1.0, /*trunc=*/0, /*json=*/true);
     printer.traverse(host_entity);
     CHECK(printer.str().find("\"processing_extruder_id\":2") != std::string::npos);
+    CHECK(printer.str().find("\"config_key_count\":2") != std::string::npos);
 }
 
-TEST_CASE("G-code script argument batches reject invalid data atomically",
-          "[plugins][gcode][firmware][custom-gcode][arguments]")
+TEST_CASE("G-code script Config snapshots replace and clear their owned data",
+          "[plugins][gcode][firmware][custom-gcode][config]")
 {
     PluginStorage plugin_storage;
+    storage_handle *storage = reinterpret_cast<storage_handle *>(&plugin_storage);
     slic3r_api::StoredExtrusionEntity event(
-        reinterpret_cast<storage_handle *>(&plugin_storage));
-    slic3r_api::GCodeScriptArguments initial_arguments;
-    initial_arguments.set("layer_num", int32_t(7));
+        storage);
+    slic3r_api::StoredConfig initial_config(storage);
+    initial_config.get_or_add("layer_num", SLIC3R_CONFIG_OPTION_INT).set_int(7);
     const slic3r_api::EPropertyCustomGcode &property = event.script_gcode(
-        "M117 [layer_num]", GCODE_SCRIPT_TYPE_LAYER_GCODE, initial_arguments);
-    const extrusion_data_id initial_id = property.arguments_id;
+        "M117 [layer_num]", GCODE_SCRIPT_TYPE_LAYER_GCODE, initial_config);
+    const extrusion_data_id initial_id = property.config_id;
+    REQUIRE(initial_id != EXTRUSION_DATA_ID_INVALID);
 
-    raw_gcode_script_argument duplicate_arguments[2] = {};
-    duplicate_arguments[0].key = "duplicate";
-    duplicate_arguments[0].type = RAW_GCODE_SCRIPT_ARGUMENT_INT;
-    duplicate_arguments[0].value.integer = 1;
-    duplicate_arguments[1].key = "duplicate";
-    duplicate_arguments[1].type = RAW_GCODE_SCRIPT_ARGUMENT_INT;
-    duplicate_arguments[1].value.integer = 2;
-    CHECK(extrusion_custom_gcode_set_arguments(
-              event.mutable_handle(), duplicate_arguments, 2) ==
-          RAW_GCODE_SCRIPT_ARGUMENTS_DUPLICATE_KEY);
+    slic3r_api::StoredConfig replacement_config(storage);
+    replacement_config.get_or_add("layer_num", SLIC3R_CONFIG_OPTION_INT).set_int(9);
+    replacement_config.get_or_add("layer_z", SLIC3R_CONFIG_OPTION_FLOAT).set_float(0.4);
+    event.script_gcode(
+        "M117 [layer_num] [layer_z]", GCODE_SCRIPT_TYPE_LAYER_GCODE, replacement_config);
 
-    raw_gcode_script_argument non_finite = {};
-    non_finite.key = "invalid_float";
-    non_finite.type = RAW_GCODE_SCRIPT_ARGUMENT_FLOAT;
-    non_finite.value.floating = std::numeric_limits<double>::infinity();
-    CHECK(extrusion_custom_gcode_set_arguments(
-              event.mutable_handle(), &non_finite, 1) ==
-          RAW_GCODE_SCRIPT_ARGUMENTS_INVALID_VALUE);
-
-    // Rejected batches never replace or free the previously committed blob.
-    const slic3r_api::EPropertyCustomGcode *preserved =
+    // Publishing the replacement snapshot releases the buffer previously
+    // owned by the same config_id field.
+    const slic3r_api::EPropertyCustomGcode *replaced =
         event.property<slic3r_api::EPropertyCustomGcode>();
-    REQUIRE(preserved != nullptr);
-    CHECK(preserved->arguments_id == initial_id);
-    const raw_gcode_script_arguments *preserved_arguments =
-        extrusion_custom_gcode_arguments(event.handle(), preserved->arguments_id);
-    REQUIRE(preserved_arguments != nullptr);
-    raw_gcode_script_argument preserved_layer = {};
-    REQUIRE(gcode_script_arguments_get(preserved_arguments, 0, &preserved_layer));
-    CHECK(preserved_layer.value.integer == 7);
+    REQUIRE(replaced != nullptr);
+    CHECK(replaced->config_id != EXTRUSION_DATA_ID_INVALID);
+    CHECK(event.stored_data(initial_id) == nullptr);
+    slic3r_api::StoredConfig decoded_replacement(storage);
+    decoded_replacement.deserialize_all(event.stored_string(replaced->config_id));
+    CHECK(decoded_replacement.get("layer_num").get_int() == 9);
+    CHECK(decoded_replacement.get("layer_z").get_float() == Approx(0.4));
 
-    CHECK(extrusion_custom_gcode_set_arguments(event.mutable_handle(), nullptr, 0) ==
-          RAW_GCODE_SCRIPT_ARGUMENTS_SUCCESS);
-    preserved = event.property<slic3r_api::EPropertyCustomGcode>();
-    REQUIRE(preserved != nullptr);
-    CHECK(preserved->arguments_id == EXTRUSION_DATA_ID_INVALID);
+    slic3r_api::StoredConfig empty_config(storage);
+    event.script_gcode("M117 empty", GCODE_SCRIPT_TYPE_LAYER_GCODE, empty_config);
+    replaced = event.property<slic3r_api::EPropertyCustomGcode>();
+    REQUIRE(replaced != nullptr);
+    REQUIRE(replaced->config_id != EXTRUSION_DATA_ID_INVALID);
+    slic3r_api::StoredConfig decoded_empty(storage);
+    decoded_empty.deserialize_all(event.stored_string(replaced->config_id));
+    CHECK(decoded_empty.keys().empty());
+
+    event.script_gcode("M117 plain", GCODE_SCRIPT_TYPE_LAYER_GCODE);
+    replaced = event.property<slic3r_api::EPropertyCustomGcode>();
+    REQUIRE(replaced != nullptr);
+    CHECK(replaced->config_id == EXTRUSION_DATA_ID_INVALID);
+}
+
+TEST_CASE("Firmware rejects invalid script Config snapshots and clears its scratch Config",
+          "[plugins][gcode][firmware][custom-gcode][config]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    configure_standard_firmware(print);
+    GCodeScriptProcessor host_processor(print, Orchestrator::instance());
+    const slic3r_api::GCodeGeneration::GCodeScriptProcessorView scripts(
+        host_processor.c_processor());
+    PluginStorage plugin_storage;
+    storage_handle *storage = reinterpret_cast<storage_handle *>(&plugin_storage);
+    ScriptStateFirmwareProbe firmware(scripts, storage);
+    const slic3r_api::Print print_view(
+        reinterpret_cast<const print_handle *>(&print));
+    REQUIRE(firmware.begin_print(print_view).empty());
+
+    slic3r_api::StoredExtrusionEntity invalid_id_event(storage);
+    slic3r_api::EPropertyCustomGcode &invalid_id_property = invalid_id_event.script_gcode(
+        "M117 invalid", GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM, uint16_t(0));
+    invalid_id_property.config_id = extrusion_data_id(0x7fffffffu);
+    CHECK_THROWS_AS(firmware.write_event(invalid_id_event.readonly()), std::invalid_argument);
+
+    slic3r_api::StoredExtrusionEntity corrupt_event(storage);
+    slic3r_api::EPropertyCustomGcode &corrupt_property = corrupt_event.script_gcode(
+        "M117 corrupt", GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM, uint16_t(0));
+    REQUIRE(corrupt_event.store_property_string(
+                slic3r_api::EPropertyCustomGcode::property_type,
+                &corrupt_property.config_id,
+                "SCFG9\n0\n") != EXTRUSION_DATA_ID_INVALID);
+    CHECK_THROWS(firmware.write_event(corrupt_event.readonly()));
+
+    slic3r_api::StoredConfig first_config(storage);
+    first_config.get_or_add("first_only", SLIC3R_CONFIG_OPTION_INT).set_int(1);
+    slic3r_api::StoredExtrusionEntity first_event(storage);
+    first_event.script_gcode(
+        "M117 [first_only]", GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM, first_config, uint16_t(0));
+    CHECK(firmware.write_event(first_event.readonly()) == "M117 1\n");
+
+    slic3r_api::StoredConfig second_config(storage);
+    second_config.get_or_add("second_only", SLIC3R_CONFIG_OPTION_INT).set_int(2);
+    slic3r_api::StoredExtrusionEntity second_event(storage);
+    second_event.script_gcode(
+        "M117 [first_only]", GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM, second_config, uint16_t(0));
+    CHECK_THROWS(firmware.write_event(second_event.readonly()));
 }
 
 TEST_CASE("Configured scripts use ordered plan tools and final layer state",

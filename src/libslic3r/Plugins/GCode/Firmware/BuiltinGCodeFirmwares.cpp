@@ -33,7 +33,8 @@ namespace slic3r_api { namespace GCodeGeneration { namespace Firmware {
 namespace {
 
 typedef std::unique_ptr<GCodeFirmwareSession> (*FirmwareSessionFactory)(
-    GCodeScriptProcessorView scripts);
+    GCodeScriptProcessorView scripts,
+    storage_handle *storage);
 
 struct FirmwareDefinition
 {
@@ -48,9 +49,10 @@ struct FirmwareDefinition
 };
 
 template<class SessionType>
-std::unique_ptr<GCodeFirmwareSession> create_session(GCodeScriptProcessorView scripts)
+std::unique_ptr<GCodeFirmwareSession> create_session(GCodeScriptProcessorView scripts,
+                                                     storage_handle *storage)
 {
-    return std::unique_ptr<GCodeFirmwareSession>(new SessionType(scripts));
+    return std::unique_ptr<GCodeFirmwareSession>(new SessionType(scripts, storage));
 }
 
 const char *const k_no_dependencies[] = { nullptr };
@@ -228,7 +230,8 @@ void BuiltinGCodeFirmwarePlugin::run_impl(const plugin_run_context *run_ctx) con
     // writer completes. A fresh instance isolates every export's machine state.
     const GCodeScriptProcessorView scripts = context->script_processor != nullptr ?
         GCodeScriptProcessorView(context->script_processor) : GCodeScriptProcessorView();
-    context->instance = make_gcode_firmware_instance(m_definition.factory(scripts));
+    context->instance = make_gcode_firmware_instance(
+        m_definition.factory(scripts, run_ctx->plugin_storage));
 }
 
 void register_firmware(orchestrator_handle *orchestrator,

@@ -34,6 +34,15 @@ does not record the failed output as successfully generated.
 */
 
 namespace slic3r_api { namespace GCodeGeneration {
+
+DefaultGCodeFirmwareSession::DefaultGCodeFirmwareSession(
+    GCodeScriptProcessorView scripts,
+    storage_handle *storage) :
+    m_scripts(scripts)
+{
+    if (storage != nullptr)
+        m_script_config.emplace(storage);
+}
 using Slic3r::Axis;
 using Slic3r::GCodeReader;
 
@@ -854,18 +863,32 @@ std::string DefaultGCodeFirmwareSession::write_custom_gcode(
     if (custom_gcode.kind == C_EXTRUSION_CUSTOM_GCODE_SCRIPT) {
         if (custom_gcode.script_type == GCODE_SCRIPT_TYPE_INVALID)
             throw std::invalid_argument("A custom G-code script has no script type.");
-        const raw_gcode_script_arguments *arguments = extrusion_custom_gcode_arguments(
-            entity.handle(), custom_gcode.arguments_id);
-        if (custom_gcode.arguments_id != EXTRUSION_DATA_ID_INVALID && arguments == nullptr)
-            throw std::invalid_argument("A custom G-code script has invalid stored arguments.");
+
+        const Config *producer_config = nullptr;
+        if (custom_gcode.config_id != EXTRUSION_DATA_ID_INVALID) {
+            if (!m_script_config)
+                throw std::logic_error(
+                    "The firmware session has no storage for a scripted G-code Config.");
+
+            // The property owns a complete NUL-terminated SCFG snapshot. Rebuild
+            // it in reusable plugin storage immediately before host preparation.
+            uint32_t byte_size = 0;
+            const char *serialized = static_cast<const char *>(
+                entity.stored_data(custom_gcode.config_id, &byte_size));
+            if (serialized == nullptr || byte_size == 0 || serialized[byte_size - 1] != '\0')
+                throw std::invalid_argument("A custom G-code script has an invalid stored Config.");
+            m_script_config->clear();
+            m_script_config->deserialize_all(std::string(serialized, serialized + byte_size - 1));
+            producer_config = &*m_script_config;
+        }
         std::string output = process_script(
-            custom_gcode.script_type, text, arguments, custom_gcode.processing_extruder_id);
+            custom_gcode.script_type, text, producer_config, custom_gcode.processing_extruder_id);
         if (!output.empty() && output.back() != '\n')
             output += '\n';
         return output;
     }
     if (custom_gcode.script_type != GCODE_SCRIPT_TYPE_INVALID ||
-        custom_gcode.arguments_id != EXTRUSION_DATA_ID_INVALID ||
+        custom_gcode.config_id != EXTRUSION_DATA_ID_INVALID ||
         custom_gcode.processing_extruder_id != GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID)
         throw std::invalid_argument("Raw G-code and comments cannot carry script metadata.");
     return encode_custom_gcode(custom_gcode.kind, text);
@@ -874,7 +897,7 @@ std::string DefaultGCodeFirmwareSession::write_custom_gcode(
 std::string DefaultGCodeFirmwareSession::process_script(
     gcode_script_type script_type,
     const std::string &script,
-    const raw_gcode_script_arguments *arguments,
+    const Config *producer_config,
     uint16_t processing_extruder_id)
 {
     if (!m_scripts.valid())
@@ -882,9 +905,10 @@ std::string DefaultGCodeFirmwareSession::process_script(
             "Custom G-code scripts require a host script processor.");
 
     // The script producer has already frozen every structural placeholder in
-    // arguments. The firmware adds only values that depend on the machine at
+    // its Config. The firmware adds only values that depend on the machine at
     // this exact execution point.
-    GCodeScriptContext context = m_scripts.prepare(script_type, arguments);
+    GCodeScriptContext context = producer_config == nullptr ?
+        m_scripts.prepare(script_type) : m_scripts.prepare(script_type, *producer_config);
     GCodeScriptConfig config = context.config();
 
     uint16_t processing_tool = m_current_extruder_idx.value_or(0);

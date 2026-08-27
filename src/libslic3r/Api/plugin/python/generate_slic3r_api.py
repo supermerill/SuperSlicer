@@ -68,8 +68,6 @@ TYPE_ALIASES = {
     "expolygon_status": "int32_t",
     "raw_extrusion_split_status": "int32_t",
     "raw_gcode_script_status": "int",
-    "raw_gcode_script_argument_type": "int",
-    "raw_gcode_script_arguments_status": "int",
     "c_extrusion_custom_gcode_kind": "int",
     "c_extrusion_special_command": "int",
     "clipper_end_type_t": "int",

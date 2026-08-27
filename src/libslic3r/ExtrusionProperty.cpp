@@ -160,9 +160,13 @@ ExtrusionPropertyCustomGcode&
 ExtrusionPropertyContainer::add_property(const ExtrusionPropertyCustomGcodeText &property)
 {
     ExtrusionPropertyCustomGcode &out = this->get_or_add_property<ExtrusionPropertyCustomGcode>();
+    // The text-only core helper deliberately replaces any plugin-provided
+    // script context instead of leaving an unrelated snapshot attached.
+    if (out.config_id != EXTRUSION_DATA_ID_INVALID)
+        this->free_data(out.config_id);
     out.kind = c_extrusion_custom_gcode_kind(property.code);
     out.script_type = property.script_type;
-    out.arguments_id = EXTRUSION_DATA_ID_INVALID;
+    out.config_id = EXTRUSION_DATA_ID_INVALID;
     out.processing_extruder_id = GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID;
     this->store_property_data_aligned(
         ExtrusionPropertyCustomGcode::property_type, &out.text_id,

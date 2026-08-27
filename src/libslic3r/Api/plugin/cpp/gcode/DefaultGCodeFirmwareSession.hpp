@@ -50,9 +50,8 @@ class DefaultGCodeFirmwareSession : public GCodeFirmwareSession
 {
 public:
     DefaultGCodeFirmwareSession() = default;
-    explicit DefaultGCodeFirmwareSession(GCodeScriptProcessorView scripts) :
-        m_scripts(scripts)
-    {}
+    explicit DefaultGCodeFirmwareSession(GCodeScriptProcessorView scripts,
+                                         storage_handle *storage);
     ~DefaultGCodeFirmwareSession() override = default;
 
     // Copy every setting needed during the export and reset all transient
@@ -114,10 +113,10 @@ protected:
     std::string process_script(
         gcode_script_type script_type,
         const std::string &script,
-        const raw_gcode_script_arguments *arguments = nullptr,
+        const Config *producer_config = nullptr,
         uint16_t processing_extruder_id = GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID);
 
-    // Every script receives its stored structural arguments plus the standard
+    // Every script receives its stored structural Config plus the standard
     // machine context. A derived firmware may fill additional runtime options
     // here without changing the generic script processor ABI.
     virtual void complete_script_context(gcode_script_type script_type,
@@ -211,6 +210,10 @@ private:
     bool m_seen_object_group = false;
     bool m_is_setup = false;
     GCodeScriptProcessorView m_scripts;
+    // Reused for one script at a time. The processor clones every option during
+    // prepare(), so this storage may be cleared before the following script.
+    // works only because this step isn't run in parallel with the same instance.
+    std::optional<StoredConfig> m_script_config;
 };
 
 }} // namespace slic3r_api::GCodeGeneration

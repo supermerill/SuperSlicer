@@ -58,8 +58,8 @@
 #include <boost/preprocessor/tuple/to_seq.hpp>
 
 #include "ConfigDef.hpp"
-#include "libslic3r.h"
-#include "Api/plugin/c/slic3r_config_def.h"
+#include "libslic3r/libslic3r.h"
+#include "libslic3r/Api/plugin/c/slic3r_config_def.h"
 
 namespace Slic3r {
 

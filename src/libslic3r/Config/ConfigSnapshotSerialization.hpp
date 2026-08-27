@@ -19,7 +19,7 @@ replace or discard the decoded values after complete validation.
 #include <memory>
 #include <string>
 
-#include "Api/plugin/c/slic3r_config_option_type.h"
+#include "libslic3r/Api/plugin/c/slic3r_config_option_type.h"
 
 namespace Slic3r {
 

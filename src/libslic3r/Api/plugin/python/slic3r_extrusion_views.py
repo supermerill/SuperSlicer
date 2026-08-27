@@ -52,8 +52,7 @@ Const-correctness model
 from __future__ import annotations
 
 import ctypes
-import math
-from typing import Iterator, Mapping, NamedTuple, Sequence
+from typing import TYPE_CHECKING, Iterator, NamedTuple, Sequence
 
 from slic3r_api_generated import (
     CFlow,
@@ -101,18 +100,15 @@ from slic3r_api_generated import (
     RAW_EXTRUSION_SPLIT_STATUS_SUCCESS,
     RAW_EXTRUSION_ROLE_GAP_FILL,
     RAW_EXTRUSION_ROLE_THIN_WALL,
-    RAW_GCODE_SCRIPT_ARGUMENTS_SUCCESS,
-    RAW_GCODE_SCRIPT_ARGUMENT_BOOL,
-    RAW_GCODE_SCRIPT_ARGUMENT_FLOAT,
-    RAW_GCODE_SCRIPT_ARGUMENT_FLOATS,
-    RAW_GCODE_SCRIPT_ARGUMENT_INT,
-    RAW_GCODE_SCRIPT_ARGUMENT_INTS,
-    RAW_GCODE_SCRIPT_ARGUMENT_STRING,
-    RawGcodeScriptArgument,
     SCALED_EPSILON,
 )
 
 from slic3r_geometry_views import as_point, make_point, point_tuple
+
+if TYPE_CHECKING:
+    # Data-tree views import extrusion views at runtime, so this import must
+    # remain type-only to avoid a circular module initialization.
+    from slic3r_datatree_views import Config
 
 
 CExtrusionPropertyAttributes.property_type = EXTRUSION_PROPERTY_TYPE_ATTRIBUTES
@@ -215,62 +211,6 @@ def _array_from_segments(segments: Sequence[CExtrusionSegment]):
 def _field_pointer(payload, field_name: str):
     offset = getattr(type(payload), field_name).offset
     return ctypes.cast(ctypes.byref(payload, offset), ctypes.POINTER(ctypes.c_uint32))
-
-
-def _script_argument_array(arguments: Mapping[str, object]):
-    """Build borrowed C views while retaining every Python buffer for the host call."""
-    raw_arguments = (RawGcodeScriptArgument * len(arguments))()
-    keepalive: list[object] = []
-    for index, (key, value) in enumerate(arguments.items()):
-        if not isinstance(key, str):
-            raise TypeError("G-code script argument keys must be strings.")
-        key_bytes = key.encode("utf-8")
-        keepalive.append(key_bytes)
-        raw_arguments[index].key = key_bytes
-
-        if isinstance(value, bool):
-            raw_arguments[index].type = RAW_GCODE_SCRIPT_ARGUMENT_BOOL
-            raw_arguments[index].value.boolean = 1 if value else 0
-        elif isinstance(value, int):
-            if value < -(2 ** 31) or value >= 2 ** 31:
-                raise ValueError(f"G-code script integer argument {key!r} must fit in int32.")
-            raw_arguments[index].type = RAW_GCODE_SCRIPT_ARGUMENT_INT
-            raw_arguments[index].value.integer = value
-        elif isinstance(value, float):
-            if not math.isfinite(value):
-                raise ValueError(f"G-code script float argument {key!r} must be finite.")
-            raw_arguments[index].type = RAW_GCODE_SCRIPT_ARGUMENT_FLOAT
-            raw_arguments[index].value.floating = value
-        elif isinstance(value, str):
-            value_bytes = value.encode("utf-8")
-            keepalive.append(value_bytes)
-            raw_arguments[index].type = RAW_GCODE_SCRIPT_ARGUMENT_STRING
-            raw_arguments[index].value.string.data = value_bytes
-            raw_arguments[index].value.string.size = len(value_bytes)
-        elif isinstance(value, (list, tuple)):
-            if value and all(isinstance(item, int) and not isinstance(item, bool) for item in value):
-                for item in value:
-                    if item < -(2 ** 31) or item >= 2 ** 31:
-                        raise ValueError(f"G-code script integer vector {key!r} must contain int32 values.")
-                values = (ctypes.c_int32 * len(value))(*value)
-                keepalive.append(values)
-                raw_arguments[index].type = RAW_GCODE_SCRIPT_ARGUMENT_INTS
-                raw_arguments[index].value.integers.data = values
-                raw_arguments[index].value.integers.size = len(value)
-            elif all(isinstance(item, (int, float)) and not isinstance(item, bool) for item in value):
-                converted = [float(item) for item in value]
-                if not all(math.isfinite(item) for item in converted):
-                    raise ValueError(f"G-code script float vector {key!r} must contain finite values.")
-                values = (ctypes.c_double * len(converted))(*converted)
-                keepalive.append(values)
-                raw_arguments[index].type = RAW_GCODE_SCRIPT_ARGUMENT_FLOATS
-                raw_arguments[index].value.floats.data = values
-                raw_arguments[index].value.floats.size = len(converted)
-            else:
-                raise TypeError(f"G-code script vector argument {key!r} must contain only integers or numbers.")
-        else:
-            raise TypeError(f"Unsupported G-code script argument type for {key!r}: {type(value)!r}.")
-    return raw_arguments, keepalive
 
 
 class ExtrusionAreaFragment(NamedTuple):
@@ -376,26 +316,32 @@ class ExtrusionPropertyMutableMixin:
 
     def custom_gcode(self, text: str, kind: int = C_EXTRUSION_CUSTOM_GCODE_GCODE):
         payload = self.property(CExtrusionPropertyCustomGcode)
-        if payload.arguments_id != EXTRUSION_DATA_ID_INVALID:
-            self.free_data(payload.arguments_id)
+        if payload.config_id != EXTRUSION_DATA_ID_INVALID:
+            self.free_data(payload.config_id)
         payload.kind = int(kind)
         payload.script_type = int(
             GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM
             if kind == C_EXTRUSION_CUSTOM_GCODE_SCRIPT
             else GCODE_SCRIPT_TYPE_INVALID
         )
-        payload.arguments_id = EXTRUSION_DATA_ID_INVALID
+        payload.config_id = EXTRUSION_DATA_ID_INVALID
         payload.processing_extruder_id = GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID
-        self.store_property_string(CExtrusionPropertyCustomGcode, payload, "text_id", text)
+        text_id = self.store_property_string(CExtrusionPropertyCustomGcode, payload, "text_id", text)
+        if text_id == EXTRUSION_DATA_ID_INVALID:
+            self.remove_property(CExtrusionPropertyCustomGcode)
+            raise RuntimeError("The custom G-code text could not be stored")
         return payload
 
     def script_gcode(
         self,
         text: str,
         script_type: int,
-        arguments: Mapping[str, object] | None = None,
+        config: Config | None = None,
         processing_extruder_id: int | None = None,
     ):
+        # Serialize before touching the extrusion so a configuration error
+        # cannot replace an existing custom G-code property halfway through.
+        serialized_config = None if config is None else config.serialize_all()
         payload = self.custom_gcode(text, C_EXTRUSION_CUSTOM_GCODE_SCRIPT)
         payload.script_type = int(script_type)
         if processing_extruder_id is not None:
@@ -403,13 +349,12 @@ class ExtrusionPropertyMutableMixin:
                 raise ValueError("A script processing extruder must fit in uint16_t.")
             payload.processing_extruder_id = int(processing_extruder_id)
 
-        raw_arguments, keepalive = _script_argument_array(arguments or {})
-        status = self.api.host.extrusion_custom_gcode_set_arguments(
-            self.mutable_c_handle(), raw_arguments if len(raw_arguments) else None, len(raw_arguments)
-        )
-        if status != RAW_GCODE_SCRIPT_ARGUMENTS_SUCCESS:
-            self.remove_property(CExtrusionPropertyCustomGcode)
-            raise ValueError(f"Invalid G-code script arguments (status {status}).")
+        if serialized_config is not None:
+            config_id = self.store_property_string(
+                CExtrusionPropertyCustomGcode, payload, "config_id", serialized_config)
+            if config_id == EXTRUSION_DATA_ID_INVALID:
+                self.remove_property(CExtrusionPropertyCustomGcode)
+                raise RuntimeError("The G-code script configuration could not be stored")
         return payload
 
 

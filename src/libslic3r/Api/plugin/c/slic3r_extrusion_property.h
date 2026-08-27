@@ -264,40 +264,16 @@ typedef enum c_extrusion_custom_gcode_kind {
 
 #define GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID UINT16_MAX
 
-typedef enum raw_gcode_script_arguments_status {
-    RAW_GCODE_SCRIPT_ARGUMENTS_SUCCESS = 0,
-    RAW_GCODE_SCRIPT_ARGUMENTS_INVALID_ARGUMENT,
-    RAW_GCODE_SCRIPT_ARGUMENTS_INVALID_KEY,
-    RAW_GCODE_SCRIPT_ARGUMENTS_DUPLICATE_KEY,
-    RAW_GCODE_SCRIPT_ARGUMENTS_INVALID_VALUE,
-    RAW_GCODE_SCRIPT_ARGUMENTS_STORAGE_ERROR
-} raw_gcode_script_arguments_status;
-
 /* Property type: EXTRUSION_PROPERTY_TYPE_CUSTOM_GCODE. */
 typedef struct c_extrusion_property_custom_gcode {
     c_extrusion_custom_gcode_kind kind;
     gcode_script_type script_type;
     extrusion_data_id text_id;
-    /* Typed immutable PlaceholderParser inputs supplied by the script producer. */
-    extrusion_data_id arguments_id;
+    /* Serialized Config snapshot containing immutable producer inputs. */
+    extrusion_data_id config_id;
     /* Tool whose runtime E state is exposed, or the invalid value for the current tool. */
     uint16_t processing_extruder_id;
 } c_extrusion_property_custom_gcode;
-
-/*
-Validate and atomically replace the arguments owned by the direct custom
-G-code property on entity. The host copies all keys and values immediately.
-An empty list clears the stored arguments.
-*/
-SLIC3R_HOST_API raw_gcode_script_arguments_status extrusion_custom_gcode_set_arguments(
-    extrusion_entity_handle *entity,
-    const raw_gcode_script_argument *arguments,
-    uint32_t argument_count);
-
-/* Return the borrowed opaque arguments referenced by arguments_id. */
-SLIC3R_HOST_API const raw_gcode_script_arguments *extrusion_custom_gcode_arguments(
-    const extrusion_entity_handle *entity,
-    extrusion_data_id arguments_id);
 
 /*
 Special commands are non-geometric events carried in the extrusion stream.

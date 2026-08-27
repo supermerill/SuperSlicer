@@ -15,7 +15,7 @@
 #include <boost/filesystem/path.hpp>
 
 #include "AppConfig.hpp"
-#include "enum_bitmask.hpp"
+#include "libslic3r/enum_bitmask.hpp"
 #include "Preset.hpp"
 
 namespace Slic3r {

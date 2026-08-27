@@ -12,6 +12,7 @@
 #include <string>
 
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_extrusion_edit.h"
+#include "libslic3r/Api/plugin/cpp/ConfigViews.hpp"
 #include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
 #include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
@@ -54,16 +55,22 @@ struct PlanSummary
 PlanSummary summarize_plan(const PrintingPlan &plan);
 // Resolve a one-object group to the stable object index expected by PlaceholderParser.
 std::optional<uint32_t> group_object_index(const Print &print, const PrintingGroup &group);
+// Add one typed scalar to the temporary Config transported with a script.
+void set_int_argument(MutableConfig &config, const char *key, int32_t value);
+void set_float_argument(MutableConfig &config, const char *key, double value);
 // Build the common layer placeholders from the final global traversal position.
-GCodeScriptArguments layer_arguments(const LayerContext &layer,
-                                     const std::optional<LayerContext> &previous_layer,
-                                     coord_t max_print_z);
+StoredConfig layer_arguments(storage_handle *storage,
+                             const LayerContext &layer,
+                             const std::optional<LayerContext> &previous_layer,
+                             coord_t max_print_z);
+// Clone a small producer Config before adding values specific to one event.
+StoredConfig copy_arguments(storage_handle *storage, const Config &source);
 // Build one temporary event and move its contents into the selected fixed scope root.
 void append_script_event(storage_handle *storage,
                          const PrintingScopeEvents &events,
                          const std::string &script,
                          gcode_script_type script_type,
-                         const GCodeScriptArguments &arguments,
+                         const Config &arguments,
                          ScopeEventPosition position,
                          uint16_t processing_extruder_id = GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID);
 // Whitespace-only toolchange scripts have the same meaning as an empty legacy setting.
@@ -107,23 +114,42 @@ std::optional<uint32_t> group_object_index(const Print &print, const PrintingGro
     return std::nullopt;
 }
 
-GCodeScriptArguments layer_arguments(const LayerContext &layer,
-                                     const std::optional<LayerContext> &previous_layer,
-                                     coord_t max_print_z)
+void set_int_argument(MutableConfig &config, const char *key, int32_t value)
 {
-    GCodeScriptArguments arguments;
-    arguments.set("layer_num", layer.number)
-        .set("layer_z", unscaled(layer.print_z))
-        .set("previous_layer_z", previous_layer ? unscaled(previous_layer->print_z) : 0.0)
-        .set("max_layer_z", unscaled(max_print_z));
+    config.get_or_add(key, SLIC3R_CONFIG_OPTION_INT).set_int(value);
+}
+
+void set_float_argument(MutableConfig &config, const char *key, double value)
+{
+    config.get_or_add(key, SLIC3R_CONFIG_OPTION_FLOAT).set_float(value);
+}
+
+StoredConfig layer_arguments(storage_handle *storage,
+                             const LayerContext &layer,
+                             const std::optional<LayerContext> &previous_layer,
+                             coord_t max_print_z)
+{
+    StoredConfig arguments(storage);
+    set_int_argument(arguments, "layer_num", layer.number);
+    set_float_argument(arguments, "layer_z", unscaled(layer.print_z));
+    set_float_argument(arguments, "previous_layer_z",
+                       previous_layer ? unscaled(previous_layer->print_z) : 0.0);
+    set_float_argument(arguments, "max_layer_z", unscaled(max_print_z));
     return arguments;
+}
+
+StoredConfig copy_arguments(storage_handle *storage, const Config &source)
+{
+    StoredConfig copy(storage);
+    copy.deserialize_all(source.serialize_all());
+    return copy;
 }
 
 void append_script_event(storage_handle *storage,
                          const PrintingScopeEvents &events,
                          const std::string &script,
                          gcode_script_type script_type,
-                         const GCodeScriptArguments &arguments,
+                         const Config &arguments,
                          ScopeEventPosition position,
                          uint16_t processing_extruder_id)
 {
@@ -194,11 +220,13 @@ private:
         const PlanSummary summary = summarize_plan(plan);
 
         const LayerContext first_layer = summary.first_layer.value_or(LayerContext{});
-        GCodeScriptArguments start_arguments =
-            layer_arguments(first_layer, std::nullopt, summary.max_print_z);
-        start_arguments.set("previous_extruder", int32_t(-1))
-            .set("next_extruder", summary.first_extruder ? int32_t(*summary.first_extruder) : -1)
-            .set("filament_extruder_id", summary.first_extruder ? int32_t(*summary.first_extruder) : 0);
+        StoredConfig start_arguments = layer_arguments(
+            run_context->plugin_storage, first_layer, std::nullopt, summary.max_print_z);
+        set_int_argument(start_arguments, "previous_extruder", -1);
+        set_int_argument(start_arguments, "next_extruder",
+                         summary.first_extruder ? int32_t(*summary.first_extruder) : -1);
+        set_int_argument(start_arguments, "filament_extruder_id",
+                         summary.first_extruder ? int32_t(*summary.first_extruder) : 0);
         append_script_event(run_context->plugin_storage, plan_events,
                             config.string_or_default("start_gcode", std::string()),
                             GCODE_SCRIPT_TYPE_START_GCODE, start_arguments,
@@ -229,12 +257,12 @@ private:
             const PrintingScopeEvents group_events = group.events();
             const std::optional<uint32_t> current_object = group_object_index(print, group);
             if (current_object && previous_object && !between_objects.empty()) {
-                GCodeScriptArguments arguments;
+                StoredConfig arguments(run_context->plugin_storage);
                 const LayerContext object_layer = previous_layer.value_or(LayerContext{});
-                arguments.set("layer_num", object_layer.number)
-                    .set("layer_z", unscaled(object_layer.print_z))
-                    .set("previous_object_id", int32_t(*previous_object))
-                    .set("next_object_id", int32_t(*current_object));
+                set_int_argument(arguments, "layer_num", object_layer.number);
+                set_float_argument(arguments, "layer_z", unscaled(object_layer.print_z));
+                set_int_argument(arguments, "previous_object_id", int32_t(*previous_object));
+                set_int_argument(arguments, "next_object_id", int32_t(*current_object));
                 if (between_before_move) {
                     assert(previous_object_events.has_value());
                     append_script_event(run_context->plugin_storage, *previous_object_events,
@@ -256,8 +284,8 @@ private:
                 const PrintingLayerGroup layer = group.layer_group(layer_idx);
                 const PrintingScopeEvents layer_events = layer.events();
                 const LayerContext current_layer{layer_number++, layer.print_z()};
-                const GCodeScriptArguments current_layer_arguments =
-                    layer_arguments(current_layer, previous_layer, summary.max_print_z);
+                const StoredConfig current_layer_arguments = layer_arguments(
+                    run_context->plugin_storage, current_layer, previous_layer, summary.max_print_z);
 
                 const PrintingScopeEvents before_layer_events = previous_layer_events ?
                     *previous_layer_events : group_events;
@@ -283,14 +311,16 @@ private:
                         continue;
                     }
 
-                    GCodeScriptArguments tool_arguments = current_layer_arguments;
-                    tool_arguments.set("previous_extruder", current_tool)
-                        .set("next_extruder", int32_t(target_tool))
-                        .set("toolchange_z", unscaled(current_layer.print_z));
+                    StoredConfig tool_arguments = copy_arguments(
+                        run_context->plugin_storage, current_layer_arguments);
+                    set_int_argument(tool_arguments, "previous_extruder", current_tool);
+                    set_int_argument(tool_arguments, "next_extruder", int32_t(target_tool));
+                    set_float_argument(tool_arguments, "toolchange_z", unscaled(current_layer.print_z));
                     if (current_tool >= 0) {
                         assert(previous_tool_events.has_value());
-                        GCodeScriptArguments end_filament_arguments = tool_arguments;
-                        end_filament_arguments.set("filament_extruder_id", current_tool);
+                        StoredConfig end_filament_arguments = copy_arguments(
+                            run_context->plugin_storage, tool_arguments);
+                        set_int_argument(end_filament_arguments, "filament_extruder_id", current_tool);
                         append_script_event(
                             run_context->plugin_storage, *previous_tool_events,
                             config.vector_string_or_default("end_filament_gcode", uint32_t(current_tool), std::string()),
@@ -302,8 +332,9 @@ private:
                                             GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE, tool_arguments,
                                             ScopeEventPosition::Before, target_tool);
 
-                    GCodeScriptArguments start_filament_arguments = tool_arguments;
-                    start_filament_arguments.set("filament_extruder_id", int32_t(target_tool));
+                    StoredConfig start_filament_arguments = copy_arguments(
+                        run_context->plugin_storage, tool_arguments);
+                    set_int_argument(start_filament_arguments, "filament_extruder_id", int32_t(target_tool));
                     append_script_event(
                         run_context->plugin_storage, tool_events,
                         config.vector_string_or_default("start_filament_gcode", target_tool, std::string()),
@@ -321,13 +352,14 @@ private:
             const std::set<uint16_t> final_tools = single_extruder_multi_material ?
                 std::set<uint16_t>{uint16_t(current_tool)} : used_tools;
             for (uint16_t tool_id : final_tools) {
-                GCodeScriptArguments arguments;
+                StoredConfig arguments(run_context->plugin_storage);
                 if (summary.last_layer)
-                    arguments = layer_arguments(
-                        *summary.last_layer, summary.previous_layer, summary.max_print_z);
-                arguments.set("filament_extruder_id", int32_t(tool_id))
-                    .set("previous_extruder", current_tool)
-                    .set("next_extruder", int32_t(-1));
+                    arguments.deserialize_all(layer_arguments(
+                        run_context->plugin_storage, *summary.last_layer,
+                        summary.previous_layer, summary.max_print_z).serialize_all());
+                set_int_argument(arguments, "filament_extruder_id", int32_t(tool_id));
+                set_int_argument(arguments, "previous_extruder", current_tool);
+                set_int_argument(arguments, "next_extruder", -1);
                 append_script_event(
                     run_context->plugin_storage, plan_events,
                     config.vector_string_or_default("end_filament_gcode", tool_id, std::string()),
@@ -337,11 +369,13 @@ private:
         }
 
         const LayerContext last_layer = summary.last_layer.value_or(LayerContext{});
-        GCodeScriptArguments end_arguments =
-            layer_arguments(last_layer, summary.previous_layer, summary.max_print_z);
-        end_arguments.set("previous_extruder", summary.last_extruder ? int32_t(*summary.last_extruder) : -1)
-            .set("next_extruder", int32_t(-1))
-            .set("filament_extruder_id", summary.last_extruder ? int32_t(*summary.last_extruder) : 0);
+        StoredConfig end_arguments = layer_arguments(
+            run_context->plugin_storage, last_layer, summary.previous_layer, summary.max_print_z);
+        set_int_argument(end_arguments, "previous_extruder",
+                         summary.last_extruder ? int32_t(*summary.last_extruder) : -1);
+        set_int_argument(end_arguments, "next_extruder", -1);
+        set_int_argument(end_arguments, "filament_extruder_id",
+                         summary.last_extruder ? int32_t(*summary.last_extruder) : 0);
         append_script_event(run_context->plugin_storage, plan_events,
                             config.string_or_default("end_gcode", std::string()),
                             GCODE_SCRIPT_TYPE_END_GCODE, end_arguments,

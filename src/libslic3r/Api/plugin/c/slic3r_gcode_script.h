@@ -18,10 +18,10 @@ Host-owned G-code script processor
 ==================================
 
 The processor keeps the heavy placeholder language and all of its runtime
-state inside the host. A script producer stores immutable structural arguments
-with the extrusion event. At execution time, the firmware prepares one
-short-lived mutable Config from those arguments, adds the current machine
-state, then processes one script.
+state inside the host. A script producer stores an immutable serialized Config
+with the extrusion event. At execution time, the firmware reconstructs that
+Config, the host copies its values into one short-lived mutable context, and
+the firmware adds the current machine state before processing the script.
 
 Calls are synchronous, sequential and non-reentrant. The Config returned by
 prepare() is borrowed until the next prepare(). Result strings are borrowed
@@ -61,62 +61,6 @@ typedef struct config_handle config_handle;
 typedef struct orchestrator_handle orchestrator_handle;
 
 /*
-Typed immutable values attached to one scripted G-code property.
-
-The producer supplies these values while constructing the PrintingPlan. The
-host copies them into storage owned by the extrusion entity, so all pointers in
-raw_gcode_script_argument are needed only for the duration of the storing call.
-The same record is used as a borrowed view when reading stored arguments.
-*/
-typedef enum raw_gcode_script_argument_type {
-    RAW_GCODE_SCRIPT_ARGUMENT_BOOL = 0,
-    RAW_GCODE_SCRIPT_ARGUMENT_INT,
-    RAW_GCODE_SCRIPT_ARGUMENT_FLOAT,
-    RAW_GCODE_SCRIPT_ARGUMENT_STRING,
-    RAW_GCODE_SCRIPT_ARGUMENT_INTS,
-    RAW_GCODE_SCRIPT_ARGUMENT_FLOATS
-} raw_gcode_script_argument_type;
-
-typedef struct raw_gcode_script_string {
-    const char *data;
-    uint32_t size;
-} raw_gcode_script_string;
-
-typedef struct raw_gcode_script_ints {
-    const int32_t *data;
-    uint32_t size;
-} raw_gcode_script_ints;
-
-typedef struct raw_gcode_script_floats {
-    const double *data;
-    uint32_t size;
-} raw_gcode_script_floats;
-
-typedef union raw_gcode_script_argument_value {
-    int32_t boolean;
-    int32_t integer;
-    double floating;
-    raw_gcode_script_string string;
-    raw_gcode_script_ints integers;
-    raw_gcode_script_floats floats;
-} raw_gcode_script_argument_value;
-
-typedef struct raw_gcode_script_argument {
-    const char *key;
-    raw_gcode_script_argument_type type;
-    raw_gcode_script_argument_value value;
-} raw_gcode_script_argument;
-
-/* Opaque host-owned sequence stored with an extrusion property. */
-typedef struct raw_gcode_script_arguments raw_gcode_script_arguments;
-
-/* Read one borrowed argument view. Returns zero for an invalid index/blob. */
-SLIC3R_HOST_API uint32_t gcode_script_arguments_count(const raw_gcode_script_arguments *arguments);
-SLIC3R_HOST_API int32_t gcode_script_arguments_get(const raw_gcode_script_arguments *arguments,
-                                                   uint32_t index,
-                                                   raw_gcode_script_argument *argument_out);
-
-/*
 Register a stable namespaced script name and receive its compact runtime id.
 
 Registering the same name repeatedly is idempotent. Built-in names return their
@@ -138,7 +82,7 @@ typedef struct raw_gcode_script_result {
 
 typedef config_handle *(*gcode_script_prepare_fn)(void *context,
                                                   gcode_script_type script_type,
-                                                  const raw_gcode_script_arguments *arguments);
+                                                  const config_handle *producer_config);
 
 typedef void (*gcode_script_process_fn)(
     void *context,

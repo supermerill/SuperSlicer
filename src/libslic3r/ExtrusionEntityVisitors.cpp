@@ -12,7 +12,9 @@
 #include <cstdint>
 #include <iostream>
 
+#include "Config/ConfigDef.hpp"
 #include "Config/ConfigOption.hpp"
+#include "Config/ConfigSnapshotSerialization.hpp"
 
 namespace Slic3r {
 
@@ -176,15 +178,37 @@ bool ExtrusionPrinter::print_properties(const ExtrusionEntity &entity, const cha
         ss << property->script_type;
         this->begin_property_field(first_field, "text_id");
         ss << property->text_id;
+        this->begin_property_field(first_field, "config_id");
+        if (property->config_id == EXTRUSION_DATA_ID_INVALID)
+            ss << "none";
+        else
+            ss << property->config_id;
         this->begin_property_field(first_field, "processing_extruder_id");
         if (property->processing_extruder_id == GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID)
             ss << "none";
         else
             ss << property->processing_extruder_id;
-        this->begin_property_field(first_field, "argument_count");
-        const raw_gcode_script_arguments *arguments = extrusion_custom_gcode_arguments(
-            reinterpret_cast<const extrusion_entity_handle *>(&entity), property->arguments_id);
-        ss << gcode_script_arguments_count(arguments);
+        this->begin_property_field(first_field, "config_key_count");
+        if (property->config_id == EXTRUSION_DATA_ID_INVALID) {
+            ss << 0;
+        } else {
+            // Diagnostics decode the same snapshot consumed by the firmware so
+            // a corrupt event is visible without exposing a second public API.
+            uint32_t byte_size = 0;
+            const char *serialized = static_cast<const char *>(extrusion_data(
+                reinterpret_cast<const extrusion_entity_handle *>(&entity),
+                property->config_id,
+                &byte_size));
+            DynamicConfig config;
+            const bool valid = serialized != nullptr && byte_size > 0 &&
+                serialized[byte_size - 1] == '\0' &&
+                ConfigSnapshotSerialization::deserialize_all(
+                    std::string(serialized, serialized + byte_size - 1), config);
+            if (valid)
+                ss << config.keys().size();
+            else
+                this->print_string_value("invalid");
+        }
         const std::string text = entity.custom_gcode_string(*property);
         if (!text.empty()) {
             this->begin_property_field(first_field, "text");

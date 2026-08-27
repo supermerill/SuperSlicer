@@ -43,8 +43,8 @@
 
 #include "libslic3r/Api/plugin/c/slic3r_config_option_type.h"
 
-#include "Exception.hpp"
-#include "Point.hpp"
+#include "../Exception.hpp"
+#include "../Point.hpp"
 
 namespace Slic3r {
     struct FloatOrPercent
@@ -1190,9 +1190,9 @@ public:
     bool                    get_bool(size_t idx = 0) const override { return this->get_at(idx) != 0; }
     int32_t                 get_int(size_t idx = 0) const override { return this->get_at(idx); }
     double                  get_float(size_t idx = 0) const override { return double(this->get_at(idx)); }
-    void                    set_bool(bool value, size_t idx = 0) override { this->set_at(idx, value ? 1 : 0); }
-    void                    set_int(int32_t value, size_t idx = 0) override { this->set_at(idx, value); }
-    void                    set_float(double value, size_t idx = 0) override { this->set_at(idx, int32_t(value)); }
+    void                    set_bool(bool value, size_t idx = 0) override { this->set_at(value ? 1 : 0, idx); }
+    void                    set_int(int32_t value, size_t idx = 0) override { this->set_at(value, idx); }
+    void                    set_float(double value, size_t idx = 0) override { this->set_at(int32_t(value), idx); }
 
     std::string serialize() const override;
 
