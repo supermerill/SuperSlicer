@@ -29,8 +29,12 @@ operation promised by the public contract.
 #include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
 #include "libslic3r/Config/ConfigDef.hpp"
 #include "libslic3r/Config/ConfigOption.hpp"
+#include "libslic3r/Config/PrintConfig.hpp"
+#include "libslic3r/CustomGCode.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/PrintRecords.hpp"
+
+#include "test_data.hpp"
 
 namespace {
 
@@ -190,4 +194,96 @@ TEST_CASE("PrintRecords C++ view follows channel lifetime", "[plugins][print-rec
     CHECK(records.channels() == std::vector<std::string>{"example.values"});
     CHECK(records.remove("example.values"));
     CHECK_FALSE(records.find("example.values").has_value());
+}
+
+TEST_CASE("Print publishes custom G-code markers as a stable record table",
+          "[plugins][print-records][custom-gcode]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    Slic3r::Print print;
+    Slic3r::Model model;
+    Slic3r::DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
+    Slic3r::Test::init_print({Slic3r::Test::TestMesh::cube_20x20x20}, print, model, config);
+
+    // A first apply always publishes the complete zero-row schema for plugin readers.
+    const Slic3r::DynamicConfig *record = print.records().find(Slic3r::CustomGCode::PrintRecordChannel);
+    REQUIRE(record != nullptr);
+    REQUIRE(record->option<Slic3r::ConfigOptionInt>(Slic3r::CustomGCode::PrintRecordSizeKey) != nullptr);
+    REQUIRE(record->option<Slic3r::ConfigOptionInt>(Slic3r::CustomGCode::PrintRecordModeKey) != nullptr);
+    CHECK(record->option<Slic3r::ConfigOptionInt>(Slic3r::CustomGCode::PrintRecordSizeKey)->value == 0);
+    CHECK(record->option<Slic3r::ConfigOptionInt>(Slic3r::CustomGCode::PrintRecordModeKey)->value ==
+          static_cast<int32_t>(Slic3r::CustomGCode::Undef));
+    CHECK(record->option<Slic3r::ConfigOptionFloats>(Slic3r::CustomGCode::PrintRecordPrintZKey)->empty());
+    CHECK(record->option<Slic3r::ConfigOptionInts>(Slic3r::CustomGCode::PrintRecordTypeKey)->empty());
+    CHECK(record->option<Slic3r::ConfigOptionInts>(Slic3r::CustomGCode::PrintRecordExtruderKey)->empty());
+    CHECK(record->option<Slic3r::ConfigOptionStrings>(Slic3r::CustomGCode::PrintRecordColorKey)->empty());
+    CHECK(record->option<Slic3r::ConfigOptionStrings>(Slic3r::CustomGCode::PrintRecordExtraKey)->empty());
+
+    Slic3r::CustomGCode::Info source;
+    source.mode = Slic3r::CustomGCode::MultiExtruder;
+    source.gcodes = {
+        {Slic3r::scale_to_layer_coord(0.20), Slic3r::CustomGCode::ColorChange, 1, "#ff0000", "color"},
+        {Slic3r::scale_to_layer_coord(1.25), Slic3r::CustomGCode::PausePrint, 2, "#00ff00", "pause"},
+        {Slic3r::scale_to_layer_coord(2.50), Slic3r::CustomGCode::ToolChange, 3, "#0000ff", "tool"},
+        {Slic3r::scale_to_layer_coord(3.75), Slic3r::CustomGCode::Template, 4, "template", "template-extra"},
+        {Slic3r::scale_to_layer_coord(5.00), Slic3r::CustomGCode::Custom, 5, "custom", "G4 P100"}
+    };
+    model.custom_gcode_per_print_z = source;
+
+    const Slic3r::Print::ApplyStatus changed = print.apply(model, config);
+    CHECK(changed != Slic3r::Print::APPLY_STATUS_UNCHANGED);
+
+    // Updating the table swaps its contents without invalidating an already borrowed Config handle.
+    const Slic3r::DynamicConfig *updated = print.records().find(Slic3r::CustomGCode::PrintRecordChannel);
+    REQUIRE(updated == record);
+    REQUIRE(updated->option<Slic3r::ConfigOptionInt>(Slic3r::CustomGCode::PrintRecordSizeKey) != nullptr);
+    CHECK(updated->option<Slic3r::ConfigOptionInt>(Slic3r::CustomGCode::PrintRecordSizeKey)->value == 5);
+    CHECK(updated->option<Slic3r::ConfigOptionInt>(Slic3r::CustomGCode::PrintRecordModeKey)->value ==
+          static_cast<int32_t>(Slic3r::CustomGCode::MultiExtruder));
+
+    const std::vector<double> &print_z =
+        updated->option<Slic3r::ConfigOptionFloats>(Slic3r::CustomGCode::PrintRecordPrintZKey)->get_values();
+    const std::vector<int32_t> &types =
+        updated->option<Slic3r::ConfigOptionInts>(Slic3r::CustomGCode::PrintRecordTypeKey)->get_values();
+    const std::vector<int32_t> &extruders =
+        updated->option<Slic3r::ConfigOptionInts>(Slic3r::CustomGCode::PrintRecordExtruderKey)->get_values();
+    const std::vector<std::string> &colors =
+        updated->option<Slic3r::ConfigOptionStrings>(Slic3r::CustomGCode::PrintRecordColorKey)->get_values();
+    const std::vector<std::string> &extras =
+        updated->option<Slic3r::ConfigOptionStrings>(Slic3r::CustomGCode::PrintRecordExtraKey)->get_values();
+
+    REQUIRE(print_z.size() == 5);
+    CHECK(print_z[0] == Approx(0.20));
+    CHECK(print_z[1] == Approx(1.25));
+    CHECK(print_z[2] == Approx(2.50));
+    CHECK(print_z[3] == Approx(3.75));
+    CHECK(print_z[4] == Approx(5.00));
+    CHECK(types == std::vector<int32_t>{0, 1, 2, 3, 4});
+    CHECK(extruders == std::vector<int32_t>{1, 2, 3, 4, 5});
+    CHECK(colors == std::vector<std::string>{"#ff0000", "#00ff00", "#0000ff", "template", "custom"});
+    CHECK(extras == std::vector<std::string>{"color", "pause", "tool", "template-extra", "G4 P100"});
+    CHECK(print.model().custom_gcode_per_print_z == source);
+    CHECK(model.custom_gcode_per_print_z == source);
+
+    // An unchanged apply must leave even the option objects untouched, proving that no swap occurred.
+    const Slic3r::ConfigOption *size_option =
+        updated->option(Slic3r::CustomGCode::PrintRecordSizeKey);
+    print.apply(model, config);
+    CHECK(print.records().find(Slic3r::CustomGCode::PrintRecordChannel)->option(
+              Slic3r::CustomGCode::PrintRecordSizeKey) == size_option);
+
+    // The legacy Info equality ignores an empty table's mode, but the published schema must retain it.
+    model.custom_gcode_per_print_z.gcodes.clear();
+    model.custom_gcode_per_print_z.mode = Slic3r::CustomGCode::SingleExtruder;
+    print.apply(model, config);
+    const Slic3r::DynamicConfig *empty_updated =
+        print.records().find(Slic3r::CustomGCode::PrintRecordChannel);
+    REQUIRE(empty_updated == record);
+    CHECK(empty_updated->option<Slic3r::ConfigOptionInt>(Slic3r::CustomGCode::PrintRecordSizeKey)->value == 0);
+    CHECK(empty_updated->option<Slic3r::ConfigOptionInt>(Slic3r::CustomGCode::PrintRecordModeKey)->value ==
+          static_cast<int32_t>(Slic3r::CustomGCode::SingleExtruder));
+    CHECK(print.model().custom_gcode_per_print_z.mode == Slic3r::CustomGCode::SingleExtruder);
+
+    // Publishing host data does not consume the ID sequence reserved for record producers.
+    CHECK(print.records().allocate_id() == 1);
 }

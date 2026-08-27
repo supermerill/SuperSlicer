@@ -6,6 +6,11 @@
 ///|/
 #include "CustomGCode.hpp"
 
+#include <limits>
+#include <memory>
+#include <stdexcept>
+
+#include "Config/ConfigDef.hpp"
 #include "Config/ConfigOption.hpp"
 #include "GCode.hpp"
 #include "GCode/GCodeWriter.hpp"
@@ -13,6 +18,40 @@
 namespace Slic3r {
 
 namespace CustomGCode {
+
+DynamicConfig make_print_record(const Info &info)
+{
+    if (info.gcodes.size() > static_cast<size_t>(std::numeric_limits<int32_t>::max()))
+        throw std::length_error("custom_gcode_per_print_z exceeds the PrintRecord row limit");
+
+    const size_t row_count = info.gcodes.size();
+    std::unique_ptr<ConfigOptionFloats> print_z(new ConfigOptionFloats(row_count, 0.));
+    std::unique_ptr<ConfigOptionInts> types(new ConfigOptionInts(row_count, 0));
+    std::unique_ptr<ConfigOptionInts> extruders(new ConfigOptionInts(row_count, 0));
+    std::unique_ptr<ConfigOptionStrings> colors(new ConfigOptionStrings(row_count, std::string()));
+    std::unique_ptr<ConfigOptionStrings> extras(new ConfigOptionStrings(row_count, std::string()));
+
+    // Copy every row without sorting so plugin consumers observe the same order as the Model.
+    for (size_t row = 0; row < row_count; ++row) {
+        const Item &item = info.gcodes[row];
+        print_z->set_at(unscaled(item.print_z_), row);
+        types->set_at(static_cast<int32_t>(item.type), row);
+        extruders->set_at(static_cast<int32_t>(item.extruder), row);
+        colors->set_at(item.color, row);
+        extras->set_at(item.extra, row);
+    }
+
+    // Publish a complete schema even for an empty table, which keeps readers branch-free.
+    DynamicConfig record;
+    record.set_key_value(PrintRecordSizeKey, new ConfigOptionInt(static_cast<int32_t>(row_count)));
+    record.set_key_value(PrintRecordModeKey, new ConfigOptionInt(static_cast<int32_t>(info.mode)));
+    record.set_key_value(PrintRecordPrintZKey, print_z.release());
+    record.set_key_value(PrintRecordTypeKey, types.release());
+    record.set_key_value(PrintRecordExtruderKey, extruders.release());
+    record.set_key_value(PrintRecordColorKey, colors.release());
+    record.set_key_value(PrintRecordExtraKey, extras.release());
+    return record;
+}
 
 // If loaded configuration has a "colorprint_heights" option (if it was imported from older Slicer), 
 // and if CustomGCode::Info.gcodes is empty (there is no color print data available in a new format

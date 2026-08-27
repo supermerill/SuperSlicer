@@ -17,6 +17,7 @@
 
 namespace Slic3r {
 
+class DynamicConfig;
 class DynamicPrintConfig;
 
 namespace CustomGCode {
@@ -84,6 +85,29 @@ struct Info
     }
     bool operator!=(const Info& rhs) const { return !(*this == rhs); }
 };
+
+/*
+Names used by the host-owned PrintRecord table that exposes the model's custom
+G-code markers to plugins. The channel is a read-only snapshot for consumers:
+the Model remains the editable and persistent source of these values.
+*/
+inline constexpr char PrintRecordChannel[]        = "custom_gcode_per_print_z";
+inline constexpr char PrintRecordSizeKey[]        = "size";
+inline constexpr char PrintRecordModeKey[]        = "mode";
+inline constexpr char PrintRecordPrintZKey[]      = "print_z";
+inline constexpr char PrintRecordTypeKey[]        = "type";
+inline constexpr char PrintRecordExtruderKey[]    = "extruder";
+inline constexpr char PrintRecordColorKey[]       = "color";
+inline constexpr char PrintRecordExtraKey[]       = "extra";
+
+/*
+Build the complete column-oriented snapshot published in PrintRecords.
+
+Every vector column has exactly `size` entries in Model order. An empty source
+still produces all columns so consumers never need a second schema for the
+zero-row case.
+*/
+DynamicConfig make_print_record(const Info &info);
 
 // If loaded configuration has a "colorprint_heights" option (if it was imported from older Slicer), 
 // and if CustomGCode::Info.gcodes is empty (there is no color print data available in a new format
