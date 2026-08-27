@@ -48,7 +48,6 @@ typedef void (*gcode_firmware_destroy_fn)(void *session);
 typedef void (*gcode_firmware_begin_print_fn)(
     void *session,
     const print_handle *print,
-    const printing_plan_handle *plan,
     raw_gcode_firmware_result *result);
 typedef void (*gcode_firmware_begin_group_fn)(
     void *session,

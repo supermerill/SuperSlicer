@@ -12,6 +12,7 @@
 #include <exception>
 #include <initializer_list>
 #include <iterator>
+#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -32,6 +33,113 @@ class ExtrusionEntity;
 class MutableExtrusionEntity;
 class StoredExtrusionEntity;
 struct ExtrusionAreaFragment;
+
+/*
+Owns the typed immutable PlaceholderParser inputs attached to one scripted
+G-code event. The builder keeps ordinary C++ values; script_gcode() converts
+them to short-lived C views which the host copies into the extrusion entity.
+*/
+class GCodeScriptArguments
+{
+public:
+    GCodeScriptArguments &set(std::string key, bool value) {
+        Entry &item = entry(std::move(key), RAW_GCODE_SCRIPT_ARGUMENT_BOOL);
+        item.boolean = value;
+        return *this;
+    }
+    GCodeScriptArguments &set(std::string key, int32_t value) {
+        Entry &item = entry(std::move(key), RAW_GCODE_SCRIPT_ARGUMENT_INT);
+        item.integer = value;
+        return *this;
+    }
+    GCodeScriptArguments &set(std::string key, double value) {
+        Entry &item = entry(std::move(key), RAW_GCODE_SCRIPT_ARGUMENT_FLOAT);
+        item.floating = value;
+        return *this;
+    }
+    GCodeScriptArguments &set(std::string key, std::string value) {
+        Entry &item = entry(std::move(key), RAW_GCODE_SCRIPT_ARGUMENT_STRING);
+        item.string = std::move(value);
+        return *this;
+    }
+    GCodeScriptArguments &set(std::string key, std::vector<int32_t> value) {
+        Entry &item = entry(std::move(key), RAW_GCODE_SCRIPT_ARGUMENT_INTS);
+        item.integers = std::move(value);
+        return *this;
+    }
+    GCodeScriptArguments &set(std::string key, std::vector<double> value) {
+        Entry &item = entry(std::move(key), RAW_GCODE_SCRIPT_ARGUMENT_FLOATS);
+        item.floats = std::move(value);
+        return *this;
+    }
+
+    bool empty() const { return m_entries.empty(); }
+
+    std::vector<raw_gcode_script_argument> c_arguments() const {
+        checked_size(m_entries.size(), "G-code script argument count");
+        std::vector<raw_gcode_script_argument> output;
+        output.reserve(m_entries.size());
+        for (const Entry &item : m_entries) {
+            raw_gcode_script_argument argument = {};
+            argument.key = item.key.c_str();
+            argument.type = item.type;
+            switch (item.type) {
+            case RAW_GCODE_SCRIPT_ARGUMENT_BOOL: argument.value.boolean = item.boolean ? 1 : 0; break;
+            case RAW_GCODE_SCRIPT_ARGUMENT_INT: argument.value.integer = item.integer; break;
+            case RAW_GCODE_SCRIPT_ARGUMENT_FLOAT: argument.value.floating = item.floating; break;
+            case RAW_GCODE_SCRIPT_ARGUMENT_STRING:
+                argument.value.string = {
+                    item.string.data(), checked_size(item.string.size(), "string argument")};
+                break;
+            case RAW_GCODE_SCRIPT_ARGUMENT_INTS:
+                argument.value.integers = {
+                    item.integers.data(), checked_size(item.integers.size(), "integer vector argument")};
+                break;
+            case RAW_GCODE_SCRIPT_ARGUMENT_FLOATS:
+                argument.value.floats = {
+                    item.floats.data(), checked_size(item.floats.size(), "floating vector argument")};
+                break;
+            }
+            output.push_back(argument);
+        }
+        return output;
+    }
+
+private:
+    static uint32_t checked_size(size_t size, const char *description) {
+        if (size > std::numeric_limits<uint32_t>::max())
+            throw std::length_error(std::string(description) + " is too large for the plugin ABI.");
+        return static_cast<uint32_t>(size);
+    }
+
+    struct Entry
+    {
+        std::string key;
+        raw_gcode_script_argument_type type = RAW_GCODE_SCRIPT_ARGUMENT_BOOL;
+        bool boolean = false;
+        int32_t integer = 0;
+        double floating = 0.0;
+        std::string string;
+        std::vector<int32_t> integers;
+        std::vector<double> floats;
+    };
+
+    Entry &entry(std::string key, raw_gcode_script_argument_type type) {
+        for (Entry &item : m_entries)
+            if (item.key == key) {
+                item = Entry{};
+                item.key = std::move(key);
+                item.type = type;
+                return item;
+            }
+        m_entries.push_back(Entry{});
+        m_entries.back().key = std::move(key);
+        m_entries.back().type = type;
+        return m_entries.back();
+    }
+
+    std::vector<Entry> m_entries;
+};
 
 /*
 Extrusion entity C++ views
@@ -193,7 +301,7 @@ struct EPropertyCustomGcode :
         return *this;
     }
     EPropertyCustomGcode &text(extrusion_data_id value) { text_id = value; return *this; }
-    EPropertyCustomGcode &target_extruder(uint16_t value) { target_extruder_id = value; return *this; }
+    EPropertyCustomGcode &processing_extruder(uint16_t value) { processing_extruder_id = value; return *this; }
 };
 
 /* Special non-geometric commands carried in the extrusion stream. */
@@ -502,8 +610,11 @@ public:
                                        c_extrusion_custom_gcode_kind kind = C_EXTRUSION_CUSTOM_GCODE_GCODE)
     {
         EPropertyCustomGcode &payload = get_or_add_property<EPropertyCustomGcode>();
+        if (payload.arguments_id != EXTRUSION_DATA_ID_INVALID)
+            free_data(payload.arguments_id);
         payload.set_kind(kind);
-        payload.target_extruder_id = GCODE_SCRIPT_TARGET_EXTRUDER_INVALID;
+        payload.arguments_id = EXTRUSION_DATA_ID_INVALID;
+        payload.processing_extruder_id = GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID;
         store_property_string(EPropertyCustomGcode::property_type, &payload.text_id, text);
         return payload;
     }
@@ -512,10 +623,19 @@ public:
     EPropertyCustomGcode &script_gcode(
         std::string_view text,
         gcode_script_type script_type,
-        uint16_t target_extruder_id = GCODE_SCRIPT_TARGET_EXTRUDER_INVALID) {
+        const GCodeScriptArguments &arguments = GCodeScriptArguments(),
+        uint16_t processing_extruder_id = GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID) {
         EPropertyCustomGcode &payload = custom_gcode(text, C_EXTRUSION_CUSTOM_GCODE_SCRIPT);
         payload.script_type = script_type;
-        payload.target_extruder_id = target_extruder_id;
+        payload.processing_extruder_id = processing_extruder_id;
+        const std::vector<raw_gcode_script_argument> raw_arguments = arguments.c_arguments();
+        const raw_gcode_script_arguments_status status = extrusion_custom_gcode_set_arguments(
+            self().mutable_handle(), raw_arguments.data(), static_cast<uint32_t>(raw_arguments.size()));
+        if (status != RAW_GCODE_SCRIPT_ARGUMENTS_SUCCESS) {
+            remove_property<EPropertyCustomGcode>();
+            throw std::invalid_argument("Invalid G-code script arguments (status " +
+                                        std::to_string(uint32_t(status)) + ").");
+        }
         return payload;
     }
 

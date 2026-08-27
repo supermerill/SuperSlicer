@@ -67,6 +67,8 @@ TYPE_ALIASES = {
     "expolygon_status": "int32_t",
     "raw_extrusion_split_status": "int32_t",
     "raw_gcode_script_status": "int",
+    "raw_gcode_script_argument_type": "int",
+    "raw_gcode_script_arguments_status": "int",
     "c_extrusion_custom_gcode_kind": "int",
     "c_extrusion_special_command": "int",
     "clipper_end_type_t": "int",
@@ -180,6 +182,7 @@ class Field:
 class StructDef:
     c_name: str
     fields: list[Field]
+    ctypes_base: str = "ctypes.Structure"
 
 
 @dataclass
@@ -416,6 +419,19 @@ def parse_structs(text: str) -> list[StructDef]:
         structs.append(StructDef(name, fields))
         parsed_names.add(name)
 
+    # Tagged C unions use the same dependency and field machinery as structs,
+    # but ctypes must preserve their overlapping storage layout.
+    typedef_union_pattern = re.compile(
+        r"typedef\s+union(?:\s+[A-Za-z_][A-Za-z0-9_]*)?\s*\{(?P<body>.*?)\}\s*"
+        r"(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*;",
+        flags=re.S,
+    )
+    for match in typedef_union_pattern.finditer(body_text):
+        name = match.group("name")
+        fields = [field for field in (parse_field(part) for part in match.group("body").split(";")) if field]
+        structs.append(StructDef(name, fields, "ctypes.Union"))
+        parsed_names.add(name)
+
     named_pattern = re.compile(
         r"^\s*struct\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*\{(?P<body>.*?)^\s*\}\s*;",
         flags=re.S | re.M,
@@ -581,7 +597,7 @@ def generate() -> str:
 
     for struct in structs:
         lines.append("")
-        lines.append(f"class {class_name(struct.c_name)}(ctypes.Structure):")
+        lines.append(f"class {class_name(struct.c_name)}({struct.ctypes_base}):")
         lines.append("    pass")
 
     for callback in callbacks:

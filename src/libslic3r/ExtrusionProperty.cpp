@@ -45,7 +45,8 @@ ExtrusionPropertyModifier::ExtrusionPropertyModifier()
 
 ExtrusionPropertyCustomGcode::ExtrusionPropertyCustomGcode()
     : c_extrusion_property_custom_gcode{C_EXTRUSION_CUSTOM_GCODE_GCODE, GCODE_SCRIPT_TYPE_INVALID,
-                                        EXTRUSION_DATA_ID_INVALID, GCODE_SCRIPT_TARGET_EXTRUDER_INVALID} {}
+                                        EXTRUSION_DATA_ID_INVALID, EXTRUSION_DATA_ID_INVALID,
+                                        GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID} {}
 
 ExtrusionPropertyCustomGcode::ExtrusionPropertyCustomGcode(Code c,
                                                            extrusion_data_id text_id,
@@ -55,7 +56,8 @@ ExtrusionPropertyCustomGcode::ExtrusionPropertyCustomGcode(Code c,
                                             GCODE_SCRIPT_TYPE_EXTRUSION_CUSTOM :
                                             script_type,
                                         text_id,
-                                        GCODE_SCRIPT_TARGET_EXTRUDER_INVALID} {}
+                                        EXTRUSION_DATA_ID_INVALID,
+                                        GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID} {}
 
 ExtrusionPropertyCustomGcodeText::ExtrusionPropertyCustomGcodeText(const std::string &str)
     : code(Code::GCODE)
@@ -160,7 +162,8 @@ ExtrusionPropertyContainer::add_property(const ExtrusionPropertyCustomGcodeText 
     ExtrusionPropertyCustomGcode &out = this->get_or_add_property<ExtrusionPropertyCustomGcode>();
     out.kind = c_extrusion_custom_gcode_kind(property.code);
     out.script_type = property.script_type;
-    out.target_extruder_id = GCODE_SCRIPT_TARGET_EXTRUDER_INVALID;
+    out.arguments_id = EXTRUSION_DATA_ID_INVALID;
+    out.processing_extruder_id = GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID;
     this->store_property_data_aligned(
         ExtrusionPropertyCustomGcode::property_type, &out.text_id,
         property.gcode.c_str(), property.gcode.size() + 1, alignof(char));
@@ -318,10 +321,19 @@ uint32_t ExtrusionPropertyContainer::store_property_data_aligned(
     resource.owner_field_offset = owner_field_offset;
     resource.data.assign_copy(data, byte_count, alignment);
 
-    this->release_property_field_resources(owner_type, owner_field_offset);
+    // Reserve and publish the complete replacement before dropping the old
+    // resource. Any allocation failure therefore leaves both the field and
+    // its currently referenced bytes untouched.
+    m_data_resources.reserve(m_data_resources.size() + 1);
     m_data_resources.emplace_back(std::move(resource));
-    *field = m_data_resources.back().id;
-    return m_data_resources.back().id;
+    const uint32_t replacement_id = m_data_resources.back().id;
+    m_data_resources.erase(std::remove_if(m_data_resources.begin(), m_data_resources.end(),
+        [owner_type, owner_field_offset, replacement_id](const DataResource &stored) {
+            return stored.id != replacement_id && stored.owner_type == owner_type &&
+                   stored.owner_field_offset == owner_field_offset;
+        }), m_data_resources.end());
+    *field = replacement_id;
+    return replacement_id;
 }
 
 const void* ExtrusionPropertyContainer::stored_data(uint32_t data_id, uint32_t *byte_size_out) const

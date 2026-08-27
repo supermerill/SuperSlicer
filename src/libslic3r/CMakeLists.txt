@@ -158,8 +158,6 @@ set(SLIC3R_SOURCES
 	Api/plugin/cpp/gcode/Gantry.hpp
 	Api/plugin/cpp/gcode/GCodeFirmwareViews.hpp
 	Api/plugin/cpp/gcode/GCodeScriptProcessorViews.hpp
-	Api/plugin/cpp/gcode/GCodeScriptExecutionContext.cpp
-	Api/plugin/cpp/gcode/GCodeScriptExecutionContext.hpp
 	Api/plugin/cpp/gcode/GCodeFormatter.cpp
 	Api/plugin/cpp/gcode/GCodeFormatter.hpp
 	Api/plugin/cpp/gcode/HeaterState.cpp

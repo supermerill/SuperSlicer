@@ -59,16 +59,14 @@ public:
     empty string is valid. The adapter catches exceptions and reports them
     through the C ABI instead of allowing them to cross the plugin boundary.
 
-    The Print and PrintingPlan views passed to these methods are borrowed. A
-    session may inspect them during the call but must not retain the views or
-    their handles after the method returns.
+    Views passed to these methods are borrowed. A session may inspect them
+    during the call but must not retain their handles after the method returns.
     */
     virtual ~GCodeFirmwareSession() = default;
 
     // Called exactly once before any plan group. Emit the file preamble and
-    // initialize state from the Print configuration and finalized plan. The
-    // plan remains borrowed and immutable only for the duration of the call.
-    virtual std::string begin_print(const Print &, const PrintingPlan &) = 0;
+    // initialize state from the Print configuration.
+    virtual std::string begin_print(const Print &) = 0;
 
     // Enter one PrintingGroup. Groups represent independent ordered batches;
     // the preceding group has already received end_group().
@@ -169,13 +167,12 @@ inline void destroy_firmware_session(void *opaque) noexcept
 
 inline void begin_print_thunk(void *opaque,
                               const print_handle *print,
-                              const printing_plan_handle *plan,
                               raw_gcode_firmware_result *result) noexcept
 {
-    invoke_firmware_callback(opaque, result, [print, plan](GCodeFirmwareSession &session) {
-        if (print == nullptr || plan == nullptr)
-            throw std::invalid_argument("Firmware begin_print received a null Print or PrintingPlan.");
-        return session.begin_print(Print(print), PrintingPlan(plan));
+    invoke_firmware_callback(opaque, result, [print](GCodeFirmwareSession &session) {
+        if (print == nullptr)
+            throw std::invalid_argument("Firmware begin_print received a null Print.");
+        return session.begin_print(Print(print));
     });
 }
 
@@ -307,10 +304,10 @@ public:
         validate();
     }
 
-    std::string_view begin_print(const Print &print, const PrintingPlan &plan) const
+    std::string_view begin_print(const Print &print) const
     {
         raw_gcode_firmware_result result = make_result();
-        m_instance->vtable->begin_print(m_instance->session, print.handle(), plan.handle(), &result);
+        m_instance->vtable->begin_print(m_instance->session, print.handle(), &result);
         return consume(result);
     }
 

@@ -18,16 +18,18 @@
 G-code script processor C++ views
 =================================
 
-These wrappers keep PlaceholderParser out of the plugin API. A firmware sees
-one borrowed, strictly typed Config, fills values already declared by the host,
-then asks the host to process the script. No allocation crosses the C ABI.
+These wrappers keep PlaceholderParser out of the plugin API. The host prepares
+one borrowed, strictly typed Config from the structural arguments stored with
+the event. A firmware adds its current machine values, then asks the host to
+process the script. No allocation crosses the C ABI.
 */
 
 namespace slic3r_api { namespace GCodeGeneration {
 
 // Provides typed access to the temporary Config prepared for one script. It
-// cannot create options: a missing key or a mismatched type is an immediate
-// programming error in the firmware plugin.
+// cannot create options: producers create custom options through the stored
+// argument batch, while a missing key or mismatched runtime type is an
+// immediate programming error in the firmware plugin.
 class GCodeScriptConfig
 {
 public:
@@ -112,6 +114,15 @@ public:
         std::vector<double> values(config_option_size(option));
         for (uint32_t idx = 0; idx < values.size(); ++idx)
             values[idx] = config_option_get_float(option, idx);
+        return values;
+    }
+
+    std::vector<int32_t> get_ints(const char *key) const
+    {
+        const config_option_handle *option = const_option(key, SLIC3R_CONFIG_OPTION_INTS);
+        std::vector<int32_t> values(config_option_size(option));
+        for (uint32_t idx = 0; idx < values.size(); ++idx)
+            values[idx] = config_option_get_int(option, idx);
         return values;
     }
 
@@ -207,11 +218,13 @@ public:
 
     bool valid() const { return m_processor != nullptr; }
 
-    GCodeScriptContext prepare(gcode_script_type script_type) const {
+    GCodeScriptContext prepare(
+        gcode_script_type script_type,
+        const raw_gcode_script_arguments *arguments = nullptr) const {
         validate();
         if (script_type == GCODE_SCRIPT_TYPE_INVALID)
             throw std::invalid_argument("A G-code script needs a valid type.");
-        config_handle *config = m_processor->prepare(m_processor->context, script_type);
+        config_handle *config = m_processor->prepare(m_processor->context, script_type, arguments);
         if (config == nullptr)
             throw std::runtime_error("The host could not prepare the G-code script context.");
         return GCodeScriptContext(m_processor, config);

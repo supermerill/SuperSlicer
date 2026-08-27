@@ -13,7 +13,6 @@
 
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeFirmwareViews.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeFormatter.hpp"
-#include "libslic3r/Api/plugin/cpp/gcode/GCodeScriptExecutionContext.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeScriptProcessorViews.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/DefaultExtruder.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/Gantry.hpp"
@@ -60,7 +59,7 @@ public:
     // machine state. The borrowed Config view is not retained.
     void setup(const Config &config);
 
-    std::string begin_print(const Print &print, const PrintingPlan &plan) override;
+    std::string begin_print(const Print &print) override;
     std::string begin_group(const PrintingGroup &group) override;
     std::string begin_layer(const PrintingLayerGroup &layer) override;
     std::string begin_tool_group(const PrintingToolGroup &tool_group) override;
@@ -115,14 +114,14 @@ protected:
     std::string process_script(
         gcode_script_type script_type,
         const std::string &script,
-        uint16_t target_extruder_id = GCODE_SCRIPT_TARGET_EXTRUDER_INVALID,
-        std::optional<raw_extrusion_role> next_extrusion_role = std::nullopt);
+        const raw_gcode_script_arguments *arguments = nullptr,
+        uint16_t processing_extruder_id = GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID);
 
-    // Custom script types still receive the standard final-plan and machine
-    // context. A derived firmware may fill additional host-declared options
+    // Every script receives its stored structural arguments plus the standard
+    // machine context. A derived firmware may fill additional runtime options
     // here without changing the generic script processor ABI.
     virtual void complete_script_context(gcode_script_type script_type,
-                                         uint16_t target_extruder_id,
+                                         uint16_t processing_extruder_id,
                                          GCodeScriptConfig &config);
 
     // A dialect may copy additional setup values after the generic machine
@@ -191,8 +190,7 @@ private:
     std::string write_special_command(const EPropertySpecialCommand &command,
                                       const RequestedState &state);
     std::string write_custom_gcode(const ExtrusionEntity &entity,
-                                   const EPropertyCustomGcode &custom_gcode,
-                                   const RequestedState &state);
+                                   const EPropertyCustomGcode &custom_gcode);
     void apply_requested_state(const RequestedState &state);
     c_vec3d machine_position(c_point point, coord_t z_offset) const;
     double segment_length_mm(const c_extrusion_segment &segment) const;
@@ -213,8 +211,6 @@ private:
     bool m_seen_object_group = false;
     bool m_is_setup = false;
     GCodeScriptProcessorView m_scripts;
-    GCodeScriptExecutionContext m_script_execution;
-    std::optional<raw_extrusion_role> m_previous_extrusion_role;
 };
 
 }} // namespace slic3r_api::GCodeGeneration

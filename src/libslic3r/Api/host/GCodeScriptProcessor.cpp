@@ -61,6 +61,8 @@ void validate_finite_vector(const DynamicConfig &config,
 std::array<std::optional<double>, 3> position_after_gcode(
     const std::vector<double> &initial_position,
     const std::string &gcode);
+bool is_machine_option_key(const std::string &key);
+std::unique_ptr<ConfigOption> option_from_argument(const raw_gcode_script_argument &argument);
 
 void copy_option(DynamicConfig &destination,
                  const DynamicConfig &source,
@@ -137,6 +139,48 @@ std::array<std::optional<double>, 3> position_after_gcode(
     return position;
 }
 
+// Machine values are supplied by the firmware at execution time and may not be frozen by a script producer.
+bool is_machine_option_key(const std::string &key)
+{
+    for (const char *machine_key : k_machine_option_keys)
+        if (key == machine_key)
+            return true;
+    return false;
+}
+
+// Convert one ABI value into the ConfigOption representation consumed by PlaceholderParser.
+std::unique_ptr<ConfigOption> option_from_argument(const raw_gcode_script_argument &argument)
+{
+    switch (argument.type) {
+    case RAW_GCODE_SCRIPT_ARGUMENT_BOOL:
+        return std::make_unique<ConfigOptionBool>(argument.value.boolean != 0);
+    case RAW_GCODE_SCRIPT_ARGUMENT_INT:
+        return std::make_unique<ConfigOptionInt>(argument.value.integer);
+    case RAW_GCODE_SCRIPT_ARGUMENT_FLOAT:
+        return std::make_unique<ConfigOptionFloat>(argument.value.floating);
+    case RAW_GCODE_SCRIPT_ARGUMENT_STRING:
+        return std::make_unique<ConfigOptionString>(std::string(
+            argument.value.string.data, argument.value.string.size));
+    case RAW_GCODE_SCRIPT_ARGUMENT_INTS: {
+        std::vector<int32_t> values;
+        if (argument.value.integers.size > 0)
+            values.assign(argument.value.integers.data,
+                          argument.value.integers.data + argument.value.integers.size);
+        std::unique_ptr<ConfigOptionInts> option = std::make_unique<ConfigOptionInts>();
+        option->set(values);
+        return option;
+    }
+    case RAW_GCODE_SCRIPT_ARGUMENT_FLOATS: {
+        std::vector<double> values;
+        if (argument.value.floats.size > 0)
+            values.assign(argument.value.floats.data,
+                          argument.value.floats.data + argument.value.floats.size);
+        return std::make_unique<ConfigOptionFloats>(values);
+    }
+    }
+    throw std::invalid_argument("Unknown G-code script argument type.");
+}
+
 } // namespace
 
 class GCodeScriptProcessor::Impl
@@ -148,16 +192,19 @@ public:
 
 private:
     static config_handle *prepare_thunk(void *context,
-                                        gcode_script_type script_type) noexcept;
+                                        gcode_script_type script_type,
+                                        const raw_gcode_script_arguments *arguments) noexcept;
     static void process_thunk(void *context,
                               const char *script,
                               uint16_t current_extruder,
                               raw_gcode_script_result *result) noexcept;
 
-    config_handle *prepare(gcode_script_type script_type);
+    config_handle *prepare(gcode_script_type script_type,
+                           const raw_gcode_script_arguments *arguments);
     std::string process(const std::string &script, uint16_t current_extruder);
     void create_machine_options();
     void create_specific_options(const std::string &script_name);
+    void merge_producer_arguments(const raw_gcode_script_arguments *arguments);
     void resolve_object_names();
     void validate_outputs(const DynamicConfig &outputs) const;
     void infer_position_from_gcode(const DynamicConfig &before,
@@ -234,13 +281,14 @@ GCodeScriptProcessor::Impl::Impl(const Print &print,
 
 config_handle *GCodeScriptProcessor::Impl::prepare_thunk(
     void *context,
-    gcode_script_type script_type) noexcept
+    gcode_script_type script_type,
+    const raw_gcode_script_arguments *arguments) noexcept
 {
     if (context == nullptr || script_type == GCODE_SCRIPT_TYPE_INVALID)
         return nullptr;
     Impl *self = static_cast<Impl *>(context);
     try {
-        return self->prepare(script_type);
+        return self->prepare(script_type, arguments);
     } catch (const std::exception &exception) {
         self->m_error = exception.what();
     } catch (...) {
@@ -293,7 +341,9 @@ void GCodeScriptProcessor::Impl::process_thunk(
     }
 }
 
-config_handle *GCodeScriptProcessor::Impl::prepare(gcode_script_type script_type)
+config_handle *GCodeScriptProcessor::Impl::prepare(
+    gcode_script_type script_type,
+    const raw_gcode_script_arguments *arguments)
 {
     if (m_processing)
         throw std::logic_error("The G-code script processor is not reentrant.");
@@ -310,6 +360,7 @@ config_handle *GCodeScriptProcessor::Impl::prepare(gcode_script_type script_type
         throw std::invalid_argument("Unknown G-code script type.");
     create_machine_options();
     create_specific_options(script_name);
+    merge_producer_arguments(arguments);
     if (script_type == GCODE_SCRIPT_TYPE_START_GCODE)
         m_public_config.option<ConfigOptionInt>("start_gcode_bed_temperature")->value = m_first_layer_bed_temperature;
     if (script_type == GCODE_SCRIPT_TYPE_BEFORE_LAYER_GCODE || script_type == GCODE_SCRIPT_TYPE_LAYER_GCODE)
@@ -348,9 +399,9 @@ std::string GCodeScriptProcessor::Impl::process(
 
     m_processing = true;
     try {
-        // Script-specific values are now filled by the firmware immediately
-        // before process(). Complete host-owned derived values only after that
-        // runtime context has been supplied.
+        // Producer arguments were merged during prepare(), then the firmware
+        // supplied current machine values. Resolve host-owned derived values
+        // only after both parts of the execution context are complete.
         resolve_object_names();
         DynamicConfig specific;
         for (const std::string &key : m_specific_keys)
@@ -424,6 +475,28 @@ void GCodeScriptProcessor::Impl::create_specific_options(const std::string &scri
         }
         m_public_config.set_key_value(key, option);
         m_specific_keys.push_back(key);
+    }
+}
+
+void GCodeScriptProcessor::Impl::merge_producer_arguments(
+    const raw_gcode_script_arguments *arguments)
+{
+    const uint32_t argument_count = gcode_script_arguments_count(arguments);
+    for (uint32_t index = 0; index < argument_count; ++index) {
+        raw_gcode_script_argument argument = {};
+        if (!gcode_script_arguments_get(arguments, index, &argument) || argument.key == nullptr)
+            throw std::invalid_argument("Invalid stored G-code script arguments.");
+        const std::string key(argument.key);
+        if (is_machine_option_key(key))
+            throw std::invalid_argument("A script producer cannot replace runtime machine option: " + key);
+
+        std::unique_ptr<ConfigOption> option = option_from_argument(argument);
+        const ConfigOption *existing = m_public_config.option(key);
+        if (existing != nullptr && existing->type() != option->type())
+            throw std::invalid_argument("Wrong type for G-code script argument: " + key);
+        m_public_config.set_key_value(key, option.release());
+        if (std::find(m_specific_keys.begin(), m_specific_keys.end(), key) == m_specific_keys.end())
+            m_specific_keys.push_back(key);
     }
 }
 
