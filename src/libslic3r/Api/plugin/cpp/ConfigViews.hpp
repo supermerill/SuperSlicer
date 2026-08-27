@@ -7,11 +7,13 @@
 
 #include <cassert>
 #include <cstdint>
+#include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "libslic3r/Api/plugin/c/slic3r_config.h"
 #include "libslic3r/Api/plugin/c/slic3r_config_option.h"
-#include "libslic3r/Api/plugin/c/slic3r_data_tree.h"
 
 namespace slic3r_api {
 
@@ -122,6 +124,63 @@ public:
     }
 };
 
+/*
+MutableConfigOption is a borrowed mutable view returned by MutableConfig.
+
+It never owns the option. Structural mutations of the parent DynamicConfig may
+invalidate the view, so callers should fetch it again after clear() or after a
+deserialization that replaces its key.
+*/
+class MutableConfigOption : public ConfigOption
+{
+public:
+    explicit MutableConfigOption(config_option_handle *handle) : ConfigOption(handle) {}
+
+    config_option_handle *mutable_handle() const {
+        return const_cast<config_option_handle *>(handle());
+    }
+
+    bool set_enabled(bool enabled, uint32_t idx = 0) const {
+        return config_option_set_enabled(mutable_handle(), enabled ? 1 : 0, int32_t(idx)) != 0;
+    }
+    bool set_can_be_disabled(bool disabled) const {
+        return config_option_set_can_be_disabled(mutable_handle(), disabled ? 1 : 0) != 0;
+    }
+    bool set_phony(bool phony) const {
+        return config_option_set_phony(mutable_handle(), phony ? 1 : 0) != 0;
+    }
+    bool deserialize(const std::string &serialized, bool append = false) const {
+        return config_option_deserialize(mutable_handle(), serialized.c_str(), append ? 1 : 0) != 0;
+    }
+    void set_int(int32_t value, uint32_t idx = 0) const {
+        config_option_set_int(mutable_handle(), value, idx);
+    }
+    void set_float(double value, uint32_t idx = 0) const {
+        config_option_set_float(mutable_handle(), value, idx);
+    }
+    void set_float_or_percent(c_float_or_percent value, uint32_t idx = 0) const {
+        config_option_set_float_or_percent(mutable_handle(), value, idx);
+    }
+    void set_bool(bool value, uint32_t idx = 0) const {
+        config_option_set_bool(mutable_handle(), value ? 1 : 0, idx);
+    }
+    void set_string(const std::string &value, uint32_t idx = 0) const {
+        config_option_set_string(mutable_handle(), value.c_str(), idx);
+    }
+    void resize(uint32_t size) const {
+        config_option_vector_handle *vector = config_option_vector_cast_mutable(mutable_handle());
+        if (vector == nullptr)
+            throw std::runtime_error("Cannot resize a scalar configuration option.");
+        config_option_vector_resize(vector, size, nullptr);
+    }
+    void clear_vector() const {
+        config_option_vector_handle *vector = config_option_vector_cast_mutable(mutable_handle());
+        if (vector == nullptr)
+            throw std::runtime_error("Cannot clear a scalar configuration option as a vector.");
+        config_option_vector_clear(vector);
+    }
+};
+
 class Config : public ConstDataTreeHandleView<config_handle>
 {
 public:
@@ -147,6 +206,20 @@ public:
 
     ConfigOption get(const char *key) const {
         return ConfigOption(config_get(handle(), key));
+    }
+
+    // Serialize the whole config rather than one option. The C wrapper uses a
+    // sizing call first so the returned string is never truncated.
+    std::string serialize_all() const {
+        const uint32_t needed = config_serialize_all(handle(), nullptr, 0);
+        if (needed == 0)
+            throw std::runtime_error("The configuration could not be serialized.");
+        std::string out(needed + 1, '\0');
+        const uint32_t written = config_serialize_all(handle(), &out[0], needed + 1);
+        if (written != needed)
+            throw std::runtime_error("The configuration changed while it was being serialized.");
+        out.resize(needed);
+        return out;
     }
 
     bool bool_or_default(const char *key, bool fallback) const {
@@ -293,6 +366,109 @@ public:
             config_option_get_float(option, idx * 2 + 1)
         };
     }
+};
+
+/*
+MutableConfig adds structural operations to a borrowed Config handle.
+
+The host accepts these operations only for DynamicConfig instances. The C++
+view converts a rejected operation into an exception so plugin code cannot
+mistake a static config for a successfully modified temporary config.
+*/
+class MutableConfig : public Config
+{
+public:
+    explicit MutableConfig(config_handle *handle) : Config(handle) {}
+
+    config_handle *mutable_handle() const {
+        return const_cast<config_handle *>(handle());
+    }
+
+    MutableConfigOption get_mutable(const char *key) const {
+        config_option_handle *option = config_get_mutable(mutable_handle(), key);
+        if (option == nullptr)
+            throw std::runtime_error(std::string("Unknown mutable configuration option: ") + key);
+        return MutableConfigOption(option);
+    }
+
+    MutableConfigOption get_or_add(const char *key, config_option_type type) const {
+        config_option_handle *option = config_get_or_add_mutable(mutable_handle(), key, type);
+        if (option == nullptr)
+            throw std::runtime_error(std::string("Cannot create configuration option: ") + key);
+        return MutableConfigOption(option);
+    }
+
+    void clear() const {
+        if (config_clear(mutable_handle()) == 0)
+            throw std::runtime_error("The configuration cannot be cleared.");
+    }
+
+    void deserialize_all(const std::string &serialized) const {
+        if (config_deserialize_all(mutable_handle(), serialized.c_str()) == 0)
+            throw std::runtime_error("The serialized configuration is invalid.");
+    }
+};
+
+/*
+StoredConfig owns one DynamicConfig allocated in a storage_handle.
+
+The wrapper is move-only so exactly one destructor releases the handle. As with
+the other Stored* wrappers, the storage must outlive the wrapper and must not be
+cleared while the wrapper is still active.
+*/
+class StoredConfig : public MutableConfig
+{
+public:
+    explicit StoredConfig(storage_handle *storage) :
+        MutableConfig(create(storage)), m_storage(storage) {}
+
+    StoredConfig(const StoredConfig &) = delete;
+    StoredConfig &operator=(const StoredConfig &) = delete;
+
+    StoredConfig(StoredConfig &&other) noexcept :
+        MutableConfig(other.mutable_handle()), m_storage(other.m_storage) {
+        other.m_handle = nullptr;
+        other.m_storage = nullptr;
+    }
+
+    StoredConfig &operator=(StoredConfig &&other) noexcept {
+        if (this == &other)
+            return *this;
+        reset();
+        m_handle = other.m_handle;
+        m_storage = other.m_storage;
+        other.m_handle = nullptr;
+        other.m_storage = nullptr;
+        return *this;
+    }
+
+    ~StoredConfig() { reset(); }
+
+    storage_handle *storage() const { return m_storage; }
+
+    bool free_from_storage() { return reset(); }
+
+private:
+    static config_handle *create(storage_handle *storage) {
+        if (storage == nullptr)
+            throw std::invalid_argument("StoredConfig requires a storage handle.");
+        config_handle *handle = storage_new_config(storage);
+        if (handle == nullptr)
+            throw std::runtime_error("The host could not allocate a temporary configuration.");
+        return handle;
+    }
+
+    bool reset() noexcept {
+        if (m_storage == nullptr || m_handle == nullptr)
+            return false;
+        const bool freed = storage_free(m_storage, const_cast<config_handle *>(m_handle)) != 0;
+        assert(freed);
+        m_storage = nullptr;
+        m_handle = nullptr;
+        return freed;
+    }
+
+    storage_handle *m_storage = nullptr;
 };
 
 } // namespace slic3r_api

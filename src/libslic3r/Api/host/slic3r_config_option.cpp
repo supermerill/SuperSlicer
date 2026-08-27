@@ -369,7 +369,19 @@ void config_option_set_bool(config_option_handle *me, int32_t value, uint32_t id
 {
     if (me == nullptr)
         return;
-    Slic3r::to_option(me)->set_bool(value != 0, idx);
+
+    // Bool options store either a native bool scalar or byte vector. Assign
+    // those concrete payloads because their classes intentionally do not
+    // implement ConfigOption's numeric conversion setter.
+    Slic3r::ConfigOption *option = Slic3r::to_option(me);
+    if (Slic3r::ConfigOptionBool *scalar = dynamic_cast<Slic3r::ConfigOptionBool *>(option)) {
+        scalar->value = value != 0;
+        return;
+    }
+    if (Slic3r::ConfigOptionBools *values = dynamic_cast<Slic3r::ConfigOptionBools *>(option)) {
+        if (idx < values->size())
+            values->set_at(idx, static_cast<unsigned char>(value != 0));
+    }
 }
 
 void config_option_set_string(config_option_handle *me, const char *value, uint32_t idx)

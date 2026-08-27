@@ -22,6 +22,7 @@
 #include "libslic3r/Api/plugin/c/slic3r_config_def.h"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/c/slic3r_plugin_types.h"
+#include "libslic3r/ConfigDef.hpp"
 #include "libslic3r/ExPolygon.hpp"
 #include "libslic3r/ExtrusionEntity.hpp"
 #include "libslic3r/GCode.hpp"
@@ -1464,6 +1465,7 @@ void PluginStorage::clear() {
     expolygon_collections.clear();
     surface_collections.clear();
     extrusions.clear();
+    configs.clear();
     clipper_shapes.clear();
     generic_storage.clear();
 }
@@ -1539,6 +1541,15 @@ bool PluginStorage::free(void *ptr) {
     for (auto it = extrusions.begin(); it != extrusions.end(); ++it) {
         if (ptr == static_cast<void *>(it->get())) {
             extrusions.erase(it);
+            generic_storage.erase(ptr);
+            return true;
+        }
+    }
+
+    for (auto it = configs.begin(); it != configs.end(); ++it) {
+        config_handle *handle = ApiHost::to_config_handle(it->get());
+        if (ptr == static_cast<void *>(handle)) {
+            configs.erase(it);
             generic_storage.erase(ptr);
             return true;
         }

@@ -938,40 +938,4 @@ object_handle *print_get_auxiliary_object(const print_handle *me)
         &const_cast<Slic3r::Print *>(Slic3r::to_print(me))->mutable_auxiliary_object());
 }
 
-const_strings_t config_keys(const config_handle *me)
-{
-    const_strings_t out = {};
-    if (me == nullptr)
-        return out;
-
-    static thread_local std::vector<std::string> key_storage;
-    static thread_local std::vector<const char*> key_ptrs;
-
-    key_storage = Slic3r::ApiHost::to_config(me)->keys();
-    key_ptrs.clear();
-    key_ptrs.reserve(key_storage.size());
-    for (const std::string &key : key_storage)
-        key_ptrs.push_back(key.c_str());
-
-    out.items = key_ptrs.empty() ? nullptr : key_ptrs.data();
-    out.size = key_ptrs.size();
-    return out;
-}
-
-const config_option_handle *config_get(const config_handle *me, const char *key)
-{
-    if (me == nullptr || key == nullptr)
-        return nullptr;
-    const Slic3r::ConfigBase * config = Slic3r::ApiHost::to_config(me);
-    const Slic3r::ConfigOption * opt = config->option(key);
-    return reinterpret_cast<const config_option_handle*>(opt);
-}
-
-config_option_handle *config_get_mutable(config_handle *me, const char *key)
-{
-    if (me == nullptr || key == nullptr)
-        return nullptr;
-    return reinterpret_cast<config_option_handle*>(Slic3r::ApiHost::to_config(me)->optptr(key, false));
-}
-
 } // extern "C"

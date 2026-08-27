@@ -56,6 +56,7 @@ set(SLIC3R_SOURCES
 	Api/host/Plugin.hpp
 	Api/host/slic3r_bridge_detector.cpp
 	Api/host/slic3r_clipper.cpp
+	Api/host/slic3r_config.cpp
 	Api/host/slic3r_config_def.cpp
 	Api/host/slic3r_config_option.cpp
 	Api/host/slic3r_data_tree.cpp
@@ -87,6 +88,7 @@ set(SLIC3R_SOURCES
 	Api/internal/PrintObjectAccess.hpp
 	Api/plugin/c/slic3r_bridge_detector.h
 	Api/plugin/c/slic3r_clipper.h
+	Api/plugin/c/slic3r_config.h
 	Api/plugin/c/slic3r_config_def.h
 	Api/plugin/c/slic3r_config_option.h
 	Api/plugin/c/slic3r_config_option_type.h

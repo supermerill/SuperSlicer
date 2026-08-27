@@ -11,7 +11,7 @@
 #include <string_view>
 #include <vector>
 
-#include "libslic3r/Api/plugin/c/slic3r_config_option.h"
+#include "libslic3r/Api/plugin/c/slic3r_config.h"
 #include "libslic3r/Api/plugin/c/slic3r_gcode_script.h"
 
 /*

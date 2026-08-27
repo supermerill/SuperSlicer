@@ -39,6 +39,7 @@ class ExPolygon;
 class SurfaceCollection;
 class ExtrusionEntity;
 class PluginStorage;
+class DynamicConfig;
 namespace ApiClipper { class ClipperShapes; }
 
 } // namespace Slic3r
@@ -454,6 +455,7 @@ public:
     StableOwnedVector<std::vector<ExPolygon>> expolygon_collections;
     StableOwnedVector<SurfaceCollection> surface_collections;
     StableOwnedVector<ExtrusionEntity> extrusions;
+    StableOwnedVector<DynamicConfig> configs;
     std::vector<std::unique_ptr<ApiClipper::ClipperShapes>> clipper_shapes;
     std::unordered_set<void *> generic_storage;
 

@@ -329,6 +329,21 @@ class MutableConfigOption(ConfigOption):
     def set_bool(self, value: bool, idx: int = 0) -> None:
         self.api.host.config_option_set_bool(self.mutable_c_handle(), int(value), int(idx))
 
+    def set_string(self, value: str, idx: int = 0) -> None:
+        self.api.host.config_option_set_string(self.mutable_c_handle(), _as_bytes(value), int(idx))
+
+    def resize(self, size: int) -> None:
+        vector = self.api.host.config_option_vector_cast_mutable(self.mutable_c_handle())
+        if not vector:
+            raise TypeError("Cannot resize a scalar configuration option")
+        self.api.host.config_option_vector_resize(vector, int(size), None)
+
+    def clear_vector(self) -> None:
+        vector = self.api.host.config_option_vector_cast_mutable(self.mutable_c_handle())
+        if not vector:
+            raise TypeError("Cannot clear a scalar configuration option as a vector")
+        self.api.host.config_option_vector_clear(vector)
+
 
 # Borrowed read-only config view. get() returns None for an unknown key.
 class Config(DataTreeView):
@@ -364,6 +379,17 @@ class Config(DataTreeView):
         option = self.get(key)
         return None if option is None else option.get_float_or_percent(idx)
 
+    def serialize_all(self) -> str:
+        """Serialize every option into the host's versioned SCFG format."""
+        needed = int(self.api.host.config_serialize_all(self.c_handle(), None, 0))
+        if needed == 0:
+            raise RuntimeError("The configuration could not be serialized")
+        output = ctypes.create_string_buffer(needed + 1)
+        written = int(self.api.host.config_serialize_all(self.c_handle(), output, len(output)))
+        if written != needed:
+            raise RuntimeError("The configuration changed while it was being serialized")
+        return output.value[:written].decode("utf-8")
+
 
 # Mutable config view. Only use it when the host explicitly exposes a mutable
 # config handle to this plugin step.
@@ -379,6 +405,60 @@ class MutableConfig(Config):
         if option is None:
             raise KeyError(key)
         return option
+
+    def get_or_add(self, key: str, option_type: int) -> MutableConfigOption:
+        handle = self.api.host.config_get_or_add_mutable(
+            self.mutable_c_handle(), _as_bytes(key), int(option_type))
+        option = _optional(MutableConfigOption, self.api, handle)
+        if option is None:
+            raise ValueError(f"Cannot create configuration option {key!r} with type {option_type}")
+        return option
+
+    def clear(self) -> None:
+        if not self.api.host.config_clear(self.mutable_c_handle()):
+            raise RuntimeError("The configuration cannot be cleared")
+
+    def deserialize_all(self, serialized: str) -> None:
+        """Atomically merge one SCFG document into this dynamic config."""
+        if not self.api.host.config_deserialize_all(self.mutable_c_handle(), _as_bytes(serialized)):
+            raise ValueError("The serialized configuration is invalid")
+
+
+# Owned mutable DynamicConfig allocated in a storage_handle. The storage must
+# outlive this object and must not be cleared until close() has released it.
+class StoredConfig(MutableConfig):
+    def __init__(self, api, storage) -> None:
+        self._storage = _require_handle(storage, "storage")
+        handle = api.host.storage_new_config(_void_p(self._storage))
+        super().__init__(api, handle)
+        self._owns_handle = True
+
+    def close(self) -> bool:
+        if not self._owns_handle or not self.address:
+            return False
+        freed = bool(self.api.host.storage_free(_void_p(self._storage), self.c_handle()))
+        if freed:
+            self.address = 0
+            self._owns_handle = False
+        return freed
+
+    def release(self) -> int:
+        handle = self.address
+        self.address = 0
+        self._owns_handle = False
+        return handle
+
+    def __enter__(self) -> "StoredConfig":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
 
 
 # Small builder for raw_surface_type. It mirrors the intended order:
@@ -990,6 +1070,7 @@ __all__ = [
     "Object",
     "Print",
     "PrintRegion",
+    "StoredConfig",
     "Surface",
     "SurfaceCollection",
     "SurfaceTypeBuilder",

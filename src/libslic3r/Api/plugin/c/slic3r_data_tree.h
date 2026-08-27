@@ -8,7 +8,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "slic3r_config_option.h"
 #include "slic3r_def.h"
 #include "slic3r_extrusions.h"
 #include "slic3r_geometry.h"
@@ -550,20 +549,6 @@ auxiliary layers are plugin-owned work data; normal model-derived objects stay
 reachable only through the regular object list above.
 */
 SLIC3R_HOST_API object_handle *print_get_auxiliary_object(const print_handle *me);
-
-/* ========================= CONFIG ========================= */
-
-/*
-Returns keys as a borrowed array of strings.
-*/
-SLIC3R_HOST_API const_strings_t config_keys(const config_handle *me);
-
-/*
-Get option by key (string must be null-terminated).
-Returns NULL if not found.
-*/
-SLIC3R_HOST_API const config_option_handle *config_get(const config_handle *me, const char *key);
-SLIC3R_HOST_API config_option_handle *config_get_mutable(config_handle *me, const char *key);
 
 #ifdef __cplusplus
 }

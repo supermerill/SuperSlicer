@@ -21,6 +21,7 @@ HEADER_ORDER = [
     "slic3r_config_option_type.h",
     "slic3r_config_types.h",
     "slic3r_config_option.h",
+    "slic3r_config.h",
     "slic3r_slicing_step.h",
     "slic3r_plugin_run_context.h",
     "slic3r_extrusions.h",

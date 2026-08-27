@@ -428,6 +428,9 @@ class Slic3rAPI:
     def mutable_config(self, handle: int) -> MutableConfig:
         return MutableConfig(self, handle)
 
+    def new_config(self, storage_address: int) -> StoredConfig:
+        return StoredConfig(self, storage_address)
+
     def config_option(self, handle: int) -> ConfigOption:
         return ConfigOption(self, handle)
 
