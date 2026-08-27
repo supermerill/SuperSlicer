@@ -1,6 +1,7 @@
 #include <catch2/catch.hpp>
 
 #include "libslic3r/ConfigDef.hpp"
+#include "libslic3r/ConfigSnapshotSerialization.hpp"
 #include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/LocalesUtils.hpp"
 #include "libslic3r/Model.hpp"
@@ -14,6 +15,168 @@
 
 using namespace Slic3r;
 using namespace Slic3r::Test;
+
+namespace {
+
+// A small static configuration proves that the encoder works through the
+// ConfigBase interface and is not coupled to DynamicConfig storage.
+class SerializationStaticConfig final : public StaticConfig
+{
+public:
+    const ConfigDef *def() const override { return nullptr; }
+
+    const ConfigOption *optptr(const t_config_option_key &key) const override
+    {
+        return key == "value" ? &m_value : nullptr;
+    }
+
+    ConfigOption *optptr(const t_config_option_key &key, bool /* create */) override
+    {
+        return key == "value" ? &m_value : nullptr;
+    }
+
+    t_config_option_keys keys() const override { return {"value"}; }
+
+private:
+    ConfigOptionInt m_value{17};
+};
+
+static void add_all_serializable_option_types(DynamicConfig &config);
+static void compare_serialized_configs(const DynamicConfig &expected,
+                                       const DynamicConfig &actual);
+
+// Populate one representative of every type supported by the public codec.
+// Non-default flags verify that record metadata survives the round trip.
+static void add_all_serializable_option_types(DynamicConfig &config)
+{
+    config.set_key_value("float", new ConfigOptionFloat(1.25));
+    config.set_key_value("floats", new ConfigOptionFloats({1.25, -3.5}));
+    config.set_key_value("int", new ConfigOptionInt(-17));
+    config.set_key_value("ints", new ConfigOptionInts({-17, 42}));
+    config.set_key_value("string", new ConfigOptionString("left:\nright;value"));
+
+    ConfigOptionStrings *strings = new ConfigOptionStrings({"first", "second\nline"});
+    strings->set_is_extruder_size(true);
+    strings->set_can_be_disabled();
+    strings->set_enabled(false, 1);
+    strings->flags |= ConfigOption::FCO_PLACEHOLDER_TEMP;
+    config.set_key_value("strings", strings);
+
+    config.set_key_value("percent", new ConfigOptionPercent(35.0));
+    config.set_key_value("percents", new ConfigOptionPercents({20.0, 80.0}));
+    config.set_key_value("float_or_percent", new ConfigOptionFloatOrPercent(55.0, true));
+    config.set_key_value(
+        "floats_or_percents",
+        new ConfigOptionFloatsOrPercents({{2.5, false}, {75.0, true}}));
+    config.set_key_value("point", new ConfigOptionPoint(Vec2d(1.5, 2.5)));
+    config.set_key_value("points", new ConfigOptionPoints({Vec2d(1.0, 2.0), Vec2d(3.0, 4.0)}));
+    config.set_key_value("point3", new ConfigOptionPoint3(Vec3d(1.0, 2.0, 3.0)));
+    config.set_key_value("bool", new ConfigOptionBool(true));
+    config.set_key_value("bools", new ConfigOptionBools({true, false, true}));
+
+    ConfigOptionEnumGeneric *enum_option = new ConfigOptionEnumGeneric(nullptr, 23);
+    enum_option->set_phony(true);
+    config.set_key_value("enum", enum_option);
+
+    config.set_key_value("graph", new ConfigOptionGraph(GraphData()));
+    config.set_key_value("graphs", new ConfigOptionGraphs({GraphData(), GraphData()}));
+}
+
+// Enum labels belong to ConfigDef, so temporary enums are compared by their
+// numeric value. Other options expose a canonical serialized representation.
+static void compare_serialized_configs(const DynamicConfig &expected,
+                                       const DynamicConfig &actual)
+{
+    REQUIRE(actual.keys() == expected.keys());
+    for (const std::string &key : expected.keys()) {
+        const ConfigOption *expected_option = expected.option(key);
+        const ConfigOption *actual_option = actual.option(key);
+        REQUIRE(expected_option != nullptr);
+        REQUIRE(actual_option != nullptr);
+        CHECK(actual_option->type() == expected_option->type());
+        CHECK(actual_option->flags == expected_option->flags);
+        if (expected_option->type() == coEnum)
+            CHECK(actual_option->get_int() == expected_option->get_int());
+        else
+            CHECK(actual_option->serialize() == expected_option->serialize());
+    }
+}
+
+} // namespace
+
+TEST_CASE("SCFG round-trips complete configurations", "[Config][serialization]")
+{
+    DynamicConfig empty;
+    std::string serialized_empty;
+    REQUIRE(ConfigSnapshotSerialization::serialize_all(empty, serialized_empty));
+    CHECK(serialized_empty == "SCFG1\n0\n");
+
+    DynamicConfig restored_empty;
+    REQUIRE(ConfigSnapshotSerialization::deserialize_all(serialized_empty, restored_empty));
+    CHECK(restored_empty.empty());
+
+    DynamicConfig source;
+    add_all_serializable_option_types(source);
+    std::string serialized;
+    REQUIRE(ConfigSnapshotSerialization::serialize_all(source, serialized));
+    CHECK(serialized.rfind("SCFG1\n", 0) == 0);
+
+    DynamicConfig restored;
+    REQUIRE(ConfigSnapshotSerialization::deserialize_all(serialized, restored));
+    compare_serialized_configs(source, restored);
+
+    // The encoder consumes the ConfigBase contract, including static stores.
+    SerializationStaticConfig static_config;
+    std::string serialized_static;
+    REQUIRE(ConfigSnapshotSerialization::serialize_all(static_config, serialized_static));
+    DynamicConfig restored_static;
+    REQUIRE(ConfigSnapshotSerialization::deserialize_all(serialized_static, restored_static));
+    CHECK(restored_static.option<ConfigOptionInt>("value")->value == 17);
+
+    // Map order makes equivalent configurations byte-for-byte identical.
+    DynamicConfig ordered_first;
+    ordered_first.set_key_value("a", new ConfigOptionInt(1));
+    ordered_first.set_key_value("z", new ConfigOptionString("last"));
+    DynamicConfig ordered_second;
+    ordered_second.set_key_value("z", new ConfigOptionString("last"));
+    ordered_second.set_key_value("a", new ConfigOptionInt(1));
+    std::string first_bytes;
+    std::string second_bytes;
+    REQUIRE(ConfigSnapshotSerialization::serialize_all(ordered_first, first_bytes));
+    REQUIRE(ConfigSnapshotSerialization::serialize_all(ordered_second, second_bytes));
+    CHECK(first_bytes == second_bytes);
+}
+
+TEST_CASE("SCFG deserialization replaces atomically", "[Config][serialization]")
+{
+    DynamicConfig incoming;
+    incoming.set_key_value("replacement", new ConfigOptionString("changed"));
+    std::string incoming_serialized;
+    REQUIRE(ConfigSnapshotSerialization::serialize_all(incoming, incoming_serialized));
+
+    DynamicConfig destination;
+    destination.set_key_value("original", new ConfigOptionInt(7));
+    REQUIRE(ConfigSnapshotSerialization::deserialize_all(incoming_serialized, destination));
+    CHECK(destination.keys() == incoming.keys());
+
+    std::string before_failure;
+    REQUIRE(ConfigSnapshotSerialization::serialize_all(destination, before_failure));
+    const std::vector<std::string> invalid_documents = {
+        "SCFG2\n0\n",
+        "SCFG1\n1\n999:8:1:1\na1",
+        "SCFG1\n1\n2:8:4:1\nkey",
+        "SCFG1\n1\n2:8:1:10\nanot-an-int",
+        "SCFG1\n1\n2:4294967295:1:1\na1",
+        "SCFG1\n2\n2:8:1:1\na12:8:1:1\na2",
+        incoming_serialized + "trailing"
+    };
+    for (const std::string &invalid : invalid_documents) {
+        CHECK_FALSE(ConfigSnapshotSerialization::deserialize_all(invalid, destination));
+        std::string after_failure;
+        REQUIRE(ConfigSnapshotSerialization::serialize_all(destination, after_failure));
+        CHECK(after_failure == before_failure);
+    }
+}
 
 TEST_CASE("Dynamic config serialization - tests ConfigBase", "[Config]"){
     DynamicPrintConfig config;
