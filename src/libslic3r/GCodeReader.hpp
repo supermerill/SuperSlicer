@@ -14,25 +14,26 @@
 #include <string>
 #include <string_view>
 
+#include "Api/plugin/cpp/gcode/GCodeLineParser.hpp"
 #include "libslic3r.h"
 #include "Config/FFFPrintConfig.hpp"
 
 namespace Slic3r {
 
-class GCodeReader {
+class GCodeReader : protected slic3r_api::GCodeGeneration::GCodeLineParser {
 public:
-    class GCodeLine {
+    class GCodeLine : public slic3r_api::GCodeGeneration::GCodeLineParser::GCodeLine {
     public:
         GCodeLine() { reset(); }
-        void reset() { m_mask = 0; memset(m_axis, 0, sizeof(m_axis)); m_raw.clear(); }
-
-        const std::string&      raw() const { return m_raw; }
-        const std::string_view  cmd() const { 
-            const char *cmd = GCodeReader::skip_whitespaces(m_raw.c_str());
-            return std::string_view(cmd, GCodeReader::skip_word(cmd) - cmd);
+        void reset()
+        {
+            slic3r_api::GCodeGeneration::GCodeLineParser::GCodeLine::reset();
+            m_mask = 0;
+            memset(m_axis, 0, sizeof(m_axis));
+            m_e_char = 0;
         }
-        const std::string_view  comment() const
-            { size_t pos = m_raw.find(';'); return (pos == std::string::npos) ? std::string_view() : std::string_view(m_raw).substr(pos + 1); }
+
+        const std::string_view cmd() const { return this->command(); }
 
         // Return position in this->raw() string starting with the "axis" character.
         std::string_view axis_pos(char axis) const;
@@ -80,30 +81,16 @@ public:
 
         char e_char() const { return m_e_char; }
 
-        static bool cmd_is(const std::string &gcode_line, const char *cmd_test) {
-            const char *cmd = GCodeReader::skip_whitespaces(gcode_line.c_str());
-            // Skip line number
-            if (*cmd == 'N') {
-                cmd = skip_word(cmd);
-                cmd = skip_whitespaces(cmd);
-            }
-            size_t len = strlen(cmd_test); 
-            return strncmp(cmd, cmd_test, len) == 0 && GCodeReader::is_end_of_word(cmd[len]);
-        }
+        static bool cmd_is(const std::string &gcode_line, const char *cmd_test)
+            { return command_is(gcode_line, cmd_test); }
 
-        static bool cmd_starts_with(const std::string& gcode_line, const char* cmd_test) {
-            return strncmp(GCodeReader::skip_whitespaces(gcode_line.c_str()), cmd_test, strlen(cmd_test)) == 0;
-        }
+        static bool cmd_starts_with(const std::string& gcode_line, const char* cmd_test)
+            { return command_starts_with(gcode_line, cmd_test); }
 
-        static std::string extract_cmd(const std::string& gcode_line) {
-            GCodeLine temp;
-            temp.m_raw = gcode_line;
-            const std::string_view cmd = temp.cmd();
-            return { cmd.begin(), cmd.end() };
-        }
+        static std::string extract_cmd(const std::string& gcode_line)
+            { return extract_command(gcode_line); }
 
     private:
-        std::string      m_raw;
         float            m_axis[NUM_AXES];
         uint32_t         m_mask;
         char             m_e_char;
@@ -145,10 +132,9 @@ public:
     template<typename Callback>
     const char* parse_line(const char *ptr, const char *end, GCodeLine &gline, Callback &callback)
     {
-        std::pair<const char*, const char*> cmd;
-        const char *line_end = parse_line_internal(ptr, end, gline, cmd);
+        const char *line_end = parse_line_internal(ptr, end, gline);
         callback(*this, gline);
-        update_coordinates(gline, cmd);
+        update_coordinates(gline);
         return line_end;
     }
 
@@ -165,7 +151,7 @@ public:
     bool parse_file_raw(const std::string &file, raw_line_callback_t callback);
 
     // To be called by the callback to stop parsing.
-    void quit_parsing() { m_parsing = false; }
+    void quit_parsing() { slic3r_api::GCodeGeneration::GCodeLineParser::quit_parsing(); }
 
     float& x()       { return m_position[X]; }
     float  x() const { return m_position[X]; }
@@ -190,31 +176,13 @@ private:
     template<typename ParseLineCallback, typename LineEndCallback>
     bool        parse_file_internal(const std::string &filename, ParseLineCallback parse_line_callback, LineEndCallback line_end_callback);
 
-    const char* parse_line_internal(const char *ptr, const char *end, GCodeLine &gline, std::pair<const char*, const char*> &command);
-    void        update_coordinates(GCodeLine &gline, std::pair<const char*, const char*> &command);
-
-    static bool         is_whitespace(char c)           { return c == ' ' || c == '\t'; }
-    static bool         is_end_of_line(char c)          { return c == '\r' || c == '\n' || c == 0; }
-    static bool         is_end_of_gcode_line(char c)    { return c == ';' || is_end_of_line(c); }
-    static bool         is_end_of_word(char c)          { return is_whitespace(c) || is_end_of_gcode_line(c); }
-    static const char*  skip_whitespaces(const char *c) { 
-        for (; is_whitespace(*c); ++ c)
-            ; // silence -Wempty-body
-        return c;
-    }
-    static const char*  skip_word(const char *c) { 
-        for (; ! is_end_of_word(*c); ++ c)
-            ; // silence -Wempty-body
-        return c;
-    }
-    static const char*  axis_pos(const char *raw_str, char axis);
+    const char* parse_line_internal(const char *ptr, const char *end, GCodeLine &gline);
+    void        update_coordinates(GCodeLine &gline);
 
     GCodeConfig m_config;
     char        m_extrusion_axis;
     float       m_position[NUM_AXES];
     bool        m_verbose;
-    // To be set by the callback to stop parsing.
-    bool        m_parsing{ false };
 };
 
 } /* namespace Slic3r */

@@ -16,8 +16,7 @@
 #include <string>
 
 #include "libslic3r/Api/plugin/cpp/ExtrusionTreeVisitors.hpp"
-#include "libslic3r/ExtrusionRole.hpp"
-#include "libslic3r/GCodeReader.hpp"
+#include "libslic3r/Api/plugin/cpp/gcode/GCodeLineParser.hpp"
 
 /*
 Standard PrintingPlan firmware implementation
@@ -43,9 +42,6 @@ DefaultGCodeFirmwareSession::DefaultGCodeFirmwareSession(
     if (storage != nullptr)
         m_script_config.emplace(storage);
 }
-using Slic3r::Axis;
-using Slic3r::GCodeReader;
-
 namespace {
 
 uint32_t option_size_or_zero(const Config &config, const char *key)
@@ -134,16 +130,16 @@ public:
 
     void apply(const std::string &gcode)
     {
-        GCodeReader reader;
-        reader.parse_buffer(gcode, [this](GCodeReader &, const GCodeReader::GCodeLine &line) {
+        GCodeLineParser parser;
+        parser.parse_buffer(gcode, [this](GCodeLineParser &, const GCodeLineParser::GCodeLine &line) {
             apply_line(line);
         });
     }
 
 private:
-    void apply_line(const GCodeReader::GCodeLine &line)
+    void apply_line(const GCodeLineParser::GCodeLine &line)
     {
-        const std::string_view command = line.cmd();
+        const std::string_view command = line.command();
         int32_t code = 0;
         if (command_code(command, 'T', &code)) {
             if (code >= 0 && code <= int32_t(std::numeric_limits<uint16_t>::max()))
@@ -203,10 +199,11 @@ private:
 
     double unit_scale() const { return m_session.m_units_in_mm ? 1.0 : 25.4; }
 
-    std::optional<uint16_t> addressed_tool(const GCodeReader::GCodeLine &line, char selector) const
+    std::optional<uint16_t> addressed_tool(const GCodeLineParser::GCodeLine &line,
+                                           char selector) const
     {
         int32_t tool_id = -1;
-        if (line.has_value(selector, tool_id)) {
+        if (line.parameter_value(selector, tool_id)) {
             if (tool_id < 0 || tool_id >= int32_t(m_session.m_extruders.size()))
                 return std::nullopt;
             return uint16_t(tool_id);
@@ -216,82 +213,86 @@ private:
         return m_session.m_script_processing_tool;
     }
 
-    void apply_coordinate_reset(const GCodeReader::GCodeLine &line)
+    void apply_coordinate_reset(const GCodeLineParser::GCodeLine &line)
     {
         const double scale = unit_scale();
-        if (line.has(Axis::E)) {
+        const std::optional<float> e = line.parameter_value('E');
+        if (e) {
             const std::optional<uint16_t> tool_id = addressed_tool(line, 'T');
             if (tool_id)
-                m_session.extruder(*tool_id).extrusion_axis().set_position(line.value(Axis::E) * scale);
+                m_session.extruder(*tool_id).extrusion_axis().set_position(*e * scale);
         }
 
+        const std::optional<float> x = line.parameter_value('X');
+        const std::optional<float> y = line.parameter_value('Y');
+        const std::optional<float> z = line.parameter_value('Z');
         const std::optional<c_vec3d> old_position = m_session.m_gantry.position();
-        if (!old_position && !(line.has(Axis::X) && line.has(Axis::Y) && line.has(Axis::Z)))
+        if (!old_position && !(x && y && z))
             return;
         c_vec3d position = old_position.value_or(c_vec3d{});
-        if (line.has(Axis::X)) position.x = line.value(Axis::X) * scale;
-        if (line.has(Axis::Y)) position.y = line.value(Axis::Y) * scale;
-        if (line.has(Axis::Z)) position.z = line.value(Axis::Z) * scale;
+        if (x) position.x = *x * scale;
+        if (y) position.y = *y * scale;
+        if (z) position.z = *z * scale;
         m_session.m_gantry.set_position(position);
     }
 
-    void apply_move(const GCodeReader::GCodeLine &line)
+    void apply_move(const GCodeLineParser::GCodeLine &line)
     {
         const double scale = unit_scale();
-        if (line.has(Axis::F)) {
-            m_session.m_gantry.request_speed(line.value(Axis::F) * scale / 60.0);
+        const std::optional<float> feedrate = line.parameter_value('F');
+        if (feedrate) {
+            m_session.m_gantry.request_speed(*feedrate * scale / 60.0);
             m_session.m_gantry.mark_speed_encoded();
         }
 
+        const std::optional<float> x = line.parameter_value('X');
+        const std::optional<float> y = line.parameter_value('Y');
+        const std::optional<float> z = line.parameter_value('Z');
         const std::optional<c_vec3d> old_position = m_session.m_gantry.position();
-        if (old_position || (line.has(Axis::X) && line.has(Axis::Y) && line.has(Axis::Z))) {
+        if (old_position || (x && y && z)) {
             c_vec3d position = old_position.value_or(c_vec3d{});
-            if (line.has(Axis::X))
-                position.x = m_session.m_xyz_relative_mode ? position.x + line.value(Axis::X) * scale :
-                                                            line.value(Axis::X) * scale;
-            if (line.has(Axis::Y))
-                position.y = m_session.m_xyz_relative_mode ? position.y + line.value(Axis::Y) * scale :
-                                                            line.value(Axis::Y) * scale;
-            if (line.has(Axis::Z))
-                position.z = m_session.m_xyz_relative_mode ? position.z + line.value(Axis::Z) * scale :
-                                                            line.value(Axis::Z) * scale;
+            if (x)
+                position.x = m_session.m_xyz_relative_mode ? position.x + *x * scale : *x * scale;
+            if (y)
+                position.y = m_session.m_xyz_relative_mode ? position.y + *y * scale : *y * scale;
+            if (z)
+                position.z = m_session.m_xyz_relative_mode ? position.z + *z * scale : *z * scale;
             m_session.m_gantry.set_position(position);
         }
 
-        if (line.has(Axis::E)) {
+        const std::optional<float> e = line.parameter_value('E');
+        if (e) {
             const std::optional<uint16_t> tool_id = addressed_tool(line, 'T');
             if (tool_id)
                 m_session.extruder(*tool_id).extrusion_axis().observe_external_move(
-                    line.value(Axis::E) * scale, m_session.m_e_relative_mode);
+                    *e * scale, m_session.m_e_relative_mode);
         }
     }
 
-    void apply_heater(const GCodeReader::GCodeLine &line, HeaterState &heater, bool waited)
+    void apply_heater(const GCodeLineParser::GCodeLine &line, HeaterState &heater, bool waited)
     {
-        float temperature = 0.f;
-        const bool has_temperature = line.has_value('S', temperature) ||
-                                     (waited && line.has_value('R', temperature));
-        if (has_temperature && std::isfinite(temperature) &&
-            temperature >= double(std::numeric_limits<int16_t>::min()) &&
-            temperature <= double(std::numeric_limits<int16_t>::max()))
-            heater.synchronize_after_external_gcode(int16_t(std::lround(temperature)), waited);
+        std::optional<float> temperature = line.parameter_value('S');
+        if (!temperature && waited)
+            temperature = line.parameter_value('R');
+        if (temperature && std::isfinite(*temperature) &&
+            *temperature >= double(std::numeric_limits<int16_t>::min()) &&
+            *temperature <= double(std::numeric_limits<int16_t>::max()))
+            heater.synchronize_after_external_gcode(int16_t(std::lround(*temperature)), waited);
     }
 
-    void apply_tool_temperature(const GCodeReader::GCodeLine &line, bool waited)
+    void apply_tool_temperature(const GCodeLineParser::GCodeLine &line, bool waited)
     {
         const std::optional<uint16_t> tool_id = addressed_tool(line, 'T');
         if (tool_id)
             apply_heater(line, m_session.extruder(*tool_id).heater(), waited);
     }
 
-    void apply_fan(const GCodeReader::GCodeLine &line, bool stopped)
+    void apply_fan(const GCodeLineParser::GCodeLine &line, bool stopped)
     {
         const std::optional<uint16_t> tool_id = addressed_tool(line, 'P');
         if (!tool_id)
             return;
-        float pwm = stopped ? 0.f : 255.f;
-        if (!stopped)
-            (void)line.has_value('S', pwm);
+        const float pwm = stopped ? 0.f : line.parameter_value('S').value_or(255.f);
         m_session.extruder(*tool_id).fan().synchronize_after_external_gcode(
             std::clamp(double(pwm) * 100.0 / 255.0, 0.0, 100.0));
     }
