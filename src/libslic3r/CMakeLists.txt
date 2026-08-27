@@ -713,6 +713,8 @@ set(SLIC3R_SOURCES
     Print.cpp
     Print.hpp
     PrintApply.cpp
+    PrintRecords.cpp
+    PrintRecords.hpp
     PrintBase.cpp
     PrintBase.hpp
     Config/PrintConfig.cpp

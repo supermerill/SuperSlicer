@@ -911,6 +911,80 @@ const config_handle *print_get_config(const print_handle *me)
     return me == nullptr ? nullptr : Slic3r::ApiHost::to_config_handle(&Slic3r::to_print(me)->config());
 }
 
+const_strings_t print_records_channels(const print_handle *me)
+{
+    const_strings_t out = {};
+    if (me == nullptr)
+        return out;
+
+    try {
+        /*
+        The C array borrows thread-local strings so it remains consumable after
+        this function returns without transferring allocations to the plugin.
+        A later call on the same thread replaces the returned view.
+        */
+        static thread_local std::vector<std::string> channel_storage;
+        static thread_local std::vector<const char *> channel_ptrs;
+        channel_storage = Slic3r::to_print(me)->records().channels();
+        channel_ptrs.clear();
+        channel_ptrs.reserve(channel_storage.size());
+        for (const std::string &channel : channel_storage)
+            channel_ptrs.push_back(channel.c_str());
+
+        if (channel_ptrs.size() > std::numeric_limits<uint32_t>::max())
+            return out;
+        out.items = channel_ptrs.empty() ? nullptr : channel_ptrs.data();
+        out.size = static_cast<uint32_t>(channel_ptrs.size());
+    } catch (...) {
+        return {};
+    }
+    return out;
+}
+
+const config_handle *print_records_get(const print_handle *me, const char *channel)
+{
+    if (me == nullptr || channel == nullptr)
+        return nullptr;
+    try {
+        const Slic3r::DynamicConfig *config = Slic3r::to_print(me)->records().find(channel);
+        return Slic3r::ApiHost::to_config_handle(config);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+config_handle *print_records_get_or_add(const print_handle *me, const char *channel)
+{
+    if (me == nullptr || channel == nullptr)
+        return nullptr;
+    try {
+        Slic3r::Print *print = const_cast<Slic3r::Print *>(Slic3r::to_print(me));
+        return Slic3r::ApiHost::to_config_handle(&print->records().get_or_add(channel));
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t print_records_remove(const print_handle *me, const char *channel)
+{
+    if (me == nullptr || channel == nullptr)
+        return 0;
+    try {
+        Slic3r::Print *print = const_cast<Slic3r::Print *>(Slic3r::to_print(me));
+        return print->records().remove(channel) ? 1 : 0;
+    } catch (...) {
+        return 0;
+    }
+}
+
+print_record_id print_records_allocate_id(const print_handle *me)
+{
+    if (me == nullptr)
+        return PRINT_RECORD_ID_INVALID;
+    Slic3r::Print *print = const_cast<Slic3r::Print *>(Slic3r::to_print(me));
+    return print->records().allocate_id();
+}
+
 uint32_t print_count_object(const print_handle *me)
 {
     return me == nullptr ? 0 : Slic3r::to_print(me)->objects().size();

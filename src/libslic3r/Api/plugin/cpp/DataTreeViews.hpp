@@ -8,6 +8,7 @@
 #include <cassert>
 #include <cstddef>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -980,6 +981,56 @@ public:
     Volume volume(uint32_t idx) const;
 };
 
+/*
+Borrowed view over the variable record channels owned by one Print.
+
+The view may create or remove channels even though its Print handle is const,
+because records are auxiliary pipeline metadata. These mutations must happen in
+a sequential callback. Config views returned by find() and get_or_add() are
+invalidated when their channel is removed or the Print is cleared.
+*/
+class PrintRecords
+{
+public:
+    explicit PrintRecords(const print_handle *handle = nullptr) : m_print(handle) {}
+
+    std::vector<std::string> channels() const {
+        std::vector<std::string> out;
+        const_strings_t names = print_records_channels(m_print);
+        out.reserve(names.size);
+        for (uint32_t idx = 0; idx < names.size; ++idx)
+            if (names.items[idx] != nullptr)
+                out.emplace_back(names.items[idx]);
+        return out;
+    }
+
+    std::optional<Config> find(const std::string &channel) const {
+        const config_handle *config = print_records_get(m_print, channel.c_str());
+        return config == nullptr ? std::nullopt : std::optional<Config>(Config(config));
+    }
+
+    MutableConfig get_or_add(const std::string &channel) const {
+        config_handle *config = print_records_get_or_add(m_print, channel.c_str());
+        if (config == nullptr)
+            throw std::runtime_error("The Print record channel could not be created.");
+        return MutableConfig(config);
+    }
+
+    bool remove(const std::string &channel) const {
+        return print_records_remove(m_print, channel.c_str()) != 0;
+    }
+
+    print_record_id allocate_id() const {
+        const print_record_id id = print_records_allocate_id(m_print);
+        if (id == PRINT_RECORD_ID_INVALID)
+            throw std::runtime_error("The Print record identifier space is exhausted.");
+        return id;
+    }
+
+private:
+    const print_handle *m_print = nullptr;
+};
+
 class Print : public ConstDataTreeHandleView<print_handle>
 {
 public:
@@ -987,6 +1038,10 @@ public:
 
     Config config() const {
         return Config(print_get_config(handle()));
+    }
+
+    PrintRecords records() const {
+        return PrintRecords(handle());
     }
 
     uint32_t object_count() const { return print_count_object(handle()); }

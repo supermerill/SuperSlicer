@@ -63,6 +63,7 @@ TYPE_ALIASES = {
     "plugin_property_type": "uint32_t",
     "extrusion_property_type": "uint32_t",
     "extrusion_data_id": "uint32_t",
+    "print_record_id": "uint32_t",
     "gcode_script_type": "uint32_t",
     "infill_pattern_runtime_id": "uint32_t",
     "expolygon_status": "int32_t",

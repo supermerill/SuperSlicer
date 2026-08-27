@@ -44,6 +44,7 @@
 #include "Point.hpp"
 #include "PrintBase.hpp"
 #include "Config/FFFPrintConfig.hpp"
+#include "PrintRecords.hpp"
 #include "PrintSteps.hpp"
 
 namespace Slic3r {
@@ -259,6 +260,8 @@ public:
     void                auto_assign_extruders(ModelObject* model_object) const;
 
     const PrintConfig&          config() const { return m_config; }
+    const PrintRecordStore&     records() const { return m_records; }
+    PrintRecordStore&           records() { return m_records; }
     const PrintObjectConfig&    default_object_config() const { return m_default_object_config; }
     const PrintRegionConfig&    default_region_config() const { return m_default_region_config; }
 
@@ -388,6 +391,8 @@ private:
     static bool         is_shared_print_object_step_valid_unguarded(SpanOfConstPtrs<PrintObject> print_objects, PrintObjectStep print_object_step);
 
     PrintConfig                             m_config;
+    // Variable metadata shared by plugins and host producers for this Print.
+    PrintRecordStore                        m_records;
     PrintObjectConfig                       m_default_object_config;
     PrintRegionConfig                       m_default_region_config;
     PrintObjectUPtrs                        m_objects;

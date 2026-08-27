@@ -1024,6 +1024,9 @@ class Print(DataTreeView):
     def config(self) -> Config:
         return Config(self.api, self.api.host.print_get_config(self.c_handle()))
 
+    def records(self) -> "PrintRecords":
+        return PrintRecords(self.api, self.c_handle())
+
     def object_count(self) -> int:
         return int(self.api.host.print_count_object(self.c_handle()))
 
@@ -1050,6 +1053,38 @@ class MutablePrint(Print):
         return MutableObject(self.api, self.api.host.print_get_object_mutable(self.mutable_c_handle(), int(idx)))
 
 
+class PrintRecords(DataTreeView):
+    """
+    Borrowed access to variable Config channels owned by one Print.
+
+    Mutations are only valid from sequential pipeline callbacks. Configs may be
+    read concurrently once their producer has finished publishing the channel.
+    """
+
+    def channels(self) -> list[str]:
+        names = self.api.host.print_records_channels(self.c_handle())
+        return [_decode_const_string(names.items[idx]) for idx in range(int(names.size))]
+
+    def get(self, channel: str) -> Config | None:
+        handle = self.api.host.print_records_get(self.c_handle(), _as_bytes(channel))
+        return _optional(Config, self.api, handle)
+
+    def get_or_add(self, channel: str) -> MutableConfig:
+        handle = self.api.host.print_records_get_or_add(self.c_handle(), _as_bytes(channel))
+        if not _address(handle):
+            raise RuntimeError("The Print record channel could not be created.")
+        return MutableConfig(self.api, handle)
+
+    def remove(self, channel: str) -> bool:
+        return bool(self.api.host.print_records_remove(self.c_handle(), _as_bytes(channel)))
+
+    def allocate_id(self) -> int:
+        record_id = int(self.api.host.print_records_allocate_id(self.c_handle()))
+        if record_id == 0:
+            raise RuntimeError("The Print record identifier space is exhausted.")
+        return record_id
+
+
 __all__ = [
     "Config",
     "ConfigOption",
@@ -1069,6 +1104,7 @@ __all__ = [
     "MutablePrintRegion",
     "Object",
     "Print",
+    "PrintRecords",
     "PrintRegion",
     "StoredConfig",
     "Surface",

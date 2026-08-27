@@ -33,8 +33,10 @@ typedef struct plugin_property_container_handle plugin_property_container_handle
 typedef struct config_handle config_handle;
 
 typedef slic3r_property_type plugin_property_type;
+typedef uint32_t print_record_id;
 
 #define PLUGIN_PROPERTY_TYPE_INVALID ((plugin_property_type)SLIC3R_PROPERTY_TYPE_INVALID)
+#define PRINT_RECORD_ID_INVALID ((print_record_id)0)
 #define PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT ((plugin_property_type)SLIC3R_PROPERTY_TYPE_LAYER_SUPPORT)
 #define PLUGIN_PROPERTY_TYPE_LAYER_BRIM ((plugin_property_type)SLIC3R_PROPERTY_TYPE_LAYER_BRIM)
 #define PLUGIN_PROPERTY_TYPE_LAYER_ADHESION ((plugin_property_type)SLIC3R_PROPERTY_TYPE_LAYER_ADHESION)
@@ -533,6 +535,24 @@ SLIC3R_HOST_API const print_region_handle *object_get_print_region(const object_
 
 SLIC3R_HOST_API config_handle *print_get_config_mutable(print_handle *me);
 SLIC3R_HOST_API const config_handle *print_get_config(const print_handle *me);
+
+/*
+Variable record channels owned by one Print.
+
+Each channel contains one DynamicConfig. An empty channel name is valid and is
+reserved for generic print metadata; named channels should be namespaced by
+their producer. Config handles are borrowed and remain valid until that channel
+is removed or the Print is cleared.
+
+Channel mutation is not thread-safe. Build or update records from a sequential
+pipeline callback, then keep them unchanged while parallel callbacks read them.
+Only print_records_allocate_id() may be called concurrently.
+*/
+SLIC3R_HOST_API const_strings_t print_records_channels(const print_handle *me);
+SLIC3R_HOST_API const config_handle *print_records_get(const print_handle *me, const char *channel);
+SLIC3R_HOST_API config_handle *print_records_get_or_add(const print_handle *me, const char *channel);
+SLIC3R_HOST_API int32_t print_records_remove(const print_handle *me, const char *channel);
+SLIC3R_HOST_API print_record_id print_records_allocate_id(const print_handle *me);
 
 SLIC3R_HOST_API uint32_t print_count_object(const print_handle *me);
 

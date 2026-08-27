@@ -17,6 +17,7 @@ add_executable(${_TEST_NAME}_tests
     test_plugin_config.cpp
     test_plugin_loader_diagnostics.cpp
     test_plugin_property.cpp
+    test_print_records.cpp
     test_plugin_repository.cpp
     test_plugin_translation_catalogs.cpp
     test_repository_updater.cpp

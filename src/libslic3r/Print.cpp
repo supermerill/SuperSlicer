@@ -361,6 +361,7 @@ void Print::clear() {
     this->reset_auxiliary_object();
     m_print_regions.clear();
     m_model.clear_objects();
+    m_records.clear();
     this->reset_printing_plan();
     this->reset_step_execution_plan_all();
 }
