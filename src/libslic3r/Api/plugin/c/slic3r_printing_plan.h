@@ -100,6 +100,10 @@ the ordering strategy lives in the plugin that owns it.
 SLIC3R_HOST_API void printing_plan_clear(printing_plan_handle *me);
 SLIC3R_HOST_API printing_scope_events_handle *printing_plan_get_events_mutable(printing_plan_handle *me);
 SLIC3R_HOST_API const printing_scope_events_handle *printing_plan_get_events(const printing_plan_handle *me);
+/* Properties are auxiliary plugin metadata. The returned container is mutable
+   even from a const plan handle and remains borrowed from the plan. */
+SLIC3R_HOST_API plugin_property_container_handle *printing_plan_get_properties(
+    const printing_plan_handle *me);
 /* Count/read/append/reorder top-level groups. The move operation keeps the
    moved group and its cloned extrusion roots intact. */
 SLIC3R_HOST_API uint32_t printing_plan_count_group(const printing_plan_handle *me);
@@ -118,6 +122,9 @@ code which source objects are represented by this batch.
 SLIC3R_HOST_API void printing_group_clear(printing_group_handle *me);
 SLIC3R_HOST_API printing_scope_events_handle *printing_group_get_events_mutable(printing_group_handle *me);
 SLIC3R_HOST_API const printing_scope_events_handle *printing_group_get_events(const printing_group_handle *me);
+/* The borrowed property container moves with this complete printing group. */
+SLIC3R_HOST_API plugin_property_container_handle *printing_group_get_properties(
+    const printing_group_handle *me);
 SLIC3R_HOST_API uint32_t printing_group_count_object_instance(const printing_group_handle *me);
 SLIC3R_HOST_API c_printing_object_instance printing_group_get_object_instance(const printing_group_handle *me,
                                                                               uint32_t idx);
@@ -147,6 +154,9 @@ SLIC3R_HOST_API printing_scope_events_handle *printing_layer_group_get_events_mu
     printing_layer_group_handle *me);
 SLIC3R_HOST_API const printing_scope_events_handle *printing_layer_group_get_events(
     const printing_layer_group_handle *me);
+/* The borrowed property container moves with this ordered layer group. */
+SLIC3R_HOST_API plugin_property_container_handle *printing_layer_group_get_properties(
+    const printing_layer_group_handle *me);
 SLIC3R_HOST_API coord_t printing_layer_group_get_print_z(const printing_layer_group_handle *me);
 SLIC3R_HOST_API void printing_layer_group_set_print_z(printing_layer_group_handle *me, coord_t print_z);
 SLIC3R_HOST_API uint32_t printing_layer_group_count_layer(const printing_layer_group_handle *me);
@@ -167,9 +177,9 @@ SLIC3R_HOST_API printing_tool_group_handle *printing_layer_group_append_tool_gro
 SLIC3R_HOST_API int32_t printing_layer_group_move_tool_group(printing_layer_group_handle *me,
                                                              uint32_t from_idx,
                                                              uint32_t to_idx);
-/* Remove one tool group only when it contains neither extrusion nor scope
-   event. This lets structural ordering passes discard groups made empty by
-   transfers without accidentally dropping executable work. */
+/* Remove one tool group only when it contains neither extrusion, scope event,
+   nor plugin property. This lets structural ordering passes discard truly
+   empty groups without dropping executable work or auxiliary metadata. */
 SLIC3R_HOST_API int32_t printing_layer_group_remove_empty_tool_group(printing_layer_group_handle *me,
                                                                      uint32_t idx);
 
@@ -183,6 +193,9 @@ entries store the actual cloned roots to print.
 SLIC3R_HOST_API printing_scope_events_handle *printing_tool_group_get_events_mutable(
     printing_tool_group_handle *me);
 SLIC3R_HOST_API const printing_scope_events_handle *printing_tool_group_get_events(
+    const printing_tool_group_handle *me);
+/* The borrowed property container moves with this complete tool visit. */
+SLIC3R_HOST_API plugin_property_container_handle *printing_tool_group_get_properties(
     const printing_tool_group_handle *me);
 SLIC3R_HOST_API uint16_t printing_tool_group_get_extruder_id(const printing_tool_group_handle *me);
 SLIC3R_HOST_API void printing_tool_group_set_extruder_id(printing_tool_group_handle *me, uint16_t extruder_id);

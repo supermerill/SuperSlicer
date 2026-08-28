@@ -16,6 +16,7 @@
 #include "libslic3r/ExtrusionRole.hpp"
 #include "libslic3r/libslic3r.h"
 #include "libslic3r/Point.hpp"
+#include "libslic3r/PluginProperty.hpp"
 
 namespace Slic3r {
 class Print;
@@ -144,6 +145,8 @@ separate visits.
 struct PrintingToolGroup
 {
     PrintingScopeEvents events;
+    // Auxiliary metadata follows this complete tool visit when it is reordered.
+    PluginPropertyContainer properties;
     uint16_t extruder_id = uint16_t(-1);
     std::vector<const LayerRegionIsland*> region_islands;
     std::vector<PrintingExtrusion> extrusions;
@@ -162,6 +165,8 @@ rule.
 struct PrintingLayerGroup
 {
     PrintingScopeEvents events;
+    // Layer-wide metadata stays attached to the ordered print-Z scope.
+    PluginPropertyContainer properties;
     coord_t print_z = 0;
     std::vector<const Layer*> layers;
     std::vector<PrintingToolGroup> tool_groups;
@@ -179,6 +184,8 @@ printed for it.
 struct PrintingGroup
 {
     PrintingScopeEvents events;
+    // Group metadata moves with the independent batch it describes.
+    PluginPropertyContainer properties;
     std::vector<PrintingObjectInstance> object_instances;
     std::vector<PrintingLayerGroup> layers;
 };
@@ -194,6 +201,8 @@ context pointers.
 struct PrintingPlan
 {
     PrintingScopeEvents events;
+    // Plan-wide metadata is reset whenever the plan is rebuilt with clear().
+    PluginPropertyContainer properties;
     std::vector<PrintingGroup> groups;
 };
 

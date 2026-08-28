@@ -169,6 +169,10 @@ public:
         return PrintingScopeEvents(printing_tool_group_get_events_mutable(mutable_handle()));
     }
 
+    PluginProperties properties() const {
+        return PluginProperties(printing_tool_group_get_properties(handle()));
+    }
+
     uint16_t extruder_id() const { return printing_tool_group_get_extruder_id(handle()); }
     void set_extruder_id(uint16_t extruder_id) const {
         printing_tool_group_set_extruder_id(mutable_handle(), extruder_id);
@@ -238,6 +242,10 @@ public:
         return PrintingScopeEvents(printing_layer_group_get_events_mutable(mutable_handle()));
     }
 
+    PluginProperties properties() const {
+        return PluginProperties(printing_layer_group_get_properties(handle()));
+    }
+
     coord_t print_z() const { return printing_layer_group_get_print_z(handle()); }
     void set_print_z(coord_t print_z) const { printing_layer_group_set_print_z(mutable_handle(), print_z); }
 
@@ -280,6 +288,10 @@ public:
         return PrintingScopeEvents(printing_group_get_events_mutable(mutable_handle()));
     }
 
+    PluginProperties properties() const {
+        return PluginProperties(printing_group_get_properties(handle()));
+    }
+
     void clear() const { printing_group_clear(mutable_handle()); }
 
     uint32_t object_instance_count() const { return printing_group_count_object_instance(handle()); }
@@ -319,6 +331,10 @@ public:
 
     PrintingScopeEvents events() const {
         return PrintingScopeEvents(printing_plan_get_events_mutable(mutable_handle()));
+    }
+
+    PluginProperties properties() const {
+        return PluginProperties(printing_plan_get_properties(handle()));
     }
 
     void clear() const { printing_plan_clear(mutable_handle()); }

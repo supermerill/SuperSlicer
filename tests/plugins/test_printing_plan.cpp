@@ -13,6 +13,7 @@
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/host/Plugin.hpp"
 #include "libslic3r/Api/plugin/c/slic3r_data_tree.h"
+#include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/c/slic3r_printing_plan.h"
 #include "libslic3r/Api/plugin/cpp/AuxiliaryLayerHelpers.hpp"
 #include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
@@ -30,6 +31,20 @@
 namespace {
 using namespace Slic3r;
 using namespace Slic3r::Printing;
+using slic3r_api::PluginPropertyKey;
+
+/* Small typed marker used to verify every PrintingPlan scope property view. */
+struct TestPrintingScopePayload
+{
+    uint32_t value = 0;
+};
+
+PluginPropertyKey<TestPrintingScopePayload> printing_scope_property_key(
+    orchestrator_handle *orchestrator)
+{
+    return PluginPropertyKey<TestPrintingScopePayload>::register_dynamic(
+        orchestrator, "tests.printing-plan.scope-properties");
+}
 
 PrintingToolGroup test_tool_group(const uint16_t extruder_id, const uint16_t marker)
 {
@@ -338,6 +353,81 @@ void reset_plan_event_editor(PlanEventEditorState &state)
 }
 
 } // namespace
+
+TEST_CASE("PrintingPlan scopes carry mutable plugin properties",
+          "[printing][plan][properties]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    Orchestrator &orchestrator = Orchestrator::instance();
+    orchestrator_handle *orchestrator_handle_value =
+        reinterpret_cast<orchestrator_handle *>(&orchestrator);
+    const PluginPropertyKey<TestPrintingScopePayload> property_key =
+        printing_scope_property_key(orchestrator_handle_value);
+    PrintingPlan native_plan;
+    printing_plan_handle *plan_handle = reinterpret_cast<printing_plan_handle *>(&native_plan);
+    slic3r_api::PrintingPlan plan(plan_handle);
+
+    slic3r_api::PrintingGroup group = plan.append_group();
+    slic3r_api::PrintingLayerGroup layer = group.append_layer_group(42);
+    slic3r_api::PrintingToolGroup tool = layer.append_tool_group(3);
+
+    // Each view writes only its own auxiliary container. The C getters expose
+    // those same borrowed containers, so C and C++ plugins observe one state.
+    property_key.get_or_add(plan.properties()).value = 10;
+    property_key.get_or_add(group.properties()).value = 20;
+    property_key.get_or_add(layer.properties()).value = 30;
+    property_key.get_or_add(tool.properties()).value = 40;
+
+    REQUIRE(printing_plan_get_properties(plan_handle) != nullptr);
+    REQUIRE(printing_group_get_properties(group.handle()) != nullptr);
+    REQUIRE(printing_layer_group_get_properties(layer.handle()) != nullptr);
+    REQUIRE(printing_tool_group_get_properties(tool.handle()) != nullptr);
+    REQUIRE(property_key.get(plan.properties()) != nullptr);
+    REQUIRE(property_key.get(group.properties()) != nullptr);
+    REQUIRE(property_key.get(layer.properties()) != nullptr);
+    REQUIRE(property_key.get(tool.properties()) != nullptr);
+    CHECK(property_key.get(plan.properties())->value == 10);
+    CHECK(property_key.get(group.properties())->value == 20);
+    CHECK(property_key.get(layer.properties())->value == 30);
+    CHECK(property_key.get(tool.properties())->value == 40);
+
+    // Reordering moves complete scope values. Reacquire every child view after
+    // moving its parent because vector operations invalidate borrowed handles.
+    plan.append_group();
+    REQUIRE(plan.move_group(0, 1));
+    group = plan.group(1);
+    REQUIRE(property_key.get(group.properties()) != nullptr);
+    CHECK(property_key.get(group.properties())->value == 20);
+
+    group.append_layer_group(84);
+    REQUIRE(group.move_layer_group(0, 1));
+    layer = group.layer_group(1);
+    REQUIRE(property_key.get(layer.properties()) != nullptr);
+    CHECK(property_key.get(layer.properties())->value == 30);
+
+    layer.append_tool_group(7);
+    REQUIRE(layer.move_tool_group(0, 1));
+    tool = layer.tool_group(1);
+    REQUIRE(property_key.get(tool.properties()) != nullptr);
+    CHECK(property_key.get(tool.properties())->value == 40);
+
+    // Metadata is meaningful content: cleanup may remove the other empty tool
+    // group, but it must not silently discard the annotated one.
+    CHECK_FALSE(layer.remove_empty_tool_group(1));
+    CHECK(layer.remove_empty_tool_group(0));
+    CHECK(layer.tool_group_count() == 1);
+
+    // Clearing a group resets its own metadata and all descendants. Clearing
+    // the plan then resets plan-wide metadata as well.
+    group.clear();
+    CHECK(group.properties().count() == 0);
+    CHECK(group.layer_group_count() == 0);
+    CHECK(plan.properties().count() == 1);
+
+    plan.clear();
+    CHECK(plan.properties().count() == 0);
+    CHECK(plan.group_count() == 0);
+}
 
 TEST_CASE("PrintingPlan tool ordering keeps one-extruder layers stable", "[printing][plan]")
 {
