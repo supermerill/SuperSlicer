@@ -242,6 +242,7 @@ set(SLIC3R_SOURCES
 	Plugins/Ordering/DefaultOrdering.hpp
 	Plugins/Ordering/DefaultPlanBuilder.cpp
 	Plugins/Ordering/DefaultToolGroupOrdering.cpp
+	Plugins/PrintingPlan/PrintingLayerTimeProperty.h
 	Plugins/SkirtBrim/AdhesionLayerHelpers.cpp
 	Plugins/SkirtBrim/AdhesionLayerHelpers.hpp
 	Plugins/SkirtBrim/DefaultBrimGenerator.cpp
