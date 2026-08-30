@@ -47,6 +47,8 @@ Const-correctness model
   explicitly gives the plugin a mutable handle.
 - StoredExtrusionEntity owns a mutable handle allocated in a storage_handle and
   releases it with storage_free().
+
+Property guide: [Using Plugin Properties](../../../../../doc/plugins/properties.md)
 """
 
 from __future__ import annotations

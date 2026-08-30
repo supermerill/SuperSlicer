@@ -5,6 +5,10 @@
 #ifndef slic3r_Api_plugin_cpp_DataTreeViews_hpp_
 #define slic3r_Api_plugin_cpp_DataTreeViews_hpp_
 
+/*
+Developer guide: [Using Plugin Properties](../../../../../doc/plugins/properties.md)
+*/
+
 #include <cassert>
 #include <cstddef>
 #include <iterator>

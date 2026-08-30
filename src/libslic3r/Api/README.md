@@ -15,6 +15,10 @@ structures. Plugins should not depend on either directory. The `Plugins`
 directory contains official plugin implementations that consume the public
 plugin API.
 
+Developer guides:
+
+- [Using Plugin Properties](../../../doc/plugins/properties.md)
+
 note: items with tag Planned are currently ideas that are not implemented and so may not work and may need extensive modifications.
 Other items are already implemented, but may need some modifications in the future to fit into the framework
 

@@ -37,6 +37,8 @@ Inspect region-island extrusions:
     if region_island.has_extrusion(RAW_EXTRUSION_ROLE_PERIMETER):
         extrusion = region_island.extrusion(RAW_EXTRUSION_ROLE_PERIMETER)
         print(extrusion.length())
+
+Property guide: [Using Plugin Properties](../../../../../doc/plugins/properties.md)
 """
 
 from __future__ import annotations

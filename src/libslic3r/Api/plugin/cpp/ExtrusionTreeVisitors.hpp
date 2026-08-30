@@ -62,6 +62,8 @@ current_property(key) searches the active stack from the current entity toward
 the root and returns the first direct property identified by that built-in or
 dynamic key. The returned pointer is borrowed from the entity that owns the
 property. Treat it as read-only and do not keep it after mutating the tree.
+
+Property guide: [Using Plugin Properties](../../../../../doc/plugins/properties.md)
 */
 
 namespace detail {

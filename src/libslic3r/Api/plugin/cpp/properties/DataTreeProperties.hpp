@@ -17,6 +17,8 @@ matching C++ type.
 The layer helpers are templates because they only require a view exposing
 properties(). Their definitions therefore remain independent of DataTreeViews
 and are instantiated only after the caller's concrete layer view is complete.
+
+Developer guide: [Using Plugin Properties](../../../../../../doc/plugins/properties.md)
 */
 
 #include "libslic3r/Api/plugin/c/slic3r_data_tree.h"

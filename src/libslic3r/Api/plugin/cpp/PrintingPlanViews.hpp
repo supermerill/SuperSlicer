@@ -53,6 +53,8 @@ Typical step flow:
 The views expose only plan editing primitives. Algorithms such as by-layer or
 by-object construction belong in STEP_ORDERING plugins, where they can be
 replaced independently.
+
+Property guide: [Using Plugin Properties](../../../../../doc/plugins/properties.md)
 */
 
 class PrintingObjectInstance

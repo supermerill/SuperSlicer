@@ -5,6 +5,11 @@
 #ifndef slic3r_printing_plan_h_
 #define slic3r_printing_plan_h_
 
+/*
+PrintingPlan property guide:
+[Using Plugin Properties](../../../../../doc/plugins/properties.md)
+*/
+
 #include <stdint.h>
 
 #include "slic3r_data_tree.h"

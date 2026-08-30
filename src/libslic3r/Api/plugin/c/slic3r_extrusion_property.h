@@ -28,6 +28,8 @@ same rule: they must be trivially copyable raw data. If a property needs text or
 larger binary data, store that data on the extrusion entity with
 extrusion_property_store_data_aligned(), passing the address of the
 extrusion_data_id field that will reference the data.
+
+Developer guide: [Using Plugin Properties](../../../../../doc/plugins/properties.md)
 */
 
 typedef struct extrusion_entity_handle extrusion_entity_handle;

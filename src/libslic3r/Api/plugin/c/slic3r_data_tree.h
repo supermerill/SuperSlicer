@@ -5,6 +5,10 @@
 #ifndef slic3r_data_tree_h_
 #define slic3r_data_tree_h_
 
+/*
+Developer guide: [Using Plugin Properties](../../../../../doc/plugins/properties.md)
+*/
+
 #include <stddef.h>
 #include <stdint.h>
 

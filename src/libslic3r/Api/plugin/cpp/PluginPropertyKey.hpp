@@ -23,6 +23,8 @@ The owner passed to has(), get(), get_mutable(), get_or_add() or remove() may be
 a generic PluginProperties view or an extrusion entity view. Those views
 provide the storage-specific operation while this class provides the common
 typed identity.
+
+Developer guide: [Using Plugin Properties](../../../../../doc/plugins/properties.md)
 */
 
 #include <cstdint>

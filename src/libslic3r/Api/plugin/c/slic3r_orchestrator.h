@@ -5,7 +5,10 @@
 #ifndef slic3r_orchestrator_h_
 #define slic3r_orchestrator_h_
 
-///
+/*
+Property registration guide:
+[Using Plugin Properties](../../../../../doc/plugins/properties.md)
+*/
 
 #include <stdint.h>
 
