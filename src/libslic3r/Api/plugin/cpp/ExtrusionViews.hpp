@@ -27,6 +27,7 @@
 #include "libslic3r/Api/plugin/c/slic3r_extrusion_property.h"
 #include "libslic3r/Api/plugin/cpp/ConfigViews.hpp"
 #include "libslic3r/Api/plugin/cpp/GeometryViews.hpp"
+#include "libslic3r/Api/plugin/cpp/PluginPropertyKey.hpp"
 
 namespace slic3r_api {
 
@@ -90,10 +91,10 @@ Typical write on a mutable or stored entity:
         .width(unscaled_width)
         .height(unscaled_height);
 
-Built-in properties can be added with the default nullptr orchestrator. Custom
-properties must first be registered with register_extrusion_property_type<T>(),
-and then require the same orchestrator when calling
-get_or_add_property<T>(orchestrator).
+Built-in and custom properties may both be represented by
+PluginPropertyKey<T>. A built-in key reads T::property_type, while a dynamic key
+registers a stable name and retains its orchestrator. The same key can then be
+used for reading, creation and removal without passing a separate numeric id.
 
 Large data model
 ----------------
@@ -321,7 +322,12 @@ public:
     extrusion_property_type property_type_at(uint32_t idx) const { return extrusion_property_type_at(self().handle(), idx); }
     bool has_property(extrusion_property_type type) const { return extrusion_property_has(self().handle(), type) != 0; }
 
-    template<class Payload> bool has_property() const { return has_property(Payload::property_type); }
+    template<class Payload> bool has_property() const {
+        return PluginPropertyKey<Payload>::built_in().has(*this);
+    }
+    template<class Payload> bool has(const PluginPropertyKey<Payload> &key) const {
+        return has_property(key.type());
+    }
 
     /*
     Return a raw pointer to one direct property payload, or nullptr.
@@ -336,7 +342,11 @@ public:
 
     /* Typed view of property_data(). Returns nullptr when the property is absent. */
     template<class Payload> const Payload *property() const {
-        return property_payload_cast<Payload>(property_data(Payload::property_type));
+        return PluginPropertyKey<Payload>::built_in().get(*this);
+    }
+
+    template<class Payload> const Payload *get(const PluginPropertyKey<Payload> &key) const {
+        return property_payload_cast<Payload>(property_data(key.type()));
     }
 
     /*
@@ -417,7 +427,11 @@ public:
 
     /* Typed mutable pointer to an existing property, or nullptr if absent. */
     template<class Payload> Payload *property_mutable() {
-        return property_payload_cast<Payload>(property_data_mutable(Payload::property_type));
+        return PluginPropertyKey<Payload>::built_in().get_mutable(*this);
+    }
+
+    template<class Payload> Payload *get_mutable(const PluginPropertyKey<Payload> &key) {
+        return property_payload_cast<Payload>(property_data_mutable(key.type()));
     }
 
     /*
@@ -427,9 +441,19 @@ public:
         attr.extrusion_role(role).mm3_per_mm(mm3).width(width).height(height);
     */
     template<class Payload> Payload &get_or_add_property(orchestrator_handle *orchestrator = nullptr) {
+        if (orchestrator == nullptr)
+            return PluginPropertyKey<Payload>::built_in().get_or_add(*this);
         Payload *payload = property_payload_cast<Payload>(
             get_or_add_property_data_mutable(orchestrator, Payload::property_type));
         assert(payload != nullptr);
+        return *payload;
+    }
+
+    template<class Payload> Payload &get_or_add(const PluginPropertyKey<Payload> &key) {
+        Payload *payload = property_payload_cast<Payload>(
+            get_or_add_property_data_mutable(key.orchestrator(), key.type()));
+        if (payload == nullptr)
+            throw std::runtime_error("The typed extrusion property could not be created.");
         return *payload;
     }
 
@@ -437,7 +461,12 @@ public:
         return extrusion_property_remove(self().mutable_handle(), type) != 0;
     }
 
-    template<class Payload> bool remove_property() { return remove_property(Payload::property_type); }
+    template<class Payload> bool remove_property() {
+        return PluginPropertyKey<Payload>::built_in().remove(*this);
+    }
+    template<class Payload> bool remove(const PluginPropertyKey<Payload> &key) {
+        return remove_property(key.type());
+    }
 
     /*
     Store standalone bytes on the entity.

@@ -5,7 +5,9 @@
 
 #include "libslic3r/Api/plugin/c/slic3r_data_tree.h"
 #include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
+#include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
+#include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Layer.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/PluginProperty.hpp"
@@ -14,6 +16,7 @@
 #include "libslic3r/Surface.hpp"
 
 #include <utility>
+#include <stdexcept>
 #include <vector>
 
 namespace {
@@ -21,22 +24,38 @@ using namespace Slic3r;
 
 struct TestSurfacePayload
 {
-    static plugin_property_type property_type;
-
     uint32_t priority = 0;
     uint32_t layer_count = 0;
 };
 
-plugin_property_type TestSurfacePayload::property_type = PLUGIN_PROPERTY_TYPE_INVALID;
-
-void register_test_payload()
+/* Payload without a static id, used to exercise the runtime-key API. */
+struct RuntimePropertyPayload
 {
-    TestSurfacePayload::property_type = orchestrator_register_property(
-        nullptr,
-        "tests.surface.payload",
-        sizeof(TestSurfacePayload),
-        alignof(TestSurfacePayload));
-    REQUIRE(TestSurfacePayload::property_type != PLUGIN_PROPERTY_TYPE_INVALID);
+    uint32_t value = 0;
+    uint32_t generation = 0;
+};
+
+/* Deliberately incompatible payload used to test namespaced layout checks. */
+struct IncompatibleRuntimePropertyPayload
+{
+    uint8_t value = 0;
+};
+
+orchestrator_handle *test_orchestrator_handle()
+{
+    return reinterpret_cast<orchestrator_handle *>(&Orchestrator::instance());
+}
+
+slic3r_api::PluginPropertyKey<TestSurfacePayload> test_surface_payload_key()
+{
+    return slic3r_api::PluginPropertyKey<TestSurfacePayload>::register_dynamic(
+        test_orchestrator_handle(), "tests.surface.payload");
+}
+
+slic3r_api::PluginProperties property_view(PluginPropertyContainer &container)
+{
+    return slic3r_api::PluginProperties(
+        reinterpret_cast<plugin_property_container_handle *>(&container));
 }
 
 ExPolygon rectangle_expolygon(double min_x, double min_y, double max_x, double max_y)
@@ -51,23 +70,95 @@ ExPolygon rectangle_expolygon(double min_x, double min_y, double max_x, double m
 
 } // namespace
 
+TEST_CASE("PluginPropertyKey gives built-in and dynamic properties one access model",
+          "[plugins][properties][property-key]")
+{
+    using slic3r_api::LayerSupportProperty;
+    using slic3r_api::PluginProperties;
+    using slic3r_api::PluginPropertyKey;
+    using slic3r_api::StoredExtrusionEntity;
+
+    const PluginPropertyKey<RuntimePropertyPayload> first_key =
+        PluginPropertyKey<RuntimePropertyPayload>::register_dynamic(
+            test_orchestrator_handle(), "tests.plugin-property-key.first");
+    const PluginPropertyKey<RuntimePropertyPayload> repeated_key =
+        PluginPropertyKey<RuntimePropertyPayload>::register_dynamic(
+            test_orchestrator_handle(), "tests.plugin-property-key.first");
+    const PluginPropertyKey<RuntimePropertyPayload> second_key =
+        PluginPropertyKey<RuntimePropertyPayload>::register_dynamic(
+            test_orchestrator_handle(), "tests.plugin-property-key.second");
+
+    CHECK(first_key.type() == repeated_key.type());
+    CHECK(first_key.type() != second_key.type());
+    CHECK(first_key.orchestrator() == test_orchestrator_handle());
+
+    // Generic data-tree storage uses the key without separately passing an id
+    // or orchestrator at the point where the payload is accessed.
+    PluginPropertyContainer native_properties;
+    PluginProperties properties(reinterpret_cast<plugin_property_container_handle *>(&native_properties));
+    first_key.get_or_add(properties).value = 17;
+    second_key.get_or_add(properties).value = 29;
+    REQUIRE(first_key.get(properties) != nullptr);
+    REQUIRE(second_key.get(properties) != nullptr);
+    CHECK(first_key.get(properties)->value == 17);
+    CHECK(second_key.get(properties)->value == 29);
+    REQUIRE(first_key.get_mutable(properties) != nullptr);
+    first_key.get_mutable(properties)->generation = 3;
+    CHECK(first_key.get(properties)->generation == 3);
+    CHECK(first_key.has(properties));
+
+    // A built-in payload uses the same operations; only construction of its
+    // key differs because its numeric identity is part of the public ABI.
+    const PluginPropertyKey<LayerSupportProperty> support_key =
+        PluginPropertyKey<LayerSupportProperty>::built_in();
+    support_key.get_or_add(properties).interface_id = 42;
+    REQUIRE(support_key.get(properties) != nullptr);
+    CHECK(support_key.get(properties)->interface_id == 42);
+
+    // Extrusion storage consumes the exact same dynamic key and therefore
+    // cannot accidentally use another orchestrator during payload creation.
+    PluginStorage storage;
+    StoredExtrusionEntity extrusion(reinterpret_cast<storage_handle *>(&storage));
+    first_key.get_or_add(extrusion).value = 61;
+    CHECK(first_key.has(extrusion));
+    REQUIRE(first_key.get(extrusion) != nullptr);
+    CHECK(first_key.get(extrusion)->value == 61);
+    REQUIRE(first_key.get_mutable(extrusion) != nullptr);
+    first_key.get_mutable(extrusion)->generation = 8;
+    CHECK(first_key.get(extrusion)->generation == 8);
+    CHECK(first_key.remove(extrusion));
+    CHECK_FALSE(first_key.has(extrusion));
+
+    CHECK(first_key.remove(properties));
+    CHECK_FALSE(first_key.has(properties));
+    CHECK(second_key.has(properties));
+
+    // A stable name may never be rebound to a different binary payload.
+    CHECK_THROWS_AS(
+        PluginPropertyKey<IncompatibleRuntimePropertyPayload>::register_dynamic(
+            test_orchestrator_handle(), "tests.plugin-property-key.first"),
+        std::runtime_error);
+}
+
 TEST_CASE("PluginPropertyContainer stores small typed payloads safely",
           "[plugins][properties]")
 {
-    register_test_payload();
+    const slic3r_api::PluginPropertyKey<TestSurfacePayload> property_key =
+        test_surface_payload_key();
 
     PluginPropertyContainer container;
+    slic3r_api::PluginProperties properties = property_view(container);
 
     // A new payload is zero-initialized, so plugins can fill only the fields
     // they care about without reading uninitialized bytes first.
-    TestSurfacePayload &payload = container.get_or_add_property<TestSurfacePayload>();
+    TestSurfacePayload &payload = property_key.get_or_add(properties);
     CHECK(payload.priority == 0);
     CHECK(payload.layer_count == 0);
 
     payload.priority = 7;
     payload.layer_count = 3;
 
-    const TestSurfacePayload *readback = container.get_property<TestSurfacePayload>();
+    const TestSurfacePayload *readback = property_key.get(properties);
     REQUIRE(readback != nullptr);
     CHECK(readback->priority == 7);
     CHECK(readback->layer_count == 3);
@@ -75,25 +166,27 @@ TEST_CASE("PluginPropertyContainer stores small typed payloads safely",
     // A copied container owns its own bytes. Later mutations on the copy should
     // not change the original payload carried by the source object.
     PluginPropertyContainer copy = container;
-    copy.get_or_add_property<TestSurfacePayload>().priority = 11;
-    CHECK(container.get_property<TestSurfacePayload>()->priority == 7);
-    CHECK(copy.get_property<TestSurfacePayload>()->priority == 11);
+    slic3r_api::PluginProperties copy_properties = property_view(copy);
+    property_key.get_or_add(copy_properties).priority = 11;
+    CHECK(property_key.get(properties)->priority == 7);
+    CHECK(property_key.get(copy_properties)->priority == 11);
 
     // Reusing a type with a different layout is rejected. This catches the most
     // dangerous plugin mistake: two modules agreeing on a name but disagreeing
     // on the binary struct stored under that name.
     void *wrong_layout = container.get_or_add_property_data_mutable(
-        TestSurfacePayload::property_type, sizeof(uint32_t), alignof(uint32_t));
+        property_key.type(), sizeof(uint32_t), alignof(uint32_t));
     CHECK(wrong_layout == nullptr);
 }
 
 TEST_CASE("Surface plugin properties survive splits and protect merge checks",
           "[plugins][properties]")
 {
-    register_test_payload();
+    const slic3r_api::PluginPropertyKey<TestSurfacePayload> property_key =
+        test_surface_payload_key();
 
     Surface source(stPosInternal | stDensSparse, rectangle_expolygon(0., 0., 10., 10.));
-    TestSurfacePayload &source_payload = source.get_or_add_property<TestSurfacePayload>();
+    TestSurfacePayload &source_payload = property_key.get_or_add(property_view(source));
     source_payload.priority = 4;
     source_payload.layer_count = 2;
 
@@ -101,7 +194,7 @@ TEST_CASE("Surface plugin properties survive splits and protect merge checks",
     // metadata. A dense-infill plugin, for example, can attach a priority before
     // another plugin clips the area into several pieces.
     Surface split_piece(source, rectangle_expolygon(0., 0., 5., 10.));
-    const TestSurfacePayload *split_payload = split_piece.get_property<TestSurfacePayload>();
+    const TestSurfacePayload *split_payload = property_key.get(property_view(split_piece));
     REQUIRE(split_payload != nullptr);
     CHECK(split_payload->priority == 4);
     CHECK(split_payload->layer_count == 2);
@@ -112,7 +205,7 @@ TEST_CASE("Surface plugin properties survive splits and protect merge checks",
     Surface same_metadata(source, rectangle_expolygon(5., 0., 10., 10.));
     CHECK(surfaces_could_merge(split_piece, same_metadata));
 
-    same_metadata.get_or_add_property<TestSurfacePayload>().priority = 9;
+    property_key.get_or_add(property_view(same_metadata)).priority = 9;
     CHECK_FALSE(surfaces_could_merge(split_piece, same_metadata));
 }
 

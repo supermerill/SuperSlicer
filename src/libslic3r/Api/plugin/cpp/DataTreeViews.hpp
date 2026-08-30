@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <iterator>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -18,6 +19,7 @@
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/cpp/ConfigViews.hpp"
 #include "libslic3r/Api/plugin/cpp/GeometryViews.hpp"
+#include "libslic3r/Api/plugin/cpp/PluginPropertyKey.hpp"
 
 namespace slic3r_api {
 
@@ -38,18 +40,19 @@ class Layer;
 /*
 View over the generic plugin-property container.
 
-Every payload type used with these helpers should look like this:
+Payloads with a stable built-in id may expose that id on their type:
 
     struct MySurfaceData {
         static constexpr plugin_property_type property_type = ...;
         uint32_t priority = 0;
     };
 
-The numeric property_type is returned by orchestrator_register_property().
-Built-in host properties may use compile-time constants, while plugin-defined
-properties should register their namespaced string during initialization and
-store the returned id. The payload is copied as raw bytes by the host. Keep it a
-plain C-style struct: no std::string, no std::vector, no owning pointers.
+Plugin-private contracts should instead register their namespaced string for
+each orchestrator and retain the returned PluginPropertyKey in the plugin
+instance. Built-in and dynamic keys then expose the same has(), get(),
+get_mutable(), get_or_add() and remove() operations. The payload is copied as
+raw bytes by the host. Keep it a plain C-style struct: no std::string, no
+std::vector, no owning pointers.
 
 The view is mutable even when it comes from a const Layer, Island or Surface
 handle. This mutates only plugin metadata; it does not make the object geometry
@@ -66,16 +69,29 @@ public:
     uint32_t count() const { return plugin_property_count(m_handle); }
     plugin_property_type type_at(uint32_t idx) const { return plugin_property_type_at(m_handle, idx); }
     bool has(plugin_property_type type) const { return plugin_property_has(m_handle, type) != 0; }
+    template<class PropertyType> bool has(const PluginPropertyKey<PropertyType> &key) const {
+        return has(key.type());
+    }
     uint32_t data_size(plugin_property_type type) const { return plugin_property_data_size(m_handle, type); }
     const void *data(plugin_property_type type) const { return plugin_property_data(m_handle, type); }
 
     template<class PropertyType> const PropertyType *get() const
     {
+        return PluginPropertyKey<PropertyType>::built_in().get(*this);
+    }
+
+    template<class PropertyType> const PropertyType *get(plugin_property_type type) const
+    {
         static_assert(std::is_trivially_copyable<PropertyType>::value,
                       "Plugin property payloads are copied as bytes and must be trivially copyable.");
-        if (data_size(PropertyType::property_type) != sizeof(PropertyType))
+        if (data_size(type) != sizeof(PropertyType))
             return nullptr;
-        return reinterpret_cast<const PropertyType *>(data(PropertyType::property_type));
+        return reinterpret_cast<const PropertyType *>(data(type));
+    }
+
+    template<class PropertyType> const PropertyType *get(const PluginPropertyKey<PropertyType> &key) const
+    {
+        return get<PropertyType>(key.type());
     }
 
     void clear() { plugin_property_clear(mutable_handle()); }
@@ -83,18 +99,44 @@ public:
         plugin_property_copy_all(mutable_handle(), other.handle());
     }
     bool remove(plugin_property_type type) { return plugin_property_remove(mutable_handle(), type) != 0; }
+    template<class PropertyType> bool remove(const PluginPropertyKey<PropertyType> &key) {
+        return remove(key.type());
+    }
 
     template<class PropertyType> PropertyType *get()
     {
+        return PluginPropertyKey<PropertyType>::built_in().get_mutable(*this);
+    }
+
+    template<class PropertyType> PropertyType *get(plugin_property_type type)
+    {
         static_assert(std::is_trivially_copyable<PropertyType>::value,
                       "Plugin property payloads are copied as bytes and must be trivially copyable.");
-        if (data_size(PropertyType::property_type) != sizeof(PropertyType))
+        if (data_size(type) != sizeof(PropertyType))
             return nullptr;
         return reinterpret_cast<PropertyType *>(
-            plugin_property_data_mutable(mutable_handle(), PropertyType::property_type));
+            plugin_property_data_mutable(mutable_handle(), type));
+    }
+
+    template<class PropertyType> PropertyType *get_mutable(const PluginPropertyKey<PropertyType> &key) const
+    {
+        static_assert(std::is_trivially_copyable<PropertyType>::value,
+                      "Plugin property payloads are copied as bytes and must be trivially copyable.");
+        if (data_size(key.type()) != sizeof(PropertyType))
+            return nullptr;
+        return reinterpret_cast<PropertyType *>(
+            plugin_property_data_mutable(mutable_handle(), key.type()));
     }
 
     template<class PropertyType> PropertyType &get_or_add(orchestrator_handle *orchestrator)
+    {
+        if (orchestrator == nullptr)
+            return PluginPropertyKey<PropertyType>::built_in().get_or_add(*this);
+        return this->get_or_add<PropertyType>(orchestrator, PropertyType::property_type);
+    }
+
+    template<class PropertyType> PropertyType &get_or_add(orchestrator_handle *orchestrator,
+                                                           plugin_property_type type)
     {
         static_assert(std::is_trivially_copyable<PropertyType>::value,
                       "Plugin property payloads are copied as bytes and must be trivially copyable.");
@@ -103,9 +145,19 @@ public:
         property type is unknown to this orchestrator or an existing payload
         with that numeric id has a different binary layout.
         */
-        void *data = plugin_property_get_or_add_data_mutable(
-            orchestrator, mutable_handle(), PropertyType::property_type);
+        void *data = plugin_property_get_or_add_data_mutable(orchestrator, mutable_handle(), type);
         assert(data != nullptr);
+        return *reinterpret_cast<PropertyType *>(data);
+    }
+
+    template<class PropertyType> PropertyType &get_or_add(const PluginPropertyKey<PropertyType> &key) const
+    {
+        static_assert(std::is_trivially_copyable<PropertyType>::value,
+                      "Plugin property payloads are copied as bytes and must be trivially copyable.");
+        void *data = plugin_property_get_or_add_data_mutable(
+            key.orchestrator(), mutable_handle(), key.type());
+        if (data == nullptr)
+            throw std::runtime_error("The typed plugin property could not be created.");
         return *reinterpret_cast<PropertyType *>(data);
     }
 

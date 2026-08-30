@@ -6,6 +6,7 @@
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/host/Plugin.hpp"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_infill.h"
+#include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/ExtrusionProperty.hpp"
 #include "libslic3r/Layer.hpp"
@@ -131,14 +132,28 @@ const LayerRegionIsland &first_non_empty_region_island(const LayerSliceIsland &i
     std::abort();
 }
 
+slic3r_api::PluginPropertyKey<slic3r_api::DenseInfillPlugin::SurfaceDenseInfillHint>
+dense_hint_property_key()
+{
+    orchestrator_handle *orchestrator =
+        reinterpret_cast<orchestrator_handle *>(&Orchestrator::instance());
+    return slic3r_api::PluginPropertyKey<
+        slic3r_api::DenseInfillPlugin::SurfaceDenseInfillHint>::register_dynamic(
+            orchestrator,
+            slic3r_api::DenseInfillPlugin::DENSE_INFILL_HINT_PROPERTY_NAME);
+}
+
 size_t dense_hint_count(const PrintObject &object)
 {
+    const slic3r_api::PluginPropertyKey<slic3r_api::DenseInfillPlugin::SurfaceDenseInfillHint>
+        hint_property = dense_hint_property_key();
     size_t out = 0;
     for (const Layer &layer : object.layers())
         for (const LayerSliceIsland &island : layer.islands())
             for (const LayerRegionIsland &region_island : island.regions_islands())
                 for (const Surface &surface : region_island.fill_surfaces())
-                    if (surface.get_property<slic3r_api::DenseInfillPlugin::SurfaceDenseInfillHint>() != nullptr)
+                    if (hint_property.get(slic3r_api::Surface(
+                            reinterpret_cast<const surface_handle *>(&surface)).properties()) != nullptr)
                         ++out;
     return out;
 }
@@ -191,8 +206,11 @@ Surface &append_post_infill_test_surface(LayerRegionIsland &region_island,
     Surface &surface =
         region_island.set_fill_surfaces().surfaces.emplace_back(stPosInternal | stDensSparse, area);
     if (dense_priority != 0) {
+        const slic3r_api::PluginPropertyKey<slic3r_api::DenseInfillPlugin::SurfaceDenseInfillHint>
+            hint_property = dense_hint_property_key();
+        slic3r_api::MutableSurface surface_view(reinterpret_cast<surface_handle *>(&surface));
         slic3r_api::DenseInfillPlugin::SurfaceDenseInfillHint &hint =
-            surface.get_or_add_property<slic3r_api::DenseInfillPlugin::SurfaceDenseInfillHint>();
+            hint_property.get_or_add(surface_view.mutable_properties());
         hint.max_solid_layers_on_top = 1;
         hint.priority = dense_priority;
     }
@@ -248,9 +266,12 @@ TEST_CASE("Dense infill marks sparse areas under upper solid surfaces",
     require_same_union(surface_expolygons(surfaces), island.infill_areas());
 
     bool saw_dense_surface = false;
+    const slic3r_api::PluginPropertyKey<slic3r_api::DenseInfillPlugin::SurfaceDenseInfillHint>
+        hint_property = dense_hint_property_key();
     for (const Surface &surface : surfaces) {
         const slic3r_api::DenseInfillPlugin::SurfaceDenseInfillHint *hint =
-            surface.get_property<slic3r_api::DenseInfillPlugin::SurfaceDenseInfillHint>();
+            hint_property.get(slic3r_api::Surface(
+                reinterpret_cast<const surface_handle *>(&surface)).properties());
         if (hint == nullptr)
             continue;
         saw_dense_surface = true;
@@ -335,8 +356,12 @@ TEST_CASE("Dense infill recipe modifier changes only marked surfaces",
     // generation. It should read only the property attached to the Surface and
     // leave unmarked surfaces untouched.
     Surface dense_surface(stPosInternal | stDensSparse, rectangle_expolygon(-5., -5., 5., 5.));
+    const slic3r_api::PluginPropertyKey<slic3r_api::DenseInfillPlugin::SurfaceDenseInfillHint>
+        hint_property = dense_hint_property_key();
+    slic3r_api::MutableSurface dense_surface_view(
+        reinterpret_cast<surface_handle *>(&dense_surface));
     slic3r_api::DenseInfillPlugin::SurfaceDenseInfillHint &hint =
-        dense_surface.get_or_add_property<slic3r_api::DenseInfillPlugin::SurfaceDenseInfillHint>();
+        hint_property.get_or_add(dense_surface_view.mutable_properties());
     hint.priority = 4;
 
     raw_infill_pattern_params dense_params = {};

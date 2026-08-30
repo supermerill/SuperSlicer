@@ -69,19 +69,6 @@ enum class DenseAlgo
     Disabled
 };
 
-plugin_property_type register_dense_hint_property(orchestrator_handle *orch)
-{
-    if (SurfaceDenseInfillHint::property_type == PLUGIN_PROPERTY_TYPE_INVALID) {
-        SurfaceDenseInfillHint::property_type = orchestrator_register_property(
-            orch,
-            "superslicer.dense_infill.surface_hint",
-            sizeof(SurfaceDenseInfillHint),
-            alignof(SurfaceDenseInfillHint));
-    }
-    assert(SurfaceDenseInfillHint::property_type != PLUGIN_PROPERTY_TYPE_INVALID);
-    return SurfaceDenseInfillHint::property_type;
-}
-
 StoredExPolygonCollection dense_fill_fit_to_size(storage_handle *storage,
                                                  const ExPolygon &bad_polygon_to_cover,
                                                  const ExPolygon &growing_area,
@@ -247,14 +234,14 @@ struct DenseSurfaceMarkerResult
 struct DenseSurfaceMarkerStore
 {
     const run_ctx_surface_generation *ctx = nullptr;
-    orchestrator_handle *orchestrator = nullptr;
+    const PluginPropertyKey<SurfaceDenseInfillHint> *hint_property = nullptr;
     storage_handle *persistent_storage = nullptr;
     std::mutex mutex;
     std::vector<DenseSurfaceMarkerResult> results;
 };
 
 void process_surface_marker_surface(storage_handle *storage,
-                                    orchestrator_handle *orchestrator,
+                                    const PluginPropertyKey<SurfaceDenseInfillHint> &hint_property,
                                     const Print &print,
                                     const LayerIsland &island,
                                     const LayerRegionIsland &region_island,
@@ -525,7 +512,7 @@ void process_surface_marker_surface(storage_handle *storage,
                             MutableSurface dense_surface = surface_output.mutable_at(idx);
                             dense_surface.copy_properties_from(surface);
                             SurfaceDenseInfillHint &hint =
-                                dense_surface.get_or_add_property<SurfaceDenseInfillHint>(orchestrator);
+                                hint_property.get_or_add(dense_surface.mutable_properties());
                             hint.max_solid_layers_on_top = 1;
                             hint.priority = idx_dense < dense_priority.size() ? dense_priority[idx_dense] : 1;
                         }
@@ -546,7 +533,7 @@ void process_surface_marker_surface(storage_handle *storage,
                     MutableSurface dense_surface = surface_output.mutable_at(first_new_idx);
                     dense_surface.copy_properties_from(surface);
                     SurfaceDenseInfillHint &hint =
-                        dense_surface.get_or_add_property<SurfaceDenseInfillHint>(orchestrator);
+                        hint_property.get_or_add(dense_surface.mutable_properties());
                     hint.max_solid_layers_on_top = 1;
                     hint.priority = 1;
                     surface_changed = true;
@@ -578,7 +565,7 @@ void process_surface_marker_layer(uint32_t layer_idx,
 {
     assert(ctx != nullptr);
     assert(store != nullptr);
-    assert(store->orchestrator != nullptr);
+    assert(store->hint_property != nullptr);
     assert(store->persistent_storage != nullptr);
     assert(ctx->print != nullptr);
     assert(ctx->object != nullptr);
@@ -605,7 +592,7 @@ void process_surface_marker_layer(uint32_t layer_idx,
 
                 // check all surfaces to cover
                 for (const Surface surface : input)
-                    process_surface_marker_surface(scratch_storage, store->orchestrator, print, island, region_island, settings,
+                    process_surface_marker_surface(scratch_storage, *store->hint_property, print, island, region_island, settings,
                                                    surface, new_surfaces, changed);
             }
             if (!changed)
@@ -629,7 +616,7 @@ void process_surface_marker_layer(uint32_t layer_idx,
 
 void run_surface_marker_monothread(const plugin_run_context *run_ctx,
                                    const run_ctx_surface_generation *ctx,
-                                   orchestrator_handle *orchestrator,
+                                   const PluginPropertyKey<SurfaceDenseInfillHint> &hint_property,
                                    PluginProgress &progress)
 {
     if (ctx == nullptr || ctx->object == nullptr || ctx->print == nullptr ||
@@ -639,7 +626,7 @@ void run_surface_marker_monothread(const plugin_run_context *run_ctx,
     const Object object(ctx->object);
     DenseSurfaceMarkerStore store;
     store.ctx = ctx;
-    store.orchestrator = orchestrator;
+    store.hint_property = &hint_property;
     store.persistent_storage = run_ctx->plugin_storage;
     parallel_for_storage_with_progress(
         0,
@@ -658,16 +645,16 @@ void run_surface_marker_monothread(const plugin_run_context *run_ctx,
     }
 }
 
-std::map<uint64_t, uint16_t> dense_priorities_for_island(const LayerIsland &island)
+std::map<uint64_t, uint16_t> dense_priorities_for_island(
+    const LayerIsland &island,
+    const PluginPropertyKey<SurfaceDenseInfillHint> &hint_property)
 {
     std::map<uint64_t, uint16_t> out;
-    if (SurfaceDenseInfillHint::property_type == PLUGIN_PROPERTY_TYPE_INVALID)
-        return out;
 
     for (uint32_t region_island_idx = 0; region_island_idx < island.region_island_count(); ++region_island_idx) {
         const LayerRegionIsland region_island = island.region_island(region_island_idx);
         for (const Surface surface : region_island.fill_surfaces_collection()) {
-            const SurfaceDenseInfillHint *hint = surface.property<SurfaceDenseInfillHint>();
+            const SurfaceDenseInfillHint *hint = hint_property.get(surface.properties());
             if (hint != nullptr)
                 out.emplace(surface.id(), hint->priority);
         }
@@ -829,9 +816,11 @@ void publish_dense_children_by_priority(const run_ctx_post_infill_generation &ct
 
 void process_post_infill_layer(uint32_t layer_idx,
                                storage_handle *scratch_storage,
-                               const run_ctx_post_infill_generation *ctx)
+                               const run_ctx_post_infill_generation *ctx,
+                               const PluginPropertyKey<SurfaceDenseInfillHint> *hint_property)
 {
     assert(ctx != nullptr);
+    assert(hint_property != nullptr);
     assert(ctx->object != nullptr);
     assert(ctx->get_region_island_mutable_extrusion != nullptr);
 
@@ -839,7 +828,8 @@ void process_post_infill_layer(uint32_t layer_idx,
     const Layer layer = object.layer(layer_idx);
     for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx) {
         const LayerIsland island = layer.island(island_idx);
-        const std::map<uint64_t, uint16_t> priorities = dense_priorities_for_island(island);
+        const std::map<uint64_t, uint16_t> priorities =
+            dense_priorities_for_island(island, *hint_property);
         if (priorities.empty())
             continue;
 
@@ -868,12 +858,17 @@ void process_post_infill_layer(uint32_t layer_idx,
 
 } // namespace
 
-plugin_property_type SurfaceDenseInfillHint::property_type = PLUGIN_PROPERTY_TYPE_INVALID;
-
 DenseInfillSurfaceMarker &DenseInfillSurfaceMarker::instance(orchestrator_handle *orch)
 {
     static DenseInfillSurfaceMarker plugin(orch);
     return plugin;
+}
+
+DenseInfillSurfaceMarker::DenseInfillSurfaceMarker(orchestrator_handle *orch) :
+    PluginBase(orch),
+    m_hint_property(PluginPropertyKey<SurfaceDenseInfillHint>::register_dynamic(
+        orch, DENSE_INFILL_HINT_PROPERTY_NAME))
+{
 }
 
 const char *DenseInfillSurfaceMarker::id_impl() const noexcept { return k_surface_marker_id; }
@@ -898,11 +893,6 @@ int32_t DenseInfillSurfaceMarker::used_config_keys(raw_used_config_key *keys) co
     return int32_t(sizeof(k_surface_used_config_keys) / sizeof(k_surface_used_config_keys[0]));
 }
 
-void DenseInfillSurfaceMarker::inilialize_impl(storage_handle *) const
-{
-    register_dense_hint_property(m_orchestrator);
-}
-
 void DenseInfillSurfaceMarker::setup_run_impl(const plugin_run_context *run_ctx) const
 {
     const run_ctx_surface_generation *ctx = plugin_ctx_as_surface_generation(run_ctx);
@@ -917,13 +907,20 @@ void DenseInfillSurfaceMarker::run_impl(const plugin_run_context *run_ctx) const
     if (ctx == nullptr || ctx->object == nullptr || ctx->print == nullptr)
         return;
 
-    run_surface_marker_monothread(run_ctx, ctx, m_orchestrator, progress());
+    run_surface_marker_monothread(run_ctx, ctx, m_hint_property, progress());
 }
 
 DenseInfillRecipeModifier &DenseInfillRecipeModifier::instance(orchestrator_handle *orch)
 {
     static DenseInfillRecipeModifier plugin(orch);
     return plugin;
+}
+
+DenseInfillRecipeModifier::DenseInfillRecipeModifier(orchestrator_handle *orch) :
+    PluginBase(orch),
+    m_hint_property(PluginPropertyKey<SurfaceDenseInfillHint>::register_dynamic(
+        orch, DENSE_INFILL_HINT_PROPERTY_NAME))
+{
 }
 
 const char *DenseInfillRecipeModifier::id_impl() const noexcept { return k_recipe_modifier_id; }
@@ -936,11 +933,6 @@ slicing_step_t DenseInfillRecipeModifier::step_impl() const noexcept { return IN
 const char *const *DenseInfillRecipeModifier::dependencies_impl() const noexcept { return k_no_dependencies; }
 int32_t DenseInfillRecipeModifier::priority_impl() const noexcept { return 0; }
 
-void DenseInfillRecipeModifier::inilialize_impl(storage_handle *) const
-{
-    register_dense_hint_property(m_orchestrator);
-}
-
 void DenseInfillRecipeModifier::run_impl(const plugin_run_context *run_ctx) const
 {
     const run_ctx_infill_surface_recipe_modifier *ctx =
@@ -949,7 +941,7 @@ void DenseInfillRecipeModifier::run_impl(const plugin_run_context *run_ctx) cons
         return;
 
     const Surface surface(ctx->surface);
-    const SurfaceDenseInfillHint *hint = surface.property<SurfaceDenseInfillHint>();
+    const SurfaceDenseInfillHint *hint = m_hint_property.get(surface.properties());
     if (hint == nullptr)
         return;
 
@@ -966,6 +958,13 @@ DenseInfillPostInfillOrder &DenseInfillPostInfillOrder::instance(orchestrator_ha
     return plugin;
 }
 
+DenseInfillPostInfillOrder::DenseInfillPostInfillOrder(orchestrator_handle *orch) :
+    PluginBase(orch),
+    m_hint_property(PluginPropertyKey<SurfaceDenseInfillHint>::register_dynamic(
+        orch, DENSE_INFILL_HINT_PROPERTY_NAME))
+{
+}
+
 const char *DenseInfillPostInfillOrder::id_impl() const noexcept { return k_post_infill_order_id; }
 const char *DenseInfillPostInfillOrder::name_impl() const noexcept { return "Dense infill print order"; }
 const char *DenseInfillPostInfillOrder::description_impl() const noexcept
@@ -978,11 +977,6 @@ int32_t DenseInfillPostInfillOrder::priority_impl() const noexcept { return 10; 
 const char *DenseInfillPostInfillOrder::progress_message_format_impl() const noexcept
 {
     return "Ordering dense infill: %u / %u layers";
-}
-
-void DenseInfillPostInfillOrder::inilialize_impl(storage_handle *) const
-{
-    register_dense_hint_property(m_orchestrator);
 }
 
 void DenseInfillPostInfillOrder::setup_run_impl(const plugin_run_context *run_ctx) const
@@ -1006,7 +1000,8 @@ void DenseInfillPostInfillOrder::run_impl(const plugin_run_context *run_ctx) con
         run_ctx,
         &progress(),
         process_post_infill_layer,
-        ctx);
+        ctx,
+        &m_hint_property);
 }
 
 void register_dense_infill_plugins(orchestrator_handle *orch)
