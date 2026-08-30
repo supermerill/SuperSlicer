@@ -66,22 +66,22 @@ bool publish_adhesion_extrusion_to_auxiliary_layer(storage_handle *storage,
 
 inline bool layer_is_brim_adhesion(const Layer &layer)
 {
-    return LayerAdhesionProperty::layer_is_brim(layer);
+    return layer_is_brim(layer);
 }
 
 inline bool layer_is_any_skirt_adhesion(const Layer &layer)
 {
-    return LayerAdhesionProperty::layer_has_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT);
+    return layer_has_adhesion_kind(layer, RAW_LAYER_ADHESION_KIND_SKIRT);
 }
 
 inline bool layer_is_normal_skirt_adhesion(const Layer &layer)
 {
-    return LayerAdhesionProperty::layer_is_normal_skirt(layer);
+    return layer_is_normal_skirt(layer);
 }
 
 inline bool layer_is_first_layer_skirt_adhesion(const Layer &layer)
 {
-    return LayerAdhesionProperty::layer_is_skirt_first_layer_only(layer);
+    return layer_is_skirt_first_layer_only(layer);
 }
 
 inline void append_auxiliary_layer_extrusions(storage_handle *storage,

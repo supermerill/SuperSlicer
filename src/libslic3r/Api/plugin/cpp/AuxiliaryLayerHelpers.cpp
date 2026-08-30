@@ -303,7 +303,7 @@ bool publish_adhesion_extrusion_to_auxiliary_layer(storage_handle *storage,
     Mark the layer before publishing the extrusion. Consumers can classify the
     layer by metadata without inspecting the extrusion tree itself.
     */
-    LayerAdhesionProperty &property = result.layer.properties().get_or_add<LayerAdhesionProperty>(orchestrator);
+    LayerAdhesionProperty &property = result.layer.properties().get_or_add(LayerAdhesionProperty::key);
     property.kind = kind;
     property.flags = flags;
 

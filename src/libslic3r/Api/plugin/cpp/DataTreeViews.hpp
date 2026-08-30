@@ -20,6 +20,7 @@
 #include "libslic3r/Api/plugin/cpp/ConfigViews.hpp"
 #include "libslic3r/Api/plugin/cpp/GeometryViews.hpp"
 #include "libslic3r/Api/plugin/cpp/PluginPropertyKey.hpp"
+#include "libslic3r/Api/plugin/cpp/properties/DataTreeProperties.hpp"
 
 namespace slic3r_api {
 
@@ -147,38 +148,6 @@ public:
 
 private:
     plugin_property_container_handle *m_handle = nullptr;
-};
-
-struct LayerSupportProperty :
-    BuiltInPluginPropertyPayload<LayerSupportProperty,
-                                 c_layer_support_property,
-                                 PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT>
-{
-};
-
-struct LayerBrimProperty :
-    BuiltInPluginPropertyPayload<LayerBrimProperty,
-                                 c_layer_brim_property,
-                                 PLUGIN_PROPERTY_TYPE_LAYER_BRIM>
-{
-};
-
-struct LayerAdhesionProperty :
-    BuiltInPluginPropertyPayload<LayerAdhesionProperty,
-                                 c_layer_adhesion_property,
-                                 PLUGIN_PROPERTY_TYPE_LAYER_ADHESION>
-{
-    bool has_kind(raw_layer_adhesion_kind expected_kind) const { return kind == expected_kind; }
-    bool has_flag(raw_layer_adhesion_flag flag) const { return (flags & flag) != 0; }
-    bool is_brim() const { return has_kind(RAW_LAYER_ADHESION_KIND_BRIM); }
-    bool is_skirt() const { return has_kind(RAW_LAYER_ADHESION_KIND_SKIRT); }
-    bool is_first_layer_only() const { return has_flag(RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY); }
-
-    static const LayerAdhesionProperty *get(const Layer &layer);
-    static bool layer_has_kind(const Layer &layer, raw_layer_adhesion_kind kind);
-    static bool layer_is_brim(const Layer &layer);
-    static bool layer_is_normal_skirt(const Layer &layer);
-    static bool layer_is_skirt_first_layer_only(const Layer &layer);
 };
 
 /*
@@ -949,37 +918,6 @@ public:
         return result;
     }
 };
-
-inline const LayerAdhesionProperty *LayerAdhesionProperty::get(const Layer &layer)
-{
-    return layer.properties().get(key);
-}
-
-inline bool LayerAdhesionProperty::layer_has_kind(const Layer &layer, raw_layer_adhesion_kind kind)
-{
-    const LayerAdhesionProperty *adhesion = get(layer);
-    if (adhesion != nullptr)
-        return adhesion->has_kind(kind);
-    return kind == RAW_LAYER_ADHESION_KIND_BRIM &&
-           layer.properties().get(LayerBrimProperty::key) != nullptr;
-}
-
-inline bool LayerAdhesionProperty::layer_is_brim(const Layer &layer)
-{
-    return layer_has_kind(layer, RAW_LAYER_ADHESION_KIND_BRIM);
-}
-
-inline bool LayerAdhesionProperty::layer_is_normal_skirt(const Layer &layer)
-{
-    const LayerAdhesionProperty *adhesion = get(layer);
-    return adhesion != nullptr && adhesion->is_skirt() && !adhesion->is_first_layer_only();
-}
-
-inline bool LayerAdhesionProperty::layer_is_skirt_first_layer_only(const Layer &layer)
-{
-    const LayerAdhesionProperty *adhesion = get(layer);
-    return adhesion != nullptr && adhesion->is_skirt() && adhesion->is_first_layer_only();
-}
 
 class Object : public ConstDataTreeHandleView<object_handle>
 {

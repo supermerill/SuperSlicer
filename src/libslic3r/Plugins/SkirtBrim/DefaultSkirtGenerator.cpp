@@ -335,7 +335,7 @@ bool append_points_from_object_brim_auxiliary_layers(std::vector<c_point> &point
     bool found = false;
     for (uint32_t layer_idx = 0; layer_idx < object.auxiliary_layer_count(); ++layer_idx) {
         const Layer layer = object.auxiliary_layer(layer_idx);
-        if (!LayerAdhesionProperty::layer_is_brim(layer))
+        if (!layer_is_brim(layer))
             continue;
 
         /*
@@ -354,7 +354,7 @@ bool append_points_from_print_brim_auxiliary_layers(std::vector<c_point> &points
     const Object auxiliary_object = print.auxiliary_object();
     for (uint32_t layer_idx = 0; layer_idx < auxiliary_object.auxiliary_layer_count(); ++layer_idx) {
         const Layer layer = auxiliary_object.auxiliary_layer(layer_idx);
-        if (LayerAdhesionProperty::layer_is_brim(layer))
+        if (layer_is_brim(layer))
             append_points_from_brim_layer(points, layer, found);
     }
     return found;
@@ -387,7 +387,7 @@ void collect_object_local_hull_points(std::vector<c_point> &object_points,
     */
     for (uint32_t layer_idx = 0; layer_idx < object.auxiliary_layer_count(); ++layer_idx) {
         const Layer support_layer = object.auxiliary_layer(layer_idx);
-        if (support_layer.properties().get<LayerSupportProperty>() == nullptr)
+        if (support_layer.properties().get(LayerSupportProperty::key) == nullptr)
             continue;
         if (support_layer.print_z() > skirt_height_z)
             break;
@@ -497,12 +497,12 @@ StoredExtrusionEntity make_skirt_loop(storage_handle *storage,
     if (!out.set_points(points) || out.point_count() != points.size())
         throw std::runtime_error("Default skirt generator could not create a skirt loop polyline.");
     out.disable_sort().disable_reverse();
-    EPropertyAttributes &attributes = out.get_or_add_property<EPropertyAttributes>();
+    EPropertyAttributes &attributes = out.get_or_add(EPropertyAttributes::key);
     attributes.extrusion_role(RAW_EXTRUSION_ROLE_SKIRT)
         .mm3_per_mm(flow.mm3_per_mm)
         .width(float(unscaled(flow.width)))
         .height(float(unscaled(min_first_layer_height)));
-    out.get_or_add_property<EPropertyPerimeter>()
+    out.get_or_add(EPropertyPerimeter::key)
         .shell_count(0)
         .perimeter_flags(C_EXTRUSION_PERIMETER_FLAG_LOOP | C_EXTRUSION_PERIMETER_FLAG_SKIRT);
 

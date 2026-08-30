@@ -146,6 +146,8 @@ set(SLIC3R_SOURCES
 	Api/plugin/cpp/ExtrusionViews.hpp
 	Api/plugin/cpp/GeometryViews.hpp
 	Api/plugin/cpp/PluginPropertyKey.hpp
+	Api/plugin/cpp/properties/DataTreeProperties.hpp
+	Api/plugin/cpp/properties/ExtrusionProperties.hpp
 	Api/plugin/cpp/gcode/EncodableState.hpp
 	Api/plugin/cpp/gcode/DefaultExtruder.cpp
 	Api/plugin/cpp/gcode/DefaultExtruder.hpp

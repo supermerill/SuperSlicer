@@ -392,6 +392,7 @@ TEST_CASE("Support auxiliary layers are recognized through the plugin data tree 
     const slic3r_api::LayerBrimProperty *view_brim_property =
         object_view.auxiliary_layer(0).properties().get(slic3r_api::LayerBrimProperty::key);
     REQUIRE(view_brim_property != nullptr);
+    CHECK(slic3r_api::layer_is_brim(object_view.auxiliary_layer(0)));
 
     /*
     Brim and skirt now share one adhesion marker instead of creating one
@@ -418,4 +419,10 @@ TEST_CASE("Support auxiliary layers are recognized through the plugin data tree 
     REQUIRE(view_adhesion_property != nullptr);
     CHECK(view_adhesion_property->is_skirt());
     CHECK(view_adhesion_property->is_first_layer_only());
+    CHECK(slic3r_api::layer_adhesion_property(object_view.auxiliary_layer(0)) == view_adhesion_property);
+    CHECK(slic3r_api::layer_has_adhesion_kind(
+        object_view.auxiliary_layer(0), RAW_LAYER_ADHESION_KIND_SKIRT));
+    CHECK_FALSE(slic3r_api::layer_is_brim(object_view.auxiliary_layer(0)));
+    CHECK_FALSE(slic3r_api::layer_is_normal_skirt(object_view.auxiliary_layer(0)));
+    CHECK(slic3r_api::layer_is_skirt_first_layer_only(object_view.auxiliary_layer(0)));
 }

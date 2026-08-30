@@ -97,7 +97,7 @@ void append_closed_leaf_polygons(storage_handle *storage,
         already attached to each skirt path. Reading the printed width/height
         from the extrusion avoids recomputing skirt settings in this plugin.
         */
-        if (const EPropertyAttributes *attributes = entity.property<EPropertyAttributes>()) {
+        if (const EPropertyAttributes *attributes = entity.get(EPropertyAttributes::key)) {
             max_width = std::max(max_width, double(attributes->c_extrusion_property_attributes::width));
             max_height = std::max(max_height, double(attributes->c_extrusion_property_attributes::height));
         }
