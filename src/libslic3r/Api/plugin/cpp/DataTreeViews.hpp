@@ -40,12 +40,9 @@ class Layer;
 /*
 View over the generic plugin-property container.
 
-Payloads with a stable built-in id may expose that id on their type:
+Payloads with a stable built-in id expose a static typed key:
 
-    struct MySurfaceData {
-        static constexpr plugin_property_type property_type = ...;
-        uint32_t priority = 0;
-    };
+    properties.get(LayerSupportProperty::key);
 
 Plugin-private contracts should instead register their namespaced string for
 each orchestrator and retain the returned PluginPropertyKey in the plugin
@@ -75,11 +72,6 @@ public:
     uint32_t data_size(plugin_property_type type) const { return plugin_property_data_size(m_handle, type); }
     const void *data(plugin_property_type type) const { return plugin_property_data(m_handle, type); }
 
-    template<class PropertyType> const PropertyType *get() const
-    {
-        return PluginPropertyKey<PropertyType>::built_in().get(*this);
-    }
-
     template<class PropertyType> const PropertyType *get(plugin_property_type type) const
     {
         static_assert(std::is_trivially_copyable<PropertyType>::value,
@@ -103,11 +95,6 @@ public:
         return remove(key.type());
     }
 
-    template<class PropertyType> PropertyType *get()
-    {
-        return PluginPropertyKey<PropertyType>::built_in().get_mutable(*this);
-    }
-
     template<class PropertyType> PropertyType *get(plugin_property_type type)
     {
         static_assert(std::is_trivially_copyable<PropertyType>::value,
@@ -126,13 +113,6 @@ public:
             return nullptr;
         return reinterpret_cast<PropertyType *>(
             plugin_property_data_mutable(mutable_handle(), key.type()));
-    }
-
-    template<class PropertyType> PropertyType &get_or_add(orchestrator_handle *orchestrator)
-    {
-        if (orchestrator == nullptr)
-            return PluginPropertyKey<PropertyType>::built_in().get_or_add(*this);
-        return this->get_or_add<PropertyType>(orchestrator, PropertyType::property_type);
     }
 
     template<class PropertyType> PropertyType &get_or_add(orchestrator_handle *orchestrator,
@@ -169,20 +149,25 @@ private:
     plugin_property_container_handle *m_handle = nullptr;
 };
 
-struct LayerSupportProperty : c_layer_support_property
+struct LayerSupportProperty :
+    BuiltInPluginPropertyPayload<LayerSupportProperty,
+                                 c_layer_support_property,
+                                 PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT>
 {
-    static constexpr plugin_property_type property_type = PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT;
 };
 
-struct LayerBrimProperty : c_layer_brim_property
+struct LayerBrimProperty :
+    BuiltInPluginPropertyPayload<LayerBrimProperty,
+                                 c_layer_brim_property,
+                                 PLUGIN_PROPERTY_TYPE_LAYER_BRIM>
 {
-    static constexpr plugin_property_type property_type = PLUGIN_PROPERTY_TYPE_LAYER_BRIM;
 };
 
-struct LayerAdhesionProperty : c_layer_adhesion_property
+struct LayerAdhesionProperty :
+    BuiltInPluginPropertyPayload<LayerAdhesionProperty,
+                                 c_layer_adhesion_property,
+                                 PLUGIN_PROPERTY_TYPE_LAYER_ADHESION>
 {
-    static constexpr plugin_property_type property_type = PLUGIN_PROPERTY_TYPE_LAYER_ADHESION;
-
     bool has_kind(raw_layer_adhesion_kind expected_kind) const { return kind == expected_kind; }
     bool has_flag(raw_layer_adhesion_flag flag) const { return (flags & flag) != 0; }
     bool is_brim() const { return has_kind(RAW_LAYER_ADHESION_KIND_BRIM); }
@@ -443,8 +428,9 @@ public:
         return PluginProperties(m_handle != nullptr ? surface_get_properties(m_handle) : nullptr);
     }
 
-    template<class PropertyType> const PropertyType *property() const {
-        return properties().get<PropertyType>();
+    template<class PropertyType>
+    const PropertyType *get(const PluginPropertyKey<PropertyType> &key) const {
+        return properties().get(key);
     }
 
 private:
@@ -478,12 +464,24 @@ public:
         mutable_properties().copy_from(other.properties());
     }
 
-    template<class PropertyType> const PropertyType *property() const {
-        return properties().get<PropertyType>();
+    template<class PropertyType>
+    const PropertyType *get(const PluginPropertyKey<PropertyType> &key) const {
+        return properties().get(key);
     }
 
-    template<class PropertyType> PropertyType &get_or_add_property(orchestrator_handle *orchestrator) const {
-        return mutable_properties().get_or_add<PropertyType>(orchestrator);
+    template<class PropertyType>
+    PropertyType *get_mutable(const PluginPropertyKey<PropertyType> &key) const {
+        return mutable_properties().get_mutable(key);
+    }
+
+    template<class PropertyType>
+    PropertyType &get_or_add(const PluginPropertyKey<PropertyType> &key) const {
+        return mutable_properties().get_or_add(key);
+    }
+
+    template<class PropertyType>
+    bool remove(const PluginPropertyKey<PropertyType> &key) const {
+        return mutable_properties().remove(key);
     }
 
 private:
@@ -954,7 +952,7 @@ public:
 
 inline const LayerAdhesionProperty *LayerAdhesionProperty::get(const Layer &layer)
 {
-    return layer.properties().get<LayerAdhesionProperty>();
+    return layer.properties().get(key);
 }
 
 inline bool LayerAdhesionProperty::layer_has_kind(const Layer &layer, raw_layer_adhesion_kind kind)
@@ -963,7 +961,7 @@ inline bool LayerAdhesionProperty::layer_has_kind(const Layer &layer, raw_layer_
     if (adhesion != nullptr)
         return adhesion->has_kind(kind);
     return kind == RAW_LAYER_ADHESION_KIND_BRIM &&
-           layer.properties().get<LayerBrimProperty>() != nullptr;
+           layer.properties().get(LayerBrimProperty::key) != nullptr;
 }
 
 inline bool LayerAdhesionProperty::layer_is_brim(const Layer &layer)

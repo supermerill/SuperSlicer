@@ -64,11 +64,10 @@ tree when the entity contains children.
 Property model
 --------------
 Properties are small typed payloads stored directly on one entity. These helpers
-do not perform inherited lookup through parents: read-view property<T>() reads
-only the property physically present on that entity, and mutable
-get_or_add_property<T>() creates or edits only a direct property. Use an
-extrusion tree visitor, or track parent state yourself, when inherited
-properties matter.
+do not perform inherited lookup through parents: get(key) reads only the
+property physically present on that entity, and get_or_add(key) creates or edits
+only a direct property. Use an extrusion tree visitor, or track parent state
+yourself, when inherited properties matter.
 
 The most important printable-path property is EPropertyAttributes. It stores:
     role        raw_extrusion_role describing perimeter/infill/support/etc.;
@@ -81,11 +80,11 @@ Role constants are RAW_EXTRUSION_ROLE_* values from the C plugin API. Step
 contexts usually provide the correct flow for a role through LayerRegion views.
 
 Typical read:
-    if (const EPropertyAttributes *attr = entity.property<EPropertyAttributes>())
+    if (const EPropertyAttributes *attr = entity.get(EPropertyAttributes::key))
         ... attr->extrusion_role() ...
 
 Typical write on a mutable or stored entity:
-    EPropertyAttributes &attr = entity.get_or_add_property<EPropertyAttributes>();
+    EPropertyAttributes &attr = entity.get_or_add(EPropertyAttributes::key);
     attr.extrusion_role(RAW_EXTRUSION_ROLE_EXTERNAL_PERIMETER)
         .mm3_per_mm(flow.mm3_per_mm)
         .width(unscaled_width)
@@ -124,11 +123,8 @@ and a few fluent setters. The inheritance intentionally adds no data members:
 static_asserts below keep the C++ helper layout identical to the C payload
 layout, so payload pointers returned by the C ABI can be safely cast.
 */
-template<class Payload, extrusion_property_type TypeValue>
-struct EPropertyPayload : Payload
-{
-    static constexpr extrusion_property_type property_type = TypeValue;
-};
+template<class Derived, class Payload, extrusion_property_type TypeValue>
+using EPropertyPayload = BuiltInPluginPropertyPayload<Derived, Payload, TypeValue>;
 
 /*
 Core print attributes for one entity and, by convention, its descendants until
@@ -136,7 +132,7 @@ overridden. A printable leaf normally needs this property before G-code
 generation can emit extrusion for it.
 */
 struct EPropertyAttributes :
-    EPropertyPayload<c_extrusion_property_attributes, EXTRUSION_PROPERTY_TYPE_ATTRIBUTES>
+    EPropertyPayload<EPropertyAttributes, c_extrusion_property_attributes, EXTRUSION_PROPERTY_TYPE_ATTRIBUTES>
 {
     EPropertyAttributes &extrusion_role(int32_t value) { role = value; return *this; }
     int32_t extrusion_role() const { return role; }
@@ -153,7 +149,7 @@ already selected by the current print step"; plugins should set only values
 they intentionally want downstream code to notice.
 */
 struct EPropertySpeed :
-    EPropertyPayload<c_extrusion_property_speed, EXTRUSION_PROPERTY_TYPE_SPEED>
+    EPropertyPayload<EPropertySpeed, c_extrusion_property_speed, EXTRUSION_PROPERTY_TYPE_SPEED>
 {
     EPropertySpeed &speed(float value) { speed_mm_per_s = value; return *this; }
     EPropertySpeed &acceleration(float value) { accel_mm_per_s2 = value; return *this; }
@@ -167,7 +163,7 @@ Travel/retraction modifiers consumed by G-code generation. These are local
 commands attached to the extrusion tree, not geometry changes.
 */
 struct EPropertyModifier :
-    EPropertyPayload<c_extrusion_property_modifier, EXTRUSION_PROPERTY_TYPE_MODIFIER>
+    EPropertyPayload<EPropertyModifier, c_extrusion_property_modifier, EXTRUSION_PROPERTY_TYPE_MODIFIER>
 {
     EPropertyModifier &set_enforce_travel(bool enabled = true) { enforce_travel = enabled ? 1 : 0; return *this; }
     EPropertyModifier &set_enforce_retraction(bool enabled = true) { enforce_retraction = enabled ? 1 : 0; return *this; }
@@ -183,7 +179,7 @@ custom_gcode() or store_property_string() so removing this property also frees
 the string buffer referenced by text_id.
 */
 struct EPropertyCustomGcode :
-    EPropertyPayload<c_extrusion_property_custom_gcode, EXTRUSION_PROPERTY_TYPE_CUSTOM_GCODE>
+    EPropertyPayload<EPropertyCustomGcode, c_extrusion_property_custom_gcode, EXTRUSION_PROPERTY_TYPE_CUSTOM_GCODE>
 {
     EPropertyCustomGcode &set_kind(c_extrusion_custom_gcode_kind value) {
         kind = value;
@@ -201,7 +197,7 @@ struct EPropertyCustomGcode :
 
 /* Special non-geometric commands carried in the extrusion stream. */
 struct EPropertySpecialCommand :
-    EPropertyPayload<c_extrusion_property_special_command, EXTRUSION_PROPERTY_TYPE_SPECIAL_COMMAND>
+    EPropertyPayload<EPropertySpecialCommand, c_extrusion_property_special_command, EXTRUSION_PROPERTY_TYPE_SPECIAL_COMMAND>
 {
     EPropertySpecialCommand &set(c_extrusion_special_command value, double data = 0.) {
         code = value;
@@ -215,7 +211,7 @@ Overhang metadata used by speed/flow logic. It describes how supported the path
 is, while EPropertyAttributes still carries the actual extrusion role and flow.
 */
 struct EPropertyOverhang :
-    EPropertyPayload<c_extrusion_property_overhang, EXTRUSION_PROPERTY_TYPE_OVERHANG>
+    EPropertyPayload<EPropertyOverhang, c_extrusion_property_overhang, EXTRUSION_PROPERTY_TYPE_OVERHANG>
 {
     EPropertyOverhang &distance(float start, float end) {
         start_distance_from_prev_layer = start;
@@ -231,7 +227,7 @@ struct EPropertyOverhang :
 
 /* Constant Z offset applied to this entity when emitted. */
 struct EPropertyZOffset :
-    EPropertyPayload<c_extrusion_property_z_offset, EXTRUSION_PROPERTY_TYPE_Z_OFFSET>
+    EPropertyPayload<EPropertyZOffset, c_extrusion_property_z_offset, EXTRUSION_PROPERTY_TYPE_Z_OFFSET>
 {
     EPropertyZOffset &set(coord_t value) { z_offset = value; return *this; }
     coord_t get() const { return z_offset; }
@@ -239,7 +235,7 @@ struct EPropertyZOffset :
 
 /* Perimeter-specific metadata such as shell index and loop/perimeter flags. */
 struct EPropertyPerimeter :
-    EPropertyPayload<c_extrusion_property_perimeter, EXTRUSION_PROPERTY_TYPE_PERIMETER>
+    EPropertyPayload<EPropertyPerimeter, c_extrusion_property_perimeter, EXTRUSION_PROPERTY_TYPE_PERIMETER>
 {
     EPropertyPerimeter &shell_count(int16_t value) { perimeter_idx = value; return *this; }
     int16_t shell_count() const { return perimeter_idx; }
@@ -254,7 +250,7 @@ it so later post-infill plugins can regroup or split paths without losing which
 surface recipe produced them.
 */
 struct EPropertyInfill :
-    EPropertyPayload<c_extrusion_property_infill, EXTRUSION_PROPERTY_TYPE_INFILL>
+    EPropertyPayload<EPropertyInfill, c_extrusion_property_infill, EXTRUSION_PROPERTY_TYPE_INFILL>
 {
     EPropertyInfill &surface_id(uint64_t value) { source_surface_id = value; return *this; }
     uint64_t surface_id() const { return source_surface_id; }
@@ -322,9 +318,6 @@ public:
     extrusion_property_type property_type_at(uint32_t idx) const { return extrusion_property_type_at(self().handle(), idx); }
     bool has_property(extrusion_property_type type) const { return extrusion_property_has(self().handle(), type) != 0; }
 
-    template<class Payload> bool has_property() const {
-        return PluginPropertyKey<Payload>::built_in().has(*this);
-    }
     template<class Payload> bool has(const PluginPropertyKey<Payload> &key) const {
         return has_property(key.type());
     }
@@ -334,17 +327,13 @@ public:
 
     The pointer is owned by the entity. It becomes invalid if the entity is
     modified, destroyed, copied over, moved over, or if the property is removed.
-    Prefer property<T>() when the payload type is known.
+    Prefer get(key) when the payload type is known.
     */
     const void *property_data(extrusion_property_type type) const {
         return extrusion_property_data(self().handle(), type);
     }
 
     /* Typed view of property_data(). Returns nullptr when the property is absent. */
-    template<class Payload> const Payload *property() const {
-        return PluginPropertyKey<Payload>::built_in().get(*this);
-    }
-
     template<class Payload> const Payload *get(const PluginPropertyKey<Payload> &key) const {
         return property_payload_cast<Payload>(property_data(key.type()));
     }
@@ -354,8 +343,9 @@ public:
     when a plugin wants simple value semantics and does not need to distinguish
     "missing property" from "property equal to fallback".
     */
-    template<class Payload> Payload property_or(Payload fallback) const {
-        const Payload *payload = property<Payload>();
+    template<class Payload>
+    Payload get_or(const PluginPropertyKey<Payload> &key, Payload fallback) const {
+        const Payload *payload = get(key);
         return payload != nullptr ? *payload : fallback;
     }
 
@@ -405,9 +395,8 @@ Mutable access to direct properties and auxiliary data.
 Available on:
     MutableExtrusionEntity, StoredExtrusionEntity
 
-Use get_or_add_property<T>() to create or fetch a built-in property. Pass the
-orchestrator when T is a plugin-registered custom property, because the host
-must know the payload size/alignment for that custom type.
+Use get_or_add(key) for both built-in and plugin-registered properties. The key
+carries the orchestrator needed to create a dynamic payload.
 */
 template<class Derived> class ExtrusionPropertyMutableApi
 {
@@ -426,10 +415,6 @@ public:
     }
 
     /* Typed mutable pointer to an existing property, or nullptr if absent. */
-    template<class Payload> Payload *property_mutable() {
-        return PluginPropertyKey<Payload>::built_in().get_mutable(*this);
-    }
-
     template<class Payload> Payload *get_mutable(const PluginPropertyKey<Payload> &key) {
         return property_payload_cast<Payload>(property_data_mutable(key.type()));
     }
@@ -437,18 +422,9 @@ public:
     /*
     Typed fetch-or-create helper. This is the normal way to add attributes:
 
-        EPropertyAttributes &attr = entity.get_or_add_property<EPropertyAttributes>();
+        EPropertyAttributes &attr = entity.get_or_add(EPropertyAttributes::key);
         attr.extrusion_role(role).mm3_per_mm(mm3).width(width).height(height);
     */
-    template<class Payload> Payload &get_or_add_property(orchestrator_handle *orchestrator = nullptr) {
-        if (orchestrator == nullptr)
-            return PluginPropertyKey<Payload>::built_in().get_or_add(*this);
-        Payload *payload = property_payload_cast<Payload>(
-            get_or_add_property_data_mutable(orchestrator, Payload::property_type));
-        assert(payload != nullptr);
-        return *payload;
-    }
-
     template<class Payload> Payload &get_or_add(const PluginPropertyKey<Payload> &key) {
         Payload *payload = property_payload_cast<Payload>(
             get_or_add_property_data_mutable(key.orchestrator(), key.type()));
@@ -461,9 +437,6 @@ public:
         return extrusion_property_remove(self().mutable_handle(), type) != 0;
     }
 
-    template<class Payload> bool remove_property() {
-        return PluginPropertyKey<Payload>::built_in().remove(*this);
-    }
     template<class Payload> bool remove(const PluginPropertyKey<Payload> &key) {
         return remove_property(key.type());
     }
@@ -527,17 +500,17 @@ public:
     Convenience helper for the common "custom G-code with text" property.
 
     It creates the property if needed and stores text_id with property-owned
-    lifetime, so remove_property<EPropertyCustomGcode>() also releases the text.
+    lifetime, so remove(EPropertyCustomGcode::key) also releases the text.
     */
     EPropertyCustomGcode &custom_gcode(std::string_view text,
                                        c_extrusion_custom_gcode_kind kind = C_EXTRUSION_CUSTOM_GCODE_GCODE)
     {
-        EPropertyCustomGcode &payload = get_or_add_property<EPropertyCustomGcode>();
+        EPropertyCustomGcode &payload = get_or_add(EPropertyCustomGcode::key);
         payload.set_kind(kind);
         payload.processing_extruder_id = GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID;
         if (store_property_string(EPropertyCustomGcode::property_type, &payload.text_id, text) ==
             EXTRUSION_DATA_ID_INVALID) {
-            remove_property<EPropertyCustomGcode>();
+            remove(EPropertyCustomGcode::key);
             throw std::runtime_error("The custom G-code text could not be stored.");
         }
         if (payload.config_id != EXTRUSION_DATA_ID_INVALID)
@@ -570,7 +543,7 @@ public:
         if (store_property_string(EPropertyCustomGcode::property_type,
                                   &payload.config_id,
                                   serialized_config) == EXTRUSION_DATA_ID_INVALID) {
-            remove_property<EPropertyCustomGcode>();
+            remove(EPropertyCustomGcode::key);
             throw std::runtime_error("The G-code script Config could not be stored.");
         }
         return payload;

@@ -66,17 +66,17 @@ EffectiveTreeState effective_state(const MutableExtrusionEntity &entity,
     // Start from inherited values, then overlay only fields explicitly set on
     // this node. Negative process fields mean "inherit", not a real value.
     EffectiveTreeState state = parent_state;
-    if (const EPropertyAttributes *attributes = entity.property<EPropertyAttributes>()) {
+    if (const EPropertyAttributes *attributes = entity.get(EPropertyAttributes::key)) {
         state.attributes = *attributes;
         state.has_attributes = true;
     }
-    if (const EPropertySpeed *process = entity.property<EPropertySpeed>()) {
+    if (const EPropertySpeed *process = entity.get(EPropertySpeed::key)) {
         if (process->speed_mm_per_s > 0.f)
             state.speed = process->speed_mm_per_s;
         if (process->accel_mm_per_s2 > 0.f)
             state.acceleration = process->accel_mm_per_s2;
     }
-    if (const EPropertyOverhang *overhang = entity.property<EPropertyOverhang>())
+    if (const EPropertyOverhang *overhang = entity.get(EPropertyOverhang::key))
         state.full_overhang_speed = overhang->has_full_overhangs_speed != 0;
     return state;
 }
@@ -175,12 +175,12 @@ EPropertySpeed &ProcessFieldEditor::ensure_property(MutableExtrusionEntity entit
 {
     // Reuse pre-existing metadata so pressure, fan, temperature, and the other
     // process field survive when this editor writes its selected field.
-    if (EPropertySpeed *existing = entity.property_mutable<EPropertySpeed>())
+    if (EPropertySpeed *existing = entity.get_mutable(EPropertySpeed::key))
         return *existing;
 
     // A new C payload is zero-initialized, but zero would look like a concrete
     // optional value. Initialize every field to the explicit unset sentinel.
-    EPropertySpeed &created = entity.get_or_add_property<EPropertySpeed>();
+    EPropertySpeed &created = entity.get_or_add(EPropertySpeed::key);
     created.speed_mm_per_s = -1.f;
     created.accel_mm_per_s2 = -1.f;
     created.pressure_adv = -1.f;
@@ -222,7 +222,7 @@ void ProcessFieldEditor::clear_redundant_field(MutableExtrusionEntity entity,
 {
     // Remove only a direct field that exactly duplicates the newly proven
     // inherited value. Every unrelated process field remains untouched.
-    EPropertySpeed *process = entity.property_mutable<EPropertySpeed>();
+    EPropertySpeed *process = entity.get_mutable(EPropertySpeed::key);
     if (process == nullptr)
         return;
     float &direct_field = field(*process);
@@ -235,7 +235,7 @@ void ProcessFieldEditor::clear_redundant_field(MutableExtrusionEntity entity,
     const bool empty = process->speed_mm_per_s < 0.f && process->accel_mm_per_s2 < 0.f &&
         process->pressure_adv < 0.f && process->fan_speed_percent < 0.f && process->temperature_C < 0.f;
     if (empty && m_created_properties.erase(entity.mutable_handle()) > 0)
-        entity.remove_property<EPropertySpeed>();
+        entity.remove(EPropertySpeed::key);
 }
 
 ProcessFieldEditor::FieldSummary ProcessFieldEditor::hoist_tree(
@@ -265,7 +265,7 @@ ProcessFieldEditor::FieldSummary ProcessFieldEditor::hoist_tree(
 
     // A conflicting direct value is authoritative. Otherwise store a uniform
     // descendant value here and clear matching direct values from children.
-    EPropertySpeed *direct_process = entity.property_mutable<EPropertySpeed>();
+    EPropertySpeed *direct_process = entity.get_mutable(EPropertySpeed::key);
     const float direct = direct_value(direct_process);
     if (summary.has_value && !summary.blocked && (direct <= 0.f || direct == summary.value)) {
         if (direct <= 0.f && state_value(state) != summary.value) {

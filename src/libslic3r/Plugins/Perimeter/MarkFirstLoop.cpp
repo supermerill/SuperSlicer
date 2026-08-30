@@ -40,7 +40,7 @@ raw_extrusion_role effective_role(MutableExtrusionEntity entity)
     // EPropertyAttributes may be stored on the loop itself or on the printable
     // child path. For this module the role is only used as a safety filter, so
     // looking at the first descendant role is sufficient.
-    if (const EPropertyAttributes *attributes = entity.property<EPropertyAttributes>())
+    if (const EPropertyAttributes *attributes = entity.get(EPropertyAttributes::key))
         return raw_extrusion_role(attributes->extrusion_role());
 
     for (uint32_t idx = 0; idx < entity.child_count(); ++idx) {
@@ -59,7 +59,7 @@ bool role_is_gap_fill_or_thin_wall(raw_extrusion_role role)
 
 bool entity_has_taggable_loop(MutableExtrusionEntity entity)
 {
-    const EPropertyPerimeter *perimeter = entity.property<EPropertyPerimeter>();
+    const EPropertyPerimeter *perimeter = entity.get(EPropertyPerimeter::key);
     if (perimeter == nullptr || (perimeter->perimeter_flags() & k_loop_flag) == 0)
         return false;
 
@@ -93,7 +93,7 @@ bool mark_first_loop_in_entity(MutableExtrusionEntity entity)
         return child_has_taggable_loop;
 
     if (!child_has_taggable_loop) {
-        EPropertyPerimeter &perimeter = entity.get_or_add_property<EPropertyPerimeter>();
+        EPropertyPerimeter &perimeter = entity.get_or_add(EPropertyPerimeter::key);
         perimeter.perimeter_flags(uint16_t(perimeter.perimeter_flags() | k_first_loop_flag));
     }
 

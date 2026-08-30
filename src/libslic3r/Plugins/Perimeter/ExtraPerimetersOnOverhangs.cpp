@@ -88,7 +88,7 @@ struct GeneratedPath
         : entity(storage)
     {
         entity.set(polyline);
-        entity.get_or_add_property<EPropertyAttributes>() = attributes;
+        entity.get_or_add(EPropertyAttributes::key) = attributes;
         entity.disable_reverse();
     }
 
@@ -728,7 +728,7 @@ void append_medial_axis_paths(storage_handle *storage,
         for (uint32_t idx = 0; idx < tree->child_count(); ++idx) {
             GeneratedPath path(storage);
             path.entity.copy_from(tree->child(idx));
-            path.entity.get_or_add_property<EPropertyAttributes>() = input.overhang_flow.attributes;
+            path.entity.get_or_add(EPropertyAttributes::key) = input.overhang_flow.attributes;
             path.entity.disable_reverse();
             dst.push_back(std::move(path));
         }

@@ -96,7 +96,7 @@ struct Fragment
         min_length(min_length_in)
     {
         entity.set_points(points);
-        entity.get_or_add_property<EPropertyAttributes>() = attributes;
+        entity.get_or_add(EPropertyAttributes::key) = attributes;
     }
 
     StoredExtrusionEntity entity;
@@ -447,12 +447,12 @@ void apply_overhang_properties(EPropertyAttributes &attributes,
 
     if (!full_flow && !dynamic_flow && !full_speed && !dynamic_speed) {
         attributes.extrusion_role(attributes.extrusion_role() & ~RAW_EXTRUSION_ROLE_BRIDGE);
-        entity.remove_property<EPropertyOverhang>();
-        entity.get_or_add_property<EPropertyAttributes>() = attributes;
+        entity.remove(EPropertyOverhang::key);
+        entity.get_or_add(EPropertyAttributes::key) = attributes;
         return;
     }
 
-    EPropertyOverhang &overhang = entity.get_or_add_property<EPropertyOverhang>();
+    EPropertyOverhang &overhang = entity.get_or_add(EPropertyOverhang::key);
     overhang = EPropertyOverhang{};
     overhang.distance(float(min_distance_mm), float(max_distance_mm))
             .curled_proximity(float(curled_proximity))
@@ -479,7 +479,7 @@ void apply_overhang_properties(EPropertyAttributes &attributes,
         apply_overhang_flow(attributes, config, overhang, 0.5 * (start_ratio + end_ratio));
     }
 
-    entity.get_or_add_property<EPropertyAttributes>() = attributes;
+    entity.get_or_add(EPropertyAttributes::key) = attributes;
 }
 
 void append_unchanged_fragment(storage_handle *storage,
@@ -498,8 +498,8 @@ void append_unchanged_fragment(storage_handle *storage,
     fragments.emplace_back(storage, source, polyline.points(), effective_attributes,
                            distance_along_points(source_points, polyline.front()),
                            !same_points(polyline.points(), source_points));
-    if (const EPropertyOverhang *overhang = source.property<EPropertyOverhang>())
-        fragments.back().entity.get_or_add_property<EPropertyOverhang>() = *overhang;
+    if (const EPropertyOverhang *overhang = source.get(EPropertyOverhang::key))
+        fragments.back().entity.get_or_add(EPropertyOverhang::key) = *overhang;
 }
 
 class CurledLineProximity
@@ -570,7 +570,7 @@ void append_supported_fragment(storage_handle *storage,
     fragments.emplace_back(storage, source, polyline.points(), attributes,
                            distance_along_points(source_points, polyline.front()), true,
                            minimum_split_length(config, effective_attributes));
-    fragments.back().entity.remove_property<EPropertyOverhang>();
+    fragments.back().entity.remove(EPropertyOverhang::key);
 }
 
 void append_overhang_fragments(storage_handle *storage,
@@ -762,7 +762,7 @@ public:
 protected:
     void visit_leaf(MutableExtrusionEntity entity) override
     {
-        const EPropertyAttributes *attributes = current_property<EPropertyAttributes>();
+        const EPropertyAttributes *attributes = current_property(EPropertyAttributes::key);
         if (attributes == nullptr)
             return;
 

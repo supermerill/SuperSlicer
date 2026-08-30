@@ -31,7 +31,7 @@ ExtrusionTreeVisitor, but they work only with the plugin ABI views:
 
     class MyVisitor : public ExtrusionTreeConstVisitor<> {
         void visit_leaf(ExtrusionEntity entity) override {
-            if (const EPropertyAttributes *attr = current_property<EPropertyAttributes>())
+            if (const EPropertyAttributes *attr = current_property(EPropertyAttributes::key))
                 ...
         }
     };
@@ -58,10 +58,10 @@ separate pass.
 Property lookup
 ---------------
 
-current_property<T>() searches the active stack from the current entity toward
-the root and returns the first direct property it finds. The returned pointer is
-borrowed from the entity that owns the property. Treat it as read-only and do
-not keep it after mutating the tree.
+current_property(key) searches the active stack from the current entity toward
+the root and returns the first direct property identified by that built-in or
+dynamic key. The returned pointer is borrowed from the entity that owns the
+property. Treat it as read-only and do not keep it after mutating the tree.
 */
 
 namespace detail {
@@ -131,11 +131,11 @@ protected:
     }
 
     template<class PropertyType>
-    const PropertyType *current_property() const
+    const PropertyType *current_property(const PluginPropertyKey<PropertyType> &key) const
     {
         for (typename std::vector<Frame>::const_reverse_iterator it = m_stack.rbegin();
              it != m_stack.rend(); ++it) {
-            if (const PropertyType *property = it->entity.template property<PropertyType>())
+            if (const PropertyType *property = it->entity.get(key))
                 return property;
         }
         return nullptr;

@@ -85,7 +85,7 @@ bool command_code(std::string_view command, char prefix, int32_t *code_out)
 // Its target is reconstructed from the final tool-group boundary at runtime.
 bool has_toolchange_script(const ExtrusionEntity &root)
 {
-    const EPropertyCustomGcode *custom_gcode = root.property<EPropertyCustomGcode>();
+    const EPropertyCustomGcode *custom_gcode = root.get(EPropertyCustomGcode::key);
     if (custom_gcode != nullptr &&
         custom_gcode->kind == C_EXTRUSION_CUSTOM_GCODE_SCRIPT &&
         custom_gcode->script_type == GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE &&
@@ -327,7 +327,7 @@ protected:
         // matching leave_node() restores this exact value for the next sibling.
         m_parent_states.push_back(m_state);
 
-        if (const EPropertySpeed *speed = entity.property<EPropertySpeed>()) {
+        if (const EPropertySpeed *speed = entity.get(EPropertySpeed::key)) {
             if (speed->speed_mm_per_s > 0.f)
                 m_state.speed_mm_per_s = speed->speed_mm_per_s;
             if (speed->accel_mm_per_s2 > 0.f)
@@ -339,9 +339,9 @@ protected:
             if (speed->temperature_C >= 0.f)
                 m_state.temperature_c = speed->temperature_C;
         }
-        if (const EPropertyAttributes *attributes = entity.property<EPropertyAttributes>())
+        if (const EPropertyAttributes *attributes = entity.get(EPropertyAttributes::key))
             m_state.attributes = *attributes;
-        if (const EPropertyZOffset *z_offset = entity.property<EPropertyZOffset>())
+        if (const EPropertyZOffset *z_offset = entity.get(EPropertyZOffset::key))
             m_state.z_offset = z_offset->get();
 
         // Direct event properties describe one position in the ordered tree.
@@ -349,9 +349,9 @@ protected:
         // descendant leaf.
         m_session.apply_requested_state(m_state);
         m_output += m_session.enter_extrusion_node(entity);
-        if (const EPropertyCustomGcode *custom_gcode = entity.property<EPropertyCustomGcode>())
+        if (const EPropertyCustomGcode *custom_gcode = entity.get(EPropertyCustomGcode::key))
             m_output += m_session.write_custom_gcode(entity, *custom_gcode);
-        if (const EPropertySpecialCommand *command = entity.property<EPropertySpecialCommand>())
+        if (const EPropertySpecialCommand *command = entity.get(EPropertySpecialCommand::key))
             m_output += m_session.write_special_command(*command, m_state);
     }
 

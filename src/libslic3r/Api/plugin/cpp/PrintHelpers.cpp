@@ -30,7 +30,7 @@ void append_support_extruders(const Print &print,
     for (Object object : objects) {
         bool has_support_auxiliary = false;
         for (uint32_t layer_idx = 0; layer_idx < object.auxiliary_layer_count(); ++layer_idx)
-            if (object.auxiliary_layer(layer_idx).properties().get<LayerSupportProperty>() != nullptr) {
+            if (object.auxiliary_layer(layer_idx).properties().get(LayerSupportProperty::key) != nullptr) {
                 has_support_auxiliary = true;
                 break;
             }

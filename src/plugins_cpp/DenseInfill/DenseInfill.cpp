@@ -722,7 +722,7 @@ bool extract_dense_children_from_root(storage_handle *storage,
     std::map<uint16_t, std::vector<uint32_t>> dense_indices_by_priority;
     for (uint32_t child_idx = 0; child_idx < root.child_count(); ++child_idx) {
         const ExtrusionEntity child = root.child(child_idx);
-        const EPropertyInfill *infill = child.property<EPropertyInfill>();
+        const EPropertyInfill *infill = child.get(EPropertyInfill::key);
         if (infill == nullptr) {
             normal_children.push_back(child_idx);
             continue;

@@ -573,7 +573,7 @@ TEST_CASE("G-code script processing tool survives stored entity copies moves and
 
     slic3r_api::StoredExtrusionEntity copied(storage, source.readonly());
     const slic3r_api::EPropertyCustomGcode *copied_property =
-        copied.property<slic3r_api::EPropertyCustomGcode>();
+        copied.get(slic3r_api::EPropertyCustomGcode::key);
     REQUIRE(copied_property != nullptr);
     CHECK(copied_property->processing_extruder_id == 2);
     REQUIRE(copied_property->config_id != EXTRUSION_DATA_ID_INVALID);
@@ -581,14 +581,14 @@ TEST_CASE("G-code script processing tool survives stored entity copies moves and
     copied_config.deserialize_all(copied.stored_string(copied_property->config_id));
     CHECK(copied_config.get("producer_note").get_string() == "owned with event");
     copied.custom_gcode("M117 raw", C_EXTRUSION_CUSTOM_GCODE_GCODE);
-    copied_property = copied.property<slic3r_api::EPropertyCustomGcode>();
+    copied_property = copied.get(slic3r_api::EPropertyCustomGcode::key);
     REQUIRE(copied_property != nullptr);
     CHECK(copied_property->processing_extruder_id == GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID);
     CHECK(copied_property->config_id == EXTRUSION_DATA_ID_INVALID);
 
     slic3r_api::StoredExtrusionEntity moved(std::move(source));
     const slic3r_api::EPropertyCustomGcode *moved_property =
-        moved.property<slic3r_api::EPropertyCustomGcode>();
+        moved.get(slic3r_api::EPropertyCustomGcode::key);
     REQUIRE(moved_property != nullptr);
     CHECK(moved_property->processing_extruder_id == 2);
     REQUIRE(moved_property->config_id != EXTRUSION_DATA_ID_INVALID);
@@ -626,7 +626,7 @@ TEST_CASE("G-code script Config snapshots replace and clear their owned data",
     // Publishing the replacement snapshot releases the buffer previously
     // owned by the same config_id field.
     const slic3r_api::EPropertyCustomGcode *replaced =
-        event.property<slic3r_api::EPropertyCustomGcode>();
+        event.get(slic3r_api::EPropertyCustomGcode::key);
     REQUIRE(replaced != nullptr);
     CHECK(replaced->config_id != EXTRUSION_DATA_ID_INVALID);
     CHECK(event.stored_data(initial_id) == nullptr);
@@ -637,7 +637,7 @@ TEST_CASE("G-code script Config snapshots replace and clear their owned data",
 
     slic3r_api::StoredConfig empty_config(storage);
     event.script_gcode("M117 empty", GCODE_SCRIPT_TYPE_LAYER_GCODE, empty_config);
-    replaced = event.property<slic3r_api::EPropertyCustomGcode>();
+    replaced = event.get(slic3r_api::EPropertyCustomGcode::key);
     REQUIRE(replaced != nullptr);
     REQUIRE(replaced->config_id != EXTRUSION_DATA_ID_INVALID);
     slic3r_api::StoredConfig decoded_empty(storage);
@@ -645,7 +645,7 @@ TEST_CASE("G-code script Config snapshots replace and clear their owned data",
     CHECK(decoded_empty.keys().empty());
 
     event.script_gcode("M117 plain", GCODE_SCRIPT_TYPE_LAYER_GCODE);
-    replaced = event.property<slic3r_api::EPropertyCustomGcode>();
+    replaced = event.get(slic3r_api::EPropertyCustomGcode::key);
     REQUIRE(replaced != nullptr);
     CHECK(replaced->config_id == EXTRUSION_DATA_ID_INVALID);
 }

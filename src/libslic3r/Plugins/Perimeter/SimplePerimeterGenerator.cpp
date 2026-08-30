@@ -27,13 +27,6 @@ const char *k_no_dependencies[] = { nullptr };
 constexpr uint16_t k_perimeter_flags_loop = uint16_t(C_EXTRUSION_PERIMETER_FLAG_LOOP);
 constexpr uint16_t k_perimeter_flags_hole = uint16_t(C_EXTRUSION_PERIMETER_FLAG_LOOP | C_EXTRUSION_PERIMETER_FLAG_HOLE);
 
-template<class Payload>
-Payload &get_or_add_property(StoredExtrusionEntity &entity)
-{
-    ExtrusionPropertyMutableApi<StoredExtrusionEntity> &properties = entity;
-    return properties.template get_or_add_property<Payload>();
-}
-
 StoredExPolygonCollection offset_area(storage_handle *storage, const ExPolygon &area, double delta)
 {
     ClipperOperand subject(storage, area);
@@ -57,14 +50,14 @@ void append_perimeter_loop(StoredExtrusionEntity &dst,
     points.push_back(points.front());
 
     StoredExtrusionEntity path(dst.storage(), points);
-    EPropertyAttributes &attributes = get_or_add_property<EPropertyAttributes>(path);
+    EPropertyAttributes &attributes = path.get_or_add(EPropertyAttributes::key);
     attributes.extrusion_role(RAW_EXTRUSION_ROLE_EXTERNAL_PERIMETER)
         .mm3_per_mm(flow.mm3_per_mm)
         .width(float(unscaled(flow.width)))
         .height(float(unscaled(flow.height)));
 
     StoredExtrusionEntity loop(dst.storage());
-    get_or_add_property<EPropertyPerimeter>(loop).shell_count(perimeter_idx).perimeter_flags(perimeter_flags);
+    loop.get_or_add(EPropertyPerimeter::key).shell_count(perimeter_idx).perimeter_flags(perimeter_flags);
     loop.append_child_move(path.mutable_view());
     loop.set_flags(RAW_EXTRUSION_FLAG_REVERSIBLE);
     dst.append_child_move(loop.mutable_view());

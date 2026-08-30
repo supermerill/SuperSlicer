@@ -151,7 +151,7 @@ TEST_CASE("Configured layer and tool scripts become scoped plan events",
     const slic3r_api::ExtrusionEntity second_layer_event(
         reinterpret_cast<const extrusion_entity_handle *>(&second_layer_entity));
     const slic3r_api::EPropertyCustomGcode *second_layer_payload =
-        second_layer_event.property<slic3r_api::EPropertyCustomGcode>();
+        second_layer_event.get(slic3r_api::EPropertyCustomGcode::key);
     REQUIRE(second_layer_payload != nullptr);
     CHECK(second_layer_payload->processing_extruder_id == GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID);
     CHECK(stored_script_int(second_layer_entity, *second_layer_script, "layer_num") == 1);
@@ -274,7 +274,7 @@ TEST_CASE("Between-object scripts select the requested side of the group move",
     const slic3r_api::ExtrusionEntity event_view(
         reinterpret_cast<const extrusion_entity_handle *>(&event));
     const slic3r_api::EPropertyCustomGcode *property =
-        event_view.property<slic3r_api::EPropertyCustomGcode>();
+        event_view.get(slic3r_api::EPropertyCustomGcode::key);
     REQUIRE(property != nullptr);
     REQUIRE(property->script_type == GCODE_SCRIPT_TYPE_BETWEEN_OBJECTS_GCODE);
     GCodeScriptProcessor host_processor(print, Orchestrator::instance());
@@ -343,7 +343,7 @@ TEST_CASE("Single-extruder multimaterial finalizes only the active logical tool"
     const slic3r_api::ExtrusionEntity event_view(
         reinterpret_cast<const extrusion_entity_handle *>(&event));
     const slic3r_api::EPropertyCustomGcode *property =
-        event_view.property<slic3r_api::EPropertyCustomGcode>();
+        event_view.get(slic3r_api::EPropertyCustomGcode::key);
     REQUIRE(property != nullptr);
     CHECK(property->processing_extruder_id == 1);
 }

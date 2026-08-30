@@ -149,7 +149,7 @@ InheritedExtrusionState state_with_entity_properties(const InheritedExtrusionSta
     // by leaf paths. Carry the current perimeter metadata down the tree so a
     // split child is still classified as external/shell/hole correctly.
     InheritedExtrusionState state = parent_state;
-    const EPropertyPerimeter *perimeter = entity.property<EPropertyPerimeter>();
+    const EPropertyPerimeter *perimeter = entity.get(EPropertyPerimeter::key);
     if (perimeter != nullptr) {
         state.has_perimeter = true;
         state.perimeter = *perimeter;

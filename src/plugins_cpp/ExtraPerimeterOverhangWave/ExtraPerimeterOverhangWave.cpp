@@ -486,7 +486,7 @@ bool append_wave_polyline(storage_handle *storage,
         return false;
 
     StoredExtrusionEntity path(storage, polyline);
-    path.get_or_add_property<EPropertyAttributes>() = input.wave_flow.attributes;
+    path.get_or_add(EPropertyAttributes::key) = input.wave_flow.attributes;
     path.disable_reverse();
     if (zone_paths.child_count() > 0) {
         MutableExtrusionEntity previous = zone_paths.child_mutable(zone_paths.child_count() - 1);
@@ -629,7 +629,7 @@ void append_residual_gap_fill_paths(storage_handle *storage,
         StoredExtrusionEntity gap_fill_zone(storage);
         for (uint32_t idx = 0; idx < fills->child_count(); ++idx) {
             StoredExtrusionEntity path(storage, fills->child(idx));
-            path.get_or_add_property<EPropertyAttributes>() = gap_fill_attributes;
+            path.get_or_add(EPropertyAttributes::key) = gap_fill_attributes;
             path.disable_reverse();
             orient_extra_perimeter_from_support(path.mutable_view(), lower_layer_distancer);
             const uint32_t child_idx = gap_fill_zone.append_child_move(path.mutable_view());

@@ -98,13 +98,6 @@ struct ClassicGeneratorState
     bool is_overhangs = false;
 };
 
-template<class Payload>
-Payload &get_or_add_property(StoredExtrusionEntity &entity)
-{
-    ExtrusionPropertyMutableApi<StoredExtrusionEntity> &properties = entity;
-    return properties.template get_or_add_property<Payload>();
-}
-
 StoredExPolygonCollection offset_area(storage_handle *storage, const ExPolygon &area, double delta)
 {
     ClipperOperand subject(storage, area);
@@ -129,7 +122,7 @@ void append_classic_loop(StoredExtrusionEntity &dst,
     points.push_back(points.front());
 
     StoredExtrusionEntity path(dst.storage(), points);
-    EPropertyAttributes &attributes = get_or_add_property<EPropertyAttributes>(path);
+    EPropertyAttributes &attributes = path.get_or_add(EPropertyAttributes::key);
     attributes.extrusion_role(role)
         .mm3_per_mm(flow.mm3_per_mm)
         .width(float(unscaled(flow.width)))
@@ -138,13 +131,13 @@ void append_classic_loop(StoredExtrusionEntity &dst,
     // TODO: we'll try with a loop with no children, as it's not useful right now to create a collection with 1 child.
     // It will make things a bit more difficult for algorithms taht want to split it, but we just need to add good helper function.
     //StoredExtrusionEntity loop(dst.storage());
-    //get_or_add_property<EPropertyPerimeter>(loop).shell_count(perimeter_idx).perimeter_role(loop_role);
+    //loop.get_or_add(EPropertyPerimeter::key).shell_count(perimeter_idx).perimeter_role(loop_role);
     //loop.append_child_move(path.mutable_view());
     //loop.set_flags(RAW_EXTRUSION_FLAG_REVERSIBLE);
 
     path.set_flags(RAW_EXTRUSION_FLAG_REVERSIBLE);
 
-    get_or_add_property<EPropertyPerimeter>(path).shell_count(perimeter_idx).perimeter_flags(perimeter_flags);
+    path.get_or_add(EPropertyPerimeter::key).shell_count(perimeter_idx).perimeter_flags(perimeter_flags);
 
     dst.append_child_move(path.mutable_view());
 }

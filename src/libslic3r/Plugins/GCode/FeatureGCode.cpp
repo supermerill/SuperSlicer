@@ -144,7 +144,7 @@ std::string script_role_name(raw_extrusion_role raw_role)
 
 bool has_feature_script(const MutableExtrusionEntity &entity)
 {
-    const EPropertyCustomGcode *property = entity.property<EPropertyCustomGcode>();
+    const EPropertyCustomGcode *property = entity.get(EPropertyCustomGcode::key);
     return property != nullptr &&
            property->kind == C_EXTRUSION_CUSTOM_GCODE_SCRIPT &&
            property->script_type == GCODE_SCRIPT_TYPE_FEATURE_GCODE;
@@ -173,7 +173,7 @@ void clear_feature_scripts(storage_handle *storage, MutableExtrusionEntity root)
                 throw std::runtime_error("Failed to remove a generated feature G-code wrapper.");
         }
 
-        if (has_feature_script(entity) && !entity.remove_property<EPropertyCustomGcode>())
+        if (has_feature_script(entity) && !entity.remove(EPropertyCustomGcode::key))
             throw std::runtime_error("Failed to remove a generated feature G-code property.");
 
         // Push in reverse so inspection still follows normal child order even
@@ -216,7 +216,7 @@ void FeatureRoleVisitor::visit_leaf(MutableExtrusionEntity entity)
     if (entity.segment_count() == 0)
         return;
 
-    const EPropertyAttributes *attributes = current_property<EPropertyAttributes>();
+    const EPropertyAttributes *attributes = current_property(EPropertyAttributes::key);
     if (attributes == nullptr)
         return;
 
@@ -241,7 +241,7 @@ void FeatureRoleVisitor::add_transition(MutableExtrusionEntity entity,
 {
     set_role_arguments(script_role_name(previous_role), script_role_name(next_role));
 
-    if (!entity.has_property<EPropertyCustomGcode>()) {
+    if (!entity.has(EPropertyCustomGcode::key)) {
         entity.script_gcode(m_script, GCODE_SCRIPT_TYPE_FEATURE_GCODE, m_arguments);
         return;
     }

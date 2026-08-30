@@ -119,7 +119,7 @@ int32_t count_from_node(const PerimeterNodeView &node)
 
 bool extrusion_is_hole_perimeter(const ExtrusionEntity &entity)
 {
-    const EPropertyPerimeter *perimeter = entity.property<EPropertyPerimeter>();
+    const EPropertyPerimeter *perimeter = entity.get(EPropertyPerimeter::key);
     return perimeter != nullptr && (perimeter->perimeter_flags() & k_perimeter_flag_hole) != 0;
 }
 

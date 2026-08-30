@@ -5,6 +5,7 @@
 
 #include "libslic3r/Api/plugin/c/slic3r_data_tree.h"
 #include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
+#include "libslic3r/Api/plugin/cpp/ExtrusionTreeVisitors.hpp"
 #include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/host/Orchestrator.hpp"
@@ -41,6 +42,29 @@ struct IncompatibleRuntimePropertyPayload
     uint8_t value = 0;
 };
 
+/* Reads one inherited runtime property from each visited extrusion leaf. */
+class RuntimePropertyVisitor : public slic3r_api::ExtrusionTreeVisitor<>
+{
+public:
+    explicit RuntimePropertyVisitor(
+        const slic3r_api::PluginPropertyKey<RuntimePropertyPayload> &key) :
+        m_key(key)
+    {
+    }
+
+    uint32_t visited_value = 0;
+
+protected:
+    void visit_leaf(slic3r_api::MutableExtrusionEntity) override
+    {
+        if (const RuntimePropertyPayload *property = current_property(m_key))
+            visited_value = property->value;
+    }
+
+private:
+    slic3r_api::PluginPropertyKey<RuntimePropertyPayload> m_key;
+};
+
 orchestrator_handle *test_orchestrator_handle()
 {
     return reinterpret_cast<orchestrator_handle *>(&Orchestrator::instance());
@@ -74,6 +98,7 @@ TEST_CASE("PluginPropertyKey gives built-in and dynamic properties one access mo
           "[plugins][properties][property-key]")
 {
     using slic3r_api::LayerSupportProperty;
+    using slic3r_api::EPropertyOverhang;
     using slic3r_api::PluginProperties;
     using slic3r_api::PluginPropertyKey;
     using slic3r_api::StoredExtrusionEntity;
@@ -98,6 +123,7 @@ TEST_CASE("PluginPropertyKey gives built-in and dynamic properties one access mo
     PluginProperties properties(reinterpret_cast<plugin_property_container_handle *>(&native_properties));
     first_key.get_or_add(properties).value = 17;
     second_key.get_or_add(properties).value = 29;
+    REQUIRE(properties.get(first_key) != nullptr);
     REQUIRE(first_key.get(properties) != nullptr);
     REQUIRE(second_key.get(properties) != nullptr);
     CHECK(first_key.get(properties)->value == 17);
@@ -109,17 +135,19 @@ TEST_CASE("PluginPropertyKey gives built-in and dynamic properties one access mo
 
     // A built-in payload uses the same operations; only construction of its
     // key differs because its numeric identity is part of the public ABI.
-    const PluginPropertyKey<LayerSupportProperty> support_key =
-        PluginPropertyKey<LayerSupportProperty>::built_in();
-    support_key.get_or_add(properties).interface_id = 42;
-    REQUIRE(support_key.get(properties) != nullptr);
-    CHECK(support_key.get(properties)->interface_id == 42);
+    CHECK(LayerSupportProperty::key.type() == PLUGIN_PROPERTY_TYPE_LAYER_SUPPORT);
+    CHECK(LayerSupportProperty::key.orchestrator() == nullptr);
+    properties.get_or_add(LayerSupportProperty::key).interface_id = 42;
+    REQUIRE(properties.get(LayerSupportProperty::key) != nullptr);
+    REQUIRE(LayerSupportProperty::key.get(properties) != nullptr);
+    CHECK(LayerSupportProperty::key.get(properties)->interface_id == 42);
 
     // Extrusion storage consumes the exact same dynamic key and therefore
     // cannot accidentally use another orchestrator during payload creation.
     PluginStorage storage;
     StoredExtrusionEntity extrusion(reinterpret_cast<storage_handle *>(&storage));
-    first_key.get_or_add(extrusion).value = 61;
+    extrusion.get_or_add(first_key).value = 61;
+    REQUIRE(extrusion.get(first_key) != nullptr);
     CHECK(first_key.has(extrusion));
     REQUIRE(first_key.get(extrusion) != nullptr);
     CHECK(first_key.get(extrusion)->value == 61);
@@ -128,6 +156,13 @@ TEST_CASE("PluginPropertyKey gives built-in and dynamic properties one access mo
     CHECK(first_key.get(extrusion)->generation == 8);
     CHECK(first_key.remove(extrusion));
     CHECK_FALSE(first_key.has(extrusion));
+
+    CHECK(EPropertyOverhang::key.type() == EXTRUSION_PROPERTY_TYPE_OVERHANG);
+    CHECK(EPropertyOverhang::key.orchestrator() == nullptr);
+    extrusion.get_or_add(EPropertyOverhang::key).start_distance_from_prev_layer = 0.25f;
+    REQUIRE(extrusion.get(EPropertyOverhang::key) != nullptr);
+    REQUIRE(EPropertyOverhang::key.get(extrusion) != nullptr);
+    CHECK(EPropertyOverhang::key.get(extrusion)->start_distance_from_prev_layer == Approx(0.25f));
 
     CHECK(first_key.remove(properties));
     CHECK_FALSE(first_key.has(properties));
@@ -138,6 +173,27 @@ TEST_CASE("PluginPropertyKey gives built-in and dynamic properties one access mo
         PluginPropertyKey<IncompatibleRuntimePropertyPayload>::register_dynamic(
             test_orchestrator_handle(), "tests.plugin-property-key.first"),
         std::runtime_error);
+}
+
+TEST_CASE("Extrusion visitors resolve inherited dynamic properties by key",
+          "[plugins][properties][property-key]")
+{
+    using slic3r_api::PluginPropertyKey;
+    using slic3r_api::StoredExtrusionEntity;
+
+    const PluginPropertyKey<RuntimePropertyPayload> property_key =
+        PluginPropertyKey<RuntimePropertyPayload>::register_dynamic(
+            test_orchestrator_handle(), "tests.plugin-property-key.visitor");
+
+    PluginStorage storage;
+    StoredExtrusionEntity root(reinterpret_cast<storage_handle *>(&storage));
+    StoredExtrusionEntity child(reinterpret_cast<storage_handle *>(&storage));
+    REQUIRE_FALSE(slic3r_api::is_invalid_index(root.append_child_move(child.mutable_view())));
+    property_key.get_or_add(root).value = 73;
+
+    RuntimePropertyVisitor visitor(property_key);
+    visitor.traverse(root.mutable_view());
+    CHECK(visitor.visited_value == 73);
 }
 
 TEST_CASE("PluginPropertyContainer stores small typed payloads safely",
@@ -303,9 +359,9 @@ TEST_CASE("Support auxiliary layers are recognized through the plugin data tree 
 
     const slic3r_api::Object object_view(object_api_handle);
     REQUIRE(object_view.auxiliary_layer_count() == 1);
-    CHECK(object_view.auxiliary_layer(0).properties().get<slic3r_api::LayerSupportProperty>() == nullptr);
-    CHECK(object_view.auxiliary_layer(0).properties().get<slic3r_api::LayerBrimProperty>() == nullptr);
-    CHECK(object_view.auxiliary_layer(0).properties().get<slic3r_api::LayerAdhesionProperty>() == nullptr);
+    CHECK(object_view.auxiliary_layer(0).properties().get(slic3r_api::LayerSupportProperty::key) == nullptr);
+    CHECK(object_view.auxiliary_layer(0).properties().get(slic3r_api::LayerBrimProperty::key) == nullptr);
+    CHECK(object_view.auxiliary_layer(0).properties().get(slic3r_api::LayerAdhesionProperty::key) == nullptr);
 
     LayerSupportProperty &support_property = plain_layer.get_or_add_property<LayerSupportProperty>();
     support_property.interface_id = 17;
@@ -320,7 +376,7 @@ TEST_CASE("Support auxiliary layers are recognized through the plugin data tree 
     CHECK(raw_support_property->interface_id == 17);
 
     const slic3r_api::LayerSupportProperty *view_support_property =
-        object_view.auxiliary_layer(0).properties().get<slic3r_api::LayerSupportProperty>();
+        object_view.auxiliary_layer(0).properties().get(slic3r_api::LayerSupportProperty::key);
     REQUIRE(view_support_property != nullptr);
     CHECK(view_support_property->interface_id == 17);
 
@@ -334,7 +390,7 @@ TEST_CASE("Support auxiliary layers are recognized through the plugin data tree 
     REQUIRE(raw_brim_property != nullptr);
 
     const slic3r_api::LayerBrimProperty *view_brim_property =
-        object_view.auxiliary_layer(0).properties().get<slic3r_api::LayerBrimProperty>();
+        object_view.auxiliary_layer(0).properties().get(slic3r_api::LayerBrimProperty::key);
     REQUIRE(view_brim_property != nullptr);
 
     /*
@@ -358,7 +414,7 @@ TEST_CASE("Support auxiliary layers are recognized through the plugin data tree 
     CHECK(raw_adhesion_property->flags == RAW_LAYER_ADHESION_FLAG_FIRST_LAYER_ONLY);
 
     const slic3r_api::LayerAdhesionProperty *view_adhesion_property =
-        object_view.auxiliary_layer(0).properties().get<slic3r_api::LayerAdhesionProperty>();
+        object_view.auxiliary_layer(0).properties().get(slic3r_api::LayerAdhesionProperty::key);
     REQUIRE(view_adhesion_property != nullptr);
     CHECK(view_adhesion_property->is_skirt());
     CHECK(view_adhesion_property->is_first_layer_only());
