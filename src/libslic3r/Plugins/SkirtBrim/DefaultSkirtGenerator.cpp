@@ -4,6 +4,7 @@
 ///|/
 
 #include "DefaultSkirtGenerator.hpp"
+#include "AdhesionLayerHelpers.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -15,7 +16,6 @@
 #include <vector>
 
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_skirt_brim.h"
-#include "libslic3r/Api/plugin/cpp/AuxiliaryLayerHelpers.hpp"
 #include "libslic3r/Api/plugin/cpp/ClipperViews.hpp"
 #include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
@@ -35,7 +35,7 @@ dependency has an API-side replacement:
 - Print/Object/Layer views provide slices, support layers, instances and config;
 - PrintHelpers reproduces the first-layer height, skirt flow and E/mm logic;
 - ClipperViews builds offset loops around the convex hull;
-- AuxiliaryLayerHelpers creates normal auxiliary layers that own the output.
+- AdhesionLayerHelpers publishes normal auxiliary layers that own the output.
 
 The plugin deliberately generates skirt after brim. When skirt_distance_from_brim
 is enabled, the already-published brim points become part of the skirt hull, so

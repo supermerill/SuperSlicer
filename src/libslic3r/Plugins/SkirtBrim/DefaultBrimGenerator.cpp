@@ -4,6 +4,7 @@
 ///|/
 
 #include "DefaultBrimGenerator.hpp"
+#include "AdhesionLayerHelpers.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -17,7 +18,6 @@
 #include "libslic3r/Api/plugin/c/slic3r_config_def.h"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_skirt_brim.h"
-#include "libslic3r/Api/plugin/cpp/AuxiliaryLayerHelpers.hpp"
 #include "libslic3r/Api/plugin/cpp/ConfigViews.hpp"
 #include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"

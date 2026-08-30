@@ -4,6 +4,7 @@
 ///|/
 
 #include "DefaultBrimSkirtTrim.hpp"
+#include "AdhesionLayerHelpers.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -14,7 +15,6 @@
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_skirt_brim.h"
 #include "libslic3r/Api/internal/PrintObjectAccess.hpp"
-#include "libslic3r/Api/plugin/cpp/AuxiliaryLayerHelpers.hpp"
 #include "libslic3r/Api/plugin/cpp/ClipperViews.hpp"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
 #include "libslic3r/Api/plugin/cpp/SkirtBrimStepViews.hpp"
