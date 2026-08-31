@@ -54,6 +54,7 @@
 #include "libslic3r/Plugins/Infill/LegacyInfillPatterns.hpp"
 #include "libslic3r/Plugins/Infill/PostInfillGapFill.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp"
+#include "libslic3r/Plugins/LayerExtrusionEdit/DefaultFan.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultSpeed.hpp"
 #include "libslic3r/Plugins/MaxOverhangThreshold.hpp"
 #include "libslic3r/Plugins/Ordering/DefaultOrdering.hpp"
@@ -518,6 +519,8 @@ void register_builtin_plugins(orchestrator_handle *orchestrator)
         slic3r_api::LayerExtrusionEdit::DefaultSpeedPlugin::register_default_speed_plugin);
     register_builtin_plugin(orchestrator, "layer_extrusion_edit.acceleration.default",
         slic3r_api::LayerExtrusionEdit::DefaultAccelerationPlugin::register_default_acceleration_plugin);
+    register_builtin_plugin(orchestrator, "layer_extrusion_edit.fan.default",
+        slic3r_api::LayerExtrusionEdit::DefaultFanPlugin::register_default_fan_plugin);
     register_builtin_plugin(orchestrator, "skirt_brim.brim.default",
         slic3r_api::SkirtBrim::DefaultBrimGeneratorPlugin::register_default_brim_generator_plugin);
     register_builtin_plugin(orchestrator, "skirt_brim.skirt.default",

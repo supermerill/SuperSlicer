@@ -57,6 +57,7 @@ ordering.custom_gcode_event_tools = 1
 ordering.extrusion_tree.default = 1
 layer_extrusion_edit.speed.default = 1
 layer_extrusion_edit.acceleration.default = 1
+layer_extrusion_edit.fan.default = 1
 skirt_brim.brim.default = 1
 skirt_brim.skirt.default = 1
 skirt_brim.brim_skirt_trim.default = 1

@@ -34,6 +34,13 @@ double effective_value(const Config &config, const char *key, double ratio)
 LeafDisposition leaf_disposition(const MutableExtrusionEntity &entity,
                                  const EffectiveTreeState &state)
 {
+    return leaf_disposition(entity, state, ProcessField::Speed);
+}
+
+LeafDisposition leaf_disposition(const MutableExtrusionEntity &entity,
+                                 const EffectiveTreeState &state,
+                                 ProcessField field)
+{
     // Empty leaves do not emit G-code, while printable leaves need inherited
     // attributes before their role and flow can be interpreted safely.
     if (entity.point_count() == 0)
@@ -45,8 +52,24 @@ LeafDisposition leaf_disposition(const MutableExtrusionEntity &entity,
     // default process-parameter plugins, so their fields remain untouched.
     const raw_extrusion_role role = state.attributes.extrusion_role();
     if (role == RAW_EXTRUSION_ROLE_NONE || RAW_EXTRUSION_ROLE_IS_TRAVEL(role) ||
-        RAW_EXTRUSION_ROLE_IS_SUPPORT(role) || RAW_EXTRUSION_ROLE_HAS(role, RAW_EXTRUSION_ROLE_WIPE_TOWER) ||
-        role == RAW_EXTRUSION_ROLE_MIXED)
+        RAW_EXTRUSION_ROLE_HAS(role, RAW_EXTRUSION_ROLE_WIPE_TOWER) ||
+        (role == RAW_EXTRUSION_ROLE_MIXED && role != RAW_EXTRUSION_ROLE_GAP_FILL))
+        return LeafDisposition::Excluded;
+
+    // Cooling owns printable object paths, support, and skirt/brim. Milling
+    // remains excluded because it is not controlled by filament fan settings.
+    if (field == ProcessField::FanSpeed) {
+        const bool fan_role = role == RAW_EXTRUSION_ROLE_GAP_FILL ||
+                              role == RAW_EXTRUSION_ROLE_THIN_WALL ||
+                              RAW_EXTRUSION_ROLE_IS_PERIMETER(role) ||
+                              RAW_EXTRUSION_ROLE_IS_INFILL(role) ||
+                              RAW_EXTRUSION_ROLE_IS_SKIRT(role) ||
+                              RAW_EXTRUSION_ROLE_IS_SUPPORT(role);
+        return fan_role && !RAW_EXTRUSION_ROLE_HAS(role, RAW_EXTRUSION_ROLE_MILL) ?
+            LeafDisposition::Editable : LeafDisposition::Excluded;
+    }
+
+    if (RAW_EXTRUSION_ROLE_IS_SUPPORT(role))
         return LeafDisposition::Excluded;
 
     // Unknown future roles also remain untouched and prevent a property on an
@@ -75,9 +98,14 @@ EffectiveTreeState effective_state(const MutableExtrusionEntity &entity,
             state.speed = process->speed_mm_per_s;
         if (process->accel_mm_per_s2 > 0.f)
             state.acceleration = process->accel_mm_per_s2;
+        if (process->fan_speed_percent >= 0.f)
+            state.fan_speed = process->fan_speed_percent;
     }
-    if (const EPropertyOverhang *overhang = entity.get(EPropertyOverhang::key))
+    if (const EPropertyOverhang *overhang = entity.get(EPropertyOverhang::key)) {
+        state.overhang = *overhang;
+        state.has_overhang = true;
         state.full_overhang_speed = overhang->has_full_overhangs_speed != 0;
+    }
     return state;
 }
 
@@ -156,19 +184,39 @@ ProcessFieldEditor::ProcessFieldEditor(ProcessField field) : m_field(field) {}
 
 float ProcessFieldEditor::state_value(const EffectiveTreeState &state) const
 {
-    return m_field == ProcessField::Speed ? state.speed : state.acceleration;
+    switch (m_field) {
+    case ProcessField::Speed: return state.speed;
+    case ProcessField::Acceleration: return state.acceleration;
+    case ProcessField::FanSpeed: return state.fan_speed;
+    }
+    return -1.f;
+}
+
+bool ProcessFieldEditor::value_is_set(float value) const
+{
+    return m_field == ProcessField::FanSpeed ? value >= 0.f : value > 0.f;
 }
 
 float ProcessFieldEditor::direct_value(const EPropertySpeed *process) const
 {
     if (process == nullptr)
         return -1.f;
-    return m_field == ProcessField::Speed ? process->speed_mm_per_s : process->accel_mm_per_s2;
+    switch (m_field) {
+    case ProcessField::Speed: return process->speed_mm_per_s;
+    case ProcessField::Acceleration: return process->accel_mm_per_s2;
+    case ProcessField::FanSpeed: return process->fan_speed_percent;
+    }
+    return -1.f;
 }
 
 float &ProcessFieldEditor::field(EPropertySpeed &process) const
 {
-    return m_field == ProcessField::Speed ? process.speed_mm_per_s : process.accel_mm_per_s2;
+    switch (m_field) {
+    case ProcessField::Speed: return process.speed_mm_per_s;
+    case ProcessField::Acceleration: return process.accel_mm_per_s2;
+    case ProcessField::FanSpeed: return process.fan_speed_percent;
+    }
+    return process.speed_mm_per_s;
 }
 
 EPropertySpeed &ProcessFieldEditor::ensure_property(MutableExtrusionEntity entity)
@@ -192,9 +240,10 @@ EPropertySpeed &ProcessFieldEditor::ensure_property(MutableExtrusionEntity entit
 
 void ProcessFieldEditor::set_value(MutableExtrusionEntity entity, float value)
 {
-    if (value <= 0.f)
+    if (!value_is_set(value))
         return;
     field(ensure_property(entity)) = value;
+    m_modified_entities.insert(entity.mutable_handle());
 }
 
 ProcessFieldEditor::FieldSummary ProcessFieldEditor::merge_fields(
@@ -225,10 +274,17 @@ void ProcessFieldEditor::clear_redundant_field(MutableExtrusionEntity entity,
     EPropertySpeed *process = entity.get_mutable(EPropertySpeed::key);
     if (process == nullptr)
         return;
+    // A coincidentally equal upstream fan override must remain physically
+    // present. Otherwise a later rerun could remove the generated parent and
+    // silently lose the producer's original intent.
+    if (m_field == ProcessField::FanSpeed &&
+        m_modified_entities.count(entity.mutable_handle()) == 0)
+        return;
     float &direct_field = field(*process);
-    if (direct_field <= 0.f || direct_field != inherited_value)
+    if (!value_is_set(direct_field) || direct_field != inherited_value)
         return;
     direct_field = -1.f;
+    m_modified_entities.erase(entity.mutable_handle());
 
     // Delete an empty payload only when this editor created it. Pre-existing
     // payloads remain owned by the plugin or producer that supplied them.
@@ -246,13 +302,13 @@ ProcessFieldEditor::FieldSummary ProcessFieldEditor::hoist_tree(
     // block hoisting so a parent value cannot change their behavior.
     EffectiveTreeState state = effective_state(entity, parent_state);
     if (entity.child_count() == 0) {
-        const LeafDisposition disposition = leaf_disposition(entity, state);
+        const LeafDisposition disposition = leaf_disposition(entity, state, m_field);
         if (disposition == LeafDisposition::Empty)
             return {};
         if (disposition == LeafDisposition::Excluded)
             return FieldSummary{false, true, -1.f};
         const float value = state_value(state);
-        return FieldSummary{value > 0.f, value <= 0.f, value};
+        return FieldSummary{value_is_set(value), !value_is_set(value), value};
     }
 
     // Process children first so the parent receives a proof about all of its
@@ -267,16 +323,19 @@ ProcessFieldEditor::FieldSummary ProcessFieldEditor::hoist_tree(
     // descendant value here and clear matching direct values from children.
     EPropertySpeed *direct_process = entity.get_mutable(EPropertySpeed::key);
     const float direct = direct_value(direct_process);
-    if (summary.has_value && !summary.blocked && (direct <= 0.f || direct == summary.value)) {
-        if (direct <= 0.f && state_value(state) != summary.value) {
+    if (summary.has_value && !summary.blocked && (!value_is_set(direct) || direct == summary.value)) {
+        if (!value_is_set(direct) && state_value(state) != summary.value) {
             field(ensure_property(entity)) = summary.value;
+            m_modified_entities.insert(entity.mutable_handle());
             if (m_field == ProcessField::Speed)
                 state.speed = summary.value;
-            else
+            else if (m_field == ProcessField::Acceleration)
                 state.acceleration = summary.value;
+            else
+                state.fan_speed = summary.value;
         }
-        const float inherited = direct > 0.f ? direct :
-            (state_value(state) > 0.f ? state_value(state) : summary.value);
+        const float inherited = value_is_set(direct) ? direct :
+            (value_is_set(state_value(state)) ? state_value(state) : summary.value);
         if (inherited == summary.value)
             for (uint32_t child_idx = 0; child_idx < entity.child_count(); ++child_idx)
                 if (child_summaries[child_idx].has_value && !child_summaries[child_idx].blocked)

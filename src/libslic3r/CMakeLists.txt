@@ -183,6 +183,8 @@ set(SLIC3R_SOURCES
 	Api/plugin/cpp/PluginBase.hpp
 	Api/plugin/cpp/PluginContext.hpp
 	Api/plugin/cpp/PrintingPlanViews.hpp
+	Api/plugin/cpp/PrintingPlanTimeEstimator.cpp
+	Api/plugin/cpp/PrintingPlanTimeEstimator.hpp
 	Api/plugin/cpp/PrintHelpers.cpp
 	Api/plugin/cpp/PrintHelpers.hpp
 	Api/plugin/cpp/RegionSettingsViews.hpp
@@ -229,6 +231,8 @@ set(SLIC3R_SOURCES
 	Plugins/Infill/PostInfillGapFill.hpp
 	Plugins/LayerExtrusionEdit/DefaultAcceleration.cpp
 	Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp
+	Plugins/LayerExtrusionEdit/DefaultFan.cpp
+	Plugins/LayerExtrusionEdit/DefaultFan.hpp
 	Plugins/LayerExtrusionEdit/DefaultSpeed.cpp
 	Plugins/LayerExtrusionEdit/DefaultSpeed.hpp
 	Plugins/LayerExtrusionEdit/ExtrusionProcessParameterHelpers.cpp

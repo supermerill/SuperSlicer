@@ -39,7 +39,8 @@ enum class LeafDisposition
 enum class ProcessField
 {
     Speed,
-    Acceleration
+    Acceleration,
+    FanSpeed
 };
 
 struct EffectiveTreeState
@@ -48,6 +49,9 @@ struct EffectiveTreeState
     bool has_attributes = false;
     float speed = -1.f;
     float acceleration = -1.f;
+    float fan_speed = -1.f;
+    EPropertyOverhang overhang = {};
+    bool has_overhang = false;
     bool full_overhang_speed = false;
 };
 
@@ -68,6 +72,12 @@ double effective_value(const Config &config, const char *key, double ratio);
 // and block property hoisting through their parent subtree.
 LeafDisposition leaf_disposition(const MutableExtrusionEntity &entity,
                                  const EffectiveTreeState &state);
+
+// Classify leaves for one process field. Fan editing includes support and
+// skirt/brim, while speed and acceleration retain their narrower role set.
+LeafDisposition leaf_disposition(const MutableExtrusionEntity &entity,
+                                 const EffectiveTreeState &state,
+                                 ProcessField field);
 
 // Overlay a node's direct attributes and process fields on inherited state.
 EffectiveTreeState effective_state(const MutableExtrusionEntity &entity,
@@ -102,12 +112,19 @@ public:
     ProcessFieldEditor(const ProcessFieldEditor &) = delete;
     ProcessFieldEditor &operator=(const ProcessFieldEditor &) = delete;
 
-    // Set a positive direct value while preserving every other process field.
+    // Set a direct value while preserving every other process field. Speed
+    // and acceleration require a positive value; fan speed also accepts zero.
     void set_value(MutableExtrusionEntity entity, float value);
 
     // Move a uniform effective value towards the root without crossing an
     // excluded, unresolved, or conflicting subtree.
     void hoist(MutableExtrusionEntity root);
+
+    // Handles in this set still carry a direct field created by this editor
+    // after hoisting. They remain borrowed from the edited extrusion tree.
+    const std::set<extrusion_entity_handle *> &modified_entities() const {
+        return m_modified_entities;
+    }
 
 private:
     struct FieldSummary
@@ -118,6 +135,7 @@ private:
     };
 
     float state_value(const EffectiveTreeState &state) const;
+    bool value_is_set(float value) const;
     float direct_value(const EPropertySpeed *process) const;
     float &field(EPropertySpeed &process) const;
     EPropertySpeed &ensure_property(MutableExtrusionEntity entity);
@@ -128,6 +146,7 @@ private:
 
     ProcessField m_field;
     std::set<extrusion_entity_handle *> m_created_properties;
+    std::set<extrusion_entity_handle *> m_modified_entities;
 };
 
 }}} // namespace slic3r_api::LayerExtrusionEdit::ProcessParameterHelpers

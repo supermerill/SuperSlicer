@@ -21,6 +21,8 @@
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_layer_extrusion_edit.h"
 #include "libslic3r/Api/plugin/cpp/AuxiliaryLayerHelpers.hpp"
 #include "libslic3r/Api/plugin/cpp/ConfigViews.hpp"
+#include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
+#include "libslic3r/Api/plugin/cpp/PrintingPlanTimeEstimator.hpp"
 #include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/ExPolygon.hpp"
@@ -31,6 +33,7 @@
 #include "libslic3r/Print.hpp"
 #include "libslic3r/PrintObject.hpp"
 #include "libslic3r/Printing/PrintingPlan.hpp"
+#include "libslic3r/Plugins/PrintingPlan/PrintingLayerTimeProperty.h"
 #include "libslic3r/Steps/StepExtrusionOrdering.hpp"
 #include "libslic3r/Steps/StepLayerHeightGeneration.hpp"
 #include "libslic3r/Steps/StepLayerExtrusionEdition.hpp"
@@ -55,9 +58,13 @@ placement is itself the behavior under test.
 namespace {
 using namespace Slic3r;
 using namespace Slic3r::Printing;
+using slic3r_api::PluginPropertyKey;
+using slic3r_api::PrintingLayerTimeProperty;
+using slic3r_api::printing_layer_time_property_key;
 
 constexpr const char *DEFAULT_SPEED_PLUGIN = "layer_extrusion_edit.speed.default";
 constexpr const char *DEFAULT_ACCELERATION_PLUGIN = "layer_extrusion_edit.acceleration.default";
+constexpr const char *DEFAULT_FAN_PLUGIN = "layer_extrusion_edit.fan.default";
 
 struct ExtrusionSpec
 {
@@ -76,7 +83,9 @@ struct ObservedLeaf
     ExtrusionRole role = ExtrusionRole::None;
     float speed = -1.f;
     float acceleration = -1.f;
+    float fan_speed = -1.f;
     const ExtrusionPropertySpeed *direct_process = nullptr;
+    size_t direct_property_count = 0;
 };
 
 struct PreparedSpeedPrint
@@ -92,6 +101,7 @@ struct ProcessState
 {
     float speed = -1.f;
     float acceleration = -1.f;
+    float fan_speed = -1.f;
 };
 
 // Preserve and restore the process-wide active plugin set around runner tests.
@@ -383,6 +393,8 @@ void collect_observed_leaves(const ExtrusionEntity &entity,
             state.speed = process->speed_mm_per_s;
         if (process->accel_mm_per_s2 > 0.f)
             state.acceleration = process->accel_mm_per_s2;
+        if (process->fan_speed_percent >= 0.f)
+            state.fan_speed = process->fan_speed_percent;
     }
 
     if (entity.child_count() > 0) {
@@ -393,7 +405,11 @@ void collect_observed_leaves(const ExtrusionEntity &entity,
 
     const ExtrusionAttributes *attributes = entity.get_property<ExtrusionAttributes>();
     if (attributes != nullptr && entity.has_polyline())
-        out.push_back(ObservedLeaf{attributes->extrusion_role(), state.speed, state.acceleration, process});
+        out.push_back(ObservedLeaf{
+            attributes->extrusion_role(), state.speed, state.acceleration, state.fan_speed,
+            process,
+            slic3r_api::ExtrusionEntity(
+                reinterpret_cast<const extrusion_entity_handle *>(&entity)).property_count()});
 }
 
 // Collect every plan leaf. This helper intentionally preserves duplicate roles
@@ -559,6 +575,18 @@ void reset_recording_editor(RecordingEditorState &state)
     state.run_count = 0;
     state.saw_previous_marker = 0;
     state.payload_valid = true;
+}
+
+/*
+Obtain the timing contract id from the same orchestrator used by the plugins.
+The id is deliberately looked up by name instead of cached process-wide so the
+test follows the contract required by independent orchestrator instances.
+*/
+PluginPropertyKey<PrintingLayerTimeProperty> registered_layer_time_property_key()
+{
+    orchestrator_handle *orchestrator =
+        reinterpret_cast<orchestrator_handle *>(&Orchestrator::instance());
+    return printing_layer_time_property_key(orchestrator);
 }
 
 } // namespace
@@ -1426,4 +1454,206 @@ TEST_CASE("Layer extrusion edit runner orders plugins and runs once per layer gr
     CHECK(g_first_editor.run_count.load() == 2);
     CHECK(g_second_editor.run_count.load() == 2);
     CHECK(g_second_editor.saw_previous_marker.load() == 2);
+}
+
+TEST_CASE("Layer fan plugin exposes its independent contract",
+          "[plugins][layer-extrusion-edit][fan][api]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Plugin *fan_plugin = Orchestrator::instance().get_plugin(DEFAULT_FAN_PLUGIN);
+    REQUIRE(fan_plugin != nullptr);
+    CHECK(fan_plugin->get_step() == STEP_LAYER_EXTRUSION_EDIT);
+    CHECK(fan_plugin->get_priority() == 20);
+    CHECK(fan_plugin->get_exclusive_group() == "layer_extrusion_edit.fan");
+    CHECK(fan_plugin->get_defined_config_keys().empty());
+
+    std::vector<std::string> keys;
+    for (const Plugin::UsedConfigKey &key : fan_plugin->get_used_config_keys())
+        keys.push_back(key.key);
+    CHECK(std::find(keys.begin(), keys.end(), "default_fan_speed") != keys.end());
+    CHECK(std::find(keys.begin(), keys.end(), "overhangs_dynamic_fan_speed") != keys.end());
+    CHECK(std::find(keys.begin(), keys.end(), "travel_speed") != keys.end());
+    CHECK(std::find(keys.begin(), keys.end(), "perimeter_speed") == keys.end());
+
+    orchestrator_handle *orchestrator =
+        reinterpret_cast<orchestrator_handle *>(&Orchestrator::instance());
+    const PluginPropertyKey<PrintingLayerTimeProperty> first_key =
+        printing_layer_time_property_key(orchestrator);
+    const PluginPropertyKey<PrintingLayerTimeProperty> second_key =
+        printing_layer_time_property_key(orchestrator);
+    CHECK(first_key.type() >= SLIC3R_PROPERTY_TYPE_CUSTOM_BEGIN);
+    CHECK(second_key.type() == first_key.type());
+    CHECK(first_key.orchestrator() == orchestrator);
+
+    // A plugin compiled against another private payload revision must fail at
+    // registration instead of reusing the id and corrupting timing metadata.
+    CHECK(orchestrator_register_property(
+              orchestrator,
+              PRINTING_LAYER_TIME_PROPERTY_NAME,
+              uint32_t(sizeof(c_printing_layer_time_property) + 1),
+              uint32_t(alignof(c_printing_layer_time_property))) == SLIC3R_PROPERTY_TYPE_INVALID);
+}
+
+TEST_CASE("Layer fan plugin assigns roles and preserves upstream overrides",
+          "[plugins][layer-extrusion-edit][fan]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    PreparedSpeedPrint prepared;
+    const DynamicPrintConfig config = speed_config({
+        {"perimeter_speed", "40"},
+        {"external_perimeter_speed", "40"},
+        {"first_layer_speed", "100%"},
+        {"max_volumetric_speed", "0"},
+        {"filament_max_speed", "0"},
+        {"filament_max_volumetric_speed", "0"},
+        {"default_fan_speed", "20"},
+        {"perimeter_fan_speed", "35"},
+        {"external_perimeter_fan_speed", "70"},
+        {"disable_fan_first_layers", "0"},
+        {"full_fan_speed_layer", "0"},
+        {"fan_below_layer_time", "0"},
+        {"slowdown_below_layer_time", "0"},
+        {"fan_printer_min_speed", "0"}
+    });
+    ExtrusionSpec overridden{ExtrusionRole::Perimeter, 0.2};
+    overridden.fan_speed = 63.f;
+    ExtrusionSpec equal_override{ExtrusionRole::Perimeter, 0.2};
+    equal_override.fan_speed = 35.f;
+    prepare_ordered_plan(prepared, config, {{
+        {ExtrusionRole::Perimeter, 0.2},
+        {ExtrusionRole::ExternalPerimeter, 0.2},
+        overridden,
+        equal_override
+    }});
+
+    run_editors(prepared, {DEFAULT_SPEED_PLUGIN, DEFAULT_FAN_PLUGIN});
+    std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+    REQUIRE(leaves.size() == 4);
+    std::vector<float> fan_speeds;
+    for (const ObservedLeaf &leaf : leaves)
+        fan_speeds.push_back(leaf.fan_speed);
+    std::sort(fan_speeds.begin(), fan_speeds.end());
+    const std::vector<float> expected_fan_speeds{35.f, 35.f, 63.f, 70.f};
+    CHECK(fan_speeds == expected_fan_speeds);
+    CHECK(std::count_if(leaves.begin(), leaves.end(), [](const ObservedLeaf &leaf) {
+        return leaf.direct_process != nullptr && leaf.direct_process->fan_speed_percent == 35.f &&
+               leaf.direct_property_count == 2;
+    }) == 1);
+
+    // A second execution removes only values marked by the first fan pass,
+    // recomputes them, and leaves the upstream 63% override authoritative.
+    run_editors(prepared, {DEFAULT_FAN_PLUGIN});
+    leaves = observed_plan_leaves(prepared.print);
+    REQUIRE(leaves.size() == 4);
+    fan_speeds.clear();
+    for (const ObservedLeaf &leaf : leaves)
+        fan_speeds.push_back(leaf.fan_speed);
+    std::sort(fan_speeds.begin(), fan_speeds.end());
+    CHECK(fan_speeds == expected_fan_speeds);
+    CHECK(std::count_if(leaves.begin(), leaves.end(), [](const ObservedLeaf &leaf) {
+        return leaf.direct_process != nullptr && leaf.direct_process->fan_speed_percent == 35.f &&
+               leaf.direct_property_count == 2;
+    }) == 1);
+
+    REQUIRE(prepared.print.printing_plan() != nullptr);
+    PrintingLayerGroup &native_layer = prepared.print.mutable_printing_plan().groups.front().layers.front();
+    const slic3r_api::PrintingLayerGroup layer_view(
+        reinterpret_cast<printing_layer_group_handle *>(&native_layer));
+    const PluginPropertyKey<PrintingLayerTimeProperty> layer_time_key =
+        registered_layer_time_property_key();
+    const PrintingLayerTimeProperty *time = layer_time_key.get(layer_view.properties());
+    REQUIRE(time != nullptr);
+    CHECK(time->duration_seconds > 0.0);
+    CHECK_FALSE(time->is_final());
+}
+
+TEST_CASE("PrintingPlan time estimator counts geometry and connecting travel",
+          "[plugins][layer-extrusion-edit][fan][time-estimator]")
+{
+    DynamicPrintConfig config = speed_config({{"travel_speed", "10"}});
+    PrintingPlan plan;
+    plan.groups.emplace_back();
+    plan.groups.back().layers.emplace_back();
+    PrintingLayerGroup &layer = plan.groups.back().layers.back();
+    layer.print_z = scale_i(0.2);
+    layer.tool_groups.emplace_back();
+    PrintingToolGroup &tool = layer.tool_groups.back();
+    tool.extruder_id = 0;
+
+    std::unique_ptr<ExtrusionEntityCollection> root =
+        std::make_unique<ExtrusionEntityCollection>(false, false);
+    ExtrusionSpec first{ExtrusionRole::Perimeter, 0.2};
+    first.existing_speed = 20.f;
+    ExtrusionSpec second = first;
+    root->append(make_path(first, 0));
+    root->append(make_path(second, 1));
+
+    PrintingExtrusion extrusion;
+    extrusion.root = std::move(root);
+    tool.extrusions.push_back(std::move(extrusion));
+
+    const slic3r_api::Config config_view(Slic3r::ApiHost::to_config_handle(&config));
+    const slic3r_api::PrintingPlan plan_view(
+        reinterpret_cast<printing_plan_handle *>(&plan));
+    const std::vector<slic3r_api::PrintingLayerTimeEstimate> estimates =
+        slic3r_api::PrintingPlanTimeEstimator(config_view).estimate(plan_view);
+
+    REQUIRE(estimates.size() == 1);
+    // Two 18 mm paths at 20 mm/s plus the 18.027... mm connection at
+    // 10 mm/s. The first machine position is intentionally free.
+    CHECK(estimates.front().duration_seconds == Approx(3.6027756).margin(1e-5));
+}
+
+TEST_CASE("Layer fan plugin consumes final timing without estimating geometry",
+          "[plugins][layer-extrusion-edit][fan][time-estimator]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    PreparedSpeedPrint prepared;
+    const DynamicPrintConfig config = speed_config({
+        {"default_fan_speed", "42"},
+        {"perimeter_fan_speed", "42"},
+        {"support_material_fan_speed", "55"},
+        {"disable_fan_first_layers", "0"},
+        {"full_fan_speed_layer", "0"},
+        {"fan_below_layer_time", "0"},
+        {"slowdown_below_layer_time", "0"}
+    });
+    // No speed is provided: estimating this geometric leaf would fail. A
+    // Final duration must therefore let the fan plugin skip estimation.
+    prepare_ordered_plan(prepared, config, {{
+        {ExtrusionRole::Perimeter, 0.2},
+        {ExtrusionRole::SupportMaterial, 0.2},
+        {ExtrusionRole::WipeTower, 0.2}
+    }});
+
+    const PluginPropertyKey<PrintingLayerTimeProperty> layer_time_key =
+        registered_layer_time_property_key();
+    REQUIRE(prepared.print.printing_plan() != nullptr);
+    for (PrintingGroup &group : prepared.print.mutable_printing_plan().groups) {
+        for (PrintingLayerGroup &layer : group.layers) {
+            slic3r_api::PrintingLayerGroup layer_view(
+                reinterpret_cast<printing_layer_group_handle *>(&layer));
+            PrintingLayerTimeProperty &time = layer_time_key.get_or_add(layer_view.properties());
+            time.duration_seconds = 123.0;
+            time.origin = RAW_PRINTING_LAYER_TIME_ORIGIN_FINAL;
+        }
+    }
+
+    run_editors(prepared, {DEFAULT_FAN_PLUGIN});
+    const std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+    REQUIRE(leaves.size() == 3);
+    const std::map<uint16_t, ObservedLeaf> by_role = observed_by_role(leaves);
+    CHECK(by_role.at(uint16_t(ExtrusionRole::Perimeter)).fan_speed == 42.f);
+    CHECK(by_role.at(uint16_t(ExtrusionRole::SupportMaterial)).fan_speed == 55.f);
+    CHECK(by_role.at(uint16_t(ExtrusionRole::WipeTower)).fan_speed == -1.f);
+
+    PrintingLayerGroup &layer = prepared.print.mutable_printing_plan().groups.front().layers.front();
+    const slic3r_api::PrintingLayerGroup layer_view(
+        reinterpret_cast<printing_layer_group_handle *>(&layer));
+    const PrintingLayerTimeProperty *time = layer_time_key.get(layer_view.properties());
+    REQUIRE(time != nullptr);
+    CHECK(time->duration_seconds == Approx(123.0));
+    CHECK(time->is_final());
 }

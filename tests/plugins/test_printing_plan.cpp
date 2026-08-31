@@ -836,8 +836,12 @@ TEST_CASE("PrintingPlan C API transfers extrusions between tool groups",
     printing_plan_handle *plan_handle = reinterpret_cast<printing_plan_handle *>(&plan);
     printing_group_handle *group_handle = printing_plan_append_group(plan_handle);
     printing_layer_group_handle *layer_handle = printing_group_append_layer_group(group_handle, 0);
-    printing_tool_group_handle *source = printing_layer_group_append_tool_group(layer_handle, 0);
-    printing_tool_group_handle *destination = printing_layer_group_append_tool_group(layer_handle, 1);
+    REQUIRE(printing_layer_group_append_tool_group(layer_handle, 0) != nullptr);
+    REQUIRE(printing_layer_group_append_tool_group(layer_handle, 1) != nullptr);
+    // Appending to the vector may move its elements, so acquire stable handles
+    // only after the layer contains both tool groups used by the transfer.
+    printing_tool_group_handle *source = printing_layer_group_get_tool_group_mutable(layer_handle, 0);
+    printing_tool_group_handle *destination = printing_layer_group_get_tool_group_mutable(layer_handle, 1);
     const layer_region_island_handle *region_island =
         reinterpret_cast<const layer_region_island_handle *>(uintptr_t(0x3456));
 
