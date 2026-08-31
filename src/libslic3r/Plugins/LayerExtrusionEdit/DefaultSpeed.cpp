@@ -177,7 +177,7 @@ void assign_speed_tree(MutableExtrusionEntity entity,
                        const RegionalSourceKey &source,
                        double autospeed_target,
                        const SpeedPartitions &speed_partitions,
-                       ProcessFieldEditor &editor);
+                       EPropertySpeedFieldEditor &editor);
 
 // Return a target for one group/extruder, or zero when autospeed is unavailable.
 double autospeed_target(const AutospeedTargets &targets,
@@ -647,7 +647,7 @@ void assign_speed_tree(MutableExtrusionEntity entity,
                        const RegionalSourceKey &source,
                        double autospeed_target_value,
                        const SpeedPartitions &speed_partitions,
-                       ProcessFieldEditor &editor)
+                       EPropertySpeedFieldEditor &editor)
 {
     // Collections only propagate inherited state. Values are assigned to
     // leaves first so hoisting can later prove uniformity.
@@ -721,7 +721,7 @@ void edit_extrusion(const Print &print,
         extrusion.region_island().handle(), extrusion.object_instance_idx()
     };
     MutableExtrusionEntity root = extrusion.mutable_root();
-    ProcessFieldEditor editor(ProcessField::Speed);
+    EPropertySpeedFieldEditor editor(EPropertySpeedField::Speed);
     assign_speed_tree(root, EffectiveTreeState{}, context, group_idx, source, target,
                       speed_partitions, editor);
     editor.hoist(root);

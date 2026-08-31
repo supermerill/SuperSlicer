@@ -121,7 +121,7 @@ void assign_fan_tree(MutableExtrusionEntity entity,
                      const Config &config,
                      uint16_t extruder_id,
                      const LayerFanPolicy &policy,
-                     ProcessFieldEditor &editor);
+                     EPropertySpeedFieldEditor &editor);
 void edit_extrusion(const PrintingExtrusion &extrusion,
                     const Config &config,
                     uint16_t extruder_id,
@@ -404,7 +404,7 @@ void assign_fan_tree(MutableExtrusionEntity entity,
                      const Config &config,
                      uint16_t extruder_id,
                      const LayerFanPolicy &policy,
-                     ProcessFieldEditor &editor)
+                     EPropertySpeedFieldEditor &editor)
 {
     const EffectiveTreeState state = effective_state(entity, parent_state);
     if (entity.child_count() > 0) {
@@ -413,7 +413,7 @@ void assign_fan_tree(MutableExtrusionEntity entity,
         return;
     }
 
-    if (leaf_disposition(entity, state, ProcessField::FanSpeed) != LeafDisposition::Editable ||
+    if (leaf_disposition(entity, state, EPropertySpeedField::FanSpeed) != LeafDisposition::Editable ||
         state.fan_speed >= 0.f)
         return;
 
@@ -438,7 +438,7 @@ void edit_extrusion(const PrintingExtrusion &extrusion,
 
     // Recompute from the upstream tree after removing only our previous pass,
     // then compact equal leaf values without changing geometry or ordering.
-    ProcessFieldEditor editor(ProcessField::FanSpeed);
+    EPropertySpeedFieldEditor editor(EPropertySpeedField::FanSpeed);
     assign_fan_tree(root, EffectiveTreeState{}, config, extruder_id, policy, editor);
     editor.hoist(root);
     mark_generated_fields(root, marker, editor.modified_entities());

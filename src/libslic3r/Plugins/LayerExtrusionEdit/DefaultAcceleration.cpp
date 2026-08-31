@@ -123,7 +123,7 @@ void assign_acceleration_tree(MutableExtrusionEntity entity,
                               const LayerRegionIsland &region_island,
                               uint16_t object_instance_idx,
                               const AccelerationPartitions &partitions,
-                              ProcessFieldEditor &editor);
+                              EPropertySpeedFieldEditor &editor);
 
 // Resolve and compact acceleration on one cloned extrusion root.
 void edit_extrusion(const Print &print,
@@ -330,7 +330,7 @@ void assign_acceleration_tree(MutableExtrusionEntity entity,
                               const LayerRegionIsland &region_island,
                               uint16_t object_instance_idx,
                               const AccelerationPartitions &partitions,
-                              ProcessFieldEditor &editor)
+                              EPropertySpeedFieldEditor &editor)
 {
     // Collections propagate inherited state; only editable leaves receive a
     // missing acceleration value.
@@ -379,7 +379,7 @@ void edit_extrusion(const Print &print,
     const ExtrusionSettingsContext context = settings_context(print, tool_group, extrusion);
     const LayerRegionIsland region_island = extrusion.region_island();
     MutableExtrusionEntity root = extrusion.mutable_root();
-    ProcessFieldEditor editor(ProcessField::Acceleration);
+    EPropertySpeedFieldEditor editor(EPropertySpeedField::Acceleration);
     assign_acceleration_tree(root, EffectiveTreeState{}, context, region_island,
                              extrusion.object_instance_idx(), partitions, editor);
     editor.hoist(root);

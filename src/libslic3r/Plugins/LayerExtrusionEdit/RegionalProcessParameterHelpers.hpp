@@ -35,7 +35,7 @@ partitions.
 
 namespace slic3r_api { namespace LayerExtrusionEdit { namespace RegionalProcessParameterHelpers {
 
-using ProcessParameterHelpers::ProcessFieldEditor;
+using ProcessParameterHelpers::EPropertySpeedFieldEditor;
 
 struct RegionalSourceKey
 {
@@ -106,7 +106,7 @@ bool regional_partition_leaf_matches(
 bool apply_regional_process_partition(
     MutableExtrusionEntity leaf,
     const RegionalProcessPartition &partition,
-    ProcessFieldEditor &editor);
+    EPropertySpeedFieldEditor &editor);
 
 }}} // namespace slic3r_api::LayerExtrusionEdit::RegionalProcessParameterHelpers
 

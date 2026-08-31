@@ -246,13 +246,13 @@ bool regional_partition_leaf_matches(
 bool apply_regional_process_partition(
     MutableExtrusionEntity leaf,
     const RegionalProcessPartition &partition,
-    ProcessFieldEditor &editor)
+    EPropertySpeedFieldEditor &editor)
 {
     if (!partition.requires_split())
         return false;
 
     // The splitter preserves traversal order and source geometry. Assigning
-    // through ProcessFieldEditor changes only its selected process field.
+    // through EPropertySpeedFieldEditor changes only its selected process field.
     std::vector<ExPolygonCollection> area_views;
     area_views.reserve(partition.areas.size());
     for (const StoredExPolygonCollection &area : partition.areas)

@@ -140,7 +140,7 @@ void apply_travel_range_acceleration(const std::vector<OrderedLeaf> &leaves,
                                      size_t begin,
                                      size_t end,
                                      float target_acceleration,
-                                     ProcessFieldEditor &editor);
+                                     EPropertySpeedFieldEditor &editor);
 
 /* Split one leaf at a local distance and return its final phase. */
 MutableExtrusionEntity split_travel_for_deceleration(MutableExtrusionEntity travel,
@@ -485,7 +485,7 @@ void apply_travel_range_acceleration(const std::vector<OrderedLeaf> &leaves,
                                      const size_t begin,
                                      const size_t end,
                                      const float target_acceleration,
-                                     ProcessFieldEditor &editor)
+                                     EPropertySpeedFieldEditor &editor)
 {
     assert(begin <= end && end <= leaves.size());
     for (size_t leaf_idx = begin; leaf_idx < end; ++leaf_idx)
@@ -517,7 +517,7 @@ void apply_split_travel_acceleration(const std::vector<OrderedLeaf> &leaves,
                                      const distf_t split_distance,
                                      const float target_acceleration)
 {
-    ProcessFieldEditor editor(ProcessField::Acceleration);
+    EPropertySpeedFieldEditor editor(EPropertySpeedField::Acceleration);
     distf_t distance_before_leaf = 0.0;
 
     // Locate the virtual boundary without concatenating or copying any
@@ -575,7 +575,7 @@ void process_tool_group(const Print &print,
                     target_deceleration_is_enabled(leaves, run, target),
                     print.config());
                 if (decision.action == DecelerationAction::WholeTravel) {
-                    ProcessFieldEditor editor(ProcessField::Acceleration);
+                    EPropertySpeedFieldEditor editor(EPropertySpeedField::Acceleration);
                     apply_travel_range_acceleration(
                         leaves, run.begin, run.end, target.state.acceleration, editor);
                 } else if (decision.action == DecelerationAction::SplitTravel) {
