@@ -32,6 +32,7 @@ add_executable(${_TEST_NAME}_tests
     test_gcode_printing_plan_file_writer.cpp
     test_gcode_script_processor.cpp
     test_gcode_settings_scripts.cpp
+    test_layer_extrusion_edit_entry_state.cpp
     test_layer_extrusion_edit_speed.cpp
     test_flat_area_layer_height.cpp
     test_perimeter_empty_steps.cpp

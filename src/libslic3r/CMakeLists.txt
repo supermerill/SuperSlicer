@@ -233,6 +233,8 @@ set(SLIC3R_SOURCES
 	Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp
 	Plugins/LayerExtrusionEdit/DefaultFan.cpp
 	Plugins/LayerExtrusionEdit/DefaultFan.hpp
+	Plugins/LayerExtrusionEdit/DefaultLayerEntryState.cpp
+	Plugins/LayerExtrusionEdit/DefaultLayerEntryState.hpp
 	Plugins/LayerExtrusionEdit/DefaultSpeed.cpp
 	Plugins/LayerExtrusionEdit/DefaultSpeed.hpp
 	Plugins/LayerExtrusionEdit/ExtrusionProcessParameterHelpers.cpp
@@ -246,6 +248,7 @@ set(SLIC3R_SOURCES
 	Plugins/Ordering/DefaultOrdering.hpp
 	Plugins/Ordering/DefaultPlanBuilder.cpp
 	Plugins/Ordering/DefaultToolGroupOrdering.cpp
+	Plugins/PrintingPlan/PrintingLayerEntryStateProperties.h
 	Plugins/PrintingPlan/PrintingLayerTimeProperty.h
 	Plugins/SkirtBrim/AdhesionLayerHelpers.cpp
 	Plugins/SkirtBrim/AdhesionLayerHelpers.hpp

@@ -55,6 +55,7 @@
 #include "libslic3r/Plugins/Infill/PostInfillGapFill.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultFan.hpp"
+#include "libslic3r/Plugins/LayerExtrusionEdit/DefaultLayerEntryState.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultSpeed.hpp"
 #include "libslic3r/Plugins/MaxOverhangThreshold.hpp"
 #include "libslic3r/Plugins/Ordering/DefaultOrdering.hpp"
@@ -515,6 +516,8 @@ void register_builtin_plugins(orchestrator_handle *orchestrator)
         slic3r_api::Infill::PostInfillGapFillPlugin::register_post_infill_gap_fill_plugin);
     register_builtin_plugin(orchestrator, "ordering.default",
         slic3r_api::Ordering::DefaultOrderingPlugin::register_default_ordering_plugins);
+    register_builtin_plugin(orchestrator, "layer_extrusion_edit.entry_state.default",
+        slic3r_api::LayerExtrusionEdit::DefaultLayerEntryStatePlugin::register_default_layer_entry_state_plugin);
     register_builtin_plugin(orchestrator, "layer_extrusion_edit.speed.default",
         slic3r_api::LayerExtrusionEdit::DefaultSpeedPlugin::register_default_speed_plugin);
     register_builtin_plugin(orchestrator, "layer_extrusion_edit.acceleration.default",
