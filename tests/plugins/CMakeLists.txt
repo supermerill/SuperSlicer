@@ -34,6 +34,7 @@ add_executable(${_TEST_NAME}_tests
     test_gcode_settings_scripts.cpp
     test_layer_extrusion_edit_entry_state.cpp
     test_layer_extrusion_edit_travel.cpp
+    test_layer_extrusion_edit_travel_deceleration.cpp
     test_layer_extrusion_edit_speed.cpp
     test_flat_area_layer_height.cpp
     test_perimeter_empty_steps.cpp
