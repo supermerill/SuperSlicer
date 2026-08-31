@@ -17,6 +17,9 @@ namespace slic3r_api {
 Extrusion tree visitors
 =======================
 
+Developer guide:
+[Using Unified Extrusion Entities](../../../../../doc/plugins/extrusions.md)
+
 Plugin code often receives one extrusion root from a LayerRegionIsland and then
 needs to inspect or edit every printable leaf. The tree is small enough to look
 simple, but writing the traversal by hand in every plugin is error-prone:

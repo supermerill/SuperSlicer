@@ -18,6 +18,7 @@ plugin API.
 Developer guides:
 
 - [Using Plugin Properties](../../../doc/plugins/properties.md)
+- [Using Unified Extrusion Entities](../../../doc/plugins/extrusions.md)
 
 note: items with tag Planned are currently ideas that are not implemented and so may not work and may need extensive modifications.
 Other items are already implemented, but may need some modifications in the future to fit into the framework

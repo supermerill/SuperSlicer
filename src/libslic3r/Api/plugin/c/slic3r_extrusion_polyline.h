@@ -25,6 +25,9 @@ if switching from children to a local polyline is intentional.
 The polyline is stored as points, optional arc data between consecutive points,
 and optional Z offsets per point. A segment in this API is a true segment from
 point_a to point_b, so a polyline with N points has N - 1 segments.
+
+Developer guide:
+[Using Unified Extrusion Entities](../../../../../doc/plugins/extrusions.md)
 */
 
 typedef struct extrusion_entity_handle extrusion_entity_handle;

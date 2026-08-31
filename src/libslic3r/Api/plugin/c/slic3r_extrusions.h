@@ -5,6 +5,11 @@
 #ifndef slic3r_extrusion_h_
 #define slic3r_extrusion_h_
 
+/*
+Developer guide:
+[Using Unified Extrusion Entities](../../../../../doc/plugins/extrusions.md)
+*/
+
 #include <stddef.h>
 #include <stdint.h>
 

@@ -18,6 +18,8 @@ These helpers describe only one directly stored payload. Inherited lookup over
 an extrusion tree remains the responsibility of ExtrusionTreeVisitors.
 
 Developer guide: [Using Plugin Properties](../../../../../../doc/plugins/properties.md)
+
+Entity guide: [Using Unified Extrusion Entities](../../../../../../doc/plugins/extrusions.md)
 */
 
 #include <cstdint>

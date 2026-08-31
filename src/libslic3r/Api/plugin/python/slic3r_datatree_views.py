@@ -39,6 +39,8 @@ Inspect region-island extrusions:
         print(extrusion.length())
 
 Property guide: [Using Plugin Properties](../../../../../doc/plugins/properties.md)
+
+Extrusion guide: [Using Unified Extrusion Entities](../../../../../doc/plugins/extrusions.md)
 """
 
 from __future__ import annotations
