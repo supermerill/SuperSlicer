@@ -5,6 +5,7 @@
 #ifndef slic3r_Api_plugin_cpp_RegionSettingsViews_hpp_
 #define slic3r_Api_plugin_cpp_RegionSettingsViews_hpp_
 
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <initializer_list>
@@ -154,6 +155,31 @@ private:
 
     std::vector<std::string> m_keys;
     std::vector<const config_option_handle *> m_options;
+};
+
+/*
+Result of a point-only regional setting lookup.
+
+Found means value contains the setting tuple selected at the requested point.
+Outside means that no source region contains the point. Ambiguous means that
+several regions contain the point but expose different setting tuples, which
+normally happens only on their shared boundary.
+*/
+enum class RegionSettingsPointStatus
+{
+    Found,
+    Outside,
+    Ambiguous
+};
+
+struct RegionSettingsPointResult
+{
+    RegionSettingsPointStatus status = RegionSettingsPointStatus::Outside;
+    RegionSettingsValue value;
+    bool uniform = false;
+
+    /* Return true when value may be consumed by the caller. */
+    bool found() const { return status == RegionSettingsPointStatus::Found; }
 };
 
 class RegionSettingsClip
@@ -359,6 +385,79 @@ public:
         : RegionSettings(storage, first_region_config(island), normalize_groups(option_groups))
     {
         add_regions(island);
+    }
+
+    /*
+    Resolve one setting tuple at a point without building clipping geometry.
+
+    The common case returns before inspecting slices when every source region
+    has the same tuple. Otherwise the method reads the immutable region slices
+    directly. It does not use PluginStorage and is therefore suitable for
+    parallel queries on distinct PrintingLayerGroups.
+
+    The point must use the source layer coordinate system. Callers working on
+    an instanced PrintingPlan must remove the instance shift first.
+    */
+    static RegionSettingsPointResult lookup_at_point(
+        const LayerRegionIsland &region_island,
+        const OptionKeyGroup &option_keys,
+        c_point point)
+    {
+        assert(region_island.valid());
+        assert(region_island.region_count() > 0);
+        assert(!option_keys.empty());
+
+        RegionSettingsPointResult result;
+        if (!region_island.valid() || region_island.region_count() == 0 || option_keys.empty())
+            return result;
+
+        const Config default_config = region_island.region(0).print_region().config();
+        std::vector<RegionSettingsValue> values;
+        values.reserve(region_island.region_count());
+        for (uint32_t region_idx = 0; region_idx < region_island.region_count(); ++region_idx) {
+            values.push_back(RegionSettingsValue::create(
+                default_config,
+                region_island.region(region_idx).print_region().config(),
+                option_keys));
+        }
+
+        // Uniform settings do not need a geometric lookup. This also lets
+        // auxiliary paths outside the finite object slices use the common
+        // value without manufacturing an artificial coverage polygon.
+        const bool uniform = std::all_of(
+            values.begin() + 1, values.end(),
+            [&values](const RegionSettingsValue &value) { return value == values.front(); });
+        if (uniform) {
+            result.status = RegionSettingsPointStatus::Found;
+            result.value = values.front();
+            result.uniform = true;
+            return result;
+        }
+
+        bool has_candidate = false;
+        for (uint32_t region_idx = 0; region_idx < region_island.region_count(); ++region_idx) {
+            bool contains_point = false;
+            for (const ExPolygon slice : region_island.region(region_idx).slices()) {
+                if (slice.contains(point)) {
+                    contains_point = true;
+                    break;
+                }
+            }
+            if (!contains_point)
+                continue;
+
+            if (!has_candidate) {
+                result.value = values[region_idx];
+                has_candidate = true;
+            } else if (result.value != values[region_idx]) {
+                result.status = RegionSettingsPointStatus::Ambiguous;
+                return result;
+            }
+        }
+
+        if (has_candidate)
+            result.status = RegionSettingsPointStatus::Found;
+        return result;
     }
 
     void clear_regions() { m_regions.clear(); }

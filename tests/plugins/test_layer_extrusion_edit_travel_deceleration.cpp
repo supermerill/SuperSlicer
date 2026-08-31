@@ -19,8 +19,12 @@
 #include "libslic3r/Layer.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/Print.hpp"
+#include "libslic3r/PrintObject.hpp"
 #include "libslic3r/Printing/PrintingPlan.hpp"
+#include "libslic3r/Steps/StepLayerHeightGeneration.hpp"
 #include "libslic3r/Steps/StepLayerExtrusionEdition.hpp"
+#include "libslic3r/Steps/StepPostSlicing.hpp"
+#include "libslic3r/Steps/StepSlicing.hpp"
 
 /*
 Travel target-deceleration plugin tests
@@ -99,6 +103,38 @@ struct TravelSpec
     float acceleration = 2000.f;
 };
 
+struct RegionalTravelPoints
+{
+    Point disabled;
+    Point enabled;
+    Point boundary;
+    Point target_inside_enabled;
+    Point instance_shift;
+};
+
+// Create one movement from exact scaled points so regional fixtures can use
+// the same coordinates as the source slices and PrintingPlan instance shift.
+std::unique_ptr<ExtrusionPath> make_movement(const ExtrusionRole role,
+                                             const Point &start,
+                                             const Point &end,
+                                             const float speed,
+                                             const float acceleration,
+                                             const bool add_process_property = true)
+{
+    const double flow = role == ExtrusionRole::Travel ? 0.0 : 0.2;
+    ArcPolyline polyline;
+    polyline.append(start);
+    polyline.append(end);
+    std::unique_ptr<ExtrusionPath> path = std::make_unique<ExtrusionPath>(
+        polyline,
+        ExtrusionAttributes(role, ExtrusionFlow(flow, 0.4f, 0.2f)),
+        nullptr,
+        true);
+    if (add_process_property)
+        path->add_property(ExtrusionPropertySpeed(speed, acceleration, 0.12f, 37.f, 215.f));
+    return path;
+}
+
 // Create one movement whose process fields already represent the output of
 // the speed and acceleration plugins.
 std::unique_ptr<ExtrusionPath> make_movement(const ExtrusionRole role,
@@ -108,18 +144,13 @@ std::unique_ptr<ExtrusionPath> make_movement(const ExtrusionRole role,
                                              const float acceleration,
                                              const bool add_process_property = true)
 {
-    const double flow = role == ExtrusionRole::Travel ? 0.0 : 0.2;
-    ArcPolyline polyline;
-    polyline.append(Point(scale_i(start_x_mm), scale_i(0.)));
-    polyline.append(Point(scale_i(end_x_mm), scale_i(0.)));
-    std::unique_ptr<ExtrusionPath> path = std::make_unique<ExtrusionPath>(
-        polyline,
-        ExtrusionAttributes(role, ExtrusionFlow(flow, 0.4f, 0.2f)),
-        nullptr,
-        true);
-    if (add_process_property)
-        path->add_property(ExtrusionPropertySpeed(speed, acceleration, 0.12f, 37.f, 215.f));
-    return path;
+    return make_movement(
+        role,
+        Point(scale_i(start_x_mm), scale_i(0.)),
+        Point(scale_i(end_x_mm), scale_i(0.)),
+        speed,
+        acceleration,
+        add_process_property);
 }
 
 // Append one independently owned extrusion root in final execution order.
@@ -174,6 +205,131 @@ void prepare_source_context(PreparedTravelDecelerationPrint &prepared,
     REQUIRE(region_island != nullptr);
     prepared.source_region_island = reinterpret_cast<const LayerRegionIsland *>(region_island);
     REQUIRE_FALSE(prepared.source_region_island->regions().empty());
+}
+
+// Slice a model and its centered modifier into one LayerRegionIsland whose
+// regions disagree about the travel target-deceleration switch.
+void prepare_regional_source_context(PreparedTravelDecelerationPrint &prepared,
+                                     const bool base_enabled,
+                                     const bool modifier_enabled,
+                                     RegionalTravelPoints &points)
+{
+    DynamicPrintConfig config = DynamicPrintConfig::full_print_config();
+    config.set_deserialize_strict({
+        {"travel_deceleration_use_target", base_enabled ? "1" : "0"},
+        {"travel_acceleration", "2000"},
+        {"default_acceleration", "500"},
+        {"machine_limits_usage", "ignore"},
+        {"gcode_min_length", "0"}
+    });
+
+    ModelObject *model_object = prepared.model.add_object();
+    model_object->name = "regional_travel_deceleration.stl";
+    ModelVolume *part = model_object->add_volume(
+        Slic3r::make_cube(20., 20., 10.), ModelVolumeType::MODEL_PART, false);
+    part->set_type(ModelVolumeType::MODEL_PART);
+
+    TriangleMesh modifier_mesh = Slic3r::make_cube(4., 20., 10.);
+    modifier_mesh.translate(Vec3f(8.f, 0.f, 0.f));
+    ModelVolume *modifier = model_object->add_volume(
+        std::move(modifier_mesh), ModelVolumeType::PARAMETER_MODIFIER, false);
+    modifier->set_type(ModelVolumeType::PARAMETER_MODIFIER);
+    DynamicPrintConfig modifier_config;
+    modifier_config.set_deserialize_strict({
+        {"travel_deceleration_use_target", modifier_enabled ? "1" : "0"},
+        {"default_acceleration", "700"}
+    });
+    modifier->config.assign_config(modifier_config);
+
+    model_object->add_instance();
+    prepared.model.center_instances_around_point({100., 100.});
+    model_object->ensure_on_bed();
+    prepared.print.auto_assign_extruders(model_object);
+    prepared.print.apply(prepared.model, config);
+    prepared.print.validate();
+    prepared.print.set_status_silent();
+
+    Orchestrator &orchestrator = Orchestrator::instance();
+    Steps::StepLayerHeightGeneration::run_step(orchestrator, prepared.print);
+    Steps::StepSlicing::run_step(orchestrator, prepared.print);
+    Steps::StepPostSlicing::run_step(orchestrator, prepared.print);
+
+    PrintObject &print_object = prepared.print.object(0);
+    REQUIRE(print_object.layer_count() > 0);
+    const Layer &source_layer = print_object.layer(0);
+    REQUIRE_FALSE(source_layer.lslices().empty());
+    const ExPolygons subject = source_layer.lslices();
+    const slic3r_api::AuxiliaryLayerBuildResult result =
+        slic3r_api::build_auxiliary_layer_regions_from_subject(
+            reinterpret_cast<storage_handle *>(&prepared.storage),
+            slic3r_api::Print(reinterpret_cast<const print_handle *>(&prepared.print)),
+            slic3r_api::Object(reinterpret_cast<const object_handle *>(&print_object)),
+            slic3r_api::ExPolygonCollection(
+                reinterpret_cast<const expolygon_collection_handle *>(&subject)),
+            source_layer.scaled_height(),
+            source_layer.scaled_print_z(),
+            scale_i(source_layer.slice_z));
+    REQUIRE(result.created);
+    REQUIRE(result.layer.island_count() == 1);
+    const slic3r_api::LayerIsland island = result.layer.island(0);
+    REQUIRE(island.region_count() >= 2);
+
+    layer_region_island_handle *region_island = layer_island_get_or_create_region_island(
+        const_cast<layer_island_handle *>(island.handle()), nullptr, 0, 0);
+    REQUIRE(region_island != nullptr);
+    prepared.source_region_island = reinterpret_cast<const LayerRegionIsland *>(region_island);
+    REQUIRE(prepared.source_region_island->regions().size() >= 2);
+
+    // The modifier occupies the central four millimetres of the model. Keep
+    // source-space points explicit, then add the instance shift exactly once
+    // when constructing the final PrintingPlan paths.
+    const BoundingBox bbox = get_extents(subject);
+    const Point center = bbox.center();
+    points.disabled = Point(bbox.min.x() + scale_i(1.), center.y());
+    points.enabled = center;
+    points.boundary = Point(center.x() - scale_i(2.), center.y());
+    points.target_inside_enabled = Point(center.x() - scale_i(1.), center.y());
+    const slic3r_api::Object object_view(
+        reinterpret_cast<const object_handle *>(&print_object));
+    const c_point shift = object_view.instance_shift(0);
+    points.instance_shift = Point(shift.x, shift.y);
+}
+
+// Assemble one short Travel and its target at exact regional coordinates. A
+// short run makes the enabled result observable as one acceleration change
+// without depending on the longer split-distance branches.
+PrintingLayerGroup &prepare_regional_travel_plan(
+    PreparedTravelDecelerationPrint &prepared,
+    const Point &travel_start_source,
+    const Point &travel_end_source,
+    const Point &target_end_source,
+    const Point &instance_shift,
+    const float target_acceleration = 500.f)
+{
+    REQUIRE(prepared.source_region_island != nullptr);
+    PrintingPlan &plan = prepared.print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.back().layers.emplace_back();
+    PrintingLayerGroup &layer = plan.groups.back().layers.back();
+    layer.print_z = scale_i(0.2);
+    layer.tool_groups.emplace_back();
+    PrintingToolGroup &tool = layer.tool_groups.back();
+    tool.extruder_id = 0;
+
+    const Point plan_start = travel_start_source + instance_shift;
+    const Point plan_end = travel_end_source + instance_shift;
+    const Point plan_target_end = target_end_source + instance_shift;
+    append_movement(tool, *prepared.source_region_island, make_movement(
+        ExtrusionRole::Perimeter,
+        Point(plan_start.x() - scale_i(1.), plan_start.y()),
+        plan_start,
+        20.f,
+        500.f));
+    append_movement(tool, *prepared.source_region_island, make_movement(
+        ExtrusionRole::Travel, plan_start, plan_end, 100.f, 2000.f));
+    append_movement(tool, *prepared.source_region_island, make_movement(
+        ExtrusionRole::Perimeter, plan_end, plan_target_end, 20.f, target_acceleration));
+    return layer;
 }
 
 // Create the canonical previous movement, long travel, and slower target. The
@@ -310,6 +466,162 @@ TEST_CASE("Travel deceleration plugin exposes an independent post-processing con
     CHECK(keys.size() == 2);
     CHECK(std::find(keys.begin(), keys.end(), "travel_deceleration_use_target") != keys.end());
     CHECK(std::find(keys.begin(), keys.end(), "gcode_min_length") != keys.end());
+}
+
+TEST_CASE("Travel deceleration resolves its switch at the Travel destination",
+          "[plugins][layer-extrusion-edit][travel-deceleration][regional]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    SECTION("mixed regions use the enabled destination") {
+        PreparedTravelDecelerationPrint prepared;
+        RegionalTravelPoints points;
+        prepare_regional_source_context(prepared, false, true, points);
+        PrintingLayerGroup &layer = prepare_regional_travel_plan(
+            prepared, points.disabled, points.enabled,
+            points.target_inside_enabled, points.instance_shift);
+
+        run_travel_deceleration(prepared.print);
+
+        const std::vector<ObservedLeaf> leaves = observed_leaves(layer);
+        REQUIRE(leaves.size() >= 3);
+        CHECK(std::any_of(
+            leaves.begin(), leaves.end(),
+            [](const ObservedLeaf &leaf) {
+                return leaf.role == ExtrusionRole::Travel &&
+                    leaf.acceleration == Approx(500.f);
+            }));
+    }
+
+    SECTION("mixed regions keep the disabled destination unchanged") {
+        PreparedTravelDecelerationPrint prepared;
+        RegionalTravelPoints points;
+        prepare_regional_source_context(prepared, false, true, points);
+        PrintingLayerGroup &layer = prepare_regional_travel_plan(
+            prepared, points.enabled, points.disabled,
+            Point(points.disabled.x() + scale_i(1.), points.disabled.y()),
+            points.instance_shift);
+
+        run_travel_deceleration(prepared.print);
+
+        const std::vector<ObservedLeaf> leaves = observed_leaves(layer);
+        REQUIRE(leaves.size() == 3);
+        CHECK(leaves[1].role == ExtrusionRole::Travel);
+        CHECK(leaves[1].acceleration == Approx(2000.f));
+    }
+
+    SECTION("a shared boundary is resolved on the target side") {
+        PreparedTravelDecelerationPrint prepared;
+        RegionalTravelPoints points;
+        prepare_regional_source_context(prepared, false, true, points);
+        PrintingLayerGroup &layer = prepare_regional_travel_plan(
+            prepared, points.disabled, points.boundary,
+            points.target_inside_enabled, points.instance_shift);
+
+        // Make the first target segment curved so the boundary probe must use
+        // the extrusion polyline's arc-aware point interpolation.
+        ExtrusionPath *target = dynamic_cast<ExtrusionPath *>(
+            layer.tool_groups.front().extrusions.back().root.get());
+        REQUIRE(target != nullptr);
+        ArcPolyline curved_target;
+        curved_target.append(points.boundary + points.instance_shift);
+        curved_target.append(Geometry::ArcWelder::Segment(
+            points.target_inside_enabled + points.instance_shift,
+            float(scale_i(2.)), Geometry::ArcWelder::Orientation::CCW));
+        target->polyline() = std::move(curved_target);
+
+        run_travel_deceleration(prepared.print);
+
+        const std::vector<ObservedLeaf> leaves = observed_leaves(layer);
+        REQUIRE(leaves.size() >= 3);
+        CHECK(std::any_of(
+            leaves.begin(), leaves.end(),
+            [](const ObservedLeaf &leaf) {
+                return leaf.role == ExtrusionRole::Travel &&
+                    leaf.acceleration == Approx(500.f);
+            }));
+    }
+
+    SECTION("only the endpoint of a multi-leaf Travel run selects the switch") {
+        PreparedTravelDecelerationPrint prepared;
+        RegionalTravelPoints points;
+        prepare_regional_source_context(prepared, false, true, points);
+        REQUIRE(prepared.source_region_island != nullptr);
+
+        PrintingPlan &plan = prepared.print.mutable_printing_plan();
+        plan.groups.emplace_back();
+        plan.groups.back().layers.emplace_back();
+        PrintingLayerGroup &layer = plan.groups.back().layers.back();
+        layer.print_z = scale_i(0.2);
+        layer.tool_groups.emplace_back();
+        PrintingToolGroup &tool = layer.tool_groups.back();
+        tool.extruder_id = 0;
+
+        const Point disabled = points.disabled + points.instance_shift;
+        const Point boundary = points.boundary + points.instance_shift;
+        const Point enabled = points.enabled + points.instance_shift;
+        const Point target_end = points.target_inside_enabled + points.instance_shift;
+        append_movement(tool, *prepared.source_region_island, make_movement(
+            ExtrusionRole::Perimeter,
+            Point(disabled.x() - scale_i(1.), disabled.y()), disabled,
+            20.f, 500.f));
+        append_movement(tool, *prepared.source_region_island, make_movement(
+            ExtrusionRole::Travel, disabled, boundary, 100.f, 2000.f));
+        append_movement(tool, *prepared.source_region_island, make_movement(
+            ExtrusionRole::Travel, boundary, enabled, 100.f, 2000.f));
+        append_movement(tool, *prepared.source_region_island, make_movement(
+            ExtrusionRole::Perimeter, enabled, target_end, 20.f, 500.f));
+
+        run_travel_deceleration(prepared.print);
+
+        const std::vector<ObservedLeaf> leaves = observed_leaves(layer);
+        REQUIRE(leaves.size() >= 4);
+        CHECK(std::any_of(
+            leaves.begin(), leaves.end(),
+            [](const ObservedLeaf &leaf) {
+                return leaf.role == ExtrusionRole::Travel &&
+                    leaf.acceleration == Approx(500.f);
+            }));
+    }
+
+    SECTION("uniform disabled regions do not require geometric coverage") {
+        PreparedTravelDecelerationPrint prepared;
+        RegionalTravelPoints points;
+        prepare_regional_source_context(prepared, false, false, points);
+        const Point outside(points.disabled.x() - scale_i(10.), points.disabled.y());
+        PrintingLayerGroup &layer = prepare_regional_travel_plan(
+            prepared, points.disabled, outside,
+            Point(outside.x() - scale_i(1.), outside.y()),
+            points.instance_shift);
+
+        run_travel_deceleration(prepared.print);
+
+        const std::vector<ObservedLeaf> leaves = observed_leaves(layer);
+        REQUIRE(leaves.size() == 3);
+        CHECK(leaves[1].acceleration == Approx(2000.f));
+    }
+
+    SECTION("uniform enabled regions use the effective target acceleration") {
+        PreparedTravelDecelerationPrint prepared;
+        RegionalTravelPoints points;
+        prepare_regional_source_context(prepared, true, true, points);
+        const Point outside(points.disabled.x() - scale_i(10.), points.disabled.y());
+        PrintingLayerGroup &layer = prepare_regional_travel_plan(
+            prepared, points.disabled, outside,
+            Point(outside.x() - scale_i(1.), outside.y()),
+            points.instance_shift, 650.f);
+
+        run_travel_deceleration(prepared.print);
+
+        const std::vector<ObservedLeaf> leaves = observed_leaves(layer);
+        REQUIRE(leaves.size() >= 3);
+        CHECK(std::any_of(
+            leaves.begin(), leaves.end(),
+            [](const ObservedLeaf &leaf) {
+                return leaf.role == ExtrusionRole::Travel &&
+                    leaf.acceleration == Approx(650.f);
+            }));
+    }
 }
 
 TEST_CASE("Travel deceleration splits a travel into ordered acceleration phases",

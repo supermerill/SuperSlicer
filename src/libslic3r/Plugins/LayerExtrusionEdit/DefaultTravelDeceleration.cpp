@@ -33,6 +33,7 @@ the movement speed that preceded that independently processed layer.
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_layer_extrusion_edit.h"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
 #include "libslic3r/Api/plugin/cpp/PrintingPlanViews.hpp"
+#include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
 
 namespace slic3r_api { namespace LayerExtrusionEdit { namespace DefaultTravelDecelerationPlugin {
 namespace {
@@ -48,6 +49,10 @@ const raw_used_config_key k_used_config_keys[] = {
     {"travel_deceleration_use_target", RAW_CO_BOOL, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE}
 };
 
+const RegionSettings::OptionKeyGroup k_travel_deceleration_region_keys{
+    "travel_deceleration_use_target"
+};
+
 struct LayerEntrySpeed
 {
     float speed_mm_per_s = -1.f;
@@ -58,7 +63,8 @@ struct OrderedLeaf
 {
     MutableExtrusionEntity entity;
     EffectiveTreeState state;
-    Config region_config;
+    LayerRegionIsland region_island;
+    uint16_t object_instance_idx = 0;
     distf_t length = 0.0;
 };
 
@@ -105,22 +111,28 @@ void prepare_layer_entry_speeds(const PrintingPlan &plan,
 void collect_ordered_leaves(
     MutableExtrusionEntity entity,
     const EffectiveTreeState &parent_state,
-    const Config &region_config,
+    const LayerRegionIsland &region_island,
+    uint16_t object_instance_idx,
     std::vector<OrderedLeaf> &leaves);
 
 /* Flatten one tool-group across tree and PrintingExtrusion boundaries. */
 std::vector<OrderedLeaf> ordered_tool_leaves(
-    const Print &print,
     const PrintingToolGroup &tool,
     PluginProgress &progress);
 
 /* Build the maximal homogeneous Travel run beginning at one flattened leaf. */
 TravelRun collect_travel_run(const std::vector<OrderedLeaf> &leaves, size_t begin);
 
+/* Resolve the regional enable switch at the final point of one Travel run. */
+bool target_deceleration_is_enabled(const std::vector<OrderedLeaf> &leaves,
+                                    const TravelRun &travel,
+                                    const OrderedLeaf &target);
+
 /* Reproduce the legacy kinematic checks and select a split position when useful. */
 DecelerationDecision deceleration_decision(const TravelRun &travel,
                                            const OrderedLeaf &target,
                                            float previous_speed,
+                                           bool use_target_deceleration,
                                            const Config &config);
 
 /* Apply the target acceleration directly to every leaf in one Travel range. */
@@ -255,13 +267,16 @@ void prepare_layer_entry_speeds(const PrintingPlan &plan,
 void collect_ordered_leaves(
     MutableExtrusionEntity entity,
     const EffectiveTreeState &parent_state,
-    const Config &region_config,
+    const LayerRegionIsland &region_island,
+    const uint16_t object_instance_idx,
     std::vector<OrderedLeaf> &leaves)
 {
     const EffectiveTreeState state = effective_state(entity, parent_state);
     if (entity.child_count() > 0) {
         for (uint32_t child_idx = 0; child_idx < entity.child_count(); ++child_idx)
-            collect_ordered_leaves(entity.child_mutable(child_idx), state, region_config, leaves);
+            collect_ordered_leaves(
+                entity.child_mutable(child_idx), state, region_island,
+                object_instance_idx, leaves);
         return;
     }
     if (entity.segment_count() == 0)
@@ -270,20 +285,31 @@ void collect_ordered_leaves(
     const distf_t length = entity.local_length();
     if (!std::isfinite(length) || length < 0.0)
         throw std::runtime_error("Travel deceleration encountered an invalid leaf length.");
-    leaves.push_back(OrderedLeaf{entity, state, region_config, length});
+    leaves.push_back(OrderedLeaf{
+        entity, state, region_island, object_instance_idx, length
+    });
 }
 
 std::vector<OrderedLeaf> ordered_tool_leaves(
-    const Print &print,
     const PrintingToolGroup &tool,
     PluginProgress &progress)
 {
     std::vector<OrderedLeaf> leaves;
+    if (tool.extruder_id() == uint16_t(-1))
+        throw std::runtime_error("Travel deceleration encountered a tool group without an extruder.");
     for (uint32_t extrusion_idx = 0; extrusion_idx < tool.extrusion_count(); ++extrusion_idx) {
         const PrintingExtrusion extrusion = tool.extrusion(extrusion_idx);
-        const ExtrusionSettingsContext context = settings_context(print, tool, extrusion);
+        const LayerRegionIsland region_island = extrusion.region_island();
+        if (!region_island.valid() || region_island.region_count() == 0)
+            throw std::runtime_error(
+                "Travel deceleration encountered an extrusion without source regions.");
+        const Object object = region_island.region(0).layer().object();
+        if (extrusion.object_instance_idx() >= object.instance_count())
+            throw std::runtime_error(
+                "Travel deceleration encountered an invalid object instance index.");
         collect_ordered_leaves(
-            extrusion.mutable_root(), EffectiveTreeState{}, context.region_config, leaves);
+            extrusion.mutable_root(), EffectiveTreeState{}, region_island,
+            extrusion.object_instance_idx(), leaves);
         progress.increment();
     }
     return leaves;
@@ -314,14 +340,64 @@ TravelRun collect_travel_run(const std::vector<OrderedLeaf> &leaves, const size_
     return run;
 }
 
+bool target_deceleration_is_enabled(const std::vector<OrderedLeaf> &leaves,
+                                    const TravelRun &travel,
+                                    const OrderedLeaf &target)
+{
+    assert(travel.begin < travel.end && travel.end <= leaves.size());
+    const OrderedLeaf &last_travel = leaves[travel.end - 1];
+    const c_extrusion_segment last_segment =
+        last_travel.entity.segment(last_travel.entity.segment_count() - 1);
+
+    const Object object = target.region_island.region(0).layer().object();
+    if (target.object_instance_idx >= object.instance_count())
+        throw std::runtime_error(
+            "Travel deceleration target references an invalid object instance.");
+    const c_point instance_shift = object.instance_shift(target.object_instance_idx);
+
+    // Region slices use object coordinates while PrintingPlan paths already
+    // include the selected instance shift. Convert only the lookup points;
+    // the extrusion geometry itself must remain untouched.
+    const c_point endpoint{
+        last_segment.point_b.x - instance_shift.x,
+        last_segment.point_b.y - instance_shift.y
+    };
+    RegionSettingsPointResult lookup = RegionSettings::lookup_at_point(
+        target.region_island, k_travel_deceleration_region_keys, endpoint);
+    if (lookup.found())
+        return lookup.value.get_bool("travel_deceleration_use_target");
+
+    // A boundary belongs to both neighboring ExPolygons. Move a tiny distance
+    // into the following printed path so the selected value comes from the
+    // region the machine is about to enter, including when that path is curved.
+    const distf_t probe_distance = std::min(
+        distf_t(SCALED_EPSILON), target.length / 2.0);
+    if (probe_distance > 0.0) {
+        const c_point plan_probe = target.entity.point_from_begin(probe_distance);
+        const c_point source_probe{
+            plan_probe.x - instance_shift.x,
+            plan_probe.y - instance_shift.y
+        };
+        lookup = RegionSettings::lookup_at_point(
+            target.region_island, k_travel_deceleration_region_keys, source_probe);
+        if (lookup.found())
+            return lookup.value.get_bool("travel_deceleration_use_target");
+    }
+
+    if (lookup.status == RegionSettingsPointStatus::Ambiguous)
+        throw std::runtime_error(
+            "Travel deceleration target remains on a boundary with conflicting regional settings.");
+    throw std::runtime_error(
+        "Travel deceleration target point is outside all of its source regions.");
+}
+
 DecelerationDecision deceleration_decision(const TravelRun &travel,
                                            const OrderedLeaf &target,
                                            const float previous_speed,
+                                           const bool use_target_deceleration,
                                            const Config &config)
 {
-    // The switch is a regional process option. Read it from the following
-    // printable extrusion, whose acceleration is the target of this travel.
-    if (!target.region_config.bool_or_default("travel_deceleration_use_target", false))
+    if (!use_target_deceleration)
         return {};
 
     const double travel_speed = travel.speed;
@@ -476,7 +552,7 @@ void process_tool_group(const Print &print,
                         LayerEntrySpeed &previous,
                         PluginProgress &progress)
 {
-    const std::vector<OrderedLeaf> leaves = ordered_tool_leaves(print, tool, progress);
+    const std::vector<OrderedLeaf> leaves = ordered_tool_leaves(tool, progress);
     size_t leaf_idx = 0;
     while (leaf_idx < leaves.size()) {
         const OrderedLeaf &leaf = leaves[leaf_idx];
@@ -496,6 +572,7 @@ void process_tool_group(const Print &print,
                 target.state.speed > 0.f && target.state.acceleration > 0.f) {
                 const DecelerationDecision decision = deceleration_decision(
                     run, target, previous.known ? previous.speed_mm_per_s : -1.f,
+                    target_deceleration_is_enabled(leaves, run, target),
                     print.config());
                 if (decision.action == DecelerationAction::WholeTravel) {
                     ProcessFieldEditor editor(ProcessField::Acceleration);
