@@ -163,17 +163,18 @@ TEST_CASE("Feature G-code follows explicit role transitions without duplicating 
     CHECK(same_role_root.get_property<ExtrusionPropertyCustomGcode>() == nullptr);
 
     const ExtrusionEntity &travel_root = *first_tool.extrusions[2].root;
-    REQUIRE(travel_root.child_count() == 1);
+    REQUIRE(travel_root.child_count() == 2);
+    const ExtrusionEntity &feature_event = travel_root.child(0);
     const ExtrusionPropertyCustomGcode *travel_property =
-        travel_root.get_property<ExtrusionPropertyCustomGcode>();
+        feature_event.get_property<ExtrusionPropertyCustomGcode>();
     REQUIRE(travel_property != nullptr);
     CHECK(travel_property->script_type == GCODE_SCRIPT_TYPE_FEATURE_GCODE);
-    CHECK(stored_script_string(travel_root, *travel_property, "previous_extrusion_role") == "Perimeter");
-    CHECK(stored_script_string(travel_root, *travel_property, "next_extrusion_role") == "Travel");
+    CHECK(stored_script_string(feature_event, *travel_property, "previous_extrusion_role") == "Perimeter");
+    CHECK(stored_script_string(feature_event, *travel_property, "next_extrusion_role") == "Travel");
     const ExtrusionPropertyCustomGcode *preserved_property =
-        travel_root.child(0).get_property<ExtrusionPropertyCustomGcode>();
+        travel_root.child(1).get_property<ExtrusionPropertyCustomGcode>();
     REQUIRE(preserved_property != nullptr);
-    CHECK(travel_root.child(0).custom_gcode_string(*preserved_property) == "M117 existing travel");
+    CHECK(travel_root.child(1).custom_gcode_string(*preserved_property) == "M117 existing travel");
 
     CHECK(same_role_next_layer.extrusions[0].root->get_property<ExtrusionPropertyCustomGcode>() == nullptr);
     CHECK(same_role_next_tool.extrusions[0].root->get_property<ExtrusionPropertyCustomGcode>() == nullptr);
@@ -186,12 +187,14 @@ TEST_CASE("Feature G-code follows explicit role transitions without duplicating 
     CHECK(stored_script_string(infill_root, *infill_property, "next_extrusion_role") == "Internal infill");
 
     // A second execution removes and recreates only this plugin's annotations.
-    // The custom travel event remains one child below exactly one wrapper.
+    // The custom travel remains in the preserved second child and the feature
+    // event remains the first child of exactly one ordered wrapper.
     Steps::StepExtrusionEdition::clean_and_prepare(print);
     Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
     CHECK(first_root.child_count() == 0);
-    REQUIRE(travel_root.child_count() == 1);
+    REQUIRE(travel_root.child_count() == 2);
     CHECK(travel_root.child(0).child_count() == 0);
+    CHECK(travel_root.child(1).child_count() == 0);
 
     const std::string output = export_with_firmware(print, "gcode.firmware.marlin2");
     INFO(output);

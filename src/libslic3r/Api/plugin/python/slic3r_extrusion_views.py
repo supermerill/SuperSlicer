@@ -92,6 +92,10 @@ from slic3r_api_generated import (
     MEDIAL_AXIS_EXTRUSION_TRIM_THIN_ENDPOINTS,
     RAW_EXTRUSION_FLAG_REVERSIBLE,
     RAW_EXTRUSION_FLAG_SORTABLE,
+    RAW_EXTRUSION_EXISTING_PROPERTIES_KEEP_ON_PARENT,
+    RAW_EXTRUSION_EXISTING_PROPERTIES_MOVE_WITH_CONTENT,
+    RAW_EXTRUSION_ORDERED_LEAF_AFTER,
+    RAW_EXTRUSION_ORDERED_LEAF_BEFORE,
     RAW_EXTRUSION_SPLIT_STATUS_CLIPPING_FAILED,
     RAW_EXTRUSION_SPLIT_STATUS_INTERNAL_ERROR,
     RAW_EXTRUSION_SPLIT_STATUS_INVALID_ARGUMENT,
@@ -662,6 +666,25 @@ class ExtrusionEntityMutableMixin:
     def insert_child_move(self, idx: int, child: "MutableExtrusionEntity") -> int:
         return int(self.api.host.extrusion_insert_child_move(self.mutable_c_handle(), int(idx), child.mutable_c_handle()))
 
+    def emplace_ordered_leaf(
+        self,
+        position: int,
+        property_placement: int,
+    ) -> "MutableExtrusionEntity | None":
+        """Create a fixed empty leaf at one boundary of the current content.
+
+        Use ``RAW_EXTRUSION_ORDERED_LEAF_BEFORE`` or ``AFTER`` for the
+        position. The property-placement constants choose whether direct
+        properties stay inherited from this parent or move with the previous
+        content. The returned view is borrowed from this tree.
+        """
+        handle = self.api.host.extrusion_emplace_ordered_leaf(
+            self.mutable_c_handle(), int(position), int(property_placement)
+        )
+        if not handle:
+            return None
+        return MutableExtrusionEntity(self.api, handle)
+
     def add_child_copy(self, child: "ExtrusionEntity") -> int:
         return self.insert_child_copy(self.child_count(), child)
 
@@ -1034,6 +1057,10 @@ __all__ = [
     "MutableExtrusionEntity",
     "RAW_EXTRUSION_FLAG_REVERSIBLE",
     "RAW_EXTRUSION_FLAG_SORTABLE",
+    "RAW_EXTRUSION_EXISTING_PROPERTIES_KEEP_ON_PARENT",
+    "RAW_EXTRUSION_EXISTING_PROPERTIES_MOVE_WITH_CONTENT",
+    "RAW_EXTRUSION_ORDERED_LEAF_AFTER",
+    "RAW_EXTRUSION_ORDERED_LEAF_BEFORE",
     "StoredExtrusionEntity",
     "medial_axis_extrusion",
     "medial_axis_gap_fill",

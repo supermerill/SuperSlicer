@@ -37,6 +37,20 @@ class MutableExtrusionEntity;
 class StoredExtrusionEntity;
 struct ExtrusionAreaFragment;
 
+/* Select the boundary occupied by a new ordered leaf. */
+enum class OrderedLeafPosition : int32_t
+{
+    Before = RAW_EXTRUSION_ORDERED_LEAF_BEFORE,
+    After = RAW_EXTRUSION_ORDERED_LEAF_AFTER
+};
+
+/* Select whether existing direct properties remain on the stable parent. */
+enum class ExistingPropertyPlacement : int32_t
+{
+    KeepOnParent = RAW_EXTRUSION_EXISTING_PROPERTIES_KEEP_ON_PARENT,
+    MoveWithExistingContent = RAW_EXTRUSION_EXISTING_PROPERTIES_MOVE_WITH_CONTENT
+};
+
 /*
 Extrusion entity C++ views
 ==========================
@@ -779,6 +793,20 @@ public:
     */
     uint32_t insert_child_move(uint32_t idx, MutableExtrusionEntity child);
 
+    /*
+    Create a fixed empty leaf before or after the entity's previous content.
+
+    A rejected operation returns an invalid view and leaves the entity
+    unchanged. On success, reacquire borrowed views of this entity's direct
+    structure and properties; handles to transferred existing children remain
+    valid. A later structural mutation may invalidate the returned leaf view.
+    ExistingPropertyPlacement makes property inheritance explicit instead of
+    silently applying parent state to the inserted leaf.
+    */
+    MutableExtrusionEntity emplace_ordered_leaf(
+        OrderedLeafPosition position,
+        ExistingPropertyPlacement property_placement);
+
     /* Append at the end of the child list while making the ownership behavior explicit. */
     uint32_t append_child_copy(const ExtrusionEntity &child);
     uint32_t append_child_move(MutableExtrusionEntity child);
@@ -1188,6 +1216,18 @@ template<class Derived>
 inline uint32_t ExtrusionEntityMutableApi<Derived>::insert_child_copy(uint32_t idx, const ExtrusionEntity &child)
 {
     return extrusion_insert_child_copy(self().mutable_handle(), idx, child.handle());
+}
+
+template<class Derived>
+inline MutableExtrusionEntity ExtrusionEntityMutableApi<Derived>::emplace_ordered_leaf(
+    OrderedLeafPosition position,
+    ExistingPropertyPlacement property_placement)
+{
+    extrusion_entity_handle *leaf = extrusion_emplace_ordered_leaf(
+        self().mutable_handle(),
+        static_cast<raw_extrusion_ordered_leaf_position>(position),
+        static_cast<raw_extrusion_existing_property_placement>(property_placement));
+    return leaf == nullptr ? MutableExtrusionEntity() : MutableExtrusionEntity(leaf);
 }
 
 template<class Derived>

@@ -12,6 +12,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <tuple>
 #include <unordered_set>
 #include <vector>
@@ -1036,33 +1037,42 @@ coord_t infill_overlap_for_island(const LayerIsland &island,
     return scale_i(config.get(k_infill_overlap_key).get_effective_value(ratio));
 }
 
-void prepend_extra_perimeters_to_root(storage_handle *storage,
-                                      MutableExtrusionEntity root,
+void prepend_extra_perimeters_to_root(MutableExtrusionEntity root,
                                       std::vector<std::vector<GeneratedPath>> &extra_perimeters)
 {
-    // Preserve the current perimeter bucket before clearing it. The rebuilt
-    // root is an unsortable collection: generated extra anchors first,
-    // followed by the original normal perimeter children in their old order.
-    StoredExtrusionEntity original(storage, root.readonly());
-    root.clear_content();
+    const bool original_was_collection = root.child_count() > 0;
+    const bool original_was_fixed_collection =
+        original_was_collection &&
+        (root.flags() & (RAW_EXTRUSION_FLAG_SORTABLE | RAW_EXTRUSION_FLAG_REVERSIBLE)) == 0;
 
-    for (std::vector<GeneratedPath> &paths : extra_perimeters)
-        for (GeneratedPath &path : paths)
-            root.append_child_move(path.entity.mutable_view());
-
-    if (original.child_count() > 0) {
-        while (original.child_count() > 0)
-            root.move_child_from(root.child_count(), original.mutable_view(), 0);
-    } else if (!original.empty()) {
-        root.append_child_move(original.mutable_view());
+    /*
+    Each insertion happens at the first ordered boundary. Walking the generated
+    paths backwards compensates for repeated prepends, so their final order is
+    identical to the generation order and all original paths remain last.
+    */
+    for (std::vector<std::vector<GeneratedPath>>::reverse_iterator group_it = extra_perimeters.rbegin();
+         group_it != extra_perimeters.rend(); ++group_it) {
+        for (std::vector<GeneratedPath>::reverse_iterator path_it = group_it->rbegin();
+             path_it != group_it->rend(); ++path_it) {
+            MutableExtrusionEntity inserted = root.emplace_ordered_leaf(
+                OrderedLeafPosition::Before,
+                ExistingPropertyPlacement::KeepOnParent);
+            if (!inserted.valid() ||
+                extrusion_move_from(inserted.mutable_handle(), path_it->entity.mutable_handle()) == 0)
+                throw std::runtime_error("Failed to prepend an extra overhang perimeter.");
+        }
     }
 
-    // Adding the first child turns an empty entity into a regular collection,
-    // and the host helper defaults such collections to sortable. Force the
-    // final ordering contract after all children are in place: generated
-    // extra anchors first, then the normal perimeter tree.
-    root.disable_sort();
-    root.disable_reverse();
+    /*
+    The previous implementation fixed the old collection's direct child order.
+    The helper preserves its original flags in a wrapper, so fix that wrapper
+    explicitly to retain the same perimeter ordering contract.
+    */
+    if (original_was_collection && !original_was_fixed_collection && root.child_count() > 0) {
+        MutableExtrusionEntity original = root.child_mutable(root.child_count() - 1);
+        original.disable_sort();
+        original.disable_reverse();
+    }
 }
 
 bool extra_perimeters_empty(const std::vector<std::vector<GeneratedPath>> &extra_perimeters)
@@ -1174,7 +1184,7 @@ void process_island(const run_ctx_post_perimeter_generation &ctx,
             clipper_union2(clipper(generated.unfilled_area), clipper(disabled_area)).to_expolygon_collection();
     }
 
-    prepend_extra_perimeters_to_root(storage, root, generated.extra_perimeters);
+    prepend_extra_perimeters_to_root(root, generated.extra_perimeters);
     update_fill_areas(storage, ctx, island, generated, infill_overlap_for_island(island, perimeter_flow, external_flow));
 }
 

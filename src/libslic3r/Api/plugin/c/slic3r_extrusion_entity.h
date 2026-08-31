@@ -33,6 +33,16 @@ describe how an entity or its descendants should be interpreted.
 
 typedef struct extrusion_entity_handle extrusion_entity_handle;
 
+typedef enum raw_extrusion_ordered_leaf_position {
+    RAW_EXTRUSION_ORDERED_LEAF_BEFORE = 0,
+    RAW_EXTRUSION_ORDERED_LEAF_AFTER = 1
+} raw_extrusion_ordered_leaf_position;
+
+typedef enum raw_extrusion_existing_property_placement {
+    RAW_EXTRUSION_EXISTING_PROPERTIES_KEEP_ON_PARENT = 0,
+    RAW_EXTRUSION_EXISTING_PROPERTIES_MOVE_WITH_CONTENT = 1
+} raw_extrusion_existing_property_placement;
+
 typedef enum raw_extrusion_split_status {
     RAW_EXTRUSION_SPLIT_STATUS_SUCCESS = 0,
     RAW_EXTRUSION_SPLIT_STATUS_INVALID_ARGUMENT,
@@ -141,6 +151,30 @@ other parent. To move an existing child between parents, use extrusion_move_chil
 SLIC3R_HOST_API uint32_t extrusion_insert_child_move(extrusion_entity_handle *parent,
                                                      uint32_t idx,
                                                      extrusion_entity_handle *child);
+
+/*
+Create one empty, non-sortable and non-reversible leaf at an ordered boundary.
+
+The entity handle keeps its identity and becomes a fixed parent. BEFORE places
+the new leaf before all previous logical content; AFTER places it after that
+content. Existing child objects are moved without changing their addresses.
+
+KEEP_ON_PARENT leaves direct properties on entity. It inserts directly when
+entity is already a fixed collection, so the new leaf inherits those
+properties. MOVE_WITH_CONTENT always creates a wrapper for the old content and
+moves entity's direct properties and associated data into that wrapper.
+
+The returned handle is borrowed from entity and is invalidated when a later
+structural mutation removes the leaf. NULL or an unknown enum value returns
+NULL without modifying entity. Allocation failures are contained by the host
+and also return NULL. After success, reacquire borrowed views of entity's
+direct child list and, with MOVE_WITH_CONTENT, its direct properties. Handles
+to existing child objects remain valid.
+*/
+SLIC3R_HOST_API extrusion_entity_handle *extrusion_emplace_ordered_leaf(
+    extrusion_entity_handle *entity,
+    raw_extrusion_ordered_leaf_position position,
+    raw_extrusion_existing_property_placement property_placement);
 
 /* Remove one direct child. Returns non-zero on success. */
 SLIC3R_HOST_API int32_t extrusion_remove_child(extrusion_entity_handle *parent, uint32_t idx);

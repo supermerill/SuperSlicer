@@ -11,6 +11,7 @@
 #include <cmath>
 #include <iterator>
 #include <limits>
+#include <type_traits>
 
 #include "Api/internal/ExtrusionPropertyAccess.hpp"
 #include "ClipperUtils.hpp"
@@ -22,6 +23,11 @@
 #include "Flow.hpp"
 
 namespace Slic3r {
+
+static_assert(std::is_nothrow_move_assignable<ExtrusionEntity::Content>::value,
+              "Ordered extrusion publication requires non-throwing content moves.");
+static_assert(std::is_nothrow_move_assignable<ExtrusionPropertyContainer>::value,
+              "Ordered extrusion publication requires non-throwing property moves.");
 
 namespace {
 
@@ -336,6 +342,71 @@ void ExtrusionEntity::insert_child(size_t idx, ExtrusionEntityUPtr &&child)
     if (idx > children.size())
         idx = children.size();
     children.insert(children.begin() + idx, std::move(child));
+}
+
+ExtrusionEntity* ExtrusionEntity::emplace_ordered_leaf(
+    OrderedLeafPosition position,
+    ExistingPropertyPlacement property_placement)
+{
+    if ((position != OrderedLeafPosition::Before && position != OrderedLeafPosition::After) ||
+        (property_placement != ExistingPropertyPlacement::KeepOnParent &&
+         property_placement != ExistingPropertyPlacement::MoveWithExistingContent))
+        return nullptr;
+
+    std::unique_ptr<ExtrusionEntity> new_leaf = std::make_unique<ExtrusionEntity>(false);
+    ExtrusionEntity *new_leaf_ptr = new_leaf.get();
+
+    /*
+    A fixed collection already protects direct child order. Keeping properties
+    on that parent therefore needs only one vector insertion and preserves the
+    existing tree shape.
+    */
+    Children *current_children = std::get_if<Children>(&m_content);
+    const bool is_fixed_collection =
+        current_children != nullptr && !m_can_sort && !m_can_reverse;
+    if (property_placement == ExistingPropertyPlacement::KeepOnParent && is_fixed_collection) {
+        const size_t insertion_idx =
+            position == OrderedLeafPosition::Before ? 0 : current_children->size();
+        current_children->insert(current_children->begin() + insertion_idx, std::move(new_leaf));
+        return new_leaf_ptr;
+    }
+
+    /*
+    Reserve the complete replacement before touching the live entity. Once
+    this preparation succeeds, publishing the wrapper uses only non-throwing
+    moves of vectors, unique pointers and property storage.
+    */
+    std::unique_ptr<ExtrusionEntity> previous_content =
+        std::make_unique<ExtrusionEntity>(m_can_reverse);
+    ExtrusionEntity *previous_content_ptr = previous_content.get();
+    Children replacement;
+    replacement.reserve(2);
+    if (position == OrderedLeafPosition::Before) {
+        replacement.emplace_back(std::move(new_leaf));
+        replacement.emplace_back(std::move(previous_content));
+    } else {
+        replacement.emplace_back(std::move(previous_content));
+        replacement.emplace_back(std::move(new_leaf));
+    }
+
+    /*
+    The wrapper receives the old content and ordering permissions. Moving the
+    variant preserves the addresses of existing child objects. The stable
+    outer entity is then republished as the fixed two-child sequence.
+    */
+    previous_content_ptr->m_content = std::move(m_content);
+    previous_content_ptr->m_can_sort = m_can_sort;
+    previous_content_ptr->m_can_reverse = m_can_reverse;
+
+    if (property_placement == ExistingPropertyPlacement::MoveWithExistingContent) {
+        static_cast<ExtrusionPropertyContainer &>(*previous_content_ptr) =
+            std::move(static_cast<ExtrusionPropertyContainer &>(*this));
+    }
+
+    m_content = std::move(replacement);
+    m_can_sort = false;
+    m_can_reverse = false;
+    return new_leaf_ptr;
 }
 
 void ExtrusionEntity::remove_child(size_t idx)

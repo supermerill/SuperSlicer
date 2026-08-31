@@ -12,6 +12,7 @@ add_executable(${_TEST_NAME}_tests
     test_auxiliary_layer_helpers.cpp
     test_clipper_views.cpp
     test_extrusion_continuity.cpp
+    test_extrusion_ordered_leaf.cpp
     test_extrusion_split_by_areas.cpp
     test_plugin_activation_config.cpp
     test_plugin_config.cpp

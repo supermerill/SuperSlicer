@@ -199,6 +199,34 @@ uint32_t extrusion_insert_child_move(extrusion_entity_handle *parent, uint32_t i
     return idx;
 }
 
+extrusion_entity_handle *extrusion_emplace_ordered_leaf(
+    extrusion_entity_handle *entity,
+    raw_extrusion_ordered_leaf_position position,
+    raw_extrusion_existing_property_placement property_placement)
+{
+    if (entity == nullptr ||
+        (position != RAW_EXTRUSION_ORDERED_LEAF_BEFORE &&
+         position != RAW_EXTRUSION_ORDERED_LEAF_AFTER) ||
+        (property_placement != RAW_EXTRUSION_EXISTING_PROPERTIES_KEEP_ON_PARENT &&
+         property_placement != RAW_EXTRUSION_EXISTING_PROPERTIES_MOVE_WITH_CONTENT))
+        return nullptr;
+
+    try {
+        const Slic3r::OrderedLeafPosition core_position =
+            position == RAW_EXTRUSION_ORDERED_LEAF_BEFORE ?
+                Slic3r::OrderedLeafPosition::Before : Slic3r::OrderedLeafPosition::After;
+        const Slic3r::ExistingPropertyPlacement core_property_placement =
+            property_placement == RAW_EXTRUSION_EXISTING_PROPERTIES_KEEP_ON_PARENT ?
+                Slic3r::ExistingPropertyPlacement::KeepOnParent :
+                Slic3r::ExistingPropertyPlacement::MoveWithExistingContent;
+        Slic3r::ExtrusionEntity *leaf =
+            Slic3r::to_extrusion(entity)->emplace_ordered_leaf(core_position, core_property_placement);
+        return Slic3r::to_handle(leaf);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 int32_t extrusion_remove_child(extrusion_entity_handle *parent, uint32_t idx)
 {
     if (parent == nullptr)

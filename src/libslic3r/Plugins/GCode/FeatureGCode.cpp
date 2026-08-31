@@ -33,9 +33,9 @@ Explicit travels participate because travel is a normal role in the new
 extrusion stream; synthetic firmware travels are not present in the plan.
 
 The script normally lives directly on the movement leaf. If that leaf already
-owns another custom G-code property, the leaf is moved below a new parent and
-the parent carries the feature script. The firmware processes a node's script
-before its children, so both shapes preserve the same execution order.
+owns another custom G-code property, an ordered event leaf is inserted before
+the original movement. The original geometry, properties and data resources
+stay together below the stable plan handle.
 */
 
 namespace slic3r_api { namespace GCodeGeneration { namespace FeatureGCodePlugin {
@@ -49,8 +49,8 @@ const char *const k_no_dependencies[] = {nullptr};
 std::string script_role_name(raw_extrusion_role raw_role);
 // Return true only for a direct script property owned by this built-in plugin.
 bool has_feature_script(const MutableExtrusionEntity &entity);
-// A generated wrapper has no local information besides one feature script and
-// one child containing the original entity.
+// A generated wrapper has no direct information and starts with one feature
+// event leaf followed by the complete original entity.
 bool is_feature_wrapper(const MutableExtrusionEntity &entity);
 // Remove annotations from an earlier run and restore wrapped entities without
 // copying their geometry or stored property data.
@@ -81,7 +81,6 @@ private:
     void set_role_arguments(const std::string &previous_role,
                             const std::string &next_role);
 
-    storage_handle *m_storage;
     const std::string &m_script;
     StoredConfig m_arguments;
     std::optional<raw_extrusion_role> m_previous_role;
@@ -152,7 +151,11 @@ bool has_feature_script(const MutableExtrusionEntity &entity)
 
 bool is_feature_wrapper(const MutableExtrusionEntity &entity)
 {
-    return has_feature_script(entity) && entity.property_count() == 1 && entity.child_count() == 1;
+    if (entity.property_count() != 0 || entity.child_count() != 2)
+        return false;
+
+    const MutableExtrusionEntity event = entity.child_mutable(0);
+    return has_feature_script(event) && event.property_count() == 1 && event.empty();
 }
 
 void clear_feature_scripts(storage_handle *storage, MutableExtrusionEntity root)
@@ -164,12 +167,12 @@ void clear_feature_scripts(storage_handle *storage, MutableExtrusionEntity root)
         MutableExtrusionEntity entity = pending.back();
         pending.pop_back();
 
-        // Repeatedly collapse generated wrappers so rerunning the step never
-        // accumulates transparent parent levels around one movement.
+        // Repeatedly remove the generated event leaf and move the preserved
+        // original entity back into its stable plan handle.
         while (is_feature_wrapper(entity)) {
-            StoredExtrusionEntity child(storage);
-            if (!child.move_from(entity.child_mutable(0)) ||
-                extrusion_move_from(entity.mutable_handle(), child.mutable_handle()) == 0)
+            StoredExtrusionEntity original(storage);
+            if (!original.move_from(entity.child_mutable(1)) ||
+                extrusion_move_from(entity.mutable_handle(), original.mutable_handle()) == 0)
                 throw std::runtime_error("Failed to remove a generated feature G-code wrapper.");
         }
 
@@ -199,8 +202,7 @@ void clear_plan_feature_scripts(storage_handle *storage, const PrintingPlan &pla
 }
 
 FeatureRoleVisitor::FeatureRoleVisitor(storage_handle *storage, const std::string &script)
-    : m_storage(storage)
-    , m_script(script)
+    : m_script(script)
     , m_arguments(storage)
 {
     // Create the schema once. Each transition only replaces the four string
@@ -246,18 +248,12 @@ void FeatureRoleVisitor::add_transition(MutableExtrusionEntity entity,
         return;
     }
 
-    /*
-    One entity stores at most one property of each type. Moving the complete
-    leaf into an owned temporary preserves its geometry, properties and data
-    resources. Moving that temporary below the now-empty original handle turns
-    the stable plan handle into the required parent node.
-    */
-    StoredExtrusionEntity original(m_storage);
-    if (!original.move_from(entity))
-        throw std::runtime_error("Failed to preserve an extrusion before adding feature G-code.");
-    entity.script_gcode(m_script, GCODE_SCRIPT_TYPE_FEATURE_GCODE, m_arguments);
-    if (is_invalid_index(entity.append_child_move(original.mutable_view())))
-        throw std::runtime_error("Failed to wrap an extrusion carrying custom G-code.");
+    MutableExtrusionEntity event = entity.emplace_ordered_leaf(
+        OrderedLeafPosition::Before,
+        ExistingPropertyPlacement::MoveWithExistingContent);
+    if (!event.valid())
+        throw std::runtime_error("Failed to insert feature G-code before an extrusion.");
+    event.script_gcode(m_script, GCODE_SCRIPT_TYPE_FEATURE_GCODE, m_arguments);
 }
 
 void add_plan_feature_scripts(storage_handle *storage,

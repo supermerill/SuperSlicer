@@ -57,6 +57,8 @@ TYPE_ALIASES = {
     "raw_layer_adhesion_kind": "uint32_t",
     "raw_layer_adhesion_flag": "uint32_t",
     "raw_extrusion_role": "int32_t",
+    "raw_extrusion_ordered_leaf_position": "int32_t",
+    "raw_extrusion_existing_property_placement": "int32_t",
     "raw_config_option_mode": "uint64_t",
     "RawConfigOptionFlags": "uint64_t",
     "slic3r_property_type": "uint32_t",

@@ -46,6 +46,20 @@ class ExtrusionVisitorConst;
 using ExtrusionEntityUPtr = std::unique_ptr<ExtrusionEntity>;
 using ExtrusionEntityUPtrs = std::vector<ExtrusionEntityUPtr>;
 
+/* Select which ordered boundary receives a newly created leaf. */
+enum class OrderedLeafPosition : uint8_t
+{
+    Before,
+    After
+};
+
+/* Select whether direct properties stay on the stable outer handle. */
+enum class ExistingPropertyPlacement : uint8_t
+{
+    KeepOnParent,
+    MoveWithExistingContent
+};
+
 class ExtrusionEntity : public ExtrusionPropertyContainer
 {
 public:
@@ -132,6 +146,25 @@ public:
     ExtrusionEntity& append_child(const ExtrusionEntity &child);
     ExtrusionEntity& append_child(ExtrusionEntity &&child);
     void insert_child(size_t idx, ExtrusionEntityUPtr &&child);
+
+    /*
+    Create an empty fixed leaf immediately before or after this entity's
+    existing logical content.
+
+    The current object keeps its address and becomes a fixed ordered parent.
+    Existing children are moved, not cloned. MoveWithExistingContent always
+    creates a wrapper for the old content and moves direct properties into it;
+    KeepOnParent inserts directly only when this entity is already a fixed
+    collection.
+
+    The returned leaf is owned by this tree and remains valid until a later
+    structural mutation removes it. Borrowed views of this object's direct
+    structure and moved properties must be reacquired after success; existing
+    child object addresses stay valid. Allocation failure leaves this entity
+    unchanged and propagates to the caller.
+    */
+    ExtrusionEntity* emplace_ordered_leaf(OrderedLeafPosition position,
+                                           ExistingPropertyPlacement property_placement);
     void remove_child(size_t idx);
     void clear_content();
 
