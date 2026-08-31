@@ -37,6 +37,7 @@
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultFan.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultLayerEntryState.hpp"
+#include "libslic3r/Plugins/LayerExtrusionEdit/DefaultTravel.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultSpeed.hpp"
 #include "libslic3r/Plugins/Ordering/DefaultOrdering.hpp"
 #include "libslic3r/Plugins/PluginLoader.hpp"
@@ -207,6 +208,8 @@ void ensure_plugin_test_runtime_initialized()
         slic3r_api::DenseInfillPlugin::register_dense_infill_plugins(orchestrator_handle_value);
         slic3r_api::Ordering::DefaultOrderingPlugin::register_default_ordering_plugins(orchestrator_handle_value);
         slic3r_api::LayerExtrusionEdit::DefaultLayerEntryStatePlugin::register_default_layer_entry_state_plugin(
+            orchestrator_handle_value);
+        slic3r_api::LayerExtrusionEdit::DefaultTravelPlugin::register_default_travel_plugin(
             orchestrator_handle_value);
         slic3r_api::LayerExtrusionEdit::DefaultSpeedPlugin::register_default_speed_plugin(
             orchestrator_handle_value);

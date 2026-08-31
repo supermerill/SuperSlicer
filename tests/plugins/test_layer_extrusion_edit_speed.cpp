@@ -65,6 +65,8 @@ using slic3r_api::printing_layer_time_property_key;
 constexpr const char *DEFAULT_SPEED_PLUGIN = "layer_extrusion_edit.speed.default";
 constexpr const char *DEFAULT_ACCELERATION_PLUGIN = "layer_extrusion_edit.acceleration.default";
 constexpr const char *DEFAULT_FAN_PLUGIN = "layer_extrusion_edit.fan.default";
+constexpr const char *DEFAULT_ENTRY_STATE_PLUGIN = "layer_extrusion_edit.entry_state.default";
+constexpr const char *DEFAULT_TRAVEL_PLUGIN = "layer_extrusion_edit.travel.default";
 
 struct ExtrusionSpec
 {
@@ -617,6 +619,7 @@ TEST_CASE("Layer extrusion editors expose independent config contracts",
     CHECK(std::find(speed_keys.begin(), speed_keys.end(), "perimeter_speed") != speed_keys.end());
     CHECK(std::find(speed_keys.begin(), speed_keys.end(), "autospeed_min_thin_flow") != speed_keys.end());
     CHECK(std::find(speed_keys.begin(), speed_keys.end(), "filament_max_volumetric_speed") != speed_keys.end());
+    CHECK(std::find(speed_keys.begin(), speed_keys.end(), "travel_speed") != speed_keys.end());
     CHECK(std::find(speed_keys.begin(), speed_keys.end(), "default_acceleration") == speed_keys.end());
 
     std::vector<std::string> acceleration_keys;
@@ -625,6 +628,10 @@ TEST_CASE("Layer extrusion editors expose independent config contracts",
     CHECK(std::find(acceleration_keys.begin(), acceleration_keys.end(), "default_acceleration") !=
           acceleration_keys.end());
     CHECK(std::find(acceleration_keys.begin(), acceleration_keys.end(), "machine_limits_usage") !=
+          acceleration_keys.end());
+    CHECK(std::find(acceleration_keys.begin(), acceleration_keys.end(), "travel_acceleration") !=
+          acceleration_keys.end());
+    CHECK(std::find(acceleration_keys.begin(), acceleration_keys.end(), "machine_max_acceleration_travel") !=
           acceleration_keys.end());
     CHECK(std::find(acceleration_keys.begin(), acceleration_keys.end(), "perimeter_speed") ==
           acceleration_keys.end());
@@ -1079,6 +1086,101 @@ TEST_CASE("Layer extrusion editor mutates plan clones and hoists uniform fields"
     // still free of process values owned by this downstream plan step.
     CHECK(prepared.source_roots.front()->get_property<ExtrusionPropertySpeed>() == nullptr);
     CHECK(prepared.source_roots.front()->child(0).get_property<ExtrusionPropertySpeed>() == nullptr);
+}
+
+TEST_CASE("Travel leaves receive independent speed and acceleration",
+          "[plugins][layer-extrusion-edit][travel][speed][acceleration]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    SECTION("generated travel uses travel settings and its own machine limit") {
+        PreparedSpeedPrint prepared;
+        const DynamicPrintConfig config = speed_config({
+            {"perimeter_speed", "0"}, {"travel_speed", "123"},
+            {"default_acceleration", "1000"}, {"perimeter_acceleration", "800"},
+            {"travel_acceleration", "1500"}, {"first_layer_speed", "100%"},
+            {"first_layer_acceleration", "100%"}, {"max_print_speed", "50"},
+            {"max_volumetric_speed", "12"},
+            {"filament_max_speed", "0"}, {"filament_max_volumetric_speed", "0"},
+            {"machine_limits_usage", "limits"},
+            {"machine_max_acceleration_extruding", "700"},
+            {"machine_max_acceleration_travel", "900"}
+        });
+        prepare_ordered_plan(prepared, config, {{
+            ExtrusionSpec{ExtrusionRole::Perimeter, 0.2},
+            ExtrusionSpec{ExtrusionRole::Perimeter, 0.2}
+        }});
+
+        run_editors(prepared, {
+            DEFAULT_ENTRY_STATE_PLUGIN, DEFAULT_TRAVEL_PLUGIN,
+            DEFAULT_SPEED_PLUGIN, DEFAULT_ACCELERATION_PLUGIN
+        });
+
+        const std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+        size_t travel_count = 0;
+        for (const ObservedLeaf &leaf : leaves) {
+            if (leaf.role == ExtrusionRole::Travel) {
+                ++travel_count;
+                CHECK(leaf.speed == 123.f);
+                CHECK(leaf.acceleration == 900.f);
+            } else {
+                CHECK(leaf.speed == 50.f);
+                CHECK(leaf.acceleration == 700.f);
+            }
+        }
+        CHECK(travel_count == 1);
+
+        // Ordering cloned before travel generation. The source layer therefore
+        // remains two printable leaves with no generated connector or process data.
+        REQUIRE(prepared.source_roots.size() == 1);
+        REQUIRE(prepared.source_roots.front()->child_count() == 2);
+        for (size_t child_idx = 0; child_idx < prepared.source_roots.front()->child_count(); ++child_idx) {
+            const ExtrusionEntity &source = prepared.source_roots.front()->child(child_idx);
+            const ExtrusionAttributes *attributes = source.get_property<ExtrusionAttributes>();
+            REQUIRE(attributes != nullptr);
+            CHECK(attributes->extrusion_role() == ExtrusionRole::Perimeter);
+            CHECK(source.get_property<ExtrusionPropertySpeed>() == nullptr);
+        }
+    }
+
+    SECTION("pre-existing travel process values remain authoritative") {
+        PreparedSpeedPrint prepared;
+        const DynamicPrintConfig config = speed_config({
+            {"travel_speed", "123"}, {"default_acceleration", "1000"},
+            {"travel_acceleration", "1500"}, {"machine_limits_usage", "limits"},
+            {"machine_max_acceleration_travel", "900"}
+        });
+        ExtrusionSpec travel{ExtrusionRole::Travel, 0.0};
+        travel.existing_speed = 33.f;
+        travel.existing_acceleration = 444.f;
+        prepare_ordered_plan(prepared, config, {{travel}});
+
+        run_editors(prepared, {DEFAULT_SPEED_PLUGIN, DEFAULT_ACCELERATION_PLUGIN});
+
+        const std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+        REQUIRE(leaves.size() == 1);
+        CHECK(leaves.front().role == ExtrusionRole::Travel);
+        CHECK(leaves.front().speed == 33.f);
+        CHECK(leaves.front().acceleration == 444.f);
+    }
+
+    SECTION("travel acceleration resolves percentages against the default") {
+        PreparedSpeedPrint prepared;
+        const DynamicPrintConfig config = speed_config({
+            {"travel_speed", "80"}, {"default_acceleration", "1000"},
+            {"travel_acceleration", "150%"}, {"machine_limits_usage", "ignore"}
+        });
+        prepare_ordered_plan(prepared, config, {{
+            ExtrusionSpec{ExtrusionRole::Travel, 0.0}
+        }});
+
+        run_editors(prepared, {DEFAULT_SPEED_PLUGIN, DEFAULT_ACCELERATION_PLUGIN});
+
+        const std::vector<ObservedLeaf> leaves = observed_plan_leaves(prepared.print);
+        REQUIRE(leaves.size() == 1);
+        CHECK(leaves.front().speed == 80.f);
+        CHECK(leaves.front().acceleration == 1500.f);
+    }
 }
 
 TEST_CASE("Layer extrusion editor resolves role speed and acceleration fallbacks",
@@ -1604,6 +1706,46 @@ TEST_CASE("PrintingPlan time estimator counts geometry and connecting travel",
     // Two 18 mm paths at 20 mm/s plus the 18.027... mm connection at
     // 10 mm/s. The first machine position is intentionally free.
     CHECK(estimates.front().duration_seconds == Approx(3.6027756).margin(1e-5));
+}
+
+TEST_CASE("PrintingPlan time estimator treats sub-epsilon gaps as continuous",
+          "[plugins][layer-extrusion-edit][fan][time-estimator][travel]")
+{
+    DynamicPrintConfig config = speed_config({{"travel_speed", "1"}});
+    PrintingPlan plan;
+    plan.groups.emplace_back();
+    plan.groups.back().layers.emplace_back();
+    PrintingLayerGroup &layer = plan.groups.back().layers.back();
+    layer.print_z = scale_i(0.2);
+    layer.tool_groups.emplace_back();
+    PrintingToolGroup &tool = layer.tool_groups.back();
+    tool.extruder_id = 0;
+
+    ExtrusionSpec spec{ExtrusionRole::Perimeter, 0.2};
+    spec.existing_speed = 20.f;
+    std::unique_ptr<ExtrusionPath> first = make_path(spec, 0);
+    std::unique_ptr<ExtrusionPath> second = make_path(spec, 0);
+    const Point first_end = first->last_point();
+    second->polyline().set_front(Point(
+        first_end.x() + SCALED_EPSILON - 1, first_end.y()));
+
+    std::unique_ptr<ExtrusionEntityCollection> root =
+        std::make_unique<ExtrusionEntityCollection>(false, false);
+    const double expected_duration = unscaled(first->length() + second->length()) / 20.0;
+    root->append(std::move(first));
+    root->append(std::move(second));
+    PrintingExtrusion extrusion;
+    extrusion.root = std::move(root);
+    tool.extrusions.push_back(std::move(extrusion));
+
+    const slic3r_api::Config config_view(Slic3r::ApiHost::to_config_handle(&config));
+    const slic3r_api::PrintingPlan plan_view(
+        reinterpret_cast<printing_plan_handle *>(&plan));
+    const std::vector<slic3r_api::PrintingLayerTimeEstimate> estimates =
+        slic3r_api::PrintingPlanTimeEstimator(config_view).estimate(plan_view);
+
+    REQUIRE(estimates.size() == 1);
+    CHECK(estimates.front().duration_seconds == Approx(expected_duration).margin(1e-8));
 }
 
 TEST_CASE("Layer fan plugin consumes final timing without estimating geometry",

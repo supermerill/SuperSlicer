@@ -10,7 +10,8 @@ PrintingPlan movement-time estimation
 This source mirrors the movement geometry consumed by G-code generation, but
 keeps timing deliberately simple. It resolves inherited speed and Z metadata,
 measures each segment at constant speed, and inserts a straight synthetic
-travel whenever two consecutive leaves are disconnected.
+travel whenever two consecutive leaves are separated by at least the shared
+scaled continuity epsilon.
 */
 
 #include "PrintingPlanTimeEstimator.hpp"
@@ -113,8 +114,10 @@ void estimate_entity(const ExtrusionEntity &entity,
         first.point_a, print_z, state.z_offset + first.z_offset_a);
 
     // The first known point establishes machine position for free. Every later
-    // disconnected leaf receives a straight travel at configured travel speed.
-    if (position && distance_3d(*position, first_position) > 0.0) {
+    // gap large enough to survive travel-plugin snapping receives a synthetic
+    // connector at configured travel speed.
+    const double continuity_epsilon = unscaled(double(SCALED_EPSILON));
+    if (position && distance_3d(*position, first_position) >= continuity_epsilon) {
         if (travel_speed <= 0.0 || !std::isfinite(travel_speed))
             throw std::invalid_argument("Synthetic PrintingPlan travel needs a positive travel_speed.");
         duration += distance_3d(*position, first_position) / travel_speed;

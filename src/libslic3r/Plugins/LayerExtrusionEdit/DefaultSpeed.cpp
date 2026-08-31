@@ -66,7 +66,8 @@ const raw_used_config_key k_used_config_keys[] = {
     {"perimeter_speed", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE},
     {"solid_infill_speed", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE},
     {"thin_walls_speed", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE},
-    {"top_solid_infill_speed", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE}
+    {"top_solid_infill_speed", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE},
+    {"travel_speed", RAW_CO_FLOAT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE}
 };
 
 const RegionSettings::OptionKeyGroup k_region_speed_keys = {
@@ -134,6 +135,9 @@ float resolved_speed(const ExtrusionSettingsContext &context,
                      double mm3_per_mm,
                      bool has_volumetric_flow,
                      double autospeed_target);
+
+// Resolve travel speed independently from printable-role and volumetric rules.
+float resolved_travel_speed(const ExtrusionSettingsContext &context);
 
 // Scan unresolved eligible leaves for the group's smallest flow cross-section.
 void collect_autospeed_minimum(const MutableExtrusionEntity &entity,
@@ -381,6 +385,19 @@ float resolved_speed(const ExtrusionSettingsContext &context,
     const float stored_speed = float(speed);
     if (!std::isfinite(stored_speed))
         throw std::runtime_error("Extrusion speed cannot be represented by the stored float.");
+    return stored_speed;
+}
+
+float resolved_travel_speed(const ExtrusionSettingsContext &context)
+{
+    // Travel speed is a machine movement setting. It must not inherit role
+    // percentages or be reduced by material-flow and first-layer ceilings.
+    const double speed = context.print_config.float_or_default("travel_speed", 0.0);
+    if (speed <= 0.0 || !std::isfinite(speed))
+        throw std::runtime_error("Unable to resolve a positive finite travel speed.");
+    const float stored_speed = float(speed);
+    if (!std::isfinite(stored_speed))
+        throw std::runtime_error("Travel speed cannot be represented by the stored float.");
     return stored_speed;
 }
 
@@ -643,10 +660,20 @@ void assign_speed_tree(MutableExtrusionEntity entity,
         return;
     }
 
-    if (leaf_disposition(entity, state) != LeafDisposition::Editable || state.speed > 0.f)
+    const LeafDisposition disposition = leaf_disposition(entity, state);
+    if (disposition == LeafDisposition::Empty || state.speed > 0.f)
         return;
 
     const raw_extrusion_role role = state.attributes.extrusion_role();
+    // Travels are intentionally excluded from regional and autospeed setup,
+    // but still need a concrete process speed before firmware serialization.
+    if (RAW_EXTRUSION_ROLE_IS_TRAVEL(role)) {
+        editor.set_value(entity, resolved_travel_speed(context));
+        return;
+    }
+    if (disposition != LeafDisposition::Editable)
+        return;
+
     const double raw_mm3_per_mm =
         state.attributes.c_extrusion_property_attributes::mm3_per_mm;
     const bool has_volumetric_flow =

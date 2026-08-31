@@ -56,6 +56,7 @@ ordering.tool_groups.default = 1
 ordering.custom_gcode_event_tools = 1
 ordering.extrusion_tree.default = 1
 layer_extrusion_edit.entry_state.default = 1
+layer_extrusion_edit.travel.default = 1
 layer_extrusion_edit.speed.default = 1
 layer_extrusion_edit.acceleration.default = 1
 layer_extrusion_edit.fan.default = 1

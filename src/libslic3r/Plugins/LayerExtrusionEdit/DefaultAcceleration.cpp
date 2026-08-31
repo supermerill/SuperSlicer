@@ -20,6 +20,7 @@ temperature fields remain owned by their original producers.
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <map>
 #include <set>
@@ -52,11 +53,13 @@ const raw_used_config_key k_used_config_keys[] = {
     {"ironing_acceleration", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE},
     {"machine_limits_usage", RAW_CO_ENUM, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE},
     {"machine_max_acceleration_extruding", RAW_CO_VECTOR_FLOAT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE},
+    {"machine_max_acceleration_travel", RAW_CO_VECTOR_FLOAT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE},
     {"overhangs_acceleration", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE},
     {"perimeter_acceleration", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE},
     {"solid_infill_acceleration", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE},
     {"thin_walls_acceleration", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE},
-    {"top_solid_infill_acceleration", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE}
+    {"top_solid_infill_acceleration", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE},
+    {"travel_acceleration", RAW_CO_FLOAT_OR_PERCENT, RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE}
 };
 
 const RegionSettings::OptionKeyGroup k_region_acceleration_keys = {
@@ -98,6 +101,9 @@ using RegionalSettingsPartitions = std::map<RegionalSourceKey, RegionalSettingsP
 // Resolve role acceleration, then apply first-layer and machine limits.
 double role_acceleration(const ExtrusionSettingsContext &context,
                          raw_extrusion_role role);
+
+// Resolve travel acceleration without applying printable-role layer rules.
+float resolved_travel_acceleration(const ExtrusionSettingsContext &context);
 
 // Collect roles that still need acceleration from one validated tree.
 void collect_unresolved_roles(MutableExtrusionEntity entity,
@@ -212,6 +218,35 @@ double role_acceleration(const ExtrusionSettingsContext &context,
     return acceleration;
 }
 
+float resolved_travel_acceleration(const ExtrusionSettingsContext &context)
+{
+    // computed_float_or_default() resolves a percentage against
+    // default_acceleration. A zero travel value follows the documented legacy
+    // fallback and uses that same default directly.
+    double acceleration = context.region_config.computed_float_or_default(
+        "travel_acceleration", int32_t(context.extruder_id), 0.0);
+    if (acceleration <= 0.0)
+        acceleration = context.region_config.computed_float_or_default(
+            "default_acceleration", int32_t(context.extruder_id), 0.0);
+
+    // Machine travel acceleration is an independent physical ceiling. It does
+    // not reuse the extrusion ceiling merely because both live in one payload.
+    const int32_t limits_usage = context.print_config.enum_or_default("machine_limits_usage", 3);
+    if (limits_usage <= 2) {
+        const double machine_limit = context.print_config.vector_float_or_default(
+            "machine_max_acceleration_travel", 0, 0.0);
+        if (machine_limit > 0.0)
+            acceleration = std::min(acceleration, machine_limit);
+    }
+
+    if (acceleration <= 0.0 || !std::isfinite(acceleration))
+        throw std::runtime_error("Unable to resolve a positive finite travel acceleration.");
+    const float stored_acceleration = float(acceleration);
+    if (!std::isfinite(stored_acceleration))
+        throw std::runtime_error("Travel acceleration cannot be represented by the stored float.");
+    return stored_acceleration;
+}
+
 void collect_unresolved_roles(MutableExtrusionEntity entity,
                               const EffectiveTreeState &parent_state,
                               std::set<raw_extrusion_role> &roles)
@@ -307,10 +342,20 @@ void assign_acceleration_tree(MutableExtrusionEntity entity,
         return;
     }
 
-    if (leaf_disposition(entity, state) != LeafDisposition::Editable || state.acceleration > 0.f)
+    const LeafDisposition disposition = leaf_disposition(entity, state);
+    if (disposition == LeafDisposition::Empty || state.acceleration > 0.f)
         return;
 
     const raw_extrusion_role role = state.attributes.extrusion_role();
+    // Travels bypass regional partitioning and first-layer role policy. Their
+    // single movement setting is resolved directly from the process config.
+    if (RAW_EXTRUSION_ROLE_IS_TRAVEL(role)) {
+        editor.set_value(entity, resolved_travel_acceleration(context));
+        return;
+    }
+    if (disposition != LeafDisposition::Editable)
+        return;
+
     const RegionalSourceKey source{ region_island.handle(), object_instance_idx };
     const AccelerationPartitionKey key{
         source, context.extruder_id, role
