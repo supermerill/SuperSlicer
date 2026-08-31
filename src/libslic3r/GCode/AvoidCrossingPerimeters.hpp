@@ -9,23 +9,44 @@
 #define slic3r_AvoidCrossingPerimeters_hpp_
 
 #include <cstddef>
+#include <cstdint>
 #include <map>
 #include <utility>
 #include <vector>
 
 #include "libslic3r/EdgeGrid.hpp"
 #include "libslic3r/ExPolygon.hpp"
+#include "libslic3r/Point.hpp"
 
 namespace Slic3r {
 
 // Forward declarations.
-class GCodeGenerator;
 class Layer;
-class Point;
 
 class AvoidCrossingPerimeters
 {
 public:
+    /*
+    Immutable inputs needed to route one travel without depending on the caller
+    that owns the current machine state. The referenced Layer must remain alive
+    for the duration of travel_to(); the context never owns or modifies it.
+
+    start and origin use scaled core coordinates. start is expressed in the
+    active object's coordinate system; origin translates it into print space
+    when external routing is selected. An absolute max_detour value is expressed
+    in millimetres, while a relative value is a percentage of the direct travel.
+    Values at or below zero disable the detour limit.
+    */
+    struct TravelContext
+    {
+        const Layer &layer;
+        Point start;
+        Point origin;
+        uint16_t extruder_id;
+        double max_detour;
+        bool max_detour_is_percent;
+    };
+
     // Routing around the objects vs. inside a single object.
     void        use_external_mp(bool use = true) { m_use_external_mp = use; };
     void        use_external_mp_once()  { m_use_external_mp_once = true; }
@@ -37,13 +58,13 @@ public:
     void        init_layer(const Layer &layer);
     bool        is_init() { return m_init; }
 
-    Polyline    travel_to(const GCodeGenerator &gcodegen, const Point& point)
+    Polyline    travel_to(const TravelContext &context, const Point &point)
     {
-        bool could_be_wipe_disabled;
-        return this->travel_to(gcodegen, point, &could_be_wipe_disabled);
+        bool could_be_wipe_disabled = false;
+        return this->travel_to(context, point, &could_be_wipe_disabled);
     }
 
-    Polyline    travel_to(const GCodeGenerator &gcodegen, const Point& point, bool* could_be_wipe_disabled);
+    Polyline    travel_to(const TravelContext &context, const Point &point, bool *could_be_wipe_disabled);
 
     struct Boundary {
         // Collection of boundaries used for detection of crossing perimeters for travels
@@ -94,11 +115,9 @@ private:
 
     // for assert, to see if we are correctly initialized
     const Layer             *m_init_to;
-    // Lslices offseted by half an external perimeter width. Used for detection if line or polyline is inside of any polygon.
+    // Layer slices offset by half an external perimeter width. A non-empty
+    // result tells travel_to() that internal perimeter routing is available.
     ExPolygons               m_lslices_offset;
-    std::vector<BoundingBox> m_lslices_offset_bboxes;
-    // Used for detection of line or polyline is inside of any polygon.
-    EdgeGrid::Grid           m_grid_lslices_offset;
     // Store all needed data for travels inside object
     Boundary m_internal;
     // Store all needed data for travels outside object

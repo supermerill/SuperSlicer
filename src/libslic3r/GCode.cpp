@@ -9495,7 +9495,22 @@ Polyline GCodeGenerator::travel_to(std::string &gcode, const Point &point, Extru
         // plan a multi-hop travel path inside the configuration space
         if (this->can_cross_perimeter(travel, true)) {
             this->m_throw_if_canceled();
-            travel = m_avoid_crossing_perimeters->travel_to(*this, point, &could_be_wipe_disabled);
+
+            // Give the routing algorithm a snapshot of only the geometric and
+            // configuration state needed for this call. Retraction and wipe
+            // decisions remain owned by GCodeGenerator.
+            const ConfigOptionFloatOrPercent &max_detour =
+                m_config.avoid_crossing_perimeters_max_detour;
+            const AvoidCrossingPerimeters::TravelContext travel_context{
+                *this->layer(),
+                this->last_pos(),
+                Point::new_scale(this->origin()(0), this->origin()(1)),
+                this->last_extruder(),
+                max_detour.value,
+                max_detour.percent
+            };
+            travel = m_avoid_crossing_perimeters->travel_to(
+                travel_context, point, &could_be_wipe_disabled);
             assert(travel.size() > 1);
             for (size_t i = 1; i < travel.size(); i++)
                 assert(!travel.points[i - 1].coincides_with_epsilon(travel.points[i]));
@@ -9576,7 +9591,17 @@ Polyline GCodeGenerator::travel_to(std::string &gcode, const Point &point, Extru
                 
                 this->m_throw_if_canceled();
                 // Because of it, it is necessary to redo the thing
-                travel = m_avoid_crossing_perimeters->travel_to(*this, point);
+                const ConfigOptionFloatOrPercent &max_detour =
+                    m_config.avoid_crossing_perimeters_max_detour;
+                const AvoidCrossingPerimeters::TravelContext travel_context{
+                    *this->layer(),
+                    this->last_pos(),
+                    Point::new_scale(this->origin()(0), this->origin()(1)),
+                    this->last_extruder(),
+                    max_detour.value,
+                    max_detour.percent
+                };
+                travel = m_avoid_crossing_perimeters->travel_to(travel_context, point);
                 updated_first_pos = true;
                 // If state of use_external_mp_once was changed reset it to right value.
                 if (used_external_mp_once)
@@ -9952,7 +9977,21 @@ Polyline GCodeGenerator::generate_travel_xy_path(
         needs_retraction
         && avoid_crossing_perimeters
     ) {
-        xy_path = this->m_avoid_crossing_perimeters->travel_to(*this, end_point, &could_be_wipe_disabled);
+        // Preserve the legacy start position used by AvoidCrossingPerimeters.
+        // This helper's explicit start_point remains unrelated to routing in
+        // this compatibility path.
+        const ConfigOptionFloatOrPercent &max_detour =
+            m_config.avoid_crossing_perimeters_max_detour;
+        const AvoidCrossingPerimeters::TravelContext travel_context{
+            *this->layer(),
+            this->last_pos(),
+            Point::new_scale(this->origin()(0), this->origin()(1)),
+            this->last_extruder(),
+            max_detour.value,
+            max_detour.percent
+        };
+        xy_path = this->m_avoid_crossing_perimeters->travel_to(
+            travel_context, end_point, &could_be_wipe_disabled);
     }
 
     return xy_path;
