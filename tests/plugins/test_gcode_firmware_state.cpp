@@ -370,6 +370,39 @@ TEST_CASE("Extrusion axis state owns E quantization and its rounding remainder",
         CHECK(axis.restart_extra() == Approx(0.2));
         CHECK(axis.extruded_dE_left() == Approx(0.0));
     }
+
+    SECTION("semantic operations distribute exact targets over planar segments") {
+        DefaultExtruder tool(0);
+        tool.setup(config_view);
+        ExtrusionAxisState &axis = tool.extrusion_axis();
+
+        REQUIRE(axis.retract(0.25) == Approx(-0.25));
+        const std::vector<std::optional<double>> retract_values =
+            axis.retract_along(1.0, {2.0, 3.0});
+        REQUIRE(retract_values.size() == 2);
+        REQUIRE(retract_values[0]);
+        REQUIRE(retract_values[1]);
+        CHECK(*retract_values[0] == Approx(-0.55));
+        CHECK(*retract_values[1] == Approx(-1.0));
+        CHECK(axis.retracted() == Approx(1.0));
+
+        const std::vector<std::optional<double>> unretract_values =
+            axis.unretract_along(-0.1, false, {1.0, 1.0});
+        REQUIRE(unretract_values.size() == 2);
+        REQUIRE(unretract_values[0]);
+        REQUIRE(unretract_values[1]);
+        CHECK(*unretract_values[0] == Approx(-0.55));
+        CHECK(*unretract_values[1] == Approx(-0.1));
+        CHECK(axis.retracted() == Approx(0.0));
+        CHECK(axis.restart_extra() == Approx(0.0));
+
+        REQUIRE(axis.retract(0.1) == Approx(-0.2));
+        const std::vector<std::optional<double>> cancelled_values =
+            axis.unretract_along(-0.1, false, {1.0});
+        REQUIRE(cancelled_values.size() == 1);
+        CHECK_FALSE(cancelled_values.front());
+        CHECK_FALSE(axis.need_unretract());
+    }
 }
 
 } // namespace

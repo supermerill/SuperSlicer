@@ -25,6 +25,24 @@ state itself.
 
 namespace slic3r_api { namespace GCodeGeneration {
 
+namespace {
+
+/* Validate distribution weights and return their positive total length. */
+double checked_total_length(const std::vector<double> &segment_lengths)
+{
+    double total = 0.0;
+    for (const double length : segment_lengths) {
+        if (!std::isfinite(length) || length < 0.0)
+            throw std::invalid_argument("Semantic extrusion-axis segment lengths must be finite and non-negative.");
+        total += length;
+    }
+    if (!std::isfinite(total) || total <= EPSILON)
+        throw std::invalid_argument("A geometric extrusion-axis operation needs a positive planar length.");
+    return total;
+}
+
+} // namespace
+
 void ExtrusionAxisState::setup(const ExtrusionAxisSettings &settings)
 {
     m_configured_use_relative_e_distances = settings.use_relative_e_distances;
@@ -136,19 +154,13 @@ std::optional<double> ExtrusionAxisState::extrude(double delta_e)
         std::optional<double>(extrusion_number) : std::optional<double>();
 }
 
-double ExtrusionAxisState::retract(double retract_length,
-                             std::optional<double> restart_extra,
-                             std::optional<double> restart_extra_from_toolchange)
+double ExtrusionAxisState::retract(const double target)
 {
-    if (!std::isfinite(retract_length) || retract_length < 0.0)
+    if (!std::isfinite(target) || target < 0.0)
         throw std::invalid_argument("The requested retraction length is invalid.");
 
-    const double amount = retract_to_go(retract_length);
+    const double amount = retract_to_go(target);
     const std::optional<double> extrusion_number = extrude(-amount);
-    if (restart_extra)
-        m_restart_extra = *restart_extra;
-    if (restart_extra_from_toolchange)
-        m_restart_extra_toolchange = *restart_extra_from_toolchange;
     return extrusion_number.value_or(0.0);
 }
 
@@ -162,6 +174,116 @@ double ExtrusionAxisState::unretract()
     return extrusion_number.value_or(0.0);
 }
 
+std::vector<std::optional<double>> ExtrusionAxisState::retract_along(
+    const double retract_length, const std::vector<double> &segment_lengths)
+{
+    if (!std::isfinite(retract_length) || retract_length < 0.0)
+        throw std::invalid_argument("The requested retraction length is invalid.");
+    const double total_length = checked_total_length(segment_lengths);
+    const double requested_amount = std::max(0.0, retract_length - m_retracted);
+    std::vector<std::optional<double>> encoded_values(segment_lengths.size());
+    if (requested_amount == 0.0)
+        return encoded_values;
+    double distributed_amount = 0.0;
+
+    // Apply proportional exact deltas in path order. The last positive segment
+    // receives the subtraction remainder rather than another multiplication.
+    size_t last_positive_idx = segment_lengths.size();
+    for (size_t idx = segment_lengths.size(); idx > 0; --idx) {
+        if (segment_lengths[idx - 1] > 0.0) {
+            last_positive_idx = idx - 1;
+            break;
+        }
+    }
+    for (size_t idx = 0; idx < segment_lengths.size(); ++idx) {
+        if (segment_lengths[idx] <= 0.0)
+            continue;
+        const double amount = idx == last_positive_idx ?
+            requested_amount - distributed_amount :
+            requested_amount * segment_lengths[idx] / total_length;
+        encoded_values[idx] = extrude(-amount);
+        distributed_amount += amount;
+    }
+    return encoded_values;
+}
+
+std::vector<std::optional<double>> ExtrusionAxisState::unretract_along(
+    const double restart_extra, const bool toolchange,
+    const std::vector<double> &segment_lengths)
+{
+    if (!std::isfinite(restart_extra))
+        throw std::invalid_argument("Restart-extra distance must be finite.");
+    const double total_length = checked_total_length(segment_lengths);
+    schedule_restart_extra(restart_extra, toolchange);
+    const double requested_amount = m_retracted + m_restart_extra + m_restart_extra_toolchange;
+    std::vector<std::optional<double>> encoded_values(segment_lengths.size());
+    if (requested_amount == 0.0) {
+        // A negative restart-extra may exactly cancel the retracted distance.
+        // No E value then needs encoding, but the semantic unretraction still
+        // completes and must clear every component of the pending request.
+        m_retracted = 0.0;
+        m_restart_extra = 0.0;
+        m_restart_extra_toolchange = 0.0;
+        return encoded_values;
+    }
+    double distributed_amount = 0.0;
+
+    // Positive and negative restart-extra values use the same interpolation.
+    // Clearing both scheduled adjustments commits completion of the semantic
+    // operation after the final path segment has received its exact remainder.
+    size_t last_positive_idx = segment_lengths.size();
+    for (size_t idx = segment_lengths.size(); idx > 0; --idx) {
+        if (segment_lengths[idx - 1] > 0.0) {
+            last_positive_idx = idx - 1;
+            break;
+        }
+    }
+    for (size_t idx = 0; idx < segment_lengths.size(); ++idx) {
+        if (segment_lengths[idx] <= 0.0)
+            continue;
+        const double amount = idx == last_positive_idx ?
+            requested_amount - distributed_amount :
+            requested_amount * segment_lengths[idx] / total_length;
+        encoded_values[idx] = extrude(amount);
+        distributed_amount += amount;
+    }
+    m_retracted = 0.0;
+    m_restart_extra = 0.0;
+    m_restart_extra_toolchange = 0.0;
+    return encoded_values;
+}
+
+bool ExtrusionAxisState::retract_with_firmware(const double target)
+{
+    if (!std::isfinite(target) || target < 0.0)
+        throw std::invalid_argument("The requested firmware retraction length is invalid.");
+
+    const double amount = retract_to_go(target);
+    if (amount <= 0.0)
+        return false;
+
+    // Native firmware retraction moves filament without changing the logical
+    // E coordinate visible to later absolute host-generated extrusion moves.
+    m_absolute_E -= amount;
+    m_retracted += amount;
+    return true;
+}
+
+bool ExtrusionAxisState::unretract_with_firmware()
+{
+    const double amount = m_retracted + m_restart_extra + m_restart_extra_toolchange;
+    const bool has_request = m_retracted != 0.0 || m_restart_extra != 0.0 ||
+        m_restart_extra_toolchange != 0.0;
+    if (!has_request)
+        return false;
+
+    m_absolute_E += amount;
+    m_retracted = 0.0;
+    m_restart_extra = 0.0;
+    m_restart_extra_toolchange = 0.0;
+    return true;
+}
+
 void ExtrusionAxisState::reset_retract()
 {
     m_retracted = 0.0;
@@ -171,7 +293,10 @@ void ExtrusionAxisState::reset_retract()
 
 bool ExtrusionAxisState::need_unretract() const
 {
-    return m_retracted + m_restart_extra + m_restart_extra_toolchange != 0.0;
+    // Signed restart-extra may exactly cancel the restored filament distance.
+    // The semantic operation is still active and must clear all three fields.
+    return m_retracted != 0.0 || m_restart_extra != 0.0 ||
+        m_restart_extra_toolchange != 0.0;
 }
 
 double ExtrusionAxisState::retract_to_go(double retract_length) const
@@ -203,6 +328,16 @@ void ExtrusionAxisState::set_retracted(double retracted, double restart_extra)
         throw std::invalid_argument("Retraction state cannot be negative.");
     m_retracted = retracted > EPSILON ? retracted : 0.0;
     m_restart_extra = m_retracted > 0.0 && restart_extra > EPSILON ? restart_extra : 0.0;
+}
+
+void ExtrusionAxisState::schedule_restart_extra(const double restart_extra, const bool toolchange)
+{
+    if (!std::isfinite(restart_extra))
+        throw std::invalid_argument("Restart-extra distance must be finite.");
+    if (toolchange)
+        m_restart_extra_toolchange = restart_extra;
+    else
+        m_restart_extra = restart_extra;
 }
 
 bool ExtrusionAxisState::synchronize_after_external_gcode(

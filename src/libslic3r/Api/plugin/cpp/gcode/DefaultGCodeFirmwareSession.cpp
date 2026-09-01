@@ -98,6 +98,29 @@ bool has_toolchange_script(const ExtrusionEntity &root)
     return false;
 }
 
+// Return true when the ordered extrusion stream selects its tool explicitly.
+bool has_semantic_toolchange(const ExtrusionEntity &root, const uint16_t target_tool)
+{
+    const EPropertySpecialCommand *command = root.get(EPropertySpecialCommand::key);
+    if (command != nullptr && command->code == C_EXTRUSION_SPECIAL_COMMAND_TOOLCHANGE &&
+        std::isfinite(command->extra_data) && command->extra_data == double(target_tool))
+        return true;
+    for (uint32_t child_idx = 0; child_idx < root.child_count(); ++child_idx)
+        if (has_semantic_toolchange(root.child(child_idx), target_tool))
+            return true;
+    return false;
+}
+
+// Inspect a complete tool section before begin_tool_group commits its tool.
+bool tool_group_has_semantic_toolchange(const PrintingToolGroup &tool_group)
+{
+    for (uint32_t extrusion_idx = 0; extrusion_idx < tool_group.extrusion_count(); ++extrusion_idx)
+        if (has_semantic_toolchange(
+                tool_group.extrusion(extrusion_idx).root(), tool_group.extruder_id()))
+            return true;
+    return false;
+}
+
 } // namespace
 
 // Holds the effective extrusion properties at the visitor's current position
@@ -113,6 +136,7 @@ struct DefaultGCodeFirmwareSession::RequestedState
     std::optional<float> fan_speed_percent;
     std::optional<float> temperature_c;
     std::optional<EPropertyAttributes> attributes;
+    std::optional<EPropertyExtrusionAxis> extrusion_axis;
     coord_t z_offset = 0;
 };
 
@@ -343,6 +367,8 @@ protected:
             m_state.attributes = *attributes;
         if (const EPropertyZOffset *z_offset = entity.get(EPropertyZOffset::key))
             m_state.z_offset = z_offset->get();
+        if (const EPropertyExtrusionAxis *axis = entity.get(EPropertyExtrusionAxis::key))
+            m_state.extrusion_axis = *axis;
 
         // Direct event properties describe one position in the ordered tree.
         // Process them once on node entry instead of repeating them for every
@@ -353,6 +379,14 @@ protected:
             m_output += m_session.write_custom_gcode(entity, *custom_gcode);
         if (const EPropertySpecialCommand *command = entity.get(EPropertySpecialCommand::key))
             m_output += m_session.write_special_command(*command, m_state);
+        if (const EPropertyExtrusionAxis *axis = entity.get(EPropertyExtrusionAxis::key)) {
+            const bool is_empty_event = entity.segment_count() == 0 && entity.child_count() == 0;
+            if (entity.child_count() > 0)
+                throw std::invalid_argument(
+                    "An extrusion-axis request must be attached to a leaf, not a parent node.");
+            if (is_empty_event)
+                m_output += m_session.write_extrusion_axis_event(*axis, m_state);
+        }
     }
 
     void visit_leaf(ExtrusionEntity entity) override
@@ -402,6 +436,7 @@ void DefaultGCodeFirmwareSession::setup(const Config &config)
         m_extruders.emplace_back(uint16_t(extruder_idx));
         m_extruders.back().setup(config);
     }
+    m_native_retraction_active.assign(extruder_count, 0);
 
     m_gantry.setup(config);
     m_printer.setup(config);
@@ -417,6 +452,8 @@ void DefaultGCodeFirmwareSession::setup(const Config &config)
     m_units_in_mm = true;
     m_e_relative_mode = config.bool_or_default("use_relative_e_distances", false);
     m_seen_object_group = false;
+    m_use_firmware_retraction = config.bool_or_default("use_firmware_retraction", false);
+    m_wipe_tag_open = false;
     setup_firmware(config);
     m_is_setup = true;
 }
@@ -455,21 +492,11 @@ std::string DefaultGCodeFirmwareSession::begin_layer(const PrintingLayerGroup &l
     if (!m_is_setup)
         throw std::logic_error("The firmware session was not initialized by begin_print().");
     m_layer_print_z = layer.print_z();
-    if (!m_current_extruder_idx || !m_gantry.position())
-        return {};
-
-    const c_vec3d current = *m_gantry.position();
-    const double target_z = unscaled(m_layer_print_z) + m_gantry.z_offset() - current_extruder().z_offset();
-    if (current.z == target_z)
-        return {};
-    const std::optional<double> inherited_speed = m_gantry.requested_speed();
-    m_gantry.request_speed(m_gantry.travel_speed());
-    PreparedMove move;
-    move.kind = PreparedMove::Kind::Travel;
-    move.destination = c_vec3d{current.x, current.y, target_z};
-    const std::string output = write_lines(move);
-    m_gantry.request_speed(inherited_speed);
-    return output;
+    // A layer boundary is structural, not a machine movement. Explicit travel
+    // geometry may first finish a wipe at the preceding Z and then apply a
+    // ramped lift. When no such geometry exists, write_leaf_geometry() still
+    // provides the legacy straight fallback to the first point at this Z.
+    return {};
 }
 
 std::string DefaultGCodeFirmwareSession::begin_tool_group(const PrintingToolGroup &tool_group)
@@ -477,7 +504,9 @@ std::string DefaultGCodeFirmwareSession::begin_tool_group(const PrintingToolGrou
     if (!m_is_setup)
         throw std::logic_error("The firmware session was not initialized by begin_print().");
     const bool custom_toolchange = has_toolchange_script(tool_group.events().before());
-    const std::string output = select_extruder(tool_group.extruder_id(), !custom_toolchange);
+    const bool ordered_toolchange = tool_group_has_semantic_toolchange(tool_group);
+    const std::string output = ordered_toolchange ? std::string() :
+        select_extruder(tool_group.extruder_id(), !custom_toolchange);
     return output;
 }
 
@@ -525,7 +554,10 @@ std::string DefaultGCodeFirmwareSession::end_group()
 
 std::string DefaultGCodeFirmwareSession::end_print()
 {
-    return {};
+    if (!m_wipe_tag_open)
+        return {};
+    m_wipe_tag_open = false;
+    return ";WIPE_END\n";
 }
 
 std::string DefaultGCodeFirmwareSession::enter_extrusion_node(const ExtrusionEntity &)
@@ -722,6 +754,26 @@ double DefaultGCodeFirmwareSession::segment_length_mm(const c_extrusion_segment 
     return unscaled(radius * angle);
 }
 
+std::string DefaultGCodeFirmwareSession::write_native_retract(const double target)
+{
+    DefaultExtruder &tool = current_extruder();
+    const bool changed = tool.extrusion_axis().retract_with_firmware(target);
+    uint8_t &active = m_native_retraction_active.at(*m_current_extruder_idx);
+    if (!changed || active != 0)
+        return {};
+    active = 1;
+    return encode_firmware_retraction(true);
+}
+
+std::string DefaultGCodeFirmwareSession::write_native_unretract()
+{
+    DefaultExtruder &tool = current_extruder();
+    if (!tool.extrusion_axis().unretract_with_firmware())
+        return {};
+    m_native_retraction_active.at(*m_current_extruder_idx) = 0;
+    return encode_firmware_retraction(false);
+}
+
 std::string DefaultGCodeFirmwareSession::write_leaf_geometry(const ExtrusionEntity &leaf,
                                                               const RequestedState &state)
 {
@@ -730,6 +782,29 @@ std::string DefaultGCodeFirmwareSession::write_leaf_geometry(const ExtrusionEnti
     if (!state.attributes)
         throw std::invalid_argument("An extrusion movement needs effective attributes.");
     const bool is_travel = RAW_EXTRUSION_ROLE_IS_TRAVEL(state.attributes->extrusion_role());
+    const bool is_wipe = RAW_EXTRUSION_ROLE_IS_WIPE(state.attributes->extrusion_role());
+    const bool is_retract = RAW_EXTRUSION_ROLE_IS_RETRACT(state.attributes->extrusion_role());
+    const bool is_unretract = RAW_EXTRUSION_ROLE_IS_UNRETRACT(state.attributes->extrusion_role());
+    const EPropertyExtrusionAxis *axis = leaf.get(EPropertyExtrusionAxis::key);
+    if (is_wipe && !is_travel)
+        throw std::invalid_argument("A wipe movement must also carry the Travel role.");
+    if (axis != nullptr && !is_wipe)
+        throw std::invalid_argument("A geometric extrusion-axis request is only valid on a Wipe leaf.");
+    if (is_retract && is_unretract)
+        throw std::invalid_argument("A Wipe leaf cannot retract and unretract at the same time.");
+    if ((is_retract || is_unretract) && axis == nullptr)
+        throw std::invalid_argument("A semantic Wipe role needs an extrusion-axis request.");
+    if (axis != nullptr &&
+        ((is_retract && axis->operation != C_EXTRUSION_AXIS_OPERATION_RETRACT_TO) ||
+         (is_unretract && axis->operation != C_EXTRUSION_AXIS_OPERATION_UNRETRACT) ||
+         (!is_retract && !is_unretract)))
+        throw std::invalid_argument("A geometric extrusion-axis operation does not match its Wipe role.");
+    if (axis != nullptr &&
+        ((axis->operation == C_EXTRUSION_AXIS_OPERATION_RETRACT_TO &&
+          (!std::isfinite(axis->value) || axis->value < 0.0)) ||
+         (axis->operation == C_EXTRUSION_AXIS_OPERATION_UNRETRACT &&
+          !std::isfinite(axis->restart_extra))))
+        throw std::invalid_argument("A geometric extrusion-axis request contains an invalid value.");
     if (!is_travel &&
         (state.attributes->c_extrusion_property_attributes::mm3_per_mm <= 0.0 ||
          !std::isfinite(state.attributes->c_extrusion_property_attributes::mm3_per_mm)))
@@ -749,6 +824,13 @@ std::string DefaultGCodeFirmwareSession::write_leaf_geometry(const ExtrusionEnti
         m_gantry.request_print_acceleration(acceleration);
     apply_requested_state(state);
     std::string output;
+    if (is_wipe && !m_wipe_tag_open) {
+        output += ";WIPE_START\n";
+        m_wipe_tag_open = true;
+    } else if (!is_wipe && m_wipe_tag_open) {
+        output += ";WIPE_END\n";
+        m_wipe_tag_open = false;
+    }
     const c_extrusion_segment first_segment = leaf.segment(0);
     const c_vec3d first_position = machine_position(
         first_segment.point_a, state.z_offset + first_segment.z_offset_a);
@@ -767,6 +849,43 @@ std::string DefaultGCodeFirmwareSession::write_leaf_geometry(const ExtrusionEnti
         m_gantry.request_speed(print_speed);
     }
 
+    // A semantic geometric request is resolved from the live E state once for
+    // the complete leaf. The axis state returns one already-quantized value per
+    // planar segment, so firmware syntax never has to reproduce E arithmetic.
+    std::vector<std::optional<double>> semantic_e_values;
+    std::optional<ExtrusionAxisState> planned_axis;
+    bool native_unretract_pending = false;
+    if (axis != nullptr) {
+        std::vector<double> segment_lengths;
+        segment_lengths.reserve(leaf.segment_count());
+        double total_segment_length = 0.0;
+        for (uint32_t segment_idx = 0; segment_idx < leaf.segment_count(); ++segment_idx) {
+            const double length = segment_length_mm(leaf.segment(segment_idx));
+            segment_lengths.push_back(length);
+            total_segment_length += length;
+        }
+        if (!std::isfinite(total_segment_length) || total_segment_length <= EPSILON)
+            throw std::invalid_argument(
+                "A geometric extrusion-axis request needs a positive planar length.");
+
+        DefaultExtruder &tool = current_extruder();
+        if (m_use_firmware_retraction) {
+            if (is_retract) {
+                output += write_native_retract(axis->value);
+            } else {
+                tool.extrusion_axis().schedule_restart_extra(
+                    axis->restart_extra, axis->toolchange != 0);
+                native_unretract_pending = tool.extrusion_axis().need_unretract();
+            }
+        } else {
+            planned_axis = tool.extrusion_axis();
+            semantic_e_values = is_retract ?
+                planned_axis->retract_along(axis->value, segment_lengths) :
+                planned_axis->unretract_along(
+                    axis->restart_extra, axis->toolchange != 0, segment_lengths);
+        }
+    }
+
     // Convert every geometric segment into one prepared machine move. A travel
     // uses the same resolved speed property but deliberately carries no E.
     // Printable paths compute E from true arc length and preserve the original
@@ -775,9 +894,12 @@ std::string DefaultGCodeFirmwareSession::write_leaf_geometry(const ExtrusionEnti
         const c_extrusion_segment segment = leaf.segment(segment_idx);
 
         PreparedMove move;
-        move.kind = is_travel ? PreparedMove::Kind::Travel : PreparedMove::Kind::Extrusion;
+        move.kind = is_wipe ? PreparedMove::Kind::Wipe :
+            (is_travel ? PreparedMove::Kind::Travel : PreparedMove::Kind::Extrusion);
         move.destination = machine_position(segment.point_b, state.z_offset + segment.z_offset_b);
-        if (!is_travel) {
+        if (axis != nullptr && !m_use_firmware_retraction) {
+            move.extrusion = semantic_e_values[segment_idx];
+        } else if (!is_travel) {
             const double path_length = segment_length_mm(segment);
             const double delta_e = path_length * current_extruder().extrusion_axis().e_per_mm(
                 state.attributes->c_extrusion_property_attributes::mm3_per_mm);
@@ -787,6 +909,87 @@ std::string DefaultGCodeFirmwareSession::write_leaf_geometry(const ExtrusionEnti
         move.arc_orientation = segment.orientation;
         output += write_lines(move);
     }
+
+    // Commit explicit-E accounting only after every movement line has been
+    // generated. Native unretraction is intentionally delayed until the end of
+    // the approach, while native retraction was required before its wipe path.
+    if (planned_axis)
+        current_extruder().extrusion_axis() = *planned_axis;
+    if (native_unretract_pending) {
+        if (m_wipe_tag_open) {
+            output += ";WIPE_END\n";
+            m_wipe_tag_open = false;
+        }
+        output += write_native_unretract();
+    } else if (is_unretract && m_wipe_tag_open) {
+        output += ";WIPE_END\n";
+        m_wipe_tag_open = false;
+    }
+    return output;
+}
+
+std::string DefaultGCodeFirmwareSession::write_extrusion_axis_event(
+    const EPropertyExtrusionAxis &axis,
+    const RequestedState &state)
+{
+    if (!m_current_extruder_idx)
+        throw std::invalid_argument("An extrusion-axis event has no active tool.");
+
+    std::string output;
+    if (m_wipe_tag_open) {
+        output += ";WIPE_END\n";
+        m_wipe_tag_open = false;
+    }
+    apply_requested_state(state);
+    DefaultExtruder &tool = current_extruder();
+    const std::optional<double> inherited_speed = m_gantry.requested_speed();
+    if (state.acceleration_mm_per_s2 && *state.acceleration_mm_per_s2 > 0.f)
+        m_gantry.request_print_acceleration(uint32_t(std::lround(*state.acceleration_mm_per_s2)));
+
+    const raw_extrusion_role role = state.attributes ? state.attributes->extrusion_role() : 0;
+    if (RAW_EXTRUSION_ROLE_IS_RETRACT(role)) {
+        if (axis.operation != C_EXTRUSION_AXIS_OPERATION_RETRACT_TO ||
+            !std::isfinite(axis.value) || axis.value < 0.0)
+            throw std::invalid_argument("A Retract event needs a valid retract-to request.");
+        if (tool.extrusion_axis().retract_to_go(axis.value) <= EPSILON) {
+            m_gantry.request_speed(inherited_speed);
+            return output;
+        }
+        if (m_use_firmware_retraction) {
+            output += write_native_retract(axis.value);
+        } else {
+            if (tool.extrusion_axis().retract_speed() > 0.0)
+                m_gantry.request_speed(tool.extrusion_axis().retract_speed());
+            PreparedMove move;
+            move.kind = PreparedMove::Kind::Extrusion;
+            move.extrusion = tool.extrusion_axis().retract(axis.value);
+            output += write_lines(move);
+        }
+    } else if (RAW_EXTRUSION_ROLE_IS_UNRETRACT(role)) {
+        if (axis.operation != C_EXTRUSION_AXIS_OPERATION_UNRETRACT ||
+            !std::isfinite(axis.restart_extra))
+            throw std::invalid_argument("An Unretract event needs a valid unretract request.");
+        tool.extrusion_axis().schedule_restart_extra(axis.restart_extra, axis.toolchange != 0);
+        if (!tool.extrusion_axis().need_unretract()) {
+            m_gantry.request_speed(inherited_speed);
+            return output;
+        }
+        if (m_use_firmware_retraction) {
+            output += write_native_unretract();
+        } else {
+            if (tool.extrusion_axis().deretract_speed() > 0.0)
+                m_gantry.request_speed(tool.extrusion_axis().deretract_speed());
+            PreparedMove move;
+            move.kind = PreparedMove::Kind::Extrusion;
+            move.extrusion = tool.extrusion_axis().unretract();
+            output += write_lines(move);
+        }
+    } else {
+        throw std::invalid_argument(
+            "An E-only extrusion-axis event needs a Retract or Unretract role.");
+    }
+
+    m_gantry.request_speed(inherited_speed);
     return output;
 }
 
@@ -1048,7 +1251,7 @@ std::string DefaultGCodeFirmwareSession::write_acceleration(PreparedMove::Kind k
     // Print and travel have independent firmware commands in the standard
     // model. Encoding one category therefore leaves the acknowledgement of
     // the other category untouched.
-    if (kind == PreparedMove::Kind::Travel &&
+    if ((kind == PreparedMove::Kind::Travel || kind == PreparedMove::Kind::Wipe) &&
         m_gantry.needs_travel_acceleration_encoding()) {
         const uint32_t acceleration = *m_gantry.requested_travel_acceleration();
         std::string output = encode_acceleration(acceleration, true);
@@ -1205,7 +1408,9 @@ std::string DefaultGCodeFirmwareSession::encode_move(const PreparedMove &move,
         formatter.emit_string(
             move.arc_orientation == RAW_EXTRUSION_ARC_ORIENTATION_CCW ? "G3" : "G2");
     } else {
-        formatter.emit_string(move.kind == PreparedMove::Kind::Travel ? "G0" : "G1");
+        // Wipe uses travel acceleration but carries E, so it must be encoded as
+        // an interpolated G1 rather than a rapid G0.
+        formatter.emit_string(move.kind == PreparedMove::Kind::Travel && !move.extrusion ? "G0" : "G1");
     }
 
     // Only axes that differ from the known physical position are emitted. If
@@ -1296,6 +1501,11 @@ std::string DefaultGCodeFirmwareSession::encode_extruder_current(uint16_t tool_i
     if (!std::isfinite(current) || current < 0.0)
         throw std::invalid_argument("An extruder-current command contains an invalid value.");
     return "M906 T" + std::to_string(tool_id) + " E" + compact_number(current, 3) + "\n";
+}
+
+std::string DefaultGCodeFirmwareSession::encode_firmware_retraction(const bool retract) const
+{
+    return retract ? "G10\n" : "G11\n";
 }
 
 }} // namespace slic3r_api::GCodeGeneration

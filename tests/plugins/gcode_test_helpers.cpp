@@ -162,12 +162,15 @@ void configure_standard_firmware(Print &print, uint16_t extruder_count)
     print_config.travel_speed.value = 100.0;
     print_config.gcode_precision_xyz.value = 3;
     print_config.gcode_precision_e.value = 5;
+    // E-only semantic events use the configured extrusion-axis speeds. Keep
+    // the compact one-tool fixture just as complete as the two-tool fixture so
+    // tests do not accidentally depend on a preset's default vector contents.
+    print_config.retract_speed.set(std::vector<double>(extruder_count, 40.0));
+    print_config.deretract_speed.set(std::vector<double>(extruder_count, 30.0));
     if (extruder_count == 2) {
         print_config.nozzle_diameter.set(std::vector<double>{0.4, 0.4});
         print_config.filament_diameter.set(std::vector<double>{1.75, 1.75});
         print_config.extrusion_multiplier.set(std::vector<double>{1.0, 1.0});
-        print_config.retract_speed.set(std::vector<double>{40.0, 40.0});
-        print_config.deretract_speed.set(std::vector<double>{30.0, 30.0});
     }
 }
 

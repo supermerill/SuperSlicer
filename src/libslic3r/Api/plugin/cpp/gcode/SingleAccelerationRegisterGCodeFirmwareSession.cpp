@@ -22,8 +22,9 @@ std::string SingleAccelerationRegisterGCodeFirmwareSession::write_acceleration(
     // Remember whether the standard implementation is about to encode a
     // transition. The returned text may legitimately be empty, so its size
     // cannot be used to decide whether the state was acknowledged.
-    const bool encodes_travel = kind == PreparedMove::Kind::Travel &&
-                                gantry().needs_travel_acceleration_encoding();
+    const bool encodes_travel =
+        (kind == PreparedMove::Kind::Travel || kind == PreparedMove::Kind::Wipe) &&
+        gantry().needs_travel_acceleration_encoding();
     const bool encodes_print = kind == PreparedMove::Kind::Extrusion &&
                                gantry().needs_print_acceleration_encoding();
 

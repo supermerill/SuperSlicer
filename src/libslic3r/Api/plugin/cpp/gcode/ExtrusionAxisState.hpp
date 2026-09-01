@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 #include "GCodeFormatter.hpp"
 
@@ -51,10 +52,28 @@ public:
     // the firmware. An empty result means the delta is below output precision;
     // a present zero remains a valid absolute E0 command.
     std::optional<double> extrude(double delta_e);
-    double retract(double retract_length,
-                   std::optional<double> restart_extra,
-                   std::optional<double> restart_extra_from_toolchange);
+    double retract(double target);
     double unretract();
+    /*
+    Distribute one semantic operation over planar segment lengths.
+
+    The returned vector contains the already-quantized E value for each input
+    segment. Empty entries mean that rounding produced no visible E change.
+    The final positive-length segment receives the remaining exact delta so
+    the runtime state reaches the requested target without accumulated drift.
+    */
+    std::vector<std::optional<double>> retract_along(
+        double retract_length, const std::vector<double> &segment_lengths);
+    std::vector<std::optional<double>> unretract_along(
+        double restart_extra, bool toolchange,
+        const std::vector<double> &segment_lengths);
+    /*
+    Apply semantic firmware retraction without changing the visible E
+    coordinate. Native G10/G11 moves filament internally, so only the physical
+    retraction and usage counters advance here.
+    */
+    bool retract_with_firmware(double target);
+    bool unretract_with_firmware();
     void reset_retract();
     bool need_unretract() const;
     double retract_to_go(double retract_length) const;
@@ -71,6 +90,8 @@ public:
     double restart_extra() const { return m_restart_extra; }
     void set_position(double e);
     void set_retracted(double retracted, double restart_extra);
+    /* Schedule a signed adjustment for the next unretract without changing E now. */
+    void schedule_restart_extra(double restart_extra, bool toolchange);
 
     // Import state reported by external G-code after the complete script was
     // validated. The exact E position is omitted in relative mode. A genuine

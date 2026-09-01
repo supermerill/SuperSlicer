@@ -22,6 +22,7 @@
 #include "libslic3r/Api/host/Plugin.hpp"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_gcode.h"
 #include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
+#include "libslic3r/Api/plugin/cpp/properties/ExtrusionProperties.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/DefaultGCodeFirmwareSession.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeFirmwareViews.hpp"
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeScriptProcessorViews.hpp"
@@ -533,6 +534,220 @@ TEST_CASE("Default firmware writes the E value prepared by the extruder state",
         CHECK(output.find("G1 E.00001") != std::string::npos);
         CHECK(output.find("G1 E0") != std::string::npos);
         CHECK(count_occurrences(output, "G1 E") == 2);
+    } catch (...) {
+        remove_output_pair(output_path);
+        throw;
+    }
+    remove_output_pair(output_path);
+}
+
+TEST_CASE("Default firmware encodes semantic retract wipe and unretract leaves",
+          "[plugins][gcode][firmware][retraction][wipe]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    select_printing_plan_writer(print);
+    configure_standard_firmware(print);
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.front().layers.emplace_back();
+    PrintingLayerGroup &layer = plan.groups.front().layers.front();
+    layer.print_z = scale_i(0.2);
+    layer.tool_groups.emplace_back();
+    PrintingToolGroup &tool_group = layer.tool_groups.front();
+    tool_group.extruder_id = 0;
+
+    ExtrusionEntity::Children children;
+    std::unique_ptr<ExtrusionNop> retract(new ExtrusionNop());
+    slic3r_api::MutableExtrusionEntity retract_view(
+        reinterpret_cast<extrusion_entity_handle *>(retract.get()));
+    retract_view.get_or_add(slic3r_api::EPropertyAttributes::key)
+        .extrusion_role(RAW_EXTRUSION_ROLE_RETRACT).mm3_per_mm(0.0);
+    retract_view.get_or_add(slic3r_api::EPropertyExtrusionAxis::key)
+        .retract_to(0.2);
+    children.push_back(std::move(retract));
+
+    ArcPolyline wipe_polyline(Points{Point(scale_i(0.0), scale_i(0.0)),
+                                     Point(scale_i(2.5), scale_i(0.0)),
+                                     Point(scale_i(5.0), scale_i(0.0))});
+    wipe_polyline.set_z_offset(0, 0);
+    wipe_polyline.set_z_offset(1, scale_i(10.0));
+    wipe_polyline.set_z_offset(2, 0);
+    std::unique_ptr<ExtrusionPath> wipe = make_firmware_travel(
+        wipe_polyline, 40.f, 800.f);
+    slic3r_api::MutableExtrusionEntity wipe_view(
+        reinterpret_cast<extrusion_entity_handle *>(wipe.get()));
+    wipe_view.get_mutable(slic3r_api::EPropertyAttributes::key)->extrusion_role(
+        RAW_EXTRUSION_ROLE_TRAVEL | RAW_EXTRUSION_ROLE_WIPE |
+        RAW_EXTRUSION_ROLE_RETRACT);
+    wipe_view.get_or_add(slic3r_api::EPropertyExtrusionAxis::key).retract_to(0.8);
+    children.push_back(std::move(wipe));
+
+    std::unique_ptr<ExtrusionPath> unretract = make_firmware_travel(
+        ArcPolyline(Points{Point(scale_i(5.0), scale_i(0.0)),
+                           Point(scale_i(6.0), scale_i(0.0))}),
+        40.f,
+        800.f);
+    slic3r_api::MutableExtrusionEntity unretract_view(
+        reinterpret_cast<extrusion_entity_handle *>(unretract.get()));
+    unretract_view.get_or_add(slic3r_api::EPropertyAttributes::key)
+        .extrusion_role(RAW_EXTRUSION_ROLE_TRAVEL | RAW_EXTRUSION_ROLE_WIPE |
+                        RAW_EXTRUSION_ROLE_UNRETRACT).mm3_per_mm(0.0);
+    unretract_view.get_or_add(slic3r_api::EPropertyExtrusionAxis::key)
+        .unretract(-0.05);
+    children.push_back(std::move(unretract));
+
+    append_path_extrusion(tool_group, std::unique_ptr<ExtrusionEntity>(
+        new ExtrusionEntity(std::move(children), false, true, true)));
+
+    const boost::filesystem::path output_path = temporary_gcode_path();
+    remove_output_pair(output_path);
+    try {
+        Steps::StepGenerateGcode::run_step(Orchestrator::instance(), print, output_path.string());
+        const std::string output = read_text_file(output_path);
+        INFO(output);
+        const size_t retract_pos = output.find("G1 E-.2");
+        const size_t wipe_start_pos = output.find(";WIPE_START\n");
+        const size_t first_wipe_move_pos = output.find("G1 X2.5 Z10.2 E-.5");
+        const size_t wipe_move_pos = output.find("G1 X5 Z.2 E-.8");
+        const size_t wipe_end_pos = output.find(";WIPE_END\n");
+        const size_t unretract_pos = output.find("G1 X6 E-.05");
+        REQUIRE(retract_pos != std::string::npos);
+        REQUIRE(wipe_start_pos != std::string::npos);
+        REQUIRE(first_wipe_move_pos != std::string::npos);
+        REQUIRE(wipe_move_pos != std::string::npos);
+        REQUIRE(wipe_end_pos != std::string::npos);
+        REQUIRE(unretract_pos != std::string::npos);
+        CHECK(retract_pos < wipe_start_pos);
+        CHECK(wipe_start_pos < first_wipe_move_pos);
+        CHECK(first_wipe_move_pos < wipe_move_pos);
+        CHECK(wipe_move_pos < unretract_pos);
+        CHECK(unretract_pos < wipe_end_pos);
+        CHECK(output.find("G0 X5 E") == std::string::npos);
+    } catch (...) {
+        remove_output_pair(output_path);
+        throw;
+    }
+    remove_output_pair(output_path);
+}
+
+TEST_CASE("Default firmware accepts a motion-only wipe without an E request",
+          "[plugins][gcode][firmware][wipe]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    select_printing_plan_writer(print);
+    configure_standard_firmware(print);
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.front().layers.emplace_back();
+    PrintingLayerGroup &layer = plan.groups.front().layers.front();
+    layer.tool_groups.emplace_back();
+    PrintingToolGroup &tool_group = layer.tool_groups.front();
+    tool_group.extruder_id = 0;
+
+    std::unique_ptr<ExtrusionPath> wipe = make_firmware_travel(
+        ArcPolyline(Points{Point(scale_i(0.0), scale_i(0.0)),
+                           Point(scale_i(5.0), scale_i(0.0))}),
+        40.f,
+        800.f);
+    slic3r_api::MutableExtrusionEntity wipe_view(
+        reinterpret_cast<extrusion_entity_handle *>(wipe.get()));
+    wipe_view.get_mutable(slic3r_api::EPropertyAttributes::key)->extrusion_role(
+        RAW_EXTRUSION_ROLE_TRAVEL | RAW_EXTRUSION_ROLE_WIPE);
+    append_path_extrusion(tool_group, std::move(wipe));
+
+    const boost::filesystem::path output_path = temporary_gcode_path();
+    remove_output_pair(output_path);
+    try {
+        Steps::StepGenerateGcode::run_step(Orchestrator::instance(), print, output_path.string());
+        const std::string output = read_text_file(output_path);
+        INFO(output);
+        CHECK(output.find(";WIPE_START\n") != std::string::npos);
+        CHECK(output.find("G1 X5") != std::string::npos);
+        CHECK(output.find(" E") == std::string::npos);
+    } catch (...) {
+        remove_output_pair(output_path);
+        throw;
+    }
+    remove_output_pair(output_path);
+}
+
+TEST_CASE("Default firmware supports native semantic retraction",
+          "[plugins][gcode][firmware][retraction]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    select_printing_plan_writer(print);
+    configure_standard_firmware(print);
+    const_cast<PrintConfig &>(print.config()).use_firmware_retraction.value = true;
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.front().layers.emplace_back();
+    PrintingLayerGroup &layer = plan.groups.front().layers.front();
+    layer.tool_groups.emplace_back();
+    PrintingToolGroup &tool_group = layer.tool_groups.front();
+    tool_group.extruder_id = 0;
+
+    ExtrusionEntity::Children children;
+    std::unique_ptr<ExtrusionNop> retract(new ExtrusionNop());
+    slic3r_api::MutableExtrusionEntity retract_view(
+        reinterpret_cast<extrusion_entity_handle *>(retract.get()));
+    retract_view.get_or_add(slic3r_api::EPropertyAttributes::key)
+        .extrusion_role(RAW_EXTRUSION_ROLE_RETRACT).mm3_per_mm(0.0);
+    retract_view.get_or_add(slic3r_api::EPropertyExtrusionAxis::key).retract_to(0.8);
+    children.push_back(std::move(retract));
+    std::unique_ptr<ExtrusionPath> wipe = make_firmware_travel(
+        ArcPolyline(Points{Point(scale_i(0.0), scale_i(0.0)),
+                           Point(scale_i(5.0), scale_i(0.0))}),
+        40.f,
+        800.f);
+    slic3r_api::MutableExtrusionEntity wipe_view(
+        reinterpret_cast<extrusion_entity_handle *>(wipe.get()));
+    wipe_view.get_mutable(slic3r_api::EPropertyAttributes::key)->extrusion_role(
+        RAW_EXTRUSION_ROLE_TRAVEL | RAW_EXTRUSION_ROLE_WIPE |
+        RAW_EXTRUSION_ROLE_RETRACT);
+    wipe_view.get_or_add(slic3r_api::EPropertyExtrusionAxis::key).retract_to(0.8);
+    children.push_back(std::move(wipe));
+    std::unique_ptr<ExtrusionPath> unretract = make_firmware_travel(
+        ArcPolyline(Points{Point(scale_i(5.0), scale_i(0.0)),
+                           Point(scale_i(6.0), scale_i(0.0))}),
+        40.f,
+        800.f);
+    slic3r_api::MutableExtrusionEntity unretract_view(
+        reinterpret_cast<extrusion_entity_handle *>(unretract.get()));
+    unretract_view.get_or_add(slic3r_api::EPropertyAttributes::key)
+        .extrusion_role(RAW_EXTRUSION_ROLE_TRAVEL | RAW_EXTRUSION_ROLE_WIPE |
+                        RAW_EXTRUSION_ROLE_UNRETRACT).mm3_per_mm(0.0);
+    unretract_view.get_or_add(slic3r_api::EPropertyExtrusionAxis::key).unretract();
+    children.push_back(std::move(unretract));
+    append_path_extrusion(tool_group, std::unique_ptr<ExtrusionEntity>(
+        new ExtrusionEntity(std::move(children), false, true, true)));
+
+    const boost::filesystem::path output_path = temporary_gcode_path();
+    remove_output_pair(output_path);
+    try {
+        Steps::StepGenerateGcode::run_step(Orchestrator::instance(), print, output_path.string());
+        const std::string output = read_text_file(output_path);
+        INFO(output);
+        CHECK(count_occurrences(output, "G10\n") == 1);
+        CHECK(count_occurrences(output, "G11\n") == 1);
+        CHECK(output.find("G1 E") == std::string::npos);
+        const size_t wipe_start = output.find(";WIPE_START\n");
+        const size_t wipe_move = output.find("G1 X5");
+        const size_t approach_move = output.find("G1 X6");
+        const size_t unretract = output.find("G11\n");
+        REQUIRE(wipe_start != std::string::npos);
+        REQUIRE(wipe_move != std::string::npos);
+        REQUIRE(approach_move != std::string::npos);
+        REQUIRE(unretract != std::string::npos);
+        CHECK(wipe_start < wipe_move);
+        CHECK(wipe_move < approach_move);
+        CHECK(approach_move < unretract);
+        CHECK(output.find("G0 X5") == std::string::npos);
     } catch (...) {
         remove_output_pair(output_path);
         throw;

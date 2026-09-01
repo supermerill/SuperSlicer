@@ -76,7 +76,7 @@ protected:
     // state. An absent destination or extrusion means that axis did not change.
     struct PreparedMove
     {
-        enum class Kind : uint8_t { None, Travel, Extrusion };
+        enum class Kind : uint8_t { None, Travel, Wipe, Extrusion };
 
         Kind kind = Kind::None;
         std::optional<c_vec3d> destination;
@@ -182,6 +182,8 @@ protected:
     virtual std::string encode_flush_planner() const;
     virtual std::string encode_pause(double milliseconds) const;
     virtual std::string encode_extruder_current(uint16_t tool_id, double current) const;
+    /* Encode one native firmware retract or unretract request, normally G10/G11. */
+    virtual std::string encode_firmware_retraction(bool retract) const;
 
 private:
     struct RequestedState;
@@ -193,6 +195,13 @@ private:
     std::string write_extrusion_tree(const ExtrusionEntity &root);
     std::string write_lines(const PreparedMove &move);
     std::string write_leaf_geometry(const ExtrusionEntity &leaf, const RequestedState &state);
+    std::string write_extrusion_axis_event(const EPropertyExtrusionAxis &axis,
+                                           const RequestedState &state);
+    // Update the semantic E state and emit at most one native retract command
+    // while the selected tool remains retracted.
+    std::string write_native_retract(double target);
+    // Restore the semantic E state and emit the matching native unretract.
+    std::string write_native_unretract();
     std::string write_special_command(const EPropertySpecialCommand &command,
                                       const RequestedState &state);
     std::string write_custom_gcode(const ExtrusionEntity &entity,
@@ -215,6 +224,11 @@ private:
     bool m_units_in_mm = true;
     bool m_e_relative_mode = false;
     bool m_seen_object_group = false;
+    bool m_use_firmware_retraction = false;
+    // G10/G11 expose one binary protocol state per tool even though the
+    // semantic retraction target may advance through several plan events.
+    std::vector<uint8_t> m_native_retraction_active;
+    bool m_wipe_tag_open = false;
     bool m_is_setup = false;
     GCodeScriptProcessorView m_scripts;
     // Reused for one script at a time. The processor clones every option during
