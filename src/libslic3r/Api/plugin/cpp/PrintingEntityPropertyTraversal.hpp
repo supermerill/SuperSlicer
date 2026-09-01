@@ -56,6 +56,20 @@ template<class Property> struct PrintingEntity
 };
 
 /*
+Choose whether a matching entity's descendants can contain another match.
+
+Visit keeps the general depth-first traversal and reports direct properties on
+both a parent and its descendants. Skip treats the first matching entity as the
+owner of its complete logical subtree. Skip is useful for non-nested scope
+roots and avoids visiting their potentially large content and phase trees.
+*/
+enum class MatchingEntityDescendants
+{
+    Visit,
+    Skip
+};
+
+/*
 Stream consecutive entities carrying one typed direct property.
 
 For matching entities A, B, and C, process() invokes:
@@ -66,9 +80,16 @@ For matching entities A, B, and C, process() invokes:
     callback(&C, nullptr);
 
 Each process() call is independent. A layer without a matching entity emits no
-callback. The callback may modify payload values and unrelated descendants,
-but it must not remove the searched property or add, remove, or reorder nodes
-in the hierarchy currently being traversed.
+callback. The callback may modify payload values, add unrelated properties, and
+edit a dedicated descendant subtree such as a transition scope's travel,
+before, or after phase. These edits are safe because they keep the matching
+scope root and its position in the outer traversal stable.
+
+The callback must not change the child list of a matching entity or one of its
+active ancestors, add the searched property to a new entity, remove it from a
+matched entity, or reorder matching entities. Such changes would alter the set
+or order being streamed. Context pointers and property pointers are borrowed
+for the callback only and must not be retained.
 */
 template<class Property> class PrintingEntityPropertyTraversal
 {
@@ -80,15 +101,26 @@ public:
     Store the typed property identity and the callback used for every boundary.
 
     A callback is mandatory because silently traversing the complete layer
-    would hide a programming error from the plugin author.
+    would hide a programming error from the plugin author. The descendant mode
+    defaults to the general Visit behavior; select Skip only when a matching
+    entity owns a subtree which cannot contain another relevant match.
     */
-    PrintingEntityPropertyTraversal(PluginPropertyKey<Property> key,
-                                    ProcessEntity process_entity) :
-        m_key(std::move(key)), m_process_entity(std::move(process_entity))
+    PrintingEntityPropertyTraversal(
+        PluginPropertyKey<Property> key,
+        ProcessEntity process_entity,
+        MatchingEntityDescendants matching_entity_descendants =
+            MatchingEntityDescendants::Visit) :
+        m_key(std::move(key)),
+        m_process_entity(std::move(process_entity)),
+        m_matching_entity_descendants(matching_entity_descendants)
     {
         if (!m_process_entity)
             throw std::invalid_argument(
                 "PrintingEntityPropertyTraversal needs a process callback.");
+        if (m_matching_entity_descendants != MatchingEntityDescendants::Visit &&
+            m_matching_entity_descendants != MatchingEntityDescendants::Skip)
+            throw std::invalid_argument(
+                "PrintingEntityPropertyTraversal received an invalid descendant mode.");
     }
 
     /*
@@ -148,6 +180,11 @@ private:
 
             refresh_property(current);
             previous = current;
+
+            // A scope marker describes the whole subtree, so its phases and
+            // printable content cannot contain another relevant scope root.
+            if (m_matching_entity_descendants == MatchingEntityDescendants::Skip)
+                return;
         }
 
         const uint32_t child_count = entity.child_count();
@@ -174,6 +211,8 @@ private:
     PluginPropertyKey<Property> m_key;
     // User callback invoked synchronously for layer-local sequence boundaries.
     ProcessEntity m_process_entity;
+    // Controls whether descendants of an already matching entity are visited.
+    MatchingEntityDescendants m_matching_entity_descendants;
 };
 
 } // namespace slic3r_api

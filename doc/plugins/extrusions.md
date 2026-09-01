@@ -431,9 +431,27 @@ void process_marked_entities(
 
 The traversal uses depth-first pre-order inside each extrusion tree and does
 not resolve inherited properties. Its context and property pointers are
-borrowed for the callback only. Do not remove the selected property or reorder
-the hierarchy while the traversal is active. Separate `process()` calls do not
-share a previous entity, so their null boundaries are layer-local.
+borrowed for the callback only.
+
+A callback may update payloads, add unrelated properties, and edit a dedicated
+descendant subtree which does not carry the selecting property. Transition
+plugins use this rule to populate a scope's `travel`, `before`, or `after`
+phase while keeping the marked scope root stable. Do not change a matching
+root's child list or an active ancestor's child list, add or remove selecting
+properties, reorder matching entities, or retain callback pointers. The
+traversal reacquires a matching payload after callback-side property storage
+changes, but structural identity and order must remain unchanged.
+
+Separate `process()` calls do not share a previous entity, so their null
+boundaries are layer-local.
+
+By default, descendants of a matching entity are still traversed, so a direct
+property on both a parent and a child produces two matches. When a property
+defines non-nested logical roots, pass
+`MatchingEntityDescendants::Skip` as the third constructor argument. The
+traversal then reports the marked root and skips its complete subtree. This is
+both faster for large scope contents and allows callbacks to populate dedicated
+phase children without making those new descendants part of the active walk.
 
 ## Migrating Legacy Extrusion Classes
 
