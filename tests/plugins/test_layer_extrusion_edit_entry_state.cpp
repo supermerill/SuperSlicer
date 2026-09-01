@@ -114,7 +114,7 @@ private:
     const char *exclusive_group_tooltip_impl() const noexcept override { return ""; }
     slicing_step_t step_impl() const noexcept override { return STEP_LAYER_EXTRUSION_EDIT; }
     const char *const *dependencies_impl() const noexcept override { return k_no_dependencies; }
-    int32_t priority_impl() const noexcept override { return -90; }
+    int32_t priority_impl() const noexcept override { return -60; }
 
     void run_impl(const plugin_run_context *run_ctx) const override
     {
@@ -218,7 +218,7 @@ TEST_CASE("Layer entry-state properties use compatible dynamic contracts",
     Plugin *plugin = orchestrator.get_plugin(ENTRY_STATE_PLUGIN);
     REQUIRE(plugin != nullptr);
     CHECK(plugin->get_step() == STEP_LAYER_EXTRUSION_EDIT);
-    CHECK(plugin->get_priority() == -100);
+    CHECK(plugin->get_priority() == -70);
     CHECK(plugin->get_exclusive_group() == "layer_extrusion_edit.entry_state");
     CHECK(plugin->get_defined_config_keys().empty());
     CHECK(plugin->get_used_config_keys().empty());

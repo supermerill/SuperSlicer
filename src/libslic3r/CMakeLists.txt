@@ -230,26 +230,30 @@ set(SLIC3R_SOURCES
 	Plugins/Infill/LegacyInfillPatterns.hpp
 	Plugins/Infill/PostInfillGapFill.cpp
 	Plugins/Infill/PostInfillGapFill.hpp
+	Plugins/LayerExtrusionEdit/AvoidCrossingPerimetersTravel.cpp
+	Plugins/LayerExtrusionEdit/AvoidCrossingPerimetersTravel.hpp
+	Plugins/LayerExtrusionEdit/CreateTransitionScope.cpp
+	Plugins/LayerExtrusionEdit/CreateTransitionScope.hpp
 	Plugins/LayerExtrusionEdit/DefaultAcceleration.cpp
 	Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp
 	Plugins/LayerExtrusionEdit/DefaultFan.cpp
 	Plugins/LayerExtrusionEdit/DefaultFan.hpp
 	Plugins/LayerExtrusionEdit/DefaultLayerEntryState.cpp
 	Plugins/LayerExtrusionEdit/DefaultLayerEntryState.hpp
-	Plugins/LayerExtrusionEdit/DefaultTravel.cpp
-	Plugins/LayerExtrusionEdit/DefaultTravel.hpp
-	Plugins/LayerExtrusionEdit/AvoidCrossingPerimetersTravel.cpp
-	Plugins/LayerExtrusionEdit/AvoidCrossingPerimetersTravel.hpp
-	Plugins/LayerExtrusionEdit/TravelConnectionHelpers.cpp
-	Plugins/LayerExtrusionEdit/TravelConnectionHelpers.hpp
-	Plugins/LayerExtrusionEdit/DefaultTravelDeceleration.cpp
-	Plugins/LayerExtrusionEdit/DefaultTravelDeceleration.hpp
 	Plugins/LayerExtrusionEdit/DefaultSpeed.cpp
 	Plugins/LayerExtrusionEdit/DefaultSpeed.hpp
+	Plugins/LayerExtrusionEdit/DefaultTravel.cpp
+	Plugins/LayerExtrusionEdit/DefaultTravel.hpp
+	Plugins/LayerExtrusionEdit/DefaultTravelDeceleration.cpp
+	Plugins/LayerExtrusionEdit/DefaultTravelDeceleration.hpp
+	Plugins/LayerExtrusionEdit/ExtrusionScopeHelpers.cpp
+	Plugins/LayerExtrusionEdit/ExtrusionScopeHelpers.hpp
 	Plugins/LayerExtrusionEdit/ExtrusionProcessParameterHelpers.cpp
 	Plugins/LayerExtrusionEdit/ExtrusionProcessParameterHelpers.hpp
 	Plugins/LayerExtrusionEdit/RegionalProcessParameterHelpers.cpp
 	Plugins/LayerExtrusionEdit/RegionalProcessParameterHelpers.hpp
+	Plugins/LayerExtrusionEdit/TravelConnectionHelpers.cpp
+	Plugins/LayerExtrusionEdit/TravelConnectionHelpers.hpp
 	Plugins/MaxOverhangThreshold.cpp
 	Plugins/MaxOverhangThreshold.hpp
 	Plugins/Ordering/DefaultExtrusionTreeOrdering.cpp
@@ -258,6 +262,7 @@ set(SLIC3R_SOURCES
 	Plugins/Ordering/DefaultPlanBuilder.cpp
 	Plugins/Ordering/DefaultToolGroupOrdering.cpp
 	Plugins/PrintingPlan/PrintingLayerEntryStateProperties.h
+	Plugins/PrintingPlan/PrintingExtrusionScopeProperty.h
 	Plugins/PrintingPlan/PrintingLayerTimeProperty.h
 	Plugins/SkirtBrim/AdhesionLayerHelpers.cpp
 	Plugins/SkirtBrim/AdhesionLayerHelpers.hpp

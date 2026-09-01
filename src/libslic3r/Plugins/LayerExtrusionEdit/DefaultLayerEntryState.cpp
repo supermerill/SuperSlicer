@@ -208,7 +208,7 @@ const char *const *DefaultLayerEntryState::dependencies_impl() const noexcept
 
 int32_t DefaultLayerEntryState::priority_impl() const noexcept
 {
-    return -100;
+    return -70;
 }
 
 const char *DefaultLayerEntryState::progress_message_format_impl() const noexcept

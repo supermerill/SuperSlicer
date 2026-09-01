@@ -127,7 +127,13 @@ public:
     const printing_extrusion_handle *handle() const { return m_handle; }
 
     LayerRegionIsland region_island() const {
-        return LayerRegionIsland(printing_extrusion_get_region_island(handle()));
+        const layer_region_island_handle *region_island =
+            printing_extrusion_get_region_island(handle());
+        // Support and print-level auxiliary extrusions may have no regional
+        // owner. Preserve that valid model state as an invalid optional view
+        // so callers can test valid() before asking for region data.
+        return region_island != nullptr ? LayerRegionIsland(region_island) :
+                                          LayerRegionIsland();
     }
 
     raw_extrusion_role role() const { return printing_extrusion_get_role(handle()); }

@@ -34,13 +34,14 @@
 #include "libslic3r/Plugins/GCode/LegacyGCodeGenerator.hpp"
 #include "libslic3r/Plugins/GCode/PrintingPlanFileWriter.hpp"
 #include "libslic3r/Plugins/GCode/SettingsGCodeScripts.hpp"
-#include "libslic3r/Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/AvoidCrossingPerimetersTravel.hpp"
+#include "libslic3r/Plugins/LayerExtrusionEdit/CreateTransitionScope.hpp"
+#include "libslic3r/Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultFan.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultLayerEntryState.hpp"
+#include "libslic3r/Plugins/LayerExtrusionEdit/DefaultSpeed.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultTravel.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultTravelDeceleration.hpp"
-#include "libslic3r/Plugins/LayerExtrusionEdit/DefaultSpeed.hpp"
 #include "libslic3r/Plugins/Ordering/DefaultOrdering.hpp"
 #include "libslic3r/Plugins/PluginLoader.hpp"
 #include "libslic3r/Plugins/SkirtBrim/DefaultBrimSkirtTrim.hpp"
@@ -209,6 +210,8 @@ void ensure_plugin_test_runtime_initialized()
         slic3r_api::FlatAreaLayerHeightPlugin::register_flat_area_layer_height_plugin(orchestrator_handle_value);
         slic3r_api::DenseInfillPlugin::register_dense_infill_plugins(orchestrator_handle_value);
         slic3r_api::Ordering::DefaultOrderingPlugin::register_default_ordering_plugins(orchestrator_handle_value);
+        slic3r_api::LayerExtrusionEdit::CreateTransitionScopePlugin::register_create_transition_scope_plugin(
+            orchestrator_handle_value);
         slic3r_api::LayerExtrusionEdit::DefaultLayerEntryStatePlugin::register_default_layer_entry_state_plugin(
             orchestrator_handle_value);
         slic3r_api::LayerExtrusionEdit::DefaultTravelPlugin::register_default_travel_plugin(
@@ -308,6 +311,7 @@ void ensure_plugin_test_runtime_initialized()
         activate_plugin_or_fail(orchestrator, "ordering.tool_groups.default");
         activate_plugin_or_fail(orchestrator, "ordering.custom_gcode_event_tools");
         activate_plugin_or_fail(orchestrator, "ordering.extrusion_tree.default");
+        activate_plugin_or_fail(orchestrator, "layer_extrusion_edit.transition_scope.default");
         activate_plugin_or_fail(orchestrator, "layer_extrusion_edit.entry_state.default");
         activate_plugin_or_fail(orchestrator, "layer_extrusion_edit.speed.default");
         activate_plugin_or_fail(orchestrator, "layer_extrusion_edit.acceleration.default");
