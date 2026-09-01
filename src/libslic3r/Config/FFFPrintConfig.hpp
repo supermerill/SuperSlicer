@@ -386,6 +386,7 @@ PRINT_CONFIG_CLASS_DEFINE_WITH_SCOPE(
     PrintRegionConfig,
     StaticPrintConfig::DynamicOptionScope::FFFRegion,
 
+    ((ConfigOptionBool,                 avoid_crossing_perimeters))
     ((ConfigOptionBool,                 avoid_crossing_top))
     ((ConfigOptionBool,                 avoid_travel_island))
     ((ConfigOptionFloat,                avoid_travel_island_weight))
@@ -800,7 +801,6 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE_WITH_SCOPE(
 
     ((ConfigOptionBool,                 allow_empty_layers))
     ((ConfigOptionBool,                 avoid_crossing_curled_overhangs))
-    ((ConfigOptionBool,                 avoid_crossing_perimeters))
     ((ConfigOptionBool,                 avoid_crossing_not_first_layer))
     ((ConfigOptionFloatOrPercent,       avoid_crossing_perimeters_max_detour))
     ((ConfigOptionPoints,               bed_shape))

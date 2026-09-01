@@ -10,7 +10,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <map>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -22,6 +24,7 @@ namespace Slic3r {
 
 // Forward declarations.
 class Layer;
+class PrintObject;
 
 class AvoidCrossingPerimeters
 {
@@ -47,6 +50,26 @@ public:
         bool max_detour_is_percent;
     };
 
+    /*
+    Immutable inputs used to build the cached geometry for perimeter-crossing
+    tests. The referenced objects only need to remain alive during
+    prepare_crossing_test(); all generated polygons are then owned by this
+    AvoidCrossingPerimeters instance.
+
+    already_printed_object_layers is needed only for support layers, where a
+    travel may cross any object already printed at the current height.
+    nozzle_radius uses scaled coordinates and extruder_id is zero based.
+    */
+    struct PerimeterCrossingContext
+    {
+        const Layer &layer;
+        const std::vector<const Layer *> &already_printed_object_layers;
+        uint64_t instance_id;
+        uint16_t extruder_id;
+        coord_t nozzle_radius;
+        std::function<void()> throw_if_canceled;
+    };
+
     // Routing around the objects vs. inside a single object.
     void        use_external_mp(bool use = true) { m_use_external_mp = use; };
     void        use_external_mp_once()  { m_use_external_mp_once = true; }
@@ -65,6 +88,22 @@ public:
     }
 
     Polyline    travel_to(const TravelContext &context, const Point &point, bool *could_be_wipe_disabled);
+
+    /*
+    Prepare the simplified and offset layer slices used by the hot crossing
+    test. Geometry is rebuilt only when the supplied context changes. The
+    return value reports an object or instance transition so the legacy G-code
+    generator can preserve its conservative behavior without making that
+    policy part of the geometric query.
+    */
+    bool prepare_crossing_test(const PerimeterCrossingContext &context);
+
+    /*
+    Return true when the prepared travel leaves a contour or crosses one of
+    its holes. offset selects the nozzle-clearance cache used by avoid-crossing
+    travel planning. prepare_crossing_test() must be called first.
+    */
+    bool can_cross_perimeter(const Polyline &travel, bool offset);
 
     struct Boundary {
         // Collection of boundaries used for detection of crossing perimeters for travels
@@ -104,6 +143,37 @@ public:
     };
 
 private:
+    /* One simplified printable island used by the crossing hot path. */
+    struct SliceIsland
+    {
+        ExPolygon expolygon;
+        BoundingBox boundingbox;
+        std::vector<BoundingBox> hole_boundingboxes;
+
+        SliceIsland(ExPolygon &&expolygon, BoundingBox &&boundingbox) :
+            expolygon(std::move(expolygon)), boundingbox(std::move(boundingbox))
+        {}
+#ifdef CAN_CROSS_PERIMETER_USE_GRID
+        std::optional<EdgeGrid::Grid> grid;
+        SliceIsland(ExPolygon &&expolygon, BoundingBox &&boundingbox, EdgeGrid::Grid &&grid) :
+            expolygon(std::move(expolygon)), boundingbox(std::move(boundingbox)), grid(std::move(grid))
+        {}
+#endif
+        void create_hole_bounding_boxes();
+    };
+
+    /* Cached normal and nozzle-offset slices for one execution context. */
+    struct CrossingCache
+    {
+        std::vector<SliceIsland> slices;
+        std::vector<SliceIsland> offset_slices;
+        const Layer *layer = nullptr;
+        const PrintObject *object = nullptr;
+        uint64_t instance_id = uint64_t(-1);
+        uint16_t extruder_id = uint16_t(-1);
+        coord_t nozzle_radius = 0;
+    };
+
     bool           m_use_external_mp { false };
     // just for the next travel move
     bool           m_use_external_mp_once { false };
@@ -122,6 +192,11 @@ private:
     Boundary m_internal;
     // Store all needed data for travels outside object
     Boundary m_external;
+
+    // The crossing cache belongs to the caller-owned router. A plugin creates
+    // one router per worker, so no synchronization is needed around it.
+    CrossingCache m_crossing_cache;
+    std::function<void()> m_crossing_throw_if_canceled = []() {};
 };
 
 } // namespace Slic3r

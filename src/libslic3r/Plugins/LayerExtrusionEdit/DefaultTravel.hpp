@@ -15,8 +15,8 @@ Register the simple straight-travel producer.
 
 The plugin connects consecutive geometric leaves after ordering has fixed their
 execution order. It deliberately performs no obstacle avoidance, lift,
-retraction, or wipe calculation; a more advanced provider may later replace it
-under the same plugin and exclusive-group identifiers.
+retraction, or wipe calculation. More advanced providers share its exclusive
+group and may be selected without changing this fallback implementation.
 */
 void register_default_travel_plugin(orchestrator_handle *orchestrator);
 

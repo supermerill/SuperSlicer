@@ -926,7 +926,15 @@ std::pair<PrintBase::PrintValidationError, std::string> Print::validate(std::vec
     else
         const_cast<Polygons*>(&m_sequential_print_clearance_contours)->clear();
 
-    if (m_config.avoid_crossing_perimeters && m_config.avoid_crossing_curled_overhangs) {
+    // The perimeter policy belongs to regions, while curled-overhang routing
+    // is still a print-wide algorithm. They conflict as soon as any region
+    // requests perimeter avoidance.
+    const bool any_region_avoids_crossing = std::any_of(
+        m_print_regions.begin(), m_print_regions.end(),
+        [](const PrintRegion *region) {
+            return region != nullptr && region->config().avoid_crossing_perimeters.value;
+        });
+    if (any_region_avoids_crossing && m_config.avoid_crossing_curled_overhangs) {
         return { PrintBase::PrintValidationError::pveWrongSettings, _u8L("Avoid crossing perimeters option and avoid crossing curled overhangs option cannot be both enabled together.") };
     }    
 

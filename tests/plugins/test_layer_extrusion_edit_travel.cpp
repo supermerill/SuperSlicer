@@ -6,15 +6,26 @@
 #include <vector>
 
 #include "plugin_test_helpers.hpp"
+#include "test_data.hpp"
 
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/host/Plugin.hpp"
+#include "libslic3r/Api/internal/LayerIslandAccess.hpp"
+#include "libslic3r/Api/plugin/cpp/AuxiliaryLayerHelpers.hpp"
 #include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
+#include "libslic3r/ExPolygon.hpp"
 #include "libslic3r/ExtrusionEntityCollection.hpp"
 #include "libslic3r/ExtrusionProperty.hpp"
+#include "libslic3r/GCode/AvoidCrossingPerimeters.hpp"
+#include "libslic3r/Layer.hpp"
+#include "libslic3r/Model.hpp"
 #include "libslic3r/Print.hpp"
+#include "libslic3r/PrintObject.hpp"
 #include "libslic3r/Printing/PrintingPlan.hpp"
+#include "libslic3r/Steps/StepLayerHeightGeneration.hpp"
 #include "libslic3r/Steps/StepLayerExtrusionEdition.hpp"
+#include "libslic3r/Steps/StepPostSlicing.hpp"
+#include "libslic3r/Steps/StepSlicing.hpp"
 
 /*
 Straight-travel plugin tests
@@ -32,6 +43,8 @@ using namespace Slic3r::Printing;
 
 constexpr const char *ENTRY_STATE_PLUGIN = "layer_extrusion_edit.entry_state.default";
 constexpr const char *TRAVEL_PLUGIN = "layer_extrusion_edit.travel.default";
+constexpr const char *AVOID_CROSSING_TRAVEL_PLUGIN =
+    "layer_extrusion_edit.travel.avoid_crossing_perimeters";
 
 class ScopedActivePlugins
 {
@@ -91,9 +104,14 @@ std::unique_ptr<ExtrusionPath> make_closed_arc_path(const Point &seam)
             ExtrusionRole::Perimeter, ExtrusionFlow(0.2, 0.4f, 0.2f)), nullptr, true);
 }
 
-void append_extrusion(PrintingToolGroup &tool, std::unique_ptr<ExtrusionEntity> root)
+void append_extrusion(PrintingToolGroup &tool,
+                      std::unique_ptr<ExtrusionEntity> root,
+                      const LayerRegionIsland *region_island = nullptr,
+                      uint16_t object_instance_idx = 0)
 {
     PrintingExtrusion extrusion;
+    extrusion.region_island = region_island;
+    extrusion.object_instance_idx = object_instance_idx;
     extrusion.root = std::move(root);
     extrusion.sregion_island_role = ExtrusionRole::Perimeter;
     tool.extrusions.push_back(std::move(extrusion));
@@ -134,13 +152,44 @@ size_t travel_count(const Print &print)
     return count;
 }
 
-void run_travel_plugins(Print &print)
+void run_travel_plugins(Print &print, const char *travel_plugin = TRAVEL_PLUGIN)
 {
-    ScopedActivePlugins active({ENTRY_STATE_PLUGIN, TRAVEL_PLUGIN});
+    ScopedActivePlugins active({ENTRY_STATE_PLUGIN, travel_plugin});
     Orchestrator &orchestrator = Orchestrator::instance();
     orchestrator.reset_plugin_cancel();
     Steps::StepLayerExtrusionEdition::run_step(orchestrator, print);
     REQUIRE_FALSE(orchestrator.is_plugin_cancelled());
+}
+
+TEST_CASE("Avoid-crossing travel keeps the straight fallback without regional context",
+          "[plugins][layer-extrusion-edit][travel][avoid-crossing-perimeters]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.back().layers.emplace_back();
+    PrintingLayerGroup &layer = plan.groups.back().layers.back();
+    layer.print_z = scale_i(0.2);
+    layer.tool_groups.emplace_back();
+    PrintingToolGroup &tool = layer.tool_groups.back();
+    tool.extruder_id = 0;
+    append_extrusion(tool, make_path(
+        Point(scale_i(0.), 0), Point(scale_i(1.), 0)));
+    append_extrusion(tool, make_path(
+        Point(scale_i(3.), 0), Point(scale_i(4.), 0)));
+
+    run_travel_plugins(print, AVOID_CROSSING_TRAVEL_PLUGIN);
+
+    REQUIRE(travel_count(print) == 1);
+    const ExtrusionEntity &wrapper = *tool.extrusions[1].root;
+    REQUIRE(wrapper.child_count() == 2);
+    const ExtrusionEntity &travel = wrapper.child(0);
+    REQUIRE(travel.has_polyline());
+    REQUIRE(travel.polyline_ref().size() == 2);
+    CHECK(travel.first_point() == Point(scale_i(1.), 0));
+    CHECK(travel.last_point() == Point(scale_i(3.), 0));
 }
 
 } // namespace
@@ -157,6 +206,167 @@ TEST_CASE("Straight travel plugin exposes its ordered-layer contract",
     REQUIRE(plugin->get_dependencies().size() == 1);
     CHECK(plugin->get_dependencies().front() == ENTRY_STATE_PLUGIN);
     CHECK(plugin->get_used_config_keys().empty());
+}
+
+TEST_CASE("Avoid-crossing travel is an optional provider in the travel group",
+          "[plugins][layer-extrusion-edit][travel][avoid-crossing-perimeters]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    Plugin *plugin = Orchestrator::instance().get_plugin(AVOID_CROSSING_TRAVEL_PLUGIN);
+    REQUIRE(plugin != nullptr);
+    CHECK(plugin->get_step() == STEP_LAYER_EXTRUSION_EDIT);
+    CHECK(plugin->get_priority() == -50);
+    CHECK(plugin->get_exclusive_group() == "layer_extrusion_edit.travel");
+    REQUIRE(plugin->get_dependencies().size() == 1);
+    CHECK(plugin->get_dependencies().front() == ENTRY_STATE_PLUGIN);
+
+    const std::vector<Plugin::UsedConfigKey> keys = plugin->get_used_config_keys();
+    CHECK(std::any_of(keys.begin(), keys.end(), [](const Plugin::UsedConfigKey &key) {
+        return key.key == "avoid_crossing_perimeters" && key.type == RAW_CO_BOOL;
+    }));
+}
+
+TEST_CASE("AvoidCrossingPerimeters crossing test rejects contained travels",
+          "[AvoidCrossingPerimeters][plugins][layer-extrusion-edit][travel]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    DynamicPrintConfig config = DynamicPrintConfig::full_print_config();
+    config.set_deserialize_strict({
+        {"avoid_crossing_perimeters", "1"},
+        {"nozzle_diameter", "0.4"}
+    });
+    Print print;
+    Model model;
+    Slic3r::Test::init_print(
+        {Slic3r::Test::TestMesh::cube_20x20x20}, print, model, config);
+
+    Orchestrator &orchestrator = Orchestrator::instance();
+    Steps::StepLayerHeightGeneration::run_step(orchestrator, print);
+    Steps::StepSlicing::run_step(orchestrator, print);
+    Steps::StepPostSlicing::run_step(orchestrator, print);
+
+    REQUIRE(print.object(0).layer_count() > 0);
+    const Layer &layer = print.object(0).layer(0);
+    REQUIRE_FALSE(layer.lslices().empty());
+    const BoundingBox bounds = get_extents(layer.lslices());
+    const Point center = bounds.center();
+
+    AvoidCrossingPerimeters detector;
+    const std::vector<const Layer *> printed_layers{&layer};
+    const AvoidCrossingPerimeters::PerimeterCrossingContext context{
+        layer,
+        printed_layers,
+        0,
+        0,
+        scale_i(0.2),
+        []() {}
+    };
+    detector.prepare_crossing_test(context);
+
+    // A short segment wholly inside the printable island is the hot-path
+    // rejection used before the travel router builds a detour.
+    Polyline inside;
+    inside.points = {
+        Point(center.x() - scale_i(1.), center.y()),
+        Point(center.x() + scale_i(1.), center.y())
+    };
+    CHECK_FALSE(detector.can_cross_perimeter(inside, true));
+
+    // Leaving the object crosses its offset contour and must request routing.
+    Polyline leaving;
+    leaving.points = {
+        center,
+        Point(bounds.max.x() + scale_i(2.), center.y())
+    };
+    CHECK(detector.can_cross_perimeter(leaving, true));
+}
+
+TEST_CASE("Avoid-crossing travel routes around a hole between enabled endpoints",
+          "[plugins][layer-extrusion-edit][travel][avoid-crossing-perimeters]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    DynamicPrintConfig config = DynamicPrintConfig::full_print_config();
+    config.set_deserialize_strict({
+        {"avoid_crossing_perimeters", "1"},
+        {"avoid_crossing_not_first_layer", "0"},
+        {"avoid_crossing_perimeters_max_detour", "0"},
+        {"nozzle_diameter", "0.4"}
+    });
+    Print print;
+    Model model;
+    Slic3r::Test::init_print(
+        {Slic3r::Test::TestMesh::cube_20x20x20}, print, model, config);
+
+    Polygon contour({
+        Point(scale_i(0.), scale_i(0.)),
+        Point(scale_i(30.), scale_i(0.)),
+        Point(scale_i(30.), scale_i(30.)),
+        Point(scale_i(0.), scale_i(30.))
+    });
+    contour.make_counter_clockwise();
+    Polygon hole({
+        Point(scale_i(10.), scale_i(10.)),
+        Point(scale_i(20.), scale_i(10.)),
+        Point(scale_i(20.), scale_i(20.)),
+        Point(scale_i(10.), scale_i(20.))
+    });
+    hole.make_clockwise();
+    const ExPolygons subject{ExPolygon(std::move(contour), {std::move(hole)})};
+
+    PluginStorage storage;
+    const slic3r_api::Print print_view(reinterpret_cast<const print_handle *>(&print));
+    const slic3r_api::Object object_view(
+        reinterpret_cast<const object_handle *>(&print.object(0)));
+    const slic3r_api::AuxiliaryLayerBuildResult built =
+        slic3r_api::build_auxiliary_layer_regions_from_subject(
+            reinterpret_cast<storage_handle *>(&storage),
+            print_view,
+            object_view,
+            slic3r_api::ExPolygonCollection(
+                reinterpret_cast<const expolygon_collection_handle *>(&subject)),
+            scale_i(0.2), scale_i(0.2), scale_i(0.1));
+    REQUIRE(built.created);
+    REQUIRE(built.layer.island_count() == 1);
+    Layer *built_layer = reinterpret_cast<Layer *>(
+        const_cast<layer_handle *>(built.layer.handle()));
+    REQUIRE(built_layer != nullptr);
+    REQUIRE(built_layer->islands().size() == 1);
+    Slic3r::ApiInternal::LayerIslandAccess::perimeter_slices_mutable(
+        built_layer->islands()[0]) = subject;
+    const slic3r_api::LayerRegionIsland region_view =
+        built.layer.island(0).get_or_create_full_region_island(0);
+    REQUIRE(region_view.valid());
+    const LayerRegionIsland *region_island =
+        reinterpret_cast<const LayerRegionIsland *>(region_view.handle());
+
+    const c_point instance_shift = object_view.instance_shift(0);
+    const Point shift(instance_shift.x, instance_shift.y);
+    const Point source = Point(scale_i(5.), scale_i(15.)) + shift;
+    const Point target = Point(scale_i(25.), scale_i(15.)) + shift;
+
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.back().layers.emplace_back();
+    PrintingLayerGroup &plan_layer = plan.groups.back().layers.back();
+    plan_layer.print_z = scale_i(0.2);
+    plan_layer.tool_groups.emplace_back();
+    PrintingToolGroup &tool = plan_layer.tool_groups.back();
+    tool.extruder_id = 0;
+    append_extrusion(tool, make_path(
+        Point(source.x() - scale_i(1.), source.y()), source), region_island);
+    append_extrusion(tool, make_path(
+        target, Point(target.x() + scale_i(1.), target.y())), region_island);
+
+    run_travel_plugins(print, AVOID_CROSSING_TRAVEL_PLUGIN);
+
+    REQUIRE(travel_count(print) == 1);
+    const ExtrusionEntity &wrapper = *tool.extrusions[1].root;
+    REQUIRE(wrapper.child_count() == 2);
+    const ExtrusionEntity &travel = wrapper.child(0);
+    REQUIRE(travel.has_polyline());
+    CHECK(travel.polyline_ref().size() > 2);
+    CHECK(travel.first_point() == source);
+    CHECK(travel.last_point() == target);
 }
 
 TEST_CASE("Straight travels connect trees tools layers and printing groups",

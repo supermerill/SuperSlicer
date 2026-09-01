@@ -141,6 +141,31 @@ struct FirstIntersectionVisitor
     size_t intersection_line_idx = size_t(-1);
 };
 
+/* Fast optional grid visitor used by the perimeter-crossing hot path. */
+struct GridIntersectTest
+{
+    explicit GridIntersectTest(const EdgeGrid::Grid &grid, const Line &&line) : grid(grid), test_line(line) {}
+
+    bool operator()(coord_t iy, coord_t ix)
+    {
+        // Stop as soon as one contour segment intersects the tested travel.
+        const auto cell_data_range = grid.cell_data_range(iy, ix);
+        this->intersect = false;
+        for (auto it = cell_data_range.first; it != cell_data_range.second; ++it) {
+            const auto segment = grid.segment(*it);
+            if (Geometry::segments_intersect(segment.first, segment.second, test_line.a, test_line.b)) {
+                this->intersect = true;
+                return false;
+            }
+        }
+        return true;
+    }
+
+    const EdgeGrid::Grid &grid;
+    Line test_line;
+    bool intersect = false;
+};
+
 struct FirstEpsilonIntersectionVisitor
 {
     const EdgeGrid::Grid &grid;
@@ -2428,6 +2453,227 @@ static void init_boundary(AvoidCrossingPerimeters::Boundary *boundary, ExPolygon
     boundary->to_avoid_grid.create(to_polygons(boundary->to_avoid), scale_i(1.));
 
     assert(boundary->islands.size() == boundary->boundaries.size());
+}
+
+void AvoidCrossingPerimeters::SliceIsland::create_hole_bounding_boxes()
+{
+    if (hole_boundingboxes.size() == expolygon.holes.size())
+        return;
+    hole_boundingboxes.clear();
+    for (const Polygon &hole : expolygon.holes)
+        hole_boundingboxes.emplace_back(hole.points);
+}
+
+bool AvoidCrossingPerimeters::prepare_crossing_test(const PerimeterCrossingContext &context)
+{
+    const PrintObject *object = context.layer.object();
+    const bool object_changed = m_crossing_cache.object == nullptr || m_crossing_cache.object != object;
+    const bool instance_changed = m_crossing_cache.instance_id != context.instance_id;
+    const bool cache_changed = m_crossing_cache.layer != &context.layer || object_changed || instance_changed ||
+        m_crossing_cache.extruder_id != context.extruder_id ||
+        m_crossing_cache.nozzle_radius != context.nozzle_radius;
+
+    m_crossing_throw_if_canceled = context.throw_if_canceled ? context.throw_if_canceled : []() {};
+    if (!cache_changed)
+        return object_changed || instance_changed;
+
+    m_crossing_cache.layer = &context.layer;
+    m_crossing_cache.object = object;
+    m_crossing_cache.instance_id = context.instance_id;
+    m_crossing_cache.extruder_id = context.extruder_id;
+    m_crossing_cache.nozzle_radius = context.nozzle_radius;
+
+    const bool is_support_layer = context.layer.get_property<LayerSupportProperty>() != nullptr;
+    ExPolygons slices;
+    ExPolygons offset_slices;
+
+    // Support travels may encounter any object layer already printed at this
+    // height. Object travels only need the slices of their own current layer.
+    if (is_support_layer) {
+        for (const Layer *layer : context.already_printed_object_layers) {
+            append(slices, layer->lslices());
+            append(offset_slices, offset_ex(layer->lslices(), context.nozzle_radius * 1.5f));
+        }
+        slices = union_ex(slices);
+        offset_slices = union_ex(offset_slices);
+    } else {
+        append(slices, context.layer.lslices());
+        slices = union_ex(slices);
+
+        // On multi-extruder layers, retain only regions printed by the active
+        // tool so another material is not treated as safe interior.
+        const LayerRegionCRefs all_regions = context.layer.regions();
+        bool multiple_extruders = false;
+        for (const LayerRegion &region : all_regions) {
+            multiple_extruders = multiple_extruders ||
+                region.region().config().perimeter_extruder.value != context.extruder_id + 1 ||
+                region.region().config().infill_extruder.value != context.extruder_id + 1 ||
+                region.region().config().solid_infill_extruder.value != context.extruder_id + 1;
+            if (multiple_extruders)
+                break;
+        }
+
+        if (multiple_extruders) {
+            ExPolygons clip;
+            for (const LayerRegion &region : all_regions) {
+                const bool same_extruders =
+                    region.region().config().perimeter_extruder.value ==
+                        region.region().config().infill_extruder.value &&
+                    region.region().config().infill_extruder.value ==
+                        region.region().config().solid_infill_extruder.value;
+                if (same_extruders) {
+                    if (region.region().config().perimeter_extruder.value == context.extruder_id + 1)
+                        clip = union_ex(clip, region.get_raw_slices());
+                } else {
+                    if (region.region().config().infill_extruder.value !=
+                        region.region().config().solid_infill_extruder.value)
+                        BOOST_LOG_TRIVIAL(warning) << "";
+                    if (region.region().config().perimeter_extruder.value == context.extruder_id + 1) {
+                        assert(region.region().config().infill_extruder.value != context.extruder_id + 1);
+                        clip = union_ex(clip, diff_ex(region.get_raw_slices(), region.fill_expolygons()));
+                    } else {
+                        assert(region.region().config().infill_extruder.value == context.extruder_id + 1);
+                        clip = union_ex(clip, region.fill_expolygons());
+                    }
+                }
+            }
+            slices = intersection_ex(slices, offset_ex(clip, SCALED_EPSILON * 10));
+        }
+        append(offset_slices, offset_ex(slices, -context.nozzle_radius * 1.5f));
+    }
+
+    // Top surfaces are not safe interior because crossing them may leave
+    // visible marks even without crossing an outer contour.
+    if (!is_support_layer) {
+        for (const LayerRegion &region : context.layer.regions()) {
+            m_crossing_throw_if_canceled();
+            const ExPolygons top_surfaces = to_expolygons(
+                region.fill_surfaces().filter_by_type_flag(SurfaceType::stPosTop));
+            offset_slices = diff_ex(offset_slices, top_surfaces);
+            slices = diff_ex(slices, top_surfaces);
+        }
+    }
+
+    // Simplification and bounding boxes make repeated crossing tests cheap.
+    m_crossing_cache.slices.clear();
+    for (ExPolygon &expolygon : slices) {
+        BoundingBox bounding_box{expolygon.contour.points};
+        for (ExPolygon &simplified : expolygon.simplify(context.nozzle_radius)) {
+#ifdef CAN_CROSS_PERIMETER_USE_GRID
+            const int point_count = int(simplified.contour.size());
+            if (point_count > 100) {
+                EdgeGrid::Grid grid;
+                grid.set_bbox(bounding_box);
+                const coordf_t max_distance = std::max(
+                    bounding_box.max.x() - bounding_box.min.x(),
+                    bounding_box.max.y() - bounding_box.min.x());
+                grid.create(simplified, max_distance / 100);
+                m_crossing_cache.slices.emplace_back(
+                    std::move(simplified), std::move(bounding_box), std::move(grid));
+            } else
+#endif
+            {
+                m_crossing_cache.slices.emplace_back(std::move(simplified), std::move(bounding_box));
+            }
+        }
+    }
+
+    m_crossing_cache.offset_slices.clear();
+    for (ExPolygon &expolygon : offset_slices) {
+        BoundingBox bounding_box{expolygon.contour.points};
+        for (ExPolygon &simplified : expolygon.simplify(context.nozzle_radius)) {
+#ifdef CAN_CROSS_PERIMETER_USE_GRID
+            const int point_count = int(simplified.contour.size());
+            if (point_count > 100) {
+                EdgeGrid::Grid grid;
+                grid.set_bbox(bounding_box);
+                const coordf_t max_distance = std::max(
+                    bounding_box.max.x() - bounding_box.min.x(),
+                    bounding_box.max.y() - bounding_box.min.x());
+                grid.create(simplified, max_distance / 100);
+                m_crossing_cache.offset_slices.emplace_back(
+                    std::move(simplified), std::move(bounding_box), std::move(grid));
+            } else
+#endif
+            {
+                m_crossing_cache.offset_slices.emplace_back(
+                    std::move(simplified), std::move(bounding_box));
+            }
+        }
+    }
+
+    return object_changed || instance_changed;
+}
+
+bool AvoidCrossingPerimeters::can_cross_perimeter(const Polyline &travel, const bool offset)
+{
+    assert(m_crossing_cache.layer != nullptr);
+    std::vector<SliceIsland> &islands =
+        offset ? m_crossing_cache.offset_slices : m_crossing_cache.slices;
+
+    // Bounding boxes reject most islands before the contour hot path runs.
+    for (SliceIsland &island : islands) {
+        if (travel.size() <= 1 ||
+            !(island.boundingbox.contains(travel.front()) ||
+              island.boundingbox.contains(travel.back()) ||
+              island.boundingbox.contains(travel.points[travel.size() / 2]) ||
+              island.boundingbox.cross(travel)))
+            continue;
+
+        const bool has_front = contains(island.expolygon.contour, travel.front(), true);
+        const bool has_back = contains(island.expolygon.contour, travel.back(), true);
+        if (has_front != has_back)
+            return true;
+
+        assert(travel.size() >= 2);
+#ifdef CAN_CROSS_PERIMETER_USE_GRID
+        if (travel.size() == 2 && island.grid) {
+            GridIntersectTest tester(*island.grid, Line(travel.front(), travel.back()));
+            island.grid->visit_cells_intersecting_line(tester.test_line.a, tester.test_line.b, tester);
+            if (tester.intersect)
+                return true;
+            if (!has_front && !has_back)
+                continue;
+        } else
+#endif
+        {
+            Line travel_line;
+            Point intersection;
+            for (size_t travel_idx = travel.size() - 1; travel_idx > 0; --travel_idx) {
+                travel_line.a = travel.points[travel_idx];
+                travel_line.b = travel.points[travel_idx - 1];
+                if (island.expolygon.contour.first_intersection(travel_line, &intersection) ||
+                    Line(island.expolygon.contour.first_point(),
+                         island.expolygon.contour.last_point()).intersection(travel_line, &intersection))
+                    return true;
+            }
+            if (!has_front)
+                continue;
+        }
+
+        // A path inside the outer contour may still cross one of its holes.
+        if (has_front && has_back) {
+            Line travel_line;
+            Point intersection;
+            island.create_hole_bounding_boxes();
+            for (size_t hole_idx = 0; hole_idx < island.expolygon.holes.size(); ++hole_idx) {
+                const Polygon &hole = island.expolygon.holes[hole_idx];
+                const BoundingBox &hole_box = island.hole_boundingboxes[hole_idx];
+                m_crossing_throw_if_canceled();
+                for (size_t travel_idx = travel.size() - 1; travel_idx > 0; --travel_idx) {
+                    travel_line.a = travel.points[travel_idx];
+                    travel_line.b = travel.points[travel_idx - 1];
+                    if (hole.size() > 10 && !hole_box.cross(travel_line) &&
+                        !hole_box.contains(travel_line.a))
+                        continue;
+                    if (hole.first_intersection(travel_line, &intersection) ||
+                        Line(hole.first_point(), hole.last_point()).intersection(travel_line, &intersection))
+                        return true;
+                }
+            }
+        }
+    }
+    return false;
 }
 
 // Plan travel, which avoids perimeter crossings by following the boundaries of the layer.

@@ -237,6 +237,10 @@ set(SLIC3R_SOURCES
 	Plugins/LayerExtrusionEdit/DefaultLayerEntryState.hpp
 	Plugins/LayerExtrusionEdit/DefaultTravel.cpp
 	Plugins/LayerExtrusionEdit/DefaultTravel.hpp
+	Plugins/LayerExtrusionEdit/AvoidCrossingPerimetersTravel.cpp
+	Plugins/LayerExtrusionEdit/AvoidCrossingPerimetersTravel.hpp
+	Plugins/LayerExtrusionEdit/TravelConnectionHelpers.cpp
+	Plugins/LayerExtrusionEdit/TravelConnectionHelpers.hpp
 	Plugins/LayerExtrusionEdit/DefaultTravelDeceleration.cpp
 	Plugins/LayerExtrusionEdit/DefaultTravelDeceleration.hpp
 	Plugins/LayerExtrusionEdit/DefaultSpeed.cpp

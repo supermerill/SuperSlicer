@@ -35,6 +35,7 @@
 #include "libslic3r/Plugins/GCode/PrintingPlanFileWriter.hpp"
 #include "libslic3r/Plugins/GCode/SettingsGCodeScripts.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp"
+#include "libslic3r/Plugins/LayerExtrusionEdit/AvoidCrossingPerimetersTravel.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultFan.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultLayerEntryState.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultTravel.hpp"
@@ -212,6 +213,8 @@ void ensure_plugin_test_runtime_initialized()
             orchestrator_handle_value);
         slic3r_api::LayerExtrusionEdit::DefaultTravelPlugin::register_default_travel_plugin(
             orchestrator_handle_value);
+        slic3r_api::LayerExtrusionEdit::AvoidCrossingPerimetersTravelPlugin::
+            register_avoid_crossing_perimeters_travel_plugin(orchestrator_handle_value);
         slic3r_api::LayerExtrusionEdit::DefaultSpeedPlugin::register_default_speed_plugin(
             orchestrator_handle_value);
         slic3r_api::LayerExtrusionEdit::DefaultAccelerationPlugin::register_default_acceleration_plugin(

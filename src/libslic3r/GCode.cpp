@@ -5079,7 +5079,15 @@ void GCodeGenerator::process_layer_single_object(
             m_layer = layer_to_print.layer();
             m_print_object_instance_id = static_cast<uint16_t>(print_args.print_instance.instance_id);
             const PrintInstance &instance = print_object.instances()[print_args.print_instance.instance_id];
-            if (print.config().avoid_crossing_perimeters)
+            // Layer routing must be initialized when at least one region may
+            // request it; the active region is selected later for each path.
+            const PrintRegionCRefs print_regions = print.print_regions();
+            const bool any_region_avoids_crossing = std::any_of(
+                print_regions.begin(), print_regions.end(),
+                [](const PrintRegion &region) {
+                    return region.config().avoid_crossing_perimeters.value;
+                });
+            if (any_region_avoids_crossing)
                 m_avoid_crossing_perimeters->init_layer(*m_layer);
             // ask for a bigger lift for travel to object when moving to another object
             if (m_last_instance == nullptr || (&instance != m_last_instance))
@@ -10109,340 +10117,38 @@ bool GCodeGenerator::needs_retraction(const Polyline& travel, ExtrusionRole role
     return true;
 }
 
-struct GridIntersectTest
-{
-    explicit GridIntersectTest(const EdgeGrid::Grid &grid, const Line &&line) : grid(grid), test_line(line) {}
-
-    bool operator()(coord_t iy, coord_t ix)
-    {
-        // Called with a row and colum of the grid cell, which is intersected by a line.
-        auto cell_data_range = grid.cell_data_range(iy, ix);
-        this->intersect      = false;
-        for (auto it_contour_and_segment = cell_data_range.first; it_contour_and_segment != cell_data_range.second; ++it_contour_and_segment) {
-            // End points of the line segment and their vector.
-            auto segment = grid.segment(*it_contour_and_segment);
-            if (Geometry::segments_intersect(segment.first, segment.second, test_line.a, test_line.b)) {
-                this->intersect = true;
-                return false;
-            }
-        }
-        // Continue traversing the grid along the edge.
-        return true;
-    }
-
-    const EdgeGrid::Grid &grid;
-    Line                  test_line;
-    bool                  intersect = false;
-
-};
-
-void GCodeGenerator::SliceIsland::create_hole_bb() {
-    if (this->hole_boundingboxes.size() == this->expolygon.holes.size())
-        return;
-    this->hole_boundingboxes.clear();
-    for (const Polygon &poly : this->expolygon.holes) {
-        this->hole_boundingboxes.emplace_back(poly.points);
-    }
-}
-
 bool GCodeGenerator::can_cross_perimeter(const Polyline& travel, bool offset)
 {
-    if (m_layer != nullptr) {
-        if (((m_config.only_retract_when_crossing_perimeters &&
-              !(m_config.enforce_retract_first_layer && m_layer_index == 0)) &&
-            m_config.fill_density.value > 0) ||
-            m_config.avoid_crossing_perimeters) {
-            const bool is_support_layer = m_layer->get_property<LayerSupportProperty>() != nullptr;
-            assert(m_last_object_layers.empty() ||
-                   (std::find(m_last_object_layers.begin(), m_last_object_layers.end(), m_layer) !=
-                        m_last_object_layers.end() && m_layer != nullptr && !is_support_layer) ||
-                    (is_support_layer && m_last_layers_z <= m_layer->scaled_print_z() + SCALED_EPSILON));
-            if (m_last_object_layers.empty()) {
-                // we didn't see any object yet (we are on the raft)
-                return true;
-            }
-            bool object_changed = m_layer_slices_offseted.last_object == nullptr || m_layer_slices_offseted.last_object != m_layer->object();
-            bool instance_changed = m_layer_slices_offseted.last_instance != m_last_instance;
-            bool extruder_changed = m_layer_slices_offseted.last_extruder != m_writer.tool()->id();
-            if ((!m_last_object_layers.empty() && m_layer_slices_offseted.last_layer != m_layer) || extruder_changed) {
-                //note: if printing support, we need all the already printed objects layers.
-                // but if we're printing an object, we only need our island (that is in our layer) and don't need any other layer.
-                // is it worth it to recompute the slices each time ?
-                // TODO: I think it's possible to have the SliceIsland for each layer, and then loop over all of them
-                // only if for Layer
-                m_layer_slices_offseted.last_layer = m_layer;
-                m_layer_slices_offseted.last_instance = m_last_instance;
-                m_layer_slices_offseted.last_object = m_layer->object();
-                m_layer_slices_offseted.last_extruder = m_writer.tool()->id();
-                m_layer_slices_offseted.diameter = scale_i(EXTRUDER_CONFIG_WITH_DEFAULT(nozzle_diameter, 0.4)) / 2;
-                ExPolygons slices;
-                ExPolygons slices_offsetted;
-                bool found_our_layer = false;
-                // support or object layer?
-                if (is_support_layer) {
-                    // add all layers slices already printed & our current layer at this z into the slices
-                    for (const Layer *layer : m_last_object_layers) {
-                        append(slices, layer->lslices());
-                        // we are interserted to not going near it, so offset it to the exterior
-                        append(slices_offsetted, offset_ex(layer->lslices(), m_layer_slices_offseted.diameter * 1.5f));
-                    }
+    if (m_layer == nullptr)
+        return true;
 
-                    slices = union_ex(slices);
-                    slices_offsetted = union_ex(slices_offsetted);
-                } else {
-                    // our layer
-                    append(slices, m_layer->lslices());
+    // Retraction-only callers keep the historical policy gate here. The
+    // shared detector below is concerned exclusively with layer geometry.
+    if (!(((m_config.only_retract_when_crossing_perimeters &&
+            !(m_config.enforce_retract_first_layer && m_layer_index == 0)) &&
+           m_config.fill_density.value > 0) ||
+          m_config.avoid_crossing_perimeters))
+        return true;
 
-                    slices = union_ex(slices);
-                    // multiple extruders?
-                    // clip by region
-                    assert(m_layer_slices_offseted.last_layer != nullptr);
-                    LayerRegionCRefs all_regions = m_layer_slices_offseted.last_layer->regions();
-                    bool multiple_extruders = false;
-                    for (const LayerRegion &lregion : all_regions) {
-                            multiple_extruders = multiple_extruders ||
-                                lregion.region().config().perimeter_extruder.value !=
-                                    m_layer_slices_offseted.last_extruder + 1;
-                            multiple_extruders = multiple_extruders ||
-                                lregion.region().config().infill_extruder.value !=
-                                    m_layer_slices_offseted.last_extruder + 1;
-                            multiple_extruders = multiple_extruders ||
-                                lregion.region().config().solid_infill_extruder.value !=
-                                    m_layer_slices_offseted.last_extruder + 1;
-                            if (multiple_extruders) {
-                                break;
-                }
-                    }
-                    if (multiple_extruders) {
-                        ExPolygons clip;
-                        for (const LayerRegion &lregion : all_regions) {
-                            bool same_extruders = lregion.region().config().perimeter_extruder.value ==
-                                    lregion.region().config().infill_extruder.value &&
-                                lregion.region().config().infill_extruder.value ==
-                                    lregion.region().config().solid_infill_extruder.value;
+    const bool is_support_layer = m_layer->get_property<LayerSupportProperty>() != nullptr;
+    assert(m_last_object_layers.empty() ||
+           (std::find(m_last_object_layers.begin(), m_last_object_layers.end(), m_layer) !=
+                m_last_object_layers.end() && !is_support_layer) ||
+           (is_support_layer && m_last_layers_z <= m_layer->scaled_print_z() + SCALED_EPSILON));
+    if (m_last_object_layers.empty())
+        return true;
 
-                            if (same_extruders) {
-                                if (lregion.region().config().perimeter_extruder.value ==
-                                    m_layer_slices_offseted.last_extruder + 1) {
-                                    clip = union_ex(clip, lregion.get_raw_slices());
-                                }
-                            } else {
-                                if (lregion.region().config().infill_extruder.value !=
-                                    lregion.region().config().solid_infill_extruder.value) {
-                                    BOOST_LOG_TRIVIAL(warning) << "";
-                                }
-                                if (lregion.region().config().perimeter_extruder.value ==
-                                    m_layer_slices_offseted.last_extruder + 1) {
-                                    assert(lregion.region().config().infill_extruder.value !=
-                                            m_layer_slices_offseted.last_extruder + 1);
-                                    clip = union_ex(clip, diff_ex(lregion.get_raw_slices(), lregion.fill_expolygons()));
-                                } else {
-                                    assert(lregion.region().config().infill_extruder.value ==
-                                            m_layer_slices_offseted.last_extruder + 1);
-                                    clip = union_ex(clip, lregion.fill_expolygons());
-                                }
-                            }
-                        }
-                        slices = intersection_ex(slices, offset_ex(clip, SCALED_EPSILON * 10 /*safety offset*/));
-                    }
-                    // w e are interested to not cross outside of it.
-                    append(slices_offsetted, offset_ex(slices, -m_layer_slices_offseted.diameter * 1.5f));
-                }
-                // remove top surfaces
-                // if support i don't care because i need to cross external perimeter before anyway.
-                if (!is_support_layer) {
-                    for (const LayerRegion &reg : m_layer->regions()) {
-                        m_throw_if_canceled();
-                        slices_offsetted = diff_ex(slices_offsetted,
-                                                   to_expolygons(reg.fill_surfaces().filter_by_type_flag(
-                                                       SurfaceType::stPosTop)));
-                        slices = diff_ex(slices,
-                                         to_expolygons(
-                                             reg.fill_surfaces().filter_by_type_flag(SurfaceType::stPosTop)));
-                    }
-                }
-                // create bb for speeding things up.
-                m_layer_slices_offseted.slices.clear();
-                for (ExPolygon &ex : slices) {
-                    BoundingBox bb{ex.contour.points};
-                    // simplify as much as possible
-                    for (ExPolygon &ex_simpl : ex.simplify(m_layer_slices_offseted.diameter)) {
-#ifdef CAN_CROSS_PERIMETER_USE_GRID
-                        int nbpt = ex_simpl.contour.size();
-                        //for(const Polygon &hole : ex_simpl.holes) nbpt += hole.size();
-                        if (nbpt > 100) {
-                            EdgeGrid::Grid grid;
-                            grid.set_bbox(bb);
-                            // resolution: ~ 100 col/row
-                            coordf_t max_dist = std::max(bb.max.x() - bb.min.x(), bb.max.y() - bb.min.x());
-                            grid.create(ex_simpl, (max_dist/100));//m_layer_slices_offseted.diameter * 4); // What is a good value?
-                            m_layer_slices_offseted.slices.emplace_back(std::move(ex_simpl), std::move(bb), std::move(grid));
-                        } else
-#endif
-                        {
-                            m_layer_slices_offseted.slices.emplace_back(std::move(ex_simpl), std::move(bb));
-                        }
-                    }
-                }
-                m_layer_slices_offseted.slices_offsetted.clear();
-                for (ExPolygon &ex : slices_offsetted) {
-                    BoundingBox bb{ex.contour.points};
-                    for (ExPolygon &ex_simpl : ex.simplify(m_layer_slices_offseted.diameter)) {
-#ifdef CAN_CROSS_PERIMETER_USE_GRID
-                        int nbpt = ex_simpl.contour.size();
-                        //for(const Polygon &hole : ex_simpl.holes) nbpt += hole.size();
-                        if (nbpt > 100) {
-                            EdgeGrid::Grid grid;
-                            grid.set_bbox(bb);
-                            // resolution: ~ 100 col/row
-                            coordf_t max_dist = std::max(bb.max.x() - bb.min.x(), bb.max.y() - bb.min.x());
-                            grid.create(ex_simpl, (max_dist/100));
-                            m_layer_slices_offseted.slices_offsetted.emplace_back(std::move(ex_simpl), std::move(bb), std::move(grid));
-                        } else
-#endif
-                        {
-                            m_layer_slices_offseted.slices_offsetted.emplace_back(std::move(ex_simpl), std::move(bb));
-                        }
-                    }
-                }
-            }
-            if (object_changed || instance_changed) {
-                return true;
-            }
-        //if (is_approx(m_layer_slices_offseted.last_layer->print_z, 22.34, 0.01)) {
-        //    static int aodfjiaqsdz = 0;
-        //    std::stringstream stri;
-        //    
-        //    stri << this->m_layer->id() << "_avoid_" <<
-        //        (m_layer->get_property<LayerSupportProperty>() != nullptr ? "support": "object")
-        //        <<"_"<<(aodfjiaqsdz++) << ".svg";
-        //    SVG svg(stri.str());
-        //    svg.draw(m_layer->lslices(), "grey");
-        //    for (SliceIsland &entry : offset ? m_layer_slices_offseted.slices_offsetted : m_layer_slices_offseted.slices) {
-        //        bool checked  = (travel.size() > 1 && 
-        //            (entry.boundingbox.contains(travel.front()) ||
-        //            entry.boundingbox.contains(travel.back()) ||
-        //            entry.boundingbox.contains(travel.points[travel.size() / 2]) ||
-        //            entry.boundingbox.cross(travel) )
-        //            );
-        //        svg.draw((entry.boundingbox.polygon().split_at_first_point()), checked?"green":"orange", scale_i(0.03));
-        //        int diff_count =0;
-        //        if(checked)
-        //            diff_count = diff_pl(travel, entry.expolygon.contour).size();
-        //        svg.draw(to_polylines(entry.expolygon), diff_count==0?"blue":diff_count==1?"teal":"yellow", scale_i(0.05));
-        //    }
-        //    svg.draw(travel, "red", scale_i(0.05));
-        //    svg.Close();
-        //}
-            // test if a expoly contains the entire travel
-            for (SliceIsland &expoly_2_bb :
-                 offset ? m_layer_slices_offseted.slices_offsetted : m_layer_slices_offseted.slices) {
-                // first check if it's roughtly inside the bb, to reject quickly.
-                BoundingBox sec = expoly_2_bb.boundingbox;
-                if (travel.size() > 1 && 
-                    (expoly_2_bb.boundingbox.contains(travel.front()) ||
-                    expoly_2_bb.boundingbox.contains(travel.back()) ||
-                    expoly_2_bb.boundingbox.contains(travel.points[travel.size() / 2]) ||
-                    expoly_2_bb.boundingbox.cross(travel) )
-                    ) {
-                    // first, check if it's inside the contour (still, it can go over holes)
-                    bool has_front = contains(expoly_2_bb.expolygon.contour, travel.front(), true);
-                    bool has_back = contains(expoly_2_bb.expolygon.contour, travel.back(), true);
-                    if (!has_front && has_back || has_front && !has_back) {
-                        // has to cross something, stop here.
-                        return true;
-                    }
-                    assert(travel.size() >= 2);
-                    //second, check if it's crossing this contour
-#ifdef CAN_CROSS_PERIMETER_USE_GRID
-                    // Can't find any performance improvement, need more testing
-                    if (travel.size() == 2 && expoly_2_bb.grid) {
-                        // TODO: put each line from expoly_2_bb.first.contour into a kdtree, and only do a
-                        // line-to-line from lines that are inside the square crossed by travel
-                        GridIntersectTest tester(*expoly_2_bb.grid, Line(travel.front(), travel.back()));
-                        expoly_2_bb.grid->visit_cells_intersecting_line(tester.test_line.a, tester.test_line.b, tester);
-                        if (!tester.intersect) {
-                            // inside or outside?
-                            if (!has_front && !has_back) {
-                                //is not inside, search again another island.
-                                continue;
-                            }
-                            // is inside, continue to check holes.
-                        } else {
-                            // cross something, stop here.
-                            return true;
-                        }
-                        //diff_result = diff_pl(travel, expoly_2_bb.expolygon.contour); // extremly costly
-                    } else 
-#endif
-                    {
-                        //std::chrono::high_resolution_clock clock;
-#if 1
-                        // A little faster than diff_pl
-                        Line  travel_line;
-                        Point whatever;
-                        for (size_t idx_travel = travel.size() - 1; idx_travel > 0; --idx_travel) {
-                            travel_line.a = travel.points[idx_travel];
-                            travel_line.b = travel.points[idx_travel - 1];
-                            if (expoly_2_bb.expolygon.contour.first_intersection(travel_line, &whatever) ||
-                                Line(expoly_2_bb.expolygon.contour.first_point(), expoly_2_bb.expolygon.contour.last_point()).intersection(travel_line, &whatever)) {
-                                return true;
-                            }
-                        }
-                        // no intersect detected
-                        // if inside the contour, then we need to check for holes.
-                        if (!has_front/*expoly_2_bb.expolygon.contour.contains(travel.front())*/) {
-                            // if not, go to next island
-                            continue;
-                        }
-#else
-                        Polylines diff_result = diff_pl(travel, expoly_2_bb.expolygon.contour); // extremly costly
-                        if (diff_result.size() == 1 && diff_result.front() == travel) {
-                            // outside of this contour, try with another one
-                            continue;
-                        }
-                        if (!diff_result.empty()) {
-                            // cross something, stop here.
-                            return true;
-                        }
-#endif
-                    }
-                    // third, if inside a contour, check if it's going over a hole
-                    if (has_front && has_back) {
-                        // TODO: kdtree to get the ones interesting
-                        Line travel_line;
-                        Point whatever;
-                        expoly_2_bb.create_hole_bb();
-                        for (size_t i = 0; i < expoly_2_bb.expolygon.holes.size(); ++i) {
-                            const Polygon &hole = expoly_2_bb.expolygon.holes[i];
-                            const BoundingBox &hole_bb = expoly_2_bb.hole_boundingboxes[i];
-                            m_throw_if_canceled();
-                            for (size_t idx_travel = travel.size() - 1; idx_travel > 0; --idx_travel) {
-                                travel_line.a = travel.points[idx_travel];
-                                travel_line.b = travel.points[idx_travel - 1];
-                                if (hole.size() > 10) {
-                                    // bb.cross call 4 intersections (one for each side), do it only if the hole has
-                                    // enough lines.
-                                    if (!hole_bb.cross(travel_line) && !hole_bb.contains(travel_line.a)) {
-                                        // don't cross bb and not inside, so it's not for this hole.
-                                        continue;
-                                    }
-                                }
-                                if (hole.first_intersection(travel_line, &whatever) ||
-                                    Line(hole.first_point(), hole.last_point()).intersection(travel_line, &whatever)) {
-                                    return true;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            // never crossed a perimeter or a hole
-            return false;
-        }
-    }
-    // retract if only_retract_when_crossing_perimeters is disabled or doesn't apply
-    return true;
+    const AvoidCrossingPerimeters::PerimeterCrossingContext context{
+        *m_layer,
+        m_last_object_layers,
+        m_print_object_instance_id,
+        m_writer.tool()->id(),
+        scale_i(EXTRUDER_CONFIG_WITH_DEFAULT(nozzle_diameter, 0.4)) / 2,
+        m_throw_if_canceled
+    };
+    if (m_avoid_crossing_perimeters->prepare_crossing_test(context))
+        return true;
+    return m_avoid_crossing_perimeters->can_cross_perimeter(travel, offset);
 }
 
 std::string GCodeGenerator::retract_and_wipe(bool toolchange, bool inhibit_lift)
