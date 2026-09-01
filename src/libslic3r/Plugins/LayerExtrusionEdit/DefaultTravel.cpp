@@ -7,14 +7,10 @@
 Default straight travels
 ========================
 
-PrintingPlan stores the final order of extrusion trees, but independently
-generated leaves need not share endpoints. This plugin turns that implicit gap
-into an explicit Travel leaf. Each parallel run starts from the entry position
-published by DefaultLayerEntryState, then follows only its own layer-group.
-
-Tiny gaps below SCALED_EPSILON are removed by snapping the next start point.
-Larger gaps use emplace_ordered_leaf() so the original tree remains intact and
-its properties continue to describe only its previous content.
+CreateTransitionScope identifies discontinuities and reserves the target
+scope's travel phase. This provider selects the direct two-point path while
+ScopeTravelConnector handles endpoint resolution, epsilon snapping, Z offsets
+and final materialization flags.
 */
 
 #include "DefaultTravel.hpp"
@@ -25,8 +21,6 @@ its properties continue to describe only its previous content.
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_layer_extrusion_edit.h"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
 #include "libslic3r/Api/plugin/cpp/PrintingPlanViews.hpp"
-#include "libslic3r/Plugins/PrintingPlan/PrintingLayerEntryStateProperties.h"
-
 #include "TravelConnectionHelpers.hpp"
 
 namespace slic3r_api { namespace LayerExtrusionEdit { namespace DefaultTravelPlugin {
@@ -35,6 +29,7 @@ namespace {
 using namespace TravelConnection;
 
 const char *const k_dependencies[] = {
+    "layer_extrusion_edit.transition_scope.default",
     "layer_extrusion_edit.entry_state.default",
     nullptr
 };
@@ -60,7 +55,7 @@ private:
     void setup_run_impl(const plugin_run_context *run_ctx) const override;
     void run_impl(const plugin_run_context *run_ctx) const override;
 
-    PluginPropertyKey<PrintingLayerEntryPositionProperty> m_entry_position_property;
+    mutable ScopeTravelConnector m_connector;
     mutable bool m_setup_valid = false;
 };
 
@@ -72,7 +67,7 @@ DefaultTravel &DefaultTravel::instance(orchestrator_handle *orchestrator)
 
 DefaultTravel::DefaultTravel(orchestrator_handle *orchestrator) :
     PluginBase(orchestrator),
-    m_entry_position_property(printing_layer_entry_position_property_key(orchestrator))
+    m_connector(orchestrator)
 {}
 
 const char *DefaultTravel::id_impl() const noexcept
@@ -125,10 +120,13 @@ const char *DefaultTravel::progress_message_format_impl() const noexcept
     return "Connecting ordered extrusion paths: %u / %u trees";
 }
 
-void DefaultTravel::setup_impl(const plugin_run_context *run_ctx, uint32_t) const
+void DefaultTravel::setup_impl(const plugin_run_context *run_ctx, const uint32_t run_count) const
 {
+    m_connector.reset();
     const run_ctx_layer_extrusion_edition *ctx = plugin_ctx_as_layer_extrusion_edition(run_ctx);
     m_setup_valid = ctx != nullptr && ctx->plan != nullptr;
+    if (m_setup_valid)
+        m_connector.setup(PrintingPlan(ctx->plan), run_count);
 }
 
 void DefaultTravel::setup_run_impl(const plugin_run_context *run_ctx) const
@@ -139,8 +137,8 @@ void DefaultTravel::setup_run_impl(const plugin_run_context *run_ctx) const
     if (ctx == nullptr || ctx->layer_group == nullptr)
         return;
 
-    const PrintingLayerGroup layer(ctx->layer_group);
-    add_layer_progress(layer, progress());
+    m_connector.setup_run(PrintingLayerGroup(ctx->layer_group),
+                          ctx->group_idx, ctx->layer_group_idx, progress());
 }
 
 void DefaultTravel::run_impl(const plugin_run_context *run_ctx) const
@@ -151,24 +149,9 @@ void DefaultTravel::run_impl(const plugin_run_context *run_ctx) const
     if (ctx == nullptr || ctx->layer_group == nullptr)
         return;
 
-    const PrintingLayerGroup layer(ctx->layer_group);
-    const PrintingLayerEntryPositionProperty *entry =
-        m_entry_position_property.get(layer.properties());
-    if (entry == nullptr)
-        throw std::runtime_error(
-            "Straight travel generation requires the PrintingLayerGroup entry-position property.");
-    if (entry->state != RAW_PRINTING_LAYER_ENTRY_POSITION_UNKNOWN &&
-        entry->state != RAW_PRINTING_LAYER_ENTRY_POSITION_KNOWN)
-        throw std::runtime_error("PrintingLayerGroup entry position has an invalid state.");
-
-    PlannedPosition position = {};
-    if (entry->is_known()) {
-        position.x = entry->x;
-        position.y = entry->y;
-        position.z = entry->z;
-        position.known = true;
-    }
-    connect_layer(layer, position, straight_path, progress());
+    m_connector.run(PrintingLayerGroup(ctx->layer_group),
+                    ctx->group_idx, ctx->layer_group_idx,
+                    straight_path, progress());
 }
 
 } // namespace

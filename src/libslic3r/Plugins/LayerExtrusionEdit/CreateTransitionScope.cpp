@@ -92,6 +92,9 @@ struct ScopeDescriptor
     LeafBoundary first;
     LeafBoundary last;
     uint16_t extruder_id = UINT16_MAX;
+    // Travel providers publish their final result in these two bits. Preserve
+    // them when this producer validates an already prepared scope.
+    uint8_t preserved_materialized_flags = 0;
 };
 
 /* The three kinds of event required to replay final PrintingPlan order. */
@@ -450,6 +453,9 @@ EntityAnalysis append_entity_stream(
     // its content and treat the stable marked root as one indivisible candidate.
     if (ExtrusionScope::is_scope(entity.readonly(), scope_key)) {
         const ExtrusionScope::OrderedExtrusionScope scope(entity, scope_key);
+        const PrintingExtrusionScopeProperty *existing = entity.get(scope_key);
+        if (existing == nullptr)
+            throw std::runtime_error("An existing extrusion scope lost its marker.");
         const MutableExtrusionEntity content = scope.content();
         const EntityAnalysis analysis = analyze_entity(
             content.readonly(), print_z, state);
@@ -459,8 +465,12 @@ EntityAnalysis append_entity_stream(
                 "An existing transition scope no longer contains one continuous printable scope.");
         StreamEntry entry;
         entry.kind = StreamEntryKind::Scope;
+        const uint8_t materialized_flags = uint8_t(existing->flags &
+            (PRINTING_EXTRUSION_SCOPE_INCOMING_TRAVEL_MATERIALIZED |
+             PRINTING_EXTRUSION_SCOPE_OUTGOING_TRAVEL_MATERIALIZED));
         entry.scope = ScopeDescriptor{
-            entity.mutable_handle(), analysis.first, analysis.last, extruder_id};
+            entity.mutable_handle(), analysis.first, analysis.last,
+            extruder_id, materialized_flags};
         output.push_back(entry);
         return analysis;
     }
@@ -878,6 +888,15 @@ void CreateTransitionScope::run_impl(const plugin_run_context *run_ctx) const
         if (descriptor.entity == nullptr)
             throw std::runtime_error(
                 "A transition scope descriptor has no entity handle.");
+        // Initial stream facts define existing process travels. Bits published
+        // by a travel provider are final runtime state and remain authoritative
+        // when this producer validates an already prepared plan again.
+        if ((flags & PRINTING_EXTRUSION_SCOPE_INCOMING_TRANSITION) != 0)
+            flags = uint8_t(flags | (descriptor.preserved_materialized_flags &
+                PRINTING_EXTRUSION_SCOPE_INCOMING_TRAVEL_MATERIALIZED));
+        if ((flags & PRINTING_EXTRUSION_SCOPE_OUTGOING_TRANSITION) != 0)
+            flags = uint8_t(flags | (descriptor.preserved_materialized_flags &
+                PRINTING_EXTRUSION_SCOPE_OUTGOING_TRAVEL_MATERIALIZED));
         ExtrusionScope::ensure_scope(
             MutableExtrusionEntity(descriptor.entity), m_scope_property, flags);
     }

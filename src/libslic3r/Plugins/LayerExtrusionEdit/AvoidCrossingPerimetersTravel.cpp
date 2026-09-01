@@ -12,8 +12,8 @@ PrintingLayerGroup. Regional activation is resolved only at the two endpoints
 of a gap. The direct segment is retained unless the optimized crossing test
 confirms that it crosses printable boundaries.
 
-All structural insertion, epsilon snapping and Z interpolation are delegated
-to TravelConnectionHelpers, keeping this file focused on route selection.
+ScopeTravelConnector owns reserved-phase insertion, epsilon snapping, Z
+interpolation and final flags, keeping this file focused on route selection.
 */
 
 #include "AvoidCrossingPerimetersTravel.hpp"
@@ -33,8 +33,6 @@ to TravelConnectionHelpers, keeping this file focused on route selection.
 #include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
 #include "libslic3r/GCode/AvoidCrossingPerimeters.hpp"
 #include "libslic3r/Layer.hpp"
-#include "libslic3r/Plugins/PrintingPlan/PrintingLayerEntryStateProperties.h"
-
 #include "TravelConnectionHelpers.hpp"
 
 namespace slic3r_api { namespace LayerExtrusionEdit { namespace AvoidCrossingPerimetersTravelPlugin {
@@ -43,6 +41,7 @@ namespace {
 using namespace TravelConnection;
 
 const char *const k_dependencies[] = {
+    "layer_extrusion_edit.transition_scope.default",
     "layer_extrusion_edit.entry_state.default",
     nullptr
 };
@@ -121,7 +120,7 @@ private:
     void setup_run_impl(const plugin_run_context *run_ctx) const override;
     void run_impl(const plugin_run_context *run_ctx) const override;
 
-    PluginPropertyKey<PrintingLayerEntryPositionProperty> m_entry_position_property;
+    mutable ScopeTravelConnector m_connector;
     mutable bool m_setup_valid = false;
 };
 
@@ -280,7 +279,7 @@ AvoidCrossingPerimetersTravel &AvoidCrossingPerimetersTravel::instance(orchestra
 
 AvoidCrossingPerimetersTravel::AvoidCrossingPerimetersTravel(orchestrator_handle *orchestrator) :
     PluginBase(orchestrator),
-    m_entry_position_property(printing_layer_entry_position_property_key(orchestrator))
+    m_connector(orchestrator)
 {}
 
 const char *AvoidCrossingPerimetersTravel::id_impl() const noexcept
@@ -355,10 +354,14 @@ const char *AvoidCrossingPerimetersTravel::progress_message_format_impl() const 
     return "Connecting perimeter-avoiding travel paths: %u / %u trees";
 }
 
-void AvoidCrossingPerimetersTravel::setup_impl(const plugin_run_context *run_ctx, uint32_t) const
+void AvoidCrossingPerimetersTravel::setup_impl(
+    const plugin_run_context *run_ctx, const uint32_t run_count) const
 {
+    m_connector.reset();
     const run_ctx_layer_extrusion_edition *ctx = plugin_ctx_as_layer_extrusion_edition(run_ctx);
     m_setup_valid = ctx != nullptr && ctx->print != nullptr && ctx->plan != nullptr;
+    if (m_setup_valid)
+        m_connector.setup(PrintingPlan(ctx->plan), run_count);
 }
 
 void AvoidCrossingPerimetersTravel::setup_run_impl(const plugin_run_context *run_ctx) const
@@ -368,7 +371,8 @@ void AvoidCrossingPerimetersTravel::setup_run_impl(const plugin_run_context *run
     const run_ctx_layer_extrusion_edition *ctx = plugin_ctx_as_layer_extrusion_edition(run_ctx);
     if (ctx == nullptr || ctx->layer_group == nullptr)
         return;
-    add_layer_progress(PrintingLayerGroup(ctx->layer_group), progress());
+    m_connector.setup_run(PrintingLayerGroup(ctx->layer_group),
+                          ctx->group_idx, ctx->layer_group_idx, progress());
 }
 
 void AvoidCrossingPerimetersTravel::run_impl(const plugin_run_context *run_ctx) const
@@ -379,31 +383,15 @@ void AvoidCrossingPerimetersTravel::run_impl(const plugin_run_context *run_ctx) 
     if (ctx == nullptr || ctx->print == nullptr || ctx->layer_group == nullptr)
         return;
 
-    const PrintingLayerGroup layer(ctx->layer_group);
-    const PrintingLayerEntryPositionProperty *entry =
-        m_entry_position_property.get(layer.properties());
-    if (entry == nullptr)
-        throw std::runtime_error(
-            "Perimeter-avoiding travel generation requires the PrintingLayerGroup entry-position property.");
-    if (entry->state != RAW_PRINTING_LAYER_ENTRY_POSITION_UNKNOWN &&
-        entry->state != RAW_PRINTING_LAYER_ENTRY_POSITION_KNOWN)
-        throw std::runtime_error("PrintingLayerGroup entry position has an invalid state.");
-
-    PlannedPosition position = {};
-    if (entry->is_known()) {
-        position.x = entry->x;
-        position.y = entry->y;
-        position.z = entry->z;
-        position.known = true;
-    }
-
     LayerTravelPlanner planner(Print(ctx->print), run_ctx);
     const TravelPathPlanner route = [&planner](const TravelEndpoint &source,
                                                const TravelEndpoint &target,
                                                const uint16_t extruder_id) {
         return planner.path(source, target, extruder_id);
     };
-    connect_layer(layer, position, route, progress());
+    m_connector.run(PrintingLayerGroup(ctx->layer_group),
+                    ctx->group_idx, ctx->layer_group_idx,
+                    route, progress());
 }
 
 } // namespace

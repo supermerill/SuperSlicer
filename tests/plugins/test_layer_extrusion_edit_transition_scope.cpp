@@ -690,4 +690,12 @@ TEST_CASE("Current straight travel remains compatible with compact scopes",
     CHECK(scope_count(*first) == 1);
     CHECK(scope_count(*second) == 1);
     CHECK(travel_count(*first) + travel_count(*second) == 1);
+
+    // Re-running the complete chain validates the existing scopes and keeps
+    // the final travel-provider flags instead of deriving them from scratch.
+    Steps::StepLayerExtrusionEdition::run_step(orchestrator, print);
+    REQUIRE_FALSE(orchestrator.is_plugin_cancelled());
+    CHECK(scope_count(*first) == 1);
+    CHECK(scope_count(*second) == 1);
+    CHECK(travel_count(*first) + travel_count(*second) == 1);
 }

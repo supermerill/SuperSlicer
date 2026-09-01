@@ -22,6 +22,8 @@
 #include "libslic3r/Print.hpp"
 #include "libslic3r/PrintObject.hpp"
 #include "libslic3r/Printing/PrintingPlan.hpp"
+#include "libslic3r/Plugins/LayerExtrusionEdit/ExtrusionScopeHelpers.hpp"
+#include "libslic3r/Plugins/PrintingPlan/PrintingExtrusionScopeProperty.h"
 #include "libslic3r/Steps/StepLayerHeightGeneration.hpp"
 #include "libslic3r/Steps/StepLayerExtrusionEdition.hpp"
 #include "libslic3r/Steps/StepPostSlicing.hpp"
@@ -42,6 +44,8 @@ using namespace Slic3r;
 using namespace Slic3r::Printing;
 
 constexpr const char *ENTRY_STATE_PLUGIN = "layer_extrusion_edit.entry_state.default";
+constexpr const char *TRANSITION_SCOPE_PLUGIN =
+    "layer_extrusion_edit.transition_scope.default";
 constexpr const char *TRAVEL_PLUGIN = "layer_extrusion_edit.travel.default";
 constexpr const char *AVOID_CROSSING_TRAVEL_PLUGIN =
     "layer_extrusion_edit.travel.avoid_crossing_perimeters";
@@ -152,13 +156,39 @@ size_t travel_count(const Print &print)
     return count;
 }
 
-void run_travel_plugins(Print &print, const char *travel_plugin = TRAVEL_PLUGIN)
+/* Return the private scope key shared by the transition and travel providers. */
+slic3r_api::PluginPropertyKey<slic3r_api::PrintingExtrusionScopeProperty>
+scope_property_key()
 {
-    ScopedActivePlugins active({ENTRY_STATE_PLUGIN, travel_plugin});
+    return slic3r_api::printing_extrusion_scope_property_key(
+        reinterpret_cast<orchestrator_handle *>(&Orchestrator::instance()));
+}
+
+/* Open one core root through the named compact-scope API. */
+slic3r_api::LayerExtrusionEdit::ExtrusionScope::OrderedExtrusionScope
+ordered_scope(ExtrusionEntity &root)
+{
+    return slic3r_api::LayerExtrusionEdit::ExtrusionScope::OrderedExtrusionScope(
+        slic3r_api::MutableExtrusionEntity(
+            reinterpret_cast<extrusion_entity_handle *>(&root)),
+        scope_property_key());
+}
+
+/* Run one explicit layer-edit chain through the production step host. */
+void run_layer_edit_plugins(Print &print,
+                            std::initializer_list<const char *> plugin_ids)
+{
+    ScopedActivePlugins active(plugin_ids);
     Orchestrator &orchestrator = Orchestrator::instance();
     orchestrator.reset_plugin_cancel();
     Steps::StepLayerExtrusionEdition::run_step(orchestrator, print);
     REQUIRE_FALSE(orchestrator.is_plugin_cancelled());
+}
+
+void run_travel_plugins(Print &print, const char *travel_plugin = TRAVEL_PLUGIN)
+{
+    run_layer_edit_plugins(
+        print, {TRANSITION_SCOPE_PLUGIN, ENTRY_STATE_PLUGIN, travel_plugin});
 }
 
 TEST_CASE("Avoid-crossing travel keeps the straight fallback without regional context",
@@ -183,13 +213,13 @@ TEST_CASE("Avoid-crossing travel keeps the straight fallback without regional co
     run_travel_plugins(print, AVOID_CROSSING_TRAVEL_PLUGIN);
 
     REQUIRE(travel_count(print) == 1);
-    const ExtrusionEntity &wrapper = *tool.extrusions[1].root;
-    REQUIRE(wrapper.child_count() == 2);
-    const ExtrusionEntity &travel = wrapper.child(0);
-    REQUIRE(travel.has_polyline());
-    REQUIRE(travel.polyline_ref().size() == 2);
-    CHECK(travel.first_point() == Point(scale_i(1.), 0));
-    CHECK(travel.last_point() == Point(scale_i(3.), 0));
+    const slic3r_api::LayerExtrusionEdit::ExtrusionScope::OrderedExtrusionScope scope(
+        slic3r_api::MutableExtrusionEntity(
+            reinterpret_cast<extrusion_entity_handle *>(tool.extrusions[1].root.get())),
+        scope_property_key());
+    REQUIRE(scope.travel().segment_count() == 1);
+    CHECK(scope.travel().point(0).x == scale_i(1.));
+    CHECK(scope.travel().point(1).x == scale_i(3.));
 }
 
 } // namespace
@@ -203,8 +233,9 @@ TEST_CASE("Straight travel plugin exposes its ordered-layer contract",
     CHECK(plugin->get_step() == STEP_LAYER_EXTRUSION_EDIT);
     CHECK(plugin->get_priority() == -50);
     CHECK(plugin->get_exclusive_group() == "layer_extrusion_edit.travel");
-    REQUIRE(plugin->get_dependencies().size() == 1);
-    CHECK(plugin->get_dependencies().front() == ENTRY_STATE_PLUGIN);
+    REQUIRE(plugin->get_dependencies().size() == 2);
+    CHECK(plugin->get_dependencies()[0] == TRANSITION_SCOPE_PLUGIN);
+    CHECK(plugin->get_dependencies()[1] == ENTRY_STATE_PLUGIN);
     CHECK(plugin->get_used_config_keys().empty());
 }
 
@@ -217,8 +248,9 @@ TEST_CASE("Avoid-crossing travel is an optional provider in the travel group",
     CHECK(plugin->get_step() == STEP_LAYER_EXTRUSION_EDIT);
     CHECK(plugin->get_priority() == -50);
     CHECK(plugin->get_exclusive_group() == "layer_extrusion_edit.travel");
-    REQUIRE(plugin->get_dependencies().size() == 1);
-    CHECK(plugin->get_dependencies().front() == ENTRY_STATE_PLUGIN);
+    REQUIRE(plugin->get_dependencies().size() == 2);
+    CHECK(plugin->get_dependencies()[0] == TRANSITION_SCOPE_PLUGIN);
+    CHECK(plugin->get_dependencies()[1] == ENTRY_STATE_PLUGIN);
 
     const std::vector<Plugin::UsedConfigKey> keys = plugin->get_used_config_keys();
     CHECK(std::any_of(keys.begin(), keys.end(), [](const Plugin::UsedConfigKey &key) {
@@ -360,9 +392,9 @@ TEST_CASE("Avoid-crossing travel routes around a hole between enabled endpoints"
     run_travel_plugins(print, AVOID_CROSSING_TRAVEL_PLUGIN);
 
     REQUIRE(travel_count(print) == 1);
-    const ExtrusionEntity &wrapper = *tool.extrusions[1].root;
-    REQUIRE(wrapper.child_count() == 2);
-    const ExtrusionEntity &travel = wrapper.child(0);
+    const ExtrusionEntity &scope = *tool.extrusions[1].root;
+    REQUIRE(scope.child_count() == 3);
+    const ExtrusionEntity &travel = scope.child(0);
     REQUIRE(travel.has_polyline());
     CHECK(travel.polyline_ref().size() > 2);
     CHECK(travel.first_point() == source);
@@ -418,15 +450,50 @@ TEST_CASE("Straight travels connect trees tools layers and printing groups",
     run_travel_plugins(print);
     CHECK(travel_count(print) == 3);
 
+    // The pair facts are final and symmetric even when empty layers separate
+    // two scopes and each worker may only mutate its own layer.
+    const slic3r_api::PrintingExtrusionScopeProperty *first_source =
+        slic3r_api::MutableExtrusionEntity(reinterpret_cast<extrusion_entity_handle *>(
+            plan.groups[0].layers[0].tool_groups[0].extrusions[0].root.get()))
+            .get(scope_property_key());
+    const slic3r_api::PrintingExtrusionScopeProperty *same_layer_target =
+        slic3r_api::MutableExtrusionEntity(reinterpret_cast<extrusion_entity_handle *>(
+            plan.groups[0].layers[0].tool_groups[1].extrusions[0].root.get()))
+            .get(scope_property_key());
+    const slic3r_api::PrintingExtrusionScopeProperty *later_layer_target =
+        slic3r_api::MutableExtrusionEntity(reinterpret_cast<extrusion_entity_handle *>(
+            plan.groups[0].layers[2].tool_groups[0].extrusions[0].root.get()))
+            .get(scope_property_key());
+    const slic3r_api::PrintingExtrusionScopeProperty *next_group_target =
+        slic3r_api::MutableExtrusionEntity(reinterpret_cast<extrusion_entity_handle *>(
+            plan.groups[1].layers[0].tool_groups[0].extrusions[0].root.get()))
+            .get(scope_property_key());
+    REQUIRE(first_source != nullptr);
+    REQUIRE(same_layer_target != nullptr);
+    REQUIRE(later_layer_target != nullptr);
+    REQUIRE(next_group_target != nullptr);
+    CHECK(slic3r_api::printing_extrusion_scope_has_flag(
+        *first_source, slic3r_api::PRINTING_EXTRUSION_SCOPE_OUTGOING_TRAVEL_MATERIALIZED));
+    CHECK(slic3r_api::printing_extrusion_scope_has_flag(
+        *same_layer_target, slic3r_api::PRINTING_EXTRUSION_SCOPE_INCOMING_TRAVEL_MATERIALIZED));
+    CHECK(slic3r_api::printing_extrusion_scope_has_flag(
+        *same_layer_target, slic3r_api::PRINTING_EXTRUSION_SCOPE_OUTGOING_TRAVEL_MATERIALIZED));
+    CHECK(slic3r_api::printing_extrusion_scope_has_flag(
+        *later_layer_target, slic3r_api::PRINTING_EXTRUSION_SCOPE_INCOMING_TRAVEL_MATERIALIZED));
+    CHECK(slic3r_api::printing_extrusion_scope_has_flag(
+        *later_layer_target, slic3r_api::PRINTING_EXTRUSION_SCOPE_OUTGOING_TRAVEL_MATERIALIZED));
+    CHECK(slic3r_api::printing_extrusion_scope_has_flag(
+        *next_group_target, slic3r_api::PRINTING_EXTRUSION_SCOPE_INCOMING_TRAVEL_MATERIALIZED));
+
     const ExtrusionEntity &wrapped =
         *plan.groups[0].layers[0].tool_groups[1].extrusions[0].root;
-    REQUIRE(wrapped.child_count() == 2);
+    REQUIRE(wrapped.child_count() == 4);
     CHECK_FALSE(wrapped.can_sort());
     CHECK_FALSE(wrapped.can_reverse());
     const ExtrusionAttributes *travel_attributes =
         wrapped.child(0).get_property<ExtrusionAttributes>();
     const ExtrusionAttributes *print_attributes =
-        wrapped.child(1).get_property<ExtrusionAttributes>();
+        wrapped.child(2).get_property<ExtrusionAttributes>();
     REQUIRE(travel_attributes != nullptr);
     REQUIRE(print_attributes != nullptr);
     CHECK(travel_attributes->extrusion_role() == ExtrusionRole::Travel);
@@ -443,6 +510,50 @@ TEST_CASE("Straight travels connect trees tools layers and printing groups",
     run_travel_plugins(print);
     CHECK(travel_count(print) == 3);
     CHECK(plan_leaves(print).size() == 7);
+}
+
+TEST_CASE("Travel connects distinct scopes in one PrintingExtrusion",
+          "[plugins][layer-extrusion-edit][travel][inherited-z]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.back().layers.emplace_back();
+    PrintingLayerGroup &layer = plan.groups.back().layers.back();
+    layer.print_z = scale_i(0.2);
+    layer.tool_groups.emplace_back();
+    PrintingToolGroup &tool = layer.tool_groups.back();
+    tool.extruder_id = 0;
+
+    std::unique_ptr<ExtrusionEntityCollection> root =
+        std::make_unique<ExtrusionEntityCollection>(false, false);
+    root->add_property(ExtrusionPropertyZOffset(scale_i(0.04)));
+    root->append(make_path(Point(scale_i(0.), 0), Point(scale_i(1.), 0),
+                           scale_i(0.01), scale_i(0.01)));
+    root->append(make_path(Point(scale_i(3.), 0), Point(scale_i(4.), 0),
+                           scale_i(0.03), scale_i(0.03)));
+    ExtrusionEntity *const owner_root = root.get();
+    append_extrusion(tool, std::move(root));
+
+    run_travel_plugins(print);
+
+    // The PrintingExtrusion root remains the common owner. Its two children
+    // become sibling compact scopes, and only the target owns the connector.
+    REQUIRE(tool.extrusions[0].root.get() == owner_root);
+    REQUIRE(owner_root->child_count() == 2);
+    slic3r_api::LayerExtrusionEdit::ExtrusionScope::OrderedExtrusionScope source =
+        ordered_scope(owner_root->child(0));
+    slic3r_api::LayerExtrusionEdit::ExtrusionScope::OrderedExtrusionScope target =
+        ordered_scope(owner_root->child(1));
+    REQUIRE(source.has_outgoing_transition());
+    REQUIRE(target.has_incoming_transition());
+    REQUIRE(target.travel().point_count() == 2);
+    CHECK(target.travel().point(0).x == scale_i(1.));
+    CHECK(target.travel().point(1).x == scale_i(3.));
+    CHECK(target.travel().z_offset(0) == scale_i(0.01));
+    CHECK(target.travel().z_offset(1) == scale_i(0.03));
 }
 
 TEST_CASE("Straight travel snapping uses XYZ epsilon and preserves closed seams",
@@ -481,27 +592,29 @@ TEST_CASE("Straight travel snapping uses XYZ epsilon and preserves closed seams"
         scale_i(0.03) + SCALED_EPSILON,
         scale_i(0.03) + SCALED_EPSILON));
 
-    ExtrusionEntity *closed_source = tool.extrusions[1].root.get();
-    REQUIRE(closed_source->polyline_ref().has_arc());
+    ExtrusionEntity *closed_scope = tool.extrusions[1].root.get();
+    REQUIRE(closed_scope->polyline_ref().has_arc());
     run_travel_plugins(print);
 
     CHECK(travel_count(print) == 2);
-    REQUIRE(closed_source->has_polyline());
-    CHECK(closed_source->first_point() == first_end);
-    CHECK(closed_source->last_point() == first_end);
-    CHECK(closed_source->polyline_ref().z_offset(0) == scale_i(0.03));
-    CHECK(closed_source->polyline_ref().z_offset(closed_source->polyline_ref().size() - 1) ==
+    REQUIRE(closed_scope->child_count() == 2);
+    const ExtrusionEntity &closed_source = closed_scope->child(0);
+    REQUIRE(closed_source.has_polyline());
+    CHECK(closed_source.first_point() == first_end);
+    CHECK(closed_source.last_point() == first_end);
+    CHECK(closed_source.polyline_ref().z_offset(0) == scale_i(0.03));
+    CHECK(closed_source.polyline_ref().z_offset(closed_source.polyline_ref().size() - 1) ==
           scale_i(0.03));
-    CHECK(closed_source->polyline_ref().has_arc());
+    CHECK(closed_source.polyline_ref().has_arc());
 
     const ExtrusionEntity &xy_wrapper = *tool.extrusions[2].root;
-    REQUIRE(xy_wrapper.child_count() == 2);
+    REQUIRE(xy_wrapper.child_count() == 4);
     REQUIRE(xy_wrapper.child(0).has_polyline());
     CHECK(xy_wrapper.child(0).polyline_ref().z_offset(0) == scale_i(0.03));
     CHECK(xy_wrapper.child(0).polyline_ref().z_offset(1) == scale_i(0.03));
 
     const ExtrusionEntity &z_wrapper = *tool.extrusions[3].root;
-    REQUIRE(z_wrapper.child_count() == 2);
+    REQUIRE(z_wrapper.child_count() == 3);
     REQUIRE(z_wrapper.child(0).has_polyline());
     CHECK(z_wrapper.child(0).first_point() == z_wrapper.child(0).last_point());
     CHECK(z_wrapper.child(0).polyline_ref().z_offset(0) == scale_i(0.03));
@@ -542,4 +655,108 @@ TEST_CASE("Existing travels remain ordinary connected leaves",
     CHECK(tool.extrusions[1].root.get() == existing_travel);
     CHECK(existing_travel->first_point() == Point(scale_i(1.), 0));
     CHECK(existing_travel->last_point() == Point(scale_i(2.), 0));
+
+    const slic3r_api::PrintingExtrusionScopeProperty *source =
+        slic3r_api::MutableExtrusionEntity(reinterpret_cast<extrusion_entity_handle *>(
+            tool.extrusions[0].root.get())).get(scope_property_key());
+    const slic3r_api::PrintingExtrusionScopeProperty *target =
+        slic3r_api::MutableExtrusionEntity(reinterpret_cast<extrusion_entity_handle *>(
+            tool.extrusions[2].root.get())).get(scope_property_key());
+    REQUIRE(source != nullptr);
+    REQUIRE(target != nullptr);
+    CHECK(slic3r_api::printing_extrusion_scope_has_flag(
+        *source, slic3r_api::PRINTING_EXTRUSION_SCOPE_OUTGOING_TRAVEL_MATERIALIZED));
+    CHECK(slic3r_api::printing_extrusion_scope_has_flag(
+        *target, slic3r_api::PRINTING_EXTRUSION_SCOPE_INCOMING_TRAVEL_MATERIALIZED));
+    CHECK(ordered_scope(*tool.extrusions[2].root).travel().segment_count() == 0);
+}
+
+TEST_CASE("Travel connector uses source after and target before phases",
+          "[plugins][layer-extrusion-edit][travel][scope-phases]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.back().layers.emplace_back();
+    PrintingLayerGroup &layer = plan.groups.back().layers.back();
+    layer.print_z = scale_i(0.2);
+    layer.tool_groups.emplace_back();
+    PrintingToolGroup &tool = layer.tool_groups.back();
+    tool.extruder_id = 0;
+    append_extrusion(tool, make_path(Point(scale_i(0.), 0), Point(scale_i(1.), 0)));
+    append_extrusion(tool, make_path(Point(scale_i(3.), 0), Point(scale_i(4.), 0)));
+
+    // Prepare the compact shapes first, then emulate process plugins which
+    // append geometry without changing the marked roots or their child lists.
+    run_layer_edit_plugins(print, {TRANSITION_SCOPE_PLUGIN});
+    slic3r_api::LayerExtrusionEdit::ExtrusionScope::OrderedExtrusionScope source =
+        ordered_scope(*tool.extrusions[0].root);
+    slic3r_api::LayerExtrusionEdit::ExtrusionScope::OrderedExtrusionScope target =
+        ordered_scope(*tool.extrusions[1].root);
+    REQUIRE(source.after().valid());
+    REQUIRE(target.before().valid());
+    REQUIRE(source.after().set_points(std::vector<c_point>{
+        c_point{scale_i(1.), 0}, c_point{scale_i(1.5), 0}}));
+    REQUIRE(target.before().set_points(std::vector<c_point>{
+        c_point{scale_i(2.5), 0}, c_point{scale_i(3.), 0}}));
+    source.after().get_or_add(slic3r_api::EPropertyAttributes::key)
+        .extrusion_role(RAW_EXTRUSION_ROLE_TRAVEL | RAW_EXTRUSION_ROLE_WIPE)
+        .mm3_per_mm(0.).width(0.f).height(0.f);
+    target.before().get_or_add(slic3r_api::EPropertyAttributes::key)
+        .extrusion_role(RAW_EXTRUSION_ROLE_TRAVEL | RAW_EXTRUSION_ROLE_WIPE)
+        .mm3_per_mm(0.).width(0.f).height(0.f);
+
+    run_layer_edit_plugins(print, {ENTRY_STATE_PLUGIN, TRAVEL_PLUGIN});
+
+    target = ordered_scope(*tool.extrusions[1].root);
+    REQUIRE(target.travel().point_count() == 2);
+    CHECK(target.travel().point(0).x == scale_i(1.5));
+    CHECK(target.travel().point(1).x == scale_i(2.5));
+}
+
+TEST_CASE("Semantic continuous transitions keep the travel slot empty",
+          "[plugins][layer-extrusion-edit][travel][semantic-transition]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.back().layers.emplace_back();
+    PrintingLayerGroup &layer = plan.groups.back().layers.back();
+    layer.print_z = scale_i(0.2);
+    layer.tool_groups.emplace_back();
+    PrintingToolGroup &tool = layer.tool_groups.back();
+    tool.extruder_id = 0;
+    std::unique_ptr<ExtrusionPath> source = make_path(
+        Point(scale_i(0.), 0), Point(scale_i(1.), 0));
+    ExtrusionPropertyModifier modifier;
+    modifier.set_enforce_retraction(true);
+    source->add_property(modifier);
+    append_extrusion(tool, std::move(source));
+    append_extrusion(tool, make_path(
+        Point(scale_i(1.), 0), Point(scale_i(2.), 0)));
+
+    run_travel_plugins(print);
+
+    const slic3r_api::LayerExtrusionEdit::ExtrusionScope::OrderedExtrusionScope target =
+        ordered_scope(*tool.extrusions[1].root);
+    REQUIRE(target.has_incoming_transition());
+    CHECK(target.travel().segment_count() == 0);
+    const slic3r_api::PrintingExtrusionScopeProperty *source_property =
+        slic3r_api::MutableExtrusionEntity(reinterpret_cast<extrusion_entity_handle *>(
+            tool.extrusions[0].root.get())).get(scope_property_key());
+    const slic3r_api::PrintingExtrusionScopeProperty *target_property =
+        slic3r_api::MutableExtrusionEntity(reinterpret_cast<extrusion_entity_handle *>(
+            tool.extrusions[1].root.get())).get(scope_property_key());
+    REQUIRE(source_property != nullptr);
+    REQUIRE(target_property != nullptr);
+    CHECK_FALSE(slic3r_api::printing_extrusion_scope_has_flag(
+        *source_property,
+        slic3r_api::PRINTING_EXTRUSION_SCOPE_OUTGOING_TRAVEL_MATERIALIZED));
+    CHECK_FALSE(slic3r_api::printing_extrusion_scope_has_flag(
+        *target_property,
+        slic3r_api::PRINTING_EXTRUSION_SCOPE_INCOMING_TRAVEL_MATERIALIZED));
 }

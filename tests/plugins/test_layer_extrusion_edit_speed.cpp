@@ -66,6 +66,8 @@ constexpr const char *DEFAULT_SPEED_PLUGIN = "layer_extrusion_edit.speed.default
 constexpr const char *DEFAULT_ACCELERATION_PLUGIN = "layer_extrusion_edit.acceleration.default";
 constexpr const char *DEFAULT_FAN_PLUGIN = "layer_extrusion_edit.fan.default";
 constexpr const char *DEFAULT_ENTRY_STATE_PLUGIN = "layer_extrusion_edit.entry_state.default";
+constexpr const char *DEFAULT_TRANSITION_SCOPE_PLUGIN =
+    "layer_extrusion_edit.transition_scope.default";
 constexpr const char *DEFAULT_TRAVEL_PLUGIN = "layer_extrusion_edit.travel.default";
 
 struct ExtrusionSpec
@@ -1112,7 +1114,7 @@ TEST_CASE("Travel leaves receive independent speed and acceleration",
         }});
 
         run_editors(prepared, {
-            DEFAULT_ENTRY_STATE_PLUGIN, DEFAULT_TRAVEL_PLUGIN,
+            DEFAULT_TRANSITION_SCOPE_PLUGIN, DEFAULT_ENTRY_STATE_PLUGIN, DEFAULT_TRAVEL_PLUGIN,
             DEFAULT_SPEED_PLUGIN, DEFAULT_ACCELERATION_PLUGIN
         });
 
