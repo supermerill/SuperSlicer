@@ -139,6 +139,35 @@ struct EPropertyInfill :
     uint64_t surface_id() const { return source_surface_id; }
 };
 
+/*
+Firmware-neutral request for the physical extrusion axis.
+
+retract_to() and unretract() may describe either an empty E-only event or a
+geometric Wipe leaf. For geometry, the firmware session distributes the
+remaining semantic operation over the complete planar path. The selected
+firmware remains free to encode the same request as explicit E or G10/G11.
+*/
+struct EPropertyExtrusionAxis :
+    EPropertyPayload<EPropertyExtrusionAxis, c_extrusion_property_extrusion_axis, EXTRUSION_PROPERTY_TYPE_EXTRUSION_AXIS>
+{
+    /* Configure an event or Wipe leaf to reach an absolute retracted length. */
+    EPropertyExtrusionAxis &retract_to(double target, bool is_toolchange = false) {
+        operation = C_EXTRUSION_AXIS_OPERATION_RETRACT_TO;
+        value = target;
+        restart_extra = 0.0;
+        toolchange = is_toolchange ? 1 : 0;
+        return *this;
+    }
+    /* Configure an event or Wipe leaf to restore E and add optional extra prime. */
+    EPropertyExtrusionAxis &unretract(double extra = 0.0, bool is_toolchange = false) {
+        operation = C_EXTRUSION_AXIS_OPERATION_UNRETRACT;
+        value = 0.0;
+        restart_extra = extra;
+        toolchange = is_toolchange ? 1 : 0;
+        return *this;
+    }
+};
+
 // Each helper is a direct typed view over the corresponding host-owned C bytes.
 static_assert(sizeof(EPropertyAttributes) == sizeof(c_extrusion_property_attributes), "ABI payload mismatch");
 static_assert(sizeof(EPropertySpeed) == sizeof(c_extrusion_property_speed), "ABI payload mismatch");
@@ -149,6 +178,7 @@ static_assert(sizeof(EPropertyOverhang) == sizeof(c_extrusion_property_overhang)
 static_assert(sizeof(EPropertyZOffset) == sizeof(c_extrusion_property_z_offset), "ABI payload mismatch");
 static_assert(sizeof(EPropertyPerimeter) == sizeof(c_extrusion_property_perimeter), "ABI payload mismatch");
 static_assert(sizeof(EPropertyInfill) == sizeof(c_extrusion_property_infill), "ABI payload mismatch");
+static_assert(sizeof(EPropertyExtrusionAxis) == sizeof(c_extrusion_property_extrusion_axis), "ABI payload mismatch");
 
 } // namespace slic3r_api
 

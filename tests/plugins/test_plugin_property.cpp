@@ -164,6 +164,18 @@ TEST_CASE("PluginPropertyKey gives built-in and dynamic properties one access mo
     REQUIRE(EPropertyOverhang::key.get(extrusion) != nullptr);
     CHECK(EPropertyOverhang::key.get(extrusion)->start_distance_from_prev_layer == Approx(0.25f));
 
+    // Extrusion-axis operations use the same built-in property mechanism. The
+    // semantic operation remains separate from geometry and may therefore be
+    // attached to an empty Retract or Unretract event leaf.
+    CHECK(slic3r_api::EPropertyExtrusionAxis::key.type() ==
+          EXTRUSION_PROPERTY_TYPE_EXTRUSION_AXIS);
+    slic3r_api::EPropertyExtrusionAxis &axis =
+        extrusion.get_or_add(slic3r_api::EPropertyExtrusionAxis::key);
+    axis.retract_to(2.5, true);
+    CHECK(axis.operation == C_EXTRUSION_AXIS_OPERATION_RETRACT_TO);
+    CHECK(axis.value == Approx(2.5));
+    CHECK(axis.toolchange == 1);
+
     CHECK(first_key.remove(properties));
     CHECK_FALSE(first_key.has(properties));
     CHECK(second_key.has(properties));

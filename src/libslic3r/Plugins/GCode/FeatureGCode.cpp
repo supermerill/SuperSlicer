@@ -88,7 +88,7 @@ private:
 
 std::string script_role_name(raw_extrusion_role raw_role)
 {
-    constexpr uint32_t known_mask = (uint32_t(1) << 13) - 1;
+    constexpr uint32_t known_mask = (uint32_t(1) << 16) - 1;
     constexpr uint32_t base_mask =
         uint32_t(RAW_EXTRUSION_ROLE_PERIMETER) |
         uint32_t(RAW_EXTRUSION_ROLE_INFILL) |
@@ -102,7 +102,8 @@ std::string script_role_name(raw_extrusion_role raw_role)
     const uint32_t base = bits & base_mask;
 
     // A non-empty role has exactly one base bit. Modifiers may then refine
-    // that base, but unknown bits or two simultaneous bases are malformed.
+    // that base. Process-only roles are filtered before this conversion, and
+    // two simultaneous base roles remain malformed.
     if ((bits & ~known_mask) != 0 ||
         (bits != 0 && (base == 0 || (base & (base - 1)) != 0)))
         throw std::invalid_argument("A feature G-code context contains an invalid extrusion role.");
@@ -223,6 +224,13 @@ void FeatureRoleVisitor::visit_leaf(MutableExtrusionEntity entity)
         return;
 
     const raw_extrusion_role current_role = attributes->extrusion_role();
+    // Retraction, wipe and unretraction describe machine preparation around a
+    // travel. They must not interrupt the last printable feature remembered by
+    // feature_gcode or create user-visible feature transitions of their own.
+    if (RAW_EXTRUSION_ROLE_IS_WIPE(current_role) ||
+        RAW_EXTRUSION_ROLE_IS_RETRACT(current_role) ||
+        RAW_EXTRUSION_ROLE_IS_UNRETRACT(current_role))
+        return;
     if (!m_previous_role || *m_previous_role != current_role)
         add_transition(entity, m_previous_role.value_or(RAW_EXTRUSION_ROLE_NONE), current_role);
     m_previous_role = current_role;

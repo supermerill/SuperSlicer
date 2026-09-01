@@ -2,7 +2,7 @@
 
 > API snapshot commit: `107c2122c8915f636fc0ca288d3c85c52cad365a`
 >
-> Plugin ABI version: `49`
+> Plugin ABI version: `50`
 
 The commit above identifies the source-tree state against which this guide and
 its examples were checked. It is not the commit that adds this document: a
@@ -121,6 +121,39 @@ StoredExtrusionEntity make_perimeter(storage_handle *storage)
 or inherited from a parent. Other process decisions, such as speed,
 acceleration, temperature, or fan speed, use additional properties. See
 [Using Plugin Properties](properties.md) for direct and dynamic property access.
+
+### Retraction And Wipe Process Leaves
+
+The ordered G-code pipeline also represents extrusion-axis preparation with
+ordinary entities. Retract and Unretract requests may be empty E-only events or
+geometric wipe leaves. An empty event carries only `RAW_EXTRUSION_ROLE_RETRACT`
+or `RAW_EXTRUSION_ROLE_UNRETRACT`. A geometric event additionally carries
+`RAW_EXTRUSION_ROLE_TRAVEL | RAW_EXTRUSION_ROLE_WIPE`.
+
+Both forms use the same semantic axis request:
+
+```cpp
+MutableExtrusionEntity retract = /* ordered empty event leaf */;
+retract.get_or_add(EPropertyAttributes::key)
+    .extrusion_role(RAW_EXTRUSION_ROLE_RETRACT)
+    .mm3_per_mm(0.0);
+retract.get_or_add(EPropertyExtrusionAxis::key)
+    .retract_to(0.8, false);
+
+MutableExtrusionEntity unretract = /* ordered empty event leaf */;
+unretract.get_or_add(EPropertyAttributes::key)
+    .extrusion_role(RAW_EXTRUSION_ROLE_UNRETRACT)
+    .mm3_per_mm(0.0);
+unretract.get_or_add(EPropertyExtrusionAxis::key)
+    .unretract(0.05, false);
+```
+
+These requests deliberately do not contain firmware syntax. A firmware session
+may encode them as explicit E-only moves or native `G10`/`G11` commands while
+its `ExtrusionAxisState` remains responsible for the physical E state. On a
+geometric Wipe leaf, explicit E is distributed over the complete planar line
+and arc length; Z lift does not increase the requested E movement. A Wipe that
+only moves the nozzle has no `EPropertyExtrusionAxis`.
 
 ## Building An Ordered Tree
 

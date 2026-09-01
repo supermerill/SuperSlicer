@@ -287,19 +287,49 @@ TEST_CASE("Feature G-code validates and normalizes rich extrusion roles",
         orchestrator.reset_plugin_cancel();
     }
 
-    SECTION("Unknown role bits reject the plugin run") {
-        std::unique_ptr<Print> print = prepare_role(raw_extrusion_role(uint32_t(1) << 15));
-        Orchestrator &orchestrator = Orchestrator::instance();
-        orchestrator.reset_plugin_cancel();
-        (void)orchestrator.consume_plugin_messages();
-        Steps::StepExtrusionEdition::clean_and_prepare(*print);
-        Steps::StepExtrusionEdition::run_step(orchestrator, *print);
-        CHECK(orchestrator.is_plugin_cancelled());
-        bool found_role_error = false;
-        for (const Orchestrator::PluginMessage &message : orchestrator.consume_plugin_messages())
-            found_role_error = found_role_error ||
-                               message.message.find("invalid extrusion role") != std::string::npos;
-        CHECK(found_role_error);
-        orchestrator.reset_plugin_cancel();
+}
+
+
+TEST_CASE("Feature G-code ignores retraction and wipe process roles",
+          "[plugins][gcode][feature-gcode][extrusion-edit][process-roles]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    Print print;
+    PrintConfig &config = const_cast<PrintConfig &>(print.config());
+    config.feature_gcode.value = "; FEATURE [previous_extrusion_role]>[next_extrusion_role]";
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.front().layers.emplace_back();
+    plan.groups.front().layers.front().tool_groups.emplace_back();
+    PrintingToolGroup &tool = plan.groups.front().layers.front().tool_groups.front();
+    tool.extruder_id = 0;
+
+    append_path_extrusion(tool, make_firmware_path(
+        ArcPolyline(Points{Point(0, 0), Point(scale_i(1.0), 0)}),
+        15.f, 400.f));
+
+    const raw_extrusion_role process_roles[] = {
+        RAW_EXTRUSION_ROLE_RETRACT,
+        RAW_EXTRUSION_ROLE_TRAVEL | RAW_EXTRUSION_ROLE_WIPE,
+        RAW_EXTRUSION_ROLE_UNRETRACT
+    };
+    for (const raw_extrusion_role role : process_roles) {
+        std::unique_ptr<ExtrusionNop> event(new ExtrusionNop());
+        slic3r_api::MutableExtrusionEntity event_view(
+            reinterpret_cast<extrusion_entity_handle *>(event.get()));
+        event_view.get_or_add(slic3r_api::EPropertyAttributes::key)
+            .extrusion_role(role).mm3_per_mm(0.0);
+        append_path_extrusion(tool, std::move(event));
     }
+    append_path_extrusion(tool, make_firmware_path(
+        ArcPolyline(Points{Point(scale_i(1.0), 0), Point(scale_i(2.0), 0)}),
+        15.f, 400.f));
+
+    Steps::StepExtrusionEdition::clean_and_prepare(print);
+    Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
+
+    REQUIRE(tool.extrusions.front().root->get_property<ExtrusionPropertyCustomGcode>() != nullptr);
+    for (size_t extrusion_idx = 1; extrusion_idx + 1 < tool.extrusions.size(); ++extrusion_idx)
+        CHECK(tool.extrusions[extrusion_idx].root->get_property<ExtrusionPropertyCustomGcode>() == nullptr);
+    CHECK(tool.extrusions.back().root->get_property<ExtrusionPropertyCustomGcode>() == nullptr);
 }

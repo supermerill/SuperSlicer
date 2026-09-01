@@ -63,6 +63,7 @@ from slic3r_api_generated import (
     CMedialAxisExtrusionParams,
     CExtrusionPropertyAttributes,
     CExtrusionPropertyCustomGcode,
+    CExtrusionPropertyExtrusionAxis,
     CExtrusionPropertyInfill,
     CExtrusionPropertyModifier,
     CExtrusionPropertyOverhang,
@@ -82,6 +83,7 @@ from slic3r_api_generated import (
     EXTRUSION_PROPERTY_TYPE_ATTRIBUTES,
     EXTRUSION_PROPERTY_TYPE_CUSTOM_GCODE,
     EXTRUSION_PROPERTY_TYPE_INFILL,
+    EXTRUSION_PROPERTY_TYPE_EXTRUSION_AXIS,
     EXTRUSION_PROPERTY_TYPE_INVALID,
     EXTRUSION_PROPERTY_TYPE_MODIFIER,
     EXTRUSION_PROPERTY_TYPE_OVERHANG,
@@ -128,12 +130,14 @@ CExtrusionPropertyOverhang.property_type = EXTRUSION_PROPERTY_TYPE_OVERHANG
 CExtrusionPropertyZOffset.property_type = EXTRUSION_PROPERTY_TYPE_Z_OFFSET
 CExtrusionPropertyPerimeter.property_type = EXTRUSION_PROPERTY_TYPE_PERIMETER
 CExtrusionPropertyInfill.property_type = EXTRUSION_PROPERTY_TYPE_INFILL
+CExtrusionPropertyExtrusionAxis.property_type = EXTRUSION_PROPERTY_TYPE_EXTRUSION_AXIS
 
 EPropertyAttributes = CExtrusionPropertyAttributes
 EPropertySpeed = CExtrusionPropertySpeed
 EPropertyModifier = CExtrusionPropertyModifier
 EPropertyCustomGcode = CExtrusionPropertyCustomGcode
 EPropertySpecialCommand = CExtrusionPropertySpecialCommand
+EPropertyExtrusionAxis = CExtrusionPropertyExtrusionAxis
 EPropertyOverhang = CExtrusionPropertyOverhang
 EPropertyZOffset = CExtrusionPropertyZOffset
 EPropertyPerimeter = CExtrusionPropertyPerimeter
@@ -1020,6 +1024,7 @@ def register_extrusion_property_type(api, namespaced_name: str, payload_cls) -> 
 __all__ = [
     "CExtrusionPropertyAttributes",
     "CExtrusionPropertyCustomGcode",
+    "CExtrusionPropertyExtrusionAxis",
     "CExtrusionPropertyInfill",
     "CExtrusionPropertyModifier",
     "CExtrusionPropertyOverhang",
@@ -1032,6 +1037,7 @@ __all__ = [
     "CMedialAxisExtrusionParams",
     "EPropertyAttributes",
     "EPropertyCustomGcode",
+    "EPropertyExtrusionAxis",
     "EPropertyInfill",
     "EPropertyModifier",
     "EPropertyOverhang",
@@ -1043,6 +1049,7 @@ __all__ = [
     "EXTRUSION_INDEX_INVALID",
     "EXTRUSION_PROPERTY_TYPE_ATTRIBUTES",
     "EXTRUSION_PROPERTY_TYPE_CUSTOM_GCODE",
+    "EXTRUSION_PROPERTY_TYPE_EXTRUSION_AXIS",
     "EXTRUSION_PROPERTY_TYPE_INFILL",
     "EXTRUSION_PROPERTY_TYPE_INVALID",
     "EXTRUSION_PROPERTY_TYPE_MODIFIER",

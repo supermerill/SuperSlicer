@@ -49,6 +49,7 @@ typedef slic3r_property_type extrusion_property_type;
 #define EXTRUSION_PROPERTY_TYPE_Z_OFFSET        ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_EXTRUSION_Z_OFFSET)
 #define EXTRUSION_PROPERTY_TYPE_PERIMETER       ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_EXTRUSION_PERIMETER)
 #define EXTRUSION_PROPERTY_TYPE_INFILL          ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_EXTRUSION_INFILL)
+#define EXTRUSION_PROPERTY_TYPE_EXTRUSION_AXIS  ((extrusion_property_type)SLIC3R_PROPERTY_TYPE_EXTRUSION_AXIS)
 
 typedef uint32_t extrusion_data_id;
 
@@ -371,6 +372,33 @@ that produced a path after splitting or regrouping the tree.
 typedef struct c_extrusion_property_infill {
     uint64_t source_surface_id;
 } c_extrusion_property_infill;
+
+/*
+How EPropertyExtrusionAxis changes the physical extrusion axis.
+
+The property expresses a process request rather than firmware syntax. A
+firmware session may therefore encode retract/unretract as explicit E moves or
+as native commands such as G10/G11 while keeping the same PrintingPlan.
+*/
+typedef enum c_extrusion_axis_operation {
+    /* No extrusion-axis operation has been configured on this property. */
+    C_EXTRUSION_AXIS_OPERATION_NONE = 0,
+    /* Retract until the tool reaches the positive target stored in value. */
+    C_EXTRUSION_AXIS_OPERATION_RETRACT_TO = 1,
+    /* Restore the current retraction and add restart_extra. */
+    C_EXTRUSION_AXIS_OPERATION_UNRETRACT = 2
+} c_extrusion_axis_operation;
+
+/* Property type: EXTRUSION_PROPERTY_TYPE_EXTRUSION_AXIS. */
+typedef struct c_extrusion_property_extrusion_axis {
+    c_extrusion_axis_operation operation;
+    /* Target retraction length for RETRACT_TO; unused by other operations. */
+    double value;
+    /* Signed adjustment applied by UNRETRACT after restoring the retraction. */
+    double restart_extra;
+    /* Select the tool-change retraction/restart state instead of the normal one. */
+    uint8_t toolchange;
+} c_extrusion_property_extrusion_axis;
 
 #ifdef __cplusplus
 }

@@ -61,6 +61,7 @@ static const std::vector<PropertyInfo> &builtin_property_infos()
         { EXTRUSION_PROPERTY_TYPE_Z_OFFSET,        "slic3r.extrusion.z_offset",        sizeof(c_extrusion_property_z_offset),        alignof(c_extrusion_property_z_offset) },
         { EXTRUSION_PROPERTY_TYPE_PERIMETER,       "slic3r.extrusion.perimeter",       sizeof(c_extrusion_property_perimeter),       alignof(c_extrusion_property_perimeter) },
         { EXTRUSION_PROPERTY_TYPE_INFILL,          "slic3r.extrusion.infill",          sizeof(c_extrusion_property_infill),          alignof(c_extrusion_property_infill) },
+        { EXTRUSION_PROPERTY_TYPE_EXTRUSION_AXIS,  "slic3r.extrusion.axis",            sizeof(c_extrusion_property_extrusion_axis),  alignof(c_extrusion_property_extrusion_axis) },
     };
     return infos;
 }

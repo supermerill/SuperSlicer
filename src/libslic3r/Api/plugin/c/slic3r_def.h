@@ -33,6 +33,7 @@ typedef uint32_t slic3r_property_type;
 #define SLIC3R_PROPERTY_TYPE_LAYER_SUPPORT             ((slic3r_property_type)11u)
 #define SLIC3R_PROPERTY_TYPE_LAYER_BRIM                ((slic3r_property_type)12u)
 #define SLIC3R_PROPERTY_TYPE_LAYER_ADHESION            ((slic3r_property_type)13u)
+#define SLIC3R_PROPERTY_TYPE_EXTRUSION_AXIS             ((slic3r_property_type)14u)
 
 #ifdef __cplusplus
 #define SLIC3R_CONSTEXPR_INLINE constexpr inline

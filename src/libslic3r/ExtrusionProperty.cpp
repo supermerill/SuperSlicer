@@ -260,6 +260,8 @@ void* ExtrusionPropertyContainer::get_or_add_property_data_mutable(extrusion_pro
         return &this->get_or_add_property<ExtrusionPropertyLoopRole>().perimeter_idx;
     case ExtrusionPropertyInfill::property_type:
         return &this->get_or_add_property<ExtrusionPropertyInfill>().source_surface_id;
+    case ExtrusionPropertyExtrusionAxis::property_type:
+        return &this->get_or_add_property<ExtrusionPropertyExtrusionAxis>().operation;
     case ExtrusionPropertyCustomGcode::property_type:
         return &this->get_or_add_property<ExtrusionPropertyCustomGcode>();
     default:

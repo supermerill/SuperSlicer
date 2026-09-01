@@ -37,6 +37,7 @@ class ExtrusionPropertyZOffset;
 class ExtrusionPropertyZProfile;
 class ExtrusionPropertyLoopRole;
 class ExtrusionPropertyInfill;
+class ExtrusionPropertyExtrusionAxis;
 namespace ApiInternal { struct ExtrusionPropertyAccess; }
 
 using ExtrusionPropertyUPtr = std::unique_ptr<PropertySlot>;
@@ -57,6 +58,7 @@ enum : extrusion_property_type {
     extrusion_property_type_z_profile       = 8,
     extrusion_property_type_loop_role       = EXTRUSION_PROPERTY_TYPE_PERIMETER,
     extrusion_property_type_infill          = EXTRUSION_PROPERTY_TYPE_INFILL,
+    extrusion_property_type_extrusion_axis  = EXTRUSION_PROPERTY_TYPE_EXTRUSION_AXIS,
 };
 
 struct ExtrusionFlow : c_extrusion_flow
@@ -260,6 +262,30 @@ public:
     ExtrusionPropertyUPtr clone() const;
 };
 
+/*
+Describes an extrusion-axis request independently from the firmware dialect.
+
+Retract and Unretract requests may be carried by empty E-only events or by
+geometric wipe leaves. The firmware chooses explicit E or native retraction
+commands while ExtrusionAxisState remains authoritative for all E values.
+*/
+class ExtrusionPropertyExtrusionAxis : public c_extrusion_property_extrusion_axis
+{
+public:
+    static constexpr extrusion_property_type property_type = extrusion_property_type_extrusion_axis;
+
+    ExtrusionPropertyExtrusionAxis() :
+        c_extrusion_property_extrusion_axis{ C_EXTRUSION_AXIS_OPERATION_NONE, 0.0, 0.0, 0 } {}
+    ExtrusionPropertyExtrusionAxis(c_extrusion_axis_operation operation,
+                                   double value,
+                                   double restart_extra = 0.0,
+                                   bool toolchange = false) :
+        c_extrusion_property_extrusion_axis{
+            operation, value, restart_extra, uint8_t(toolchange ? 1 : 0) } {}
+
+    ExtrusionPropertyUPtr clone() const;
+};
+
 template<typename PropertyType>
 struct ExtrusionPropertyTraits
 {
@@ -276,6 +302,7 @@ static_assert(sizeof(ExtrusionPropertyOverhang) == sizeof(c_extrusion_property_o
 static_assert(sizeof(ExtrusionPropertyZOffset) == sizeof(c_extrusion_property_z_offset), "ExtrusionPropertyZOffset must keep the C ABI layout");
 static_assert(sizeof(ExtrusionPropertyLoopRole) == sizeof(c_extrusion_property_perimeter), "ExtrusionPropertyLoopRole must keep the C ABI layout");
 static_assert(sizeof(ExtrusionPropertyInfill) == sizeof(c_extrusion_property_infill), "ExtrusionPropertyInfill must keep the C ABI layout");
+static_assert(sizeof(ExtrusionPropertyExtrusionAxis) == sizeof(c_extrusion_property_extrusion_axis), "ExtrusionPropertyExtrusionAxis must keep the C ABI layout");
 
 static_assert(alignof(ExtrusionFlow) == alignof(c_extrusion_flow), "ExtrusionFlow must keep the C ABI alignment");
 static_assert(alignof(ExtrusionAttributes) == alignof(c_extrusion_property_attributes), "ExtrusionAttributes must keep the C ABI alignment");
@@ -287,6 +314,7 @@ static_assert(alignof(ExtrusionPropertyOverhang) == alignof(c_extrusion_property
 static_assert(alignof(ExtrusionPropertyZOffset) == alignof(c_extrusion_property_z_offset), "ExtrusionPropertyZOffset must keep the C ABI alignment");
 static_assert(alignof(ExtrusionPropertyLoopRole) == alignof(c_extrusion_property_perimeter), "ExtrusionPropertyLoopRole must keep the C ABI alignment");
 static_assert(alignof(ExtrusionPropertyInfill) == alignof(c_extrusion_property_infill), "ExtrusionPropertyInfill must keep the C ABI alignment");
+static_assert(alignof(ExtrusionPropertyExtrusionAxis) == alignof(c_extrusion_property_extrusion_axis), "ExtrusionPropertyExtrusionAxis must keep the C ABI alignment");
 
 static_assert(std::is_standard_layout<ExtrusionFlow>::value, "ExtrusionFlow must keep the C ABI layout");
 static_assert(std::is_standard_layout<ExtrusionAttributes>::value, "ExtrusionAttributes must keep the C ABI layout");
@@ -298,6 +326,7 @@ static_assert(std::is_standard_layout<ExtrusionPropertyOverhang>::value, "Extrus
 static_assert(std::is_standard_layout<ExtrusionPropertyZOffset>::value, "ExtrusionPropertyZOffset must keep the C ABI layout");
 static_assert(std::is_standard_layout<ExtrusionPropertyLoopRole>::value, "ExtrusionPropertyLoopRole must keep the C ABI layout");
 static_assert(std::is_standard_layout<ExtrusionPropertyInfill>::value, "ExtrusionPropertyInfill must keep the C ABI layout");
+static_assert(std::is_standard_layout<ExtrusionPropertyExtrusionAxis>::value, "ExtrusionPropertyExtrusionAxis must keep the C ABI layout");
 
 static_assert(std::is_trivially_copyable<ExtrusionAttributes>::value, "Stored extrusion properties must be trivially copyable");
 static_assert(std::is_trivially_copyable<ExtrusionPropertySpeed>::value, "Stored extrusion properties must be trivially copyable");
@@ -308,6 +337,7 @@ static_assert(std::is_trivially_copyable<ExtrusionPropertyOverhang>::value, "Sto
 static_assert(std::is_trivially_copyable<ExtrusionPropertyZOffset>::value, "Stored extrusion properties must be trivially copyable");
 static_assert(std::is_trivially_copyable<ExtrusionPropertyLoopRole>::value, "Stored extrusion properties must be trivially copyable");
 static_assert(std::is_trivially_copyable<ExtrusionPropertyInfill>::value, "Stored extrusion properties must be trivially copyable");
+static_assert(std::is_trivially_copyable<ExtrusionPropertyExtrusionAxis>::value, "Stored extrusion properties must be trivially copyable");
 
 // Type-tagged raw storage for one extrusion property.
 // Built-in extrusion properties and generic plugin properties now use the same
@@ -332,6 +362,7 @@ inline ExtrusionPropertyUPtr ExtrusionPropertyOverhang::clone() const { return c
 inline ExtrusionPropertyUPtr ExtrusionPropertyZOffset::clone() const { return clone_property_to_slot(*this); }
 inline ExtrusionPropertyUPtr ExtrusionPropertyLoopRole::clone() const { return clone_property_to_slot(*this); }
 inline ExtrusionPropertyUPtr ExtrusionPropertyInfill::clone() const { return clone_property_to_slot(*this); }
+inline ExtrusionPropertyUPtr ExtrusionPropertyExtrusionAxis::clone() const { return clone_property_to_slot(*this); }
 
 // Small typed property bag for extrusion interpretation modifiers.
 // Most entities have no property, and the few that do usually carry one or two;

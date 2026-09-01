@@ -2,7 +2,7 @@
 
 > API snapshot commit: `2273b753a20b520d8ca2b275299e4003e0f680ab`
 >
-> Plugin ABI version: `49`
+> Plugin ABI version: `50`
 
 The commit above identifies the source-tree state against which this guide and
 its examples were checked. It is not the commit that adds this document: a

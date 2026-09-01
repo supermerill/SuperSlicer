@@ -18,6 +18,20 @@
 
 namespace Slic3r {
 
+/* Convert the raw API role without forcing process-only roles through the legacy core role enum. */
+static std::string extrusion_attribute_role_to_code(uint16_t role);
+
+static std::string extrusion_attribute_role_to_code(const uint16_t role)
+{
+    if (RAW_EXTRUSION_ROLE_HAS(role, RAW_EXTRUSION_ROLE_RETRACT))
+        return "Retract";
+    if (RAW_EXTRUSION_ROLE_HAS(role, RAW_EXTRUSION_ROLE_UNRETRACT))
+        return "Unretract";
+    if (RAW_EXTRUSION_ROLE_HAS(role, RAW_EXTRUSION_ROLE_WIPE))
+        return "Wipe";
+    return role_to_code(ExtrusionRole(ExtrusionRoleModifier(role)));
+}
+
 void ExtrusionVisitorRecursive::default_use(ExtrusionEntity &entity)
 {
     if (entity.is_leaf())
@@ -102,7 +116,8 @@ bool ExtrusionPrinter::print_properties(const ExtrusionEntity &entity, const cha
         entity.get_property<ExtrusionPropertyOverhang>() != nullptr ||
         entity.get_property<ExtrusionPropertyZOffset>() != nullptr ||
         entity.get_property<ExtrusionPropertyLoopRole>() != nullptr ||
-        entity.get_property<ExtrusionPropertyInfill>() != nullptr;
+        entity.get_property<ExtrusionPropertyInfill>() != nullptr ||
+        entity.get_property<ExtrusionPropertyExtrusionAxis>() != nullptr;
     if (!has_known_property)
         return false;
 
@@ -116,7 +131,7 @@ bool ExtrusionPrinter::print_properties(const ExtrusionEntity &entity, const cha
         bool first_field = true;
         this->begin_property(first_property, "attributes");
         this->begin_property_field(first_field, "role");
-        this->print_string_value(role_to_code(property->extrusion_role()));
+        this->print_string_value(extrusion_attribute_role_to_code(property->role));
         this->begin_property_field(first_field, "mm3_per_mm");
         ss << property->mm3_per_mm;
         this->begin_property_field(first_field, "width");
@@ -287,6 +302,28 @@ bool ExtrusionPrinter::print_properties(const ExtrusionEntity &entity, const cha
         this->begin_property(first_property, "infill");
         this->begin_property_field(first_field, "source_surface_id");
         ss << property->source_surface_id;
+        ss << "}";
+    }
+
+    if (const ExtrusionPropertyExtrusionAxis *property =
+            entity.get_property<ExtrusionPropertyExtrusionAxis>()) {
+        const char *operation_name = "unknown";
+        switch (property->operation) {
+        case C_EXTRUSION_AXIS_OPERATION_NONE: operation_name = "none"; break;
+        case C_EXTRUSION_AXIS_OPERATION_RETRACT_TO: operation_name = "retract_to"; break;
+        case C_EXTRUSION_AXIS_OPERATION_UNRETRACT: operation_name = "unretract"; break;
+        default: break;
+        }
+        bool first_field = true;
+        this->begin_property(first_property, "extrusion_axis");
+        this->begin_property_field(first_field, "operation");
+        this->print_string_value(operation_name);
+        this->begin_property_field(first_field, "value");
+        ss << property->value;
+        this->begin_property_field(first_field, "restart_extra");
+        ss << property->restart_extra;
+        this->begin_property_field(first_field, "toolchange");
+        this->print_bool_value(property->toolchange != 0);
         ss << "}";
     }
 

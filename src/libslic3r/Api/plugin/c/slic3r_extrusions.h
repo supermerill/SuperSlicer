@@ -31,7 +31,7 @@ typedef int32_t raw_extrusion_role;
 /* No role */
 #define RAW_EXTRUSION_ROLE_NONE                 0
 
-/* Base types */
+/* == Base types == */
 
 /* Perimeter (internal / external / overhang) */
 #define RAW_EXTRUSION_ROLE_PERIMETER            (1 << 0)
@@ -48,33 +48,42 @@ typedef int32_t raw_extrusion_role;
 /* Wipe tower */
 #define RAW_EXTRUSION_ROLE_WIPE_TOWER           (1 << 4)
 
-/* Milling */
-#define RAW_EXTRUSION_ROLE_MILL                 (1 << 5)
+/* Travel */
+#define RAW_EXTRUSION_ROLE_TRAVEL               (1 << 5)
 
-/* Modifiers */
+/* Milling */
+#define RAW_EXTRUSION_ROLE_MILL                 (1 << 6)
+
+/* == Modifiers == */
 
 /* External / visible */
-#define RAW_EXTRUSION_ROLE_EXTERNAL             (1 << 6)
+#define RAW_EXTRUSION_ROLE_EXTERNAL             (1 << 7)
 
 /* Solid */
-#define RAW_EXTRUSION_ROLE_SOLID                (1 << 7)
+#define RAW_EXTRUSION_ROLE_SOLID                (1 << 8)
 
 /* Ironing */
-#define RAW_EXTRUSION_ROLE_IRONING              (1 << 8)
+#define RAW_EXTRUSION_ROLE_IRONING              (1 << 9)
 
 /* Bridge / overhang */
-#define RAW_EXTRUSION_ROLE_BRIDGE               (1 << 9)
+#define RAW_EXTRUSION_ROLE_BRIDGE               (1 << 10)
 
 /* Thin / gap fill / thin wall */
-#define RAW_EXTRUSION_ROLE_THIN                 (1 << 10)
+#define RAW_EXTRUSION_ROLE_THIN                 (1 << 11)
 
-/* Special */
+/* Fast non-depositing movement performed while retracting along a printed path. */
+#define RAW_EXTRUSION_ROLE_WIPE                 (1 << 12)
+
+/* Semantic process role which retracts filament, optionally along a Wipe. */
+#define RAW_EXTRUSION_ROLE_RETRACT              (1 << 13)
+
+/* Semantic process role which restores filament, optionally along a Wipe. */
+#define RAW_EXTRUSION_ROLE_UNRETRACT            (1 << 14)
+
+/* == Special == */
 
 /* Mixed role */
-#define RAW_EXTRUSION_ROLE_MIXED                (1 << 11)
-
-/* Travel */
-#define RAW_EXTRUSION_ROLE_TRAVEL               (1 << 12)
+#define RAW_EXTRUSION_ROLE_MIXED                (1 << 15)
 
 /* ----- Exact named combined roles from ExtrusionRole ----- */
 
@@ -181,6 +190,18 @@ typedef int32_t raw_extrusion_role;
 
 #define RAW_EXTRUSION_ROLE_IS_TRAVEL(role) \
     RAW_EXTRUSION_ROLE_HAS((role), RAW_EXTRUSION_ROLE_TRAVEL)
+
+/* Return non-zero for a geometric wipe movement. */
+#define RAW_EXTRUSION_ROLE_IS_WIPE(role) \
+    RAW_EXTRUSION_ROLE_HAS((role), RAW_EXTRUSION_ROLE_WIPE)
+
+/* Return non-zero for a semantic retract event or geometric wipe phase. */
+#define RAW_EXTRUSION_ROLE_IS_RETRACT(role) \
+    RAW_EXTRUSION_ROLE_HAS((role), RAW_EXTRUSION_ROLE_RETRACT)
+
+/* Return non-zero for a semantic unretract event or geometric wipe phase. */
+#define RAW_EXTRUSION_ROLE_IS_UNRETRACT(role) \
+    RAW_EXTRUSION_ROLE_HAS((role), RAW_EXTRUSION_ROLE_UNRETRACT)
 
 
 /* ========================= HANDLES ========================= */

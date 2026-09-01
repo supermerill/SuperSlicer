@@ -127,20 +127,24 @@ enum ExtrusionRoleModifier : uint16_t {
     ERM_Skirt = 1 << 3, //8 //(brim if not external)
     // wipe tower alone -> moves.. ; with ERM_Solid -> wiping ; with ERM_Bridge -> ramming
     ERM_WipeTower = 1 << 4, //16
-    ERM_Mill = 1 << 5, //32
+    // Movement without material deposition.
+    ERM_Travel = 1 << 5, //32
+    ERM_Mill = 1 << 6, //64
     // 2) Extrusion modifiers
-    ERM_External = 1 << 6, //64
-    ERM_Solid = 1 << 7, //128
-    ERM_Ironing = 1 << 8, //256
-    ERM_Bridge = 1 << 9, //512
+    ERM_External = 1 << 7, //128
+    ERM_Solid = 1 << 8, //256
+    ERM_Ironing = 1 << 9, //512
+    ERM_Bridge = 1 << 10, //1024
     // Variable width extrusion (also gapfill or thinwall if external)
-    ERM_Thin = 1 << 10, //1024
+    ERM_Thin = 1 << 11, //2048
+    // Process modifiers used by semantic travel phases.
+    ERM_Wipe = 1 << 12, //4096
+    ERM_Retract = 1 << 13, //8192
+    ERM_Unretract = 1 << 14, //16384
     // 3) Special types
     // Indicator that the extrusion role was mixed from multiple differing extrusion roles,
     // for example from Support and SupportInterface.
-    ERM_Mixed = 1 << 11, //2048
-    //Travel
-    ERM_Travel = 1 << 12, //4096
+    ERM_Mixed = 1 << 15, //32768
     // Stopper, there should be maximum 16 modifiers defined for uint16_t bit mask.
     //Count
 };
