@@ -1,6 +1,6 @@
 # Using Unified Extrusion Entities
 
-> API snapshot commit: `107c2122c8915f636fc0ca288d3c85c52cad365a`
+> API snapshot commit: `eb858c6cefbb705042d1f127e906d2afcce35927`
 >
 > Plugin ABI version: `50`
 
@@ -393,6 +393,47 @@ Extrusions attached directly to data-tree objects may use object-local
 coordinates. Printing-plan roots are cloned and transformed according to their
 plan instance. Check the contract of the step that supplied the handle before
 applying an instance transform.
+
+### Traversing PrintingPlan Entities By Direct Property
+
+`PrintingEntityPropertyTraversal` streams the entities carrying one direct
+property across a `PrintingLayerGroup`. It also supplies the owning tool group
+and `PrintingExtrusion`, without allocating a flattened vector:
+
+```cpp
+#include "libslic3r/Api/plugin/cpp/PrintingEntityPropertyTraversal.hpp"
+
+struct TransitionMarker
+{
+    uint32_t id;
+};
+
+using MarkerEntity = slic3r_api::PrintingEntity<TransitionMarker>;
+
+void process_marked_entities(
+    orchestrator_handle *orchestrator,
+    slic3r_api::PrintingLayerGroup layer_group)
+{
+    const slic3r_api::PluginPropertyKey<TransitionMarker> marker_key =
+        slic3r_api::PluginPropertyKey<TransitionMarker>::register_dynamic(
+            orchestrator, "example.transition_marker");
+
+    slic3r_api::PrintingEntityPropertyTraversal<TransitionMarker> traversal(
+        marker_key,
+        [](MarkerEntity *previous, MarkerEntity *next) {
+            // previous is null at layer start; next is null at layer end.
+            if (previous != nullptr && next != nullptr)
+                previous->property->id = next->property->id;
+        });
+    traversal.process(layer_group);
+}
+```
+
+The traversal uses depth-first pre-order inside each extrusion tree and does
+not resolve inherited properties. Its context and property pointers are
+borrowed for the callback only. Do not remove the selected property or reorder
+the hierarchy while the traversal is active. Separate `process()` calls do not
+share a previous entity, so their null boundaries are layer-local.
 
 ## Migrating Legacy Extrusion Classes
 

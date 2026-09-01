@@ -182,6 +182,7 @@ set(SLIC3R_SOURCES
 	Api/plugin/cpp/PerimeterStepViews.hpp
 	Api/plugin/cpp/PluginBase.hpp
 	Api/plugin/cpp/PluginContext.hpp
+	Api/plugin/cpp/PrintingEntityPropertyTraversal.hpp
 	Api/plugin/cpp/PrintingPlanViews.hpp
 	Api/plugin/cpp/PrintingPlanTimeEstimator.cpp
 	Api/plugin/cpp/PrintingPlanTimeEstimator.hpp
