@@ -429,9 +429,59 @@ void process_marked_entities(
 }
 ```
 
-The traversal uses depth-first pre-order inside each extrusion tree and does
-not resolve inherited properties. Its context and property pointers are
+The traversal uses depth-first pre-order inside each extrusion tree. Without a
+state definition it only selects direct properties and does not resolve any
+inherited process state. Its context and selecting-property pointers are
 borrowed for the callback only.
+
+When a consumer also needs inherited properties, describe exactly which keys
+must be retained. The traversal resolves them lazily from the
+`PrintingExtrusion` root through each matching entity, including direct values
+on the matching entity:
+
+```cpp
+slic3r_api::ExtrusionPropertyStateDefinition state;
+state.track(slic3r_api::EPropertyZOffset::key);
+state.track(
+    slic3r_api::EPropertySpeed::key,
+    [](slic3r_api::EPropertySpeed &effective,
+       const slic3r_api::EPropertySpeed &direct) {
+        if (direct.speed_mm_per_s > 0.f)
+            effective.speed_mm_per_s = direct.speed_mm_per_s;
+    });
+
+slic3r_api::PrintingEntityPropertyTraversal<TransitionMarker> traversal(
+    marker_key, std::move(state),
+    [](MarkerEntity *, MarkerEntity *next) {
+        if (next == nullptr)
+            return;
+        const slic3r_api::EPropertyZOffset *z_offset =
+            next->effective_properties.get(slic3r_api::EPropertyZOffset::key);
+        if (z_offset != nullptr)
+            use_z_offset(z_offset->get());
+    },
+    slic3r_api::MatchingEntityDescendants::Skip);
+```
+
+`track(key)` implements ordinary nearest-value inheritance: each direct value
+replaces the complete effective payload. The callback overload is useful for a
+payload whose individual fields override only when they satisfy a condition.
+Its merge callback runs only after a first direct value has established an
+effective payload.
+
+The traversal keeps unresolved frames for the active tree path and materializes
+them only when that branch reaches a match. Resolved parent state is reused by
+matching siblings. `effective_properties` contains autonomous payload copies,
+so the snapshot retained in `previous` remains valid after its branch is left.
+Pointers returned by `effective_properties.get()` belong to that snapshot and
+must not outlive the callback context.
+
+Tracked payloads must be trivially copyable and self-contained. Do not track a
+property containing an `extrusion_data_id`: copying such a payload would copy
+only the resource identifier, not the variable data owned by the extrusion.
+During a stateful traversal, callbacks must not modify tracked properties on a
+matching entity or its active ancestors because later snapshots reuse that
+already resolved path state.
 
 A callback may update payloads, add unrelated properties, and edit a dedicated
 descendant subtree which does not carry the selecting property. Transition

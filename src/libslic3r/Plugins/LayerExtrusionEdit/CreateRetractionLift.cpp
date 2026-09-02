@@ -166,17 +166,18 @@ distf_t segment_planar_length(const c_extrusion_segment &segment);
 EffectiveState resolved_state(const ExtrusionEntity &entity,
                               const EffectiveState &parent);
 
-/* Recover the state inherited by one marked scope from its owning tree. */
-bool find_scope_parent_state(MutableExtrusionEntity entity,
-                             const extrusion_entity_handle *scope_handle,
-                             const EffectiveState &parent,
-                             EffectiveState &scope_parent);
+/* Convert the traversal's autonomous snapshot to this plugin's local state. */
+EffectiveState traversal_state(const ExtrusionPropertyState &properties);
 
-/* Find the final printable leaf and its absolute endpoint state. */
+/* Describe the properties which every lift scope traversal must inherit. */
+ExtrusionPropertyStateDefinition lift_state_definition();
+
+/* Find the final printable leaf, optionally starting with entity resolved. */
 bool find_last_printable_geometry(MutableExtrusionEntity entity,
                                   coord_t print_z,
                                   const EffectiveState &parent,
-                                  SourceEndpoint &endpoint);
+                                  SourceEndpoint &endpoint,
+                                  bool entity_already_resolved = false);
 
 /* Find whether a phase contains a semantic Retract request. */
 bool contains_semantic_retract(
@@ -291,32 +292,37 @@ EffectiveState resolved_state(const ExtrusionEntity &entity,
     return state;
 }
 
-bool find_scope_parent_state(
-    MutableExtrusionEntity entity,
-    const extrusion_entity_handle *scope_handle,
-    const EffectiveState &parent,
-    EffectiveState &scope_parent)
+EffectiveState traversal_state(const ExtrusionPropertyState &properties)
 {
-    if (entity.handle() == scope_handle) {
-        scope_parent = parent;
-        return true;
-    }
+    EffectiveState state;
+    if (const EPropertyZOffset *z_offset = properties.get(EPropertyZOffset::key))
+        state.z_offset = z_offset->get();
+    if (const EPropertyAttributes *attributes =
+            properties.get(EPropertyAttributes::key))
+        state.attributes = *attributes;
+    if (const EPropertyModifier *modifier = properties.get(EPropertyModifier::key))
+        state.modifier = *modifier;
+    return state;
+}
 
-    const EffectiveState state = resolved_state(entity.readonly(), parent);
-    for (uint32_t child_idx = 0; child_idx < entity.child_count(); ++child_idx)
-        if (find_scope_parent_state(entity.child_mutable(child_idx), scope_handle,
-                                    state, scope_parent))
-            return true;
-    return false;
+ExtrusionPropertyStateDefinition lift_state_definition()
+{
+    ExtrusionPropertyStateDefinition definition;
+    definition.track(EPropertyZOffset::key);
+    definition.track(EPropertyAttributes::key);
+    definition.track(EPropertyModifier::key);
+    return definition;
 }
 
 bool find_last_printable_geometry(
     MutableExtrusionEntity entity,
     const coord_t print_z,
     const EffectiveState &parent,
-    SourceEndpoint &endpoint)
+    SourceEndpoint &endpoint,
+    const bool entity_already_resolved)
 {
-    const EffectiveState state = resolved_state(entity.readonly(), parent);
+    const EffectiveState state = entity_already_resolved ?
+        parent : resolved_state(entity.readonly(), parent);
     if (entity.segment_count() != 0) {
         if (!state.attributes)
             throw std::runtime_error(
@@ -443,20 +449,12 @@ SourceLiftState describe_source(
     if (!result.outgoing_transition)
         return result;
 
-    EffectiveState scope_parent;
-    if (!find_scope_parent_state(source.printing_extrusion.mutable_root(),
-                                 scope.root().handle(), EffectiveState{},
-                                 scope_parent))
-        throw std::runtime_error(
-            "A lift scope is outside its PrintingExtrusion.");
-    const EffectiveState phase_parent =
-        resolved_state(scope.root().readonly(), scope_parent);
+    const EffectiveState scope_state = traversal_state(source.effective_properties);
     MutableExtrusionEntity content = scope.content();
-    const EffectiveState content_parent =
-        content.handle() == scope.root().handle() ? scope_parent : phase_parent;
     SourceEndpoint endpoint;
     if (!find_last_printable_geometry(content, source.layer_group.print_z(),
-                                      content_parent, endpoint))
+                                      scope_state, endpoint,
+                                      content.handle() == scope.root().handle()))
         throw std::runtime_error("A lift source scope has no printable geometry.");
 
     result.unlifted_end_z = endpoint.absolute_z;
@@ -475,7 +473,7 @@ SourceLiftState describe_source(
         result.requested_lift_mm < 0.0)
         throw std::runtime_error("Lift settings produced an invalid Z request.");
     const std::optional<coord_t> wipe_end = last_geometric_z(
-        scope.after(), source.layer_group.print_z(), phase_parent);
+        scope.after(), source.layer_group.print_z(), scope_state);
     if (wipe_end)
         result.lifted_end_z = *wipe_end;
     return result;
@@ -698,14 +696,8 @@ coord_t travel_start_z(
         !RAW_EXTRUSION_ROLE_IS_TRAVEL(attributes->extrusion_role()))
         throw std::runtime_error("A lifted travel has an incompatible role.");
 
-    EffectiveState scope_parent;
-    if (!find_scope_parent_state(target.printing_extrusion.mutable_root(),
-                                 scope.root().handle(), EffectiveState{},
-                                 scope_parent))
-        throw std::runtime_error(
-            "A lifted travel scope is outside its PrintingExtrusion.");
-    const EffectiveState travel_parent =
-        resolved_state(scope.root().readonly(), scope_parent);
+    const EffectiveState travel_parent = traversal_state(
+        target.effective_properties);
     const c_extrusion_segment first = travel.segment(0);
     return checked_add_z(
         checked_add_z(target.layer_group.print_z(), travel_parent.z_offset),
@@ -944,6 +936,7 @@ void CreateRetractionLift::setup_run_impl(
 
     PrintingEntityPropertyTraversal<PrintingExtrusionScopeProperty> traversal(
         m_scope_property,
+        lift_state_definition(),
         [this, &summary, &print_config]
         (ScopeEntity *previous, ScopeEntity *next) {
             // Every matching scope appears exactly once as `next`. Prepare its
@@ -989,6 +982,7 @@ void CreateRetractionLift::run_impl(const plugin_run_context *run_ctx) const
     // travel entering `next`; no travel enters the terminal nullptr boundary.
     PrintingEntityPropertyTraversal<PrintingExtrusionScopeProperty> traversal(
         m_scope_property,
+        lift_state_definition(),
         [this, preceding, &print_config, layer_group_idx = ctx->layer_group_idx]
         (ScopeEntity *previous, ScopeEntity *next) {
             // The terminal callback has a source but no target travel to edit.

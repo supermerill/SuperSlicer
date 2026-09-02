@@ -110,21 +110,23 @@ coord_t checked_add(coord_t lhs, coord_t rhs);
 EffectiveState resolved_state(const ExtrusionEntity &entity,
                               const EffectiveState &parent);
 
-/* Locate the parent state of a marked scope inside its owning extrusion tree. */
-bool find_scope_parent_state(MutableExtrusionEntity entity,
-                             const extrusion_entity_handle *scope_handle,
-                             const EffectiveState &parent,
-                             EffectiveState &scope_parent);
+/* Convert the traversal's autonomous snapshot to this plugin's local state. */
+EffectiveState traversal_state(const ExtrusionPropertyState &properties);
 
-/* Resolve the first geometric leaf under one entity. */
+/* Describe the properties which every retraction scope traversal must inherit. */
+ExtrusionPropertyStateDefinition retraction_state_definition();
+
+/* Resolve the first geometric leaf, optionally starting with entity resolved. */
 bool find_first_geometry(MutableExtrusionEntity entity, coord_t print_z,
                          const EffectiveState &parent,
-                         GeometricEndpoint &endpoint);
+                         GeometricEndpoint &endpoint,
+                         bool entity_already_resolved = false);
 
-/* Resolve the last geometric leaf under one entity. */
+/* Resolve the last geometric leaf, optionally starting with entity resolved. */
 bool find_last_geometry(MutableExtrusionEntity entity, coord_t print_z,
                         const EffectiveState &parent,
-                        GeometricEndpoint &endpoint);
+                        GeometricEndpoint &endpoint,
+                        bool entity_already_resolved = false);
 
 /* Resolve one scope endpoint while retaining only its effective leaf state. */
 GeometricEndpoint scope_endpoint(const ScopeEntity &scope,
@@ -262,29 +264,31 @@ EffectiveState resolved_state(const ExtrusionEntity &entity,
     return state;
 }
 
-bool find_scope_parent_state(MutableExtrusionEntity entity,
-                             const extrusion_entity_handle *scope_handle,
-                             const EffectiveState &parent,
-                             EffectiveState &scope_parent)
+EffectiveState traversal_state(const ExtrusionPropertyState &properties)
 {
-    if (entity.handle() == scope_handle) {
-        scope_parent = parent;
-        return true;
-    }
+    EffectiveState state;
+    if (const EPropertyZOffset *z_offset = properties.get(EPropertyZOffset::key))
+        state.z_offset = z_offset->get();
+    if (const EPropertyModifier *modifier = properties.get(EPropertyModifier::key))
+        state.modifier = *modifier;
+    return state;
+}
 
-    const EffectiveState state = resolved_state(entity.readonly(), parent);
-    for (uint32_t child_idx = 0; child_idx < entity.child_count(); ++child_idx)
-        if (find_scope_parent_state(entity.child_mutable(child_idx), scope_handle,
-                                    state, scope_parent))
-            return true;
-    return false;
+ExtrusionPropertyStateDefinition retraction_state_definition()
+{
+    ExtrusionPropertyStateDefinition definition;
+    definition.track(EPropertyZOffset::key);
+    definition.track(EPropertyModifier::key);
+    return definition;
 }
 
 bool find_first_geometry(MutableExtrusionEntity entity, const coord_t print_z,
                          const EffectiveState &parent,
-                         GeometricEndpoint &endpoint)
+                         GeometricEndpoint &endpoint,
+                         const bool entity_already_resolved)
 {
-    const EffectiveState state = resolved_state(entity.readonly(), parent);
+    const EffectiveState state = entity_already_resolved ?
+        parent : resolved_state(entity.readonly(), parent);
     if (entity.segment_count() != 0) {
         const c_extrusion_segment segment = entity.segment(0);
         endpoint.leaf = entity;
@@ -310,9 +314,11 @@ bool find_first_geometry(MutableExtrusionEntity entity, const coord_t print_z,
 
 bool find_last_geometry(MutableExtrusionEntity entity, const coord_t print_z,
                         const EffectiveState &parent,
-                        GeometricEndpoint &endpoint)
+                        GeometricEndpoint &endpoint,
+                        const bool entity_already_resolved)
 {
-    const EffectiveState state = resolved_state(entity.readonly(), parent);
+    const EffectiveState state = entity_already_resolved ?
+        parent : resolved_state(entity.readonly(), parent);
     if (entity.segment_count() != 0) {
         const c_extrusion_segment segment = entity.segment(entity.segment_count() - 1);
         endpoint.leaf = entity;
@@ -342,21 +348,15 @@ GeometricEndpoint scope_endpoint(
     const bool first)
 {
     const ExtrusionScope::OrderedExtrusionScope ordered(scope.entity, key);
-    EffectiveState scope_parent;
-    if (!find_scope_parent_state(scope.printing_extrusion.mutable_root(),
-                                 ordered.root().handle(), EffectiveState{}, scope_parent))
-        throw std::runtime_error("A retraction scope is outside its PrintingExtrusion.");
-
-    // Wrapped scopes moved their original properties into content. A compact
-    // phase-less scope is its own content, so it must inherit from its parent
-    // rather than resolving the same direct properties twice.
+    const EffectiveState scope_state = traversal_state(scope.effective_properties);
     MutableExtrusionEntity content = ordered.content();
-    const EffectiveState content_parent = content.handle() == ordered.root().handle() ?
-        scope_parent : resolved_state(ordered.root().readonly(), scope_parent);
+    const bool content_is_scope = content.handle() == ordered.root().handle();
     GeometricEndpoint endpoint;
     const bool found = first ?
-        find_first_geometry(content, scope.layer_group.print_z(), content_parent, endpoint) :
-        find_last_geometry(content, scope.layer_group.print_z(), content_parent, endpoint);
+        find_first_geometry(content, scope.layer_group.print_z(), scope_state,
+                            endpoint, content_is_scope) :
+        find_last_geometry(content, scope.layer_group.print_z(), scope_state,
+                           endpoint, content_is_scope);
     if (!found)
         throw std::runtime_error("A prepared retraction scope has no printable geometry.");
     return endpoint;
@@ -711,6 +711,7 @@ void CreateRetraction::setup_run_impl(const plugin_run_context *run_ctx) const
     summary.prepared = true;
     PrintingEntityPropertyTraversal<PrintingExtrusionScopeProperty> traversal(
         m_scope_property,
+        retraction_state_definition(),
         [this, &summary, &print_config](ScopeEntity *previous, ScopeEntity *next) {
             if (previous == nullptr && next != nullptr) {
                 summary.first = boundary_state(
@@ -752,6 +753,7 @@ void CreateRetraction::run_impl(const plugin_run_context *run_ctx) const
 
     PrintingEntityPropertyTraversal<PrintingExtrusionScopeProperty> traversal(
         m_scope_property,
+        retraction_state_definition(),
         [this, &print_config, &progress = progress(), preceding, following]
         (ScopeEntity *previous, ScopeEntity *next) {
             if (previous == nullptr && next != nullptr) {
@@ -905,6 +907,7 @@ void CreateTerminalRetraction::run_impl(
             const PrintingLayerGroup layer = group.layer_group(layer_idx);
             PrintingEntityPropertyTraversal<PrintingExtrusionScopeProperty> traversal(
                 m_scope_property,
+                retraction_state_definition(),
                 [this, &found_terminal, &print_config, &plan, run_ctx]
                 (ScopeEntity *, ScopeEntity *next) {
                     if (next == nullptr || !printing_extrusion_scope_has_flag(

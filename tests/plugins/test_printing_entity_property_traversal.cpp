@@ -61,6 +61,10 @@ slic3r_api::PluginPropertyKey<TestTraversalProperty> traversal_property_key();
 slic3r_api::PluginPropertyKey<TestTraversalAuxiliaryProperty>
 traversal_auxiliary_property_key();
 
+/* Resolve another runtime identity using the same C++ payload layout. */
+slic3r_api::PluginPropertyKey<TestTraversalAuxiliaryProperty>
+traversal_second_auxiliary_property_key();
+
 /* Build one empty extrusion leaf owned by a PrintingExtrusion. */
 Slic3r::ExtrusionEntityUPtr empty_entity();
 
@@ -97,6 +101,15 @@ traversal_auxiliary_property_key()
         reinterpret_cast<orchestrator_handle *>(
             &Slic3r::Orchestrator::instance()),
         "tests.printing_entity_property_traversal.auxiliary");
+}
+
+slic3r_api::PluginPropertyKey<TestTraversalAuxiliaryProperty>
+traversal_second_auxiliary_property_key()
+{
+    return slic3r_api::PluginPropertyKey<TestTraversalAuxiliaryProperty>::register_dynamic(
+        reinterpret_cast<orchestrator_handle *>(
+            &Slic3r::Orchestrator::instance()),
+        "tests.printing_entity_property_traversal.second_auxiliary");
 }
 
 Slic3r::ExtrusionEntityUPtr empty_entity()
@@ -445,4 +458,135 @@ TEST_CASE("Printing property traversal rejects removal of its selecting property
     CHECK_THROWS_WITH(
         traversal.process(layer),
         "A traversed entity lost the property used to select it.");
+}
+
+TEST_CASE("Printing property traversal resolves inherited state lazily",
+          "[plugins][printing-plan][property-traversal]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    Slic3r::Print print;
+    Slic3r::Printing::PrintingLayerGroup &core_layer = make_test_layer(print);
+    core_layer.tool_groups[0].extrusions.clear();
+    core_layer.tool_groups[1].extrusions.clear();
+
+    // The first branch has inherited properties but no marker. The second
+    // branch has two marked siblings which share one inherited parent state.
+    Slic3r::ExtrusionEntity::Children ignored_children;
+    ignored_children.emplace_back(empty_entity());
+    Slic3r::ExtrusionEntity::Children shared_children;
+    shared_children.emplace_back(empty_entity());
+    shared_children.emplace_back(empty_entity());
+    Slic3r::ExtrusionEntity::Children root_children;
+    root_children.emplace_back(std::make_unique<Slic3r::ExtrusionEntity>(
+        std::move(ignored_children), false, false, true));
+    root_children.emplace_back(std::make_unique<Slic3r::ExtrusionEntity>(
+        std::move(shared_children), false, false, true));
+    append_extrusion(
+        core_layer.tool_groups[0],
+        std::make_unique<Slic3r::ExtrusionEntity>(
+            std::move(root_children), false, false, true),
+        12);
+
+    const slic3r_api::PrintingLayerGroup layer = layer_view(core_layer);
+    const slic3r_api::PluginPropertyKey<TestTraversalProperty> marker_key =
+        traversal_property_key();
+    const slic3r_api::PluginPropertyKey<TestTraversalAuxiliaryProperty> first_key =
+        traversal_auxiliary_property_key();
+    const slic3r_api::PluginPropertyKey<TestTraversalAuxiliaryProperty> second_key =
+        traversal_second_auxiliary_property_key();
+    slic3r_api::MutableExtrusionEntity root =
+        layer.tool_group(0).extrusion(0).mutable_root();
+    slic3r_api::MutableExtrusionEntity ignored = root.child_mutable(0);
+    slic3r_api::MutableExtrusionEntity shared = root.child_mutable(1);
+    slic3r_api::MutableExtrusionEntity first = shared.child_mutable(0);
+    slic3r_api::MutableExtrusionEntity second = shared.child_mutable(1);
+
+    root.get_or_add(slic3r_api::EPropertyZOffset::key).set(1);
+    root.get_or_add(slic3r_api::EPropertySpeed::key)
+        .speed(10.f).acceleration(100.f);
+    root.get_or_add(first_key).touches = 11;
+    ignored.get_or_add(slic3r_api::EPropertySpeed::key).speed(999.f);
+    ignored.child_mutable(0).get_or_add(slic3r_api::EPropertySpeed::key)
+        .speed(1000.f);
+    shared.get_or_add(slic3r_api::EPropertyZOffset::key).set(2);
+    shared.get_or_add(slic3r_api::EPropertySpeed::key).speed(20.f);
+    shared.get_or_add(second_key).touches = 22;
+    first.get_or_add(marker_key).id = 1;
+    first.get_or_add(slic3r_api::EPropertySpeed::key).acceleration(300.f);
+    first.get_or_add(first_key).touches = 33;
+    second.get_or_add(marker_key).id = 2;
+    second.get_or_add(slic3r_api::EPropertyZOffset::key).set(3);
+    second.get_or_add(slic3r_api::EPropertySpeed::key).speed(40.f);
+
+    uint32_t merge_count = 0;
+    slic3r_api::ExtrusionPropertyStateDefinition state;
+    state.track(slic3r_api::EPropertyZOffset::key);
+    state.track(
+        slic3r_api::EPropertySpeed::key,
+        [&merge_count](slic3r_api::EPropertySpeed &effective,
+                       const slic3r_api::EPropertySpeed &direct) {
+            ++merge_count;
+            if (direct.speed_mm_per_s > 0.f)
+                effective.speed_mm_per_s = direct.speed_mm_per_s;
+            if (direct.accel_mm_per_s2 > 0.f)
+                effective.accel_mm_per_s2 = direct.accel_mm_per_s2;
+        });
+    state.track(first_key);
+    state.track(second_key);
+    CHECK_THROWS_AS(
+        state.track(slic3r_api::EPropertyZOffset::key), std::invalid_argument);
+
+    using Entity = slic3r_api::PrintingEntity<TestTraversalProperty>;
+    uint32_t callback_count = 0;
+    slic3r_api::PrintingEntityPropertyTraversal<TestTraversalProperty> traversal(
+        marker_key, std::move(state),
+        [&callback_count, &first_key, &second_key](Entity *previous, Entity *next) {
+            ++callback_count;
+            const Entity *current = next != nullptr ? next : previous;
+            REQUIRE(current != nullptr);
+            const slic3r_api::EPropertyZOffset *z_offset =
+                current->effective_properties.get(slic3r_api::EPropertyZOffset::key);
+            const slic3r_api::EPropertySpeed *speed =
+                current->effective_properties.get(slic3r_api::EPropertySpeed::key);
+            const TestTraversalAuxiliaryProperty *first_value =
+                current->effective_properties.get(first_key);
+            const TestTraversalAuxiliaryProperty *second_value =
+                current->effective_properties.get(second_key);
+            REQUIRE(z_offset != nullptr);
+            REQUIRE(speed != nullptr);
+            REQUIRE(first_value != nullptr);
+            REQUIRE(second_value != nullptr);
+            CHECK(current->effective_properties.get(
+                      slic3r_api::EPropertyPerimeter::key) == nullptr);
+
+            if (current->property->id == 1) {
+                CHECK(z_offset->get() == 2);
+                CHECK(speed->speed_mm_per_s == 20.f);
+                CHECK(speed->accel_mm_per_s2 == 300.f);
+                CHECK(first_value->touches == 33);
+            } else {
+                CHECK(current->property->id == 2);
+                CHECK(z_offset->get() == 3);
+                CHECK(speed->speed_mm_per_s == 40.f);
+                CHECK(speed->accel_mm_per_s2 == 100.f);
+                CHECK(first_value->touches == 11);
+            }
+            CHECK(second_value->touches == 22);
+
+            // During the middle callback, previous belongs to a completed
+            // sibling branch and must retain its own autonomous values.
+            if (previous != nullptr && next != nullptr) {
+                CHECK(previous->property->id == 1);
+                CHECK(previous->effective_properties
+                          .get(slic3r_api::EPropertySpeed::key)
+                          ->accel_mm_per_s2 == 300.f);
+            }
+        });
+
+    traversal.process(layer);
+
+    CHECK(callback_count == 3);
+    // shared is merged once, then each marked child once. The ignored branch
+    // is never resolved and the shared parent is reused by the second sibling.
+    CHECK(merge_count == 3);
 }

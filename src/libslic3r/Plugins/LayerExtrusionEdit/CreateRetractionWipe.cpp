@@ -141,11 +141,11 @@ coord_t checked_add(coord_t lhs, coord_t rhs);
 EffectiveState resolved_state(const ExtrusionEntity &entity,
                               const EffectiveState &parent);
 
-/* Recover the state inherited by one marked scope from its owning tree. */
-bool find_scope_parent_state(MutableExtrusionEntity entity,
-                             const extrusion_entity_handle *scope_handle,
-                             const EffectiveState &parent,
-                             EffectiveState &scope_parent);
+/* Convert the traversal's autonomous snapshot to this plugin's local state. */
+EffectiveState traversal_state(const ExtrusionPropertyState &properties);
+
+/* Describe the properties which every wipe scope traversal must inherit. */
+ExtrusionPropertyStateDefinition wipe_state_definition();
 
 /* Reverse line and arc segments without changing their represented geometry. */
 std::vector<c_extrusion_segment> reversed_segments(
@@ -160,7 +160,8 @@ void append_reverse_wipe_path(MutableExtrusionEntity entity,
                               coord_t print_z,
                               coord_t phase_base_z,
                               const EffectiveState &parent,
-                              WipePath &path);
+                              WipePath &path,
+                              bool entity_already_resolved = false);
 
 /* Build the source wipe path without collecting a separate leaf history. */
 WipePath source_wipe_path(
@@ -171,7 +172,8 @@ WipePath source_wipe_path(
 bool find_first_printable_leaf(MutableExtrusionEntity entity,
                                coord_t print_z,
                                const EffectiveState &parent,
-                               WipeLeaf &leaf);
+                               WipeLeaf &leaf,
+                               bool entity_already_resolved = false);
 
 /* Resolve the first leaf and phase-relative base Z of one target scope. */
 bool target_first_leaf(
@@ -241,23 +243,26 @@ EffectiveState resolved_state(const ExtrusionEntity &entity,
     return state;
 }
 
-bool find_scope_parent_state(
-    MutableExtrusionEntity entity,
-    const extrusion_entity_handle *scope_handle,
-    const EffectiveState &parent,
-    EffectiveState &scope_parent)
+EffectiveState traversal_state(const ExtrusionPropertyState &properties)
 {
-    if (entity.handle() == scope_handle) {
-        scope_parent = parent;
-        return true;
-    }
+    EffectiveState state;
+    if (const EPropertyZOffset *z_offset = properties.get(EPropertyZOffset::key))
+        state.z_offset = z_offset->get();
+    if (const EPropertyAttributes *attributes =
+            properties.get(EPropertyAttributes::key))
+        state.attributes = *attributes;
+    if (const EPropertyPerimeter *perimeter = properties.get(EPropertyPerimeter::key))
+        state.perimeter = *perimeter;
+    return state;
+}
 
-    const EffectiveState state = resolved_state(entity.readonly(), parent);
-    for (uint32_t child_idx = 0; child_idx < entity.child_count(); ++child_idx)
-        if (find_scope_parent_state(entity.child_mutable(child_idx), scope_handle,
-                                    state, scope_parent))
-            return true;
-    return false;
+ExtrusionPropertyStateDefinition wipe_state_definition()
+{
+    ExtrusionPropertyStateDefinition definition;
+    definition.track(EPropertyZOffset::key);
+    definition.track(EPropertyAttributes::key);
+    definition.track(EPropertyPerimeter::key);
+    return definition;
 }
 
 std::vector<c_extrusion_segment> reversed_segments(
@@ -303,11 +308,13 @@ void append_reverse_wipe_path(
     const coord_t print_z,
     const coord_t phase_base_z,
     const EffectiveState &parent,
-    WipePath &path)
+    WipePath &path,
+    const bool entity_already_resolved)
 {
     if (path.stopped)
         return;
-    const EffectiveState state = resolved_state(entity.readonly(), parent);
+    const EffectiveState state = entity_already_resolved ?
+        parent : resolved_state(entity.readonly(), parent);
 
     // Reverse child order mirrors the machine's immediately preceding path.
     for (uint32_t child_idx = entity.child_count(); child_idx > 0; --child_idx) {
@@ -374,19 +381,14 @@ WipePath source_wipe_path(
     const PluginPropertyKey<PrintingExtrusionScopeProperty> &key)
 {
     const ExtrusionScope::OrderedExtrusionScope ordered(scope.entity, key);
-    EffectiveState scope_parent;
-    if (!find_scope_parent_state(scope.printing_extrusion.mutable_root(),
-                                 ordered.root().handle(), EffectiveState{}, scope_parent))
-        throw std::runtime_error("A wipe scope is outside its PrintingExtrusion.");
-
+    const EffectiveState scope_state = traversal_state(scope.effective_properties);
     const coord_t phase_base_z = checked_add(
-        scope.layer_group.print_z(), scope_parent.z_offset);
+        scope.layer_group.print_z(), scope_state.z_offset);
     MutableExtrusionEntity content = ordered.content();
-    const EffectiveState content_parent = content.handle() == ordered.root().handle() ?
-        scope_parent : resolved_state(ordered.root().readonly(), scope_parent);
     WipePath path;
     append_reverse_wipe_path(content, scope.layer_group.print_z(), phase_base_z,
-                             content_parent, path);
+                             scope_state, path,
+                             content.handle() == ordered.root().handle());
     return path;
 }
 
@@ -394,9 +396,11 @@ bool find_first_printable_leaf(
     MutableExtrusionEntity entity,
     const coord_t print_z,
     const EffectiveState &parent,
-    WipeLeaf &leaf)
+    WipeLeaf &leaf,
+    const bool entity_already_resolved)
 {
-    const EffectiveState state = resolved_state(entity.readonly(), parent);
+    const EffectiveState state = entity_already_resolved ?
+        parent : resolved_state(entity.readonly(), parent);
     if (entity.segment_count() > 0) {
         if (!state.attributes)
             return false;
@@ -429,16 +433,12 @@ bool target_first_leaf(
     coord_t &phase_base_z)
 {
     const ExtrusionScope::OrderedExtrusionScope ordered(scope.entity, key);
-    EffectiveState scope_parent;
-    if (!find_scope_parent_state(scope.printing_extrusion.mutable_root(),
-                                 ordered.root().handle(), EffectiveState{}, scope_parent))
-        throw std::runtime_error("A wipe target scope is outside its PrintingExtrusion.");
-    phase_base_z = checked_add(scope.layer_group.print_z(), scope_parent.z_offset);
+    const EffectiveState scope_state = traversal_state(scope.effective_properties);
+    phase_base_z = checked_add(scope.layer_group.print_z(), scope_state.z_offset);
     MutableExtrusionEntity content = ordered.content();
-    const EffectiveState content_parent = content.handle() == ordered.root().handle() ?
-        scope_parent : resolved_state(ordered.root().readonly(), scope_parent);
     return find_first_printable_leaf(content, scope.layer_group.print_z(),
-                                     content_parent, leaf);
+                                     scope_state, leaf,
+                                     content.handle() == ordered.root().handle());
 }
 
 MutableExtrusionEntity find_axis_event(MutableExtrusionEntity entity,
@@ -1017,6 +1017,7 @@ void CreateRetractionWipe::run_impl(const plugin_run_context *run_ctx) const
     WipeCrossingChecker crossing_checker(print_config, run_ctx);
     PrintingEntityPropertyTraversal<PrintingExtrusionScopeProperty> traversal(
         m_scope_property,
+        wipe_state_definition(),
         [this, &print_config, &crossing_checker]
         (ScopeEntity *previous, ScopeEntity *next) {
             if (next != nullptr)
