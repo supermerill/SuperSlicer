@@ -35,7 +35,6 @@ add_executable(${_TEST_NAME}_tests
     test_gcode_script_processor.cpp
     test_gcode_settings_scripts.cpp
     test_layer_extrusion_edit_entry_state.cpp
-    test_layer_extrusion_edit_extrusion_tree_ordering.cpp
     test_layer_extrusion_edit_lift.cpp
     test_layer_extrusion_edit_retraction.cpp
     test_layer_extrusion_edit_retraction_wipe.cpp
@@ -47,6 +46,7 @@ add_executable(${_TEST_NAME}_tests
     test_flat_area_layer_height.cpp
     test_ordering_engine.cpp
     test_ordering_printing_extrusion_presort.cpp
+    test_ordering_extrusion_tree.cpp
     test_orchestrator_plugin_execution.cpp
     test_perimeter_empty_steps.cpp
     test_perimeter_arachne_generator.cpp

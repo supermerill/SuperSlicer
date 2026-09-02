@@ -995,12 +995,13 @@ TEST_CASE("STEP_ORDERING runs default plugin chain on a shared PrintingPlan", "[
 
     const std::vector<Plugin *> plugins =
         Steps::selected_or_active_plugins_for_step(orchestrator, STEP_ORDERING, &print.full_print_config());
-    REQUIRE(plugins.size() >= 5);
+    REQUIRE(plugins.size() >= 6);
     CHECK(plugins[0]->get_id() == "ordering.plan_builder.default");
     CHECK(plugins[1]->get_id() == "ordering.custom_gcode_tool_overrides");
     CHECK(plugins[2]->get_id() == "ordering.tool_groups.default");
     CHECK(plugins[3]->get_id() == "ordering.custom_gcode_event_tools");
     CHECK(plugins[4]->get_id() == "ordering.printing_extrusion.presort.default");
+    CHECK(plugins[5]->get_id() == "ordering.extrusion_tree.default");
     CHECK(Steps::get_exclusive_steps().find(STEP_ORDERING) == Steps::get_exclusive_steps().end());
 
     Steps::StepExtrusionOrdering::run_step(orchestrator, print);

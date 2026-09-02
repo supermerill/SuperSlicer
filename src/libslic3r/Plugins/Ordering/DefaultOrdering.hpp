@@ -15,14 +15,14 @@ Register the built-in STEP_ORDERING plugins one by one.
 Each function registers one phase of the ordering chain. Tests or experiments
 may call a single registration helper when they want to replace only one phase
 with another plugin. The aggregate helper is what the normal plugin loader uses:
-it registers the default plan builder, the tool-group sorter and the coarse
-PrintingExtrusion pre-sort. Internal tree ordering belongs to the following
-layer-extrusion-edit step, where it may be replaced independently from the
-high-level PrintingPlan ordering.
+it registers the default plan builder, the tool-group sorter, the coarse
+PrintingExtrusion pre-sort and finally the internal tree ordering provider.
+The last two phases remain independently replaceable through their own groups.
 */
 void register_default_plan_builder_plugin(orchestrator_handle *orch);
 void register_default_tool_group_ordering_plugin(orchestrator_handle *orch);
 void register_printing_extrusion_pre_sort_plugin(orchestrator_handle *orch);
+void register_default_extrusion_tree_ordering_plugin(orchestrator_handle *orch);
 void register_default_ordering_plugins(orchestrator_handle *orch);
 
 }}} // namespace slic3r_api::Ordering::DefaultOrderingPlugin

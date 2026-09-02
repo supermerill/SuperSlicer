@@ -14,16 +14,16 @@
 #include "libslic3r/Print.hpp"
 #include "libslic3r/Printing/PrintingPlan.hpp"
 #include "libslic3r/Plugins/PrintingPlan/EntryPointProperty.h"
-#include "libslic3r/Steps/StepLayerExtrusionEdition.hpp"
+#include "libslic3r/Steps/StepExtrusionOrdering.hpp"
 
 /*
 Fallback extrusion-tree ordering tests
 ======================================
 
-The provider fixes each layer independently. These tests prebuild the relevant
-PrintingPlan fragments so they can verify exactly which entry estimate was
-visible before the parallel run barrier and which exact endpoints were
-published after local ordering.
+The provider runs after the coarse PrintingExtrusion pre-sort. These tests
+prebuild the relevant PrintingPlan fragments so they can verify how the first
+estimate starts the sequential pass and how exact exits then propagate through
+the remaining plan.
 */
 
 namespace {
@@ -33,7 +33,7 @@ using slic3r_api::EntryPointProperty;
 using slic3r_api::PluginPropertyKey;
 
 constexpr const char *TREE_ORDERING_PLUGIN =
-    "layer_extrusion_edit.extrusion_tree_ordering.default";
+    "ordering.extrusion_tree.default";
 
 /* Restore the process-wide active providers after one focused step run. */
 class ScopedActivePlugins
@@ -122,14 +122,14 @@ void run_tree_ordering(Print &print)
     ScopedActivePlugins active{TREE_ORDERING_PLUGIN};
     Orchestrator &orchestrator = Orchestrator::instance();
     orchestrator.reset_plugin_cancel();
-    Steps::StepLayerExtrusionEdition::run_step(orchestrator, print);
+    Steps::StepExtrusionOrdering::run_step(orchestrator, print);
     REQUIRE_FALSE(orchestrator.is_plugin_cancelled());
 }
 
 } // namespace
 
 TEST_CASE("EntryPointProperty has one compatible private dynamic contract",
-          "[plugins][layer-extrusion-edit][extrusion-tree-ordering][properties]")
+          "[plugins][ordering][extrusion-tree-ordering][properties]")
 {
     Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
 
@@ -137,10 +137,9 @@ TEST_CASE("EntryPointProperty has one compatible private dynamic contract",
     orchestrator_handle *handle = reinterpret_cast<orchestrator_handle *>(&orchestrator);
     Plugin *plugin = orchestrator.get_plugin(TREE_ORDERING_PLUGIN);
     REQUIRE(plugin != nullptr);
-    CHECK(plugin->get_step() == STEP_LAYER_EXTRUSION_EDIT);
-    CHECK(plugin->get_priority() == -120);
-    CHECK(plugin->get_exclusive_group() ==
-          "layer_extrusion_edit.extrusion_tree_ordering");
+    CHECK(plugin->get_step() == STEP_ORDERING);
+    CHECK(plugin->get_priority() == 1100);
+    CHECK(plugin->get_exclusive_group() == "ordering.extrusion_tree");
     CHECK(plugin->get_dependencies().empty());
 
     const PluginPropertyKey<EntryPointProperty> first =
@@ -160,7 +159,7 @@ TEST_CASE("EntryPointProperty has one compatible private dynamic contract",
 }
 
 TEST_CASE("Extrusion-tree ordering publishes exact endpoints and propagates local exits",
-          "[plugins][layer-extrusion-edit][extrusion-tree-ordering]")
+          "[plugins][ordering][extrusion-tree-ordering]")
 {
     Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
 
@@ -195,8 +194,8 @@ TEST_CASE("Extrusion-tree ordering publishes exact endpoints and propagates loca
     CHECK(second_points->exit.x == 2);
 }
 
-TEST_CASE("Extrusion-tree ordering snapshots the preceding layer exit before parallel runs",
-          "[plugins][layer-extrusion-edit][extrusion-tree-ordering][parallel]")
+TEST_CASE("Extrusion-tree ordering propagates exact exits across layers",
+          "[plugins][ordering][extrusion-tree-ordering]")
 {
     Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
 
@@ -219,22 +218,22 @@ TEST_CASE("Extrusion-tree ordering snapshots the preceding layer exit before par
     PrintingExtrusion &source = group.layers[0].tool_groups[0].extrusions[0];
     PrintingExtrusion &target = group.layers[1].tool_groups[0].extrusions[0];
 
-    // The setup snapshot must retain this estimate even though the first
-    // layer's parallel run later replaces it with its exact exit at x=10.
+    // The pre-sort estimate is deliberately stale. Sequential tree ordering
+    // replaces it before selecting the first child of the following layer.
     EntryPointProperty &estimate = entry_point_key().get_or_add(mutable_root(source));
     estimate.entry = c_point{0, 0};
     estimate.exit = c_point{100, 0};
 
     run_tree_ordering(print);
 
-    CHECK(target.root->child(0).first_point() == Point(101, 0));
+    CHECK(target.root->child(0).first_point() == Point(1, 0));
     const EntryPointProperty *source_points = entry_point_key().get(mutable_root(source));
     REQUIRE(source_points != nullptr);
     CHECK(source_points->exit.x == 10);
 }
 
 TEST_CASE("Extrusion-tree ordering falls back to origin and removes empty metadata",
-          "[plugins][layer-extrusion-edit][extrusion-tree-ordering]")
+          "[plugins][ordering][extrusion-tree-ordering]")
 {
     Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
 
@@ -243,8 +242,7 @@ TEST_CASE("Extrusion-tree ordering falls back to origin and removes empty metada
     plan.groups.emplace_back();
     PrintingGroup &group = plan.groups.back();
     group.layers.reserve(2);
-    PrintingLayerGroup &first_layer = append_layer(group);
-    append_extrusion(first_layer.tool_groups.back(), make_path(Point(50, 0), Point(60, 0)));
+    append_layer(group);
 
     PrintingLayerGroup &second_layer = append_layer(group);
     PrintingToolGroup &tool = second_layer.tool_groups.back();
@@ -266,8 +264,38 @@ TEST_CASE("Extrusion-tree ordering falls back to origin and removes empty metada
 
     run_tree_ordering(print);
 
-    // The preceding non-empty root had no property during setup, so the second
-    // layer starts from the documented neutral origin.
+    // No earlier geometric root or pre-sort estimate exists, so the first
+    // sortable root starts from the documented neutral origin.
     CHECK(ordered.root->child(0).first_point() == Point(1, 0));
     CHECK(key.get(mutable_root(empty)) == nullptr);
+}
+
+TEST_CASE("Extrusion-tree ordering uses the first pre-sort estimate",
+          "[plugins][ordering][extrusion-tree-ordering]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    PrintingLayerGroup &layer = append_layer(plan.groups.back());
+    PrintingExtrusion &extrusion = append_extrusion(
+        layer.tool_groups.back(),
+        make_sortable_root({
+            {Point(1, 0), Point(2, 0)},
+            {Point(101, 0), Point(102, 0)}}));
+
+    EntryPointProperty &estimate =
+        entry_point_key().get_or_add(mutable_root(extrusion));
+    estimate.entry = c_point{100, 0};
+    estimate.exit = c_point{100, 0};
+
+    run_tree_ordering(print);
+
+    CHECK(extrusion.root->child(0).first_point() == Point(101, 0));
+    const EntryPointProperty *exact =
+        entry_point_key().get(mutable_root(extrusion));
+    REQUIRE(exact != nullptr);
+    CHECK(exact->entry.x == 101);
+    CHECK(exact->exit.x == 2);
 }

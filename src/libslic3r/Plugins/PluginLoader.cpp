@@ -60,7 +60,6 @@
 #include "libslic3r/Plugins/LayerExtrusionEdit/CreateToolChange.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/CreateTransitionScope.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp"
-#include "libslic3r/Plugins/LayerExtrusionEdit/DefaultExtrusionTreeOrdering.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultFan.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultLayerEntryState.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultSpeed.hpp"
@@ -525,9 +524,6 @@ void register_builtin_plugins(orchestrator_handle *orchestrator)
         slic3r_api::Infill::PostInfillGapFillPlugin::register_post_infill_gap_fill_plugin);
     register_builtin_plugin(orchestrator, "ordering.default",
         slic3r_api::Ordering::DefaultOrderingPlugin::register_default_ordering_plugins);
-    register_builtin_plugin(orchestrator, "layer_extrusion_edit.extrusion_tree_ordering.default",
-        slic3r_api::LayerExtrusionEdit::DefaultExtrusionTreeOrderingPlugin::
-            register_default_extrusion_tree_ordering_plugin);
     register_builtin_plugin(orchestrator, "layer_extrusion_edit.toolchange.default",
         slic3r_api::LayerExtrusionEdit::CreateToolChangePlugin::register_create_tool_change_plugin);
     register_builtin_plugin(orchestrator, "layer_extrusion_edit.transition_scope.default",
