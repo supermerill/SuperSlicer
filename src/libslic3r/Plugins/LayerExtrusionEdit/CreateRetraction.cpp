@@ -98,7 +98,6 @@ struct LayerBoundarySummary
 struct RetractionDecision
 {
     bool requested = false;
-    bool actual_toolchange = false;
     bool toolchange_retraction = false;
     double target = 0.0;
     double restart_extra = 0.0;
@@ -171,7 +170,7 @@ void write_outgoing_retraction(const ScopeEntity &source,
                                const RetractionDecision &decision,
                                const PluginPropertyKey<PrintingExtrusionScopeProperty> &key);
 
-/* Append target-owned TOOLCHANGE and Unretract requests in process order. */
+/* Append the target-owned Unretract request after tool-group selection events. */
 void write_incoming_retraction(const ScopeEntity &target,
                                const RetractionDecision &decision,
                                const PluginPropertyKey<PrintingExtrusionScopeProperty> &key);
@@ -456,7 +455,6 @@ RetractionDecision decide_boundary(const Config &print_config,
         throw std::invalid_argument("Retraction decisions need two valid scope endpoints.");
 
     RetractionDecision decision;
-    decision.actual_toolchange = actual_toolchange;
     decision.toolchange_retraction = actual_toolchange ||
         source.modifier.toolchange_retraction != 0 ||
         target.modifier.toolchange_retraction != 0;
@@ -543,12 +541,6 @@ void write_incoming_retraction(
     const PluginPropertyKey<PrintingExtrusionScopeProperty> &key)
 {
     const ExtrusionScope::OrderedExtrusionScope scope(target.entity, key);
-    if (decision.actual_toolchange) {
-        MutableExtrusionEntity event = append_phase_event(scope.before());
-        event.get_or_add(EPropertySpecialCommand::key).set(
-            C_EXTRUSION_SPECIAL_COMMAND_TOOLCHANGE,
-            double(target.tool_group.extruder_id()));
-    }
     if (!decision.requested || decision.target <= 0.0)
         return;
 
@@ -610,7 +602,7 @@ const char *CreateRetraction::name_impl() const noexcept
 
 const char *CreateRetraction::description_impl() const noexcept
 {
-    return "Adds semantic retract, tool-change and unretract events to prepared transitions.";
+    return "Adds semantic retract and unretract events to prepared transitions.";
 }
 
 const char *CreateRetraction::exclusive_group_impl() const noexcept

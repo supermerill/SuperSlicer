@@ -49,6 +49,8 @@ constexpr const char *RETRACTION_PLUGIN =
     "layer_extrusion_edit.retraction.default";
 constexpr const char *TERMINAL_RETRACTION_PLUGIN =
     "extrusion_edit.terminal_retraction.default";
+constexpr const char *TOOLCHANGE_PLUGIN =
+    "layer_extrusion_edit.toolchange.default";
 constexpr const char *TRANSITION_SCOPE_PLUGIN =
     "layer_extrusion_edit.transition_scope.default";
 constexpr const char *SETTINGS_SCRIPTS_PLUGIN = "gcode.settings_scripts";

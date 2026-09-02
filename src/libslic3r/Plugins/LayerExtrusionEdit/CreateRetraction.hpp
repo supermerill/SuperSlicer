@@ -11,9 +11,10 @@ Register the built-in semantic retraction providers.
 
 CreateRetraction consumes the compact roots produced by CreateTransitionScope.
 For every real boundary it writes a semantic Retract event into the source
-scope's after phase and writes tool selection and Unretract events into the
-target scope's before phase. It never creates scopes, phase children or travel
-geometry.
+scope's after phase and writes an Unretract event into the target scope's
+before phase. Tool-selection flags choose the E-axis settings but do not make
+this provider emit a physical selection command. It never creates scopes,
+phase children or travel geometry.
 
 Input requirements
 ------------------
@@ -36,7 +37,8 @@ Output contract
 ---------------
 
 - Retract is appended to source.after.
-- TOOLCHANGE and Unretract are appended to target.before.
+- Unretract is appended to target.before. Tool selection is materialized by
+  CreateToolChange in the target PrintingToolGroup events before scopes exist.
 - Later wipe, travel and lift providers may edit these phase subtrees, but the
   marked scope roots and printable content remain unchanged.
 - A companion sequential provider stores the final normal retraction in

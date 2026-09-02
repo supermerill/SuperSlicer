@@ -975,6 +975,38 @@ TEST_CASE("Default firmware handles ordered special commands and custom G-code",
     }
     remove_output_pair(output_path);
 }
+
+TEST_CASE("Tool-group semantic selection suppresses the automatic firmware command",
+          "[plugins][gcode][firmware][toolchange]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+
+    Print print;
+    configure_standard_firmware(print, 2);
+    PrintingPlan &plan = print.mutable_printing_plan();
+    plan.groups.emplace_back();
+    plan.groups.front().layers.emplace_back();
+    PrintingLayerGroup &layer = plan.groups.front().layers.front();
+    layer.tool_groups.emplace_back();
+    layer.tool_groups.back().extruder_id = 0;
+    layer.tool_groups.emplace_back();
+    PrintingToolGroup &target = layer.tool_groups.back();
+    target.extruder_id = 1;
+
+    // CreateToolChange stores the semantic command in the target tool-group's
+    // before events. begin_tool_group() must update no physical selection of
+    // its own; write_event() then emits the sole T1 command in sequence.
+    std::unique_ptr<ExtrusionEntity> command = special_command_entity(
+        ExtrusionPropertySpecialCommand::Code::TOOLCHANGE, 1.0);
+    target.events.append_before(std::move(*command));
+
+    const std::string output = export_with_firmware(
+        print, "gcode.firmware.marlin2");
+    INFO(output);
+    CHECK(count_command_lines(output, "T0") == 1);
+    CHECK(count_command_lines(output, "T1") == 1);
+    CHECK(output.find("T0\nT1\n") != std::string::npos);
+}
 TEST_CASE("Default firmware distinguishes raw G-code, comments and scripts",
           "[plugins][gcode][firmware][custom-gcode]")
 {

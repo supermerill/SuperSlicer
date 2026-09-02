@@ -8,8 +8,10 @@ CreateRetraction tests
 ======================
 
 The cases verify the compact-scope contract first: a source owns Retract in
-after, while the target owns TOOLCHANGE and Unretract in before. Plan-terminal
-retraction is checked separately because it belongs to STEP_EXTRUSION_EDIT.
+after, while the target owns Unretract in before. Physical tool selection is
+tested separately through CreateToolChange because it belongs to the target
+PrintingToolGroup rather than to a compact scope. Plan-terminal retraction is
+checked separately because it belongs to STEP_EXTRUSION_EDIT.
 */
 
 #include "layer_extrusion_edit_transition_test_helpers.hpp"
@@ -110,7 +112,7 @@ TEST_CASE("Tool changes remain semantic when their retraction target is zero",
     collect_transition_events(source.after().readonly(), source_events);
     collect_transition_events(target.before().readonly(), target_events);
     CHECK(source_events.empty());
-    CHECK(target_events == std::vector<std::string>{"toolchange"});
+    CHECK(target_events.empty());
 }
 
 TEST_CASE("Tool-change restart extra follows the selected extruder",
@@ -149,10 +151,8 @@ TEST_CASE("Tool-change restart extra follows the selected extruder",
     CHECK(retract_axis->value == Approx(3.0));
     CHECK(retract_axis->toolchange == 1);
 
-    REQUIRE(target.before().child_count() == 2);
     const slic3r_api::EPropertyExtrusionAxis *unretract_axis =
-        target.before().child(1).get(
-            slic3r_api::EPropertyExtrusionAxis::key);
+        target.before().get(slic3r_api::EPropertyExtrusionAxis::key);
     REQUIRE(unretract_axis != nullptr);
     CHECK(unretract_axis->restart_extra == Approx(-0.3));
     CHECK(unretract_axis->toolchange == 1);
@@ -192,8 +192,7 @@ TEST_CASE("Empty tool visits remain visible between printable scopes",
 
     std::vector<std::string> target_events;
     collect_transition_events(target.before().readonly(), target_events);
-    CHECK(target_events ==
-          std::vector<std::string>{"toolchange", "unretract"});
+    CHECK(target_events == std::vector<std::string>{"unretract"});
 }
 
 TEST_CASE("CreateRetraction shares one decision across non-empty layers",
@@ -349,7 +348,7 @@ TEST_CASE("Terminal retraction belongs to PrintingPlan after events",
     CHECK(events == std::vector<std::string>{"retract"});
 }
 
-TEST_CASE("Configured tool scripts surround semantic transition events",
+TEST_CASE("Configured tool and filament scripts keep separate ordered owners",
           "[plugins][layer-extrusion-edit][retraction][settings-scripts]")
 {
     Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
@@ -370,16 +369,24 @@ TEST_CASE("Configured tool scripts surround semantic transition events",
     layer.tool_groups.back().extruder_id = 1;
     layer.tool_groups.back().extrusions.push_back(std::move(moved));
 
-    run_layer_plugins(print, {TRANSITION_SCOPE_PLUGIN, RETRACTION_PLUGIN});
+    run_layer_plugins(print, {
+        TOOLCHANGE_PLUGIN, TRANSITION_SCOPE_PLUGIN, RETRACTION_PLUGIN});
     run_plan_plugins(print, {SETTINGS_SCRIPTS_PLUGIN});
 
     slic3r_api::MutableExtrusionEntity target_root = find_scope(entity_view(
         *layer.tool_groups.back().extrusions.front().root));
     OrderedExtrusionScope target(target_root, scope_property_key());
+    std::vector<std::string> tool_events;
+    const slic3r_api::PrintingToolGroup target_tool(
+        reinterpret_cast<printing_tool_group_handle *>(
+            &layer.tool_groups.back()));
+    collect_transition_events(target_tool.events().before(), tool_events);
+    CHECK(tool_events == std::vector<std::string>{"toolchange_script"});
+
     std::vector<std::string> events;
     collect_transition_events(target.before().readonly(), events);
     CHECK(events == std::vector<std::string>{
-        "toolchange_script", "toolchange", "start_filament_script", "unretract"});
+        "start_filament_script", "unretract"});
 }
 
 } // namespace

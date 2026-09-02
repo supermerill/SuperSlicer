@@ -15,6 +15,7 @@
 
 #include "plugin_test_helpers.hpp"
 #include "gcode_test_helpers.hpp"
+#include "layer_extrusion_edit_transition_test_helpers.hpp"
 
 #include "libslic3r/Api/host/ApiHostUtils.hpp"
 #include "libslic3r/Api/host/GCodeScriptProcessor.hpp"
@@ -98,7 +99,7 @@ TEST_CASE("Configured G-code scripts become typed global plan events",
     CHECK_FALSE(plan.events.has_before());
     CHECK_FALSE(plan.events.has_after());
 }
-TEST_CASE("Configured layer and tool scripts become scoped plan events",
+TEST_CASE("Configured layer and filament scripts become scoped plan events",
           "[plugins][gcode][script-type][extrusion-edit]")
 {
     Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
@@ -172,24 +173,15 @@ TEST_CASE("Configured layer and tool scripts become scoped plan events",
     REQUIRE(unchanged_tool.events.after().child_count() == 1);
 
     PrintingToolGroup &changed_tool = group.layers[1].tool_groups[1];
-    REQUIRE(changed_tool.events.before().child_count() == 2);
+    REQUIRE(changed_tool.events.before().child_count() == 1);
     const ExtrusionPropertyCustomGcode *end_filament =
         unchanged_tool.events.after().child(0).get_property<ExtrusionPropertyCustomGcode>();
-    const ExtrusionPropertyCustomGcode *toolchange =
-        changed_tool.events.before().child(0).get_property<ExtrusionPropertyCustomGcode>();
     const ExtrusionPropertyCustomGcode *start_filament =
-        changed_tool.events.before().child(1).get_property<ExtrusionPropertyCustomGcode>();
+        changed_tool.events.before().child(0).get_property<ExtrusionPropertyCustomGcode>();
     REQUIRE(end_filament != nullptr);
-    REQUIRE(toolchange != nullptr);
     REQUIRE(start_filament != nullptr);
     CHECK(end_filament->script_type == GCODE_SCRIPT_TYPE_END_FILAMENT_GCODE);
     CHECK(end_filament->processing_extruder_id == 1);
-    CHECK(toolchange->script_type == GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE);
-    CHECK(toolchange->processing_extruder_id == 0);
-    CHECK(stored_script_int(
-              changed_tool.events.before().child(0), *toolchange, "previous_extruder") == 1);
-    CHECK(stored_script_int(
-              changed_tool.events.before().child(0), *toolchange, "next_extruder") == 0);
     CHECK(start_filament->script_type == GCODE_SCRIPT_TYPE_START_FILAMENT_GCODE);
     CHECK(start_filament->processing_extruder_id == 0);
 
@@ -389,6 +381,8 @@ TEST_CASE("Configured scripts use ordered plan tools and final layer state",
     group.layers.back().tool_groups.back().extruder_id = 0;
 
     Steps::StepExtrusionEdition::clean_and_prepare(print);
+    Slic3r::Test::TransitionPipeline::run_layer_plugins(
+        print, {Slic3r::Test::TransitionPipeline::TOOLCHANGE_PLUGIN});
     Steps::StepExtrusionEdition::run_step(Orchestrator::instance(), print);
 
     // Structural values belong to the event and remain unchanged if a later

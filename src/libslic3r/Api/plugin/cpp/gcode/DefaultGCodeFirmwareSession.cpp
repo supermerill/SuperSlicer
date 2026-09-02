@@ -111,9 +111,15 @@ bool has_semantic_toolchange(const ExtrusionEntity &root, const uint16_t target_
     return false;
 }
 
-// Inspect a complete tool section before begin_tool_group commits its tool.
+// Inspect every ordered location where a provider may materialize selection.
 bool tool_group_has_semantic_toolchange(const PrintingToolGroup &tool_group)
 {
+    // The built-in CreateToolChange provider owns the tool-group event. Keep
+    // scanning extrusion roots as a compatibility path for external providers
+    // which place the same semantic command inside their extrusion stream.
+    if (has_semantic_toolchange(
+            tool_group.events().before(), tool_group.extruder_id()))
+        return true;
     for (uint32_t extrusion_idx = 0; extrusion_idx < tool_group.extrusion_count(); ++extrusion_idx)
         if (has_semantic_toolchange(
                 tool_group.extrusion(extrusion_idx).root(), tool_group.extruder_id()))
