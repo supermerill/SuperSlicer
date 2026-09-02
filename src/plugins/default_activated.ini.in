@@ -59,6 +59,7 @@ layer_extrusion_edit.toolchange.default = 1
 layer_extrusion_edit.transition_scope.default = 1
 layer_extrusion_edit.retraction.default = 1
 extrusion_edit.terminal_retraction.default = 1
+layer_extrusion_edit.wipe.default = 1
 layer_extrusion_edit.entry_state.default = 1
 layer_extrusion_edit.travel.default = 1
 layer_extrusion_edit.travel.avoid_crossing_perimeters = 1

@@ -138,6 +138,7 @@ static bool set_polyline_from_segments(ExtrusionEntity &entity,
     }
 
     ArcPolyline polyline(path);
+    ApiInternal::ArcPolylineAccess::refresh_after_bulk_replace(polyline);
     if (has_z_offsets) {
         polyline.set_z_offset(0, segments[0].z_offset_a);
         for (uint32_t idx = 0; idx < count; ++idx)

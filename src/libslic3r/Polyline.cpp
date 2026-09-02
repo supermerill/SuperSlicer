@@ -1164,6 +1164,12 @@ void ArcPolylineAccess::refresh_after_edit(ArcPolyline &polyline)
     assert(polyline.m_path.size() < 2 || polyline.is_valid());
 }
 
+/* Publish valid derived arc metadata after one host-side path replacement. */
+void ArcPolylineAccess::refresh_after_bulk_replace(ArcPolyline &polyline)
+{
+    refresh_after_edit(polyline);
+}
+
 bool ArcPolylineAccess::set_point(ArcPolyline &polyline, size_t idx, const Point &point)
 {
     if (idx >= polyline.m_path.size())

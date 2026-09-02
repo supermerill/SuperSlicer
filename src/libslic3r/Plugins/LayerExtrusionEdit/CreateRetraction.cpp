@@ -158,9 +158,6 @@ RetractionDecision decide_boundary(const Config &print_config,
                                    bool layer_change,
                                    bool actual_toolchange);
 
-/* Return a writable leaf appended after existing phase events. */
-MutableExtrusionEntity append_phase_event(MutableExtrusionEntity phase);
-
 /* Configure one empty event with a process role and zero physical flow. */
 void set_event_attributes(MutableExtrusionEntity event,
                           raw_extrusion_role role);
@@ -492,24 +489,6 @@ RetractionDecision decide_boundary(const Config &print_config,
     return decision;
 }
 
-MutableExtrusionEntity append_phase_event(MutableExtrusionEntity phase)
-{
-    if (!phase.valid())
-        throw std::invalid_argument("A retraction event needs an existing scope phase.");
-    if (phase.segment_count() == 0 && phase.child_count() == 0 &&
-        phase.property_count() == 0)
-        return phase;
-
-    const ExistingPropertyPlacement placement = phase.child_count() == 0 ?
-        ExistingPropertyPlacement::MoveWithExistingContent :
-        ExistingPropertyPlacement::KeepOnParent;
-    MutableExtrusionEntity event = phase.emplace_ordered_leaf(
-        OrderedLeafPosition::After, placement);
-    if (!event.valid())
-        throw std::runtime_error("Unable to append a retraction phase event.");
-    return event;
-}
-
 void set_event_attributes(MutableExtrusionEntity event,
                           const raw_extrusion_role role)
 {
@@ -529,7 +508,7 @@ void write_outgoing_retraction(
     if (!decision.requested || decision.target <= 0.0)
         return;
     const ExtrusionScope::OrderedExtrusionScope scope(source.entity, key);
-    MutableExtrusionEntity event = append_phase_event(scope.after());
+    MutableExtrusionEntity event = ExtrusionScope::append_phase_leaf(scope.after());
     set_event_attributes(event, RAW_EXTRUSION_ROLE_RETRACT);
     event.get_or_add(EPropertyExtrusionAxis::key).retract_to(
         decision.target, decision.toolchange_retraction);
@@ -544,7 +523,7 @@ void write_incoming_retraction(
     if (!decision.requested || decision.target <= 0.0)
         return;
 
-    MutableExtrusionEntity event = append_phase_event(scope.before());
+    MutableExtrusionEntity event = ExtrusionScope::append_phase_leaf(scope.before());
     set_event_attributes(event, RAW_EXTRUSION_ROLE_UNRETRACT);
     event.get_or_add(EPropertyExtrusionAxis::key).unretract(
         decision.restart_extra, decision.toolchange_retraction);

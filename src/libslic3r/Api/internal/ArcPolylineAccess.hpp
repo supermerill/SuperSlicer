@@ -29,6 +29,9 @@ struct ArcPolylineAccess
                             Geometry::ArcWelder::Orientation orientation);
     static void clear_z_offsets(ArcPolyline &polyline);
 
+    /* Recompute cached arc metadata after replacing the complete path. */
+    static void refresh_after_bulk_replace(ArcPolyline &polyline);
+
 private:
     static void refresh_after_edit(ArcPolyline &polyline);
 };

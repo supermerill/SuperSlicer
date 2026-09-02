@@ -122,6 +122,15 @@ OrderedExtrusionScope ensure_scope(
     const PluginPropertyKey<PrintingExtrusionScopeProperty> &key,
     uint8_t flags);
 
+/*
+Append one empty leaf after the existing contents of a reserved phase.
+
+The first producer may use the empty phase root directly. Later producers are
+placed after it without moving properties away from existing events. This is
+the common insertion primitive for ordered Retract, Wipe and Unretract events.
+*/
+MutableExtrusionEntity append_phase_leaf(MutableExtrusionEntity phase);
+
 }}} // namespace slic3r_api::LayerExtrusionEdit::ExtrusionScope
 
 #endif // slic3r_Plugins_LayerExtrusionEdit_ExtrusionScopeHelpers_hpp_

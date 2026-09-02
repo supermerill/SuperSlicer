@@ -234,6 +234,8 @@ set(SLIC3R_SOURCES
 	Plugins/LayerExtrusionEdit/AvoidCrossingPerimetersTravel.hpp
 	Plugins/LayerExtrusionEdit/CreateRetraction.cpp
 	Plugins/LayerExtrusionEdit/CreateRetraction.hpp
+	Plugins/LayerExtrusionEdit/CreateRetractionWipe.cpp
+	Plugins/LayerExtrusionEdit/CreateRetractionWipe.hpp
 	Plugins/LayerExtrusionEdit/CreateToolChange.cpp
 	Plugins/LayerExtrusionEdit/CreateToolChange.hpp
 	Plugins/LayerExtrusionEdit/CreateTransitionScope.cpp

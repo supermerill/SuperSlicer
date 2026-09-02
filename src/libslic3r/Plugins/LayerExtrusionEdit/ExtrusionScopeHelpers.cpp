@@ -276,4 +276,23 @@ OrderedExtrusionScope ensure_scope(
     return OrderedExtrusionScope(entity, key);
 }
 
+/* Preserve phase order and build a collection only after content exists. */
+MutableExtrusionEntity append_phase_leaf(MutableExtrusionEntity phase)
+{
+    if (!phase.valid())
+        throw std::invalid_argument("An ordered event needs an existing scope phase.");
+    if (phase.segment_count() == 0 && phase.child_count() == 0 &&
+        phase.property_count() == 0)
+        return phase;
+
+    const ExistingPropertyPlacement placement = phase.child_count() == 0 ?
+        ExistingPropertyPlacement::MoveWithExistingContent :
+        ExistingPropertyPlacement::KeepOnParent;
+    MutableExtrusionEntity event = phase.emplace_ordered_leaf(
+        OrderedLeafPosition::After, placement);
+    if (!event.valid())
+        throw std::runtime_error("Unable to append an ordered scope-phase event.");
+    return event;
+}
+
 }}} // namespace slic3r_api::LayerExtrusionEdit::ExtrusionScope
