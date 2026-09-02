@@ -245,6 +245,8 @@ set(SLIC3R_SOURCES
 	Plugins/LayerExtrusionEdit/CreateTransitionScope.hpp
 	Plugins/LayerExtrusionEdit/DefaultAcceleration.cpp
 	Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp
+	Plugins/LayerExtrusionEdit/DefaultExtrusionTreeOrdering.cpp
+	Plugins/LayerExtrusionEdit/DefaultExtrusionTreeOrdering.hpp
 	Plugins/LayerExtrusionEdit/DefaultFan.cpp
 	Plugins/LayerExtrusionEdit/DefaultFan.hpp
 	Plugins/LayerExtrusionEdit/DefaultLayerEntryState.cpp
@@ -265,7 +267,6 @@ set(SLIC3R_SOURCES
 	Plugins/LayerExtrusionEdit/TravelConnectionHelpers.hpp
 	Plugins/MaxOverhangThreshold.cpp
 	Plugins/MaxOverhangThreshold.hpp
-	Plugins/Ordering/DefaultExtrusionTreeOrdering.cpp
 	Plugins/Ordering/DefaultOrdering.cpp
 	Plugins/Ordering/DefaultOrdering.hpp
 	Plugins/Ordering/KDTreeOrderingEngine.cpp
@@ -274,6 +275,7 @@ set(SLIC3R_SOURCES
 	Plugins/Ordering/NearestNeighborOrderingEngine.hpp
 	Plugins/Ordering/DefaultPlanBuilder.cpp
 	Plugins/Ordering/DefaultToolGroupOrdering.cpp
+	Plugins/PrintingPlan/EntryPointProperty.h
 	Plugins/PrintingPlan/PrintingLayerEntryStateProperties.h
 	Plugins/PrintingPlan/PrintingExtrusionScopeProperty.h
 	Plugins/PrintingPlan/PrintingLayerTimeProperty.h

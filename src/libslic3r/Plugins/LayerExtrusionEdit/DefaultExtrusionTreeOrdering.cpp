@@ -3,30 +3,38 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 
-#include "DefaultOrdering.hpp"
+#include "DefaultExtrusionTreeOrdering.hpp"
 
 #include <cassert>
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <utility>
 #include <vector>
 
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_ordering.h"
+#include "libslic3r/Api/plugin/c/steps/slic3r_step_layer_extrusion_edit.h"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
 #include "libslic3r/Api/plugin/cpp/PrintingPlanViews.hpp"
+#include "libslic3r/Plugins/PrintingPlan/EntryPointProperty.h"
 
-namespace slic3r_api { namespace Ordering { namespace DefaultOrderingPlugin {
+namespace slic3r_api { namespace LayerExtrusionEdit { namespace DefaultExtrusionTreeOrderingPlugin {
 namespace {
 
 /*
-DefaultExtrusionTreeOrdering is the third plugin in the ordering chain.
+Fallback extrusion-tree ordering
+================================
 
-The previous plugins have already selected the high-level order of groups,
-layers and tools. This plugin walks the cloned extrusion roots stored in the
-PrintingPlan and fixes only sortable nodes inside those roots. Non-sortable
-subtrees remain atomic, so properties and forced sequencing carried by plugin
-wrappers stay attached to their original subtree.
+STEP_ORDERING has already selected the high-level order of groups, layers,
+tools and PrintingExtrusion roots. This early layer-edit provider fixes only
+sortable nodes inside those roots. Non-sortable subtrees remain atomic, so
+properties and forced sequencing carried by plugin wrappers stay attached to
+their original subtree.
+
+Before parallel run() calls begin, setup_run() copies the preceding layer's
+published exit. A layer worker uses that stable estimate for its first root,
+then uses the exact exit produced by each locally ordered root. Every non-empty
+root receives an EntryPointProperty containing its resulting exact endpoints.
 
 Important tree rules:
   - only nodes marked sortable may reorder their direct children;
@@ -37,7 +45,7 @@ Important tree rules:
 */
 
 const char *k_no_dependencies[] = { nullptr };
-const char *k_group_extrusions = "ordering.extrusion_tree";
+const char *k_group_extrusions = "layer_extrusion_edit.extrusion_tree_ordering";
 
 struct ExtrusionEntryCandidate
 {
@@ -54,10 +62,14 @@ This is the core algorithm of the plugin. It greedily selects the child that
 can start closest to the current nozzle position, prepares that child to really
 start there, and moves it into the fixed prefix of the same parent.
 */
-void order_sortable_extrusion_children(storage_handle *storage, MutableExtrusionEntity entity, c_point start_near);
+void order_sortable_extrusion_children(storage_handle *storage,
+                                       std::mutex &storage_mutex,
+                                       MutableExtrusionEntity entity,
+                                       c_point start_near);
 
 /* Prepare one selected child before it is considered fixed in its parent. */
 void prepare_child_for_entry(storage_handle *storage,
+                             std::mutex &storage_mutex,
                              MutableExtrusionEntity child,
                              const ExtrusionEntryCandidate &candidate);
 
@@ -97,7 +109,25 @@ bool entity_is_loop(const ExtrusionEntity &entity);
 /* Squared distance is enough for nearest-candidate comparison and avoids sqrt. */
 double distance_to_square(c_point lhs, c_point rhs);
 
-void order_sortable_extrusion_children(storage_handle *storage, MutableExtrusionEntity entity, c_point start_near)
+/*
+Read the latest published exit before one layer without touching mutable trees.
+
+The first non-empty root encountered while scanning backwards is the actual
+geometric predecessor. Its missing property means the estimate is unavailable,
+so the fallback is deliberately the neutral origin instead of an older root.
+PrintingGroup boundaries reset the ordering position just like the former
+sequential implementation.
+*/
+c_point preceding_layer_exit(const run_ctx_layer_extrusion_edition &ctx,
+                             const PluginPropertyKey<EntryPointProperty> &key);
+
+/* Count roots in one layer so progress remains meaningful across workers. */
+uint32_t extrusion_count(const PrintingLayerGroup &layer);
+
+void order_sortable_extrusion_children(storage_handle *storage,
+                                       std::mutex &storage_mutex,
+                                       MutableExtrusionEntity entity,
+                                       c_point start_near)
 {
     c_point current_point = start_near;
     uint32_t fixed_count = 0;
@@ -134,7 +164,7 @@ void order_sortable_extrusion_children(storage_handle *storage, MutableExtrusion
         assert(moved_idx != EXTRUSION_INDEX_INVALID);
         MutableExtrusionEntity child = entity.child_mutable(fixed_count);
 
-        prepare_child_for_entry(storage, child, selected_candidate);
+        prepare_child_for_entry(storage, storage_mutex, child, selected_candidate);
         if (!child.empty())
             current_point = child.back();
         ++fixed_count;
@@ -149,6 +179,7 @@ void order_sortable_extrusion_children(storage_handle *storage, MutableExtrusion
 }
 
 void prepare_child_for_entry(storage_handle *storage,
+                             std::mutex &storage_mutex,
                              MutableExtrusionEntity child,
                              const ExtrusionEntryCandidate &candidate)
 {
@@ -160,7 +191,7 @@ void prepare_child_for_entry(storage_handle *storage,
         turns the child subtree into a fixed sequence starting from the point
         chosen by the parent.
         */
-        order_sortable_extrusion_children(storage, child, candidate.point);
+        order_sortable_extrusion_children(storage, storage_mutex, child, candidate.point);
         return;
     }
 
@@ -169,10 +200,21 @@ void prepare_child_for_entry(storage_handle *storage,
     their entry point without changing their internal ordering: rotate a loop or
     reverse an explicitly reversible open path.
     */
-    if (entity_is_loop(child.readonly()))
-        rotate_loop_to_point(storage, child, candidate.point);
-    else if (candidate.reverse_before_printing)
+    if (entity_is_loop(child.readonly())) {
+        if (child.point_count() > 0) {
+            // A leaf rotation only rewrites its local segments and does not
+            // touch the provider storage, so independent layers may do it in
+            // parallel.
+            rotate_loop_to_point(storage, child, candidate.point);
+        } else {
+            // A composed-loop rotation may split one child into storage-owned
+            // temporary entities. Serialize only that uncommon operation.
+            const std::lock_guard<std::mutex> lock(storage_mutex);
+            rotate_loop_to_point(storage, child, candidate.point);
+        }
+    } else if (candidate.reverse_before_printing) {
         child.reverse();
+    }
 }
 
 ExtrusionEntryCandidate best_entry_candidate(const ExtrusionEntity &entity, c_point current_point)
@@ -423,6 +465,37 @@ double distance_to_square(c_point lhs, c_point rhs)
     return dx * dx + dy * dy;
 }
 
+c_point preceding_layer_exit(const run_ctx_layer_extrusion_edition &ctx,
+                             const PluginPropertyKey<EntryPointProperty> &key)
+{
+    if (ctx.group == nullptr || ctx.layer_group_idx == 0)
+        return c_point{};
+
+    const PrintingGroup group(ctx.group);
+    for (uint32_t layer_idx = ctx.layer_group_idx; layer_idx > 0; --layer_idx) {
+        const PrintingLayerGroup layer = group.layer_group(layer_idx - 1);
+        for (uint32_t tool_idx = layer.tool_group_count(); tool_idx > 0; --tool_idx) {
+            const PrintingToolGroup tool = layer.tool_group(tool_idx - 1);
+            for (uint32_t extrusion_idx = tool.extrusion_count(); extrusion_idx > 0; --extrusion_idx) {
+                const ExtrusionEntity root = tool.extrusion(extrusion_idx - 1).root();
+                if (root.empty())
+                    continue;
+                const EntryPointProperty *entry_points = root.get(key);
+                return entry_points != nullptr ? entry_points->exit : c_point{};
+            }
+        }
+    }
+    return c_point{};
+}
+
+uint32_t extrusion_count(const PrintingLayerGroup &layer)
+{
+    uint32_t count = 0;
+    for (uint32_t tool_idx = 0; tool_idx < layer.tool_group_count(); ++tool_idx)
+        count += layer.tool_group(tool_idx).extrusion_count();
+    return count;
+}
+
 class DefaultExtrusionTreeOrdering : public PluginBase
 {
 public:
@@ -432,31 +505,75 @@ public:
         return s_instance;
     }
 
-    explicit DefaultExtrusionTreeOrdering(orchestrator_handle *orch) : PluginBase(orch) {}
+    explicit DefaultExtrusionTreeOrdering(orchestrator_handle *orch) :
+        PluginBase(orch),
+        m_entry_point_property(entry_point_property_key(orch))
+    {
+    }
 
 private:
-    const char *id_impl() const noexcept override { return "ordering.extrusion_tree.default"; }
+    const char *id_impl() const noexcept override
+    {
+        return "layer_extrusion_edit.extrusion_tree_ordering.default";
+    }
     const char *name_impl() const noexcept override { return "Default extrusion-tree ordering"; }
     const char *description_impl() const noexcept override
     {
-        return "Orders sortable cloned extrusion trees in the PrintingPlan while preserving source trees.";
+        return "Fixes sortable extrusion trees and publishes their exact entry and exit points.";
     }
     const char *exclusive_group_impl() const noexcept override { return k_group_extrusions; }
     const char *exclusive_group_label_impl() const noexcept override { return "Extrusion-tree ordering"; }
     const char *exclusive_group_tooltip_impl() const noexcept override
     {
-        return "Selects how STEP_ORDERING orders extrusion trees inside each tool section.";
+        return "Selects how layer editing fixes the order inside each PrintingExtrusion tree.";
     }
-    slicing_step_t step_impl() const noexcept override { return STEP_ORDERING; }
+    slicing_step_t step_impl() const noexcept override { return STEP_LAYER_EXTRUSION_EDIT; }
     const char *const *dependencies_impl() const noexcept override { return k_no_dependencies; }
-    int32_t priority_impl() const noexcept override { return 200; }
+    int32_t priority_impl() const noexcept override { return -120; }
+    const char *progress_message_format_impl() const noexcept override
+    {
+        return "Ordering extrusion trees: %u / %u roots";
+    }
+
+    void setup_impl(const plugin_run_context *run_ctx, uint32_t) const override
+    {
+        m_layer_start_points.clear();
+        const run_ctx_layer_extrusion_edition *ctx =
+            plugin_ctx_as_layer_extrusion_edition(run_ctx);
+        if (ctx == nullptr || ctx->plan == nullptr)
+            return;
+
+        const PrintingPlan plan(ctx->plan);
+        m_layer_start_points.resize(plan.group_count());
+        for (uint32_t group_idx = 0; group_idx < plan.group_count(); ++group_idx)
+            m_layer_start_points[group_idx].assign(
+                plan.group(group_idx).layer_group_count(), c_point{});
+    }
+
+    void setup_run_impl(const plugin_run_context *run_ctx) const override
+    {
+        const run_ctx_layer_extrusion_edition *ctx = plugin_ctx_as_layer_extrusion_edition(run_ctx);
+        if (ctx == nullptr || ctx->layer_group == nullptr ||
+            ctx->group_idx >= m_layer_start_points.size() ||
+            ctx->layer_group_idx >= m_layer_start_points[ctx->group_idx].size())
+            return;
+
+        // Every setup_run() reads the immutable endpoint snapshot left by the
+        // preceding provider. Cache it now so run() never observes a neighbour
+        // while another layer worker is replacing that neighbour's property.
+        m_layer_start_points[ctx->group_idx][ctx->layer_group_idx] =
+            preceding_layer_exit(*ctx, m_entry_point_property);
+        progress().add_max(extrusion_count(PrintingLayerGroup(ctx->layer_group)));
+    }
 
     void run_impl(const plugin_run_context *run_ctx) const override
     {
-        const run_ctx_extrusion_ordering *ctx = plugin_ctx_as_extrusion_ordering(run_ctx);
+        const run_ctx_layer_extrusion_edition *ctx = plugin_ctx_as_layer_extrusion_edition(run_ctx);
         assert(ctx != nullptr);
-        assert(ctx->plan != nullptr);
-        if (ctx == nullptr || ctx->plan == nullptr)
+        assert(ctx == nullptr || ctx->layer_group != nullptr);
+        if (ctx == nullptr || ctx->layer_group == nullptr ||
+            ctx->group_idx >= m_layer_start_points.size() ||
+            ctx->layer_group_idx >= m_layer_start_points[ctx->group_idx].size())
             return;
 
         assert(run_ctx != nullptr);
@@ -464,46 +581,46 @@ private:
         if (run_ctx == nullptr || run_ctx->plugin_storage == nullptr)
             return;
 
-        PrintingPlan plan(ctx->plan);
-        for (uint32_t group_idx = 0; group_idx < plan.group_count(); ++group_idx) {
-            const PrintingGroup group = plan.group(group_idx);
-            c_point current_point = {};
-
-            /*
-            The plan already defines the high-level order: group, layer, tool,
-            then source extrusion bucket. This plugin only fixes sortable
-            extrusion trees inside that order. The last point of one root is
-            passed to the next root so local child sorting can reduce the next
-            travel without flattening the source tree.
-            */
-            for (uint32_t layer_idx = 0; layer_idx < group.layer_group_count(); ++layer_idx) {
-                const PrintingLayerGroup layer_group = group.layer_group(layer_idx);
-                for (uint32_t tool_idx = 0; tool_idx < layer_group.tool_group_count(); ++tool_idx) {
-                    const PrintingToolGroup tool_group = layer_group.tool_group(tool_idx);
-                    for (uint32_t extrusion_idx = 0; extrusion_idx < tool_group.extrusion_count(); ++extrusion_idx) {
-                        const PrintingExtrusion extrusion = tool_group.extrusion(extrusion_idx);
-                        MutableExtrusionEntity root = extrusion.mutable_root();
-                        /*
-                        Only roots marked sortable are changed. Non-sortable
-                        roots may still be printed after a previous root, so
-                        their back point still updates current_point.
-                        */
-                        if (root.readonly().sortable())
-                            order_sortable_extrusion_children(run_ctx->plugin_storage, root, current_point);
-                        if (!root.empty())
-                            current_point = root.back();
-                    }
+        c_point current_point =
+            m_layer_start_points[ctx->group_idx][ctx->layer_group_idx];
+        const PrintingLayerGroup layer_group(ctx->layer_group);
+        for (uint32_t tool_idx = 0; tool_idx < layer_group.tool_group_count(); ++tool_idx) {
+            const PrintingToolGroup tool_group = layer_group.tool_group(tool_idx);
+            for (uint32_t extrusion_idx = 0; extrusion_idx < tool_group.extrusion_count(); ++extrusion_idx) {
+                MutableExtrusionEntity root = tool_group.extrusion(extrusion_idx).mutable_root();
+                if (root.empty()) {
+                    m_entry_point_property.remove(root);
+                    progress().increment();
+                    continue;
                 }
+
+                // Roots in this layer form one local sequence. The first uses
+                // the setup snapshot; every later root uses the exact endpoint
+                // produced immediately before it by this same worker.
+                if (root.readonly().sortable())
+                    order_sortable_extrusion_children(
+                        run_ctx->plugin_storage, m_storage_mutex, root, current_point);
+
+                EntryPointProperty &entry_points = m_entry_point_property.get_or_add(root);
+                entry_points.entry = root.front();
+                entry_points.exit = root.back();
+                current_point = entry_points.exit;
+                progress().increment();
             }
         }
     }
+
+    PluginPropertyKey<EntryPointProperty> m_entry_point_property;
+    mutable std::vector<std::vector<c_point>> m_layer_start_points;
+    mutable std::mutex m_storage_mutex;
 };
 
 } // namespace
 
-void register_default_extrusion_tree_ordering_plugin(orchestrator_handle *orch)
+void register_default_extrusion_tree_ordering_plugin(orchestrator_handle *orchestrator)
 {
-    orchestrator_register_plugin(orch, DefaultExtrusionTreeOrdering::instance(orch).c_instance());
+    orchestrator_register_plugin(
+        orchestrator, DefaultExtrusionTreeOrdering::instance(orchestrator).c_instance());
 }
 
-}}} // namespace slic3r_api::Ordering::DefaultOrderingPlugin
+}}} // namespace slic3r_api::LayerExtrusionEdit::DefaultExtrusionTreeOrderingPlugin
