@@ -376,7 +376,11 @@ TEST_CASE("Transition scope provider exposes its pipeline contract",
     CHECK(plugin->get_exclusive_group() ==
           "layer_extrusion_edit.transition_scope");
     CHECK(plugin->get_dependencies().empty());
-    CHECK(plugin->get_used_config_keys().empty());
+    const std::vector<Plugin::UsedConfigKey> keys =
+        plugin->get_used_config_keys();
+    REQUIRE(keys.size() == 1);
+    CHECK(keys.front().key == "retract_layer_change");
+    CHECK(keys.front().type == RAW_CO_VECTOR_BOOL);
 }
 
 TEST_CASE("Contiguous ownership scopes have no artificial phases",

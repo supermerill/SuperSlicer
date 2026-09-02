@@ -9,6 +9,7 @@
 #include <cassert>
 #include <optional>
 #include <set>
+#include <stdexcept>
 #include <string>
 
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_extrusion_edit.h"
@@ -17,6 +18,9 @@
 #include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
 #include "libslic3r/Api/plugin/cpp/PrintingPlanViews.hpp"
+#include "libslic3r/Api/plugin/cpp/properties/ExtrusionProperties.hpp"
+#include "libslic3r/Plugins/LayerExtrusionEdit/ExtrusionScopeHelpers.hpp"
+#include "libslic3r/Plugins/PrintingPlan/PrintingExtrusionScopeProperty.h"
 
 /*
 Configured G-code script placement
@@ -34,6 +38,7 @@ namespace {
 const char *const k_no_dependencies[] = {nullptr};
 
 enum class ScopeEventPosition : uint8_t { Before, After };
+enum class TransitionScriptPosition : uint8_t { BeforeToolchange, BeforeUnretract };
 
 struct LayerContext
 {
@@ -75,6 +80,27 @@ void append_script_event(storage_handle *storage,
                          uint16_t processing_extruder_id = GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID);
 // Whitespace-only toolchange scripts have the same meaning as an empty legacy setting.
 bool has_visible_text(const std::string &text);
+// Search one tree for the first scope whose incoming boundary selects a tool.
+MutableExtrusionEntity first_toolchange_scope_in_entity(
+    MutableExtrusionEntity entity,
+    const PluginPropertyKey<PrintingExtrusionScopeProperty> &scope_key);
+// Return the first tool-change scope owned by one tool visit.
+MutableExtrusionEntity first_toolchange_scope(
+    const PrintingToolGroup &tool_group,
+    const PluginPropertyKey<PrintingExtrusionScopeProperty> &scope_key);
+// Find the first semantic tool-change command in one phase subtree.
+MutableExtrusionEntity find_toolchange(MutableExtrusionEntity entity);
+// Find the semantic Unretract event in one phase subtree.
+MutableExtrusionEntity find_unretract(MutableExtrusionEntity entity);
+// Insert a script around semantic transition events without changing scope phases.
+void append_transition_script(
+    MutableExtrusionEntity scope_root,
+    const PluginPropertyKey<PrintingExtrusionScopeProperty> &scope_key,
+    const std::string &script,
+    gcode_script_type script_type,
+    const Config &arguments,
+    TransitionScriptPosition position,
+    uint16_t processing_extruder_id);
 
 PlanSummary summarize_plan(const PrintingPlan &plan)
 {
@@ -171,6 +197,113 @@ bool has_visible_text(const std::string &text)
     return text.find_first_not_of(" \t\r\n") != std::string::npos;
 }
 
+MutableExtrusionEntity first_toolchange_scope_in_entity(
+    MutableExtrusionEntity entity,
+    const PluginPropertyKey<PrintingExtrusionScopeProperty> &scope_key)
+{
+    if (LayerExtrusionEdit::ExtrusionScope::is_scope(
+            entity.readonly(), scope_key)) {
+        const PrintingExtrusionScopeProperty *property = entity.get(scope_key);
+        if (property != nullptr && printing_extrusion_scope_has_flag(
+                *property, PRINTING_EXTRUSION_SCOPE_INCOMING_TOOLCHANGE))
+            return entity;
+        // Compact scopes never nest, so their large content subtree cannot
+        // contain another matching tool-change scope.
+        return MutableExtrusionEntity();
+    }
+    for (uint32_t child_idx = 0; child_idx < entity.child_count(); ++child_idx) {
+        MutableExtrusionEntity found = first_toolchange_scope_in_entity(
+            entity.child_mutable(child_idx), scope_key);
+        if (found.valid())
+            return found;
+    }
+    return MutableExtrusionEntity();
+}
+
+MutableExtrusionEntity first_toolchange_scope(
+    const PrintingToolGroup &tool_group,
+    const PluginPropertyKey<PrintingExtrusionScopeProperty> &scope_key)
+{
+    for (uint32_t extrusion_idx = 0;
+         extrusion_idx < tool_group.extrusion_count(); ++extrusion_idx) {
+        MutableExtrusionEntity found = first_toolchange_scope_in_entity(
+            tool_group.extrusion(extrusion_idx).mutable_root(), scope_key);
+        if (found.valid())
+            return found;
+    }
+    return MutableExtrusionEntity();
+}
+
+MutableExtrusionEntity find_toolchange(MutableExtrusionEntity entity)
+{
+    const EPropertySpecialCommand *command = entity.get(
+        EPropertySpecialCommand::key);
+    if (command != nullptr &&
+        command->code == C_EXTRUSION_SPECIAL_COMMAND_TOOLCHANGE)
+        return entity;
+    for (uint32_t child_idx = 0; child_idx < entity.child_count(); ++child_idx) {
+        MutableExtrusionEntity found = find_toolchange(
+            entity.child_mutable(child_idx));
+        if (found.valid())
+            return found;
+    }
+    return MutableExtrusionEntity();
+}
+
+MutableExtrusionEntity find_unretract(MutableExtrusionEntity entity)
+{
+    const EPropertyAttributes *attributes = entity.get(EPropertyAttributes::key);
+    if (attributes != nullptr &&
+        RAW_EXTRUSION_ROLE_IS_UNRETRACT(attributes->extrusion_role()))
+        return entity;
+    for (uint32_t child_idx = 0; child_idx < entity.child_count(); ++child_idx) {
+        MutableExtrusionEntity found = find_unretract(
+            entity.child_mutable(child_idx));
+        if (found.valid())
+            return found;
+    }
+    return MutableExtrusionEntity();
+}
+
+void append_transition_script(
+    MutableExtrusionEntity scope_root,
+    const PluginPropertyKey<PrintingExtrusionScopeProperty> &scope_key,
+    const std::string &script,
+    const gcode_script_type script_type,
+    const Config &arguments,
+    const TransitionScriptPosition position,
+    const uint16_t processing_extruder_id)
+{
+    if (script.empty())
+        return;
+    const LayerExtrusionEdit::ExtrusionScope::OrderedExtrusionScope scope(
+        scope_root, scope_key);
+    MutableExtrusionEntity toolchange = find_toolchange(scope.before());
+    if (!toolchange.valid())
+        throw std::runtime_error(
+            "A configured transition script has no semantic tool change.");
+
+    MutableExtrusionEntity anchor = toolchange;
+    OrderedLeafPosition insertion = OrderedLeafPosition::Before;
+    if (position == TransitionScriptPosition::BeforeUnretract) {
+        MutableExtrusionEntity unretract = find_unretract(scope.before());
+        if (unretract.valid()) {
+            anchor = unretract;
+        } else {
+            // A zero or disabled retraction still needs start-filament after
+            // the actual tool selection, even though no Unretract exists.
+            insertion = OrderedLeafPosition::After;
+        }
+    }
+
+    MutableExtrusionEntity event = anchor.emplace_ordered_leaf(
+        insertion, ExistingPropertyPlacement::MoveWithExistingContent);
+    if (!event.valid())
+        throw std::runtime_error(
+            "Unable to insert a script into an ordered tool change.");
+    event.script_gcode(script, script_type, arguments, processing_extruder_id);
+}
+
 class SettingsGCodeScripts final : public PluginBase
 {
 public:
@@ -179,7 +312,10 @@ public:
         return plugin;
     }
 
-    explicit SettingsGCodeScripts(orchestrator_handle *orchestrator) : PluginBase(orchestrator) {}
+    explicit SettingsGCodeScripts(orchestrator_handle *orchestrator) :
+        PluginBase(orchestrator),
+        m_scope_property(printing_extrusion_scope_property_key(orchestrator))
+    {}
 
 private:
     const char *id_impl() const noexcept override { return "gcode.settings_scripts"; }
@@ -327,19 +463,45 @@ private:
                             GCODE_SCRIPT_TYPE_END_FILAMENT_GCODE, end_filament_arguments,
                             ScopeEventPosition::After, uint16_t(current_tool));
                     }
-                    if (current_tool >= 0 && configured_extruders > 1 && has_visible_text(toolchange))
-                        append_script_event(run_context->plugin_storage, tool_events, toolchange,
-                                            GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE, tool_arguments,
-                                            ScopeEventPosition::Before, target_tool);
+                    const MutableExtrusionEntity transition_scope = current_tool >= 0 ?
+                        first_toolchange_scope(tool_group, m_scope_property) :
+                        MutableExtrusionEntity();
+                    if (current_tool >= 0 && configured_extruders > 1 &&
+                        has_visible_text(toolchange)) {
+                        if (transition_scope.valid())
+                            append_transition_script(
+                                transition_scope, m_scope_property, toolchange,
+                                GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE, tool_arguments,
+                                TransitionScriptPosition::BeforeToolchange,
+                                target_tool);
+                        else
+                            append_script_event(
+                                run_context->plugin_storage, tool_events,
+                                toolchange, GCODE_SCRIPT_TYPE_TOOLCHANGE_GCODE,
+                                tool_arguments, ScopeEventPosition::Before,
+                                target_tool);
+                    }
 
                     StoredConfig start_filament_arguments = copy_arguments(
                         run_context->plugin_storage, tool_arguments);
                     set_int_argument(start_filament_arguments, "filament_extruder_id", int32_t(target_tool));
-                    append_script_event(
-                        run_context->plugin_storage, tool_events,
-                        config.vector_string_or_default("start_filament_gcode", target_tool, std::string()),
-                        GCODE_SCRIPT_TYPE_START_FILAMENT_GCODE, start_filament_arguments,
-                        ScopeEventPosition::Before, target_tool);
+                    const std::string start_filament =
+                        config.vector_string_or_default(
+                            "start_filament_gcode", target_tool, std::string());
+                    if (transition_scope.valid())
+                        append_transition_script(
+                            transition_scope, m_scope_property, start_filament,
+                            GCODE_SCRIPT_TYPE_START_FILAMENT_GCODE,
+                            start_filament_arguments,
+                            TransitionScriptPosition::BeforeUnretract,
+                            target_tool);
+                    else
+                        append_script_event(
+                            run_context->plugin_storage, tool_events,
+                            start_filament,
+                            GCODE_SCRIPT_TYPE_START_FILAMENT_GCODE,
+                            start_filament_arguments,
+                            ScopeEventPosition::Before, target_tool);
                     current_tool = target_tool;
                     previous_tool_events = tool_events;
                 }
@@ -382,6 +544,8 @@ private:
                             ScopeEventPosition::After,
                             summary.last_extruder.value_or(GCODE_SCRIPT_PROCESSING_EXTRUDER_INVALID));
     }
+
+    PluginPropertyKey<PrintingExtrusionScopeProperty> m_scope_property;
 };
 
 } // namespace

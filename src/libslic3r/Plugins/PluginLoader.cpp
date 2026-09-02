@@ -54,6 +54,7 @@
 #include "libslic3r/Plugins/Infill/LegacyInfillPatterns.hpp"
 #include "libslic3r/Plugins/Infill/PostInfillGapFill.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/AvoidCrossingPerimetersTravel.hpp"
+#include "libslic3r/Plugins/LayerExtrusionEdit/CreateRetraction.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/CreateTransitionScope.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultFan.hpp"
@@ -522,6 +523,8 @@ void register_builtin_plugins(orchestrator_handle *orchestrator)
         slic3r_api::Ordering::DefaultOrderingPlugin::register_default_ordering_plugins);
     register_builtin_plugin(orchestrator, "layer_extrusion_edit.transition_scope.default",
         slic3r_api::LayerExtrusionEdit::CreateTransitionScopePlugin::register_create_transition_scope_plugin);
+    register_builtin_plugin(orchestrator, "layer_extrusion_edit.retraction.default",
+        slic3r_api::LayerExtrusionEdit::CreateRetractionPlugin::register_create_retraction_plugins);
     register_builtin_plugin(orchestrator, "layer_extrusion_edit.entry_state.default",
         slic3r_api::LayerExtrusionEdit::DefaultLayerEntryStatePlugin::register_default_layer_entry_state_plugin);
     register_builtin_plugin(orchestrator, "layer_extrusion_edit.travel.default",

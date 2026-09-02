@@ -232,6 +232,8 @@ set(SLIC3R_SOURCES
 	Plugins/Infill/PostInfillGapFill.hpp
 	Plugins/LayerExtrusionEdit/AvoidCrossingPerimetersTravel.cpp
 	Plugins/LayerExtrusionEdit/AvoidCrossingPerimetersTravel.hpp
+	Plugins/LayerExtrusionEdit/CreateRetraction.cpp
+	Plugins/LayerExtrusionEdit/CreateRetraction.hpp
 	Plugins/LayerExtrusionEdit/CreateTransitionScope.cpp
 	Plugins/LayerExtrusionEdit/CreateTransitionScope.hpp
 	Plugins/LayerExtrusionEdit/DefaultAcceleration.cpp

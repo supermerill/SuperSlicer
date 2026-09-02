@@ -15,6 +15,7 @@
 
 #include "ExtrusionScopeHelpers.hpp"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_layer_extrusion_edit.h"
+#include "libslic3r/Api/plugin/cpp/ConfigViews.hpp"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
 #include "libslic3r/Api/plugin/cpp/PrintingPlanViews.hpp"
 #include "libslic3r/Api/plugin/cpp/properties/ExtrusionProperties.hpp"
@@ -168,6 +169,7 @@ struct TransitionFacts
 {
     bool boundary = false;
     bool materialized_travel = false;
+    bool toolchange = false;
 };
 
 /* Empty null-terminated dependency list required by PluginBase. */
@@ -236,7 +238,8 @@ boundary even when source and target use the same extruder.
 */
 TransitionFacts transition_between(const std::vector<LayerScan> &layers,
                                    ScopeLocation source,
-                                   ScopeLocation target);
+                                   ScopeLocation target,
+                                   const Config &print_config);
 
 /*
 Built-in producer of compact transition scopes.
@@ -265,6 +268,7 @@ private:
     slicing_step_t step_impl() const noexcept override;
     const char *const *dependencies_impl() const noexcept override;
     int32_t priority_impl() const noexcept override;
+    int32_t used_config_keys(raw_used_config_key *keys) const noexcept override;
     const char *progress_message_format_impl() const noexcept override;
 
     /* Allocate the flat cache without traversing extrusion geometry. */
@@ -290,6 +294,9 @@ private:
 
     /* One independently written scan slot per final PrintingLayerGroup. */
     mutable std::vector<LayerScan> m_layers;
+
+    /* Borrowed print configuration used only after setup publishes it. */
+    mutable std::optional<Config> m_print_config;
 };
 
 /* Add scaled coordinates without permitting signed overflow. */
@@ -629,7 +636,8 @@ parallel after setup_run's barrier.
 */
 TransitionFacts transition_between(const std::vector<LayerScan> &layers,
                                    const ScopeLocation source,
-                                   const ScopeLocation target)
+                                   const ScopeLocation target,
+                                   const Config &print_config)
 {
     const ScopeDescriptor &source_scope = scope_at(layers, source);
     const ScopeDescriptor &target_scope = scope_at(layers, target);
@@ -646,8 +654,10 @@ TransitionFacts transition_between(const std::vector<LayerScan> &layers,
         for (size_t entry_idx = begin; entry_idx < end; ++entry_idx) {
             const StreamEntry &entry = entries[entry_idx];
             if (entry.kind == StreamEntryKind::ToolSelection) {
-                if (entry.selected_extruder != selected_extruder)
+                if (entry.selected_extruder != selected_extruder) {
                     facts.boundary = true;
+                    facts.toolchange = true;
+                }
                 selected_extruder = entry.selected_extruder;
             } else if (entry.kind == StreamEntryKind::Process) {
                 facts.boundary = true;
@@ -660,10 +670,20 @@ TransitionFacts transition_between(const std::vector<LayerScan> &layers,
 
     // The target owner and endpoint facts complete the transition decision.
     // This also catches a direct tool change with no intervening selection token.
-    if (selected_extruder != target_scope.extruder_id)
+    if (selected_extruder != target_scope.extruder_id) {
         facts.boundary = true;
+        facts.toolchange = true;
+    }
     if (needs_geometric_or_semantic_boundary(
             source_scope.last, target_scope.first))
+        facts.boundary = true;
+
+    // A layer-change retraction is a semantic boundary even when adjacent
+    // endpoints happen to be exactly contiguous. Reserving its phases here
+    // keeps the later retraction provider purely additive.
+    if (source.layer_idx != target.layer_idx &&
+        print_config.vector_bool_or_default(
+            "retract_layer_change", source_scope.extruder_id, false))
         facts.boundary = true;
     return facts;
 }
@@ -739,6 +759,17 @@ int32_t CreateTransitionScope::priority_impl() const noexcept
     return -100;
 }
 
+/* Declare the setting which can create a contiguous semantic boundary. */
+int32_t CreateTransitionScope::used_config_keys(
+    raw_used_config_key *keys) const noexcept
+{
+    if (keys != nullptr)
+        keys[0] = raw_used_config_key{
+            "retract_layer_change", RAW_CO_VECTOR_BOOL,
+            RAW_CONTAINER_TYPE_NONE, RAW_PRESET_TYPE_NONE};
+    return 1;
+}
+
 /* Return the progress text used while layer workers publish their scans. */
 const char *CreateTransitionScope::progress_message_format_impl() const noexcept
 {
@@ -769,10 +800,13 @@ void CreateTransitionScope::setup_impl(const plugin_run_context *run_ctx,
     m_setup_valid = false;
     m_flat_indices.clear();
     m_layers.clear();
+    m_print_config.reset();
     const run_ctx_layer_extrusion_edition *ctx =
         plugin_ctx_as_layer_extrusion_edition(run_ctx);
-    if (ctx == nullptr || ctx->plan == nullptr)
+    if (ctx == nullptr || ctx->plan == nullptr || ctx->print == nullptr)
         return;
+
+    m_print_config = Print(ctx->print).config();
 
     // Build a deterministic flat order matching PrintingPlan group/layer order.
     // This order is later used to find neighbours across layer and group edges.
@@ -840,6 +874,9 @@ void CreateTransitionScope::run_impl(const plugin_run_context *run_ctx) const
             "A transition-scope run references an unknown layer.");
 
     const std::vector<StreamEntry> &entries = m_layers[flat_idx].entries;
+    if (!m_print_config)
+        throw std::runtime_error(
+            "Transition-scope configuration was not prepared by setup.");
 
     // Process only Scope tokens. Tool selections and process operations exist
     // solely to explain the boundaries between successive Scope tokens.
@@ -858,13 +895,16 @@ void CreateTransitionScope::run_impl(const plugin_run_context *run_ctx) const
             flags = uint8_t(flags | PRINTING_EXTRUSION_SCOPE_START);
         } else {
             const TransitionFacts incoming = transition_between(
-                m_layers, previous, current);
+                m_layers, previous, current, *m_print_config);
             if (incoming.boundary)
                 flags = uint8_t(flags |
                     PRINTING_EXTRUSION_SCOPE_INCOMING_TRANSITION);
             if (incoming.boundary && incoming.materialized_travel)
                 flags = uint8_t(flags |
                     PRINTING_EXTRUSION_SCOPE_INCOMING_TRAVEL_MATERIALIZED);
+            if (incoming.toolchange)
+                flags = uint8_t(flags |
+                    PRINTING_EXTRUSION_SCOPE_INCOMING_TOOLCHANGE);
         }
 
         // A terminal scope receives no artificial outgoing transition. A real
@@ -873,13 +913,16 @@ void CreateTransitionScope::run_impl(const plugin_run_context *run_ctx) const
             flags = uint8_t(flags | PRINTING_EXTRUSION_SCOPE_TERMINAL);
         } else {
             const TransitionFacts outgoing = transition_between(
-                m_layers, current, next);
+                m_layers, current, next, *m_print_config);
             if (outgoing.boundary)
                 flags = uint8_t(flags |
                     PRINTING_EXTRUSION_SCOPE_OUTGOING_TRANSITION);
             if (outgoing.boundary && outgoing.materialized_travel)
                 flags = uint8_t(flags |
                     PRINTING_EXTRUSION_SCOPE_OUTGOING_TRAVEL_MATERIALIZED);
+            if (outgoing.toolchange)
+                flags = uint8_t(flags |
+                    PRINTING_EXTRUSION_SCOPE_OUTGOING_TOOLCHANGE);
         }
 
         // Only the current layer owns this descriptor's root. Construction is

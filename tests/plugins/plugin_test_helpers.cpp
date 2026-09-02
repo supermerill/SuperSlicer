@@ -35,6 +35,7 @@
 #include "libslic3r/Plugins/GCode/PrintingPlanFileWriter.hpp"
 #include "libslic3r/Plugins/GCode/SettingsGCodeScripts.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/AvoidCrossingPerimetersTravel.hpp"
+#include "libslic3r/Plugins/LayerExtrusionEdit/CreateRetraction.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/CreateTransitionScope.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultAcceleration.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/DefaultFan.hpp"
@@ -211,6 +212,8 @@ void ensure_plugin_test_runtime_initialized()
         slic3r_api::DenseInfillPlugin::register_dense_infill_plugins(orchestrator_handle_value);
         slic3r_api::Ordering::DefaultOrderingPlugin::register_default_ordering_plugins(orchestrator_handle_value);
         slic3r_api::LayerExtrusionEdit::CreateTransitionScopePlugin::register_create_transition_scope_plugin(
+            orchestrator_handle_value);
+        slic3r_api::LayerExtrusionEdit::CreateRetractionPlugin::register_create_retraction_plugins(
             orchestrator_handle_value);
         slic3r_api::LayerExtrusionEdit::DefaultLayerEntryStatePlugin::register_default_layer_entry_state_plugin(
             orchestrator_handle_value);

@@ -60,7 +60,9 @@ void validate_flags(const uint8_t flags)
         PRINTING_EXTRUSION_SCOPE_INCOMING_TRAVEL_MATERIALIZED |
         PRINTING_EXTRUSION_SCOPE_OUTGOING_TRAVEL_MATERIALIZED |
         PRINTING_EXTRUSION_SCOPE_START |
-        PRINTING_EXTRUSION_SCOPE_TERMINAL;
+        PRINTING_EXTRUSION_SCOPE_TERMINAL |
+        PRINTING_EXTRUSION_SCOPE_INCOMING_TOOLCHANGE |
+        PRINTING_EXTRUSION_SCOPE_OUTGOING_TOOLCHANGE;
     if ((flags & ~known_flags) != 0)
         throw std::invalid_argument("An extrusion scope contains unknown flags.");
 
@@ -74,6 +76,17 @@ void validate_flags(const uint8_t flags)
         (flags & PRINTING_EXTRUSION_SCOPE_OUTGOING_TRANSITION) == 0)
         throw std::invalid_argument(
             "An outgoing materialized travel needs an outgoing transition.");
+
+    // Tool selection facts describe a semantic transition. Keeping this
+    // relation explicit lets retraction consumers trust the matching phase.
+    if ((flags & PRINTING_EXTRUSION_SCOPE_INCOMING_TOOLCHANGE) != 0 &&
+        (flags & PRINTING_EXTRUSION_SCOPE_INCOMING_TRANSITION) == 0)
+        throw std::invalid_argument(
+            "An incoming tool change needs an incoming transition.");
+    if ((flags & PRINTING_EXTRUSION_SCOPE_OUTGOING_TOOLCHANGE) != 0 &&
+        (flags & PRINTING_EXTRUSION_SCOPE_OUTGOING_TRANSITION) == 0)
+        throw std::invalid_argument(
+            "An outgoing tool change needs an outgoing transition.");
 }
 
 /* Verify that one marked root physically matches the phases in its marker. */
@@ -134,6 +147,20 @@ bool OrderedExtrusionScope::has_outgoing_transition() const
 {
     return printing_extrusion_scope_has_flag(
         property(), PRINTING_EXTRUSION_SCOPE_OUTGOING_TRANSITION);
+}
+
+/* Report whether reaching this scope requires selecting an extruder. */
+bool OrderedExtrusionScope::has_incoming_toolchange() const
+{
+    return printing_extrusion_scope_has_flag(
+        property(), PRINTING_EXTRUSION_SCOPE_INCOMING_TOOLCHANGE);
+}
+
+/* Report whether leaving this scope requires selecting an extruder. */
+bool OrderedExtrusionScope::has_outgoing_toolchange() const
+{
+    return printing_extrusion_scope_has_flag(
+        property(), PRINTING_EXTRUSION_SCOPE_OUTGOING_TOOLCHANGE);
 }
 
 /* Resolve the first child of an incoming-transition layout. */

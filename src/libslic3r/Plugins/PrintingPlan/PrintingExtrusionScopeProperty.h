@@ -46,10 +46,12 @@ namespace slic3r_api {
 /*
 Positive facts describing one compact ordered scope.
 
-Transition flags describe which phase children physically exist. Materialized
-flags describe an already present process movement between two scopes; they do
-not create additional children. START and TERMINAL identify the global ends of
-the ordered plan independently from transition phases.
+Transition flags describe which phase children physically exist. Tool-change
+flags record a real tool selection inside that transition, including selections
+made by empty tool groups. Materialized flags describe an already present
+process movement between two scopes; they do not create additional children.
+START and TERMINAL identify the global ends of the ordered plan independently
+from transition phases.
 */
 enum PrintingExtrusionScopeFlag : uint8_t
 {
@@ -69,7 +71,13 @@ enum PrintingExtrusionScopeFlag : uint8_t
     PRINTING_EXTRUSION_SCOPE_START = uint8_t(1u << 4),
 
     /* This is the last printable scope in the complete PrintingPlan. */
-    PRINTING_EXTRUSION_SCOPE_TERMINAL = uint8_t(1u << 5)
+    PRINTING_EXTRUSION_SCOPE_TERMINAL = uint8_t(1u << 5),
+
+    /* At least one real tool selection occurs in the incoming transition. */
+    PRINTING_EXTRUSION_SCOPE_INCOMING_TOOLCHANGE = uint8_t(1u << 6),
+
+    /* At least one real tool selection occurs in the outgoing transition. */
+    PRINTING_EXTRUSION_SCOPE_OUTGOING_TOOLCHANGE = uint8_t(1u << 7)
 };
 
 /*

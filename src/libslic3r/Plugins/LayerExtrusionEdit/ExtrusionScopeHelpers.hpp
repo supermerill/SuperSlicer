@@ -71,6 +71,12 @@ public:
     /* Return whether after() physically exists. */
     bool has_outgoing_transition() const;
 
+    /* Return whether the incoming boundary includes a tool selection. */
+    bool has_incoming_toolchange() const;
+
+    /* Return whether the outgoing boundary includes a tool selection. */
+    bool has_outgoing_toolchange() const;
+
     /* Return the incoming travel slot, or an invalid view when absent. */
     MutableExtrusionEntity travel() const;
 
