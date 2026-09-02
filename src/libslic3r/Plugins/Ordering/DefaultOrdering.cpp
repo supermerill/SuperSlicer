@@ -4,18 +4,21 @@
 ///|/
 
 #include "DefaultOrdering.hpp"
+#include "PrintingExtrusionPreSort.hpp"
 
 namespace slic3r_api { namespace Ordering { namespace DefaultOrderingPlugin {
 
 /*
-Default ordering is a chain of two independent plugins.
+Default ordering is a chain of three independent plugins.
 
 This file intentionally contains only the aggregate registration entry point
 used by the built-in plugin loader. Each phase lives in its own source file so
 an external developer can read or replace one phase without wading through the
 others:
   - DefaultPlanBuilder.cpp creates the PrintingPlan;
-  - DefaultToolGroupOrdering.cpp orders extruder/tool visits.
+  - DefaultToolGroupOrdering.cpp orders extruder/tool visits;
+  - PrintingExtrusionPreSort.cpp coarsely orders each visit's extrusions and
+    publishes their estimated entry and exit points.
 
 Sortable content inside each PrintingExtrusion is fixed at the beginning of
 STEP_LAYER_EXTRUSION_EDIT. Keeping that operation out of this aggregate leaves
@@ -26,6 +29,7 @@ void register_default_ordering_plugins(orchestrator_handle *orch)
 {
     register_default_plan_builder_plugin(orch);
     register_default_tool_group_ordering_plugin(orch);
+    register_printing_extrusion_pre_sort_plugin(orch);
 }
 
 }}} // namespace slic3r_api::Ordering::DefaultOrderingPlugin

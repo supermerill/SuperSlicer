@@ -275,6 +275,8 @@ set(SLIC3R_SOURCES
 	Plugins/Ordering/NearestNeighborOrderingEngine.hpp
 	Plugins/Ordering/DefaultPlanBuilder.cpp
 	Plugins/Ordering/DefaultToolGroupOrdering.cpp
+	Plugins/Ordering/PrintingExtrusionPreSort.cpp
+	Plugins/Ordering/PrintingExtrusionPreSort.hpp
 	Plugins/PrintingPlan/EntryPointProperty.h
 	Plugins/PrintingPlan/PrintingLayerEntryStateProperties.h
 	Plugins/PrintingPlan/PrintingExtrusionScopeProperty.h

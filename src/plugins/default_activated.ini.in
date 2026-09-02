@@ -54,6 +54,7 @@ ordering.plan_builder.default = 1
 ordering.custom_gcode_tool_overrides = 1
 ordering.tool_groups.default = 1
 ordering.custom_gcode_event_tools = 1
+ordering.printing_extrusion.presort.default = 1
 layer_extrusion_edit.extrusion_tree_ordering.default = 1
 layer_extrusion_edit.toolchange.default = 1
 layer_extrusion_edit.transition_scope.default = 1

@@ -325,6 +325,7 @@ void ensure_plugin_test_runtime_initialized()
         activate_plugin_or_fail(orchestrator, "ordering.custom_gcode_tool_overrides");
         activate_plugin_or_fail(orchestrator, "ordering.tool_groups.default");
         activate_plugin_or_fail(orchestrator, "ordering.custom_gcode_event_tools");
+        activate_plugin_or_fail(orchestrator, "ordering.printing_extrusion.presort.default");
         activate_plugin_or_fail(orchestrator, "layer_extrusion_edit.extrusion_tree_ordering.default");
         activate_plugin_or_fail(orchestrator, "layer_extrusion_edit.transition_scope.default");
         activate_plugin_or_fail(orchestrator, "layer_extrusion_edit.entry_state.default");
