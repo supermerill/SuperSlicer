@@ -63,6 +63,7 @@ layer_extrusion_edit.wipe.default = 1
 layer_extrusion_edit.entry_state.default = 1
 layer_extrusion_edit.travel.default = 1
 layer_extrusion_edit.travel.avoid_crossing_perimeters = 1
+layer_extrusion_edit.lift.default = 1
 layer_extrusion_edit.speed.default = 1
 layer_extrusion_edit.acceleration.default = 1
 layer_extrusion_edit.travel_deceleration.default = 1

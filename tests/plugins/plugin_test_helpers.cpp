@@ -36,6 +36,7 @@
 #include "libslic3r/Plugins/GCode/SettingsGCodeScripts.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/AvoidCrossingPerimetersTravel.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/CreateRetraction.hpp"
+#include "libslic3r/Plugins/LayerExtrusionEdit/CreateRetractionLift.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/CreateRetractionWipe.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/CreateToolChange.hpp"
 #include "libslic3r/Plugins/LayerExtrusionEdit/CreateTransitionScope.hpp"
@@ -219,6 +220,8 @@ void ensure_plugin_test_runtime_initialized()
             orchestrator_handle_value);
         slic3r_api::LayerExtrusionEdit::CreateRetractionPlugin::register_create_retraction_plugins(
             orchestrator_handle_value);
+        slic3r_api::LayerExtrusionEdit::CreateRetractionLiftPlugin::
+            register_create_retraction_lift_plugin(orchestrator_handle_value);
         slic3r_api::LayerExtrusionEdit::CreateRetractionWipePlugin::
             register_create_retraction_wipe_plugin(orchestrator_handle_value);
         slic3r_api::LayerExtrusionEdit::DefaultLayerEntryStatePlugin::register_default_layer_entry_state_plugin(

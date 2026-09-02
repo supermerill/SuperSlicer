@@ -138,12 +138,15 @@ static bool set_polyline_from_segments(ExtrusionEntity &entity,
     }
 
     ArcPolyline polyline(path);
-    ApiInternal::ArcPolylineAccess::refresh_after_bulk_replace(polyline);
+    // Publish Z before validating the complete path. Consecutive points may
+    // legitimately share XY when their offsets describe a vertical move;
+    // set_z_offset() marks the ArcPolyline as 3D for that validation.
     if (has_z_offsets) {
         polyline.set_z_offset(0, segments[0].z_offset_a);
         for (uint32_t idx = 0; idx < count; ++idx)
             polyline.set_z_offset(size_t(idx) + 1, segments[idx].z_offset_b);
     }
+    ApiInternal::ArcPolylineAccess::refresh_after_bulk_replace(polyline);
     entity.set_polyline(std::move(polyline));
     return true;
 }
