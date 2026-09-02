@@ -13,7 +13,9 @@
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/c/slic3r_extrusion_property.h"
 #include "libslic3r/Api/plugin/c/slic3r_data_tree.h"
+#include "libslic3r/Api/host/ApiHostUtils.hpp"
 #include "libslic3r/Print.hpp"
+#include "libslic3r/Steps/StepPipeline.hpp"
 
 #include "Orchestrator.hpp"
 #include "Plugin.hpp"
@@ -174,6 +176,93 @@ void orchestrator_register_plugin_from_package(orchestrator_handle *orch,
     Slic3r::Orchestrator::PluginRegistrationScope registration_scope(
         orchestrator->plugin_registration_scope(package_root, true));
     orchestrator->register_plugin(plugin);
+}
+
+slicing_step_t orchestrator_register_step(orchestrator_handle *orch,
+                                          const char *namespaced_name,
+                                          slicing_step_t invalidates_step)
+{
+    try {
+        return to_orchestrator(orch)->register_step(namespaced_name, invalidates_step);
+    } catch (...) {
+        return STEP_NONE;
+    }
+}
+
+const char *orchestrator_step_name(const orchestrator_handle *orch, slicing_step_t step)
+{
+    try {
+        const Slic3r::Orchestrator::DynamicStepInfo *info = to_orchestrator(orch)->step_info(step);
+        return info == nullptr ? nullptr : info->name.c_str();
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+const orchestrator_plugin_handle *orchestrator_find_plugin(orchestrator_handle *orch,
+                                                           const char *plugin_id)
+{
+    if (plugin_id == nullptr || plugin_id[0] == '\0')
+        return nullptr;
+    try {
+        const Slic3r::Plugin *plugin = to_orchestrator(orch)->get_plugin(plugin_id);
+        return reinterpret_cast<const orchestrator_plugin_handle *>(plugin);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+const orchestrator_plugin_handle *orchestrator_select_plugin(orchestrator_handle *orch,
+                                                             const config_handle *config,
+                                                             slicing_step_t step,
+                                                             const char *exclusive_group)
+{
+    if (exclusive_group == nullptr || exclusive_group[0] == '\0')
+        return nullptr;
+    try {
+        Slic3r::Plugin *plugin = Slic3r::Steps::selected_active_plugin_from_group(
+            *to_orchestrator(orch),
+            step,
+            exclusive_group,
+            Slic3r::ApiHost::to_config(config));
+        return reinterpret_cast<const orchestrator_plugin_handle *>(plugin);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+const char *orchestrator_plugin_id(const orchestrator_plugin_handle *plugin)
+{
+    const Slic3r::Plugin *host_plugin = reinterpret_cast<const Slic3r::Plugin *>(plugin);
+    return host_plugin == nullptr ? nullptr : host_plugin->get_id().c_str();
+}
+
+slicing_step_t orchestrator_plugin_step(const orchestrator_plugin_handle *plugin)
+{
+    const Slic3r::Plugin *host_plugin = reinterpret_cast<const Slic3r::Plugin *>(plugin);
+    return host_plugin == nullptr ? STEP_NONE : host_plugin->get_step();
+}
+
+raw_plugin_execution_status orchestrator_execute_plugin(
+    orchestrator_handle *orch,
+    const orchestrator_plugin_handle *plugin,
+    const print_handle *print,
+    const raw_plugin_run_payload *payloads,
+    uint32_t run_count)
+{
+    try {
+        Slic3r::Orchestrator *host_orchestrator = to_orchestrator(orch);
+        Slic3r::Plugin *host_plugin = reinterpret_cast<Slic3r::Plugin *>(
+            const_cast<orchestrator_plugin_handle *>(plugin));
+        if (host_orchestrator == nullptr || !host_orchestrator->owns_plugin(host_plugin))
+            return RAW_PLUGIN_EXECUTION_INVALID_ARGUMENT;
+
+        Slic3r::Print *host_print = reinterpret_cast<Slic3r::Print *>(
+            const_cast<print_handle *>(print));
+        return host_orchestrator->execute_plugin(*host_plugin, host_print, payloads, run_count);
+    } catch (...) {
+        return RAW_PLUGIN_EXECUTION_PLUGIN_ERROR;
+    }
 }
 
 void orchestrator_begin_plugin_package_load(orchestrator_handle *orch, const char *package_root)
@@ -409,6 +498,9 @@ void orchestrator_plugin_report_error(plugin_host_context *host_context, const c
                                 host_context->plugin->get_id().c_str() :
                                 "<unknown>";
     BOOST_LOG_TRIVIAL(error) << "Plugin error from " << plugin_id << ": " << (message != nullptr ? message : "");
+
+    if (host_context != nullptr && host_context->execution_error != nullptr)
+        host_context->execution_error->store(true, std::memory_order_relaxed);
 
     if (host_context != nullptr && host_context->orchestrator != nullptr) {
         host_context->orchestrator->add_plugin_message(Slic3r::Orchestrator::PluginMessageLevel::Error,

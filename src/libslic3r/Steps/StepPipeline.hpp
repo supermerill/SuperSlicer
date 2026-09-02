@@ -61,6 +61,14 @@ Plugin *selected_or_active_plugin_for_step(Orchestrator &orchestrator,
                                            slicing_step_t step,
                                            const ConfigBase *config);
 
+// Select one active provider from a specific plugin-defined exclusive group.
+// This is the service-plugin counterpart of selecting a complete built-in
+// step: unrelated groups registered on the same numeric step are ignored.
+Plugin *selected_active_plugin_from_group(Orchestrator &orchestrator,
+                                          slicing_step_t step,
+                                          const std::string &exclusive_group,
+                                          const ConfigBase *config);
+
 // Written execution order for the migrated pipeline. The order is intentionally
 // not inferred from the dependency graph: a missing step in this list is a
 // pipeline definition error, not something the graph should silently repair.

@@ -95,4 +95,15 @@ typedef enum slicing_step_t : uint16_t
 
 } slicing_step_t;
 
+/*
+Runtime service steps use the upper half of the 16-bit step namespace.
+
+Plugins should not choose a number from this range directly. Call
+orchestrator_register_step() with a stable namespaced name and keep the
+returned value for the lifetime of that orchestrator. The numeric value is a
+process-local lookup key and must not be serialized.
+*/
+#define SLICING_STEP_CUSTOM_BEGIN ((slicing_step_t)0x8000u)
+#define SLICING_STEP_CUSTOM_END   ((slicing_step_t)0xfffeu)
+
 #endif // slic3r_slicing_step_h_

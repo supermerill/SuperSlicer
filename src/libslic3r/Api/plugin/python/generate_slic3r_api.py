@@ -92,6 +92,7 @@ TYPE_ALIASES = {
     "raw_option_preset_type": "uint32_t",
     "raw_printer_technology": "int",
     "raw_plugin_package_load_error_code": "int",
+    "raw_plugin_execution_status": "int",
     "raw_volume_type": "int",
     "slicing_step_t": "uint16_t",
 }
@@ -99,6 +100,7 @@ TYPE_ALIASES = {
 OPAQUE_TYPES = {
     "storage_handle",
     "orchestrator_handle",
+    "orchestrator_plugin_handle",
     "print_config_def_handler",
     "plugin_host_context",
     "graph_data_handle",

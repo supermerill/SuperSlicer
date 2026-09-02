@@ -55,6 +55,9 @@ struct plugin_host_context
     slicing_step_t step = STEP_LAYER_HEIGHT;
     size_t object_idx = 0;
     size_t object_count = 0;
+    // Generic executions point this at invocation-local state so a reported
+    // plugin error can be distinguished from an unrelated cancellation.
+    std::atomic_bool *execution_error = nullptr;
 };
 
 namespace Slic3r {
@@ -191,6 +194,16 @@ public:
         std::string name;
     };
 
+    struct DynamicStepInfo
+    {
+        // name is the stable cross-plugin identity. id is only a compact key
+        // inside this orchestrator, while invalidates_step tells generated
+        // provider selectors which ordinary pipeline result becomes stale.
+        slicing_step_t id = STEP_NONE;
+        std::string name;
+        slicing_step_t invalidates_step = STEP_ANY;
+    };
+
     struct PluginUiFragment
     {
         // One plugin contribution to a .ui file.
@@ -251,6 +264,10 @@ public:
     std::vector<Plugin *> get_current_plugins_for_step(slicing_step_t step) const;
     const Plugin *get_plugin(const std::string &plugin_id) const;
     Plugin *get_plugin(const std::string &plugin_id);
+    // Return true only when plugin is one of this orchestrator's owned,
+    // registered instances. Public borrowed handles are validated with this
+    // check before they are dereferenced or executed.
+    bool owns_plugin(const Plugin *plugin) const;
     void add_plugin_to_step(Plugin *plugin, slicing_step_t step);
     bool is_plugin_active(const Plugin *plugin) const;
     bool is_plugin_active(const std::string &plugin_id) const;
@@ -278,6 +295,20 @@ public:
     option_def_error_code create_new_print_config(const raw_config_option_def *def);
 
     bool register_plugin(plugin_instance plugin);
+
+    // Register and query plugin-defined service steps. Runtime ids are scoped
+    // to this orchestrator; callers exchange the stable name, not the number.
+    slicing_step_t register_step(const char *namespaced_name,
+                                 slicing_step_t invalidates_step);
+    const DynamicStepInfo *step_info(slicing_step_t step) const;
+    const DynamicStepInfo *step_info(const char *namespaced_name) const;
+
+    // Execute the normal setup/setup_run/run lifecycle for one plugin. The
+    // payload array remains owned by the caller for the duration of this call.
+    raw_plugin_execution_status execute_plugin(Plugin &plugin,
+                                               Print *print,
+                                               const raw_plugin_run_payload *payloads,
+                                               uint32_t run_count);
 
     // Start and complete one installed package load. Loaders add precise
     // issues as they encounter them; successful registrations are associated
@@ -398,6 +429,8 @@ private:
     slic3r_property_type m_next_custom_property_type { SLIC3R_PROPERTY_TYPE_CUSTOM_BEGIN };
     std::vector<GCodeScriptTypeInfo> m_custom_gcode_script_type_infos;
     gcode_script_type m_next_custom_gcode_script_type{GCODE_SCRIPT_TYPE_CUSTOM_BEGIN};
+    std::map<slicing_step_t, DynamicStepInfo> m_dynamic_step_infos;
+    uint32_t m_next_dynamic_step { uint32_t(SLICING_STEP_CUSTOM_BEGIN) };
     std::vector<GenericFacetsAnnotationDefinition> m_generic_facets_annotations;
     std::atomic_bool m_plugin_cancel_requested { false };
     std::mutex m_plugin_messages_mutex;

@@ -32,6 +32,7 @@
 #include "libslic3r/Print.hpp"
 #include "libslic3r/Steps/StepPipeline.hpp"
 #include "libslic3r/SurfaceCollection.hpp"
+#include "libslic3r/Thread.hpp"
 #include "libslic3r/UiLayoutMerger.hpp"
 
 #include "ApiHostUtils.hpp"
@@ -711,6 +712,53 @@ std::vector<Plugin *> Orchestrator::registered_plugins() const
     return plugins;
 }
 
+// Allocate one compact id for a namespaced service step. The stable name is
+// kept in a map-backed record so pointers returned by the C API remain valid
+// when later steps are registered.
+slicing_step_t Orchestrator::register_step(const char *namespaced_name,
+                                           slicing_step_t invalidates_step)
+{
+    if (namespaced_name == nullptr || namespaced_name[0] == '\0' ||
+        invalidates_step == STEP_NONE ||
+        uint32_t(invalidates_step) >= uint32_t(SLICING_STEP_CUSTOM_BEGIN))
+        return STEP_NONE;
+
+    if (const DynamicStepInfo *existing = this->step_info(namespaced_name))
+        return existing->invalidates_step == invalidates_step ? existing->id : STEP_NONE;
+
+    if (m_next_dynamic_step > uint32_t(SLICING_STEP_CUSTOM_END))
+        return STEP_NONE;
+
+    DynamicStepInfo info;
+    info.id = static_cast<slicing_step_t>(m_next_dynamic_step++);
+    info.name = namespaced_name;
+    info.invalidates_step = invalidates_step;
+    const slicing_step_t id = info.id;
+    m_dynamic_step_infos.emplace(id, std::move(info));
+    return id;
+}
+
+// Resolve runtime step metadata by its compact id.
+const Orchestrator::DynamicStepInfo *Orchestrator::step_info(slicing_step_t step) const
+{
+    const std::map<slicing_step_t, DynamicStepInfo>::const_iterator found =
+        m_dynamic_step_infos.find(step);
+    return found == m_dynamic_step_infos.end() ? nullptr : &found->second;
+}
+
+// Resolve runtime step metadata by the stable name shared by providers and
+// consumers. Registration is infrequent, so a small linear lookup avoids a
+// second ownership map for the same strings.
+const Orchestrator::DynamicStepInfo *Orchestrator::step_info(const char *namespaced_name) const
+{
+    if (namespaced_name == nullptr)
+        return nullptr;
+    for (const std::pair<const slicing_step_t, DynamicStepInfo> &entry : m_dynamic_step_infos)
+        if (entry.second.name == namespaced_name)
+            return &entry.second;
+    return nullptr;
+}
+
 bool Orchestrator::add_ui_fragment(const char *target_file,
                                    const char *fragment_id,
                                    const char *content,
@@ -1021,6 +1069,72 @@ plugin_run_context Orchestrator::prepare_plugin_run_context(slicing_step_t step,
     return context;
 }
 
+// Run one plugin with the same two-phase barrier used by object-oriented
+// slicing steps. Each worker receives a private host/run context while the
+// caller-owned payload address remains identical in both per-run phases.
+raw_plugin_execution_status Orchestrator::execute_plugin(
+    Plugin &plugin,
+    Print *print,
+    const raw_plugin_run_payload *payloads,
+    uint32_t run_count)
+{
+    if (!this->owns_plugin(&plugin) || (run_count != 0 && payloads == nullptr))
+        return RAW_PLUGIN_EXECUTION_INVALID_ARGUMENT;
+    if (!this->is_plugin_active(&plugin))
+        return RAW_PLUGIN_EXECUTION_INACTIVE;
+    if (this->is_plugin_cancelled())
+        return RAW_PLUGIN_EXECUTION_CANCELLED;
+
+    std::atomic_bool execution_error { false };
+    plugin_host_context host_context = this->prepare_plugin_host_context(plugin.get_step(), &plugin, print);
+    host_context.object_count = run_count;
+    host_context.execution_error = &execution_error;
+    plugin_run_context run_context = this->prepare_plugin_run_context(
+        plugin.get_step(), &plugin, &host_context);
+
+    plugin.setup(run_context, run_count);
+    if (execution_error.load(std::memory_order_relaxed))
+        return RAW_PLUGIN_EXECUTION_PLUGIN_ERROR;
+    if (this->is_plugin_cancelled())
+        return RAW_PLUGIN_EXECUTION_CANCELLED;
+
+    parallel_for(size_t(0), size_t(run_count),
+        [&plugin, &payloads, &run_context, &host_context](size_t idx) {
+            plugin_run_context context_copy = run_context;
+            plugin_host_context host_context_copy = host_context;
+            host_context_copy.object_idx = idx;
+            context_copy.host_context = &host_context_copy;
+            if (context_copy.is_cancelled != nullptr &&
+                context_copy.is_cancelled(context_copy.host_context))
+                return;
+            context_copy.data = payloads[idx].data;
+            plugin.setup_run(context_copy);
+        });
+
+    if (execution_error.load(std::memory_order_relaxed))
+        return RAW_PLUGIN_EXECUTION_PLUGIN_ERROR;
+    if (this->is_plugin_cancelled())
+        return RAW_PLUGIN_EXECUTION_CANCELLED;
+
+    parallel_for(size_t(0), size_t(run_count),
+        [&plugin, &payloads, &run_context, &host_context](size_t idx) {
+            plugin_run_context context_copy = run_context;
+            plugin_host_context host_context_copy = host_context;
+            host_context_copy.object_idx = idx;
+            context_copy.host_context = &host_context_copy;
+            if (context_copy.is_cancelled != nullptr &&
+                context_copy.is_cancelled(context_copy.host_context))
+                return;
+            context_copy.data = payloads[idx].data;
+            plugin.run(context_copy);
+        });
+
+    if (execution_error.load(std::memory_order_relaxed))
+        return RAW_PLUGIN_EXECUTION_PLUGIN_ERROR;
+    return this->is_plugin_cancelled() ?
+        RAW_PLUGIN_EXECUTION_CANCELLED : RAW_PLUGIN_EXECUTION_SUCCESS;
+}
+
 void Orchestrator::add_plugin_message(PluginMessageLevel level,
                                       const Plugin *plugin,
                                       slicing_step_t step,
@@ -1276,6 +1390,18 @@ Plugin *Orchestrator::get_plugin(const std::string &plugin_id) {
         }
     }
     return plugin;
+}
+
+// Validate an opaque public plugin handle without trusting memory owned by a
+// different orchestrator.
+bool Orchestrator::owns_plugin(const Plugin *plugin) const
+{
+    if (plugin == nullptr)
+        return false;
+    for (const std::unique_ptr<Plugin> &registered : m_registered_plugins)
+        if (registered.get() == plugin)
+            return true;
+    return false;
 }
 
 bool Orchestrator::is_plugin_active(const Plugin *plugin) const

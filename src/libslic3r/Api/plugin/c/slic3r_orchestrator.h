@@ -21,6 +21,34 @@ extern "C" {
 /* ========================= REGISTRATION ========================= */
 
 typedef struct config_handle config_handle;
+typedef struct print_handle print_handle;
+
+/*
+Borrowed reference to one plugin registered in an orchestrator.
+
+The handle remains valid until the orchestrator is destroyed. It does not keep
+the plugin active and must only be passed back to the orchestrator that
+returned it.
+*/
+typedef struct orchestrator_plugin_handle orchestrator_plugin_handle;
+
+/*
+One step-specific payload used by setup_run() and run(). The orchestrator does
+not inspect data; its concrete type is the private contract shared by the
+caller and the selected service plugin.
+*/
+typedef struct raw_plugin_run_payload {
+    void *data;
+} raw_plugin_run_payload;
+
+/* Result of one host-managed plugin execution. */
+typedef enum raw_plugin_execution_status {
+    RAW_PLUGIN_EXECUTION_SUCCESS = 1,
+    RAW_PLUGIN_EXECUTION_CANCELLED = 0,
+    RAW_PLUGIN_EXECUTION_INVALID_ARGUMENT = -1,
+    RAW_PLUGIN_EXECUTION_INACTIVE = -2,
+    RAW_PLUGIN_EXECUTION_PLUGIN_ERROR = -3
+} raw_plugin_execution_status;
 
 /*
 Register a plugin instance.
@@ -46,6 +74,93 @@ SLIC3R_HOST_API void orchestrator_register_plugin_from_package(
     orchestrator_handle *orch,
     plugin_instance plugin,
     const char *package_root
+);
+
+/*
+Register a service step which is not part of the host's compiled pipeline.
+
+namespaced_name is the stable identity shared by providers and consumers, for
+example "com.example.seam_placer". invalidates_step is the normal pipeline
+step whose result becomes stale when the selected provider changes.
+
+Registering the same name and invalidation again returns the same runtime id.
+Registering the same name with another invalidation, exhausting the custom id
+range, or passing invalid arguments returns STEP_NONE.
+
+The returned id belongs to this orchestrator and must be registered again for
+another orchestrator. Register it before registering plugin instances whose
+get_step() returns that id.
+*/
+SLIC3R_HOST_API slicing_step_t orchestrator_register_step(
+    orchestrator_handle *orchestrator,
+    const char *namespaced_name,
+    slicing_step_t invalidates_step
+);
+
+/*
+Return the stable name of a dynamically registered step.
+
+The returned string is borrowed from the orchestrator and remains valid until
+its destruction. Built-in and unregistered numeric steps return NULL.
+*/
+SLIC3R_HOST_API const char *orchestrator_step_name(
+    const orchestrator_handle *orchestrator,
+    slicing_step_t step
+);
+
+/*
+Find a plugin by its stable id, whether or not it is active.
+
+Returns NULL for an invalid argument or an unknown id.
+*/
+SLIC3R_HOST_API const orchestrator_plugin_handle *orchestrator_find_plugin(
+    orchestrator_handle *orchestrator,
+    const char *plugin_id
+);
+
+/*
+Select the active provider from one exclusive group on a step.
+
+When several providers are active, config selects the provider through the
+group's generated enum option. A missing config or selector uses the first
+provider in normal priority order. Returns NULL when the group has no active
+provider or any argument is invalid.
+*/
+SLIC3R_HOST_API const orchestrator_plugin_handle *orchestrator_select_plugin(
+    orchestrator_handle *orchestrator,
+    const config_handle *config,
+    slicing_step_t step,
+    const char *exclusive_group
+);
+
+/* Return borrowed identity metadata for a plugin handle. */
+SLIC3R_HOST_API const char *orchestrator_plugin_id(
+    const orchestrator_plugin_handle *plugin
+);
+SLIC3R_HOST_API slicing_step_t orchestrator_plugin_step(
+    const orchestrator_plugin_handle *plugin
+);
+
+/*
+Execute one active plugin through the complete host lifecycle.
+
+setup() runs once with data == NULL. The host then calls setup_run() once for
+each payload, waits for every setup_run() call, and calls run() once for each
+payload. Calls inside either per-payload phase may run in parallel. The same
+data pointer is supplied to both calls for an index, and object_idx/object_count
+identify that index and the total count.
+
+print and individual data pointers may be NULL. payloads may be NULL only when
+run_count is zero. Concurrent or recursive executions of the same plugin
+instance are not supported. Plugin code should be invoked from a sequential
+orchestration phase and use the parallelism supplied by this function.
+*/
+SLIC3R_HOST_API raw_plugin_execution_status orchestrator_execute_plugin(
+    orchestrator_handle *orchestrator,
+    const orchestrator_plugin_handle *plugin,
+    const print_handle *print,
+    const raw_plugin_run_payload *payloads,
+    uint32_t run_count
 );
 
 /*

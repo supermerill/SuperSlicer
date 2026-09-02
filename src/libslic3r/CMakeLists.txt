@@ -179,6 +179,7 @@ set(SLIC3R_SOURCES
 	Api/plugin/cpp/gcode/Tool.hpp
 	Api/plugin/cpp/LineDistancer.hpp
 	Api/plugin/cpp/OrderingEngine.hpp
+	Api/plugin/cpp/OrchestratorViews.hpp
 	Api/plugin/cpp/ParallelFor.hpp
 	Api/plugin/cpp/PerimeterStepViews.hpp
 	Api/plugin/cpp/PluginBase.hpp

@@ -213,10 +213,56 @@ std::string sanitized_config_key_part(const std::string &text)
     return out.empty() ? "plugin_group" : out;
 }
 
-std::string option_key_for_plugin_group(slicing_step_t step, const std::string &group_id)
+std::string option_key_for_plugin_group(const Orchestrator &orchestrator,
+                                        slicing_step_t step,
+                                        const std::string &group_id)
 {
-    return "exclusive_group_" + std::to_string(int(step)) + "_" +
+    const Orchestrator::DynamicStepInfo *step_info = orchestrator.step_info(step);
+    const std::string step_identity = step_info != nullptr ?
+        sanitized_config_key_part(step_info->name) : std::to_string(int(step));
+    return "exclusive_group_" + step_identity + "_" +
            sanitized_config_key_part(group_id) + "_plugin";
+}
+
+bool is_known_builtin_step(slicing_step_t step)
+{
+    switch (step) {
+    case STEP_NONE:
+    case STEP_ANY:
+    case STEP_LAYER_HEIGHT:
+    case STEP_SLICING:
+    case STEP_POST_SLICING:
+    case STEP_ALERT_SUPPORTS_NEEDED:
+    case STEP_PRE_PERIMETER:
+    case STEP_PERIMETER:
+    case STEP_POST_PERIMETER:
+    case STEP_SURFACE_GENERATION:
+    case STEP_SKIRT_BRIM:
+    case STEP_PRE_INFILL:
+    case STEP_INFILL_GROUP:
+    case STEP_INFILL:
+    case STEP_POST_INFILL:
+    case STEP_SUPPORT_DEMAND:
+    case STEP_SUPPORT:
+    case STEP_PRE_GCODE:
+    case STEP_CHECK_CONFLICT:
+    case STEP_ORDERING:
+    case STEP_WIPETOWER:
+    case STEP_SUPPORT_SPOT:
+    case STEP_LAYER_EXTRUSION_EDIT:
+    case STEP_LAYER_STICHING:
+    case STEP_EXTRUSION_EDIT:
+    case STEP_EXTRUSION_SIMPLIFICATION:
+    case STEP_GCODE:
+    case INFILL_PATTERN:
+    case INFILL_SURFACE_RECIPE_MODIFIER:
+    case BRIDGE_DETECTOR:
+    case PERIMETER_GENERATION_MODULE:
+    case GCODE_FIRMWARE:
+        return true;
+    default:
+        return false;
+    }
 }
 
 raw_option_category option_category_for_step(slicing_step_t step)
@@ -315,11 +361,12 @@ StepExclusiveGroup make_exclusive_step_group(slicing_step_t step,
                                 option_preset_type_for_step(step));
 }
 
-StepExclusiveGroup make_plugin_exclusive_group(slicing_step_t step,
+StepExclusiveGroup make_plugin_exclusive_group(const Orchestrator &orchestrator,
+                                               slicing_step_t step,
                                                const std::string &group_id,
                                                const Plugin &first_plugin)
 {
-    const std::string key = option_key_for_plugin_group(step, group_id);
+    const std::string key = option_key_for_plugin_group(orchestrator, step, group_id);
     const std::string label = first_plugin.get_exclusive_group_label().empty() ?
         group_id :
         first_plugin.get_exclusive_group_label();
@@ -327,14 +374,21 @@ StepExclusiveGroup make_plugin_exclusive_group(slicing_step_t step,
         "Choose which active plugin owns this exclusive plugin group." :
         first_plugin.get_exclusive_group_tooltip();
 
-    return make_exclusive_group(step,
-                                group_id,
-                                key,
-                                label,
-                                option_category_for_step(step),
-                                label,
-                                tooltip,
-                                option_preset_type_for_step(step));
+    StepExclusiveGroup group = make_exclusive_group(step,
+                                                    group_id,
+                                                    key,
+                                                    label,
+                                                    option_category_for_step(step),
+                                                    label,
+                                                    tooltip,
+                                                    option_preset_type_for_step(step));
+    const Orchestrator::DynamicStepInfo *step_info = orchestrator.step_info(step);
+    if (step_info != nullptr)
+        group.option_def.invalidates_step = step_info->invalidates_step;
+    else if (!is_known_builtin_step(step))
+        group.option_def.invalidates_step = STEP_ANY;
+    group.refresh_storage_pointers();
+    return group;
 }
 
 void apply_plugin_group_text(StepExclusiveGroup &group, const std::vector<Plugin *> &plugins)
@@ -490,7 +544,8 @@ std::vector<StepExclusivePluginGroup> active_exclusive_plugin_groups(Orchestrato
                 continue;
 
             StepExclusivePluginGroup plugin_group;
-            plugin_group.group = make_plugin_exclusive_group(step_plugins.first, entry.first, *entry.second.front());
+            plugin_group.group = make_plugin_exclusive_group(
+                orchestrator, step_plugins.first, entry.first, *entry.second.front());
             apply_plugin_group_text(plugin_group.group, entry.second);
             plugin_group.plugins = entry.second;
             out.push_back(std::move(plugin_group));
@@ -559,7 +614,8 @@ std::vector<Plugin *> selected_or_active_plugins_for_step(Orchestrator &orchestr
         group_already_emitted[group_id] = true;
 
         const std::vector<Plugin *> &group_plugins = plugins_by_group_id[group_id];
-        StepExclusiveGroup group = make_plugin_exclusive_group(step, group_id, *group_plugins.front());
+        StepExclusiveGroup group = make_plugin_exclusive_group(
+            orchestrator, step, group_id, *group_plugins.front());
         group.refresh_storage_pointers();
         Plugin *selected = selected_plugin_from_group(group, group_plugins, config);
         if (selected != nullptr)
@@ -576,6 +632,27 @@ Plugin *selected_or_active_plugin_for_step(Orchestrator &orchestrator,
     const std::vector<Plugin *> plugins = selected_or_active_plugins_for_step(orchestrator, step, config);
     assert(plugins.size() <= 1);
     return plugins.empty() ? nullptr : plugins.front();
+}
+
+Plugin *selected_active_plugin_from_group(Orchestrator &orchestrator,
+                                          slicing_step_t step,
+                                          const std::string &exclusive_group,
+                                          const ConfigBase *config)
+{
+    if (exclusive_group.empty())
+        return nullptr;
+
+    std::vector<Plugin *> group_plugins;
+    for (Plugin *plugin : orchestrator.get_active_plugins_for_step(step))
+        if (plugin != nullptr && plugin->get_exclusive_group() == exclusive_group)
+            group_plugins.push_back(plugin);
+    if (group_plugins.empty())
+        return nullptr;
+
+    StepExclusiveGroup group = make_plugin_exclusive_group(
+        orchestrator, step, exclusive_group, *group_plugins.front());
+    group.refresh_storage_pointers();
+    return selected_plugin_from_group(group, group_plugins, config);
 }
 
 namespace {
