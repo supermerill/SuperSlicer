@@ -23,6 +23,7 @@ add_executable(${_TEST_NAME}_tests
     test_plugin_repository.cpp
     test_plugin_translation_catalogs.cpp
     test_repository_updater.cpp
+    test_seam_placer_service.cpp
     test_gcode_default_firmware_session.cpp
     test_gcode_custom_gcode_per_print_z.cpp
     test_gcode_feature_gcode.cpp

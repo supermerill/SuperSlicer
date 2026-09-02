@@ -120,6 +120,15 @@ continuous and adjacent children touch end-to-start.
 */
 SLIC3R_HOST_API int32_t extrusion_is_continuous(const extrusion_entity_handle *entity);
 
+/*
+Return non-zero when the complete entity is an ordered closed loop.
+
+A loop is non-empty, non-sortable, continuous, and has identical first and
+last points. The test applies to both one local polyline and a fixed collection
+of continuous child paths.
+*/
+SLIC3R_HOST_API int32_t extrusion_is_loop(const extrusion_entity_handle *entity);
+
 /* Return non-zero if the entity has a local polyline. */
 SLIC3R_HOST_API int32_t extrusion_has_polyline(const extrusion_entity_handle *entity);
 

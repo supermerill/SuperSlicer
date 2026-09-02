@@ -616,6 +616,8 @@ public:
     bool reversible() const { return (flags() & RAW_EXTRUSION_FLAG_REVERSIBLE) != 0; }
     bool sortable() const { return (flags() & RAW_EXTRUSION_FLAG_SORTABLE) != 0; }
     bool continuous() const { return extrusion_is_continuous(self().handle()) != 0; }
+    /* Return whether this is a non-empty, fixed, continuous closed path. */
+    bool is_loop() const { return extrusion_is_loop(self().handle()) != 0; }
     bool is_leaf() const { return extrusion_has_children(self().handle()) == 0; }
     uint32_t child_count() const { return extrusion_child_count(self().handle()); }
 

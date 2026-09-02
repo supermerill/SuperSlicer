@@ -37,12 +37,13 @@ HEADER_ORDER = [
     "slic3r_volume.h",
 ]
 
-# These callbacks intentionally expose C++ firmware sessions only in this
-# first pass. Keeping them out of the generated Python surface avoids creating
-# an accidental raw function-pointer API before a dedicated binding exists.
+# These callbacks intentionally expose C++ service sessions only. Keeping them
+# out of the generated Python surface avoids creating an accidental raw
+# function-pointer API before a dedicated high-level binding exists.
 PYTHON_EXCLUDED_HEADERS = {
     "slic3r_gcode_firmware.h",
     "slic3r_step_gcode_firmware.h",
+    "slic3r_step_seam_placer.h",
 }
 
 

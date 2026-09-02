@@ -129,6 +129,7 @@ set(SLIC3R_SOURCES
 	Api/plugin/c/steps/slic3r_step_pre_gcode.h
 	Api/plugin/c/steps/slic3r_step_pre_infill.h
 	Api/plugin/c/steps/slic3r_step_pre_perimeter.h
+	Api/plugin/c/steps/slic3r_step_seam_placer.h
 	Api/plugin/c/steps/slic3r_step_slicing.h
 	Api/plugin/c/steps/slic3r_step_support.h
 	Api/plugin/c/steps/slic3r_step_support_demand.h
@@ -191,6 +192,8 @@ set(SLIC3R_SOURCES
 	Api/plugin/cpp/PrintHelpers.cpp
 	Api/plugin/cpp/PrintHelpers.hpp
 	Api/plugin/cpp/RegionSettingsViews.hpp
+	Api/plugin/cpp/SeamPlacerViews.cpp
+	Api/plugin/cpp/SeamPlacerViews.hpp
 	Api/plugin/cpp/SkirtBrimStepViews.hpp
 	Api/plugin/cpp/VolumeViews.hpp
 	Api/plugin/cpp/Views.cpp

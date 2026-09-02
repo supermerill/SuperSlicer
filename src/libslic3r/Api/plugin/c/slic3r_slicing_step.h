@@ -88,6 +88,13 @@ typedef enum slicing_step_t : uint16_t
     PERIMETER_GENERATION_MODULE    = 10200,
 
     /*
+    Service plugin that creates one initialized seam-placement session for a
+    PrintingPlan. Consumers execute the selected provider explicitly and then
+    call the session published in run_ctx_seam_placer.
+    */
+    SEAM_PLACER                    = 10250,
+
+    /*
     Service plugin that creates one stateful G-code firmware session for one
     STEP_GCODE export.
     */

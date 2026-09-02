@@ -131,6 +131,11 @@ int32_t extrusion_is_continuous(const extrusion_entity_handle *entity)
     return entity != nullptr && Slic3r::to_extrusion(entity)->is_continuous();
 }
 
+int32_t extrusion_is_loop(const extrusion_entity_handle *entity)
+{
+    return entity != nullptr && Slic3r::to_extrusion(entity)->is_loop();
+}
+
 int32_t extrusion_has_polyline(const extrusion_entity_handle *entity)
 {
     return entity != nullptr && Slic3r::to_extrusion(entity)->has_polyline();

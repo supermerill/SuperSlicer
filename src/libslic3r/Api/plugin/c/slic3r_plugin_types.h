@@ -32,6 +32,7 @@
 #include "steps/slic3r_step_pre_gcode.h"
 #include "steps/slic3r_step_pre_infill.h"
 #include "steps/slic3r_step_pre_perimeter.h"
+#include "steps/slic3r_step_seam_placer.h"
 #include "steps/slic3r_step_slicing.h"
 #include "steps/slic3r_step_support.h"
 #include "steps/slic3r_step_support_demand.h"
