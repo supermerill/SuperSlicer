@@ -269,6 +269,8 @@ set(SLIC3R_SOURCES
 	Plugins/LayerExtrusionEdit/TravelConnectionHelpers.hpp
 	Plugins/MaxOverhangThreshold.cpp
 	Plugins/MaxOverhangThreshold.hpp
+	Plugins/Ordering/AdvancedExtrusionTreeOrdering.cpp
+	Plugins/Ordering/AdvancedExtrusionTreeOrdering.hpp
 	Plugins/Ordering/DefaultOrdering.cpp
 	Plugins/Ordering/DefaultOrdering.hpp
 	Plugins/Ordering/DefaultExtrusionTreeOrdering.cpp
