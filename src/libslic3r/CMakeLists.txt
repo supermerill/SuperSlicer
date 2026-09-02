@@ -178,6 +178,7 @@ set(SLIC3R_SOURCES
 	Api/plugin/cpp/gcode/Tool.cpp
 	Api/plugin/cpp/gcode/Tool.hpp
 	Api/plugin/cpp/LineDistancer.hpp
+	Api/plugin/cpp/OrderingEngine.hpp
 	Api/plugin/cpp/ParallelFor.hpp
 	Api/plugin/cpp/PerimeterStepViews.hpp
 	Api/plugin/cpp/PluginBase.hpp
@@ -267,6 +268,10 @@ set(SLIC3R_SOURCES
 	Plugins/Ordering/DefaultExtrusionTreeOrdering.cpp
 	Plugins/Ordering/DefaultOrdering.cpp
 	Plugins/Ordering/DefaultOrdering.hpp
+	Plugins/Ordering/KDTreeOrderingEngine.cpp
+	Plugins/Ordering/KDTreeOrderingEngine.hpp
+	Plugins/Ordering/NearestNeighborOrderingEngine.cpp
+	Plugins/Ordering/NearestNeighborOrderingEngine.hpp
 	Plugins/Ordering/DefaultPlanBuilder.cpp
 	Plugins/Ordering/DefaultToolGroupOrdering.cpp
 	Plugins/PrintingPlan/PrintingLayerEntryStateProperties.h
