@@ -32,7 +32,6 @@ void Tool::setup(const Config &config)
     const ConfigPoint xy_offset = config.vector_point_or_default("extruder_offset", m_id, ConfigPoint{});
     m_xy_offset = {xy_offset.x, xy_offset.y};
     m_z_offset = 0.0;
-    m_z_lift = config.vector_float_or_default("retract_lift", m_id, 0.0);
 }
 
 void Mill::reset_runtime_state()
@@ -48,7 +47,6 @@ void Mill::setup(const Config &config)
     if (m_id < extruder_count)
         throw std::invalid_argument("A mill tool id overlaps the configured extruders.");
     m_mill_id = uint16_t(m_id - extruder_count);
-    m_z_lift = config.vector_float_or_default("milling_z_lift", m_mill_id, 0.0);
 }
 
 }} // namespace slic3r_api::GCodeGeneration

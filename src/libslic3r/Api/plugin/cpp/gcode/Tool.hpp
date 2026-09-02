@@ -35,7 +35,6 @@ public:
 
     c_vec2d xy_offset() const { return m_xy_offset; }
     double z_offset() const { return m_z_offset; }
-    double retract_lift() const { return m_z_lift; }
 
 protected:
     // --- Immutable tool identity ---
@@ -49,8 +48,6 @@ protected:
     c_vec2d m_xy_offset{0.0, 0.0};
     // Z correction applied while this tool is held by the gantry.
     double m_z_offset = 0.0;
-    // Configured vertical lift used by future retraction movements.
-    double m_z_lift = 0.0;
 };
 
 inline bool operator==(const Tool &lhs, const Tool &rhs) { return lhs.id() == rhs.id(); }
