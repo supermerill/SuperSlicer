@@ -11,6 +11,7 @@
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/host/Plugin.hpp"
 #include "libslic3r/Api/host/steps/PostSlicingStep.hpp"
+#include "libslic3r/Api/plugin/c/steps/slic3r_step_post_slicing.h"
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/ExPolygon.hpp"
 #include "libslic3r/Layer.hpp"

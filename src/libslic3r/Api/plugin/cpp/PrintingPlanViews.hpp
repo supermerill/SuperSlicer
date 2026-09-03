@@ -8,6 +8,7 @@
 #include <cassert>
 #include <cstdint>
 
+#include "libslic3r/Api/plugin/c/steps/slic3r_step_ordering.h"
 #include "libslic3r/Api/plugin/c/slic3r_printing_plan.h"
 #include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
 #include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"

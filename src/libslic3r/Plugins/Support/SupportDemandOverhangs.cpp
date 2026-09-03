@@ -11,6 +11,7 @@
 #include <limits>
 
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
+#include "libslic3r/Api/plugin/c/steps/slic3r_step_support_demand.h"
 #include "libslic3r/Api/plugin/cpp/Views.hpp"
 
 /*

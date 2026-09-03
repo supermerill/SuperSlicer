@@ -47,6 +47,7 @@ mutation, storage, and invalidation contract of each type.
 
 #include <cassert>
 
+#include "libslic3r/Api/plugin/c/steps/slic3r_step_layer_height.h"
 #include "libslic3r/Api/plugin/cpp/BridgeDetectorViews.hpp"
 #include "libslic3r/Api/plugin/cpp/ClipperViews.hpp"
 #include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"

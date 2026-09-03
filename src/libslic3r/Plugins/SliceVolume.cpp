@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
+#include "libslic3r/Api/plugin/c/steps/slic3r_step_slicing.h"
 #include "libslic3r/Api/plugin/cpp/Views.hpp"
 #include "libslic3r/PrintRegion.hpp"
 

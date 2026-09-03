@@ -18,6 +18,7 @@
 
 #include "libslic3r/Api/plugin/c/slic3r_config_def.h"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
+#include "libslic3r/Api/plugin/c/steps/slic3r_step_layer_height.h"
 #include "libslic3r/Api/plugin/cpp/Views.hpp"
 
 namespace slic3r_api { namespace FlatAreaLayerHeightPlugin {

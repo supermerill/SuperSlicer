@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
+#include "libslic3r/Api/plugin/c/steps/slic3r_step_bridge_detector.h"
 #include "libslic3r/BridgeDetector.hpp"
 #include "libslic3r/MultiPoint.hpp"
 #include "libslic3r/Polygon.hpp"

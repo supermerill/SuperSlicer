@@ -15,6 +15,7 @@
 #include "libslic3r/Api/plugin/c/slic3r_data_tree.h"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/c/slic3r_printing_plan.h"
+#include "libslic3r/Api/plugin/c/steps/slic3r_step_extrusion_edit.h"
 #include "libslic3r/Api/plugin/cpp/AuxiliaryLayerHelpers.hpp"
 #include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
 #include "libslic3r/Api/plugin/cpp/PrintingPlanViews.hpp"

@@ -12,6 +12,7 @@
 
 #include "libslic3r/Api/plugin/c/slic3r_config_def.h"
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
+#include "libslic3r/Api/plugin/c/steps/slic3r_step_post_slicing.h"
 #include "libslic3r/Api/plugin/cpp/PrintHelpers.hpp"
 #include "libslic3r/Api/plugin/cpp/Views.hpp"
 

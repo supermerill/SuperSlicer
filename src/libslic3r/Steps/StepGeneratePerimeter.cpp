@@ -15,6 +15,7 @@
 
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/host/Plugin.hpp"
+#include "libslic3r/Api/plugin/c/steps/slic3r_step_perimeter.h"
 #include "libslic3r/Api/internal/LayerIslandAccess.hpp"
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/ExPolygon.hpp"

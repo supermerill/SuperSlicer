@@ -12,6 +12,7 @@ Property registration guide:
 
 #include <stdint.h>
 
+#include "slic3r_bridge_detector.h"
 #include "slic3r_plugin_types.h"
 
 #ifdef __cplusplus

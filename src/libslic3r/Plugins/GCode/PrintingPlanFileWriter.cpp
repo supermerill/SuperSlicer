@@ -14,6 +14,7 @@
 #include <boost/log/trivial.hpp>
 #include <boost/nowide/fstream.hpp>
 
+#include "libslic3r/Api/plugin/c/steps/slic3r_step_gcode.h"
 #include "libslic3r/Api/plugin/cpp/gcode/GCodeFirmwareViews.hpp"
 #include "libslic3r/Api/plugin/cpp/PluginBase.hpp"
 #include "libslic3r/Api/plugin/cpp/PrintingPlanViews.hpp"
