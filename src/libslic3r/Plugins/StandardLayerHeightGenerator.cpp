@@ -25,6 +25,52 @@
 #include "libslic3r/Slicing.hpp"
 #endif
 
+/*
+Standard layer-height generation
+================================
+
+This plugin provides the default implementation of STEP_LAYER_HEIGHT. The
+host runs it once for each printable Object. It does not create Layer objects
+itself; it computes the object-local layer profile and publishes it through
+the step context so STEP_SLICING can create the layers afterwards.
+
+The normal configuration path reconstructs the small subset of native slicing
+parameters needed by the profile algorithm. It combines the object's layer
+configuration ranges, clamps them to the object height and Z step, and fills
+gaps with the default layer height. The resulting compact profile is stored as
+`[z, height, z, height, ...]`. It is then expanded into the explicit layer
+descriptors consumed by the slicing step, interpolating between profile points
+when necessary.
+
+Support and model extruders contribute nozzle-based minimum and maximum layer
+height limits. A zero minimum or maximum uses the corresponding nozzle-based
+fallback, and all values are aligned to `z_step`. An enforced list of layer Z
+positions supplied by the host has priority over configuration ranges and is
+forwarded directly to the context callback.
+
+The normal call flow is:
+
+    register_standard_layer_height_generator_plugin()
+    `-- StandardLayerHeightGenerator::instance()
+        `-- orchestrator_register_plugin()
+            `-- StandardLayerHeightGenerator::run_impl()
+                |-- read the layer-height context for one Object
+                |-- enforced Z positions?
+                |   `-- set_layer_height_profile() with the host-provided list
+                `-- otherwise
+                    |-- make_layer_height_slicing_parameters()
+                    |   `-- resolve nozzle, support, and object limits
+                    |-- layer_height_profile_from_ranges()
+                    |   `-- trim, fill, and compact configured ranges
+                    |-- layer_descriptors_from_height_profile()
+                    |   `-- interpolate and emit explicit [z, height] pairs
+                    `-- set_layer_height_profile() for STEP_SLICING
+
+The profile is intentionally object-local. Raft layers are handled outside
+this object layer plan, so they do not alter the first object layer height or
+the profile's Z reference.
+*/
+
 namespace slic3r_api { namespace StandardLayerHeightGeneratorPlugin {
 
 namespace {

@@ -15,6 +15,51 @@
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_perimeter.h"
 #include "libslic3r/Api/plugin/cpp/PerimeterStepViews.hpp"
 
+/*
+Region-dependent extra perimeter module
+========================================
+
+This plugin does not generate perimeter geometry itself. It registers a
+PERIMETER_GENERATION_MODULE vtable so the active perimeter generator can ask
+it how many additional perimeters are required for each part of a perimeter
+tree. The setting is region-local, therefore different branches of one island
+may require different counts.
+
+module_start() allocates one ModuleState for the current perimeter tree and
+pre-segregates the extra-perimeter setting. When the whole island uses one
+value, it takes the fast path and requests all extra perimeters at the root.
+When values differ between regions, it leaves the root unchanged and lets
+module_after() process the child areas created by the generator. That callback
+builds a clip containing regions that still allow another perimeter, splits
+eligible children, and records how many region-local extras each new branch
+has already consumed. module_end() releases the tree-local state.
+
+The normal call flow is:
+
+    ExtraPerimeterCount::run_impl()
+    `-- install module_vtable() in the perimeter-generation context
+        `-- perimeter generator invokes module_start()
+            |-- create ModuleState and segregate region settings
+            |-- uniform setting?
+            |   `-- request all extra perimeters at the root
+            `-- mixed region settings?
+                `-- defer requests to module_after()
+
+    module_after()
+    `-- inspect generated child nodes
+        |-- wait if another module still requests more perimeters
+        |-- build_extra_clip() for still-eligible regions
+        |-- split_node() along that clip
+        `-- request_extra_for_inside_nodes() and update branch counts
+
+    module_end()
+    `-- destroy the tree-local ModuleState
+
+The module changes perimeter requests and tree subdivision only. The selected
+perimeter generator remains responsible for converting each resulting area
+into extrusion paths.
+*/
+
 namespace slic3r_api { namespace Perimeter { namespace ExtraPerimeterCountPlugin {
 
 namespace {

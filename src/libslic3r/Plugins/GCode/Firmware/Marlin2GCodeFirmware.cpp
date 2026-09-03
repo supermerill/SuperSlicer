@@ -9,8 +9,32 @@
 Marlin 2 firmware implementation
 ================================
 
-The default session already emits the Marlin 2 command set. This file keeps
-the one temperature detail that needs access to the previous encoded target.
+`Marlin2GCodeFirmwareSession` is the standard Marlin dialect session used by
+the built-in firmware provider. Most traversal and state-transition behavior
+comes from the common firmware session; this file supplies Marlin 2 command
+encoding and the script fallbacks needed by the host.
+
+The specialization flow is:
+
+    resolve_empty_script()
+    |-- emit `M600` for a color-change event
+    |-- emit `M0` for a pause, optionally with a sanitized one-line message
+    `-- delegate unrelated script types to the common session
+
+    encode_machine_envelope()
+    |-- emit axis acceleration limits with `M201`
+    |-- emit axis and extruder feedrate limits with `M203`
+    `-- emit print/travel acceleration with `M204`
+
+    encode temperature, fan, pressure, and movement state
+    `-- format the Marlin 2 command variants while the base session retains
+        neutral machine state and extrusion accounting
+
+Pause messages are copied from the script producer Config and flattened to one
+line before being inserted into `M0`. The previous encoded temperature target
+is kept available where Marlin 2 needs it to decide whether a command should
+wait. This class does not traverse the PrintingPlan or select the active
+firmware; it is instantiated by the common built-in firmware adapter.
 */
 
 namespace slic3r_api { namespace GCodeGeneration { namespace Firmware {

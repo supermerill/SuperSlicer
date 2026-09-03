@@ -18,6 +18,40 @@
 #include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
 #include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
 
+/*
+InfillRegionCompatibilitySplitter
+==================================
+
+This plugin separates fill surfaces when one LayerRegionIsland contains
+regions whose settings would require different infill generation. It runs at
+STEP_SURFACE_GENERATION after the cleaned infill surfaces are available, and
+prepares compatible region groups for the infill step.
+
+The normal execution flow is:
+
+    run_impl()
+    `-- for every object layer and island:
+        |-- snapshot the existing LayerRegionIslands
+        |-- for every fill surface, select the settings relevant to its role
+        |-- segregate the surface by those settings
+        |-- group each resulting piece by region handles and extruder
+        `-- replace the original group with the compatible groups
+
+The selected settings include the effective infill extruder, extrusion
+parameters, temperature-related values, region G-code, wipe behavior, and the
+pattern settings used by the surface role. Concentric patterns also include
+the perimeter settings selected by the host, because their generated geometry
+depends on those settings. If the relevant settings are identical across all
+regions, the surface is kept in its original group without replacement.
+
+Surface pieces retain the source surface metadata; only their ExPolygon is
+changed. The old region-island surface collection is cleared before the new
+groups are published. New groups are not processed again during the same pass,
+so the plugin does not recursively split its own output. This plugin changes
+the organization and geometry of fill surfaces, but does not generate infill
+extrusions itself.
+*/
+
 namespace slic3r_api { namespace SurfaceGeneration { namespace InfillRegionCompatibilitySplitterPlugin {
 namespace {
 

@@ -3,11 +3,46 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 
-// PluginLoader prepares requested package changes, loads native installed
-// packages, registers built-in plugins, and finally applies activation choices.
-// Native packages are loaded here under a package registration scope. Pure
-// Python sibling packages are intentionally left to PythonPluginLoader, which
-// constructs the same scope when it registers their plugin instances.
+/*
+Plugin loading and activation
+=============================
+
+This file coordinates the complete plugin startup sequence. It prepares the
+installed package set, registers built-in and external plugins, creates the
+configuration and GUI entries for exclusive plugin groups, and finally applies
+the user's activation choices.
+
+The normal execution flow is:
+
+    load_plugins()
+    |-- reconcile the requested package configuration with the local cache
+    |-- register built-in plugins
+    |-- scan the plugins repository
+    |   |-- validate each package description
+    |   |-- load native libraries and call register_plugin()
+    |   `-- leave pure Python packages to PythonPluginLoader
+    |-- record package associations for successfully registered plugins
+    |-- activate the configured plugin IDs
+    |-- build dynamic choices for infill patterns and exclusive step groups
+    |-- initialize all registered plugins
+    `-- register GUI fragments that depend on initialized exclusive groups
+
+Native package loading is guarded by a package-registration scope. The loader
+checks that the library exports `slic3r_plugin_abi_version()` and
+`register_plugin()`, rejects incompatible ABI versions, catches registration
+exceptions, and records a per-package diagnostic instead of aborting the
+whole plugin library. Loaded native modules remain resident for the process
+lifetime because registered plugin instances may contain function pointers into
+those modules.
+
+Registration and activation are deliberately separate. Disabled plugins are
+still registered so they can appear in the configuration dialog and provide
+their metadata, but they are not selected for execution. A package is therefore
+considered loaded when its registration succeeds, not only when it becomes
+active. Exclusive step groups use stable plugin IDs as stored enum values and
+user-facing names as labels; their setting and GUI fragment are created only
+after the available plugin set is known.
+*/
 
 #include "PluginLoader.hpp"
 #include "PluginRepository.hpp"

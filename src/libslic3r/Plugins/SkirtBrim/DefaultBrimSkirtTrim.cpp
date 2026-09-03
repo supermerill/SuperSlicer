@@ -26,14 +26,36 @@
 Default brim/skirt trim
 =======================
 
-The classic brim generator trimmed brim loops after the skirt was known, mainly
-for draft-shield cases where the skirt can stand close to the brim. In the new
-pipeline brim and skirt are separate plugins, so this post-plugin owns that
-relationship.
+This post-plugin prevents a generated brim from occupying the band already
+used by the final skirt. It consumes the brim and skirt extrusion trees
+published by earlier STEP_SKIRT_BRIM plugins; it does not generate either
+feature.
 
-The plugin is API-only. It reads the brim and skirt trees already published by
-earlier STEP_SKIRT_BRIM plugins, builds the skirt band as a clipping area, then
-replaces brim leaf polylines by the pieces that remain outside that band.
+The normal execution flow is:
+
+    run_impl()
+    `-- trim_brim_against_skirt()
+        |-- validate the step context and the trim setting
+        |-- collect print-level brim and skirt trees
+        |-- trim the print-level brim when both trees exist
+        |-- collect each object's local brim and skirt trees
+        |-- use the print-level skirt as a fallback for an object-level brim
+        `-- replace each affected brim auxiliary layer
+
+For each trim operation, the helper functions perform the geometric work:
+
+    trim_print_brim()
+    |-- skirt_trim_area()
+    |   `-- collect closed skirt loops and offset their outer/inner bounds
+    |-- append_trimmed_brim_tree()
+    |   `-- recursively clip every brim leaf against that band
+    |-- preserve the original leaf properties on every remaining piece
+    `-- remove and republish the brim auxiliary layer
+
+Only closed skirt polylines with usable extrusion dimensions contribute to the
+trim band. Open or invalid skirt paths are ignored, and the plugin clips
+existing brim centerlines rather than regenerating their extrusion widths or
+producing final machine G-code.
 */
 
 namespace slic3r_api { namespace SkirtBrim { namespace DefaultBrimSkirtTrimPlugin {

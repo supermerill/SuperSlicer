@@ -23,10 +23,40 @@
 Custom height-marker G-code insertion
 =====================================
 
-Ordering has already prepared the tool visit required by each executable
-marker. This pass preserves the Model row order and appends marker tags plus
-scripts after the normal tool-selection/start-filament events of the first
-tool group on the mapped layer.
+This plugin converts Model custom-G-code markers associated with print heights
+into executable events in the PrintingPlan. It runs at STEP_EXTRUSION_EDIT,
+after the plan and its tool groups exist, and keeps each marker in the order in
+which it appears in the model data.
+
+The normal execution flow is:
+
+    run_impl()
+    |-- read the marker table and the effective printing-plan mode
+    |-- map marker rows to their target printing-plan layer groups
+    |-- choose the first tool group's event scope, or the layer scope when no
+    |   tool group exists
+    |-- convert each marker:
+    |   |-- ColorChange: create a processor-tagged color-change script
+    |   |-- ToolChange: skip an ordinary tool-change row; convert the
+    |   |   single-extruder MultiAsSingle case into a color event
+    |   |-- PausePrint: create a tagged pause script
+    |   |-- Template: create a tagged template script
+    |   `-- Custom: append the row's raw G-code after its processor tag
+    `-- warn about markers that lie above the last plan layer
+
+Each generated marker is a non-sortable, non-reversible wrapper containing the
+processor tag followed by the script or raw G-code. This keeps the tag directly
+adjacent to the event while allowing the script properties to remain attached
+to their own child. Script arguments such as the current tool, target color,
+and pause text are stored in a temporary Config for the G-code script
+processor.
+
+Color and tool-change markers are accepted only when the marker-table mode and
+the print-plan mode agree about single- versus multi-extruder operation. A
+color change without a target tool group is rejected because it cannot identify
+the physical extruder. Unmapped rows are reported as warnings and do not alter
+the plan. This plugin edits the PrintingPlan events; it does not itself emit
+final machine G-code.
 */
 
 namespace slic3r_api::GCodeGeneration::CustomGCodePerPrintZPlugin {

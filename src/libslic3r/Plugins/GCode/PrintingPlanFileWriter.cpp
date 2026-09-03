@@ -24,14 +24,38 @@
 PrintingPlan file serializer
 ============================
 
-This STEP_GCODE plugin owns only the output artifact. It opens a disposable
-sibling file, walks the PrintingPlan in stored order, and writes each string
-returned by the selected firmware session before making the next call.
+This STEP_GCODE plugin owns the output artifact for the selected firmware
+implementation. It walks the already ordered PrintingPlan and writes the
+chunks returned by the firmware session to one atomically published file. The
+plugin does not interpret extrusion geometry or assemble individual machine
+commands.
 
-The plugin never interprets extrusion geometry and never assembles a G-code
-command. The firmware session owns that work and all of its state. This leaves
-the artifact loop reusable for future output plugins that package the same
-firmware chunks differently.
+The normal execution flow is:
+
+    setup_run_impl()
+    `-- count all extrusion roots for progress reporting
+
+    run_impl()
+    `-- write_plan_file()
+        |-- validate the G-code context and output path
+        |-- open a sibling temporary file
+        |-- serialize the nested plan boundaries in order:
+        |   |-- print begin/events/end
+        |   |-- group begin/events/end
+        |   |-- layer begin/events/end
+        |   |-- tool-group begin/events/end
+        |   `-- extrusion and event chunks
+        |-- flush and close the temporary stream
+        |-- replace the final output through FilesystemTransaction
+        `-- remove the temporary file if serialization fails
+
+Every firmware result is written before the next firmware callback is called,
+because the returned string may be backed by state owned by the session. Empty
+groups and layers are still forwarded so firmware implementations can observe
+their boundaries. The firmware view owns G-code generation and state changes;
+this plugin only provides the traversal, stream checks, and publication
+guarantee. A cleanup warning after a successful commit is reported separately
+from an output-generation failure.
 */
 
 namespace slic3r_api { namespace GCodeGeneration { namespace PrintingPlanFileWriterPlugin {

@@ -15,6 +15,44 @@
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_perimeter.h"
 #include "libslic3r/Api/plugin/cpp/PerimeterStepViews.hpp"
 
+/*
+First-layer single-perimeter module
+===================================
+
+This plugin registers a PERIMETER_GENERATION_MODULE that limits selected areas
+of the first object layer to one perimeter. It does not create or remove
+extrusion paths directly. The perimeter generator creates the first ring and
+its child areas; this module then changes the requested perimeter count of the
+eligible child branches so later generation stops after that ring.
+
+module_start() stores the object-local layer id and segregates the region-local
+setting for the current island. module_after() acts only on the root's first
+perimeter, after its children exist. With one setting value for the island, it
+clamps every child when the option is enabled. With several regional values,
+it splits each child against the enabled-area clip and clamps only the inside
+parts, leaving outside siblings unchanged.
+
+The normal call flow is:
+
+    OnlyOnePerimeterFirstLayer::run_impl()
+    `-- install module_vtable() in the perimeter-generation context
+        `-- perimeter generator invokes module_start()
+            |-- read layer id and segregate region settings
+            `-- perimeter generator creates the first perimeter
+                `-- module_after() for generated nodes
+                    |-- ignore non-first layers
+                    |-- ignore non-root or childless nodes
+                    |-- uniform enabled setting?
+                    |   `-- set every child perimeter count to one
+                    `-- mixed regional settings?
+                        |-- split children against each enabled clip
+                        `-- set inside-child perimeter counts to one
+
+The module is deliberately limited to the first root perimeter. Later layers,
+deeper perimeter nodes, and disabled regions retain the requests made by the
+selected perimeter generator or by other modules.
+*/
+
 namespace slic3r_api { namespace Perimeter { namespace OnlyOnePerimeterFirstLayerPlugin {
 
 namespace {

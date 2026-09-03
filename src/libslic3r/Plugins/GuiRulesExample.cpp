@@ -12,6 +12,35 @@
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Config/FFFPrintConfig.hpp"
 
+/*
+GUI activation-rules example
+============================
+
+This plugin is a small host-integration test. It does not participate in a
+slicing step: STEP_NONE is used because its purpose is to register settings,
+place them in the GUI, and exercise the available GUI-rule conditions.
+
+Initialization creates the test settings with create_rule_test_option(), adds
+one print.ui fragment containing those settings, and registers the rules with
+add_enable_rule(). The host evaluates those rules when the configuration or
+the referenced setting changes; the plugin does not evaluate them in
+run_impl(), which is intentionally empty.
+
+The normal call flow is:
+
+    register_gui_rules_example_plugin()
+    `-- GuiRulesExample::instance()
+        `-- orchestrator_register_plugin()
+            `-- GuiRulesExample::inilialize_impl()
+                |-- create_rule_test_option() for each test setting
+                |-- orchestrator_add_ui_fragment("print.ui", ...)
+                `-- add_enable_rule() for each activation condition
+
+The settings cover boolean, non-zero, enabled/disabled, integer-comparison,
+and chained conditions. The plugin is therefore useful for testing the GUI
+rule bridge, but it does not alter generated geometry, print data, or G-code.
+*/
+
 namespace slic3r_api { namespace GuiRulesExamplePlugin {
 
 namespace {

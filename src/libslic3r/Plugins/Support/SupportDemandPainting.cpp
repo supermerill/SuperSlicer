@@ -12,6 +12,38 @@
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/cpp/Views.hpp"
 
+/*
+SupportDemandPainting
+=====================
+
+This plugin applies the support-enforcer and support-blocker areas painted on
+the object to the support-demand polygons. It runs at STEP_SUPPORT_DEMAND,
+before support geometry is generated, and operates on the demand left by
+other support-demand plugins.
+
+The normal execution flow is:
+
+    setup_run_impl()
+    `-- reserve progress for every layer island when support painting exists
+
+    run_impl()
+    |-- project the painted support facets into per-layer polygons
+    `-- for every layer island:
+        |-- intersect enforcer painting with the island and union it with demand
+        `-- enlarge blocker painting slightly and subtract it from demand
+
+Enforcer painting can create demand where no demand existed, but it is clipped
+to the current island. Blocker painting changes only existing demand. Enforcers
+are applied before blockers, so a blocker can suppress demand created by an
+enforcer in the same layer. The small blocker offset prevents boundary-touching
+polygons from surviving a boolean difference because of rounding differences.
+
+The projected painting is computed once per object and reused for all islands
+at the corresponding layer. The resulting polygon collection replaces the
+host-owned demand entry for that island. This stage modifies support demand
+only; it does not generate or remove support extrusions directly.
+*/
+
 namespace slic3r_api { namespace Support { namespace SupportDemandPaintingPlugin {
 
 namespace {

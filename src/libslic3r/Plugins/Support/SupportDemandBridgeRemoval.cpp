@@ -16,6 +16,50 @@
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/cpp/Views.hpp"
 
+/*
+Support-demand bridge removal
+=============================
+
+This plugin provides a STEP_SUPPORT_DEMAND post-process for the
+`dont_support_bridges` object setting. It edits the support-demand areas before
+support generation; it does not remove already-generated support extrusions.
+
+For each object layer after the first, the plugin examines perimeter and gap
+fill extrusion trees in every island. Straight segments are split at their
+intersections with the lower-layer support mask. An unsupported interval is
+treated as a bridge only when both of its extended endpoints reach lower
+support. The resulting stroke area is then subtracted from the island's
+existing support demand through the step context.
+
+The normal call flow is:
+
+    SupportDemandBridgeRemoval::inilialize_impl()
+    `-- create dont_support_bridges and its GUI activation rules
+
+    SupportDemandBridgeRemoval::setup_run_impl()
+    `-- reserve progress for object islands after layer zero
+
+    SupportDemandBridgeRemoval::run_impl()
+    `-- read the object setting
+        |-- disabled?
+        |   `-- leave support demand unchanged
+        `-- walk object layers after the first
+            `-- for each layer island
+                |-- bridge_areas_for_island()
+                |   |-- expand lower-layer support by the probe distance
+                |   |-- visit perimeter and gap-fill extrusion trees
+                |   |-- split straight segments at support intersections
+                |   `-- keep unsupported intervals anchored at both ends
+                `-- remove_bridges_from_island_demand()
+                    |-- subtract bridge areas from the current demand
+                    `-- publish the remaining demand
+
+Curved extrusion segments are ignored by the bridge-area detector. The
+operation is limited to the current island and its immediately lower layer;
+support generation and any later support post-processing remain separate
+pipeline responsibilities.
+*/
+
 namespace slic3r_api { namespace Support { namespace SupportDemandBridgeRemovalPlugin {
 
 namespace {

@@ -6,9 +6,80 @@
 #define slic3r_Api_plugin_cpp_DataTreeViews_hpp_
 
 /*
-Developer guide: [Using Plugin Properties](../../../../../doc/plugins/properties.md)
+Data-tree C++ views
+===================
 
-Extrusion guide: [Using Unified Extrusion Entities](../../../../../doc/plugins/extrusions.md)
+This header is the C++ view layer for the slicer's data tree. The views are
+small, non-owning wrappers around C ABI handles; copying a view copies only a
+handle, not the underlying Print, Object, Layer, or geometry. A view is usable
+only while its native object still exists. Removing an auxiliary layer,
+rebuilding a collection, or clearing the Print can invalidate views and
+references obtained from that object.
+
+The main hierarchy is:
+
+    Print
+    `-- Object
+        `-- Layer
+            `-- LayerIsland
+                `-- LayerRegionIsland
+                    |-- LayerRegion
+                    |   `-- PrintRegion
+                    `-- fill surfaces and extrusion roots
+
+`LayerRegionIsland` is the region-specific part of one geometric island. It
+groups one or more `LayerRegion` objects that share the same effective
+extruder for the current operation. `LayerIsland` contains the geometric
+slice, infill areas, and links to overlapping islands on the layers above and
+below. `Layer` provides Z positions and the collection of islands. `Object`
+provides layers, instances, volumes, object configuration, and object-owned
+auxiliary layers. `Print` provides the objects, print configuration, records,
+and the hidden auxiliary object used for print-level generated geometry.
+
+A typical plugin traversal is:
+
+    Print print(ctx->print);
+    for (uint32_t object_idx = 0; object_idx < print.object_count(); ++object_idx) {
+        Object object = print.object(object_idx);
+        for (uint32_t layer_idx = 0; layer_idx < object.layer_count(); ++layer_idx) {
+            Layer layer = object.layer(layer_idx);
+            for (uint32_t island_idx = 0; island_idx < layer.island_count(); ++island_idx) {
+                LayerIsland island = layer.island(island_idx);
+                for (uint32_t group_idx = 0; group_idx < island.region_island_count(); ++group_idx) {
+                    LayerRegionIsland group = island.region_island(group_idx);
+                    for (LayerRegion region : group.regions()) {
+                        Config config = region.print_region().config();
+                        // Read the region-specific configuration here.
+                    }
+                }
+            }
+        }
+    }
+
+Most data-tree views are read-only because the host controls the native
+slicing structures. Specific API methods still permit controlled mutation:
+for example, `LayerIsland::get_or_create_region_island()` changes the tree and
+`MutableSurface` changes a surface's geometry or plugin properties. A const
+view therefore does not mean that every operation reachable through it is
+immutable; it means that mutation is limited to methods whose API explicitly
+provides it.
+
+Surface views follow a separate ownership rule. `Surface`, `SurfaceCollection`,
+and the data-tree views borrow host-owned handles. `StoredSurface`,
+`StoredExPolygon`, and `StoredSurfaceCollection` own temporary data allocated
+from a plugin `storage_handle`; they are move-only and are used to build a
+complete replacement before transferring it to the host. Stored data must not
+be confused with a persistent data-tree object.
+
+Plugin property payloads are copied as trivially copyable bytes. Built-in keys
+are available through types such as `LayerSupportProperty::key`; plugin-defined
+keys must be registered for the current orchestrator. Property mutation does
+not make native geometry writable.
+
+Developer guides:
+
+    [Using Plugin Properties](../../../../../doc/plugins/properties.md)
+    [Using Unified Extrusion Entities](../../../../../doc/plugins/extrusions.md)
 */
 
 #include <cassert>
@@ -41,8 +112,6 @@ class LayerRegion;
 class LayerRegionIsland;
 class LayerIsland;
 class Layer;
-
-/* ========================= surface views ========================= */
 
 /*
 View over the generic plugin-property container.
@@ -413,6 +482,9 @@ private:
     c_surface surface = {};
 };
 
+// Mutable borrowed view over one host-owned surface. It can change the surface
+// geometry or plugin properties only through the operations exposed below; it
+// never takes ownership of the native surface handle.
 class MutableSurface
 {
 public:
@@ -512,9 +584,10 @@ public:
     iterator end() const { return iterator(this, size()); }
 };
 
-// Storage-owned SurfaceCollection used by steps that publish full surface
-// results through a callback. The collection itself is temporary plugin
-// storage; the host may move its content into the data tree.
+// Storage-owned surface collection used by steps that publish a complete
+// replacement through a callback. The collection is temporary plugin storage;
+// the host may move its content into the data tree, so it must remain valid
+// until the callback consumes it.
 class StoredSurfaceCollection
 {
 public:
@@ -682,11 +755,9 @@ private:
     raw_surface_type m_type;
 };
 
-/* ========================= data tree views ========================= */
-/*
-Views over the print / object / layer / region hierarchy exposed by the C ABI.
-*/
-
+// Configuration shared by LayerRegion objects that belong to the same print
+// region. It is a link to print-wide region settings, not a layer geometry
+// container.
 class PrintRegion : public ConstDataTreeHandleView<print_region_handle>
 {
 public:
@@ -699,6 +770,8 @@ public:
     c_flow flow(const LayerRegion &layer_region, raw_extrusion_role role) const;
 };
 
+// Layer-specific region data: its slices, flows, plugin properties, and link
+// back to the corresponding print-wide PrintRegion configuration.
 class LayerRegion : public ConstDataTreeHandleView<layer_region_handle>
 {
 public:
@@ -722,6 +795,9 @@ public:
     Layer layer() const;
 };
 
+// Region-specific data attached to one LayerIsland. It owns the association
+// with one or more LayerRegion objects and stores the fill surfaces and
+// extrusion roots generated for that association.
 class LayerRegionIsland : public ConstDataTreeHandleView<layer_region_island_handle>
 {
 public:
@@ -780,6 +856,8 @@ public:
 
 };
 
+// One connected geometric island on a Layer. It exposes the sliced shape,
+// infill areas, region-island groups, and overlap links to neighboring layers.
 class LayerIsland : public ConstDataTreeHandleView<layer_island_handle>
 {
 public:
@@ -878,6 +956,9 @@ public:
     }
 };
 
+// One printable Z level of an Object. Layer indices are object-local and the
+// three Z values distinguish physical layer height, print position, and the
+// slicing position used to obtain polygons.
 class Layer : public ConstDataTreeHandleView<layer_handle>
 {
 public:
@@ -925,6 +1006,9 @@ public:
     }
 };
 
+// One model object with its transform, instances, configuration, sliced layers,
+// volumes, and object-owned auxiliary layers. Print-level auxiliary geometry is
+// instead reached through Print::auxiliary_object().
 class Object : public ConstDataTreeHandleView<object_handle>
 {
 public:

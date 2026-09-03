@@ -15,6 +15,42 @@
 #include "libslic3r/Api/plugin/cpp/Views.hpp"
 #include "libslic3r/PrintRegion.hpp"
 
+/*
+SliceVolume
+===========
+
+This plugin performs the raw mesh-slicing stage for one Object. It converts
+the model, negative, and modifier volumes into ExPolygons at the already
+selected object-layer heights, assigns those polygons to print regions, and
+writes them into LayerRegion slices for later surface generation.
+
+The normal execution flow is:
+
+    run_impl()
+    |-- read the object layer Z positions
+    |-- slice every printable, negative, or modifier volume with the object
+    |   transform, resolution, slicing mode, and XY compensation
+    |-- assign sliced polygons to the destination print regions
+    |   |-- use the direct fast path when only one volume region is active
+    |   |-- use direct assignment when multiple regions do not overlap in XY
+    |   `-- use the complex clipping pass when active volume regions overlap
+    `-- move the completed region/layer collections into LayerRegion slices
+
+`VolumeSlices` keeps the result of one volume indexed by object layer. The
+volume list is processed in stable ID order so overlapping regions have a
+deterministic input order. Layer ranges filter which volumes are sliced and
+which layers receive their polygons. Complex slices reproduce the native
+region relationship rules by clipping each volume against the portions that
+have already been assigned, then moving the resulting polygons into the
+region/layer grid.
+
+The plugin deliberately publishes raw LayerRegion slices only. It does not
+create `Surface` objects, classify top/bottom/internal areas, or generate
+extrusions; those responsibilities belong to later pipeline steps. Empty
+volumes and volumes that are not printable model, negative, or modifier parts
+are skipped.
+*/
+
 namespace slic3r_api { namespace SliceVolumePlugin {
 
 namespace {

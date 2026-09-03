@@ -15,6 +15,51 @@
 #include "libslic3r/Api/plugin/cpp/ClipperViews.hpp"
 #include "libslic3r/Api/plugin/cpp/PerimeterStepViews.hpp"
 
+/*
+Remove gap fill on unsupported areas
+====================================
+
+This plugin registers a PERIMETER_GENERATION_MODULE that removes open gap-fill
+strokes from unsupported areas when the gap_fill_no_overhang setting is enabled.
+It does not alter perimeter geometry, node areas, fill areas, or child nodes.
+
+module_start() builds tree-local state with the region-segregated setting and a
+single union of the current island's lower-layer coverage. After the perimeter
+generator has populated a node, module_after() intersects the node area with
+the enabled regional clips, subtracts the lower coverage, and obtains the
+unsupported forbidden area. The existing extrusion collection is then rebuilt:
+closed local polylines and non-path entities are copied unchanged, while open
+local polylines are clipped against the forbidden area and their surviving
+fragments are appended as cloned entities.
+
+The normal call flow is:
+
+    RemoveGapFillOnOverhangs::run_impl()
+    `-- install module_vtable() in the perimeter-generation context
+        `-- perimeter generator invokes module_start()
+            |-- segregate gap_fill_no_overhang by region
+            `-- cache the union of lower-layer coverage
+
+    module_after()
+    `-- inspect the generated node output
+        |-- compute gap_fill_no_overhang_area()
+        |   |-- intersect enabled regions with the node area
+        |   |-- subtract lower-layer coverage
+        |   `-- union overlapping forbidden fragments
+        `-- remove_gap_fill_on_overhangs()
+            |-- copy closed or non-path entities
+            |-- clip open paths with clipper_diff_polyline_expolygons()
+            `-- replace the node's extrusion collection
+
+    module_end()
+    `-- destroy the tree-local state
+
+The operation is intentionally limited to ordinary point polylines. The
+current clipping helper does not preserve arc metadata for gap-fill paths, so
+entities carrying a future arc representation require a separate arc-aware
+implementation rather than being silently flattened here.
+*/
+
 namespace slic3r_api { namespace Perimeter { namespace RemoveGapFillOnOverhangsPlugin {
 
 namespace {

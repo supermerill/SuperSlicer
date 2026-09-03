@@ -10,6 +10,32 @@
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_post_infill.h"
 
+/*
+Post-infill gap-fill extension point
+====================================
+
+This plugin reserves the STEP_POST_INFILL position for gap-fill generation
+after the normal infill patterns have run. It is intentionally registered as a
+named pipeline stage even though the current context does not yet expose the
+residual narrow areas required to generate valid gap-fill extrusion.
+
+The normal call flow is:
+
+    register_post_infill_gap_fill_plugin()
+    `-- PostInfillGapFill::instance()
+        `-- orchestrator_register_plugin()
+            `-- PostInfillGapFill::run_impl()
+                |-- read the post-infill generation context
+                |-- verify the mutable extrusion callback is available
+                `-- leave the existing infill unchanged
+
+No extrusion is appended by the current implementation. When the step context
+publishes residual areas and the corresponding output operation, this plugin
+is the place where those areas can be converted into additional gap-fill
+paths. Until then, the empty run is deliberate and avoids inventing geometry
+from incomplete input data.
+*/
+
 namespace slic3r_api { namespace Infill { namespace PostInfillGapFillPlugin {
 namespace {
 

@@ -9,8 +9,33 @@
 Marlin 1 firmware implementation
 ================================
 
-Only commands whose syntax differs from the standard Marlin 2 session are
-implemented here. Traversal, E accounting and machine state remain inherited.
+`Marlin1GCodeFirmwareSession` overrides only the parts of the common firmware
+session whose command syntax or fallback behavior differs from Marlin 1.
+PrintingPlan traversal, extrusion accounting, script handling, and unchanged
+machine-state transitions remain inherited.
+
+The specialization flow is:
+
+    resolve_empty_script()
+    |-- emit `M600` for a color-change event
+    |-- emit `M0` for a pause, optionally with a sanitized one-line message
+    `-- delegate other script types to the common session
+
+    encode_machine_envelope()
+    |-- emit axis acceleration limits with `M201`
+    |-- emit feedrate limits with `M203`
+    `-- emit print/travel acceleration with `M204`
+
+    encode temperature, fan, acceleration, and unsupported operations
+    `-- use the Marlin 1 command forms while preserving the neutral machine
+        state maintained by the base session
+
+Pause text is read from the producer Config and carriage returns/newlines are
+replaced with spaces so user text cannot become additional G-code lines. The
+machine envelope is kept in the common units until it reaches this dialect
+boundary; only this class applies Marlin-specific command formatting. This
+class is a session implementation, not a standalone pipeline plugin, and does
+not choose which firmware is active.
 */
 
 namespace slic3r_api { namespace GCodeGeneration { namespace Firmware {

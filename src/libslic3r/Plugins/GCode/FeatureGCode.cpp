@@ -26,16 +26,37 @@
 Feature G-code role annotations
 ===============================
 
-The ordered PrintingPlan contains explicit movement leaves. This plugin walks
-those leaves in the same hierarchy order as the G-code writer and stores one
-FEATURE_GCODE script whenever the effective EPropertyAttributes role changes.
-Explicit travels participate because travel is a normal role in the new
-extrusion stream; synthetic firmware travels are not present in the plan.
+This plugin places the configured `feature_gcode` script at each transition
+between effective extrusion roles in the ordered PrintingPlan. It runs at
+STEP_EXTRUSION_EDIT and prepares role-change events for the final G-code
+writer; it does not emit machine G-code itself.
 
-The script normally lives directly on the movement leaf. If that leaf already
-owns another custom G-code property, an ordered event leaf is inserted before
-the original movement. The original geometry, properties and data resources
-stay together below the stable plan handle.
+The normal execution flow is:
+
+    run_impl()
+    |-- remove feature scripts and generated wrappers from an earlier run
+    |-- create one FeatureRoleVisitor with a reusable script Config
+    |-- traverse every tool group's extrusion tree in plan order
+    |   |-- ignore empty leaves and retraction/wipe/unretraction roles
+    |   |-- read the effective EPropertyAttributes role
+    |   |-- compare it with the previous printable role
+    |   `-- insert a feature event when the role changes
+    `-- leave the plan unchanged when `feature_gcode` is empty
+
+When a movement leaf has no custom-G-code property, the script is attached
+directly to that leaf. If another custom-G-code property is already present, a
+non-geometric ordered leaf is inserted immediately before the movement and
+the original entity remains intact below the wrapper. The script receives the
+previous and next role names through a Config snapshot, including both
+`previous_extrusion_role`/`last_extrusion_role` and
+`next_extrusion_role`/`extrusion_role` for the supported template vocabulary.
+
+Role validation requires one base role and permits its modifiers. Roles that
+are structurally valid but have no representable feature-G-code name are
+reported and mapped to `Custom`. Explicit travel leaves participate in role
+transitions; synthetic travel created later by the G-code writer is outside
+this plan traversal. Cleanup recognizes only the wrappers produced by this
+plugin, so pre-existing custom-G-code properties are preserved.
 */
 
 namespace slic3r_api { namespace GCodeGeneration { namespace FeatureGCodePlugin {

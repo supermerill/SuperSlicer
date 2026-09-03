@@ -15,6 +15,51 @@
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_perimeter.h"
 #include "libslic3r/Api/plugin/cpp/PerimeterStepViews.hpp"
 
+/*
+Odd-layer extra perimeter module
+================================
+
+This plugin registers a PERIMETER_GENERATION_MODULE that requests one
+additional perimeter on odd object layers where the region setting is enabled.
+It does not generate paths itself; the active perimeter generator consumes the
+requests and remains responsible for the resulting geometry.
+
+module_start() creates tree-local state containing the layer parity and the
+region-segregated setting. If the setting is uniform across the island, an odd
+layer takes the fast path and increments the root perimeter count immediately.
+If the setting differs between regions, module_after() waits until the current
+branch has reached its last perimeter, splits its children against each
+enabled region clip, and requests one more perimeter for each resulting inside
+branch. The state map prevents the same branch from receiving the extra pass
+twice.
+
+The normal call flow is:
+
+    ExtraPerimeterOddLayer::run_impl()
+    `-- install module_vtable() in the perimeter-generation context
+        `-- perimeter generator invokes module_start()
+            |-- read the object layer id and region settings
+            |-- even layer?
+            |   `-- leave the base perimeter count unchanged
+            |-- uniform enabled setting on odd layer?
+            |   `-- add one perimeter to the root
+            `-- mixed regional setting on odd layer?
+                `-- defer requests to module_after()
+
+    module_after()
+    `-- check odd-layer, last-perimeter, and branch-state conditions
+        |-- enumerate enabled regional clips
+        |-- split_node() for each eligible child
+        `-- request the current perimeter and mark each inside branch
+
+    module_end()
+    `-- destroy the tree-local ModuleState
+
+Even layers and disabled regions are left unchanged. The module affects only
+perimeter requests and tree subdivision; path construction remains in the
+selected perimeter generator.
+*/
+
 namespace slic3r_api { namespace Perimeter { namespace ExtraPerimeterOddLayerPlugin {
 
 namespace {

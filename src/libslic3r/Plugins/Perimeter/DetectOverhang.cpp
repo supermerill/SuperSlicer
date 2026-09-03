@@ -23,6 +23,57 @@
 #include "libslic3r/Api/plugin/cpp/LineDistancer.hpp"
 #include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
 
+/*
+Overhang detection and perimeter annotation
+============================================
+
+This plugin provides the STEP_POST_PERIMETER pass that identifies unsupported
+parts of perimeter paths and annotates them with the configured overhang flow
+and speed. It processes object layers after the first one; the first printable
+layer has no lower layer against which support can be measured.
+
+For each LayerIsland, process_island() segregates the overhang settings by
+region, builds the supported centerline area from lower islands, and prepares a
+LineDistancer plus curled-line proximity data. Each region-island perimeter
+root is then visited by DetectOverhangVisitor. The visitor keeps the inherited
+extrusion attributes, analyzes every leaf with split_leaf(), and replaces a
+leaf only when its fragments differ from the original path.
+
+split_leaf() classifies each path against support distance and curled geometry.
+It creates ordered fragments, applies dynamic or fixed flow and speed
+properties where required, merges tiny neighboring fragments, and preserves
+unchanged portions as clones. A replacement leaf becomes a collection of the
+ordered fragments; the original perimeter tree and its non-leaf structure are
+otherwise preserved.
+
+The normal call flow is:
+
+    DetectOverhang::setup_run_impl()
+    `-- reserve one progress unit per object layer
+
+    DetectOverhang::run_impl()
+    `-- walk object layers (skip layer 0)
+        `-- process_island()
+            |-- segregate overhang settings by region
+            |-- supported_centerline_area()
+            |-- create LineDistancer and CurledLineProximity
+            `-- process_region_island() for each region island
+                |-- obtain the mutable perimeter root
+                |-- DetectOverhangVisitor::traverse(root)
+                `-- visit_leaf() for every printable leaf
+                    |-- split_leaf()
+                    |   |-- measure support and curled proximity
+                    |   |-- split and annotate affected fragments
+                    |   `-- merge tiny fragments
+                    `-- replace_root_leaf_with_fragments() when needed
+
+The visitor changes path fragments and their attributes, not the layer
+topology or the source region settings. Unsupported sections that do not meet
+the configured thresholds remain unchanged, and an arc-aware representation
+must be preserved by the fragment operations rather than flattened into a
+plain polyline.
+*/
+
 namespace slic3r_api { namespace Perimeter { namespace DetectOverhangPlugin {
 
 namespace {

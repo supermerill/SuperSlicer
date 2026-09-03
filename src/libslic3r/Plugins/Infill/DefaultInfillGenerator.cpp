@@ -24,6 +24,52 @@
 #include "libslic3r/Surface.hpp"
 #include "libslic3r/libslic3r.h"
 
+/*
+Default infill generation
+==========================
+
+This plugin provides the default implementation of STEP_INFILL. The host runs
+it once per PrintObject after earlier steps have classified the layer-region
+islands into fill surfaces. It does not choose one fixed infill algorithm:
+each surface selects a pattern plugin through its configured pattern id.
+
+setup_run_impl() counts the surfaces that may receive infill so progress can
+be reported before generation starts. run_impl() then visits layers, islands,
+region islands, and their fill surfaces. For each usable surface,
+make_recipe() resolves its flow, density, pattern, connection, bridge data,
+and overlap area. The optional recipe callback may change those values before
+the selected pattern plugin generates an extrusion subtree.
+
+The generated subtree is kept only when the pattern and density are valid. It
+receives an ExtrusionPropertyInfill containing the source surface id, then the
+plugin publishes it through append_region_island_extrusion(). Gap fill is not
+generated here; it is deliberately left for the post-infill step.
+
+The normal call flow is:
+
+    DefaultInfillGenerator::setup_run_impl()
+    `-- count_candidate_surfaces(object)
+        `-- publish the progress total
+
+    DefaultInfillGenerator::run_impl()
+    `-- walk object.layers()
+        `-- walk layer.islands()
+            `-- walk island.regions_islands()
+                `-- walk region_island.fill_surfaces()
+                    |-- skip empty or void surfaces
+                    |-- make_recipe(...)
+                    |   `-- resolve surface settings and no-overlap areas
+                    |-- resolve_pattern_id()
+                    |-- modify_surface_recipe() when provided
+                    |-- generate_pattern()
+                    |-- attach ExtrusionPropertyInfill::source_surface_id
+                    `-- append_region_island_extrusion()
+
+The generator works through the public step context and callbacks. It reads
+the existing print data but leaves ownership and direct publication of the
+result to the host API.
+*/
+
 namespace slic3r_api { namespace Infill { namespace DefaultInfillGeneratorPlugin {
 namespace {
 

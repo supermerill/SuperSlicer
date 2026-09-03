@@ -9,8 +9,30 @@
 Sprinter firmware implementation
 ================================
 
-The implementation preserves the established SuperSlicer Sprinter command
-choices while mapping the two generic acceleration histories to one command.
+`SprinterGCodeFirmwareSession` preserves the established SuperSlicer command
+choices for Sprinter while reusing the common plan traversal and machine-state
+bookkeeping.
+
+The specialization flow is:
+
+    resolve_empty_script()
+    |-- report color-change and pause events as unsupported operations
+    `-- delegate other script types to the common session
+
+    encode_machine_envelope()
+    |-- emit axis acceleration limits with `M201`
+    |-- convert feedrates to mm/min for `M203`
+    `-- emit print/travel acceleration with `M204`
+
+    encode fan, pressure, and acceleration changes
+    `-- use Sprinter's shared fan and acceleration command forms while the
+        neutral state continues to track separate travel and printing values
+
+Sprinter has no matching command for chamber temperature, extruder current,
+or the omitted jerk/minimum-feedrate envelope fields; those operations use the
+common unsupported-operation response. The unit conversion occurs only at this
+dialect boundary. This class is a concrete session created by the built-in
+firmware provider and does not select a firmware or traverse the plan itself.
 */
 
 namespace slic3r_api { namespace GCodeGeneration { namespace Firmware {

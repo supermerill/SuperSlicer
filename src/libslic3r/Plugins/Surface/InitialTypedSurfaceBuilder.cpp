@@ -15,6 +15,39 @@
 #include "libslic3r/Api/plugin/cpp/ClipperViews.hpp"
 #include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
 
+/*
+InitialTypedSurfaceBuilder
+==========================
+
+This plugin converts each LayerIsland's perimeter fill areas into the first
+set of typed infill surfaces. It runs at STEP_SURFACE_GENERATION and is the
+exclusive provider selected for the initial surface-generation group.
+
+The normal execution flow is:
+
+    run_impl()
+    `-- for every object layer and island:
+        |-- group the island's regions by their resolved infill extruder
+        |-- restrict the fill area to each extruder group when necessary
+        |-- classify the area as bottom, top, or internal
+        `-- publish the resulting surfaces in a LayerRegionIsland
+
+Classification compares the current area with the slices of linked lower and
+upper islands. Areas not covered from below become bottom surfaces; areas not
+covered from above become top surfaces; the remaining area becomes sparse
+internal infill. When an area qualifies as both top and bottom, the configured
+first-layer rule decides which type owns the overlap. A bottom surface above
+the first layer receives the bridge modifier, while a first-layer bottom is
+treated as supported by the build plate or raft.
+
+If several regions use different infill extruders, their portions are clipped
+to the union of their region slices before classification, so one surface
+cannot be assigned to two extruders. If there is only one extruder group, the
+whole island fill area is classified directly. This plugin creates and types
+the surfaces; later surface plugins may further modify or split them, and the
+infill generator consumes them to create extrusions.
+*/
+
 namespace slic3r_api { namespace SurfaceGeneration { namespace InitialTypedSurfaceBuilderPlugin {
 namespace {
 

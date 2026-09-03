@@ -16,6 +16,42 @@
 #include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
 #include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
 
+/*
+TopSurfaceExpansion
+===================
+
+This plugin enlarges top infill surfaces by the configured
+`external_infill_margin` and propagates that margin into the lower layers of
+the top solid shell. It runs at STEP_SURFACE_GENERATION after solid-shell
+processing and changes fill-surface geometry, not generated infill
+extrusions.
+
+The normal execution flow has two passes:
+
+    run_impl()
+    |-- pass 1, for every layer from bottom to top:
+    |   `-- project top-surface margin rings from eligible upper layers onto
+    |       ordinary internal sparse/void surfaces
+    `-- pass 2, for every layer from bottom to top:
+        `-- expand top surfaces on their own layer and subtract the expansion
+            from sibling surfaces
+
+For each region-island, RegionSettings partitions the island by the values of
+the relevant settings. The margin is computed from `external_infill_margin`
+and a conservative perimeter-width reference. In pass 1, only internal
+sparse and void surfaces are rebuilt; the projected part becomes internal
+solid and the remainder keeps its original type. In pass 2, expanded top
+areas become top solid surfaces, while every non-top surface is reduced by the
+same union so the fill-surface collection remains non-overlapping.
+
+The projection considers only upper layers within `top_solid_layers` or
+`top_solid_min_thickness`. Expansion is clipped to the current island's
+infill areas, and top-surface components that would detach from their source
+are discarded. Existing bridge, solid, and other non-rebuildable surface types
+are preserved. The plugin reorganizes surfaces for later infill generation; it
+does not itself choose an infill pattern or create extrusions.
+*/
+
 namespace slic3r_api { namespace SurfaceGeneration { namespace TopSurfaceExpansionPlugin {
 namespace {
 

@@ -28,19 +28,35 @@
 Default skirt generator
 =======================
 
-The classic skirt code had direct access to Print internals, Flow, Extruder and
-ClipperUtils. This plugin follows the same algorithmic shape, but each host
-dependency has an API-side replacement:
+This plugin generates the classic skirt and first-layer skirt-brim loops from
+the first-layer envelope. The geometry is built in the plugin, while auxiliary
+layer storage and adhesion metadata are published through the shared API
+helper. The skirt is generated after the brim so an option that places the
+skirt relative to the brim can use the brim geometry that was actually built.
 
-- Print/Object/Layer views provide slices, support layers, instances and config;
-- PrintHelpers reproduces the first-layer height, skirt flow and E/mm logic;
-- ClipperViews builds offset loops around the convex hull;
-- AdhesionLayerHelpers publishes normal auxiliary layers that own the output.
+The normal execution flow is:
 
-The plugin deliberately generates skirt after brim. When skirt_distance_from_brim
-is enabled, the already-published brim points become part of the skirt hull, so
-the skirt stands outside the real adhesion geometry rather than estimating brim
-from settings.
+    run_impl()
+    `-- generate_default_skirt()
+        |-- validate the STEP_SKIRT_BRIM context and read print settings
+        |-- return when no skirt, skirt-brim, or draft-shield work is requested
+        |-- choose per-object generation when complete-object mode requires it
+        |-- otherwise collect all print objects for one shared envelope
+        |-- make_skirt()
+        |   |-- collect object, support, and optional brim points
+        |   |-- build the convex-hull offset loops
+        |   |-- resolve first-layer flow and distribute loops across extruders
+        |   `-- keep normal and first-layer-only loops in print order
+        `-- publish_object_skirt() or publish_print_skirt()
+            `-- create tagged auxiliary layers through the common helper
+
+The hull is object-local for per-object skirts and print-level for shared
+skirts. Draft-shield settings can extend the considered layer range, while
+`min_skirt_length` may request additional loop length. The output roots are
+explicitly non-sortable and non-reversible because their order is part of the
+skirt's behavior. This plugin creates extrusion trees and auxiliary layers,
+but does not generate final machine G-code or perform general extrusion
+ordering.
 */
 
 namespace slic3r_api { namespace SkirtBrim { namespace DefaultSkirtGeneratorPlugin {

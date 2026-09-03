@@ -22,6 +22,45 @@
 #include "libslic3r/Api/plugin/cpp/PrintHelpers.hpp"
 #include "libslic3r/Api/plugin/cpp/Views.hpp"
 
+/*
+VaseMultiIslandConnector
+========================
+
+This post-slicing plugin adapts multi-island layers for spiral-vase mode. It
+connects nearby islands with printable bridge capsules and keeps one connected
+component per layer, so the following perimeter stage can produce one
+continuous vase path.
+
+The normal execution flow is:
+
+    run_impl()
+    |-- return without changing slices when `spiral_vase` is disabled
+    `-- for every object layer with more than one island:
+        |-- copy island slices into storage-owned geometry
+        |-- find close island pairs using their nearest boundary points
+        |-- select a minimum connecting set with UnionFind/Kruskal
+        |-- turn selected centerlines into round-ended bridge capsules
+        |-- group islands and capsules into connected components
+        |-- keep the component overlapping the previous layer when possible
+        |   or the component with the largest area otherwise
+        |-- clip every raw region to the kept component
+        |-- assign each bridge capsule to the region with the greatest overlap
+        `-- publish raw region slices and rebuild layer slices and islands
+
+The connection threshold and capsule width are derived from the largest
+external-perimeter flow on the layer. The previous layer is used only to
+preserve vertical continuity; it is not modified. A layer with no suitable
+external width remains unchanged, while a layer with several disconnected
+components is reduced to the selected component even if no bridge was needed.
+
+Input slices are copied before publication because rebuilding the layer
+invalidates the previous layer view. Bridge capsules are added to exactly one
+LayerRegion and overlapping regions are clipped, keeping raw region slices
+non-overlapping before the host reconstructs the island data. This plugin
+changes raw slices for vase-mode continuity; it does not generate perimeters
+or G-code itself.
+*/
+
 namespace slic3r_api { namespace VaseMultiIslandConnectorPlugin {
 namespace {
 

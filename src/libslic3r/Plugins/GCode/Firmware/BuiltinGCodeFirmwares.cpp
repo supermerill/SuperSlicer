@@ -24,9 +24,34 @@
 Built-in G-code firmware provider implementation
 ================================================
 
-One small provider adapter owns the metadata common to all built-in dialects.
-Each run still creates a concrete, independent session so no machine state can
-leak between exports.
+This file registers the built-in firmware dialects as one exclusive
+GCODE_FIRMWARE group. `BuiltinGCodeFirmwarePlugin` is a metadata and factory
+adapter; the dialect-specific session classes perform the actual G-code
+encoding.
+
+The normal execution flow is:
+
+    register_builtin_gcode_firmware_plugins()
+    |-- define the available dialects and their priorities
+    |-- register one BuiltinGCodeFirmwarePlugin per dialect
+    `-- expose one shared firmware selector in the printer UI
+
+    BuiltinGCodeFirmwarePlugin::run_impl()
+    |-- read the selected G-code script processor, if present
+    |-- call the definition's session factory
+    `-- transfer the new GCodeFirmwareSession to the host context
+
+All dialects share the common configuration keys. A dialect may add extra
+keys, such as Klipper's `tool_name`. Only the owner selected by
+`registers_ui` publishes the shared UI fragment, preventing duplicate
+selectors. The plugin instances remain registered even when inactive so the
+exclusive-group setting can list every available firmware.
+
+Each run creates a fresh session, so machine state, tool histories, and script
+processor state cannot leak between exports. The session is owned by the host
+after `run_impl()` returns and is consumed by the selected STEP_GCODE output
+writer. This adapter does not itself traverse the PrintingPlan or emit final
+G-code.
 */
 
 namespace slic3r_api { namespace GCodeGeneration { namespace Firmware {

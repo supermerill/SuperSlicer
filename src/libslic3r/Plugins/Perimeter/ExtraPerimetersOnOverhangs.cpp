@@ -26,6 +26,60 @@
 #include "libslic3r/Api/plugin/cpp/LineDistancer.hpp"
 #include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
 
+/*
+Extra perimeters on overhangs
+=============================
+
+This plugin provides a STEP_POST_PERIMETER pass that adds anchored perimeter
+paths below unsupported overhang areas. It processes one PrintObject layer at
+a time and leaves the normal perimeter generator responsible for the original
+perimeter tree.
+
+For each island, process_island() first checks that the island has regions,
+perimeter storage, infill areas, and lower-layer coverage. It then resolves the
+region-local enable setting and builds an OverhangGenerationInput containing
+the perimeter depth, anchor size, spacing, bridge parameters, and lower-layer
+geometry. generate_extra_perimeters_over_overhangs() subtracts lower coverage
+from the infill domain, derives anchoring regions, and processes each
+disconnected overhang area. It clips and reconnects generated paths, removes
+tiny fragments, and stops when the remaining area is bridgeable or no longer
+large enough to print.
+
+The generated paths are inserted at the beginning of the perimeter root. Their
+coverage is also removed from the island's fill and free-fill areas so later
+infill does not claim material already occupied by the added paths. A regional
+disabled area is added back to the unfilled mask, preserving the setting
+boundary when one island contains several region configurations.
+
+The normal call flow is:
+
+    ExtraPerimetersOnOverhangs::setup_run_impl()
+    `-- reserve one progress unit per object layer
+
+    ExtraPerimetersOnOverhangs::run_impl()
+    `-- walk object layers and layer islands
+        `-- process_island()
+            |-- reject islands without usable perimeter/infill/lower data
+            |-- first_mutable_perimeter_root()
+            |-- generation_input_for_island()
+            |   `-- resolve flows, spacing, margins, bridge settings, and masks
+            |-- segregate extra_perimeters_on_overhangs by region
+            |-- enabled_infill_area()
+            |-- generate_extra_perimeters_over_overhangs()
+            |   |-- find unsupported overhang regions
+            |   |-- generate and reconnect anchored perimeter paths
+            |   |-- test bridgeability where required
+            |   `-- return paths plus filled/unfilled coverage
+            |-- prepend_extra_perimeters_to_root()
+            `-- update_fill_areas()
+
+The first printable object layer and raft-covered layers are excluded from
+extra-overhang generation. Empty, disabled, unsupported, or non-printable
+regions are left unchanged. The generated paths use ordinary perimeter
+attributes; this plugin does not decide their final speed or overhang-specific
+metadata.
+*/
+
 namespace slic3r_api { namespace Perimeter { namespace ExtraPerimetersOnOverhangsPlugin {
 
 namespace {

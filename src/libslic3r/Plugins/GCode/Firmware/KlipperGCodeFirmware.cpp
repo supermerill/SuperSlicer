@@ -14,8 +14,38 @@
 Klipper firmware implementation
 ===============================
 
-Klipper keeps the common state-transition algorithm but replaces tool naming,
-pressure advance, shared acceleration and radius arcs with native syntax.
+`KlipperGCodeFirmwareSession` specializes the common firmware session for
+Klipper's command vocabulary. The inherited session still decides when the
+machine state changes and when each PrintingPlan item is visited; this file
+only encodes the dialect-specific result.
+
+The main specialization flow is:
+
+    setup_firmware()
+    `-- build a stable name for every configured tool
+
+    resolve_empty_script()
+    `-- map color-change and pause events to `PAUSE`, then use the common
+        fallback for other script types
+
+    encode state changes
+    |-- select a tool with `ACTIVATE_EXTRUDER`
+    |-- set temperature with `M104` or `M109`
+    |-- set pressure advance with `SET_PRESSURE_ADVANCE`
+    |-- encode shared acceleration with `M204`
+    `-- report unsupported machine operations through the common fallback
+
+    encode_move() / encode_arc()
+    `-- emit Klipper-compatible linear and I/J-center arc commands, including
+        only the axes and extrusion values that changed
+
+Klipper uses one shared acceleration setting for the initial machine envelope,
+while later movement-specific changes use `M204 S`. Tool names come from the
+`tool_name` configuration and fall back to `extruder`, `extruder1`, and so on.
+The selected tool's fan runtime is synchronized from the previous tool because
+the emitted fan command is global, whereas heater histories remain per tool.
+This class does not own plan traversal or script placeholder expansion; those
+responsibilities remain in the base session and the firmware output writer.
 */
 
 namespace slic3r_api { namespace GCodeGeneration { namespace Firmware {

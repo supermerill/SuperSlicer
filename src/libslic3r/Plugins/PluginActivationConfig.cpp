@@ -3,11 +3,39 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 
-// This file implements the integrity boundary around plugins/activated.ini.
-// Parsing first builds a temporary document, then either returns a complete
-// valid value or a sanitized value with diagnostics. Publication follows the
-// inverse rule: a complete staging file is closed before the previous file is
-// moved aside, and rollback remains possible until the replacement succeeds.
+/*
+Plugin activation configuration
+===============================
+
+This file reads and publishes `plugins/activated.ini`, the user configuration
+that records installed plugin packages, activation states, and package
+associations. Its purpose is to keep malformed or interrupted configuration
+writes from silently changing which plugins are loaded at startup.
+
+The normal execution flow is:
+
+    ensure_plugin_activation_config()
+    |-- create the user file from the shipped defaults when it is absent
+    `-- read_plugin_activation_config()
+        |-- parse the complete INI document into temporary entries
+        |-- validate sections, package names, semantic versions, and duplicates
+        |-- keep diagnostics for tolerant callers
+        `-- publish a complete PluginActivationConfig only when validation allows it
+
+    write_plugin_activation_config()
+    |-- write all sections to a sibling staging file
+    |-- flush and close the staging stream
+    `-- commit_plugin_activation_staging()
+        `-- atomically replace the destination while retaining rollback state
+
+Invalid package entries are rejected individually where possible, while a
+strict read returns a cleared configuration instead of exposing a partial
+result. A missing slicer-version entry inherits the package version for
+backward compatibility. A damaged user file can be replaced by the shipped
+defaults, but those defaults are validated before the existing file is
+touched. The parser retains duplicate entries so they can be reported as
+ambiguous rather than silently selecting one value.
+*/
 
 #include "PluginActivationConfig.hpp"
 

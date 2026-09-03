@@ -13,6 +13,41 @@
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/cpp/Views.hpp"
 
+/*
+SupportDemandOverhangs
+======================
+
+This plugin creates support-demand polygons from the part of each layer that
+is not supported by the layer below. It runs at STEP_SUPPORT_DEMAND, before
+support geometry is generated, and combines its result with demand already
+stored by earlier support-demand plugins.
+
+The normal execution flow is:
+
+    setup_run_impl()
+    `-- reserve progress for every island above the first layer
+
+    run_impl()
+    |-- read the object support settings
+    |-- for each layer from bottom to top, compare it with the layer below
+    |-- enlarge the lower-layer coverage according to the overhang threshold
+    |   or the external-perimeter width
+    |-- subtract that coverage from the current island slice
+    `-- union the unsupported area with the island's existing demand
+
+The first layer is skipped because it has no lower layer to provide support.
+Automatic demand is generated only when support material and automatic support
+are enabled. Enforced-support layers are processed even when automatic support
+is disabled. The configured overhang threshold determines the horizontal
+allowance when it is valid; otherwise, half the smallest external-perimeter
+width of the island is used.
+
+The calculation is performed independently for each layer island. The result
+is limited to the current island slice and stored in the host-owned demand
+map. This stage identifies areas that need support; it does not generate the
+support extrusions themselves.
+*/
+
 namespace slic3r_api { namespace Support { namespace SupportDemandOverhangsPlugin {
 
 namespace {

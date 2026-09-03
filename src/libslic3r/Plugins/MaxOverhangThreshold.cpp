@@ -15,6 +15,55 @@
 #include "libslic3r/Api/plugin/cpp/PrintHelpers.hpp"
 #include "libslic3r/Api/plugin/cpp/Views.hpp"
 
+/*
+Maximum overhang-slope post-processing
+======================================
+
+This plugin provides the STEP_POST_SLICING pass that enlarges supported raw
+slices according to the configured maximum overhang slope. It works before
+surface and perimeter generation, so it changes LayerRegion raw slices rather
+than already-generated extrusion paths.
+
+The plugin runs once per PrintObject. For every layer after the first, it
+builds the area supported by the previous layer, detects portions that can be
+bridged, optionally looks ahead through upper layers for future bridges, and
+expands the supported mask by the configured slope distance. Bridgeable areas
+are restored to the mask without being enlarged, so bridge geometry remains
+available for later processing. The expanded mask is intersected with each
+region's original slices and written back through the mutable step context.
+
+After all regions of a layer have been processed, the host is asked to rebuild
+the layer slices and islands from the updated LayerRegion slices. This keeps
+the data consumed by later steps consistent with the raw-slice changes.
+
+The normal call flow is:
+
+    MaxOverhangThreshold::inilialize_impl()
+    `-- create plugin settings and GUI rules
+
+    MaxOverhangThreshold::setup_run_impl()
+    `-- reserve progress for layers after layer zero
+
+    MaxOverhangThreshold::run_impl()
+    `-- resolve PrintObject and shared nozzle/resolution data
+        |-- no region enables overhangs_max_slope?
+        |   `-- finish without changing slices
+        `-- for each object layer after the first
+            |-- intersect current and lower-layer slices
+            |-- for each region
+            |   |-- detect current-layer bridgeable areas
+            |   |-- optionally detect bridgeable areas in upper layers
+            |   |-- enlarge the supported mask by the maximum slope
+            |   |-- restore bridge areas without enlargement
+            |   `-- write replacement raw slices to the LayerRegion
+            `-- layer_recompute_slices_and_islands_from_layer_region()
+
+The first layer and raft-covered layers are not enlarged. A disabled or zero
+maximum slope leaves the corresponding region unchanged. The plugin owns the
+raw-slice transformation and cache-rebuild request; later pipeline steps own
+the regenerated surfaces and perimeters.
+*/
+
 namespace slic3r_api { namespace MaxOverhangThresholdPlugin {
 
 namespace {

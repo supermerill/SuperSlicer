@@ -17,6 +17,59 @@
 #include "libslic3r/Api/plugin/cpp/ClipperViews.hpp"
 #include "libslic3r/Api/plugin/cpp/PerimeterStepViews.hpp"
 
+/*
+Top-surface single-perimeter module
+===================================
+
+This plugin registers a PERIMETER_GENERATION_MODULE that limits enabled top
+surface areas to one perimeter. It does not generate paths. The perimeter
+generator first creates the current node and its children; this module then
+classifies the child domain and changes the requested count of only the parts
+that should stop after the first perimeter.
+
+module_start() stores the current island's region-segregated settings and
+whether upper islands exist. If there is no upper island and the setting is
+uniformly enabled, the root can be clamped immediately. All other cases wait
+for module_after(), because the child domain and the first generated perimeter
+are needed to classify the top area.
+
+For a real top layer, enabled region clips are applied directly to the child
+nodes. For a partial top surface, the module builds lower and upper coverage,
+accounts for bridging, external-infill margins, and minimum top width, then
+partitions the child domain into a stop area and a normal continuation area.
+The stop area is split out of the children and clamped to one perimeter; the
+remaining area keeps the normal perimeter requests. Region entries are
+processed successively so their different top-surface parameters do not
+classify an already-processed stop area twice.
+
+The normal call flow is:
+
+    OnlyOnePerimeterOnTop::run_impl()
+    `-- install module_vtable() in the perimeter-generation context
+        `-- perimeter generator invokes module_start()
+            |-- segregate top and top-fill settings
+            |-- no upper island and uniform enabled setting?
+            |   `-- clamp the root to one perimeter
+            `-- otherwise defer classification to module_after()
+
+    module_after()
+    `-- accept only the first generated perimeter with children
+        |-- no upper island?
+        |   `-- split enabled regions and clamp their child nodes
+        `-- upper island exists?
+            |-- child_area_collection()
+            |-- build_one_perimeter_stop_area() for each enabled region entry
+            |   |-- build upper/lower coverage and bridge checker
+            |   |-- classify top candidate and normal continuation
+            |   `-- accumulate the exact stop-area partition
+            `-- set_top_children_to_one_perimeter()
+                `-- split children and clamp the stop pieces
+
+module_end() releases the tree-local state. The module changes only perimeter
+requests and node subdivision; the selected perimeter generator remains
+responsible for producing the extrusion paths.
+*/
+
 namespace slic3r_api { namespace Perimeter { namespace OnlyOnePerimeterOnTopPlugin {
 
 namespace {

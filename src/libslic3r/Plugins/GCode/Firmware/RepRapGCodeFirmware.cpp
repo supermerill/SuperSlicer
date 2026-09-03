@@ -11,8 +11,30 @@
 RepRapFirmware implementation
 =============================
 
-The encoder follows RepRapFirmware's current tool-oriented commands while the
-base session remains responsible for deciding when each state changed.
+`RepRapGCodeFirmwareSession` keeps the common PrintingPlan traversal and
+machine-state bookkeeping, then translates the resulting state changes to
+RepRapFirmware's command vocabulary.
+
+The specialization flow is:
+
+    resolve_empty_script()
+    |-- emit `M600` for a color-change event
+    |-- emit `M226` for a pause-print event
+    `-- delegate other script types to the common session
+
+    encode_machine_envelope()
+    |-- emit acceleration limits with `M201`
+    |-- convert feedrates and minimum extruding feedrate to mm/min for `M203`
+    |-- emit print/travel acceleration with `M204`
+    `-- emit jerk limits with `M566`, also in mm/min
+
+    encode fan and pressure-advance changes
+    `-- use RepRapFirmware's tool-oriented command parameters
+
+The neutral `MachineEnvelope` remains in mm/sec-based units until this class
+performs the dialect-boundary conversion. State transitions, extrusion values,
+and script processing stay in the inherited session. This class only supplies
+RepRapFirmware encodings and is instantiated by the common firmware provider.
 */
 
 namespace slic3r_api { namespace GCodeGeneration { namespace Firmware {

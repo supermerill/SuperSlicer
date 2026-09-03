@@ -20,9 +20,40 @@ Custom G-code PrintRecord reader
 ================================
 
 The Model publishes custom height markers as a column-oriented DynamicConfig.
-This file is the single decoder used by all pipeline plugins. It checks the
-whole table before returning any row, so a malformed channel cannot partially
-change tool ordering or append only part of the requested scripts.
+This file is the single decoder used by all pipeline plugins that consume
+those markers. It transforms the columnar record into a validated
+`CustomGCodeTable` and provides the common rules for matching rows to plan
+layers and determining the printer mode.
+
+The normal execution flow is:
+
+    read_custom_gcode_per_print_z()
+    |-- read the PrintRecord channel
+    |-- validate the row-count and mode columns
+    |-- validate every row column's type and length before copying data
+    |-- validate finite, non-decreasing Z values and event types
+    |-- validate tool numbers against `nozzle_diameter`
+    `-- return the complete table, or no table when the channel is absent
+
+    effective_record_mode()
+    `-- use the stored mode, or infer SingleExtruder, MultiAsSingle, or
+        MultiExtruder from the marker rows when the stored mode is undefined
+
+    rows_by_layer()
+    `-- assign each marker to the first PrintingLayerGroup whose print Z is
+        greater than or equal to the marker Z
+
+`printing_plan_mode()` inspects the tools used by object extrusions, rather
+than support or auxiliary extrusions, to distinguish a true multi-extruder
+plan from a multi-extruder printer operating as a single tool. This distinction
+is used by both marker-ordering and marker-event plugins. Tool values are
+one-based in the stored record and become zero-based when returned to plan
+consumers.
+
+All columns are checked before any row is copied, so malformed records cannot
+partially change tool ordering or append only part of the requested scripts.
+Rows above the last plan layer remain in the table and are reported by the
+consumer that maps them; this reader does not silently discard them.
 */
 
 namespace slic3r_api::GCodeGeneration::CustomGCodePerPrintZPlugin {

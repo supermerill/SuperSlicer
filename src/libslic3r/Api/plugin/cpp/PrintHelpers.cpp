@@ -9,6 +9,37 @@
 #include <limits>
 #include <stdexcept>
 
+/*
+Print helper implementations
+============================
+
+These functions reproduce small derived calculations from the legacy Print,
+PrintObject, and Extruder classes without making those host-only classes part
+of the plugin API. They are compatibility helpers for plugin algorithms, not a
+second source of persistent print state.
+
+The implementation covers four related tasks:
+
+    |-- normalize configured one-based extruder ids to zero-based ids
+    |-- collect object, support, and skirt extruders
+    |-- resolve first-layer heights from absolute or nozzle-relative settings
+    `-- convert volumetric extrusion into E-axis distance per millimeter
+
+Configuration lengths and areas arrive in user-facing millimeters, while
+`coord_t` and `c_flow` geometry values use scaled internal coordinates. The
+helpers perform the conversion at their boundary and return scaled values when
+the result is a coordinate. Extruder ids returned by this file are zero-based,
+even though the corresponding user settings are one-based.
+
+The fallback behavior is intentional: an invalid or unavailable configured
+extruder resolves to tool zero, an object with no detected extruder falls back
+to tool zero for skirt work, and a missing nozzle value uses 0.4 mm when a
+first-layer percentage must be evaluated. `get_min_first_layer_height()` and
+other functions that require actual objects throw `std::runtime_error` when
+the input cannot provide a meaningful result. `check_z_step()` leaves its
+input unchanged when the requested Z step is disabled or too small.
+*/
+
 namespace slic3r_api {
 namespace {
 

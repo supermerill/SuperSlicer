@@ -13,6 +13,40 @@
 #include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
 #include "libslic3r/Api/plugin/cpp/Views.hpp"
 
+/*
+SupportDemandModifiers
+======================
+
+This plugin applies support-enforcer and support-blocker volumes to the
+support-demand polygons produced for an object. It works on the demand stage,
+before support geometry is generated, so it changes where support may be
+requested rather than deleting already generated support extrusions.
+
+The normal execution flow is:
+
+    setup_run_impl()
+    `-- reserve progress for every object layer island when a relevant volume exists
+
+    run_impl()
+    |-- collect the object's layer Z positions and slicing parameters
+    |-- slice relevant modifier volumes in object-volume order
+    `-- for every layer island:
+        |-- intersect enforcers with the island and union them with existing demand
+        `-- subtract blockers from the resulting demand
+
+Each modifier volume is sliced once and its polygons are reused for all layer
+islands at the same Z. Enforcers can create demand where none existed, but only
+inside the object island. Blockers affect only existing demand. A small offset
+is applied to blocker polygons before subtraction so boundary-touching areas
+are not left as support demand because of polygon-rounding differences.
+
+The plugin keeps the host-owned demand storage as the source of truth and
+replaces an island's polygon collection after each boolean operation. Volume
+priority is therefore determined by object-volume order: later modifiers see
+the demand produced by earlier ones, and a later blocker can remove an earlier
+enforcer's result.
+*/
+
 namespace slic3r_api { namespace Support { namespace SupportDemandModifiersPlugin {
 
 namespace {

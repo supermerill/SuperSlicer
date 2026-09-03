@@ -26,10 +26,44 @@
 Configured G-code script placement
 ==================================
 
-This plugin translates configuration into ordered PrintingPlan events. Each
-event carries both its semantic script type and the immutable structural
-PlaceholderParser values known at insertion time. Firmware sessions therefore
-only need to add current machine state when the event is serialized.
+This plugin translates configured start, layer, object, and filament scripts
+into ordered events in the PrintingPlan. It runs at STEP_EXTRUSION_EDIT after
+the plan hierarchy and tool-change scopes have been created. The final
+firmware stage later evaluates these events; this plugin only places them and
+stores their static placeholder values.
+
+The normal execution flow is:
+
+    run_impl()
+    |-- summarize the plan's layers, Z positions, tools, and objects
+    |-- append `start_gcode` before the plan
+    |-- for each sequential printing group:
+    |   |-- place `between_objects_gcode` before the next object or after the
+    |   |   previous object according to its setting
+    |   |-- place `before_layer_gcode` at each layer boundary
+    |   |-- place `layer_gcode` before each layer except a new object's first
+    |   |-- on tool changes, append end-filament and start-filament scripts
+    |   |   with the corresponding source and destination extruder
+    |   `-- retain the last layer and tool state for the next group
+    |-- append final end-filament scripts for the tools that were used
+    `-- append `end_gcode` after the plan
+
+Each event is stored in the fixed scope that owns its boundary. Start-filament
+scripts are inserted immediately before the semantic Unretract event when an
+incoming tool-change scope contains one; otherwise they are placed at the
+beginning of that scope, or in the tool group's before-events when no scope is
+available. This preserves the required order relative to tool selection and
+the restoration of extrusion state.
+
+Placeholder values are copied into a Config snapshot for every event. They
+include layer number and Z, previous and maximum layer Z, object IDs, and
+previous/next or filament extruder IDs. The plan hierarchy is not resized while
+scripts are appended, so borrowed event roots remain valid during the pass.
+Empty scripts produce no event. A plan with no tool group still receives
+plan- and layer-level scripts, but cannot receive a tool-specific start script
+until a tool group and its transition scope exist. In single-extruder
+multi-material mode, final filament cleanup is limited to the active tool;
+otherwise each tool used by the plan receives its own final script.
 */
 
 namespace slic3r_api { namespace GCodeGeneration { namespace SettingsGCodeScriptsPlugin {

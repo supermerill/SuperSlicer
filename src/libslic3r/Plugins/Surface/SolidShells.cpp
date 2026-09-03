@@ -19,6 +19,43 @@
 #include "libslic3r/Api/plugin/cpp/ParallelFor.hpp"
 #include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
 
+/*
+Solid shell surfaces
+====================
+
+This STEP_SURFACE_GENERATION plugin classifies internal sparse or void areas
+as solid where the configured top or bottom shell thickness requires material.
+It consumes typed fill surfaces produced by the initial surface builder and
+publishes a replacement surface partition. It does not generate infill or
+change perimeter and island geometry.
+
+The normal execution flow is:
+
+    setup_run()
+    `-- prepare progress for the object's layers
+
+    run_impl()
+    |-- validate that every non-empty fill collection is typed
+    `-- process_layer() for every object layer
+        `-- for every LayerRegionIsland:
+            |-- segregate top/bottom shell settings by region area
+            |-- keep bridges, existing solids, and non-internal surfaces intact
+            |-- collect eligible internal sparse/void source areas
+            |-- project exposed areas from upper layers for top shells
+            |-- project exposed areas from lower layers for bottom shells
+            |-- exclude portions already supported by the configured perimeter stack
+            |-- union top and bottom candidates
+            |-- emit internal solid and remaining internal sparse surfaces
+            `-- replace the complete fill-surface collection
+
+Layer-count and minimum-thickness settings are evaluated independently in both
+directions. `solid_over_perimeters` prevents a shell request from creating
+solid infill where enough perimeter coverage already provides the required
+support. Special surfaces and regions with incompatible settings are preserved
+or processed through their matching setting area; disabled settings therefore
+leave the corresponding internal surface unchanged.
+*/
+
 namespace slic3r_api { namespace SurfaceGeneration { namespace SolidShellsPlugin {
 namespace {
 

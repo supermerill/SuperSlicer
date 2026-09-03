@@ -15,6 +15,42 @@
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_perimeter.h"
 #include "libslic3r/Api/plugin/cpp/PerimeterStepViews.hpp"
 
+/*
+ExtraPerimeterBelowArea
+=======================
+
+This perimeter-generation module requests additional perimeter passes when a
+remaining child area is smaller than `extra_perimeters_below_area`. It does not
+construct an extrusion or perform an offset itself; it changes the number of
+passes that the selected perimeter generator will attempt on that branch.
+
+The normal execution flow is:
+
+    module_start()
+    `-- build one RegionSettings map for the current perimeter island
+
+    module_after()
+    |-- wait until the generator has created child areas
+    |-- ignore an empty zero-perimeter root used only as a traversal seed
+    |-- read the setting for each regional area clip
+    |-- test every eligible child area against its threshold
+    `-- request a large additional perimeter count for small areas
+
+The module marks a branch after applying the rule and checks its ancestors, so
+descendants do not repeatedly receive the same request. A uniform disabled
+setting exits immediately; mixed regional settings are handled independently
+after RegionSettings splits the island into clips. The threshold is interpreted
+in square millimetres, with percentages based on the current perimeter-width
+reference, and is converted to the scaled area units used by polygons.
+
+`module_end()` releases the per-tree state after the host finishes its walk.
+Because the module runs in `after()`, it can inspect the area produced by the
+preceding perimeter pass. The large request is only an upper bound: the host
+generator stops earlier when the branch has no remaining printable area. This
+module therefore controls branch continuation but does not decide the exact
+number of useful rings.
+*/
+
 namespace slic3r_api { namespace Perimeter { namespace ExtraPerimeterBelowAreaPlugin {
 
 namespace {

@@ -17,6 +17,55 @@
 #include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
 #include "libslic3r/Api/plugin/cpp/PerimeterStepViews.hpp"
 
+/*
+Simple perimeter generation
+===========================
+
+This plugin provides the fixed-width implementation of STEP_PERIMETER. The
+host invokes it for one LayerIsland and supplies a callback that traverses the
+region group and calls generate_node() for each perimeter node. The plugin
+uses the first region's external-perimeter flow and requested perimeter count
+as the shared generation parameters for that island.
+
+generate_node() first applies the requested perimeter count to the node. If no
+additional perimeter is needed, it publishes the node area and fill area
+unchanged. Otherwise, make_perimeter_extrusion() offsets the node area, creates
+closed contour and hole loops, and stores them as reversible extrusion
+subtrees. The callback then computes the inner perimeter area and the slightly
+larger fill/anchor area for the following stages.
+
+The normal call flow is:
+
+    register_simple_perimeter_generator_plugin()
+    `-- SimplePerimeterGenerator::instance()
+        `-- orchestrator_register_plugin()
+
+    SimplePerimeterGenerator::setup_run_impl()
+    `-- reserve one progress unit for the island
+
+    SimplePerimeterGenerator::run_impl()
+    `-- validate the perimeter context and collect island regions
+        |-- external_perimeter_flow(island)
+        |-- perimeter_count(island)
+        `-- run_region_group(..., &generate_node)
+            `-- generate_node() for each perimeter node
+                |-- apply the requested perimeter count
+                |-- no more perimeters needed?
+                |   `-- publish the existing inner and fill areas
+                `-- otherwise
+                    |-- make_perimeter_extrusion()
+                    |   |-- offset the node area
+                    |   |-- create contour and hole loops
+                    |   `-- attach perimeter and extrusion attributes
+                    |-- move the extrusion into the node
+                    |-- compute inner perimeter area
+                    `-- compute fill/anchor area
+
+Only the perimeter geometry conversion is implemented here. Region traversal,
+node ownership, and publication of the resulting area collections remain the
+responsibility of the perimeter step context.
+*/
+
 namespace slic3r_api { namespace Perimeter { namespace SimplePerimeterGeneratorPlugin {
 
 namespace {

@@ -15,6 +15,38 @@
 #include "libslic3r/Polygon.hpp"
 #include "libslic3r/Polyline.hpp"
 
+/*
+BridgeDetector
+==============
+
+This plugin exposes the native bridge detector as a service for other
+plugins. It does not participate in a slicing step that edits the print. A
+caller provides one or more polygons, the lower-layer slices, and detector
+parameters; the plugin returns an opaque detector instance through the C API.
+
+The normal execution flow is:
+
+    BridgeDetector::run()
+    |-- validate the bridge-detector context
+    |-- copy the input polygons and lower-layer slices
+    |-- construct the native Slic3r::BridgeDetector
+    `-- publish the detector context and its bridge_detector_vtable
+
+    bridge_detector_vtable callbacks
+    |-- detect_angle() computes the preferred bridge direction
+    |-- coverage() returns polygons covered by bridge extrusion at an angle
+    |-- unsupported_edges() returns unsupported boundary segments
+    `-- getters and setters expose the detector state used by callers
+
+The native state owns copies of all input geometry, because the ABI handles
+passed to `run()` are borrowed. The returned vectors are copied into the
+caller-provided storage and remain valid independently of temporary native
+results. Invalid input or a failed native construction leaves no detector
+instance to use. The ordinary plugin lifecycle methods are intentionally
+no-ops because this class is a service provider rather than a data-processing
+plugin.
+*/
+
 namespace slic3r_api { namespace BridgeDetectorPlugin {
 
 namespace {

@@ -19,6 +19,44 @@
 #include "libslic3r/Api/plugin/cpp/PerimeterStepViews.hpp"
 #include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
 
+/*
+ClassicPerimeterGenerator
+=========================
+
+This plugin implements the fixed-width perimeter generator for STEP_PERIMETER.
+The host owns the perimeter-tree traversal; this plugin supplies the callback
+that generates one perimeter node at a time for a compatible group of regions.
+
+The normal execution flow is:
+
+    run_impl()
+    |-- read the island's region settings with RegionSettings
+    |-- split the island into groups with compatible perimeter parameters
+    |-- prepare one ClassicGeneratorState for each group
+    `-- call the host's run_region_group() with generate_one_perimeter()
+
+    generate_one_perimeter()
+    |-- if no more perimeter is needed, publish the remaining area as inner
+    |   and fill area
+    |-- otherwise choose the external or internal generator by perimeter index
+    |-- offset the node area to obtain the next centerline ring
+    |-- create loop or gap-fill extrusion entities with perimeter attributes
+    `-- replace the node extrusion and publish its remaining areas
+
+The external generator handles thin external perimeters, overhang spacing,
+thin-wall behavior, and gap fill. The internal generator applies the
+corresponding fixed-width inset, optional corner rounding, and gap-fill rules
+for subsequent rings. Overhang areas are computed for the current region group
+so their spacing can affect the generated ring without mixing incompatible
+region settings.
+
+A single perimeter tree is never shared by regions whose perimeter count,
+flows, overhang, thin-wall, gap-fill, or corner settings differ. The resulting
+roots and child nodes remain owned by the host tree, and later perimeter
+modules may modify them. This plugin generates perimeter geometry only; it does
+not order the tree or generate infill.
+*/
+
 namespace slic3r_api { namespace Perimeter { namespace ClassicPerimeterGeneratorPlugin {
 
 namespace {

@@ -79,6 +79,36 @@ Execution order guaranteed by the host for a given step/plugin pair:
 
 Only run_impl() should modify the slicer data tree. setup_run_impl() is meant
 for preparation and work estimation.
+
+Plugin lifetime and callback context:
+
+    construct the derived plugin with its orchestrator
+        |
+    create c_instance() and register it with the orchestrator
+        |
+    initialize_bridge() once at plugin startup
+        |
+    setup_bridge(run_count)
+        |-- reset PluginProgress
+        `-- call setup_impl()
+        |
+    setup_run_bridge(ctx) once for each future run context
+        `-- call setup_run_impl(ctx), possibly in parallel
+        |
+    run_bridge(ctx) once for each run context
+        `-- call run_impl(ctx), possibly in parallel
+
+The C ABI instance returned by c_instance() is a non-owning pointer to the C++
+plugin object. The derived object must therefore outlive registration and every
+callback made by the host. `plugin_run_context` is also borrowed: use it only
+inside the current setup or run callback and do not store it for another run.
+
+The safe bridge methods prevent C++ exceptions from crossing the ABI. A
+`PluginCancelled` exception means cooperative cancellation and is absorbed
+without an error message. A standard or unknown exception is reported through
+the current context as a plugin error. The progress helper is reset before
+`setup_impl()` and may then be updated by parallel setup/run calls through its
+thread-safe counters.
 */
 
 namespace slic3r_api {

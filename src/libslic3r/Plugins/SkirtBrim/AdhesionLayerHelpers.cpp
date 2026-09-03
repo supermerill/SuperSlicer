@@ -3,8 +3,31 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 /*
-AdhesionLayerHelpers applies the storage contract shared by the built-in skirt
-and brim plugins after the public API has built a generic auxiliary layer.
+Adhesion layer publication helper
+=================================
+
+This file contains the storage operation shared by the skirt and brim
+plugins. The callers provide already-generated adhesion geometry; this helper
+does not decide its shape, size, or placement. Its responsibility is to turn
+that geometry into a valid auxiliary layer and to publish the extrusion with
+the metadata expected by later consumers.
+
+The normal execution flow is:
+
+    publish_adhesion_extrusion_to_auxiliary_layer()
+    |-- validate the handles, geometry, and extrusion
+    |-- build an auxiliary layer from the subject polygons
+    |-- attach the adhesion kind and flags to the layer
+    |-- get the first layer island and its perimeter extrusion root
+    |-- append the generated extrusion to that root
+    `-- remove the auxiliary layer if any publication step fails
+
+The operation is intentionally transactional from the caller's point of
+view: a failed build or insertion must not leave a partially initialized
+adhesion layer in the object. The helper currently publishes into the first
+island and perimeter bucket created by the auxiliary-layer builder; it does
+not distribute geometry across multiple islands or generate final machine
+G-code.
 */
 #include "AdhesionLayerHelpers.hpp"
 

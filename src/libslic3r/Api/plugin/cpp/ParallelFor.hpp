@@ -54,17 +54,43 @@ void parallel_for_storage_with_progress_bridge(const uint32_t index,
 
 } // namespace detail
 
-// Run independent jobs in parallel while hiding the C ABI plumbing.
-//
-// The worker function must have this shape:
-//
-//     void worker(uint32_t index, storage_handle *scratch_storage, Args... args);
-//
-// The helper checks cancellation before each job, gives the worker a temporary
-// scratch storage that belongs only to that job, and increments progress after
-// the worker returns. Extra arguments are copied into a small shared descriptor
-// before the loop starts. Pass pointers for shared objects, mutexes, or large
-// views so the helper does not copy them and so ownership remains obvious.
+/*
+Parallel plugin jobs
+====================
+
+`parallel_for_storage_with_progress()` runs the independent indices in the
+half-open range `[begin, end)` through the host's parallel executor while
+keeping the C ABI callback details inside this header.
+
+The worker must have this shape:
+
+    void worker(uint32_t index, storage_handle *scratch_storage, Args... args);
+
+The normal execution of one job is:
+
+    check cancellation
+        |
+    call worker(index, scratch_storage, args...)
+        |
+    increment PluginProgress when the worker returns normally
+
+Each job receives a fresh `scratch_storage`. It is destroyed immediately after
+that worker returns, so handles allocated from it must be copied or moved into
+longer-lived storage before the worker finishes. The extra arguments are
+decayed and copied into one descriptor before the parallel loop starts. Pass
+pointers or references to shared objects when copying would be expensive, but
+protect every shared mutation with the appropriate synchronization.
+
+Cancellation is checked before each job through `throw_if_cancelled()`. A
+`PluginCancelled` exception stops normal work and is handled by the surrounding
+plugin ABI wrapper. Other worker exceptions are not converted into warnings by
+this helper; they propagate to the caller and must be invoked from a guarded
+plugin callback such as `PluginBase::run_impl()`.
+
+The call waits for the parallel executor to finish. Progress is incremented
+only after a worker completes successfully, so a cancelled or throwing worker
+does not report completed work.
+*/
 template<class Fn, class... Args>
 void parallel_for_storage_with_progress(const uint32_t begin,
                                         const uint32_t end,

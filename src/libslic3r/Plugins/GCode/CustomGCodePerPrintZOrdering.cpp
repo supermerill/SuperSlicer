@@ -19,10 +19,41 @@
 Custom height-marker ordering
 =============================
 
-The first pass changes only normal object extrusions for MultiAsSingle tool
-markers. The default tool sorter then chooses an efficient order. The second
-pass runs afterwards and forces the tool needed by a color-change event to the
-front, adding an empty visit when the layer otherwise has no work for it.
+This file contains two STEP_ORDERING plugins that prepare the PrintingPlan for
+custom height markers. They handle different marker effects and run in a fixed
+priority order: normal object extrusions are assigned to the selected tool
+first, then the tool required by a color-change event is placed first on its
+layer.
+
+The normal execution flow is:
+
+    CustomGCodeToolOverrides (priority 50)
+    |-- read the marker rows for each PrintingGroup
+    |-- keep the first object tool as the initial selection
+    |-- update the selection after each MultiAsSingle ToolChange
+    |-- move only normal object extrusion roots to the selected tool group
+    `-- remove empty tool groups that no longer contain work or events
+
+    default ordering plugins
+    `-- order the resulting tool and extrusion groups
+
+    CustomGCodeEventTools (priority 150)
+    |-- resolve every ColorChange or converted ToolChange target in advance
+    |-- reject conflicting targets on the same layer before mutation
+    |-- create the target tool group when it is absent
+    `-- move the target tool group to the front of its layer
+
+The two plugins accept only marker-table and PrintingPlan modes that describe
+the same single- or multi-extruder family. Tool IDs are zero-based inside the
+plan. `CustomGCodeToolOverrides` leaves support and auxiliary extrusions in
+their original groups, while `CustomGCodeEventTools` may create an empty tool
+group because its presence is a required structural event for the later
+G-code stage.
+
+The plan API can invalidate views when groups are moved or erased, so object
+extrusions are transferred while source views are reacquired for each
+operation. These plugins only prepare ordering and tool visits; they do not
+emit the final custom G-code events themselves.
 */
 
 namespace slic3r_api::GCodeGeneration::CustomGCodePerPrintZPlugin {

@@ -21,6 +21,48 @@
 #include "libslic3r/PrintRegion.hpp"
 #include "libslic3r/Surface.hpp"
 
+/*
+Legacy infill-pattern adapters
+==============================
+
+This file exposes the existing Fill algorithms through the INFILL_PATTERN
+plugin step. One LegacyInfillPattern instance is created for each supported
+InfillPattern value; the instance keeps the stable plugin id, display text,
+priority, and native pattern enum needed by that algorithm.
+
+The default infill generator builds a raw_infill_pattern_params structure for
+one surface and asks the selected pattern plugin to fill it. Each adapter
+validates its context, reconstructs Flow and FillParams from the ABI values,
+creates the corresponding native Fill object, copies the layer and overlap
+data it needs, and calls Fill::fill_surface_extrusion() to append paths to the
+provided output collection.
+
+The normal call flow is:
+
+    register_legacy_infill_pattern_plugins()
+    `-- legacy_instances()
+        `-- create one LegacyInfillPattern per k_legacy_patterns entry
+            `-- orchestrator_register_plugin()
+
+    LegacyInfillPattern::run_impl()
+    `-- validate the INFILL_PATTERN context
+        |-- unsupported legacy object state?
+        |   `-- report that this pattern is not available in the new context
+        `-- otherwise
+            |-- fill_params_from_raw()
+            |   `-- rebuild Flow and FillParams
+            |-- Fill::new_from_type(m_pattern)
+            |-- configure bounds, layer, angle, clipping, and overlap
+            |-- Fill::init_spacing()
+            `-- Fill::fill_surface_extrusion()
+
+The adapter deliberately preserves the old low-level geometry algorithms.
+`ipAdaptiveCubic`, `ipSupportCubic`, and `ipLightning` remain selectable in
+the registry, but currently require object-level precomputed data that the
+INFILL_PATTERN context does not expose; they fail explicitly instead of
+producing incomplete infill.
+*/
+
 namespace slic3r_api { namespace Infill { namespace LegacyInfillPatternsPlugin {
 namespace {
 

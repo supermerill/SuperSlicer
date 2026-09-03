@@ -27,6 +27,54 @@
 #include "libslic3r/Print.hpp"
 #include "libslic3r/PrintRegion.hpp"
 
+/*
+Arachne perimeter generation
+============================
+
+This plugin provides the Arachne implementation of STEP_PERIMETER. The host
+invokes it for one LayerSliceIsland. The plugin prepares the generation state
+from the island's first region, including external and internal perimeter
+flows, then gives the complete region list to the host callback
+run_region_group(). The callback owns the traversal of the perimeter tree and
+calls generate_node() for each node that needs to be produced.
+
+generate_node() converts one node area into variable-width Arachne wall paths.
+It applies the configured perimeter count, selects external or internal flow,
+assigns perimeter and loop properties, and stores closed lines as extrusion
+loops or open lines as reversible multi-paths. It also computes the inner
+areas and inner fill areas that the following perimeter and surface stages
+will use. Invalid or empty geometry is returned without creating extrusion.
+
+The normal call flow is:
+
+    register_arachne_perimeter_generator_plugin()
+    `-- ArachnePerimeterGenerator::instance()
+        `-- orchestrator_register_plugin()
+
+    ArachnePerimeterGenerator::setup_run_impl()
+    `-- reserve one progress unit for the island
+
+    ArachnePerimeterGenerator::run_impl()
+    `-- validate and unwrap the perimeter context
+        |-- find the first region and build ArachneGeneratorState
+        |   `-- resolve layer, print, flows, and requested perimeter count
+        `-- run_region_group(..., &generate_node)
+            `-- generate_node() for each perimeter tree node
+                |-- build Arachne::WallToolPaths from the node area
+                |-- make_arachne_extrusions()
+                |   |-- convert variable-width lines to paths
+                |   `-- append loops or open multi-paths
+                |-- move generated extrusion into the node
+                |-- compute inner areas and fill areas
+                `-- publish both area collections to the host
+
+Closed-loop direction follows the configured contour and hole direction,
+including the optional odd-layer reversal. Loop endpoints that are only
+epsilon-close are normalized before publication. The plugin is responsible
+for Arachne geometry conversion, while tree traversal and final storage remain
+owned by the perimeter step context.
+*/
+
 namespace slic3r_api { namespace Perimeter { namespace ArachnePerimeterGeneratorPlugin {
 
 namespace {

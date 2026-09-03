@@ -21,27 +21,50 @@ namespace slic3r_api { namespace Ordering { namespace DefaultOrderingPlugin {
 namespace {
 
 /*
-Fallback extrusion-tree ordering
-================================
+Default extrusion-tree ordering
+===============================
 
 The preceding STEP_ORDERING providers have selected the high-level order of
-groups, layers, tools and PrintingExtrusion roots. This final ordering provider
-fixes only sortable nodes inside those roots. Non-sortable subtrees remain atomic, so
-properties and forced sequencing carried by plugin wrappers stay attached to
+groups, layers, tools, and PrintingExtrusion roots. This provider fixes only
+the order and direction of the children inside those roots. Non-sortable
+subtrees remain atomic, so properties and forced sequencing stay attached to
 their original subtree.
 
-PrintingExtrusionPreSort publishes an approximate entry for every non-empty
-root. The first root uses that estimate. The provider then walks the complete
-plan sequentially and feeds each exact root exit into the next root. Every
-non-empty root receives an EntryPointProperty containing its resulting exact
-endpoints.
+The provider walks the complete PrintingPlan sequentially and carries the
+position where the previous extrusion finished. For each sortable node, it
+repeatedly selects the remaining child whose legal entry point is closest to
+that position, moves the child into the next output slot, and prepares it for
+printing. Sortable children are processed recursively. Open reversible paths
+may be started at either end, while closed loops are rotated to their closest
+stored vertex.
 
-Important tree rules:
-  - only nodes marked sortable may reorder their direct children;
-  - open reversible paths may be reversed to reduce travel;
-  - loops are rotated to a stored vertex, never split at an arbitrary point;
-  - once a sortable node is ordered, it is marked non-sortable/non-reversible so
-    downstream code sees a fixed printing sequence.
+Only existing vertices are used as loop entry candidates. This avoids creating
+new segments and preserves the additional geometry stored by the extrusion
+representation, such as arcs and per-point Z offsets. Once a sortable node has
+been converted into a concrete sequence, its sortable and reversible flags are
+disabled so downstream code cannot silently change the selected order. The
+exact front and back of every processed root are published through
+EntryPointProperty for the next root and for later pipeline stages.
+
+The normal call flow is:
+
+    DefaultExtrusionTreeOrdering::run_impl()
+    `-- walk PrintingPlan groups, layers, tools, and extrusion roots
+        |-- order_sortable_extrusion_children()
+        |   |-- best_entry_candidate() for each remaining child
+        |   |   |-- sortable node: inspect its children recursively
+        |   |   |-- loop: collect stored vertices and choose the nearest one
+        |   |   `-- open path: compare front() and back() when reversible
+        |   |-- move the selected child into the fixed prefix
+        |   `-- prepare_child_for_entry()
+        |       |-- rotate_loop_to_point() for loops
+        |       |-- reverse() for a selected reverse candidate
+        |       `-- recurse into sortable children
+        `-- publish EntryPointProperty{root.front(), root.back()}
+
+This is a deterministic nearest-entry heuristic, not a global optimizer. Its
+result depends on the current start position and on the order of equal-cost
+children.
 */
 
 const char *k_no_dependencies[] = { nullptr };

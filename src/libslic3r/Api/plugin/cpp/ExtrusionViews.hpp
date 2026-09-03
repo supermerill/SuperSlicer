@@ -6,9 +6,10 @@
 #define slic3r_Api_plugin_cpp_ExtrusionViews_hpp_
 
 /*
-Developer guide: [Using Plugin Properties](../../../../../doc/plugins/properties.md)
+Developer guides:
 
-Extrusion guide: [Using Unified Extrusion Entities](../../../../../doc/plugins/extrusions.md)
+    [Using Plugin Properties](../../../../../doc/plugins/properties.md)
+    [Using Unified Extrusion Entities](../../../../../doc/plugins/extrusions.md)
 */
 
 #include <algorithm>
@@ -61,34 +62,85 @@ enum class ExistingPropertyPlacement : int32_t
 Extrusion entity C++ views
 ==========================
 
-This file is the ergonomic C++ layer over the strict C extrusion ABI.
+This file is the ergonomic C++ layer over the strict C extrusion ABI. It
+represents a printable path as an ordered tree rather than as a collection of
+unrelated path types.
 
 Ownership model
 ---------------
-- ExtrusionEntity is a borrowed read-only view.
-- MutableExtrusionEntity is a borrowed mutable view; it never frees the handle.
-- StoredExtrusionEntity owns an entity created in a storage_handle and frees it
-  with storage_free() when destroyed.
+- `ExtrusionEntity` is a borrowed read-only view.
+- `MutableExtrusionEntity` is a borrowed mutable view; it never frees the
+  handle.
+- `StoredExtrusionEntity` owns an entity created in a `storage_handle` and frees
+  it with `storage_free()` when destroyed.
 
-Do not return a borrowed view to an entity that was created as a local
-StoredExtrusionEntity inside the same function. Return StoredExtrusionEntity if
-the function creates ownership, or return ExtrusionEntity only when the pointed
-entity is owned by a longer-lived object.
+The views do not extend the lifetime of the entity they refer to. A borrowed
+view is valid only while its host-owned or storage-owned entity remains alive
+and is not invalidated by a structural mutation. Do not return a borrowed view
+to an entity created as a local `StoredExtrusionEntity`; return the stored owner
+when the function creates ownership.
 
 Entity content model
 --------------------
-An extrusion entity may have a polyline or children. The helper methods
-below keep that distinction visible: point/segment operations affect only the
-local polyline, while front(), back(), middle(), length() and empty() walk the
-tree when the entity contains children.
+An entity has one of three useful content states:
+
+- A leaf has a local polyline and no children.
+- A node has children and normally no local polyline. Its child order is part
+  of the printable path order.
+- An empty entity has neither a polyline nor children and can be used as a
+  temporary destination while a plugin builds a tree.
+
+The helper methods keep local and recursive operations distinct. Point and
+segment methods affect only the local polyline. `local_front()`,
+`local_back()`, and `local_length()` also remain local, whereas `front()`,
+`back()`, `middle()`, `length()`, and `empty()` account for child content when
+the entity is a node.
+
+A read-only traversal can therefore inspect a leaf and recurse into a node
+without knowing which legacy extrusion type produced it:
+
+    void inspect(const ExtrusionEntity &entity)
+    {
+        if (entity.has_polyline()) {
+            const c_point start = entity.local_front();
+            const c_point end = entity.local_back();
+            // Process this leaf's local path.
+        }
+
+        for (const ExtrusionEntity child : entity.children())
+            inspect(child);
+    }
+
+Mutable plugins commonly build a complete tree in storage before publishing it:
+
+    StoredExtrusionEntity root(storage);
+    MutableExtrusionEntity child = root.emplace_child();
+    child.set_points(points);
+    child.get_or_add(EPropertyAttributes::key)
+        .extrusion_role(RAW_EXTRUSION_ROLE_EXTERNAL_PERIMETER);
+
+`emplace_child()` returns a borrowed mutable view into `root`; `root` remains
+the owner. Moving a standalone stored entity into a parent transfers its
+content and leaves the source entity empty. The `sortable()` and
+`reversible()` flags tell later ordering steps whether child order or direction
+may be changed.
+
+Invalidation rules
+------------------
+Reacquire borrowed views, child ranges, iterators, property pointers, and
+stored-data pointers after inserting, removing, moving, or replacing content.
+Property pointers are also invalidated when their property is removed or when
+the entity is copied over or moved over. A `StoredExtrusionEntity` keeps its
+own root handle alive, but it does not make borrowed views into transferred or
+replaced children permanent.
 
 Property model
 --------------
 Properties are small typed payloads stored directly on one entity. These helpers
-do not perform inherited lookup through parents: get(key) reads only the
-property physically present on that entity, and get_or_add(key) creates or edits
-only a direct property. Use an extrusion tree visitor, or track parent state
-yourself, when inherited properties matter.
+do not perform inherited lookup through parents: `get(key)` reads only the
+property physically present on that entity, and `get_or_add(key)` creates or
+edits only a direct property. Use an extrusion tree visitor, or track parent
+state yourself, when inherited properties matter.
 
 The most important printable-path property is EPropertyAttributes. It stores:
     role        raw_extrusion_role describing perimeter/infill/support/etc.;

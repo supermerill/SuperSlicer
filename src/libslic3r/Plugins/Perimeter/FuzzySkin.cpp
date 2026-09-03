@@ -21,6 +21,55 @@
 #include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
 #include "libslic3r/Api/plugin/cpp/VolumeViews.hpp"
 
+/*
+Fuzzy-skin perimeter post-processing
+====================================
+
+This plugin provides the STEP_POST_PERIMETER pass that perturbs selected
+perimeter paths to create a textured outer surface. It processes perimeter and
+gap-fill roots separately. RegionSettings determines the mode, thickness, and
+point spacing; painted enforcer and blocker areas may further enable or prevent
+the effect on selected parts of an island.
+
+The plugin uses two phases. First, process_island() builds the region and
+painting partitions, visits every relevant extrusion tree, and collects target
+leaves. process_entity() carries perimeter properties inherited from ancestor
+nodes so a leaf can be classified correctly even when its metadata is stored
+on a wrapper. It may split a leaf by regional or painted areas, but does not
+fuzz the paths during that traversal because changing the tree would invalidate
+the visitor's positions.
+
+Second, fuzzy_paths() modifies each collected target. Closed paths are treated
+as rings and reopened explicitly after randomized point placement. Open paths
+keep their original first and last points so travel planning sees the same
+endpoints. A deterministic seed based on the source points makes the texture
+repeatable, and self-crossing or tiny results are repaired before the points
+are written back.
+
+The normal call flow is:
+
+    FuzzySkin::run_impl()
+    `-- walk object layers and layer islands
+        `-- process_island()
+            |-- segregate fuzzy-skin settings by region
+            |-- build painted enforcer/blocker clips
+            `-- process_region_island_role() for perimeter and gap fill
+                |-- check whether the mode applies to this role and area
+                `-- process_entity()
+                    |-- carry inherited perimeter properties
+                    |-- split leaves at regional/painting boundaries
+                    `-- collect FuzzyTarget entries
+            `-- fuzzy_paths() for every collected target
+                |-- fuzzy_polygon() for closed paths
+                |-- fuzzy_extrusion_line() for open paths
+                |-- remove_fuzzy_self_crossings()
+                `-- write changed point lists back to the targets
+
+Gap fill is fuzzified only in the all-surfaces mode, matching the role-specific
+policy in the implementation. Unsupported modes, zero dimensions, short paths,
+and blocked painted areas remain unchanged.
+*/
+
 namespace slic3r_api { namespace Perimeter { namespace FuzzySkinPlugin {
 
 namespace {

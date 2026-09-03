@@ -5,6 +5,37 @@
 #ifndef slic3r_Api_plugin_cpp_LineDistancer_hpp_
 #define slic3r_Api_plugin_cpp_LineDistancer_hpp_
 
+/*
+LineDistancer
+=============
+
+LineDistancer copies the boundary segments of an `ExPolygonCollection` and
+answers nearest-distance queries against those segments. Both outer contours
+and holes are included. A query is measured against the finite segments, not
+against their infinite supporting lines, so the closest point may be a segment
+endpoint.
+
+The stored coordinates use the same scaled units as `c_point`. The returned
+distance and the radius argument use those units as well; convert to or from
+millimeters at the API boundary when necessary.
+
+    LineDistancer boundaries(areas);
+    double distance = boundaries.distance_from_lines(point);
+    std::vector<size_t> nearby = boundaries.all_lines_in_radius(point, radius);
+
+`distance_from_lines()` returns positive distance outside the stored areas. If
+`signed_distance` is true, it returns a negative distance for a point inside an
+outer contour and outside its holes. An empty distancer returns positive
+infinity. `all_lines_in_radius()` returns the indices of matching stored
+segments in insertion order and returns no indices for a negative radius.
+
+The implementation deliberately uses a simple linear scan. It is appropriate
+for the relatively small boundary sets used by plugin algorithms, but it has
+O(number of stored segments) query cost and does not provide a spatial index.
+The source polygons are copied during construction, so later changes to the
+input views do not change an existing LineDistancer.
+*/
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>

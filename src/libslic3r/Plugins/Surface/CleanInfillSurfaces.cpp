@@ -18,6 +18,39 @@
 #include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
 #include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
 
+/*
+Clean infill surfaces
+=====================
+
+This STEP_SURFACE_GENERATION plugin cleans the fillable surface partition
+before infill generation. It changes only the surface type and boundaries; it
+does not generate infill, rebuild layer islands, or alter perimeter geometry.
+The three plugin settings are evaluated through RegionSettings, so a modifier
+can apply a different cleanup threshold to different parts of one island.
+
+The normal execution flow is:
+
+    setup_run()
+    `-- prepare progress for the object's layers
+
+    run_impl()
+    `-- process_layer() for every object layer
+        `-- for every LayerRegionIsland:
+            |-- read fill surfaces and segregate the three settings by area
+            |-- promote sparse surfaces to solid when the whole layer is small
+            |-- promote sparse surfaces whose individual infill area is small
+            |-- convert too-narrow sparse areas to solid
+            |-- discard isolated micro-surfaces
+            |-- union fragments with the same surface type
+            `-- replace the complete fill-surface collection
+
+The promotion phases preserve special surface roles and affect only sparse
+infill. The width rule resolves percentage values against the largest internal
+infill spacing in the island. Empty inputs and disabled or non-positive
+thresholds remain unchanged, while tiny isolated fragments are removed because
+they would otherwise create unreliable, negligible infill jobs.
+*/
+
 namespace slic3r_api { namespace SurfaceGeneration { namespace CleanInfillSurfacesPlugin {
 namespace {
 

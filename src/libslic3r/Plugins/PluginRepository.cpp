@@ -3,10 +3,47 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 
-// This file implements the durable on-disk protocol shared by downloadable
-// vendor and plugin packages. A package is always validated in a cache first;
-// plugin packages are copied into the live directory only before native or
-// Python plugin loading begins.
+/*
+Plugin repository and package transactions
+===========================================
+
+This file implements the durable on-disk protocol used to cache, validate,
+install, and remove plugin packages. A package is never copied directly into
+the live plugin directory from an unvalidated archive or cache entry.
+
+The normal execution flows are:
+
+    cache_plugin_package_archive()
+    |-- prepare the cache layout
+    |-- extract the archive into a temporary package directory
+    `-- validate its description, versions, and native/Python entry point
+
+    reconcile_installed_plugin_packages()
+    |-- build the complete desired package transaction
+    |-- stage every replacement beside the live package directory
+    |-- validate each staged copy independently
+    `-- commit all replacements and removals as one transaction
+
+    request_plugin_install() / request_plugin_uninstall()
+    |-- validate the requested package identity
+    |-- update the durable activation configuration
+    `-- let the next startup perform the package transaction
+
+Validation checks package names and semantic versions, verifies that
+`description.ini` identifies the expected package type and ID, checks
+`version.ini`, and requires either the platform plugin library or one
+unambiguous Python entry point. The live directory is modified only after all
+desired replacements have been copied and validated. A failure restores the
+previous live repository, while cleanup failures are reported separately so a
+successful installation is not confused with a cleanup warning.
+
+The cache is also the boundary between downloaded content and executable
+content. Startup may republish embedded bundles into it; runtime cache
+operations do not unexpectedly republish those resources. Package directories
+not present in the desired installed set are removed from the live repository,
+but the activation file is managed by the separate activation-configuration
+module.
+*/
 
 #include "PluginRepository.hpp"
 
