@@ -143,6 +143,7 @@ set(SLIC3R_SOURCES
 	Api/plugin/cpp/AuxiliaryLayerHelpers.hpp
 	Api/plugin/cpp/ClipperViews.hpp
 	Api/plugin/cpp/DataTreeViews.hpp
+	Api/plugin/cpp/SurfaceViews.hpp
 	Api/plugin/cpp/ExtrusionTreeVisitors.hpp
 	Api/plugin/cpp/ExtrusionViews.hpp
 	Api/plugin/cpp/GeometryViews.hpp

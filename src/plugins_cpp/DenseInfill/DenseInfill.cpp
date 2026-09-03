@@ -20,7 +20,7 @@
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_post_infill.h"
 #include "libslic3r/Api/plugin/c/steps/slic3r_step_surface_generation.h"
 #include "libslic3r/Api/plugin/cpp/ClipperViews.hpp"
-#include "libslic3r/Api/plugin/cpp/DataTreeViews.hpp"
+#include "libslic3r/Api/plugin/cpp/SurfaceViews.hpp"
 #include "libslic3r/Api/plugin/cpp/ExtrusionViews.hpp"
 #include "libslic3r/Api/plugin/cpp/ParallelFor.hpp"
 #include "libslic3r/Api/plugin/cpp/RegionSettingsViews.hpp"
