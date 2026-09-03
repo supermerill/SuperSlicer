@@ -5,6 +5,9 @@
 #ifndef slic3r_config_def_h_
 #define slic3r_config_def_h_
 
+#define SLIC3R_PLUGIN_API_CONFIG_DEF_MAJOR 1u
+#define SLIC3R_PLUGIN_API_CONFIG_DEF_MINOR 0u
+
 #include "slic3r_config_types.h"
 #include "slic3r_plugin_types.h"
 #include "slic3r_utils.h"

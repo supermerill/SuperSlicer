@@ -5,6 +5,9 @@
 #ifndef slic3r_extrusion_h_
 #define slic3r_extrusion_h_
 
+#define SLIC3R_PLUGIN_API_EXTRUSIONS_MAJOR 1u
+#define SLIC3R_PLUGIN_API_EXTRUSIONS_MINOR 0u
+
 /*
 Developer guide:
 [Using Unified Extrusion Entities](/doc/plugins/extrusions.md)

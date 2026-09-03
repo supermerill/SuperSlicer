@@ -5,6 +5,9 @@
 #ifndef slic3r_config_option_type_h_
 #define slic3r_config_option_type_h_
 
+#define SLIC3R_PLUGIN_API_CONFIG_OPTION_TYPE_MAJOR 1u
+#define SLIC3R_PLUGIN_API_CONFIG_OPTION_TYPE_MINOR 0u
+
 /*
 Configuration option value kinds shared by the host and the plugin ABI.
 

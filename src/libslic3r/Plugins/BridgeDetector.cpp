@@ -197,7 +197,6 @@ const bridge_detector_vtable native_bridge_detector_vtable = {
 plugin_vtable default_plugin_vtable = {
     // Plugin registration vtable. This plugin is a service provider: run()
     // creates a detector instance instead of editing print data directly.
-    SLIC3R_PLUGIN_ABI_VERSION,
     &BridgeDetector::get_id_bridge,
     &BridgeDetector::get_name_bridge,
     &BridgeDetector::get_description_bridge,

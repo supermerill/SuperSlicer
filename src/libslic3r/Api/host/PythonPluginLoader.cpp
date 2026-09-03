@@ -695,7 +695,6 @@ private:
     static const plugin_vtable &vtable()
     {
         static const plugin_vtable vt = {
-            SLIC3R_PLUGIN_ABI_VERSION,
             &PythonPlugin::get_id_bridge,
             &PythonPlugin::get_name_bridge,
             &PythonPlugin::get_description_bridge,
@@ -1110,7 +1109,7 @@ void load_python_plugins(orchestrator_handle *orchestrator)
 
 } // namespace
 
-SLIC3R_PLUGIN_DECLARE_ABI_VERSION()
+#include "libslic3r/Api/plugin/c/slic3r_plugin_register_version.h"
 
 extern "C" SLIC3R_PLUGIN_API void register_plugin(orchestrator_handle *orch)
 {

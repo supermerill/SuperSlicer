@@ -5,17 +5,15 @@
 #ifndef slic3r_plugin_types_h_
 #define slic3r_plugin_types_h_
 
+#define SLIC3R_PLUGIN_API_PLUGIN_TYPES_MAJOR 1u
+#define SLIC3R_PLUGIN_API_PLUGIN_TYPES_MINOR 0u
+
 #include <stdint.h>
 
 #include "slic3r_config_types.h"
-#include "slic3r_gcode_firmware.h"
-#include "slic3r_gcode_script.h"
 #include "slic3r_plugin_run_context.h"
-#include "slic3r_printing_plan.h"
 #include "slic3r_slicing_step.h"
 #include "slic3r_utils.h"
-
-#define SLIC3R_PLUGIN_ABI_VERSION 51u
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,188 +80,82 @@ Use the same double-call convention as plugin_used_config_keys_fn.
 */
 typedef int32_t (*plugin_defined_config_keys_fn)(void *plugin_ctx, const char **keys);
 
-/* One independently versioned API contract required by a plugin. */
-typedef struct plugin_api_requirement {
-    uint32_t api_id;
-    uint16_t major;
-    uint16_t minor;
-} plugin_api_requirement;
-
-/* Return API requirements using the standard C double-call convention. */
-typedef int32_t (*plugin_api_requirements_fn)(
-    void *plugin_ctx,
-    plugin_api_requirement *requirements);
-
 /*
-Each identifier represents one independently versioned API contract. Existing
-identifiers are append-only: their numeric values must never be renumbered.
+Each identifier represents one public C header. A package reports a dense
+version table indexed by this enum before it is allowed to register plugins.
+Existing values are append-only: adding a header appends an id; it never
+renumbers an already published header identity.
+
+Entry zero is always PLUGIN_TYPES, the contract defining plugin_vtable. Every
+package must report a nonzero compatible major for this entry. Other entries
+may be 0.0 when unused. Known requirements need the same major and a minor no
+newer than the host; unknown requirements are rejected unless they are 0.0.
+The table length alone does not determine compatibility.
 */
 typedef enum slic3r_plugin_api_id {
-    SLIC3R_PLUGIN_API_PLUGIN = 0,
-    SLIC3R_PLUGIN_API_RUNTIME,
-    SLIC3R_PLUGIN_API_GEOMETRY,
-    SLIC3R_PLUGIN_API_CONFIG,
-    SLIC3R_PLUGIN_API_DATA_TREE,
-    SLIC3R_PLUGIN_API_SURFACE,
-    SLIC3R_PLUGIN_API_EXTRUSION,
-    SLIC3R_PLUGIN_API_PERIMETER,
-    SLIC3R_PLUGIN_API_INFILL,
-    SLIC3R_PLUGIN_API_SUPPORT,
-    SLIC3R_PLUGIN_API_ORDERING,
-    SLIC3R_PLUGIN_API_GCODE,
+    SLIC3R_PLUGIN_API_PLUGIN_TYPES = 0,
+    SLIC3R_PLUGIN_API_BRIDGE_DETECTOR = 1,
+    SLIC3R_PLUGIN_API_CLIPPER = 2,
+    SLIC3R_PLUGIN_API_CONFIG = 3,
+    SLIC3R_PLUGIN_API_CONFIG_DEF = 4,
+    SLIC3R_PLUGIN_API_CONFIG_OPTION = 5,
+    SLIC3R_PLUGIN_API_CONFIG_OPTION_TYPE = 6,
+    SLIC3R_PLUGIN_API_CONFIG_TYPES = 7,
+    SLIC3R_PLUGIN_API_DATA_TREE = 8,
+    SLIC3R_PLUGIN_API_DEF = 9,
+    SLIC3R_PLUGIN_API_EXTRUSION_ENTITY = 10,
+    SLIC3R_PLUGIN_API_EXTRUSION_POLYLINE = 11,
+    SLIC3R_PLUGIN_API_EXTRUSION_PROPERTY = 12,
+    SLIC3R_PLUGIN_API_EXTRUSIONS = 13,
+    SLIC3R_PLUGIN_API_GCODE_FIRMWARE = 14,
+    SLIC3R_PLUGIN_API_GCODE_SCRIPT = 15,
+    SLIC3R_PLUGIN_API_GEOMETRY = 16,
+    SLIC3R_PLUGIN_API_ORCHESTRATOR = 17,
+    SLIC3R_PLUGIN_API_PLUGIN_RUN_CONTEXT = 18,
+    SLIC3R_PLUGIN_API_PLUGIN = 19,
+    SLIC3R_PLUGIN_API_PRINTING_PLAN = 20,
+    SLIC3R_PLUGIN_API_SLICING_STEP = 21,
+    SLIC3R_PLUGIN_API_UTILS = 22,
+    SLIC3R_PLUGIN_API_VOLUME = 23,
+    SLIC3R_PLUGIN_API_STEP_BRIDGE_DETECTOR = 24,
+    SLIC3R_PLUGIN_API_STEP_COMMON = 25,
+    SLIC3R_PLUGIN_API_STEP_EXTRUSION_EDIT = 26,
+    SLIC3R_PLUGIN_API_STEP_EXTRUSION_SIMPLIFICATION = 27,
+    SLIC3R_PLUGIN_API_STEP_GCODE_FIRMWARE = 28,
+    SLIC3R_PLUGIN_API_STEP_GCODE = 29,
+    SLIC3R_PLUGIN_API_STEP_INFILL_GROUP = 30,
+    SLIC3R_PLUGIN_API_STEP_INFILL = 31,
+    SLIC3R_PLUGIN_API_STEP_LAYER_EXTRUSION_EDIT = 32,
+    SLIC3R_PLUGIN_API_STEP_LAYER_HEIGHT = 33,
+    SLIC3R_PLUGIN_API_STEP_LAYER_STICHING = 34,
+    SLIC3R_PLUGIN_API_STEP_ORDERING = 35,
+    SLIC3R_PLUGIN_API_STEP_PERIMETER = 36,
+    SLIC3R_PLUGIN_API_STEP_POST_INFILL = 37,
+    SLIC3R_PLUGIN_API_STEP_POST_PERIMETER = 38,
+    SLIC3R_PLUGIN_API_STEP_POST_SLICING = 39,
+    SLIC3R_PLUGIN_API_STEP_PRE_GCODE = 40,
+    SLIC3R_PLUGIN_API_STEP_PRE_INFILL = 41,
+    SLIC3R_PLUGIN_API_STEP_PRE_PERIMETER = 42,
+    SLIC3R_PLUGIN_API_STEP_SEAM_PLACER = 43,
+    SLIC3R_PLUGIN_API_STEP_SKIRT_BRIM = 44,
+    SLIC3R_PLUGIN_API_STEP_SLICING = 45,
+    SLIC3R_PLUGIN_API_STEP_SUPPORT = 46,
+    SLIC3R_PLUGIN_API_STEP_SUPPORT_DEMAND = 47,
+    SLIC3R_PLUGIN_API_STEP_SUPPORT_SPOT = 48,
+    SLIC3R_PLUGIN_API_STEP_SURFACE_GENERATION = 49,
+    SLIC3R_PLUGIN_API_STEP_WIPETOWER = 50,
+    /* SLIC3R_PLUGIN_API_COUNT is always last and has its value auto-filled. */
     SLIC3R_PLUGIN_API_COUNT
 } slic3r_plugin_api_id;
 
-/* The major version identifies an incompatible contract */
-#define SLIC3R_PLUGIN_API_PLUGIN_MAJOR    1u
-#define SLIC3R_PLUGIN_API_PLUGIN_MINOR    0u
-//#define SLIC3R_PLUGIN_API_RUNTIME_MAJOR   0u
-//#define SLIC3R_PLUGIN_API_RUNTIME_MINOR   0u
-//#define SLIC3R_PLUGIN_API_GEOMETRY_MAJOR  0u
-//#define SLIC3R_PLUGIN_API_GEOMETRY_MINOR  0u
-//#define SLIC3R_PLUGIN_API_CONFIG_MAJOR    0u
-//#define SLIC3R_PLUGIN_API_CONFIG_MINOR    0u
-//#define SLIC3R_PLUGIN_API_DATA_TREE_MAJOR 0u
-//#define SLIC3R_PLUGIN_API_DATA_TREE_MINOR 0u
-//#define SLIC3R_PLUGIN_API_SURFACE_MAJOR   0u
-//#define SLIC3R_PLUGIN_API_SURFACE_MINOR   0u
-//#define SLIC3R_PLUGIN_API_EXTRUSION_MAJOR 1u
-//#define SLIC3R_PLUGIN_API_EXTRUSION_MINOR 0u
-//#define SLIC3R_PLUGIN_API_PERIMETER_MAJOR 1u
-//#define SLIC3R_PLUGIN_API_PERIMETER_MINOR 0u
-//#define SLIC3R_PLUGIN_API_INFILL_MAJOR    1u
-//#define SLIC3R_PLUGIN_API_INFILL_MINOR    0u
-//#define SLIC3R_PLUGIN_API_SUPPORT_MAJOR   1u
-//#define SLIC3R_PLUGIN_API_SUPPORT_MINOR   0u
-//#define SLIC3R_PLUGIN_API_ORDERING_MAJOR  1u
-//#define SLIC3R_PLUGIN_API_ORDERING_MINOR  0u
-//#define SLIC3R_PLUGIN_API_GCODE_MAJOR     1u
-//#define SLIC3R_PLUGIN_API_GCODE_MINOR     0u
-
-typedef struct slic3r_plugin_api_version {
+typedef struct slic3r_major_minor_version {
     uint16_t major;
     uint16_t minor;
-} slic3r_plugin_api_version;
-
-/* Return the API version currently used. */
-static inline int32_t slic3r_plugin_api_current_version(slic3r_plugin_api_version *requirements) {
-    if (requirements == NULL)
-        return SLIC3R_PLUGIN_API_COUNT;
-
-    requirements[SLIC3R_PLUGIN_API_PLUGIN].major = uint16_t(SLIC3R_PLUGIN_API_PLUGIN_MAJOR);
-    requirements[SLIC3R_PLUGIN_API_PLUGIN].minor = uint16_t(SLIC3R_PLUGIN_API_PLUGIN_MINOR);
-
-#ifdef SLIC3R_PLUGIN_API_PLUGIN_MAJOR
-    requirements[SLIC3R_PLUGIN_API_PLUGIN].major = uint16_t(SLIC3R_PLUGIN_API_PLUGIN_MAJOR);
-    requirements[SLIC3R_PLUGIN_API_PLUGIN].minor = uint16_t(SLIC3R_PLUGIN_API_PLUGIN_MINOR);
-#else
-    requirements[SLIC3R_PLUGIN_API_PLUGIN].major = uint16_t(0);
-    requirements[SLIC3R_PLUGIN_API_PLUGIN].minor = uint16_t(0);
-#endif
-
-#ifdef SLIC3R_PLUGIN_API_RUNTIME_MAJOR
-    requirements[SLIC3R_PLUGIN_API_RUNTIME].major = uint16_t(SLIC3R_PLUGIN_API_RUNTIME_MAJOR);
-    requirements[SLIC3R_PLUGIN_API_RUNTIME].minor = uint16_t(SLIC3R_PLUGIN_API_RUNTIME_MINOR);
-#else
-    requirements[SLIC3R_PLUGIN_API_RUNTIME].major = uint16_t(0);
-    requirements[SLIC3R_PLUGIN_API_RUNTIME].minor = uint16_t(0);
-#endif
-
-#ifdef SLIC3R_PLUGIN_API_GEOMETRY_MAJOR
-    requirements[SLIC3R_PLUGIN_API_GEOMETRY].major = uint16_t(SLIC3R_PLUGIN_API_GEOMETRY_MAJOR);
-    requirements[SLIC3R_PLUGIN_API_GEOMETRY].minor = uint16_t(SLIC3R_PLUGIN_API_GEOMETRY_MINOR);
-#else
-    requirements[SLIC3R_PLUGIN_API_GEOMETRY].major = uint16_t(0);
-    requirements[SLIC3R_PLUGIN_API_GEOMETRY].minor = uint16_t(0);
-#endif
-
-#ifdef SLIC3R_PLUGIN_API_CONFIG_MAJOR
-    requirements[SLIC3R_PLUGIN_API_CONFIG].major = uint16_t(SLIC3R_PLUGIN_API_CONFIG_MAJOR);
-    requirements[SLIC3R_PLUGIN_API_CONFIG].minor = uint16_t(SLIC3R_PLUGIN_API_CONFIG_MINOR);
-#else
-    requirements[SLIC3R_PLUGIN_API_CONFIG].major = uint16_t(0);
-    requirements[SLIC3R_PLUGIN_API_CONFIG].minor = uint16_t(0);
-#endif
-
-#ifdef SLIC3R_PLUGIN_API_DATA_TREE_MAJOR
-    requirements[SLIC3R_PLUGIN_API_DATA_TREE].major = uint16_t(SLIC3R_PLUGIN_API_DATA_TREE_MAJOR);
-    requirements[SLIC3R_PLUGIN_API_DATA_TREE].minor = uint16_t(SLIC3R_PLUGIN_API_DATA_TREE_MINOR);
-#else
-    requirements[SLIC3R_PLUGIN_API_DATA_TREE].major = uint16_t(0);
-    requirements[SLIC3R_PLUGIN_API_DATA_TREE].minor = uint16_t(0);
-#endif
-
-#ifdef SLIC3R_PLUGIN_API_SURFACE_MAJOR
-    requirements[SLIC3R_PLUGIN_API_SURFACE].major = uint16_t(SLIC3R_PLUGIN_API_SURFACE_MAJOR);
-    requirements[SLIC3R_PLUGIN_API_SURFACE].minor = uint16_t(SLIC3R_PLUGIN_API_SURFACE_MINOR);
-#else
-    requirements[SLIC3R_PLUGIN_API_SURFACE].major = uint16_t(0);
-    requirements[SLIC3R_PLUGIN_API_SURFACE].minor = uint16_t(0);
-#endif
-
-#ifdef SLIC3R_PLUGIN_API_EXTRUSION_MAJOR
-    requirements[SLIC3R_PLUGIN_API_EXTRUSION].major = uint16_t(SLIC3R_PLUGIN_API_EXTRUSION_MAJOR);
-    requirements[SLIC3R_PLUGIN_API_EXTRUSION].minor = uint16_t(SLIC3R_PLUGIN_API_EXTRUSION_MINOR);
-#else
-    requirements[SLIC3R_PLUGIN_API_EXTRUSION].major = uint16_t(0);
-    requirements[SLIC3R_PLUGIN_API_EXTRUSION].minor = uint16_t(0);
-#endif
-
-#ifdef SLIC3R_PLUGIN_API_PERIMETER_MAJOR
-    requirements[SLIC3R_PLUGIN_API_PERIMETER].major = uint16_t(SLIC3R_PLUGIN_API_PERIMETER_MAJOR);
-    requirements[SLIC3R_PLUGIN_API_PERIMETER].minor = uint16_t(SLIC3R_PLUGIN_API_PERIMETER_MINOR);
-#else
-    requirements[SLIC3R_PLUGIN_API_PERIMETER].major = uint16_t(0);
-    requirements[SLIC3R_PLUGIN_API_PERIMETER].minor = uint16_t(0);
-#endif
-
-#ifdef SLIC3R_PLUGIN_API_INFILL_MAJOR
-    requirements[SLIC3R_PLUGIN_API_INFILL].major = uint16_t(SLIC3R_PLUGIN_API_INFILL_MAJOR);
-    requirements[SLIC3R_PLUGIN_API_INFILL].minor = uint16_t(SLIC3R_PLUGIN_API_INFILL_MINOR);
-#else
-    requirements[SLIC3R_PLUGIN_API_INFILL].major = uint16_t(0);
-    requirements[SLIC3R_PLUGIN_API_INFILL].minor = uint16_t(0);
-#endif
-
-#ifdef SLIC3R_PLUGIN_API_SUPPORT_MAJOR
-    requirements[SLIC3R_PLUGIN_API_SUPPORT].major = uint16_t(SLIC3R_PLUGIN_API_SUPPORT_MAJOR);
-    requirements[SLIC3R_PLUGIN_API_SUPPORT].minor = uint16_t(SLIC3R_PLUGIN_API_SUPPORT_MINOR);
-#else
-    requirements[SLIC3R_PLUGIN_API_SUPPORT].major = uint16_t(0);
-    requirements[SLIC3R_PLUGIN_API_SUPPORT].minor = uint16_t(0);
-#endif
-
-#ifdef SLIC3R_PLUGIN_API_ORDERING_MAJOR
-    requirements[SLIC3R_PLUGIN_API_ORDERING].major = uint16_t(SLIC3R_PLUGIN_API_ORDERING_MAJOR);
-    requirements[SLIC3R_PLUGIN_API_ORDERING].minor = uint16_t(SLIC3R_PLUGIN_API_ORDERING_MINOR);
-#else
-    requirements[SLIC3R_PLUGIN_API_ORDERING].major = uint16_t(0);
-    requirements[SLIC3R_PLUGIN_API_ORDERING].minor = uint16_t(0);
-#endif
-
-#ifdef SLIC3R_PLUGIN_API_GCODE_MAJOR
-    requirements[SLIC3R_PLUGIN_API_GCODE].major = uint16_t(SLIC3R_PLUGIN_API_GCODE_MAJOR);
-    requirements[SLIC3R_PLUGIN_API_GCODE].minor = uint16_t(SLIC3R_PLUGIN_API_GCODE_MINOR);
-#else
-    requirements[SLIC3R_PLUGIN_API_GCODE].major = uint16_t(0);
-    requirements[SLIC3R_PLUGIN_API_GCODE].minor = uint16_t(0);
-#endif
-
-    return SLIC3R_PLUGIN_API_COUNT;
-}
-
+} slic3r_major_minor_version;
 
 /* ========================= PLUGIN VTABLE ========================= */
 
 typedef struct plugin_vtable {
-
-    /*
-    ABI version used to build this vtable.
-
-    Keep this as the first field: the host can reject stale plugin instances
-    before calling any function pointer whose slot may have moved.
-    */
-    uint32_t abi_version;
 
     /*
     Stable machine-readable id.
@@ -358,9 +250,6 @@ typedef struct plugin_vtable {
     * Called once per object to do the step this plugin is made for.
     */
     plugin_run_fn run;
-
-    /* Optional per-plugin API requirements. */
-    plugin_api_requirements_fn api_requirements;
 
 } plugin_vtable;
 

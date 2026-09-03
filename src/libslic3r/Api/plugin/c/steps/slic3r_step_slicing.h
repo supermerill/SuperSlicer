@@ -5,6 +5,9 @@
 #ifndef slic3r_step_slicing_h_
 #define slic3r_step_slicing_h_
 
+#define SLIC3R_PLUGIN_API_STEP_SLICING_MAJOR 1u
+#define SLIC3R_PLUGIN_API_STEP_SLICING_MINOR 0u
+
 #include "../slic3r_volume.h"
 #include "slic3r_step_common.h"
 

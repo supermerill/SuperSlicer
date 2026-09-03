@@ -5,6 +5,9 @@
 #ifndef slic3r_step_common_h_
 #define slic3r_step_common_h_
 
+#define SLIC3R_PLUGIN_API_STEP_COMMON_MAJOR 1u
+#define SLIC3R_PLUGIN_API_STEP_COMMON_MINOR 0u
+
 #include "../slic3r_data_tree.h"
 #include "../slic3r_plugin_run_context.h"
 

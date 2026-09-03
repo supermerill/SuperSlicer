@@ -17,11 +17,6 @@ void validate_plugin_instance(const plugin_instance &c_api)
 {
     if (c_api.vt == nullptr)
         throw std::runtime_error("Plugin instance has no vtable.");
-    if (c_api.vt->abi_version != SLIC3R_PLUGIN_ABI_VERSION)
-        throw std::runtime_error(
-            "Plugin ABI version mismatch: plugin ABI " + std::to_string(c_api.vt->abi_version) +
-            ", host ABI " + std::to_string(SLIC3R_PLUGIN_ABI_VERSION) +
-            ". Plugin id is unavailable because the vtable layout may be incompatible.");
     if (c_api.vt->get_id == nullptr || c_api.vt->get_name == nullptr ||
         c_api.vt->get_description == nullptr ||
         c_api.vt->get_exclusive_group == nullptr ||

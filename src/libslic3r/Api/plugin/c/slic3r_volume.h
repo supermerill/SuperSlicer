@@ -5,6 +5,9 @@
 #ifndef slic3r_volume_h_
 #define slic3r_volume_h_
 
+#define SLIC3R_PLUGIN_API_VOLUME_MAJOR 1u
+#define SLIC3R_PLUGIN_API_VOLUME_MINOR 0u
+
 #include <stdint.h>
 
 #include "slic3r_data_tree.h"

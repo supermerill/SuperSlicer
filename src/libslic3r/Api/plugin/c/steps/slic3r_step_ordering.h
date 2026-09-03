@@ -5,6 +5,9 @@
 #ifndef slic3r_step_ordering_h_
 #define slic3r_step_ordering_h_
 
+#define SLIC3R_PLUGIN_API_STEP_ORDERING_MAJOR 1u
+#define SLIC3R_PLUGIN_API_STEP_ORDERING_MINOR 0u
+
 #include "../slic3r_printing_plan.h"
 #include "slic3r_step_common.h"
 

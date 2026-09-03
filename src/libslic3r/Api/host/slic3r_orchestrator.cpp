@@ -124,9 +124,11 @@ Slic3r::PluginPackageLoadErrorCode plugin_package_load_error_code(raw_plugin_pac
     case RAW_PLUGIN_PACKAGE_LOAD_ERROR_LIBRARY_OPEN_FAILED:
         return Slic3r::PluginPackageLoadErrorCode::LibraryOpenFailed;
     case RAW_PLUGIN_PACKAGE_LOAD_ERROR_MISSING_ABI_EXPORT:
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_RESERVED_MISSING_API_VERSIONS_EXPORT:
         return Slic3r::PluginPackageLoadErrorCode::MissingAbiExport;
-    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_ABI_MISMATCH:
-        return Slic3r::PluginPackageLoadErrorCode::AbiMismatch;
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_RESERVED_ABI_MISMATCH:
+    case RAW_PLUGIN_PACKAGE_LOAD_ERROR_API_HEADER_VERSION_MISMATCH:
+        return Slic3r::PluginPackageLoadErrorCode::ApiHeaderVersionMismatch;
     case RAW_PLUGIN_PACKAGE_LOAD_ERROR_MISSING_REGISTRATION_EXPORT:
         return Slic3r::PluginPackageLoadErrorCode::MissingRegistrationExport;
     case RAW_PLUGIN_PACKAGE_LOAD_ERROR_REGISTRATION_FAILED:

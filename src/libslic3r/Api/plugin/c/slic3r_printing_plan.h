@@ -5,6 +5,9 @@
 #ifndef slic3r_printing_plan_h_
 #define slic3r_printing_plan_h_
 
+#define SLIC3R_PLUGIN_API_PRINTING_PLAN_MAJOR 1u
+#define SLIC3R_PLUGIN_API_PRINTING_PLAN_MINOR 0u
+
 /*
 PrintingPlan property guide:
 [Using Plugin Properties](/doc/plugins/properties.md)

@@ -5,6 +5,9 @@
 #ifndef slic3r_step_gcode_h_
 #define slic3r_step_gcode_h_
 
+#define SLIC3R_PLUGIN_API_STEP_GCODE_MAJOR 1u
+#define SLIC3R_PLUGIN_API_STEP_GCODE_MINOR 0u
+
 #include "slic3r_step_common.h"
 #include "../slic3r_gcode_firmware.h"
 #include "../slic3r_printing_plan.h"

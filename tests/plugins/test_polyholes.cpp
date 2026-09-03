@@ -510,7 +510,6 @@ void duplicate_plugin_run(void *, const plugin_run_context *) {}
 const plugin_vtable *duplicate_option_plugin_vtable()
 {
     static const plugin_vtable vt = {
-        SLIC3R_PLUGIN_ABI_VERSION,
         &duplicate_plugin_id,
         &duplicate_plugin_name,
         &duplicate_plugin_description,

@@ -5,6 +5,9 @@
 #ifndef slic3r_step_layer_extrusion_edit_h_
 #define slic3r_step_layer_extrusion_edit_h_
 
+#define SLIC3R_PLUGIN_API_STEP_LAYER_EXTRUSION_EDIT_MAJOR 1u
+#define SLIC3R_PLUGIN_API_STEP_LAYER_EXTRUSION_EDIT_MINOR 0u
+
 #include "slic3r_step_common.h"
 #include "../slic3r_printing_plan.h"
 

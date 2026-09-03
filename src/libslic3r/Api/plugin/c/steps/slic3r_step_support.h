@@ -5,6 +5,9 @@
 #ifndef slic3r_step_support_h_
 #define slic3r_step_support_h_
 
+#define SLIC3R_PLUGIN_API_STEP_SUPPORT_MAJOR 1u
+#define SLIC3R_PLUGIN_API_STEP_SUPPORT_MINOR 0u
+
 #include "slic3r_step_common.h"
 
 #ifdef __cplusplus

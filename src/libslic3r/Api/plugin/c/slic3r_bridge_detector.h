@@ -5,6 +5,9 @@
 #ifndef slic3r_bridge_detector_h_
 #define slic3r_bridge_detector_h_
 
+#define SLIC3R_PLUGIN_API_BRIDGE_DETECTOR_MAJOR 1u
+#define SLIC3R_PLUGIN_API_BRIDGE_DETECTOR_MINOR 0u
+
 #include <stdint.h>
 
 #include "slic3r_data_tree.h"

@@ -114,8 +114,6 @@ wxString plugin_display_name(const std::string &plugin_id)
 wxString plugin_issue_tooltip(const PluginPackageLoadIssue &issue)
 {
     wxString tooltip = from_u8(issue.detail);
-    if (issue.plugin_abi != 0 || issue.host_abi != 0)
-        tooltip += format(_L("\nPlugin API: %1%; host API: %2%."), issue.plugin_abi, issue.host_abi);
     if (issue.system_error != 0)
         tooltip += format(_L("\nSystem error code: %1%."), issue.system_error);
     return tooltip;
@@ -129,7 +127,7 @@ wxString plugin_package_load_label(const PluginPackageLoadReport &report)
     case PluginPackageLoadErrorCode::PackageMissing:             return _L("Package missing");
     case PluginPackageLoadErrorCode::DependencyMissing:          return _L("Missing dependency");
     case PluginPackageLoadErrorCode::MissingAbiExport:
-    case PluginPackageLoadErrorCode::AbiMismatch:                return _L("Plugin API mismatch");
+    case PluginPackageLoadErrorCode::ApiHeaderVersionMismatch:   return _L("Plugin API mismatch");
     case PluginPackageLoadErrorCode::PythonRuntimeUnavailable:   return _L("Python runtime missing");
     case PluginPackageLoadErrorCode::PythonReadFailed:
     case PluginPackageLoadErrorCode::PythonCompileFailed:
@@ -154,8 +152,6 @@ wxString plugin_package_load_tooltip(const PluginPackageLoadReport &report)
         if (!issue.plugin_id.empty())
             tooltip += format(_L("Plugin: %1%\n"), from_u8(issue.plugin_id));
         tooltip += from_u8(issue.detail);
-        if (issue.plugin_abi != 0 || issue.host_abi != 0)
-            tooltip += format(_L("\nPlugin API: %1%; host API: %2%."), issue.plugin_abi, issue.host_abi);
         if (issue.system_error != 0)
             tooltip += format(_L("\nSystem error code: %1%."), issue.system_error);
     }

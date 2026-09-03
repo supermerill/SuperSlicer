@@ -5,6 +5,9 @@
 #ifndef slic3r_gcode_script_h_
 #define slic3r_gcode_script_h_
 
+#define SLIC3R_PLUGIN_API_GCODE_SCRIPT_MAJOR 1u
+#define SLIC3R_PLUGIN_API_GCODE_SCRIPT_MINOR 0u
+
 #include <stdint.h>
 
 #include "slic3r_utils.h"

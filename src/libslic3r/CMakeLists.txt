@@ -104,6 +104,8 @@ set(SLIC3R_SOURCES
 	Api/plugin/c/slic3r_gcode_script.h
 	Api/plugin/c/slic3r_orchestrator.h
 	Api/plugin/c/slic3r_plugin.h
+	Api/plugin/c/slic3r_plugin_api_version_entries.inc
+	Api/plugin/c/slic3r_plugin_register_version.h
 	Api/plugin/c/slic3r_plugin_run_context.h
 	Api/plugin/c/slic3r_plugin_types.h
 	Api/plugin/c/slic3r_printing_plan.h

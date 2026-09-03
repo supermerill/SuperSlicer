@@ -341,9 +341,6 @@ wxString plugin_package_load_diagnostic(const PluginPackageLoadReport &report)
         if (!issue.plugin_id.empty())
             diagnostic += format_wxstr(_L("Plugin: %1%\n"), from_u8(issue.plugin_id));
         diagnostic += from_u8(issue.detail);
-        if (issue.plugin_abi != 0 || issue.host_abi != 0)
-            diagnostic += format_wxstr(_L("\nPlugin API: %1%; host API: %2%."),
-                                       issue.plugin_abi, issue.host_abi);
         if (issue.system_error != 0)
             diagnostic += format_wxstr(_L("\nSystem error code: %1%."), issue.system_error);
     }

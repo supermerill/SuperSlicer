@@ -5,6 +5,9 @@
 #ifndef slic3r_clipper_h_
 #define slic3r_clipper_h_
 
+#define SLIC3R_PLUGIN_API_CLIPPER_MAJOR 1u
+#define SLIC3R_PLUGIN_API_CLIPPER_MINOR 0u
+
 #include "slic3r_def.h"
 #include "slic3r_geometry.h"
 #include "slic3r_utils.h"

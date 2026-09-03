@@ -538,7 +538,6 @@ void recording_run(void *ctx, const plugin_run_context *run_ctx)
 const plugin_vtable *recording_vtable()
 {
     static const plugin_vtable table = {
-        SLIC3R_PLUGIN_ABI_VERSION,
         &recording_id,
         &recording_name,
         &recording_description,

@@ -5,6 +5,9 @@
 #ifndef slic3r_step_seam_placer_h_
 #define slic3r_step_seam_placer_h_
 
+#define SLIC3R_PLUGIN_API_STEP_SEAM_PLACER_MAJOR 1u
+#define SLIC3R_PLUGIN_API_STEP_SEAM_PLACER_MINOR 0u
+
 #include <stdint.h>
 
 #include "../slic3r_extrusion_entity.h"

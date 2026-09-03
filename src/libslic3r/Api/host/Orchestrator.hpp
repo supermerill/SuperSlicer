@@ -120,7 +120,7 @@ enum class PluginPackageLoadErrorCode
     LibraryOpenFailed,
     DependencyMissing,
     MissingAbiExport,
-    AbiMismatch,
+    ApiHeaderVersionMismatch,
     MissingRegistrationExport,
     RegistrationFailed,
     NoPluginsRegistered,
@@ -138,8 +138,6 @@ struct PluginPackageLoadIssue
     std::string detail;
     std::string plugin_id;
     uint32_t system_error = 0;
-    uint32_t plugin_abi = 0;
-    uint32_t host_abi = 0;
 };
 
 struct PluginPackageLoadReport

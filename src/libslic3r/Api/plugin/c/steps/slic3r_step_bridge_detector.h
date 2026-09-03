@@ -5,6 +5,9 @@
 #ifndef slic3r_step_bridge_detector_h_
 #define slic3r_step_bridge_detector_h_
 
+#define SLIC3R_PLUGIN_API_STEP_BRIDGE_DETECTOR_MAJOR 1u
+#define SLIC3R_PLUGIN_API_STEP_BRIDGE_DETECTOR_MINOR 0u
+
 #include "../slic3r_bridge_detector.h"
 #include "../slic3r_plugin_run_context.h"
 

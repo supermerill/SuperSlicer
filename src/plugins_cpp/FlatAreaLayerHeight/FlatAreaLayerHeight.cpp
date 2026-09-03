@@ -711,7 +711,7 @@ void register_flat_area_layer_height_plugin(orchestrator_handle *orch)
 }} // namespace slic3r_api::FlatAreaLayerHeightPlugin
 
 #ifdef FLAT_AREA_LAYER_HEIGHT_PLUGIN_DLL
-SLIC3R_PLUGIN_DECLARE_ABI_VERSION()
+#include "libslic3r/Api/plugin/c/slic3r_plugin_register_version.h"
 
 extern "C" SLIC3R_PLUGIN_API void register_plugin(orchestrator_handle *orch)
 {

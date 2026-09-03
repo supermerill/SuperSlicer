@@ -185,7 +185,6 @@ void service_run(void *context, const plugin_run_context *run_context)
 const plugin_vtable *service_vtable()
 {
     static const plugin_vtable table = {
-        SLIC3R_PLUGIN_ABI_VERSION,
         &service_id,
         &service_name,
         &service_description,

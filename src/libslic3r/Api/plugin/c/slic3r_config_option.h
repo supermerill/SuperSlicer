@@ -5,6 +5,9 @@
 #ifndef slic3r_config_option_h_
 #define slic3r_config_option_h_
 
+#define SLIC3R_PLUGIN_API_CONFIG_OPTION_MAJOR 1u
+#define SLIC3R_PLUGIN_API_CONFIG_OPTION_MINOR 0u
+
 #include <stddef.h>
 #include <stdint.h>
 

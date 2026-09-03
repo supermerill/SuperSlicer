@@ -5,6 +5,9 @@
 #ifndef slic3r_extrusion_polyline_h_
 #define slic3r_extrusion_polyline_h_
 
+#define SLIC3R_PLUGIN_API_EXTRUSION_POLYLINE_MAJOR 1u
+#define SLIC3R_PLUGIN_API_EXTRUSION_POLYLINE_MINOR 0u
+
 #include <stdint.h>
 
 #include "slic3r_def.h"

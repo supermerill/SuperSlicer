@@ -5,6 +5,9 @@
 #ifndef slic3r_step_perimeter_h_
 #define slic3r_step_perimeter_h_
 
+#define SLIC3R_PLUGIN_API_STEP_PERIMETER_MAJOR 1u
+#define SLIC3R_PLUGIN_API_STEP_PERIMETER_MINOR 0u
+
 #include "slic3r_step_common.h"
 #include "../slic3r_extrusion_entity.h"
 

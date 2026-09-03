@@ -5,6 +5,9 @@
 #ifndef slic3r_utils_h_
 #define slic3r_utils_h_
 
+#define SLIC3R_PLUGIN_API_UTILS_MAJOR 1u
+#define SLIC3R_PLUGIN_API_UTILS_MINOR 0u
+
 #include <stdint.h>
 
 #if defined(_WIN32) && defined(SLIC3R_HOST_EXPORTS)

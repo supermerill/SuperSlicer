@@ -82,13 +82,6 @@ add_executable(${_TEST_NAME}_tests
     test_vase_multi_island_connector.cpp
     )
 
-add_library(plugin_loader_bad_abi_fixture SHARED plugin_loader_fixture.cpp)
-target_compile_definitions(plugin_loader_bad_abi_fixture PRIVATE
-    SLIC3R_PLUGIN_EXPORTS
-    SLIC3R_TEST_PLUGIN_BAD_ABI)
-target_include_directories(plugin_loader_bad_abi_fixture PRIVATE ../..)
-set_target_properties(plugin_loader_bad_abi_fixture PROPERTIES FOLDER "tests/plugins")
-
 add_library(plugin_loader_missing_register_fixture SHARED plugin_loader_fixture.cpp)
 target_compile_definitions(plugin_loader_missing_register_fixture PRIVATE
     SLIC3R_PLUGIN_EXPORTS
@@ -103,6 +96,35 @@ target_compile_definitions(plugin_loader_missing_abi_fixture PRIVATE
 target_include_directories(plugin_loader_missing_abi_fixture PRIVATE ../..)
 set_target_properties(plugin_loader_missing_abi_fixture PROPERTIES FOLDER "tests/plugins")
 
+add_library(plugin_loader_bad_api_major_fixture SHARED plugin_loader_fixture.cpp)
+target_compile_definitions(plugin_loader_bad_api_major_fixture PRIVATE
+    SLIC3R_PLUGIN_EXPORTS
+    SLIC3R_TEST_PLUGIN_BAD_API_MAJOR
+    SLIC3R_TEST_PLUGIN_THROW_REGISTER)
+target_include_directories(plugin_loader_bad_api_major_fixture PRIVATE ../..)
+set_target_properties(plugin_loader_bad_api_major_fixture PROPERTIES FOLDER "tests/plugins")
+
+add_library(plugin_loader_bad_api_minor_fixture SHARED plugin_loader_fixture.cpp)
+target_compile_definitions(plugin_loader_bad_api_minor_fixture PRIVATE
+    SLIC3R_PLUGIN_EXPORTS
+    SLIC3R_TEST_PLUGIN_BAD_API_MINOR)
+target_include_directories(plugin_loader_bad_api_minor_fixture PRIVATE ../..)
+set_target_properties(plugin_loader_bad_api_minor_fixture PROPERTIES FOLDER "tests/plugins")
+
+add_library(plugin_loader_short_api_table_fixture SHARED plugin_loader_fixture.cpp)
+target_compile_definitions(plugin_loader_short_api_table_fixture PRIVATE
+    SLIC3R_PLUGIN_EXPORTS
+    SLIC3R_TEST_PLUGIN_SHORT_API_TABLE)
+target_include_directories(plugin_loader_short_api_table_fixture PRIVATE ../..)
+set_target_properties(plugin_loader_short_api_table_fixture PROPERTIES FOLDER "tests/plugins")
+
+add_library(plugin_loader_long_api_table_fixture SHARED plugin_loader_fixture.cpp)
+target_compile_definitions(plugin_loader_long_api_table_fixture PRIVATE
+    SLIC3R_PLUGIN_EXPORTS
+    SLIC3R_TEST_PLUGIN_LONG_API_TABLE)
+target_include_directories(plugin_loader_long_api_table_fixture PRIVATE ../..)
+set_target_properties(plugin_loader_long_api_table_fixture PROPERTIES FOLDER "tests/plugins")
+
 add_library(plugin_loader_throw_register_fixture SHARED plugin_loader_fixture.cpp)
 target_compile_definitions(plugin_loader_throw_register_fixture PRIVATE
     SLIC3R_PLUGIN_EXPORTS
@@ -111,16 +133,37 @@ target_include_directories(plugin_loader_throw_register_fixture PRIVATE ../..)
 set_target_properties(plugin_loader_throw_register_fixture PROPERTIES FOLDER "tests/plugins")
 
 add_dependencies(${_TEST_NAME}_tests
-    plugin_loader_bad_abi_fixture
     plugin_loader_missing_register_fixture
     plugin_loader_missing_abi_fixture
+    plugin_loader_bad_api_major_fixture
+    plugin_loader_bad_api_minor_fixture
+    plugin_loader_short_api_table_fixture
+    plugin_loader_long_api_table_fixture
     plugin_loader_throw_register_fixture)
 target_compile_definitions(${_TEST_NAME}_tests PRIVATE
     SLIC3R_FILESYSTEM_TRANSACTION_TESTING
-    SLIC3R_TEST_PLUGIN_BAD_ABI_DLL=R"\($<TARGET_FILE:plugin_loader_bad_abi_fixture>\)"
     SLIC3R_TEST_PLUGIN_MISSING_REGISTER_DLL=R"\($<TARGET_FILE:plugin_loader_missing_register_fixture>\)"
     SLIC3R_TEST_PLUGIN_MISSING_ABI_DLL=R"\($<TARGET_FILE:plugin_loader_missing_abi_fixture>\)"
+    SLIC3R_TEST_PLUGIN_BAD_API_MAJOR_DLL=R"\($<TARGET_FILE:plugin_loader_bad_api_major_fixture>\)"
+    SLIC3R_TEST_PLUGIN_BAD_API_MINOR_DLL=R"\($<TARGET_FILE:plugin_loader_bad_api_minor_fixture>\)"
+    SLIC3R_TEST_PLUGIN_SHORT_API_TABLE_DLL=R"\($<TARGET_FILE:plugin_loader_short_api_table_fixture>\)"
+    SLIC3R_TEST_PLUGIN_LONG_API_TABLE_DLL=R"\($<TARGET_FILE:plugin_loader_long_api_table_fixture>\)"
     SLIC3R_TEST_PLUGIN_THROW_REGISTER_DLL=R"\($<TARGET_FILE:plugin_loader_throw_register_fixture>\)")
+
+# Malformed protocol fixtures must fail before their throwing registration runs.
+foreach(_variant IN ITEMS legacy_abi unknown_api zero_api_table missing_vtable invalid_api_size changing_api_size)
+    string(TOUPPER "${_variant}" _variant_upper)
+    add_library(plugin_loader_${_variant}_fixture SHARED plugin_loader_fixture.cpp)
+    target_compile_definitions(plugin_loader_${_variant}_fixture PRIVATE
+        SLIC3R_PLUGIN_EXPORTS
+        SLIC3R_TEST_PLUGIN_${_variant_upper}
+        SLIC3R_TEST_PLUGIN_THROW_REGISTER)
+    target_include_directories(plugin_loader_${_variant}_fixture PRIVATE ../..)
+    set_target_properties(plugin_loader_${_variant}_fixture PROPERTIES FOLDER "tests/plugins")
+    add_dependencies(${_TEST_NAME}_tests plugin_loader_${_variant}_fixture)
+    target_compile_definitions(${_TEST_NAME}_tests PRIVATE
+        SLIC3R_TEST_PLUGIN_${_variant_upper}_DLL=R"\($<TARGET_FILE:plugin_loader_${_variant}_fixture>\)")
+endforeach()
 
 target_link_libraries(${_TEST_NAME}_tests test_common test_common_data libslic3r)
 set_property(TARGET ${_TEST_NAME}_tests PROPERTY FOLDER "tests")

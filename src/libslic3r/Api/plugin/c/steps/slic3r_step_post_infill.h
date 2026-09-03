@@ -5,6 +5,9 @@
 #ifndef slic3r_step_post_infill_h_
 #define slic3r_step_post_infill_h_
 
+#define SLIC3R_PLUGIN_API_STEP_POST_INFILL_MAJOR 1u
+#define SLIC3R_PLUGIN_API_STEP_POST_INFILL_MINOR 0u
+
 #include "slic3r_step_common.h"
 
 #ifdef __cplusplus

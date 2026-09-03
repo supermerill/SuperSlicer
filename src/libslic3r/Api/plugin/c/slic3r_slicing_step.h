@@ -5,6 +5,9 @@
 #ifndef slic3r_slicing_step_h_
 #define slic3r_slicing_step_h_
 
+#define SLIC3R_PLUGIN_API_SLICING_STEP_MAJOR 1u
+#define SLIC3R_PLUGIN_API_SLICING_STEP_MINOR 0u
+
 #include <stdint.h>
 
 /* ========================= SLICING STEP ========================= */

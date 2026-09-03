@@ -70,17 +70,6 @@ const Slic3r::PluginPackageLoadReport &load_fixture(const boost::filesystem::pat
 
 } // namespace
 
-TEST_CASE("Plugin loader reports incompatible package ABI",
-          "[plugins][loader][diagnostics]")
-{
-    const Slic3r::PluginPackageLoadReport &report = load_fixture(
-        boost::filesystem::path(SLIC3R_TEST_PLUGIN_BAD_ABI_DLL), "diagnostic.bad_abi");
-    REQUIRE(report.issues.size() == 1);
-    CHECK(report.state == Slic3r::PluginPackageLoadState::Failed);
-    CHECK(report.issues.front().code == Slic3r::PluginPackageLoadErrorCode::AbiMismatch);
-    CHECK(report.issues.front().plugin_abi != report.issues.front().host_abi);
-}
-
 TEST_CASE("Plugin loader reports a missing registration export",
           "[plugins][loader][diagnostics]")
 {
@@ -97,6 +86,126 @@ TEST_CASE("Plugin loader reports a missing ABI export",
         boost::filesystem::path(SLIC3R_TEST_PLUGIN_MISSING_ABI_DLL), "diagnostic.no_abi");
     REQUIRE(report.issues.size() == 1);
     CHECK(report.issues.front().code == Slic3r::PluginPackageLoadErrorCode::MissingAbiExport);
+}
+
+TEST_CASE("Plugin loader rejects an incompatible API header major version before registration",
+          "[plugins][loader][diagnostics]")
+{
+    const Slic3r::PluginPackageLoadReport &report = load_fixture(
+        boost::filesystem::path(SLIC3R_TEST_PLUGIN_BAD_API_MAJOR_DLL),
+        "diagnostic.bad_api_major");
+    REQUIRE(report.issues.size() == 1);
+    CHECK(report.issues.front().code == Slic3r::PluginPackageLoadErrorCode::ApiHeaderVersionMismatch);
+    CHECK(report.issues.front().detail.find("slic3r_plugin_types.h") != std::string::npos);
+    CHECK(report.issues.front().detail.find("Registration fixture failure") == std::string::npos);
+}
+
+TEST_CASE("Plugin loader rejects an API header minor version newer than the host",
+          "[plugins][loader][diagnostics]")
+{
+    const Slic3r::PluginPackageLoadReport &report = load_fixture(
+        boost::filesystem::path(SLIC3R_TEST_PLUGIN_BAD_API_MINOR_DLL),
+        "diagnostic.bad_api_minor");
+    REQUIRE(report.issues.size() == 1);
+    CHECK(report.issues.front().code == Slic3r::PluginPackageLoadErrorCode::ApiHeaderVersionMismatch);
+}
+
+TEST_CASE("Plugin loader accepts a shorter compatible API header table",
+          "[plugins][loader][diagnostics]")
+{
+    const Slic3r::PluginPackageLoadReport &report = load_fixture(
+        boost::filesystem::path(SLIC3R_TEST_PLUGIN_SHORT_API_TABLE_DLL),
+        "diagnostic.short_api_table");
+    REQUIRE(report.issues.size() == 1);
+    CHECK(report.issues.front().code == Slic3r::PluginPackageLoadErrorCode::NoPluginsRegistered);
+}
+
+TEST_CASE("Plugin loader accepts unused API headers beyond the host table",
+          "[plugins][loader][diagnostics]")
+{
+    const Slic3r::PluginPackageLoadReport &report = load_fixture(
+        boost::filesystem::path(SLIC3R_TEST_PLUGIN_LONG_API_TABLE_DLL),
+        "diagnostic.long_api_table");
+    REQUIRE(report.issues.size() == 1);
+    CHECK(report.issues.front().code == Slic3r::PluginPackageLoadErrorCode::NoPluginsRegistered);
+}
+
+TEST_CASE("Plugin loader rejects legacy abi before registration",
+          "[plugins][loader][diagnostics]")
+{
+    const Slic3r::PluginPackageLoadReport &report = load_fixture(
+        boost::filesystem::path(SLIC3R_TEST_PLUGIN_LEGACY_ABI_DLL),
+        "diagnostic.legacy_abi");
+    REQUIRE(report.issues.size() == 1);
+    CHECK(report.state == Slic3r::PluginPackageLoadState::Failed);
+    CHECK(report.issues.front().code == Slic3r::PluginPackageLoadErrorCode::ApiHeaderVersionMismatch);
+    CHECK_FALSE(report.issues.front().detail.empty());
+    CHECK(report.issues.front().detail.find("Registration fixture failure") == std::string::npos);
+}
+
+TEST_CASE("Plugin loader rejects unknown api before registration",
+          "[plugins][loader][diagnostics]")
+{
+    const Slic3r::PluginPackageLoadReport &report = load_fixture(
+        boost::filesystem::path(SLIC3R_TEST_PLUGIN_UNKNOWN_API_DLL),
+        "diagnostic.unknown_api");
+    REQUIRE(report.issues.size() == 1);
+    CHECK(report.state == Slic3r::PluginPackageLoadState::Failed);
+    CHECK(report.issues.front().code == Slic3r::PluginPackageLoadErrorCode::ApiHeaderVersionMismatch);
+    CHECK_FALSE(report.issues.front().detail.empty());
+    CHECK(report.issues.front().detail.find("Registration fixture failure") == std::string::npos);
+}
+
+TEST_CASE("Plugin loader rejects zero api table before registration",
+          "[plugins][loader][diagnostics]")
+{
+    const Slic3r::PluginPackageLoadReport &report = load_fixture(
+        boost::filesystem::path(SLIC3R_TEST_PLUGIN_ZERO_API_TABLE_DLL),
+        "diagnostic.zero_api_table");
+    REQUIRE(report.issues.size() == 1);
+    CHECK(report.state == Slic3r::PluginPackageLoadState::Failed);
+    CHECK(report.issues.front().code == Slic3r::PluginPackageLoadErrorCode::ApiHeaderVersionMismatch);
+    CHECK_FALSE(report.issues.front().detail.empty());
+    CHECK(report.issues.front().detail.find("Registration fixture failure") == std::string::npos);
+}
+
+TEST_CASE("Plugin loader rejects missing vtable before registration",
+          "[plugins][loader][diagnostics]")
+{
+    const Slic3r::PluginPackageLoadReport &report = load_fixture(
+        boost::filesystem::path(SLIC3R_TEST_PLUGIN_MISSING_VTABLE_DLL),
+        "diagnostic.missing_vtable");
+    REQUIRE(report.issues.size() == 1);
+    CHECK(report.state == Slic3r::PluginPackageLoadState::Failed);
+    CHECK(report.issues.front().code == Slic3r::PluginPackageLoadErrorCode::ApiHeaderVersionMismatch);
+    CHECK_FALSE(report.issues.front().detail.empty());
+    CHECK(report.issues.front().detail.find("Registration fixture failure") == std::string::npos);
+}
+
+TEST_CASE("Plugin loader rejects invalid api size before registration",
+          "[plugins][loader][diagnostics]")
+{
+    const Slic3r::PluginPackageLoadReport &report = load_fixture(
+        boost::filesystem::path(SLIC3R_TEST_PLUGIN_INVALID_API_SIZE_DLL),
+        "diagnostic.invalid_api_size");
+    REQUIRE(report.issues.size() == 1);
+    CHECK(report.state == Slic3r::PluginPackageLoadState::Failed);
+    CHECK(report.issues.front().code == Slic3r::PluginPackageLoadErrorCode::ApiHeaderVersionMismatch);
+    CHECK_FALSE(report.issues.front().detail.empty());
+    CHECK(report.issues.front().detail.find("Registration fixture failure") == std::string::npos);
+}
+
+TEST_CASE("Plugin loader rejects changing api size before registration",
+          "[plugins][loader][diagnostics]")
+{
+    const Slic3r::PluginPackageLoadReport &report = load_fixture(
+        boost::filesystem::path(SLIC3R_TEST_PLUGIN_CHANGING_API_SIZE_DLL),
+        "diagnostic.changing_api_size");
+    REQUIRE(report.issues.size() == 1);
+    CHECK(report.state == Slic3r::PluginPackageLoadState::Failed);
+    CHECK(report.issues.front().code == Slic3r::PluginPackageLoadErrorCode::ApiHeaderVersionMismatch);
+    CHECK_FALSE(report.issues.front().detail.empty());
+    CHECK(report.issues.front().detail.find("Registration fixture failure") == std::string::npos);
 }
 
 TEST_CASE("Plugin loader reports a registration exception",

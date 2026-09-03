@@ -5,6 +5,9 @@
 #ifndef slic3r_plugin_run_context_h_
 #define slic3r_plugin_run_context_h_
 
+#define SLIC3R_PLUGIN_API_PLUGIN_RUN_CONTEXT_MAJOR 1u
+#define SLIC3R_PLUGIN_API_PLUGIN_RUN_CONTEXT_MINOR 0u
+
 #include <stddef.h>
 
 #include "slic3r_slicing_step.h"

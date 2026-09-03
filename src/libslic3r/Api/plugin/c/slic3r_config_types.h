@@ -5,6 +5,9 @@
 #ifndef slic3r_config_types_h_
 #define slic3r_config_types_h_
 
+#define SLIC3R_PLUGIN_API_CONFIG_TYPES_MAJOR 1u
+#define SLIC3R_PLUGIN_API_CONFIG_TYPES_MINOR 0u
+
 #include <stdint.h>
 
 #ifdef __cplusplus

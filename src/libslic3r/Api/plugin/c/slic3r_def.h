@@ -5,6 +5,9 @@
 #ifndef slic3r_def_h_
 #define slic3r_def_h_
 
+#define SLIC3R_PLUGIN_API_DEF_MAJOR 1u
+#define SLIC3R_PLUGIN_API_DEF_MINOR 0u
+
 #include <assert.h>
 #include <stdint.h>
 

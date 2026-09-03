@@ -5,6 +5,9 @@
 #ifndef slic3r_plugin_h_
 #define slic3r_plugin_h_
 
+#define SLIC3R_PLUGIN_API_PLUGIN_MAJOR 1u
+#define SLIC3R_PLUGIN_API_PLUGIN_MINOR 0u
+
 #include <stdint.h>
 
 #include "slic3r_orchestrator.h"
@@ -36,21 +39,23 @@ orchestrator_register_plugin()
 SLIC3R_PLUGIN_API void register_plugin(orchestrator_handle *orch);
 
 /*
-Return the plugin ABI version used to build this shared library.
+Return the C header versions used to build this shared-library package.
 
-The host checks this symbol before calling register_plugin(). This makes stale
-plugin DLLs fail cleanly instead of registering a plugin_instance whose vtable
-layout no longer matches the host.
+Call with versions == NULL to obtain the number of entries. The returned
+table is dense and indexed by slic3r_plugin_api_id. The package defines this
+export by including slic3r_plugin_register_version.h once, after all public C
+headers used by its entry translation unit. The host validates this export
+before calling register_plugin(), so the plugin_vtable layout is known to be
+compatible before any vtable callback is used.
+
+Entry zero (PLUGIN_TYPES) is mandatory. A longer table is accepted if every
+unknown entry is unused (0.0); shorter tables omit optional contracts only.
+The export name is retained from the former scalar ABI protocol. Requiring
+entry zero rejects legacy exports that leave the table untouched on supported
+platforms, but calling that old signature is not language-level ABI safe.
 */
-SLIC3R_PLUGIN_API uint32_t slic3r_plugin_abi_version(void);
-
-#ifdef __cplusplus
-#define SLIC3R_PLUGIN_DECLARE_ABI_VERSION() \
-    extern "C" SLIC3R_PLUGIN_API uint32_t slic3r_plugin_abi_version(void) { return SLIC3R_PLUGIN_ABI_VERSION; }
-#else
-#define SLIC3R_PLUGIN_DECLARE_ABI_VERSION() \
-    SLIC3R_PLUGIN_API uint32_t slic3r_plugin_abi_version(void) { return SLIC3R_PLUGIN_ABI_VERSION; }
-#endif
+SLIC3R_PLUGIN_API int32_t slic3r_plugin_abi_version(
+    slic3r_major_minor_version *versions);
 
 #ifdef __cplusplus
 }
