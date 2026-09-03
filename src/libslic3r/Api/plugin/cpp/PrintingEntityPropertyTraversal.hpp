@@ -22,7 +22,7 @@ beginning and end of this layer-local sequence. Context objects and their
 property pointers are borrowed and exist only for the duration of the callback;
 plugins must not retain them.
 
-Developer guide: [Using Unified Extrusion Entities](../../../../../doc/plugins/extrusions.md)
+Developer guide: [Using Unified Extrusion Entities](/doc/plugins/extrusions.md)
 */
 
 #include <any>

@@ -17,8 +17,8 @@ plugin API.
 
 Developer guides:
 
-- [Using Plugin Properties](../../../doc/plugins/properties.md)
-- [Using Unified Extrusion Entities](../../../doc/plugins/extrusions.md)
+- [Using Plugin Properties](/doc/plugins/properties.md)
+- [Using Unified Extrusion Entities](/doc/plugins/extrusions.md)
 
 Useful C++ entry points:
 

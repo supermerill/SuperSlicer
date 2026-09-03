@@ -7,10 +7,10 @@
 
 /*
 PrintingPlan property guide:
-[Using Plugin Properties](../../../../../doc/plugins/properties.md)
+[Using Plugin Properties](/doc/plugins/properties.md)
 
 Extrusion guide:
-[Using Unified Extrusion Entities](../../../../../doc/plugins/extrusions.md)
+[Using Unified Extrusion Entities](/doc/plugins/extrusions.md)
 */
 
 #include <stdint.h>

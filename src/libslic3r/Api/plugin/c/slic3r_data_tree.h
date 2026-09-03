@@ -6,9 +6,9 @@
 #define slic3r_data_tree_h_
 
 /*
-Developer guide: [Using Plugin Properties](../../../../../doc/plugins/properties.md)
+Developer guide: [Using Plugin Properties](/doc/plugins/properties.md)
 
-Extrusion guide: [Using Unified Extrusion Entities](../../../../../doc/plugins/extrusions.md)
+Extrusion guide: [Using Unified Extrusion Entities](/doc/plugins/extrusions.md)
 */
 
 #include <stddef.h>

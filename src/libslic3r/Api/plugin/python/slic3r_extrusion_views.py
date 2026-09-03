@@ -48,9 +48,9 @@ Const-correctness model
 - StoredExtrusionEntity owns a mutable handle allocated in a storage_handle and
   releases it with storage_free().
 
-Property guide: [Using Plugin Properties](../../../../../doc/plugins/properties.md)
+Property guide: [Using Plugin Properties](/doc/plugins/properties.md)
 
-Extrusion guide: [Using Unified Extrusion Entities](../../../../../doc/plugins/extrusions.md)
+Extrusion guide: [Using Unified Extrusion Entities](/doc/plugins/extrusions.md)
 """
 
 from __future__ import annotations

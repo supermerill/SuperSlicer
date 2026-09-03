@@ -7,7 +7,7 @@
 
 /*
 Property registration guide:
-[Using Plugin Properties](../../../../../doc/plugins/properties.md)
+[Using Plugin Properties](/doc/plugins/properties.md)
 */
 
 #include <stdint.h>

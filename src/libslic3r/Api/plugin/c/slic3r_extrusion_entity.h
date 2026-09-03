@@ -31,7 +31,7 @@ Use the polyline API to edit local points/segments. Use the property API to
 describe how an entity or its descendants should be interpreted.
 
 Developer guide:
-[Using Unified Extrusion Entities](../../../../../doc/plugins/extrusions.md)
+[Using Unified Extrusion Entities](/doc/plugins/extrusions.md)
 */
 
 typedef struct extrusion_entity_handle extrusion_entity_handle;

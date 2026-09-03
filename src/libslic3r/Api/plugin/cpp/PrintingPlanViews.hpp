@@ -54,9 +54,9 @@ The views expose only plan editing primitives. Algorithms such as by-layer or
 by-object construction belong in STEP_ORDERING plugins, where they can be
 replaced independently.
 
-Property guide: [Using Plugin Properties](../../../../../doc/plugins/properties.md)
+Property guide: [Using Plugin Properties](/doc/plugins/properties.md)
 
-Extrusion guide: [Using Unified Extrusion Entities](../../../../../doc/plugins/extrusions.md)
+Extrusion guide: [Using Unified Extrusion Entities](/doc/plugins/extrusions.md)
 */
 
 class PrintingObjectInstance

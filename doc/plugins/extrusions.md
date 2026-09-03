@@ -120,7 +120,7 @@ StoredExtrusionEntity make_perimeter(storage_handle *storage)
 `EPropertyAttributes` is normally required on printable leaves, either directly
 or inherited from a parent. Other process decisions, such as speed,
 acceleration, temperature, or fan speed, use additional properties. See
-[Using Plugin Properties](properties.md) for direct and dynamic property access.
+[Using Plugin Properties](/doc/plugins/properties.md) for direct and dynamic property access.
 
 ### Retraction And Wipe Process Leaves
 

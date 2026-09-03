@@ -17,9 +17,9 @@ exact layout consumed by the C plugin ABI.
 These helpers describe only one directly stored payload. Inherited lookup over
 an extrusion tree remains the responsibility of ExtrusionTreeVisitors.
 
-Developer guide: [Using Plugin Properties](../../../../../../doc/plugins/properties.md)
+Developer guide: [Using Plugin Properties](/doc/plugins/properties.md)
 
-Entity guide: [Using Unified Extrusion Entities](../../../../../../doc/plugins/extrusions.md)
+Entity guide: [Using Unified Extrusion Entities](/doc/plugins/extrusions.md)
 */
 
 #include <cstdint>

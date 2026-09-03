@@ -18,7 +18,7 @@ Extrusion tree visitors
 =======================
 
 Developer guide:
-[Using Unified Extrusion Entities](../../../../../doc/plugins/extrusions.md)
+[Using Unified Extrusion Entities](/doc/plugins/extrusions.md)
 
 Plugin code often receives one extrusion root from a LayerRegionIsland and then
 needs to inspect or edit every printable leaf. The tree is small enough to look
@@ -66,7 +66,7 @@ the root and returns the first direct property identified by that built-in or
 dynamic key. The returned pointer is borrowed from the entity that owns the
 property. Treat it as read-only and do not keep it after mutating the tree.
 
-Property guide: [Using Plugin Properties](../../../../../doc/plugins/properties.md)
+Property guide: [Using Plugin Properties](/doc/plugins/properties.md)
 */
 
 namespace detail {

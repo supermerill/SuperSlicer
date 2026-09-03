@@ -7,7 +7,7 @@
 
 /*
 Developer guide:
-[Using Unified Extrusion Entities](../../../../../doc/plugins/extrusions.md)
+[Using Unified Extrusion Entities](/doc/plugins/extrusions.md)
 */
 
 #include <stddef.h>
