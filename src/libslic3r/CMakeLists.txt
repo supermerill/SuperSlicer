@@ -271,6 +271,8 @@ set(SLIC3R_SOURCES
 	Plugins/MaxOverhangThreshold.hpp
 	Plugins/Ordering/AdvancedExtrusionTreeOrdering.cpp
 	Plugins/Ordering/AdvancedExtrusionTreeOrdering.hpp
+	Plugins/Ordering/ExtrusionTreeOrderingGeometry.cpp
+	Plugins/Ordering/ExtrusionTreeOrderingGeometry.hpp
 	Plugins/Ordering/DefaultOrdering.cpp
 	Plugins/Ordering/DefaultOrdering.hpp
 	Plugins/Ordering/DefaultExtrusionTreeOrdering.cpp
@@ -283,6 +285,8 @@ set(SLIC3R_SOURCES
 	Plugins/Ordering/DefaultToolGroupOrdering.cpp
 	Plugins/Ordering/PrintingExtrusionPreSort.cpp
 	Plugins/Ordering/PrintingExtrusionPreSort.hpp
+	Plugins/Ordering/XYSerpentineExtrusionTreeOrdering.cpp
+	Plugins/Ordering/XYSerpentineExtrusionTreeOrdering.hpp
 	Plugins/PrintingPlan/EntryPointProperty.h
 	Plugins/PrintingPlan/PrintingLayerEntryStateProperties.h
 	Plugins/PrintingPlan/PrintingExtrusionScopeProperty.h

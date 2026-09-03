@@ -14,8 +14,8 @@ Register the seam-aware extrusion-tree ordering provider.
 
 The provider consumes the coarse order and EntryPointProperty values produced
 by PrintingExtrusionPreSort. It creates one shared SeamPlacer session, then
-processes independent PrintingToolGroup objects in parallel. The internal tree
-ordering algorithm is intentionally left as the next implementation stage.
+processes independent PrintingToolGroup objects in parallel around a sequential
+barrier that refines the order of complete PrintingExtrusion values.
 */
 void register_advanced_extrusion_tree_ordering_plugin(orchestrator_handle *orchestrator);
 

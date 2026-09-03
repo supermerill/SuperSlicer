@@ -47,6 +47,7 @@ add_executable(${_TEST_NAME}_tests
     test_ordering_advanced_extrusion_tree.cpp
     test_ordering_engine.cpp
     test_ordering_printing_extrusion_presort.cpp
+    test_ordering_xy_serpentine.cpp
     test_ordering_extrusion_tree.cpp
     test_orchestrator_plugin_execution.cpp
     test_perimeter_empty_steps.cpp
