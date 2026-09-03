@@ -10,6 +10,7 @@
 #ifndef slic3r_GUI_PluginUpdateDialog_hpp_
 #define slic3r_GUI_PluginUpdateDialog_hpp_
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -29,9 +30,12 @@ struct PluginSync;
 
 namespace Slic3r::GUI {
 
+class PluginActivationDraft;
+
 class PluginUpdateDialog : public RepositoryUpdatesDialogBase {
 public:
     PluginUpdateDialog(wxWindow *parent, PluginUpdater &updater);
+    ~PluginUpdateDialog() override;
 
 private:
     void rebuild();
@@ -46,8 +50,11 @@ private:
     void begin_plugin_operation(const wxString &message);
     void finish_plugin_operation();
     void apply_plugin_operation_state();
+    bool prepare_restart() const;
+    void save_and_restart();
 
     PluginUpdater &m_updater;
+    std::unique_ptr<PluginActivationDraft> m_activation_draft;
     wxBoxSizer *m_main_sizer = nullptr;
     wxTextCtrl *m_repository_url = nullptr;
     std::vector<wxWindow *> m_repository_action_controls;
@@ -58,7 +65,10 @@ private:
 // requested version for installation during the next application startup.
 class ChoosePluginVersionDialog : public RepositoryUpdatesDialogBase {
 public:
-    ChoosePluginVersionDialog(wxWindow *parent, PluginUpdater &updater, std::string plugin_id);
+    ChoosePluginVersionDialog(wxWindow *parent,
+                              PluginUpdater &updater,
+                              std::string plugin_id,
+                              PluginActivationDraft &activation_draft);
     ~ChoosePluginVersionDialog() override;
 
 private:
@@ -67,6 +77,7 @@ private:
 
     PluginUpdater &m_updater;
     std::string m_plugin_id;
+    PluginActivationDraft &m_activation_draft;
     wxScrolledWindow *m_scroll = nullptr;
 };
 
