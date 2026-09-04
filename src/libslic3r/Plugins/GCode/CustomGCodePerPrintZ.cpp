@@ -346,6 +346,19 @@ private:
 
 void register_custom_gcode_per_print_z_plugins(orchestrator_handle *orchestrator)
 {
+    // The two ordering passes and the later event pass implement one feature.
+    // Running only a subset can leave tool visits inconsistent with the
+    // height-marker events emitted into the final PrintingPlan.
+    const char *const members[] = {
+        "ordering.custom_gcode_tool_overrides",
+        "ordering.custom_gcode_event_tools",
+        "gcode.custom_gcode_per_print_z"
+    };
+    if (!orchestrator_register_activation_group(
+            orchestrator, "custom_gcode_per_print_z", {members, 3}))
+        throw std::runtime_error(
+            "Cannot register the custom_gcode_per_print_z activation group.");
+
     register_custom_gcode_per_print_z_ordering_plugins(orchestrator);
     orchestrator_register_plugin(orchestrator, CustomGCodePerPrintZ::instance(orchestrator).c_instance());
 }

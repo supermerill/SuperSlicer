@@ -1,7 +1,9 @@
 #include <catch2/catch.hpp>
 
 #include <cstdint>
+#include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -104,6 +106,22 @@ public:
 };
 
 } // namespace
+
+TEST_CASE("Custom height passes form one activation group",
+          "[plugins][gcode][custom-per-print-z][activation]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    const std::map<std::string, std::set<std::string>> &groups =
+        Orchestrator::instance().activation_groups();
+    const std::map<std::string, std::set<std::string>>::const_iterator group =
+        groups.find("custom_gcode_per_print_z");
+    REQUIRE(group != groups.end());
+    CHECK(group->second == std::set<std::string>{
+        "ordering.custom_gcode_tool_overrides",
+        "ordering.custom_gcode_event_tools",
+        "gcode.custom_gcode_per_print_z"
+    });
+}
 
 TEST_CASE("Custom height record reader validates the complete table",
           "[plugins][gcode][custom-per-print-z][record]")
