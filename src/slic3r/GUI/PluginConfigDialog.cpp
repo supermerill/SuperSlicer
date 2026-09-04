@@ -528,9 +528,11 @@ wxString join_dependencies(const std::vector<std::string> &dependencies)
         return _L("None");
 
     wxString result;
+    // Keep each dependency on its own line. wxStaticText then reports the
+    // complete multiline height to the details grid and its scrollable panel.
     for (const std::string &dependency : dependencies) {
         if (!result.empty())
-            result += ", ";
+            result += "\n";
         result += from_u8(dependency);
     }
     return result;
