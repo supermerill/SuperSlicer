@@ -46,6 +46,7 @@ of the visible list and is written to activated.ini only when the user saves.
 #include "libslic3r/Api/host/Plugin.hpp"
 #include "libslic3r/Plugins/PluginActivationConfig.hpp"
 #include "libslic3r/Steps/StepPipeline.hpp"
+#include "libslic3r/Updater/PluginUpdater.hpp"
 #include "libslic3r/Utils.hpp"
 
 #include "format.hpp"
@@ -65,6 +66,8 @@ enum class PluginPhase {
     Perimeters,
     SurfacesInfill,
     SupportAdhesion,
+    Ordering,
+    PostProcessing,
     Output
 };
 
@@ -133,6 +136,7 @@ private:
 struct PluginCatalogEntry {
     std::string id;
     std::string package_id;
+    wxString package_name;
     std::string exclusive_group;
     wxString name;
     wxString description;
@@ -426,6 +430,7 @@ wxString step_name(slicing_step_t step)
     case INFILL_SURFACE_RECIPE_MODIFIER: return _L("Infill surface recipes");
     case BRIDGE_DETECTOR:                return _L("Bridge detectors");
     case PERIMETER_GENERATION_MODULE:    return _L("Perimeter generation modules");
+    case SEAM_PLACER:                    return _L("Seam placement");
     case STEP_NONE:                      return _L("No pipeline step");
     case STEP_ANY:                       return _L("Multiple pipeline steps");
     default:                             return wxString::Format("STEP_%u", unsigned(step));
@@ -437,9 +442,11 @@ wxString phase_name(PluginPhase phase)
     switch (phase) {
     case PluginPhase::Slicing:          return _L("Slicing");
     case PluginPhase::Perimeters:       return _L("Perimeters");
-    case PluginPhase::SurfacesInfill:   return _L("Surfaces & infill");
-    case PluginPhase::SupportAdhesion:  return _L("Support & adhesion");
-    case PluginPhase::Output:           return _L("Output");
+    case PluginPhase::SurfacesInfill:   return _L("Surfaces and infill");
+    case PluginPhase::SupportAdhesion:  return _L("Supports and adhesion");
+    case PluginPhase::Ordering:         return _L("Ordering");
+    case PluginPhase::PostProcessing:   return _L("Post-processing");
+    case PluginPhase::Output:           return _L("G-code output");
     }
     return wxEmptyString;
 }
@@ -454,26 +461,36 @@ std::optional<PluginPhase> phase_for_step(slicing_step_t step)
     case STEP_PRE_PERIMETER:
     case STEP_PERIMETER:
     case STEP_POST_PERIMETER:
+    case PERIMETER_GENERATION_MODULE:
         return PluginPhase::Perimeters;
     case STEP_SURFACE_GENERATION:
     case STEP_PRE_INFILL:
     case STEP_INFILL_GROUP:
     case STEP_INFILL:
     case STEP_POST_INFILL:
+    case INFILL_PATTERN:
+    case INFILL_SURFACE_RECIPE_MODIFIER:
+    case BRIDGE_DETECTOR:
         return PluginPhase::SurfacesInfill;
     case STEP_SUPPORT_DEMAND:
     case STEP_SUPPORT:
     case STEP_SKIRT_BRIM:
-        return PluginPhase::SupportAdhesion;
-    case STEP_PRE_GCODE:
-    case STEP_ORDERING:
+    case STEP_ALERT_SUPPORTS_NEEDED:
     case STEP_WIPETOWER:
     case STEP_SUPPORT_SPOT:
+        return PluginPhase::SupportAdhesion;
+    case STEP_ORDERING:
+    case SEAM_PLACER:
+        return PluginPhase::Ordering;
+    case STEP_CHECK_CONFLICT:
     case STEP_LAYER_EXTRUSION_EDIT:
     case STEP_LAYER_STICHING:
     case STEP_EXTRUSION_EDIT:
     case STEP_EXTRUSION_SIMPLIFICATION:
+        return PluginPhase::PostProcessing;
+    case STEP_PRE_GCODE:
     case STEP_GCODE:
+    case GCODE_FIRMWARE:
         return PluginPhase::Output;
     default:
         return std::nullopt;
@@ -496,7 +513,7 @@ bool is_pipeline_step(slicing_step_t step)
 
 bool is_extension_step(slicing_step_t step)
 {
-    return !is_pipeline_step(step) || !phase_for_step(step).has_value();
+    return !phase_for_step(step).has_value();
 }
 
 bool navigation_matches(const PluginCatalogEntry &entry, const NavigationScope &scope)
@@ -573,7 +590,7 @@ wxString searchable_plugin_text(const PluginCatalogEntry &entry)
 {
     wxString searchable = entry.name + " " + from_u8(entry.id) + " " + entry.description + " " +
         entry.step_label + " " + entry.exclusive_group_label + " " + from_u8(entry.exclusive_group) + " " +
-        from_u8(entry.package_id);
+        from_u8(entry.package_id) + " " + entry.package_name;
     for (const PluginSettingEntry &setting : entry.defined_settings)
         searchable += " " + from_u8(setting.key);
     for (const PluginSettingEntry &setting : entry.other_used_settings)
@@ -930,13 +947,17 @@ PluginListNode *PluginListModel::add_container(PluginListNode *parent,
 
 PluginListNode *PluginListModel::add_plugin(PluginListNode *parent, PluginCatalogEntry &entry)
 {
-    assert(parent != nullptr);
     std::unique_ptr<PluginListNode> created = std::make_unique<PluginListNode>();
     created->kind = PluginListNode::Kind::Plugin;
     created->parent = parent;
     created->entry = &entry;
     PluginListNode *result = created.get();
-    parent->children.push_back(std::move(created));
+    // A single-step view omits its step heading, so standalone plugins can
+    // also be root rows rather than children of an artificial group.
+    if (parent == nullptr)
+        m_roots.push_back(std::move(created));
+    else
+        parent->children.push_back(std::move(created));
     m_entry_nodes[&entry] = result;
     return result;
 }
@@ -1122,6 +1143,19 @@ void PluginConfigDialog::build_catalog()
         }
         m_state->entries.push_back(std::move(entry));
     }
+
+    // Resolve display names once from the updater's in-memory snapshot, also
+    // for unloaded plugins. Keystrokes never trigger filesystem or network IO.
+    if (PluginUpdater *updater = wxGetApp().get_plugin_updater()) {
+        std::map<std::string, wxString> package_names;
+        for (const PluginSync &package : updater->plugins())
+            package_names.emplace(package.description.id, from_u8(package.description.full_name));
+        for (PluginCatalogEntry &entry : m_state->entries) {
+            const std::map<std::string, wxString>::const_iterator found = package_names.find(entry.package_id);
+            if (found != package_names.end())
+                entry.package_name = found->second;
+        }
+    }
 }
 
 void PluginConfigDialog::build_navigation()
@@ -1135,22 +1169,36 @@ void PluginConfigDialog::build_navigation()
         root, _L("All plugins"), -1, -1, new NavigationItemData({PluginNavigationKind::All}));
     m_state->navigation_records.push_back({all_item, {PluginNavigationKind::All}, _L("All plugins")});
 
-    const std::array<PluginPhase, 5> phases {{
+    const std::array<PluginPhase, 7> phases {{
         PluginPhase::Slicing,
         PluginPhase::Perimeters,
         PluginPhase::SurfacesInfill,
         PluginPhase::SupportAdhesion,
+        PluginPhase::Ordering,
+        PluginPhase::PostProcessing,
         PluginPhase::Output
     }};
+    // Navigation is a functional taxonomy, not the scheduler's execution order.
+    // Include service steps even when no provider for them is currently loaded.
+    const slicing_step_t navigation_steps[] = {
+        STEP_LAYER_HEIGHT, STEP_SLICING, STEP_POST_SLICING,
+        STEP_PRE_PERIMETER, STEP_PERIMETER, STEP_POST_PERIMETER, PERIMETER_GENERATION_MODULE,
+        STEP_SURFACE_GENERATION, STEP_PRE_INFILL, STEP_INFILL_GROUP, STEP_INFILL, STEP_POST_INFILL,
+        INFILL_PATTERN, INFILL_SURFACE_RECIPE_MODIFIER, BRIDGE_DETECTOR,
+        STEP_ALERT_SUPPORTS_NEEDED, STEP_SKIRT_BRIM, STEP_SUPPORT_DEMAND, STEP_SUPPORT,
+        STEP_WIPETOWER, STEP_SUPPORT_SPOT,
+        STEP_ORDERING, SEAM_PLACER,
+        STEP_CHECK_CONFLICT, STEP_LAYER_EXTRUSION_EDIT, STEP_LAYER_STICHING,
+        STEP_EXTRUSION_EDIT, STEP_EXTRUSION_SIMPLIFICATION,
+        STEP_PRE_GCODE, STEP_GCODE, GCODE_FIRMWARE
+    };
     for (PluginPhase phase : phases) {
         const NavigationScope phase_scope { PluginNavigationKind::Phase, phase, STEP_NONE };
         const wxTreeItemId phase_item = tree->AppendItem(
             root, phase_name(phase), -1, -1, new NavigationItemData(phase_scope));
         m_state->navigation_records.push_back({phase_item, phase_scope, phase_name(phase)});
 
-        // Pipeline order, not enum numeric order, controls the navigation.
-        // STEP_SKIRT_BRIM is one example whose execution position differs.
-        for (slicing_step_t step : Steps::execution_order()) {
+        for (slicing_step_t step : navigation_steps) {
             const std::optional<PluginPhase> step_phase = phase_for_step(step);
             if (!step_phase.has_value() || *step_phase != phase)
                 continue;
@@ -1161,27 +1209,30 @@ void PluginConfigDialog::build_navigation()
         }
     }
 
+    const NavigationScope problems_scope { PluginNavigationKind::Problems };
+    const wxTreeItemId problems_item = tree->AppendItem(
+        root, _L("Problems"), -1, -1, new NavigationItemData(problems_scope));
+    m_state->navigation_records.push_back({problems_item, problems_scope, _L("Problems")});
+
     const NavigationScope extensions_scope { PluginNavigationKind::Extensions };
     const wxTreeItemId extensions_item = tree->AppendItem(
-        root, _L("Extension points"), -1, -1, new NavigationItemData(extensions_scope));
+        root, _L("Other"), -1, -1, new NavigationItemData(extensions_scope));
     m_state->navigation_records.push_back(
-        {extensions_item, extensions_scope, _L("Extension points")});
+        {extensions_item, extensions_scope, _L("Other")});
 
     std::set<slicing_step_t> extension_steps;
     for (const PluginCatalogEntry &entry : m_state->entries)
         if (entry.loaded && is_extension_step(entry.step))
             extension_steps.insert(entry.step);
     for (slicing_step_t step : extension_steps) {
+        // Sentinel values belong to Other directly, not to navigable steps.
+        if (step == STEP_NONE || step == STEP_ANY)
+            continue;
         const NavigationScope step_scope { PluginNavigationKind::Step, PluginPhase::Slicing, step };
         const wxTreeItemId step_item = tree->AppendItem(
             extensions_item, step_name(step), -1, -1, new NavigationItemData(step_scope));
         m_state->navigation_records.push_back({step_item, step_scope, step_name(step)});
     }
-
-    const NavigationScope problems_scope { PluginNavigationKind::Problems };
-    const wxTreeItemId problems_item = tree->AppendItem(
-        root, _L("Problems"), -1, -1, new NavigationItemData(problems_scope));
-    m_state->navigation_records.push_back({problems_item, problems_scope, _L("Problems")});
 
     tree->ExpandAll();
     tree->SelectItem(all_item);
@@ -1304,17 +1355,17 @@ void PluginConfigDialog::refresh_plugin_list()
             const std::string group_id = shared_group ? entry->exclusive_group : std::string();
             std::vector<GroupBucket>::iterator group = std::find_if(
                 groups.begin(), groups.end(), [&group_id](const GroupBucket &candidate) {
-                    return candidate.id == group_id;
+                    // Standalone plugins keep individual sorting positions.
+                    return !group_id.empty() && candidate.id == group_id;
                 });
             if (group == groups.end()) {
                 GroupBucket created;
                 created.id = group_id;
-                created.label = shared_group ?
-                    (entry->exclusive_group_label.empty() ? from_u8(entry->exclusive_group) :
-                                                           entry->exclusive_group_label) :
-                    _L("Other plugins");
-                created.tooltip = shared_group ? entry->exclusive_group_tooltip :
-                    _L("Plugins that do not share an alternative-selection group in this step.");
+                if (shared_group) {
+                    created.label = entry->exclusive_group_label.empty() ?
+                        from_u8(entry->exclusive_group) : entry->exclusive_group_label;
+                    created.tooltip = entry->exclusive_group_tooltip;
+                }
                 groups.push_back(std::move(created));
                 group = std::prev(groups.end());
             }
@@ -1330,6 +1381,13 @@ void PluginConfigDialog::refresh_plugin_list()
 
         for (GroupBucket &group : groups) {
             std::stable_sort(group.entries.begin(), group.entries.end(), plugin_less);
+            // Only actual alternatives receive a heading. All other plugins
+            // attach directly to the step (or to the single-step view root).
+            if (group.id.empty()) {
+                for (PluginCatalogEntry *entry : group.entries)
+                    m_state->plugin_list_model->add_plugin(step_parent, *entry);
+                continue;
+            }
             const wxString group_count = group.entries.size() == 1 ? _L("1 plugin") :
                 wxString::Format(_L("%u plugins"), unsigned(group.entries.size()));
             PluginListNode *group_parent = m_state->plugin_list_model->add_container(
@@ -1445,6 +1503,7 @@ void PluginConfigDialog::build()
     wxBoxSizer *filters = new wxBoxSizer(wxHORIZONTAL);
     m_state->search = new wxSearchCtrl(this, wxID_ANY);
     m_state->search->SetDescriptiveText(_L("Search plugins"));
+    m_state->search->SetToolTip(_L("Search names, packages, descriptions and settings."));
     m_state->search->ShowCancelButton(true);
     filters->Add(m_state->search, 1, wxALIGN_CENTER_VERTICAL | wxRIGHT, 12);
     filters->Add(new wxStaticText(this, wxID_ANY, _L("State")), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
