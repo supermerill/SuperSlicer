@@ -25,6 +25,7 @@
 #include <boost/property_tree/ptree.hpp>
 
 #include "libslic3r/Semver.hpp"
+#include "libslic3r/Plugins/PluginPackageChangelog.hpp"
 #include "libslic3r/Updater/RepositoryPackageCache.hpp"
 #include "libslic3r/Utils.hpp"
 
@@ -150,6 +151,23 @@ PluginUpdater::~PluginUpdater()
     shutdown_operation_executor();
 }
 
+void PluginAvailable::load_package_changelog()
+{
+    std::optional<std::string> embedded;
+    notes_error.clear();
+    if (!local_directory.empty())
+        read_plugin_package_changelog((boost::filesystem::path(local_directory) / "changelog.json").string(),
+                                      package_version, embedded, notes_error);
+    if (embedded) {
+        notes = std::move(*embedded);
+        notes_source = PluginChangelogSource::Package;
+    } else if (notes_source == PluginChangelogSource::Package) {
+        // An evicted/replaced cache must not keep presenting stale local notes.
+        notes.clear();
+        notes_source = PluginChangelogSource::None;
+    }
+}
+
 UpdaterError PluginSync::parse_tags(const std::string &json)
 {
     std::vector<RepositoryPackageVersion> parsed;
@@ -185,8 +203,10 @@ UpdaterError PluginSync::parse_tags(const std::string &json)
             const std::vector<PluginAvailable>::const_iterator previous = std::find_if(
                 available_packages.begin(), available_packages.end(),
                 [&version](const PluginAvailable &candidate) { return candidate.tag == version.tag; });
-            if (previous != available_packages.end())
+            if (previous != available_packages.end()) {
                 available.notes = previous->notes;
+                available.notes_source = previous->notes_source;
+            }
             refreshed.emplace_back(std::move(available));
         } else {
             static_cast<RepositoryPackageVersion &>(*existing) = version;
@@ -203,6 +223,7 @@ void PluginSync::sort_available()
     // Remote tags contain no ABI promises. Local manifests are rechecked with
     // this host whenever the model is refreshed, not trusted across upgrades.
     for (PluginAvailable &version : available_packages) {
+        version.load_package_changelog();
         if (version.local_directory.empty()) {
             version.metadata = {};
         } else {
@@ -393,9 +414,9 @@ void PluginUpdater::update_plugin(const std::string &plugin_id, bool force)
         });
 }
 
-void PluginUpdater::download_changelogs(const std::string &plugin_id,
-                                        std::function<void(bool)> callback_result,
-                                        bool force)
+void PluginUpdater::load_changelogs(const std::string &plugin_id,
+                                   std::function<void(bool)> callback_result,
+                                   bool force)
 {
     // Changelog cache files belong to the repository directory removed by a
     // plugin mutation, so they must not start while that directory is reserved.
@@ -415,7 +436,8 @@ void PluginUpdater::download_changelogs(const std::string &plugin_id,
             found = true;
             rest_url = plugin->description.config_update_rest;
             versions.reserve(plugin->available_packages.size());
-            for (const PluginAvailable &version : plugin->available_packages) {
+            for (PluginAvailable &version : plugin->available_packages) {
+                version.load_package_changelog();
                 const std::optional<Semver> package_version = Semver::parse(version.package_version);
                 const std::optional<Semver> slicer_version = Semver::parse(version.slicer_version);
                 if (!package_version || !slicer_version)
@@ -435,9 +457,20 @@ void PluginUpdater::download_changelogs(const std::string &plugin_id,
                     const std::vector<PluginAvailable>::iterator matching = std::find_if(
                         current->available_packages.begin(), current->available_packages.end(),
                         [&tag](const PluginAvailable &candidate) { return candidate.tag == tag; });
-                    if (matching != current->available_packages.end())
-                        matching->notes = std::move(notes);
+                    if (matching != current->available_packages.end()) {
+                        // The package may have become available after this HTTP
+                        // request started. Release-authored notes still win.
+                        matching->load_package_changelog();
+                        if (matching->notes_source != PluginChangelogSource::Package) {
+                            matching->notes = std::move(notes);
+                            matching->notes_source = PluginChangelogSource::Repository;
+                        }
+                    }
                 };
+                // Keep this release as a comparison base for remote notes, but
+                // do not download notes for an entry supplied by its package.
+                if (version.notes_source == PluginChangelogSource::Package)
+                    common_version.store_notes = {};
                 versions.emplace_back(std::move(common_version));
             }
         }

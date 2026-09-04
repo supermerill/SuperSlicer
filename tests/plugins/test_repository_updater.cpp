@@ -40,6 +40,7 @@
 #include "libslic3r/FilesystemTransactionTest.hpp"
 #include "libslic3r/Plugins/PluginRepository.hpp"
 #include "libslic3r/Updater/PluginUpdater.hpp"
+#include "libslic3r/Plugins/PluginPackageChangelog.hpp"
 #include "libslic3r/Updater/PresetUpdater.hpp"
 #include "libslic3r/Updater/RepositoryPackageCache.hpp"
 #include "libslic3r/Updater/RepositoryCacheIO.hpp"
@@ -2278,6 +2279,80 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     CHECK(new_snapshot->available_packages.front().package_version == "2.0.0.0");
 }
 
+TEST_CASE("Package changelogs select exact versions and validate all entries", "[plugins][changelog]")
+{
+    std::optional<std::string> notes;
+    std::string error;
+    const std::string contents = R"({"format_version":1,"versions":{"1.0.0":["First","Second\nline"],"1.0.1":[]}})";
+    REQUIRE(Slic3r::parse_plugin_package_changelog(contents, "1.0.0", notes, error));
+    REQUIRE(notes.has_value());
+    CHECK(*notes == "- First\n- Second\nline");
+    REQUIRE(Slic3r::parse_plugin_package_changelog(contents, "1.0.1", notes, error));
+    REQUIRE(notes.has_value());
+    CHECK(notes->empty());
+    REQUIRE(Slic3r::parse_plugin_package_changelog(contents, "1.0.0.0", notes, error));
+    CHECK_FALSE(notes.has_value());
+    const std::string invalid = GENERATE(
+        std::string(R"({"format_version":2,"versions":{}})"),
+        std::string(R"({"format_version":1,"format_version":1,"versions":{}})"),
+        std::string(R"({"format_version":1,"versions":{"1.0.0":[],"1.0.0":[]}})"),
+        std::string(R"({"format_version":1,"versions":{"bad":[]}})"),
+        std::string(R"({"format_version":1,"versions":{"1.0.0":[42]}})"),
+        std::string(1024 * 1024 + 1, ' '));
+    CHECK_FALSE(Slic3r::parse_plugin_package_changelog(invalid, "1.0.0", notes, error));
+    CHECK_FALSE(error.empty());
+    CHECK_FALSE(notes.has_value());
+}
+
+TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
+                 "Embedded changelogs suppress network requests including empty entries",
+                 "[plugins][updater][changelog]")
+{
+    const bool empty = GENERATE(true, false);
+    write_plugin_repository();
+    const boost::filesystem::path package = write_cached_plugin("1.0.0.0");
+    write_test_file(package / "changelog.json", empty ?
+        R"({"format_version":1,"versions":{"1.0.0.0":[]}})" :
+        R"({"format_version":1,"versions":{"1.0.0.0":["Local release"]}})");
+    updater.reload_all_plugins();
+    synchronize({{"1.0.0.0", slicer_version, "zip1"}});
+    std::optional<bool> result;
+    updater.load_changelogs(plugin_id, [&result](bool success) { result = success; }, true);
+    REQUIRE(result.has_value());
+    CHECK(*result);
+    CHECK(http.pending_count() == 0);
+    const Slic3r::PluginAvailable version = updater.plugin(plugin_id)->available_packages.front();
+    CHECK(version.notes_source == Slic3r::PluginChangelogSource::Package);
+    CHECK(version.notes == (empty ? "" : "- Local release"));
+}
+
+TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
+                 "Malformed changelogs fall back and late repository notes cannot overwrite package notes",
+                 "[plugins][updater][changelog]")
+{
+    write_plugin_repository();
+    const boost::filesystem::path package = write_cached_plugin("1.0.0.0");
+    write_test_file(package / "changelog.json", "invalid json");
+    updater.reload_all_plugins();
+    synchronize({{"1.0.0.0", slicer_version, "zip1"}});
+    CHECK(updater.plugin(plugin_id)->available_packages.front().notes_error.find((package / "changelog.json").string()) != std::string::npos);
+    std::optional<bool> result;
+    updater.load_changelogs(plugin_id, [&result](bool success) { result = success; });
+    REQUIRE(http.pending_count() == 1);
+    http.succeed_front(R"({"commit":{"message":"Remote notes"}})", 200);
+    REQUIRE(result == true);
+    CHECK(updater.plugin(plugin_id)->available_packages.front().notes_source == Slic3r::PluginChangelogSource::Repository);
+    updater.load_changelogs(plugin_id, [&result](bool success) { result = success; }, true);
+    REQUIRE(http.pending_count() == 1);
+    // Simulate a package becoming readable while its HTTP request is pending.
+    write_test_file(package / "changelog.json", R"({"format_version":1,"versions":{"1.0.0.0":["Author notes"]}})");
+    http.succeed_front(R"({"commit":{"message":"Late remote notes"}})", 200);
+    const Slic3r::PluginAvailable version = updater.plugin(plugin_id)->available_packages.front();
+    CHECK(version.notes == "- Author notes");
+    CHECK(version.notes_source == Slic3r::PluginChangelogSource::Package);
+    CHECK(version.notes_error.empty());
+}
+
 TEST_CASE("PluginUpdater selects comparable versions and caches their changelogs", "[plugins][updater]")
 {
     FakeUpdaterHttpTransport http;
@@ -2321,7 +2396,7 @@ TEST_CASE("PluginUpdater selects comparable versions and caches their changelogs
     REQUIRE(plugin->available_packages.size() == 4);
     std::optional<bool> changelogs_succeeded;
     int callback_count = 0;
-    updater.download_changelogs(
+    updater.load_changelogs(
         "example.plugin",
         [&changelogs_succeeded, &callback_count](bool succeeded) {
             changelogs_succeeded = succeeded;
@@ -2372,7 +2447,7 @@ TEST_CASE("PluginUpdater selects comparable versions and caches their changelogs
     // no HTTP work. This also verifies that cache filenames map back to the
     // same package entries after the first batch.
     changelogs_succeeded.reset();
-    updater.download_changelogs(
+    updater.load_changelogs(
         "example.plugin",
         [&changelogs_succeeded, &callback_count](bool succeeded) {
             changelogs_succeeded = succeeded;
@@ -2407,7 +2482,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
 
     std::optional<bool> changelogs_succeeded;
     int changelog_callback_count = 0;
-    updater.download_changelogs(
+    updater.load_changelogs(
         plugin_id,
         [&changelogs_succeeded, &changelog_callback_count](bool succeeded) {
             changelogs_succeeded = succeeded;
@@ -2479,6 +2554,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
         {"description.ini", plugin_description_contents(plugin_id, "2.0.0.0", slicer_version, false)},
         {"version.ini", "[plugin]\npackage_version=2.0.0.0\nslicer_version=" + slicer_version +
             "\n[abi]\nslic3r_plugin_types.h=" + (compatible ? "1.0" : "99.0") + "\n"},
+        {"changelog.json", R"({"format_version":1,"versions":{"2.0.0.0":["Downloaded release"]}})"},
         {plugin_library_filename(), "test library"}}));
     http.succeed_front(read_test_file(archive), 200);
     updater.wait_for_pending_operations();
@@ -2491,6 +2567,15 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     CHECK_FALSE(boost::filesystem::exists(data_directory / "plugins" / plugin_id));
     CHECK((read_activation_config().installed.count(plugin_id) != 0) == compatible);
     CHECK((plugin->best_available() != nullptr) == compatible);
+    CHECK(plugin->available_packages.front().notes == "- Downloaded release");
+    CHECK(plugin->available_packages.front().notes_source == Slic3r::PluginChangelogSource::Package);
+    CHECK(boost::filesystem::exists(boost::filesystem::path(plugin->available_packages.front().local_directory) / "changelog.json"));
+    if (compatible) {
+        std::string error;
+        REQUIRE(Slic3r::reconcile_installed_plugin_packages(data_directory, read_activation_config(), error));
+        CHECK(read_test_file(data_directory / "plugins" / plugin_id / "changelog.json") ==
+              R"({"format_version":1,"versions":{"2.0.0.0":["Downloaded release"]}})");
+    }
 }
 
 TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
@@ -3217,7 +3302,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
 
     std::optional<bool> changelogs_succeeded;
     int callback_count = 0;
-    updater.download_changelogs(plugin_id, [&changelogs_succeeded, &callback_count](bool succeeded) {
+    updater.load_changelogs(plugin_id, [&changelogs_succeeded, &callback_count](bool succeeded) {
         changelogs_succeeded = succeeded;
         ++callback_count;
     });
@@ -3231,7 +3316,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
 
     boost::filesystem::last_write_time(cache_file, std::time(nullptr) - 24 * 3600 - 1);
     changelogs_succeeded.reset();
-    updater.download_changelogs(plugin_id, [&changelogs_succeeded, &callback_count](bool succeeded) {
+    updater.load_changelogs(plugin_id, [&changelogs_succeeded, &callback_count](bool succeeded) {
         changelogs_succeeded = succeeded;
         ++callback_count;
     });

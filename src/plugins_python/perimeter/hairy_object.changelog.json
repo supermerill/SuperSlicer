@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "versions": {
+    "1.0.0": [
+      "Add painted decorative hair strokes after perimeter generation.",
+      "Package the Python plugin with its required C API versions."
+    ]
+  }
+}

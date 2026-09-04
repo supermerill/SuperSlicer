@@ -27,6 +27,7 @@ slic3r_package_plugin(
     dense_infill_plugin
     dense_infill
     VERSION 1.0.1
+    CHANGELOG changelog.json
     NAME "Dense infill"
     FULL_NAME "Dense infill"
     DESCRIPTION "Generate and order denser infill below upper solid surfaces."

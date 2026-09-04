@@ -18,6 +18,7 @@
 # generated from the compiled library's static header-version record.
 # INTERNAL marks runtime infrastructure that may register no user-selectable
 # plugin id. It does not hide the package from installation or update tools.
+# CHANGELOG names an optional versioned JSON file, validated before archiving.
 
 set(_SLIC3R_PLUGIN_PACKAGE_CMAKE_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}")
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
@@ -59,7 +60,7 @@ function(_slic3r_plugin_quoted_string output_variable input_value)
 endfunction()
 
 function(slic3r_package_plugin target package_name)
-    cmake_parse_arguments(PACKAGE "INTERNAL" "VERSION;UPDATE_REST;NAME;FULL_NAME;DESCRIPTION" "FILES" ${ARGN})
+    cmake_parse_arguments(PACKAGE "INTERNAL" "VERSION;UPDATE_REST;NAME;FULL_NAME;DESCRIPTION;CHANGELOG" "FILES" ${ARGN})
     get_target_property(_plugin_source_directory ${target} SOURCE_DIR)
     get_target_property(_plugin_binary_directory ${target} BINARY_DIR)
     set(_description "${_plugin_binary_directory}/${package_name}-$<CONFIG>-description.ini")
@@ -88,6 +89,20 @@ function(slic3r_package_plugin target package_name)
     endif()
     set(_archive "${SLIC3R_BUILD_RESOURCES_DIR}/plugins/${package_name}_${_package_version}_${_slicer_version}.zip")
     set(_package_contents "$<TARGET_FILE_NAME:${target}>" "description.ini" "version.ini" ${PACKAGE_FILES} ${PACKAGE_UNPARSED_ARGUMENTS})
+    set(_changelog_commands)
+    set(PLUGIN_BINARY_CHANGELOG_SHA256 "none")
+    if (PACKAGE_CHANGELOG)
+        get_filename_component(_changelog "${PACKAGE_CHANGELOG}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+        # Refresh the metadata translation unit when notes change. This forces
+        # POST_BUILD packaging even on Visual Studio, where LINK_DEPENDS alone
+        # does not make non-source inputs trigger a relink.
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_changelog}")
+        file(SHA256 "${_changelog}" PLUGIN_BINARY_CHANGELOG_SHA256)
+        list(APPEND _package_contents "changelog.json")
+        list(APPEND _changelog_commands
+            COMMAND "${Python3_EXECUTABLE}" "${_SLIC3R_PLUGIN_PACKAGE_CMAKE_DIRECTORY}/package_plugin_changelog.py"
+                --source "${_changelog}" --output "$<TARGET_FILE_DIR:${target}>/changelog.json")
+    endif()
     # Keep the generated default profile aligned with the packages built by
     # this CMake configuration. Package and slicer versions are independent.
     set_property(GLOBAL APPEND PROPERTY SLIC3R_DEFAULT_PLUGIN_PACKAGES
@@ -169,6 +184,7 @@ function(slic3r_package_plugin target package_name)
             "${SLIC3R_GENERATED_DEFAULT_ACTIVATED_FILE}"
             "${SLIC3R_BUILD_RESOURCES_DIR}/plugins/default_activated.ini"
         ${_locale_commands}
+        ${_changelog_commands}
         COMMAND "${CMAKE_COMMAND}" -E tar cf "${_archive}" --format=zip --
             ${_package_contents}
         WORKING_DIRECTORY "$<TARGET_FILE_DIR:${target}>"
@@ -183,7 +199,7 @@ endfunction()
 # package remains independently installable, removable and visible to the
 # updater without embedding it inside the bridge DLL.
 function(slic3r_package_python_plugin target package_name entry_file)
-    cmake_parse_arguments(PACKAGE "INTERNAL" "VERSION;UPDATE_REST;NAME;FULL_NAME;DESCRIPTION" "" ${ARGN})
+    cmake_parse_arguments(PACKAGE "INTERNAL" "VERSION;UPDATE_REST;NAME;FULL_NAME;DESCRIPTION;CHANGELOG" "" ${ARGN})
     get_filename_component(_entry_file "${entry_file}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
     if (NOT EXISTS "${_entry_file}")
         message(FATAL_ERROR "Python plugin '${package_name}' entry '${_entry_file}' does not exist")
@@ -211,6 +227,15 @@ function(slic3r_package_python_plugin target package_name entry_file)
     set(_description "${CMAKE_CURRENT_BINARY_DIR}/${package_name}-$<CONFIG>-description.ini")
     set(_version_file "${CMAKE_CURRENT_BINARY_DIR}/${package_name}-$<CONFIG>-version.ini")
     set(_package_directory "${CMAKE_CURRENT_BINARY_DIR}/${package_name}-$<CONFIG>-package")
+    set(_changelog_commands)
+    set(_changelog_contents)
+    if (PACKAGE_CHANGELOG)
+        get_filename_component(_changelog "${PACKAGE_CHANGELOG}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+        list(APPEND _changelog_contents "changelog.json")
+        list(APPEND _changelog_commands
+            COMMAND "${Python3_EXECUTABLE}" "${_SLIC3R_PLUGIN_PACKAGE_CMAKE_DIRECTORY}/package_plugin_changelog.py"
+                --source "${_changelog}" --output "${_package_directory}/changelog.json")
+    endif()
     set(_archive "${SLIC3R_BUILD_RESOURCES_DIR}/plugins/${package_name}_${_package_version}_${_slicer_version}.zip")
     file(GENERATE OUTPUT "${_description}" CONTENT
         "[plugin]\nid = ${package_name}\nname = ${_package_display_name}\nfull_name = ${_package_full_name}\ndescription = ${PACKAGE_DESCRIPTION}\nconfig_update_rest = ${PACKAGE_UPDATE_REST}\nslicer = SuperSlicer\ninternal = ${_package_internal}\n")
@@ -231,9 +256,10 @@ function(slic3r_package_python_plugin target package_name entry_file)
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${SLIC3R_GENERATED_DEFAULT_ACTIVATED_FILE}"
             "${SLIC3R_BUILD_RESOURCES_DIR}/plugins/default_activated.ini"
+        ${_changelog_commands}
         COMMAND "${CMAKE_COMMAND}" -E chdir "${_package_directory}"
             "${CMAKE_COMMAND}" -E tar cf "${_archive}" --format=zip --
-                plugin.py description.ini version.ini
+                plugin.py description.ini version.ini ${_changelog_contents}
         COMMENT "Packaging Python plugin ${package_name}"
         VERBATIM
     )

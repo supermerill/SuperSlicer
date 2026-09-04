@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "versions": {
+    "1.0.1": [
+      "Declare per-header ABI requirements and generate the package ABI manifest."
+    ],
+    "1.0.0": [
+      "Add extra perimeter paths on overhangs."
+    ]
+  }
+}

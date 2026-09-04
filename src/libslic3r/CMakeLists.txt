@@ -339,6 +339,8 @@ set(SLIC3R_SOURCES
 	Plugins/PluginBinaryMetadata.hpp
 	Plugins/PluginLoader.cpp
 	Plugins/PluginLoader.hpp
+	Plugins/PluginPackageChangelog.cpp
+	Plugins/PluginPackageChangelog.hpp
 	Plugins/PluginRepository.cpp
 	Plugins/PluginRepository.hpp
 	Plugins/SliceVolume.cpp

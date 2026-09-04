@@ -27,6 +27,7 @@ slic3r_package_plugin(
     extra_perimeter_overhang_wave_plugin
     extra_perimeter_overhang_wave
     VERSION 1.0.1
+    CHANGELOG changelog.json
     NAME "Extra perimeter overhang wave"
     FULL_NAME "Extra perimeter overhang wave"
     DESCRIPTION "Add overhang perimeter anchors by growing printable waves from lower-layer support."

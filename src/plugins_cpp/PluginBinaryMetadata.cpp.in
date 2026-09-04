@@ -7,6 +7,8 @@
 // plugin binary. The exported symbol prevents dead-code elimination, while the
 // named section makes the record easy to inspect with platform tooling. The
 // host still locates it by magic bytes, avoiding platform-specific parsers.
+// Packaging dependency fingerprint (not part of the binary metadata record):
+// @PLUGIN_BINARY_CHANGELOG_SHA256@
 
 #include "libslic3r/Plugins/PluginBinaryMetadata.hpp"
 

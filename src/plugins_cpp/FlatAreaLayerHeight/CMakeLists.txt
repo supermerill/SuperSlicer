@@ -27,6 +27,7 @@ slic3r_package_plugin(
     flat_area_layer_height_plugin
     flat_area_layer_height
     VERSION 2.7.63.1
+    CHANGELOG changelog.json
     NAME "Flat area layer height"
     FULL_NAME "Flat area layer height"
     DESCRIPTION "Place layer boundaries on large horizontal mesh areas when possible."

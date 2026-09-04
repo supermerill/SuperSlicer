@@ -248,7 +248,9 @@ void RepositoryChangelogService::download_versions(std::vector<RepositoryChangel
 {
     std::vector<RepositoryChangelogRequest> requests;
     for (RepositoryChangelogVersion &version : versions) {
-        if (version.commit_sha.empty())
+        // Releases with local notes remain comparison bases, but need no
+        // request of their own. Preset callers always supply a destination.
+        if (version.commit_sha.empty() || !version.store_notes)
             continue;
 
         // Prefer an older package from the same slicer family so changelog

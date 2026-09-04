@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "versions": {
+    "1.0.1": [
+      "Declare per-header ABI requirements and generate the package ABI manifest."
+    ],
+    "1.0.0": [
+      "Convert eligible round holes into polygonal holes after slicing."
+    ]
+  }
+}

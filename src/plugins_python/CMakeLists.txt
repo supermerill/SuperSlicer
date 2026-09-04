@@ -123,6 +123,7 @@ if (TARGET Python3::Python)
         python.example.noop
         examples/example_python_plugin.py
         VERSION 1.0.0
+        CHANGELOG examples/example_python_plugin.changelog.json
         NAME "Python no-op example"
         DESCRIPTION "Minimal Python plugin example that does not change print data."
     )
@@ -131,6 +132,7 @@ if (TARGET Python3::Python)
         python.polyholes
         polyholes/polyholes_low_level.py
         VERSION 1.0.0
+        CHANGELOG polyholes/polyholes_low_level.changelog.json
         NAME "Python polyholes"
         DESCRIPTION "Low-level Python version of the polyholes post-slicing plugin."
     )
@@ -139,6 +141,7 @@ if (TARGET Python3::Python)
         python.polyholes.high_level
         polyholes/polyholes_high_level.py
         VERSION 1.0.0
+        CHANGELOG polyholes/polyholes_high_level.changelog.json
         NAME "Python polyholes high-level"
         DESCRIPTION "High-level Python version of the polyholes post-slicing plugin."
     )
@@ -147,6 +150,7 @@ if (TARGET Python3::Python)
         python.perimeter.generator.simple
         perimeter/simple_perimeter_generator.py
         VERSION 1.0.0
+        CHANGELOG perimeter/simple_perimeter_generator.changelog.json
         NAME "Python simple perimeter generator"
         DESCRIPTION "Python implementation of the simple perimeter generator."
     )
@@ -155,6 +159,7 @@ if (TARGET Python3::Python)
         python.perimeter.post_process.hairy_object
         perimeter/hairy_object.py
         VERSION 1.0.0
+        CHANGELOG perimeter/hairy_object.changelog.json
         NAME "HairyObject"
         DESCRIPTION "Adds painted decorative hair strokes after normal perimeter extrusion."
     )
@@ -163,6 +168,7 @@ if (TARGET Python3::Python)
         python.surface.initial_typed_surface_builder
         surface/initial_typed_surface_builder.py
         VERSION 1.0.0
+        CHANGELOG surface/initial_typed_surface_builder.changelog.json
         NAME "Python initial typed surface builder"
         DESCRIPTION "Python example that creates initial bottom, internal, and top infill surfaces."
     )

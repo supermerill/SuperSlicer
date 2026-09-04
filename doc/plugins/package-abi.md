@@ -44,3 +44,31 @@ and unchecked remote versions neutrally. The version chooser can download an
 unchecked package and schedules it only after successful validation. Automatic
 selection considers only verified compatible versions, ordered by package
 version and then stable archive identifier.
+
+## Embedded Changelogs
+
+Packages may include an optional UTF-8 `changelog.json` next to `version.ini`:
+
+```json
+{
+  "format_version": 1,
+  "versions": {
+    "1.0.1": ["Generate the package ABI manifest."],
+    "1.0.0": ["Initial release."]
+  }
+}
+```
+
+Add `CHANGELOG path/to/changelog.json` to `slic3r_package_plugin()` or
+`slic3r_package_python_plugin()`. Packaging validates and copies the document;
+changing only this file republishes the native package on the next build too.
+The document is limited to 1 MiB, uses unique keys, and maps exact package
+versions (not slicer versions) to arrays of plain text notes. An empty array
+intentionally supplies no notes for that version. Invalid files fail packaging.
+
+The updater prefers the package's entry over repository history, including
+when a repository response arrives later. Missing entries use the existing
+repository fallback. An unread remote ZIP is not downloaded solely for notes.
+The GUI displays both sources in the same changelog column, with provenance
+in its tooltip. A malformed local file produces a path-specific diagnostic
+and permits fallback; it does not prevent installation or change ABI status.

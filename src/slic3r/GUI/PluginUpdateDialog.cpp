@@ -594,8 +594,8 @@ void PluginUpdateDialog::choose_version(const std::string &plugin_id)
 {
     // Changelog failures do not hide otherwise usable packages. The chooser
     // opens after every request has finished and leaves missing notes blank.
-    begin_plugin_operation(_L("Loading plugin changelogs, please wait"));
-    m_updater.download_changelogs(
+    begin_plugin_operation(_L("Loading package and repository changelogs, please wait"));
+    m_updater.load_changelogs(
         plugin_id,
         repository_operation_callback<bool>(
             *this, [plugin_id](PluginUpdateDialog &dialog, bool) {
@@ -845,7 +845,19 @@ void ChoosePluginVersionDialog::build()
                                       version.slicer_version, SLIC3R_VERSION_FULL));
             grid->Add(slicer, wxGBPosition(row, 1), wxDefaultSpan, wxALIGN_CENTER_VERTICAL);
 
-            wxStaticText *notes = new wxStaticText(m_scroll, wxID_ANY, from_u8(version.notes));
+            wxStaticText *notes = new wxStaticText(m_scroll, wxID_ANY,
+                version.notes_source == PluginChangelogSource::None && version.notes.empty() ?
+                    _L("No changelog available.") : from_u8(version.notes));
+            wxString notes_tooltip = version.notes_source == PluginChangelogSource::Package ?
+                _L("Provided in the plugin package.") :
+                (version.notes_source == PluginChangelogSource::Repository ? _L("Repository history.") : wxString());
+            if (!version.notes_error.empty()) {
+                if (!notes_tooltip.empty())
+                    notes_tooltip += "\n";
+                notes_tooltip += from_u8(version.notes_error);
+            }
+            if (!notes_tooltip.empty())
+                notes->SetToolTip(notes_tooltip);
             notes->Wrap(450);
             grid->Add(notes, wxGBPosition(row, 2), wxDefaultSpan, wxALIGN_CENTER_VERTICAL | wxEXPAND);
             ++row;

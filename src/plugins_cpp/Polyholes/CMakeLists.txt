@@ -27,6 +27,7 @@ slic3r_package_plugin(
     polyholes_plugin
     polyholes
     VERSION 1.0.1
+    CHANGELOG changelog.json
     NAME "Polyholes"
     FULL_NAME "Polyholes"
     DESCRIPTION "Convert round vertical holes to polygonal holes tuned for FDM extrusion."

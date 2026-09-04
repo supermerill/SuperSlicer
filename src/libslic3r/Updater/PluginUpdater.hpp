@@ -24,6 +24,8 @@
 
 namespace Slic3r {
 
+enum class PluginChangelogSource { None, Package, Repository };
+
 struct PluginAvailable : public RepositoryPackageVersion {
     // NotChecked until a local version.ini has actually been read.
     PluginPackageMetadata metadata;
@@ -31,6 +33,11 @@ struct PluginAvailable : public RepositoryPackageVersion {
     // ones. ABI compatibility must still be checked before scheduling.
     std::string local_directory;
     std::string notes;
+    PluginChangelogSource notes_source = PluginChangelogSource::None;
+    // Optional-file errors are displayed independently of ABI/install errors.
+    std::string notes_error;
+    // Refresh local notes without replacing repository notes when no entry exists.
+    void load_package_changelog();
 };
 
 struct PluginSync {
@@ -78,10 +85,10 @@ public:
     void reload_all_plugins();
     void sync_async(std::function<void(int)> callback_result, bool force = false);
 
-    // Load the notes for every known package of one plugin. Notes cached less
+    // Prefer embedded notes for each version, then use the repository. Notes cached less
     // than 24 hours ago are reused unless force is true. The callback reports
     // whether every version succeeded; partial results remain available.
-    void download_changelogs(const std::string &plugin_id,
+    void load_changelogs(const std::string &plugin_id,
                              std::function<void(bool)> callback_result,
                              bool force = false);
     void download_new_repo(const std::string &rest_url, std::function<void(UpdaterError)> callback_result);

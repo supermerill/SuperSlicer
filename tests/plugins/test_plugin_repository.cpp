@@ -1192,9 +1192,8 @@ TEST_CASE("Windows plugin VERSIONINFO supplies missing package versions",
 TEST_CASE("Packaged C++ plugin DLL metadata matches its generated version file",
           "[plugins][repository][cache-layout]")
 {
-    // Polyholes owns its release number, while compatibility keeps the full
-    // slicer SemVer, including prerelease and build metadata.
-    CHECK(std::string(SLIC3R_TEST_POLYHOLES_PACKAGE_VERSION) == "1.0.0");
+    // The package release and informational slicer build version are independent.
+    CHECK(std::string(SLIC3R_TEST_POLYHOLES_PACKAGE_VERSION) == "1.0.1");
     CHECK(std::string(SLIC3R_TEST_POLYHOLES_SLICER_VERSION) == SLIC3R_TEST_BUILD_SLICER_VERSION);
 
     const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
@@ -1243,10 +1242,10 @@ TEST_CASE("Packaged C++ plugin DLL metadata matches its generated version file",
 #endif
 
 #if defined(SLIC3R_TEST_FLAT_AREA_PACKAGE_VERSION) && defined(SLIC3R_TEST_FLAT_AREA_SLICER_VERSION)
-TEST_CASE("Packaged C++ plugin defaults to the numeric slicer package version",
+TEST_CASE("Flat area package declares its own release version",
           "[plugins][repository][cache-layout]")
 {
-    CHECK(std::string(SLIC3R_TEST_FLAT_AREA_PACKAGE_VERSION) == SLIC3R_TEST_BUILD_RC_VERSION);
+    CHECK(std::string(SLIC3R_TEST_FLAT_AREA_PACKAGE_VERSION) == "2.7.63.1");
     CHECK(std::string(SLIC3R_TEST_FLAT_AREA_SLICER_VERSION) == SLIC3R_TEST_BUILD_SLICER_VERSION);
 }
 #endif
