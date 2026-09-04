@@ -242,6 +242,23 @@ const ExtrusionEntity &required_group_child(const ExtrusionEntity &entity)
 
 } // namespace
 
+TEST_CASE("Dense infill declares its processing dependencies",
+          "[plugins][dense-infill][dependencies]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    Slic3r::Orchestrator &orchestrator = Slic3r::Orchestrator::instance();
+    const Slic3r::Plugin *marker = orchestrator.get_plugin("dense_infill.surface_marker");
+    const Slic3r::Plugin *recipe = orchestrator.get_plugin("dense_infill.recipe_modifier");
+    const Slic3r::Plugin *order = orchestrator.get_plugin("dense_infill.post_infill_order");
+    REQUIRE(marker != nullptr);
+    REQUIRE(recipe != nullptr);
+    REQUIRE(order != nullptr);
+    CHECK(marker->get_dependencies().empty());
+    CHECK(recipe->get_dependencies() == std::vector<std::string>{"dense_infill.surface_marker"});
+    CHECK(order->get_dependencies() == std::vector<std::string>{
+        "dense_infill.recipe_modifier", "dense_infill.surface_marker"});
+}
+
 TEST_CASE("Dense infill marks sparse areas under upper solid surfaces",
           "[plugins][dense-infill]")
 {

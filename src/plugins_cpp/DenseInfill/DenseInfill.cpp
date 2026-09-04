@@ -33,6 +33,10 @@ const char *k_recipe_modifier_id = "dense_infill.recipe_modifier";
 const char *k_post_infill_order_id = "dense_infill.post_infill_order";
 
 const char *k_no_dependencies[] = { nullptr };
+// Recipes consume the surface markers; ordering consumes their identities
+// and the dense infill generated from the modified recipes.
+const char *k_recipe_dependencies[] = { k_surface_marker_id, nullptr };
+const char *k_order_dependencies[] = { k_recipe_modifier_id, k_surface_marker_id, nullptr };
 
 const char *k_infill_dense_key = "infill_dense";
 const char *k_infill_dense_algo_key = "infill_dense_algo";
@@ -930,7 +934,7 @@ const char *DenseInfillRecipeModifier::description_impl() const noexcept
     return "Turns marked dense-infill surfaces into 50% sparse infill recipes.";
 }
 slicing_step_t DenseInfillRecipeModifier::step_impl() const noexcept { return INFILL_SURFACE_RECIPE_MODIFIER; }
-const char *const *DenseInfillRecipeModifier::dependencies_impl() const noexcept { return k_no_dependencies; }
+const char *const *DenseInfillRecipeModifier::dependencies_impl() const noexcept { return k_recipe_dependencies; }
 int32_t DenseInfillRecipeModifier::priority_impl() const noexcept { return 0; }
 
 void DenseInfillRecipeModifier::run_impl(const plugin_run_context *run_ctx) const
@@ -972,7 +976,7 @@ const char *DenseInfillPostInfillOrder::description_impl() const noexcept
     return "Groups generated dense infill by priority after normal infill generation.";
 }
 slicing_step_t DenseInfillPostInfillOrder::step_impl() const noexcept { return STEP_POST_INFILL; }
-const char *const *DenseInfillPostInfillOrder::dependencies_impl() const noexcept { return k_no_dependencies; }
+const char *const *DenseInfillPostInfillOrder::dependencies_impl() const noexcept { return k_order_dependencies; }
 int32_t DenseInfillPostInfillOrder::priority_impl() const noexcept { return 10; }
 const char *DenseInfillPostInfillOrder::progress_message_format_impl() const noexcept
 {
