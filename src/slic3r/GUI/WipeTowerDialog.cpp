@@ -5,21 +5,38 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 
+// Ramming edits a flow chart; wiping edits either per-extruder pairs or a
+// tool-to-tool matrix. The wiping dialog mirrors its current editor as CSV.
+// Panel edits refresh that text, while Enter/focus loss validates an entire
+// CSV draft before applying it. Guards prevent nested focus notifications from
+// applying a draft twice while a validation dialog is open.
 #include "WipeTowerDialog.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <sstream>
+#include <utility>
 
+#include <wx/clipbrd.h>
 #include <wx/sizer.h>
 
 #include "libslic3r/Color.hpp"
+#include "libslic3r/Config/ConfigOption.hpp"
+#include "libslic3r/Utils.hpp"
 
 #include "BitmapCache.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
 #include "I18N.hpp"
 #include "MsgDialog.hpp"
+#include "wxExtensions.hpp"
 using namespace Slic3r::GUI;
+
+// Keep configuration serialization independent of the displayed matrix cells.
+static std::string serialize_wiping_values(const std::vector<float>& values);
+// Reject incomplete tokens and values which cannot be stored in the float UI model.
+static bool deserialize_wiping_values(const wxString& serialized, std::vector<float>& values);
 
 int scale(const int val) { return val * wxGetApp().em_unit(); }
 #ifdef __WXGTK3__
@@ -31,6 +48,48 @@ int ITEM_WIDTH() { return scale(6); }
 static void update_ui(wxWindow* window)
 {
     wxGetApp().UpdateDarkUI(window);
+}
+
+// Converts the currently visible setting to the same compact CSV representation used in configuration files.
+static std::string serialize_wiping_values(const std::vector<float>& values)
+{
+    std::vector<double> values_as_double(values.begin(), values.end());
+    Slic3r::ConfigOptionFloats option(std::move(values_as_double));
+    return option.serialize();
+}
+
+// Validates the CSV grammar before ConfigOptionFloats parses it. Its historical parser does not report invalid tokens.
+static bool deserialize_wiping_values(const wxString& serialized, std::vector<float>& values)
+{
+    if (serialized.empty())
+        return false;
+
+    const std::string utf8(serialized.ToUTF8().data());
+    if (utf8.empty() || utf8.back() == ',')
+        return false;
+
+    std::istringstream list(utf8);
+    std::string token;
+    while (std::getline(list, token, ',')) {
+        std::istringstream number_stream(token);
+        double value = 0.;
+        if (!(number_stream >> value) || !std::isfinite(value) ||
+            std::abs(value) > std::numeric_limits<float>::max())
+            return false;
+        // Reading the number may already set eofbit. A subsequent std::ws
+        // can then set failbit, which does not make that number invalid.
+        number_stream >> std::ws;
+        if (!number_stream.eof())
+            return false;
+    }
+
+    Slic3r::ConfigOptionFloats option;
+    if (!option.deserialize(utf8))
+        return false;
+
+    const std::vector<double>& deserialized = option.get_values();
+    values.assign(deserialized.begin(), deserialized.end());
+    return true;
 }
 
 RammingDialog::RammingDialog(wxWindow* parent,const std::string& parameters)
@@ -202,7 +261,8 @@ WipingDialog::WipingDialog(wxWindow* parent, const std::vector<float>& matrix, c
     auto widget_button = new wxButton(this,wxID_ANY,"-",wxPoint(0,0),wxDefaultSize);
     update_ui(widget_button);
     wxGetApp().SetWindowVariantForButton(widget_button);
-    m_panel_wiping  = new WipingPanel(this,matrix,extruders, extruder_colours, widget_button);
+    m_panel_wiping  = new WipingPanel(this, matrix, extruders, extruder_colours, widget_button,
+                                      [this]() { update_serialized_values(); });
 
     auto main_sizer = new wxBoxSizer(wxVERTICAL);
 
@@ -211,6 +271,30 @@ WipingDialog::WipingDialog(wxWindow* parent, const std::vector<float>& matrix, c
 	main_sizer->SetMinSize(wxSize(sizer_width, -1));
 
     main_sizer->Add(m_panel_wiping, 0, wxEXPAND | wxALL, 5);
+
+    wxBoxSizer* serialized_sizer = new wxBoxSizer(wxHORIZONTAL);
+    m_serialized_values = new wxTextCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize,
+                                          wxTE_PROCESS_ENTER);
+    update_ui(m_serialized_values);
+    serialized_sizer->Add(m_serialized_values, 1, wxEXPAND);
+
+    // Match the text field height on both axes. wxBU_EXACTFIT would otherwise
+    // collapse an icon-only button into a narrow rectangle on Windows.
+    const int copy_button_side = m_serialized_values->GetBestSize().y;
+    const wxSize copy_button_size(copy_button_side, copy_button_side);
+    m_copy_button = new ScalableButton(this, wxID_ANY, "copy", wxEmptyString,
+                                       copy_button_size, wxDefaultPosition,
+                                       wxBU_EXACTFIT | wxBORDER_SIMPLE);
+    m_copy_button->SetBitmapMargins(0, 0);
+    m_copy_button->SetToolTip(_L("Copy to clipboard"));
+    m_copy_button->SetMinSize(copy_button_size);
+    m_copy_button->SetMaxSize(copy_button_size);
+    // Use the normal background selected by UpdateDarkUI for a bordered,
+    // icon-only ScalableButton, so mouse-leave restores the same colour.
+    m_copy_button->SetBackgroundColour(wxGetApp().get_highlight_default_clr());
+    serialized_sizer->Add(m_copy_button, 0);
+    main_sizer->Add(serialized_sizer, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 20);
+
 	main_sizer->Add(widget_button, 0, wxALIGN_CENTER_HORIZONTAL | wxCENTER | wxBOTTOM, 5);
     auto buttons = CreateStdDialogButtonSizer(wxOK | wxCANCEL);
     wxGetApp().SetWindowVariantForButton(buttons->GetAffirmativeButton());
@@ -222,15 +306,107 @@ WipingDialog::WipingDialog(wxWindow* parent, const std::vector<float>& matrix, c
     update_ui(static_cast<wxButton*>(this->FindWindowById(wxID_OK, this)));
     update_ui(static_cast<wxButton*>(this->FindWindowById(wxID_CANCEL, this)));
 
-    this->Bind(wxEVT_CLOSE_WINDOW, [this](wxCloseEvent& e) { EndModal(wxCANCEL); });
+    this->Bind(wxEVT_CLOSE_WINDOW, [this](wxCloseEvent&) { m_closing = true; EndModal(wxID_CANCEL); });
+    this->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { m_closing = true; EndModal(wxID_CANCEL); }, wxID_CANCEL);
+
+    m_serialized_values->Bind(wxEVT_TEXT_ENTER, [this](wxCommandEvent&) { commit_serialized_values(); });
+    m_serialized_values->Bind(wxEVT_TEXT, [this](wxCommandEvent&) {
+        if (!m_updating_serialized_values) {
+            m_copy_button->SetBitmap_("copy");
+            m_copy_button->SetToolTip(_L("Copy to clipboard"));
+        }
+    });
+    m_serialized_values->Bind(wxEVT_KILL_FOCUS, [this](wxFocusEvent& event) {
+        // Cancel discards the draft, rather than opening another modal dialog.
+        if (!m_closing && (event.GetWindow() == nullptr || event.GetWindow()->GetId() != wxID_CANCEL))
+            commit_serialized_values();
+        event.Skip();
+    });
+    m_copy_button->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+        update_serialized_values();
+        bool copied = false;
+        if (wxTheClipboard->Open()) {
+            copied = wxTheClipboard->SetData(new wxTextDataObject(m_serialized_values->GetValue()));
+            wxTheClipboard->Close();
+        }
+        // The green check confirms that the clipboard accepted the current
+        // value. A failed copy deliberately retains the actionable copy icon.
+        if (copied) {
+            m_copy_button->SetBitmap_("tick_mark");
+            m_copy_button->SetToolTip(_L("Copied to clipboard"));
+        }
+    });
     
     this->Bind(wxEVT_BUTTON,[this](wxCommandEvent&) {                 // if OK button is clicked..
+        if (!commit_serialized_values())
+            return;
         m_output_matrix    = m_panel_wiping->read_matrix_values();    // ..query wiping panel and save returned values
         m_output_extruders = m_panel_wiping->read_extruders_values(); // so they can be recovered later by calling get_...()
+        m_closing = true;
         EndModal(wxID_OK);
         },wxID_OK);
 
+    update_serialized_values();
     this->Show();
+}
+
+// Refreshes the field from the active editor, so it always exposes the setting currently represented on screen.
+void WipingDialog::update_serialized_values()
+{
+    if (m_serialized_values == nullptr || m_updating_serialized_values)
+        return;
+
+    m_updating_serialized_values = true;
+    Slic3r::ScopeGuard reset_guard([this]() { m_updating_serialized_values = false; });
+    const wxString serialized = wxString::FromUTF8(serialize_wiping_values(m_panel_wiping->read_serialized_values()));
+    if (m_serialized_values->GetValue() != serialized) {
+        m_copy_button->SetBitmap_("copy");
+        m_copy_button->SetToolTip(_L("Copy to clipboard"));
+        m_serialized_values->ChangeValue(serialized);
+    }
+}
+
+// Applies a user supplied CSV value, retaining the current setting when a confirmed repair must fill missing entries.
+bool WipingDialog::commit_serialized_values()
+{
+    if (m_updating_serialized_values || m_closing)
+        return false;
+
+    std::vector<float> current = m_panel_wiping->read_serialized_values();
+    if (m_serialized_values->GetValue() == wxString::FromUTF8(serialize_wiping_values(current)))
+        return true;
+
+    // ShowModal() can dispatch another focus-loss event. Keep the whole
+    // validation/application transaction guarded, including its error paths.
+    m_updating_serialized_values = true;
+    Slic3r::ScopeGuard reset_guard([this]() {
+        m_updating_serialized_values = false;
+        update_serialized_values();
+    });
+
+    std::vector<float> deserialized;
+    if (!deserialize_wiping_values(m_serialized_values->GetValue(), deserialized)) {
+        MessageDialog(this, _L("The purging volume value must be a comma-separated list of finite numbers."),
+                      _L("Invalid value"), wxOK | wxICON_EXCLAMATION).ShowModal();
+        return false;
+    }
+
+    if (deserialized.size() != current.size()) {
+        const wxString message = wxString::Format(
+            _L("This setting requires %zu values, but %zu were provided.\n\n"
+               "Keep the provided values, ignore extras, and complete missing entries from the current setting?"),
+            current.size(), deserialized.size());
+        if (MessageDialog(this, message, _L("Invalid value count"), wxOK | wxCANCEL | wxICON_EXCLAMATION).ShowModal() != wxID_OK) {
+            return false;
+        }
+
+        const size_t count_to_copy = std::min(current.size(), deserialized.size());
+        std::copy_n(deserialized.begin(), count_to_copy, current.begin());
+        deserialized = std::move(current);
+    }
+
+    m_panel_wiping->set_serialized_values(deserialized);
+    return true;
 }
 
 // This function allows to "play" with sizers parameters (like align or border)
@@ -247,13 +423,19 @@ void WipingPanel::format_sizer(wxSizer* sizer, wxPanel* page, wxGridSizer* grid_
 }
 
 // This panel contains all control widgets for both simple and advanced mode (these reside in separate sizers)
-WipingPanel::WipingPanel(wxWindow* parent, const std::vector<float>& matrix, const std::vector<float>& extruders, const std::vector<std::string>& extruder_colours, wxButton* widget_button)
+WipingPanel::WipingPanel(wxWindow* parent, const std::vector<float>& matrix, const std::vector<float>& extruders,
+                         const std::vector<std::string>& extruder_colours, wxButton* widget_button,
+                         std::function<void()> values_changed)
 : wxPanel(parent,wxID_ANY, wxDefaultPosition, wxDefaultSize/*,wxBORDER_RAISED*/)
 {
+    m_values_changed = std::move(values_changed);
     m_widget_button = widget_button;    // pointer to the button in parent dialog
     m_widget_button->Bind(wxEVT_BUTTON,[this](wxCommandEvent&){ toggle_advanced(true); });
 
     m_number_of_extruders = (int)(sqrt(matrix.size())+0.001);
+    m_matrix_diagonal.reserve(m_number_of_extruders);
+    for (unsigned int i = 0; i < m_number_of_extruders; ++i)
+        m_matrix_diagonal.push_back(matrix[m_number_of_extruders * i + i]);
 
     for (const std::string& color : extruder_colours) {
         Slic3r::ColorRGB rgb;
@@ -290,7 +472,10 @@ WipingPanel::WipingPanel(wxWindow* parent, const std::vector<float>& matrix, con
 			if (i == j)
 				edit_boxes[i][j]->Disable();
 			else
-				edit_boxes[i][j]->SetValue(wxString("") << int(matrix[m_number_of_extruders*j + i]));
+                edit_boxes[i][j]->SetValue(wxString::Format("%.*g", std::numeric_limits<float>::max_digits10,
+                    static_cast<double>(matrix[m_number_of_extruders*j + i])));
+
+            edit_boxes[i][j]->Bind(wxEVT_TEXT, [this](wxCommandEvent&) { notify_values_changed(); });
 		}
 	}
 
@@ -348,6 +533,8 @@ WipingPanel::WipingPanel(wxWindow* parent, const std::vector<float>& matrix, con
 	for (unsigned int i=0;i<m_number_of_extruders;++i) {
         add_spin_ctrl(m_old, extruders[2 * i]);
         add_spin_ctrl(m_new, extruders[2 * i+1]);
+        m_old.back()->Bind(wxEVT_SPINCTRL, [this](wxCommandEvent&) { notify_values_changed(); });
+        m_new.back()->Bind(wxEVT_SPINCTRL, [this](wxCommandEvent&) { notify_values_changed(); });
 
         auto hsizer = new wxBoxSizer(wxHORIZONTAL);
         wxWindow* w = new wxWindow(m_page_simple, wxID_ANY, wxDefaultPosition, icon_size, wxBORDER_SIMPLE);
@@ -398,12 +585,59 @@ std::vector<float> WipingPanel::read_matrix_values() {
     std::vector<float> output;
     for (unsigned int i=0;i<m_number_of_extruders;++i) {
         for (unsigned int j=0;j<m_number_of_extruders;++j) {
+            if (i == j) {
+                output.push_back(m_matrix_diagonal[i]);
+                continue;
+            }
             double val = 0.;
-            edit_boxes[j][i]->GetValue().ToDouble(&val);
+            // A cell can temporarily contain an incomplete number while it is
+            // being edited. Keep the serialized preview finite in that state.
+            if (!edit_boxes[j][i]->GetValue().ToDouble(&val) || !std::isfinite(val) ||
+                std::abs(val) > std::numeric_limits<float>::max())
+                val = 0.;
             output.push_back((float)val);
         }
     }
     return output;
+}
+
+// The serialized setting follows the active UI: simple controls use load/unload pairs, advanced controls use the full matrix.
+std::vector<float> WipingPanel::read_serialized_values()
+{
+    return m_advanced ? read_matrix_values() : read_extruders_values();
+}
+
+// Replaces the active setting after validation. The disabled matrix diagonal is kept separately so its values round-trip.
+void WipingPanel::set_serialized_values(const std::vector<float>& values)
+{
+    const size_t expected = m_advanced ? size_t(m_number_of_extruders) * m_number_of_extruders :
+                                        size_t(m_number_of_extruders) * 2;
+    if (values.size() != expected)
+        throw std::invalid_argument("Incorrect number of purging volume values.");
+    m_suppress_change_notification = true;
+    if (m_advanced) {
+        for (unsigned int i = 0; i < m_number_of_extruders; ++i) {
+            for (unsigned int j = 0; j < m_number_of_extruders; ++j) {
+                const float value = values[m_number_of_extruders * i + j];
+                if (i == j)
+                    m_matrix_diagonal[i] = value;
+                else
+                    edit_boxes[j][i]->ChangeValue(wxString::Format("%.*g", std::numeric_limits<float>::max_digits10,
+                        static_cast<double>(value)));
+            }
+        }
+    } else {
+        for (unsigned int i = 0; i < m_number_of_extruders; ++i) {
+            // Clamp before the integer conversion as well: a finite float can
+            // exceed the integer range, even though SpinInput clamps integers.
+            m_old[i]->SetValue(static_cast<int>(std::clamp(double(values[2 * i]),
+                double(m_old[i]->GetMin()), double(m_old[i]->GetMax()))));
+            m_new[i]->SetValue(static_cast<int>(std::clamp(double(values[2 * i + 1]),
+                double(m_new[i]->GetMin()), double(m_new[i]->GetMax()))));
+        }
+    }
+    m_suppress_change_notification = false;
+    notify_values_changed();
 }
 
 // Reads values from simple mode to save them for next time:
@@ -418,12 +652,14 @@ std::vector<float> WipingPanel::read_extruders_values() {
 
 // This updates the "advanced" matrix based on values from "simple" mode
 void WipingPanel::fill_in_matrix() {
+    m_suppress_change_notification = true;
     for (unsigned i=0;i<m_number_of_extruders;++i) {
         for (unsigned j=0;j<m_number_of_extruders;++j) {
             if (i==j) continue;
                 edit_boxes[j][i]->SetValue(wxString("")<< (m_old[i]->GetValue() + m_new[j]->GetValue()));
         }
     }
+    m_suppress_change_notification = false;
 }
 
 
@@ -462,4 +698,12 @@ void WipingPanel::toggle_advanced(bool user_action) {
 
    m_sizer->Layout();
    Refresh();
+   notify_values_changed();
+}
+
+// Changes triggered by programmatic synchronization are ignored; only user-visible edits refresh the serialized field.
+void WipingPanel::notify_values_changed()
+{
+    if (!m_suppress_change_notification && m_values_changed)
+        m_values_changed();
 }

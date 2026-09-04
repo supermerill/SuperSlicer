@@ -8,6 +8,10 @@
 #ifndef _WIPE_TOWER_DIALOG_H_
 #define _WIPE_TOWER_DIALOG_H_
 
+// WipingPanel owns the simple and advanced editors and reports committed UI
+// changes. WipingDialog validates the CSV draft and copies the active setting;
+// disabled diagonal matrix cells retain their values separately in the panel.
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -19,6 +23,9 @@
 
 #include "RammingChart.hpp"
 #include "Widgets/SpinInput.hpp"
+
+class ScalableButton;
+
 class RammingPanel : public wxPanel {
 public:
     RammingPanel(wxWindow* parent);
@@ -55,22 +62,31 @@ private:
 
 class WipingPanel : public wxPanel {
 public:
-    WipingPanel(wxWindow* parent, const std::vector<float>& matrix, const std::vector<float>& extruders, const std::vector<std::string>& extruder_colours, wxButton* widget_button);
+    WipingPanel(wxWindow* parent, const std::vector<float>& matrix, const std::vector<float>& extruders,
+                const std::vector<std::string>& extruder_colours, wxButton* widget_button,
+                std::function<void()> values_changed);
     std::vector<float> read_matrix_values();
     std::vector<float> read_extruders_values();
+    // Read/apply the setting belonging to the visible mode, in config order.
+    std::vector<float> read_serialized_values();
+    void set_serialized_values(const std::vector<float>& values);
     void toggle_advanced(bool user_action = false);
-	void format_sizer(wxSizer* sizer, wxPanel* page, wxGridSizer* grid_sizer, const wxString& info, const wxString& table_title, int table_lshift=0);
+    void format_sizer(wxSizer* sizer, wxPanel* page, wxGridSizer* grid_sizer, const wxString& info, const wxString& table_title, int table_lshift=0);
         
 private:
     void fill_in_matrix();
     bool advanced_matches_simple();
+    void notify_values_changed();
         
     std::vector<::SpinInput*> m_old;
     std::vector<::SpinInput*> m_new;
     std::vector<std::vector<wxTextCtrl*>> edit_boxes;
+    std::vector<float> m_matrix_diagonal;
     std::vector<wxColour> m_colours;
+    std::function<void()> m_values_changed;
     unsigned int m_number_of_extruders  = 0;
     bool m_advanced                     = false;
+    bool m_suppress_change_notification = false;
 	wxPanel*	m_page_simple = nullptr;
 	wxPanel*	m_page_advanced = nullptr;
     wxBoxSizer*	m_sizer = nullptr;
@@ -92,7 +108,15 @@ public:
 
 
 private:
-    WipingPanel*  m_panel_wiping  = nullptr;
+    // Refresh without generating wxEVT_TEXT, and validate a complete CSV draft.
+    void update_serialized_values();
+    bool commit_serialized_values();
+
+    WipingPanel* m_panel_wiping = nullptr;
+    wxTextCtrl* m_serialized_values = nullptr;
+    ScalableButton* m_copy_button = nullptr;
+    bool m_updating_serialized_values = false;
+    bool m_closing = false;
     std::vector<float> m_output_matrix;
     std::vector<float> m_output_extruders;
 };
