@@ -274,6 +274,19 @@ class Slic3rAPI:
             int(priority),
         )
 
+    def register_activation_group(self, group_id: str, members) -> None:
+        """Accumulate jointly activated plugin IDs; all member existence checks are deferred."""
+        names = [_as_bytes(member) for member in members]
+        array = (ctypes.c_char_p * len(names))(*names)
+        if not self.host.orchestrator_register_activation_group(
+            self.orchestrator, _as_bytes(group_id),
+            ConstStrings(ctypes.cast(array, ctypes.POINTER(ctypes.c_void_p)), len(names))
+        ):
+            raise ValueError(
+                f"Cannot register activation group {group_id!r}: ID must be nonempty and "
+                "each declaration needs at least two distinct nonempty members."
+            )
+
     def register_translation_catalog(self, domain: str, locale_directory: str) -> int:
         """Register one gettext domain from this plugin package during registration."""
         return int(self.host.orchestrator_register_translation_catalog(

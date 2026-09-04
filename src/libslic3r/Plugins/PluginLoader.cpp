@@ -242,7 +242,7 @@ void activate_plugins_from_ids(Orchestrator &orchestrator,
             BOOST_LOG_TRIVIAL(trace) << "Default active plugin '" << plugin_id << "' is not loaded.";
     }
     // Validate after assembling the complete set, never against a partial list.
-    orchestrator.block_unsatisfied_plugin_dependencies();
+    orchestrator.block_unsatisfied_plugin_dependencies(plugin_ids);
     for (const auto &[id, error] : orchestrator.blocked_plugin_activations())
         BOOST_LOG_TRIVIAL(error) << "Activation blocked: " << error;
     for (const std::string &id : plugin_ids)

@@ -283,12 +283,12 @@ TEST_CASE("Dense infill blocks incomplete activation transitively",
     CHECK(orchestrator.is_plugin_active("dense_infill.recipe_modifier") == recipe);
     CHECK(orchestrator.is_plugin_active("dense_infill.post_infill_order") == order);
     orchestrator.block_unsatisfied_plugin_dependencies();
-    CHECK(orchestrator.is_plugin_active("dense_infill.surface_marker") == marker);
-    CHECK(orchestrator.is_plugin_active("dense_infill.recipe_modifier") == (recipe && marker));
-    CHECK(orchestrator.is_plugin_active("dense_infill.post_infill_order") == (order && recipe && marker));
+    CHECK(orchestrator.is_plugin_active("dense_infill.surface_marker") == (mask == 7));
+    CHECK(orchestrator.is_plugin_active("dense_infill.recipe_modifier") == (mask == 7));
+    CHECK(orchestrator.is_plugin_active("dense_infill.post_infill_order") == (mask == 7));
     CHECK(orchestrator.active_plugin_dependency_errors().empty());
     CHECK(orchestrator.blocked_plugin_activations().size() ==
-          size_t(recipe && !marker) + size_t(order && !(recipe && marker)));
+          (mask == 7 ? 0 : size_t(marker) + size_t(recipe) + size_t(order)));
     for (const auto &[id, reason] : orchestrator.blocked_plugin_activations()) {
         CHECK(reason.find(id) != std::string::npos);
         CHECK_FALSE(orchestrator.is_plugin_active(id));

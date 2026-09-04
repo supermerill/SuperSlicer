@@ -1076,7 +1076,7 @@ void GUI_App::post_init()
         const std::map<std::string, std::string> &errors = Orchestrator::instance().blocked_plugin_activations();
         if (!errors.empty()) {
             std::string message = _u8L("ERROR:") + std::string("\n") +
-                _u8L("Plugin activation was blocked because required plugins are missing or inactive. Open plugin settings to resolve these problems.");
+                _u8L("Plugin activation was blocked because dependencies or activation groups are incomplete. Open plugin settings to resolve these problems.");
             for (const auto &[id, error] : errors)
                 message += "\n" + error;
             plater_->get_notification_manager()->push_notification(

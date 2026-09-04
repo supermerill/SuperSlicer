@@ -335,6 +335,100 @@ TEST_CASE("The orchestrator registers service steps by stable name",
     CHECK(orchestrator_step_name(handle, g_private_numeric.step) == nullptr);
 }
 
+TEST_CASE("Activation group declarations merge atomically and defer member lookup",
+          "[plugins][orchestrator][activation-groups]")
+{
+    Orchestrator &orchestrator = Orchestrator::instance();
+    orchestrator_handle *handle = reinterpret_cast<orchestrator_handle *>(&orchestrator);
+    const slic3r_api::OrchestratorView view(handle);
+    const char *ab[] = {"group.test.a", "group.test.b"};
+    REQUIRE(orchestrator_register_activation_group(handle, "test.union", {ab, 2}) == 1);
+    view.register_activation_group("test.union", {"group.test.b", "group.test.c"});
+    view.register_activation_group("test.union", {"group.test.d", "group.test.e"});
+    view.register_activation_group("test.union", {"group.test.b", "group.test.a"});
+    view.register_activation_group("test.union.reverse", {"group.test.e", "group.test.d"});
+    view.register_activation_group("test.union.reverse", {"group.test.c", "group.test.b"});
+    view.register_activation_group("test.union.reverse", {"group.test.a", "group.test.b"});
+    const std::set<std::string> expected {"group.test.a", "group.test.b", "group.test.c", "group.test.d", "group.test.e"};
+    CHECK(orchestrator.activation_groups().at("test.union") == expected);
+    CHECK(orchestrator.activation_groups().at("test.union.reverse") == expected);
+    CHECK(orchestrator.incomplete_activation_groups().count("test.union") == 1);
+    CHECK(orchestrator.plugin_activation_errors({}).empty());
+    CHECK(orchestrator_register_activation_group(nullptr, "test.invalid", {ab, 2}) == 0);
+    CHECK(orchestrator_register_activation_group(handle, nullptr, {ab, 2}) == 0);
+    CHECK(orchestrator_register_activation_group(handle, "", {ab, 2}) == 0);
+    CHECK(orchestrator_register_activation_group(handle, "test.invalid", {nullptr, 2}) == 0);
+    CHECK(orchestrator_register_activation_group(handle, "test.invalid", {ab, 1}) == 0);
+    const char *bad[] = {"group.test.a", nullptr};
+    CHECK(orchestrator_register_activation_group(handle, "test.invalid", {bad, 2}) == 0);
+    CHECK_THROWS_AS(view.register_activation_group("test.union", {"new", "new"}), std::invalid_argument);
+    CHECK_THROWS_AS(view.register_activation_group("test.union", {"new", ""}), std::invalid_argument);
+    CHECK(orchestrator.activation_groups().at("test.union") == expected);
+    CHECK(orchestrator.activation_groups().count("test.invalid") == 0);
+    const Orchestrator::ActivationChange refused = orchestrator.propose_plugin_activation({}, {"group.test.a"}, true);
+    CHECK_FALSE(refused.error.empty());
+    CHECK(refused.error.find("test.union") != std::string::npos);
+    CHECK(refused.selected.empty());
+    ActivePluginGuard guard(orchestrator, {});
+    orchestrator.block_unsatisfied_plugin_dependencies({"group.test.a"});
+    CHECK(orchestrator.blocked_plugin_activations().count("group.test.a") == 1);
+    CHECK(orchestrator.active_plugins().empty());
+    orchestrator.block_unsatisfied_plugin_dependencies();
+    CHECK(orchestrator.blocked_plugin_activations().empty());
+    CHECK(orchestrator.incomplete_activation_groups().count("test.union") == 1);
+}
+
+TEST_CASE("Solidarity and dependencies reach one non-mutating activation proposal",
+          "[plugins][orchestrator][activation-groups]")
+{
+    Orchestrator &orchestrator = Orchestrator::instance();
+    const slic3r_api::OrchestratorView view(reinterpret_cast<orchestrator_handle *>(&orchestrator));
+    static ServicePluginState states[6];
+    const char *ids[] = {"solid.a", "solid.b", "solid.c", "solid.d", "solid.e", "solid.consumer"};
+    // Register declarations before their members and overlap two groups.
+    view.register_activation_group("test.solid.ab", {ids[0], ids[1]});
+    view.register_activation_group("test.solid.bc", {ids[1], ids[2]});
+    view.register_activation_group("test.solid.de", {ids[3], ids[4]});
+    for (size_t i = 0; i < 6; ++i) {
+        states[i].id = ids[i];
+        states[i].step = static_cast<slicing_step_t>(12003);
+        if (i == 2) states[i].dependencies = {ids[3]};
+        if (i == 5) states[i].dependencies = {ids[0]};
+        register_service_plugin(orchestrator, states[i]);
+    }
+    // Another declaration after registration is idempotent.
+    view.register_activation_group("test.solid.ab", {ids[1], ids[0]});
+    CHECK(orchestrator.incomplete_activation_groups().count("test.solid.ab") == 0);
+    ActivePluginGuard guard(orchestrator, {});
+    const std::set<std::string> expected {ids[0], ids[1], ids[2], ids[3], ids[4]};
+    const Orchestrator::ActivationChange enable = orchestrator.propose_plugin_activation({}, {ids[0]}, true);
+    REQUIRE(enable.error.empty());
+    CHECK(enable.selected == expected);
+    CHECK(enable.solidarity_changes.count(ids[1]) == 1);
+    CHECK(enable.groups.size() == 3);
+    CHECK(orchestrator.active_plugins().empty());
+    const std::vector<std::string> all {ids[0], ids[1], ids[2], ids[3], ids[4], ids[5]};
+    const Orchestrator::ActivationChange disable = orchestrator.propose_plugin_activation(all, {ids[1]}, false);
+    CHECK(disable.selected == std::set<std::string>{ids[3], ids[4]});
+    CHECK(disable.dependency_changes.count(ids[5]) == 1);
+    const Orchestrator::ActivationChange disable_dependency = orchestrator.propose_plugin_activation(all, {ids[3]}, false);
+    CHECK(disable_dependency.selected.empty());
+    // Refusing activation uses the deactivation proposal; nothing runs until
+    // the caller explicitly commits the selected IDs after confirmation.
+    CHECK(orchestrator.propose_plugin_activation({}, {ids[0]}, false).selected.empty());
+    CHECK(orchestrator.propose_plugin_activation({}, {ids[0], ids[1], ids[2], ids[3], ids[4]}, true).solidarity_changes.empty());
+    std::string error;
+    CHECK(orchestrator.validate_plugin_activation(all, error));
+    CHECK_FALSE(orchestrator.validate_plugin_activation({ids[0], ids[1], ids[3], ids[4]}, error));
+    for (const char *id : {ids[0], ids[1], ids[3], ids[4], ids[5]})
+        REQUIRE(orchestrator.set_plugin_active(id, true));
+    orchestrator.block_unsatisfied_plugin_dependencies();
+    CHECK(orchestrator.blocked_plugin_activations().size() == 3);
+    CHECK(orchestrator.is_plugin_active(ids[3]));
+    CHECK(orchestrator.is_plugin_active(ids[4]));
+    CHECK_FALSE(orchestrator.is_plugin_active(ids[5]));
+}
+
 TEST_CASE("The orchestrator finds and selects generic service plugins",
           "[plugins][orchestrator][service-plugin]")
 {

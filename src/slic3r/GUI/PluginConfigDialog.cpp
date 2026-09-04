@@ -136,6 +136,8 @@ private:
 struct PluginCatalogEntry {
     std::string id;
     std::string package_id;
+    bool activation_group_diagnostic { false };
+    std::vector<std::string> activation_groups;
     wxString package_name;
     std::string exclusive_group;
     wxString name;
@@ -257,6 +259,7 @@ struct DetailWidgets {
     wxStaticText *priority { nullptr };
     wxStaticText *group { nullptr };
     wxStaticText *dependencies { nullptr };
+    wxStaticText *activation_groups { nullptr };
     PluginSettingsPanel *defined_settings { nullptr };
     PluginSettingsPanel *other_used_settings { nullptr };
     wxStaticText *diagnostic_label { nullptr };
@@ -537,6 +540,7 @@ bool navigation_matches(const PluginCatalogEntry &entry, const NavigationScope &
 
 wxString plugin_status(const PluginCatalogEntry &entry)
 {
+    if (entry.activation_group_diagnostic) return _L("Incomplete activation group");
     if (!entry.loaded)
         return entry.preserve_unavailable_activation ? _L("Not loaded - kept") : _L("Not loaded - orphaned");
     if (!entry.diagnostic.empty())
@@ -595,6 +599,8 @@ wxString searchable_plugin_text(const PluginCatalogEntry &entry)
         searchable += " " + from_u8(setting.key);
     for (const PluginSettingEntry &setting : entry.other_used_settings)
         searchable += " " + from_u8(setting.key);
+    for (const std::string &group : entry.activation_groups)
+        searchable += " " + from_u8(group);
     return searchable.Lower();
 }
 
@@ -984,45 +990,34 @@ std::vector<std::string> change_plugin_activation(wxWindow *parent,
     const std::vector<std::string> &current, const std::vector<std::string> &requested, bool active)
 {
     Orchestrator &orchestrator = Orchestrator::instance();
-    std::set<std::string> selected(current.begin(), current.end());
-    if (active) {
-        std::vector<std::string> closure;
-        std::string error;
-        if (!orchestrator.plugin_dependency_closure(requested, closure, error)) {
-            wxMessageBox(from_u8(error), _L("Cannot activate plugin"), wxOK | wxICON_ERROR, parent);
-            active = false;
-        } else {
-            wxString missing;
-            for (const std::string &id : closure)
-                if (selected.count(id) == 0 && std::find(requested.begin(), requested.end(), id) == requested.end())
-                    missing += "\n" + from_u8(id);
-            if (!missing.empty())
-                active = wxMessageBox(_L("Activate the required plugins as well?") + missing,
-                    _L("Plugin dependencies"), wxYES_NO | wxNO_DEFAULT | wxICON_QUESTION, parent) == wxYES;
-            if (active)
-                selected.insert(closure.begin(), closure.end());
+    Orchestrator::ActivationChange change = orchestrator.propose_plugin_activation(current, requested, active);
+    bool accepted = true;
+    if (!change.error.empty()) {
+        wxMessageBox(from_u8(change.error), _L("Cannot activate plugin"), wxOK | wxICON_ERROR, parent);
+        accepted = false;
+    } else if (!change.solidarity_changes.empty() || !change.dependency_changes.empty()) {
+        wxString message = active ? _L("Activate these additional plugins?") :
+                                    _L("Deactivate these additional plugins?");
+        if (!change.solidarity_changes.empty()) {
+            message += "\n\n" + _L("Activation groups:");
+            for (const std::string &group : change.groups) message += "\n" + from_u8(group);
+            message += "\n" + _L("Jointly activated plugins:");
+            for (const std::string &id : change.solidarity_changes) message += "\n" + from_u8(id);
         }
+        if (!change.dependency_changes.empty()) {
+            message += "\n\n" + _L("Dependency changes:");
+            for (const std::string &id : change.dependency_changes) message += "\n" + from_u8(id);
+        }
+        accepted = wxMessageBox(message, _L("Plugin activation"),
+            wxYES_NO | wxNO_DEFAULT | wxICON_QUESTION, parent) == wxYES;
     }
-    if (!active)
-        for (const std::string &id : requested)
-            selected.erase(id);
-
-    // Disabling a dependency cannot leave a consumer checked. Iterate to a
-    // fixed point because consumers may themselves have downstream consumers.
-    bool changed;
-    do {
-        changed = false;
-        for (std::set<std::string>::iterator it = selected.begin(); it != selected.end();) {
-            const Plugin *plugin = orchestrator.get_plugin(*it);
-            bool invalid = false;
-            if (plugin != nullptr)
-                for (const std::string &dependency : plugin->get_dependencies())
-                    invalid = invalid || selected.count(dependency) == 0 || orchestrator.get_plugin(dependency) == nullptr;
-            if (invalid) { it = selected.erase(it); changed = true; }
-            else ++it;
-        }
-    } while (changed);
-    return {selected.begin(), selected.end()};
+    // Rejecting activation leaves its entire requested component off. Rejecting
+    // deactivation restores the exact draft, without applying a partial change.
+    if (!accepted) {
+        if (!active) return current;
+        change = orchestrator.propose_plugin_activation(current, requested, false);
+    }
+    return {change.selected.begin(), change.selected.end()};
 }
 
 PluginConfigDialog::PluginConfigDialog(wxWindow *parent)
@@ -1144,6 +1139,25 @@ void PluginConfigDialog::build_catalog()
         m_state->entries.push_back(std::move(entry));
     }
 
+    // Membership is informational, independent of exclusive provider selection.
+    for (PluginCatalogEntry &entry : m_state->entries)
+        for (const auto &[group, members] : Orchestrator::instance().activation_groups())
+            if (members.count(entry.id) != 0) entry.activation_groups.push_back(group);
+
+    // An incomplete declaration remains visible even if none of its expected
+    // plugins loaded. These rows are diagnostics, never activation-config IDs.
+    for (const auto &[group, reason] : Orchestrator::instance().incomplete_activation_groups()) {
+        PluginCatalogEntry entry;
+        entry.id = group;
+        entry.name = format_wxstr(_L("Activation group: %1%"), from_u8(group));
+        entry.description = _L("Some declared members of this activation group are not loaded.");
+        entry.diagnostic = from_u8(reason);
+        entry.activation_group_diagnostic = true;
+        entry.registration_index = m_state->entries.size();
+        entry.activation_groups.push_back(group);
+        m_state->entries.push_back(std::move(entry));
+    }
+
     // Resolve display names once from the updater's in-memory snapshot, also
     // for unloaded plugins. Keystrokes never trigger filesystem or network IO.
     if (PluginUpdater *updater = wxGetApp().get_plugin_updater()) {
@@ -1246,6 +1260,8 @@ void PluginConfigDialog::refresh_navigation_counts()
         size_t total_count = 0;
         for (const PluginCatalogEntry &entry : m_state->entries) {
             if (!navigation_matches(entry, record.scope))
+                continue;
+            if (entry.activation_group_diagnostic && record.scope.kind != PluginNavigationKind::Problems)
                 continue;
             ++total_count;
             if (entry.active)
@@ -1434,6 +1450,7 @@ void PluginConfigDialog::refresh_details()
         set_detail_value(m_state->details.priority, wxEmptyString);
         set_detail_value(m_state->details.group, wxEmptyString);
         set_detail_value(m_state->details.dependencies, wxEmptyString);
+        set_detail_value(m_state->details.activation_groups, wxEmptyString);
         m_state->details.diagnostic_label->Show(false);
         m_state->details.diagnostic->Show(false);
     } else {
@@ -1465,6 +1482,7 @@ void PluginConfigDialog::refresh_details()
             group_value += "\n" + entry->exclusive_group_tooltip;
         set_detail_value(m_state->details.group, group_value);
         set_detail_value(m_state->details.dependencies, join_dependencies(entry->dependencies));
+        set_detail_value(m_state->details.activation_groups, join_dependencies(entry->activation_groups));
 
         const bool show_diagnostic = !entry->diagnostic.empty();
         m_state->details.diagnostic_label->Show(show_diagnostic);
@@ -1483,6 +1501,7 @@ void PluginConfigDialog::refresh_details()
     m_state->details.description->Wrap(wrap_width);
     m_state->details.group->Wrap(wrap_width);
     m_state->details.dependencies->Wrap(wrap_width);
+    m_state->details.activation_groups->Wrap(wrap_width);
     m_state->details.diagnostic->Wrap(wrap_width);
     m_state->details_panel->fit_contents();
 }
@@ -1548,12 +1567,12 @@ void PluginConfigDialog::build()
             if (entry.active) entry.diagnostic.clear();
             else if (was_active || !entry.diagnostic.empty() || (&entry == &target && active)) {
                 entry.diagnostic.clear();
-                for (const std::string &dependency : entry.dependencies) {
-                    if (std::find(selected.begin(), selected.end(), dependency) == selected.end()) {
-                        if (!entry.diagnostic.empty()) entry.diagnostic += "\n";
-                        entry.diagnostic += format_wxstr(_L("Required plugin '%1%' is missing or inactive."), from_u8(dependency));
-                    }
-                }
+                std::set<std::string> candidate(selected.begin(), selected.end());
+                candidate.insert(entry.id);
+                const std::map<std::string, std::string> errors =
+                    Orchestrator::instance().plugin_activation_errors(candidate);
+                const std::map<std::string, std::string>::const_iterator error = errors.find(entry.id);
+                if (error != errors.end()) entry.diagnostic = from_u8(error->second);
             }
         }
     };
@@ -1586,17 +1605,18 @@ void PluginConfigDialog::build()
 
     wxFlexGridSizer *details_grid = new wxFlexGridSizer(2, 6, 10);
     details_grid->AddGrowableCol(1, 1);
-    const std::array<wxString, 7> detail_labels {{
-        _L("State"), _L("ID"), _L("Package"), _L("Step"), _L("Priority"), _L("Exclusive group"), _L("Dependencies")
+    const std::array<wxString, 8> detail_labels {{
+        _L("State"), _L("ID"), _L("Package"), _L("Step"), _L("Priority"), _L("Exclusive group"), _L("Dependencies"), _L("Activation groups")
     }};
-    std::array<wxStaticText **, 7> detail_values {{
+    std::array<wxStaticText **, 8> detail_values {{
         &m_state->details.status,
         &m_state->details.id,
         &m_state->details.package,
         &m_state->details.step,
         &m_state->details.priority,
         &m_state->details.group,
-        &m_state->details.dependencies
+        &m_state->details.dependencies,
+        &m_state->details.activation_groups
     }};
     for (size_t detail_idx = 0; detail_idx < detail_labels.size(); ++detail_idx) {
         wxStaticText *label = new wxStaticText(m_state->details_panel, wxID_ANY, detail_labels[detail_idx]);
@@ -1687,7 +1707,7 @@ bool PluginConfigDialog::write_active_plugins(std::string &error_message) const
     try {
         std::set<std::string> active_ids = m_state->original_active_plugin_ids;
         for (const PluginCatalogEntry &entry : m_state->entries) {
-            if (entry.preserve_unavailable_activation)
+            if (entry.activation_group_diagnostic || entry.preserve_unavailable_activation)
                 continue;
             active_ids.erase(entry.id);
             if (entry.active)
@@ -1708,6 +1728,7 @@ bool PluginConfigDialog::write_active_plugins(std::string &error_message) const
         // Re-reading immediately before publication preserves package changes
         // made by another dialog while this activation catalog was open.
         for (const PluginCatalogEntry &entry : m_state->entries) {
+            if (entry.activation_group_diagnostic) continue;
             if (!entry.preserve_unavailable_activation) {
                 config.activated[entry.id] = entry.active;
                 if (!entry.active)

@@ -1010,6 +1010,10 @@ void DenseInfillPostInfillOrder::run_impl(const plugin_run_context *run_ctx) con
 
 void register_dense_infill_plugins(orchestrator_handle *orch)
 {
+    // Membership is declared before the instances to exercise deferred validation.
+    const char *members[] = { k_surface_marker_id, k_recipe_modifier_id, k_post_infill_order_id };
+    if (!orchestrator_register_activation_group(orch, "dense_infill", {members, 3}))
+        throw std::runtime_error("Cannot register the dense_infill activation group.");
     orchestrator_register_plugin(orch, DenseInfillSurfaceMarker::instance(orch).c_instance());
     orchestrator_register_plugin(orch, DenseInfillRecipeModifier::instance(orch).c_instance());
     orchestrator_register_plugin(orch, DenseInfillPostInfillOrder::instance(orch).c_instance());

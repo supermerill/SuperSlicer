@@ -74,6 +74,21 @@ public:
         assert(m_orchestrator != nullptr);
     }
 
+    // Accumulate a solidarity declaration without changing execution order.
+    // Registration copies all strings; member plugins may be registered later.
+    void register_activation_group(const std::string &id, const std::vector<std::string> &members) const
+    {
+        if (members.size() > std::numeric_limits<uint32_t>::max())
+            throw std::invalid_argument("Too many activation group members.");
+        std::vector<const char *> names;
+        names.reserve(members.size());
+        for (const std::string &member : members) names.push_back(member.c_str());
+        if (!orchestrator_register_activation_group(m_orchestrator, id.c_str(),
+                {names.data(), static_cast<uint32_t>(names.size())}))
+            throw std::invalid_argument("Cannot register activation group '" + id +
+                "': ID must be nonempty and each declaration needs at least two distinct nonempty members.");
+    }
+
     // Register a namespaced service step. Failure is exceptional in C++
     // because a plugin cannot safely register or find its provider afterward.
     slicing_step_t register_step(const std::string &namespaced_name,

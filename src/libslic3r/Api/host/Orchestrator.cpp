@@ -1193,6 +1193,15 @@ bool Orchestrator::validate_plugin_activation(const std::vector<std::string> &pl
     // That stricter validation still happens in create_new_print_config() while
     // the active plugin initializes and publishes the actual option definition.
     std::set<std::string> selected_ids(plugin_ids.begin(), plugin_ids.end());
+    const std::map<std::string, std::string> activation_errors = plugin_activation_errors(selected_ids);
+    if (!activation_errors.empty()) {
+        error_message.clear();
+        for (const auto &[id, reason] : activation_errors) {
+            if (!error_message.empty()) error_message += "\n";
+            error_message += reason;
+        }
+        return false;
+    }
     std::map<std::string, ConfigOptionOwner> future_owners = m_config_option_owners;
 
     for (const std::string &plugin_id : selected_ids) {
@@ -1202,12 +1211,6 @@ bool Orchestrator::validate_plugin_activation(const std::vector<std::string> &pl
             return false;
         }
 
-        for (const std::string &dependency : plugin->get_dependencies()) {
-            if (selected_ids.count(dependency) == 0 || get_plugin(dependency) == nullptr) {
-                error_message = "Plugin '" + plugin_id + "' requires inactive or missing plugin '" + dependency + "'.";
-                return false;
-            }
-        }
         for (const Plugin::DefinedConfigKey &defined_key : plugin->get_defined_config_keys()) {
             const std::string &key = defined_key.key;
             const std::map<std::string, ConfigOptionOwner>::const_iterator existing_owner = future_owners.find(key);
@@ -1489,24 +1492,164 @@ bool Orchestrator::plugin_dependency_closure(const std::vector<std::string> &ids
     return true;
 }
 
-void Orchestrator::block_unsatisfied_plugin_dependencies()
+bool Orchestrator::register_activation_group(const std::string &id,
+    const std::vector<std::string> &members, std::string &error)
+{
+    error.clear();
+    std::set<std::string> unique;
+    if (id.empty() || members.size() < 2) {
+        error = "An activation group needs a nonempty ID and at least two distinct members.";
+        return false;
+    }
+    for (const std::string &member : members) {
+        if (member.empty() || !unique.insert(member).second) {
+            error = "Activation group '" + id + "' contains an empty or repeated member: '" + member + "'.";
+            return false;
+        }
+    }
+    // Validate the entire declaration before merging, so invalid calls cannot
+    // partially extend a previously valid group.
+    const std::map<std::string, std::set<std::string>>::const_iterator existing = m_activation_groups.find(id);
+    if (existing != m_activation_groups.end())
+        unique.insert(existing->second.begin(), existing->second.end());
+    m_activation_groups.insert_or_assign(id, std::move(unique));
+    return true;
+}
+
+std::map<std::string, std::string> Orchestrator::incomplete_activation_groups() const
+{
+    std::map<std::string, std::string> errors;
+    for (const auto &[group, members] : m_activation_groups) {
+        std::string missing;
+        for (const std::string &member : members)
+            if (get_plugin(member) == nullptr)
+                missing += "\n" + member;
+        if (!missing.empty())
+            errors[group] = "Activation group '" + group + "' has missing plugins:" + missing;
+    }
+    return errors;
+}
+
+std::map<std::string, std::string> Orchestrator::plugin_activation_errors(
+    const std::set<std::string> &selected) const
+{
+    std::map<std::string, std::string> errors;
+    for (const std::string &id : selected) {
+        const Plugin *plugin = get_plugin(id);
+        if (plugin == nullptr) {
+            errors[id] = "Plugin '" + id + "' is not loaded.";
+            continue;
+        }
+        for (const std::string &dependency : plugin->get_dependencies()) {
+            if (selected.count(dependency) == 0 || get_plugin(dependency) == nullptr) {
+                if (!errors[id].empty()) errors[id] += "\n";
+                errors[id] += "Plugin '" + id + "' requires plugin '" + dependency +
+                    (get_plugin(dependency) == nullptr ? "', which is not loaded." : "', which is inactive.");
+            }
+        }
+    }
+    for (const auto &[group, members] : m_activation_groups) {
+        std::string unavailable;
+        for (const std::string &member : members)
+            if (selected.count(member) == 0 || get_plugin(member) == nullptr)
+                unavailable += "\n" + member + (get_plugin(member) == nullptr ? " (not loaded)" : " (inactive)");
+        if (unavailable.empty()) continue;
+        for (const std::string &member : members) {
+            if (selected.count(member) == 0) continue;
+            if (!errors[member].empty()) errors[member] += "\n";
+            errors[member] += "Plugin '" + member + "' belongs to activation group '" + group +
+                "', whose required members are unavailable:" + unavailable;
+        }
+    }
+    return errors;
+}
+
+Orchestrator::ActivationChange Orchestrator::propose_plugin_activation(
+    const std::vector<std::string> &current, const std::vector<std::string> &requested, bool active) const
+{
+    ActivationChange result;
+    const std::set<std::string> original(current.begin(), current.end());
+    const std::set<std::string> explicit_ids(requested.begin(), requested.end());
+    std::set<std::string> affected = explicit_ids;
+    size_t previous_size;
+    do {
+        previous_size = affected.size();
+        // Expand whole groups before traversing dependency edges. Repeating
+        // handles overlapping groups and dependencies that join other groups.
+        for (const auto &[group, members] : m_activation_groups) {
+            if (std::none_of(members.begin(), members.end(), [&affected](const std::string &id) {
+                    return affected.count(id) != 0;
+                })) continue;
+            result.groups.insert(group);
+            affected.insert(members.begin(), members.end());
+            result.solidarity_changes.insert(members.begin(), members.end());
+        }
+        if (active) {
+            const std::set<std::string> pass = affected;
+            for (const std::string &id : pass) {
+                const Plugin *plugin = get_plugin(id);
+                if (plugin == nullptr) continue;
+                for (const std::string &dependency : plugin->get_dependencies()) {
+                    affected.insert(dependency);
+                    result.dependency_changes.insert(dependency);
+                }
+            }
+        } else {
+            std::set<std::string> remaining = original;
+            for (const std::string &id : affected) remaining.erase(id);
+            for (const auto &[id, reason] : plugin_activation_errors(remaining)) {
+                // Preserve unrelated unavailable configured IDs for repair.
+                if (get_plugin(id) == nullptr) continue;
+                affected.insert(id);
+                result.dependency_changes.insert(id);
+            }
+        }
+    } while (affected.size() != previous_size);
+
+    result.selected = original;
+    if (active) {
+        for (const auto &[id, reason] : plugin_activation_errors(affected)) {
+            if (!result.error.empty()) result.error += "\n";
+            result.error += reason;
+        }
+        if (result.error.empty()) result.selected.insert(affected.begin(), affected.end());
+    } else {
+        for (const std::string &id : affected) result.selected.erase(id);
+    }
+    // The confirmation lists only changes beyond the explicit checkbox action.
+    for (const std::string &id : affected) {
+        const bool additional = explicit_ids.count(id) == 0 &&
+            (active ? original.count(id) == 0 : original.count(id) != 0);
+        if (!additional) {
+            result.solidarity_changes.erase(id);
+            result.dependency_changes.erase(id);
+        } else if (result.solidarity_changes.count(id) != 0) {
+            result.dependency_changes.erase(id);
+        }
+    }
+    return result;
+}
+
+void Orchestrator::block_unsatisfied_plugin_dependencies(const std::vector<std::string> &requested)
 {
     m_blocked_plugin_activations.clear();
+    // Missing requested members never entered m_active_plugins. Include them
+    // once so an entirely absent but requested group still produces a notice.
+    std::set<std::string> missing_requests;
+    for (const std::string &id : requested) {
+        if (get_plugin(id) != nullptr) continue;
+        for (const auto &[group, members] : m_activation_groups)
+            if (members.count(id) != 0) missing_requests.insert(id);
+    }
     // Remove one complete generation at a time: a consumer of a rejected
     // plugin is rejected on the next pass, regardless of registration order.
     bool changed;
     do {
-        std::map<std::string, std::string> rejected;
-        for (const Plugin *plugin : m_active_plugins) {
-            for (const std::string &dependency : plugin->get_dependencies()) {
-                if (!is_plugin_active(dependency)) {
-                    std::string &reason = rejected[plugin->get_id()];
-                    if (!reason.empty()) reason += "\n";
-                    reason += "Plugin '" + plugin->get_id() + "' requires plugin '" + dependency +
-                        (get_plugin(dependency) == nullptr ? "', which is not loaded." : "', which is inactive.");
-                }
-            }
-        }
+        std::set<std::string> selected;
+        for (const Plugin *plugin : m_active_plugins) selected.insert(plugin->get_id());
+        selected.insert(missing_requests.begin(), missing_requests.end());
+        missing_requests.clear();
+        const std::map<std::string, std::string> rejected = plugin_activation_errors(selected);
         changed = !rejected.empty();
         for (const auto &[id, reason] : rejected) {
             set_plugin_active(id, false);

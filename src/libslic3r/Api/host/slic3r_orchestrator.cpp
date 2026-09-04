@@ -180,6 +180,34 @@ void orchestrator_register_plugin_from_package(orchestrator_handle *orch,
     orchestrator->register_plugin(plugin);
 }
 
+// Keep registration failures inside the C barrier and identify the offending
+// declaration in the log. No member lookup occurs until loading is complete.
+int32_t orchestrator_register_activation_group(orchestrator_handle *orch,
+    const char *group_id, const_strings_t members)
+{
+    try {
+        if (orch == nullptr || group_id == nullptr || members.items == nullptr || members.size < 2)
+            throw std::invalid_argument("Activation group requires an orchestrator, an ID and at least two members.");
+        std::vector<std::string> ids;
+        ids.reserve(members.size);
+        for (uint32_t index = 0; index < members.size; ++index) {
+            if (members.items[index] == nullptr)
+                throw std::invalid_argument("Activation group contains a null member.");
+            ids.emplace_back(members.items[index]);
+        }
+        std::string error;
+        if (!to_orchestrator(orch)->register_activation_group(group_id, ids, error))
+            throw std::invalid_argument(error);
+        return 1;
+    } catch (const std::exception &error) {
+        BOOST_LOG_TRIVIAL(error) << "Cannot register activation group '" << (group_id ? group_id : "<null>")
+                                 << "': " << error.what();
+    } catch (...) {
+        BOOST_LOG_TRIVIAL(error) << "Unexpected activation group registration failure.";
+    }
+    return 0;
+}
+
 slicing_step_t orchestrator_register_step(orchestrator_handle *orch,
                                           const char *namespaced_name,
                                           slicing_step_t invalidates_step)

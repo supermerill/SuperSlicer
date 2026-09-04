@@ -6,7 +6,7 @@
 #define slic3r_orchestrator_h_
 
 #define SLIC3R_PLUGIN_API_ORCHESTRATOR_MAJOR 1u
-#define SLIC3R_PLUGIN_API_ORCHESTRATOR_MINOR 0u
+#define SLIC3R_PLUGIN_API_ORCHESTRATOR_MINOR 1u
 
 /*
 Property registration guide:
@@ -61,6 +61,18 @@ SLIC3R_HOST_API void orchestrator_register_plugin(
     orchestrator_handle *orch,
     plugin_instance plugin
 );
+
+/*
+Declare jointly activated plugins. Strings are copied. Repeated declarations
+of the same group accumulate their member union, independently of order.
+Overlapping groups form a transitive solidarity relation, not execution edges.
+Declare during registration; member existence is checked after loading.
+Returns 1 on success, 0 with a logged diagnostic for invalid arguments.
+IDs must be nonempty; each call requires at least two distinct, nonempty members.
+Repeated members within one call are invalid. No call removes existing members.
+*/
+SLIC3R_HOST_API int32_t orchestrator_register_activation_group(
+    orchestrator_handle *orchestrator, const char *group_id, const_strings_t members);
 
 /*
 Register a plugin instance and explicitly associate it with its installed

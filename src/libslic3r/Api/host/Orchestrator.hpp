@@ -10,6 +10,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <stddef.h>
 #include <stdint.h>
 #include <string>
@@ -277,13 +278,34 @@ public:
     // set is established. This read-only check does not block activation or
     // validate ordering cycles or per-print exclusive-provider selection.
     std::vector<std::string> active_plugin_dependency_errors() const;
+    // A non-mutating checkbox proposal. Lists describe additional changes by
+    // cause; selected is the complete resulting activation set.
+    struct ActivationChange {
+        std::set<std::string> selected;
+        std::set<std::string> solidarity_changes;
+        std::set<std::string> dependency_changes;
+        std::set<std::string> groups;
+        std::string error;
+    };
+    // Declarations accumulate members; registrations may arrive afterward.
+    bool register_activation_group(const std::string &id, const std::vector<std::string> &members,
+                                   std::string &error);
+    const std::map<std::string, std::set<std::string>> &activation_groups() const { return m_activation_groups; }
+    // Report incomplete declarations even when nobody requested activation.
+    std::map<std::string, std::string> incomplete_activation_groups() const;
+    // Report invalid members in a proposed set, without altering runtime state.
+    std::map<std::string, std::string> plugin_activation_errors(const std::set<std::string> &selected) const;
+    // Expand solidarity and dependency effects to a fixed point. The caller
+    // decides whether to accept; execution order and runtime state are untouched.
+    ActivationChange propose_plugin_activation(const std::vector<std::string> &current,
+        const std::vector<std::string> &requested, bool active) const;
     // Expand requested IDs to their transitive dependency closure, without activation.
     // Missing registrations fail atomically; cycles terminate through the visited set.
     bool plugin_dependency_closure(const std::vector<std::string> &ids,
                                    std::vector<std::string> &closure, std::string &error) const;
     // Called after the entire activation set is assembled. Reject invalid consumers
     // transitively and retain diagnostics for the startup notification and catalog.
-    void block_unsatisfied_plugin_dependencies();
+    void block_unsatisfied_plugin_dependencies(const std::vector<std::string> &requested = {});
     const std::map<std::string, std::string> &blocked_plugin_activations() const { return m_blocked_plugin_activations; }
     const std::unordered_set<Plugin *> &active_plugins() const { return m_active_plugins; }
 
@@ -428,6 +450,7 @@ private:
     std::vector<std::unique_ptr<Plugin>> m_registered_plugins;
     std::unordered_set<Plugin *> m_active_plugins;
     std::map<std::string, std::string> m_blocked_plugin_activations;
+    std::map<std::string, std::set<std::string>> m_activation_groups;
     std::map<slicing_step_t, std::vector<Plugin *>> m_plugins_by_step;
     std::map<Plugin *, PluginStorage> m_plugin_storage;
     std::vector<PluginUiFragment> m_ui_fragments;
