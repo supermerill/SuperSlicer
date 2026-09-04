@@ -45,6 +45,7 @@
 #include "GUI.hpp"
 #include "GUI_App.hpp"
 #include "MainFrame.hpp"
+#include "PluginConfigDialog.hpp"
 #include "Plater.hpp"
 #include "slic3r/Utils/Process.hpp"
 #include "UpdaterErrorMessages.hpp"
@@ -181,6 +182,10 @@ public:
         m_config_path = plugin_activation_config_path(boost::filesystem::path(data_dir()));
         if (!read_plugin_activation_config(m_config_path, m_initial_config, m_error))
             return;
+        // The persisted request can have been rejected at startup. Display the
+        // effective inactive state until the user repairs its dependencies.
+        for (const auto &[id, reason] : Orchestrator::instance().blocked_plugin_activations())
+            m_initial_config.activated[id] = false;
         m_loaded = true;
     }
 
@@ -239,7 +244,7 @@ public:
         const std::map<std::string, bool>::const_iterator configured = m_initial_config.activated.find(plugin_id);
         const bool initially_active = configured != m_initial_config.activated.end() ?
             configured->second : Orchestrator::instance().is_plugin_active(plugin_id);
-        if (active == initially_active) {
+        if (active == initially_active && Orchestrator::instance().blocked_plugin_activations().count(plugin_id) == 0) {
             m_changes.erase(plugin_id);
             m_package_ids.erase(plugin_id);
             return;
@@ -252,8 +257,22 @@ public:
                             const std::vector<std::string> &plugin_ids,
                             bool active)
     {
-        for (const std::string &plugin_id : plugin_ids)
-            set_active(plugin_id, package_id, active);
+        std::vector<std::string> current;
+        for (const Plugin *plugin : Orchestrator::instance().registered_plugins())
+            if (is_active(plugin->get_id())) current.push_back(plugin->get_id());
+        const std::vector<std::string> selected = change_plugin_activation(
+            wxGetActiveWindow(), current, plugin_ids, active);
+        for (const Plugin *plugin : Orchestrator::instance().registered_plugins()) {
+            const bool enabled = std::find(selected.begin(), selected.end(), plugin->get_id()) != selected.end();
+            const std::string owner = plugin->get_package_root().empty() ? std::string() :
+                boost::filesystem::path(plugin->get_package_root()).filename().string();
+            set_active(plugin->get_id(), owner, enabled);
+        }
+        // Missing registrations have no row in the registry loop, but a refused
+        // activation must still clear their persisted request in this draft.
+        for (const std::string &id : plugin_ids)
+            if (Orchestrator::instance().get_plugin(id) == nullptr)
+                set_active(id, package_id, false);
     }
 
     bool save(std::string &error_message) const
@@ -268,6 +287,8 @@ public:
         PluginActivationConfig config;
         if (!read_plugin_activation_config(m_config_path, config, error_message))
             return false;
+        for (const auto &[id, reason] : Orchestrator::instance().blocked_plugin_activations())
+            config.activated[id] = false;
 
         for (const auto &[plugin_id, active] : m_changes) {
             config.activated[plugin_id] = active;
@@ -1031,12 +1052,17 @@ void ChoosePluginVersionDialog::build()
                          0, wxALIGN_CENTER_VERTICAL);
 
         std::vector<wxCheckBox *> plugin_checkboxes;
+        // All individual handlers share the complete row list once construction
+        // finishes, so a dependency change refreshes siblings as well.
+        const std::shared_ptr<std::vector<std::pair<std::string, wxCheckBox *>>> activation_rows =
+            std::make_shared<std::vector<std::pair<std::string, wxCheckBox *>>>();
         plugin_checkboxes.reserve(package_summary.ids.size());
         for (const std::string &plugin_id : package_summary.ids) {
             wxCheckBox *active = new wxCheckBox(plugin_scroll, wxID_ANY, wxEmptyString);
             active->SetValue(m_activation_draft.is_active(plugin_id));
             active->Enable(m_activation_draft.available());
             plugin_checkboxes.emplace_back(active);
+            activation_rows->emplace_back(plugin_id, active);
 
             wxStaticText *name = new wxStaticText(
                 plugin_scroll, wxID_ANY, plugin_display_name(plugin_id));
@@ -1053,9 +1079,11 @@ void ChoosePluginVersionDialog::build()
             plugin_grid->Add(state, 0, wxALIGN_CENTER_VERTICAL);
 
             active->Bind(wxEVT_CHECKBOX,
-                         [this, plugin_id, package_id = m_plugin_id, all_active](wxCommandEvent &event) {
-                             run_repository_gui_action([this, plugin_id, package_id, all_active, &event] {
-                                 m_activation_draft.set_active(plugin_id, package_id, event.IsChecked());
+                         [this, plugin_id, package_id = m_plugin_id, all_active, activation_rows](wxCommandEvent &event) {
+                             run_repository_gui_action([this, plugin_id, package_id, all_active, activation_rows, &event] {
+                                 m_activation_draft.set_package_active(package_id, {plugin_id}, event.IsChecked());
+                                 for (const auto &[id, checkbox] : *activation_rows)
+                                     checkbox->SetValue(m_activation_draft.is_active(id));
                                  const PackagePluginSummary summary = package_plugin_summary(package_id);
                                  const size_t count = m_activation_draft.active_count(summary.ids);
                                  all_active->Set3StateValue(plugin_activation_state(count, summary.ids.size()));
@@ -1070,9 +1098,9 @@ void ChoosePluginVersionDialog::build()
                                  // All active -> disable all; mixed or inactive -> enable all.
                                  const bool enabled = m_activation_draft.active_count(ids) != ids.size();
                                  m_activation_draft.set_package_active(package_id, ids, enabled);
-                                 for (wxCheckBox *row : rows)
-                                     row->SetValue(enabled);
-                                 all_active->Set3StateValue(enabled ? wxCHK_CHECKED : wxCHK_UNCHECKED);
+                                 for (size_t index = 0; index < rows.size(); ++index)
+                                     rows[index]->SetValue(m_activation_draft.is_active(ids[index]));
+                                 all_active->Set3StateValue(plugin_activation_state(m_activation_draft.active_count(ids), ids.size()));
                              });
                          });
 

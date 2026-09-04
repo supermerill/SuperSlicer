@@ -1182,8 +1182,9 @@ bool Orchestrator::validate_plugin_activation(const std::vector<std::string> &pl
     // objects may not exist yet. The only contract available cheaply is the
     // declared list of keys returned by defined_config_keys().
     //
-    // Therefore this is a purposefully narrow ownership preflight:
+    // This preflight checks dependencies and declared configuration ownership:
     // - it verifies that every requested plugin is loaded;
+    // - it requires every dependency to belong to the complete requested set;
     // - it rejects a key already owned by an unrelated plugin;
     // - it rejects a key already present in the built-in/global config unless
     //   it was introduced by the same compatible exclusive group.
@@ -1201,6 +1202,12 @@ bool Orchestrator::validate_plugin_activation(const std::vector<std::string> &pl
             return false;
         }
 
+        for (const std::string &dependency : plugin->get_dependencies()) {
+            if (selected_ids.count(dependency) == 0 || get_plugin(dependency) == nullptr) {
+                error_message = "Plugin '" + plugin_id + "' requires inactive or missing plugin '" + dependency + "'.";
+                return false;
+            }
+        }
         for (const Plugin::DefinedConfigKey &defined_key : plugin->get_defined_config_keys()) {
             const std::string &key = defined_key.key;
             const std::map<std::string, ConfigOptionOwner>::const_iterator existing_owner = future_owners.find(key);
@@ -1417,6 +1424,7 @@ bool Orchestrator::is_plugin_active(const std::string &plugin_id) const
 void Orchestrator::clear_active_plugins()
 {
     m_active_plugins.clear();
+    m_blocked_plugin_activations.clear();
 }
 
 bool Orchestrator::set_plugin_active(Plugin *plugin, bool active)
@@ -1434,6 +1442,77 @@ bool Orchestrator::set_plugin_active(Plugin *plugin, bool active)
 bool Orchestrator::set_plugin_active(const std::string &plugin_id, bool active)
 {
     return this->set_plugin_active(this->get_plugin(plugin_id), active);
+}
+
+std::vector<std::string> Orchestrator::active_plugin_dependency_errors() const
+{
+    // Sort and deduplicate diagnostics independently of pointer ordering in
+    // the active set, so startup logs and GUI messages remain deterministic.
+    std::set<std::string> errors;
+    for (const Plugin *plugin : m_active_plugins) {
+        for (const std::string &dependency_id : plugin->get_dependencies()) {
+            const Plugin *dependency = get_plugin(dependency_id);
+            if (dependency == nullptr)
+                errors.insert("Active plugin '" + plugin->get_id() + "' requires plugin '" + dependency_id + "', which is not loaded.");
+            else if (!is_plugin_active(dependency))
+                errors.insert("Active plugin '" + plugin->get_id() + "' requires plugin '" + dependency_id + "', which is inactive.");
+        }
+    }
+    return {errors.begin(), errors.end()};
+}
+
+bool Orchestrator::plugin_dependency_closure(const std::vector<std::string> &ids,
+                                            std::vector<std::string> &closure, std::string &error) const
+{
+    std::set<std::string> visited;
+    std::vector<std::string> pending = ids;
+    closure.clear();
+    error.clear();
+    for (size_t index = 0; index < pending.size(); ++index) {
+        const std::string id = pending[index];
+        if (!visited.insert(id).second)
+            continue;
+        const Plugin *plugin = get_plugin(id);
+        if (plugin == nullptr) {
+            error = "Required plugin '" + id + "' is not loaded.";
+            return false;
+        }
+        for (const std::string &dependency : plugin->get_dependencies()) {
+            if (get_plugin(dependency) == nullptr) {
+                error = "Plugin '" + id + "' requires plugin '" + dependency + "', which is not loaded.";
+                return false;
+            }
+            pending.push_back(dependency);
+        }
+    }
+    closure.assign(visited.begin(), visited.end());
+    return true;
+}
+
+void Orchestrator::block_unsatisfied_plugin_dependencies()
+{
+    m_blocked_plugin_activations.clear();
+    // Remove one complete generation at a time: a consumer of a rejected
+    // plugin is rejected on the next pass, regardless of registration order.
+    bool changed;
+    do {
+        std::map<std::string, std::string> rejected;
+        for (const Plugin *plugin : m_active_plugins) {
+            for (const std::string &dependency : plugin->get_dependencies()) {
+                if (!is_plugin_active(dependency)) {
+                    std::string &reason = rejected[plugin->get_id()];
+                    if (!reason.empty()) reason += "\n";
+                    reason += "Plugin '" + plugin->get_id() + "' requires plugin '" + dependency +
+                        (get_plugin(dependency) == nullptr ? "', which is not loaded." : "', which is inactive.");
+                }
+            }
+        }
+        changed = !rejected.empty();
+        for (const auto &[id, reason] : rejected) {
+            set_plugin_active(id, false);
+            m_blocked_plugin_activations[id] = reason;
+        }
+    } while (changed);
 }
 
 void Orchestrator::add_plugin_to_step(Plugin *plugin, slicing_step_t step) {

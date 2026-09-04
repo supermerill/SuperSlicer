@@ -1070,6 +1070,31 @@ void GUI_App::post_init()
         }
     }
 
+    // A loaded plugin can still have an invalid activation configuration.
+    // Keep this distinct from ABI failures and report both plugin identities.
+    if (plater_ != nullptr && !is_gcode_viewer()) {
+        const std::map<std::string, std::string> &errors = Orchestrator::instance().blocked_plugin_activations();
+        if (!errors.empty()) {
+            std::string message = _u8L("ERROR:") + std::string("\n") +
+                _u8L("Plugin activation was blocked because required plugins are missing or inactive. Open plugin settings to resolve these problems.");
+            for (const auto &[id, error] : errors)
+                message += "\n" + error;
+            plater_->get_notification_manager()->push_notification(
+                NotificationType::CustomNotification,
+                NotificationManager::NotificationLevel::ErrorNotificationLevel,
+                message, _u8L("Open plugin settings"), [this](wxEvtHandler *) {
+                    CallAfter([this] {
+                        if (mainframe != nullptr) {
+                            PluginConfigDialog dialog(mainframe);
+                            UpdateDlgDarkUI(&dialog);
+                            dialog.ShowModal();
+                        }
+                    });
+                    return true;
+                });
+        }
+    }
+
     // The extra CallAfter() is needed because of Mac, where this is the only way
     // to popup a modal dialog on start without screwing combo boxes.
     // This is ugly but I honestly found no better way to do it.

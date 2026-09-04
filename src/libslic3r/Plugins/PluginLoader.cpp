@@ -232,7 +232,6 @@ void activate_plugins_from_ids(Orchestrator &orchestrator,
 
     for (const std::string &plugin_id : plugin_ids) {
         if (orchestrator.set_plugin_active(plugin_id, true)) {
-            BOOST_LOG_TRIVIAL(info) << "Activated plugin '" << plugin_id << "'.";
             continue;
         }
 
@@ -242,6 +241,13 @@ void activate_plugins_from_ids(Orchestrator &orchestrator,
         else
             BOOST_LOG_TRIVIAL(trace) << "Default active plugin '" << plugin_id << "' is not loaded.";
     }
+    // Validate after assembling the complete set, never against a partial list.
+    orchestrator.block_unsatisfied_plugin_dependencies();
+    for (const auto &[id, error] : orchestrator.blocked_plugin_activations())
+        BOOST_LOG_TRIVIAL(error) << "Activation blocked: " << error;
+    for (const std::string &id : plugin_ids)
+        if (orchestrator.is_plugin_active(id))
+            BOOST_LOG_TRIVIAL(info) << "Activated plugin '" << id << "'.";
 }
 
 const char *plugin_package_library_filename()

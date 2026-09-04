@@ -272,6 +272,19 @@ public:
     void clear_active_plugins();
     bool set_plugin_active(Plugin *plugin, bool active);
     bool set_plugin_active(const std::string &plugin_id, bool active);
+
+    // Diagnose missing/inactive direct dependencies after the complete active
+    // set is established. This read-only check does not block activation or
+    // validate ordering cycles or per-print exclusive-provider selection.
+    std::vector<std::string> active_plugin_dependency_errors() const;
+    // Expand requested IDs to their transitive dependency closure, without activation.
+    // Missing registrations fail atomically; cycles terminate through the visited set.
+    bool plugin_dependency_closure(const std::vector<std::string> &ids,
+                                   std::vector<std::string> &closure, std::string &error) const;
+    // Called after the entire activation set is assembled. Reject invalid consumers
+    // transitively and retain diagnostics for the startup notification and catalog.
+    void block_unsatisfied_plugin_dependencies();
+    const std::map<std::string, std::string> &blocked_plugin_activations() const { return m_blocked_plugin_activations; }
     const std::unordered_set<Plugin *> &active_plugins() const { return m_active_plugins; }
 
     // Preflight a future active-plugin set before it is written to disk by the
@@ -414,6 +427,7 @@ private:
 
     std::vector<std::unique_ptr<Plugin>> m_registered_plugins;
     std::unordered_set<Plugin *> m_active_plugins;
+    std::map<std::string, std::string> m_blocked_plugin_activations;
     std::map<slicing_step_t, std::vector<Plugin *>> m_plugins_by_step;
     std::map<Plugin *, PluginStorage> m_plugin_storage;
     std::vector<PluginUiFragment> m_ui_fragments;

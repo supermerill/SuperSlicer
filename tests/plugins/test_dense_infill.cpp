@@ -259,6 +259,67 @@ TEST_CASE("Dense infill declares its processing dependencies",
         "dense_infill.recipe_modifier", "dense_infill.surface_marker"});
 }
 
+TEST_CASE("Dense infill blocks incomplete activation transitively",
+          "[plugins][dense-infill][dependencies]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    const int mask = GENERATE(0, 1, 2, 3, 4, 5, 6, 7);
+    ScopedActivePlugins active_plugins({});
+    Slic3r::Orchestrator &orchestrator = Slic3r::Orchestrator::instance();
+    const bool marker = (mask & 1) != 0;
+    const bool recipe = (mask & 2) != 0;
+    const bool order = (mask & 4) != 0;
+    REQUIRE(orchestrator.set_plugin_active("dense_infill.surface_marker", marker));
+    REQUIRE(orchestrator.set_plugin_active("dense_infill.recipe_modifier", recipe));
+    REQUIRE(orchestrator.set_plugin_active("dense_infill.post_infill_order", order));
+    const std::vector<std::string> errors = orchestrator.active_plugin_dependency_errors();
+    const size_t expected = size_t(recipe && !marker) + size_t(order && !marker) + size_t(order && !recipe);
+    CHECK(errors.size() == expected);
+    for (const std::string &error : errors) {
+        CHECK(error.find("dense_infill.") != std::string::npos);
+        CHECK(error.find("inactive") != std::string::npos);
+    }
+    CHECK(orchestrator.is_plugin_active("dense_infill.surface_marker") == marker);
+    CHECK(orchestrator.is_plugin_active("dense_infill.recipe_modifier") == recipe);
+    CHECK(orchestrator.is_plugin_active("dense_infill.post_infill_order") == order);
+    orchestrator.block_unsatisfied_plugin_dependencies();
+    CHECK(orchestrator.is_plugin_active("dense_infill.surface_marker") == marker);
+    CHECK(orchestrator.is_plugin_active("dense_infill.recipe_modifier") == (recipe && marker));
+    CHECK(orchestrator.is_plugin_active("dense_infill.post_infill_order") == (order && recipe && marker));
+    CHECK(orchestrator.active_plugin_dependency_errors().empty());
+    CHECK(orchestrator.blocked_plugin_activations().size() ==
+          size_t(recipe && !marker) + size_t(order && !(recipe && marker)));
+    for (const auto &[id, reason] : orchestrator.blocked_plugin_activations()) {
+        CHECK(reason.find(id) != std::string::npos);
+        CHECK_FALSE(orchestrator.is_plugin_active(id));
+    }
+}
+
+TEST_CASE("Dense infill resolves dependency closure before activation",
+          "[plugins][dense-infill][dependencies]")
+{
+    Slic3r::Test::Plugins::ensure_plugin_test_runtime_initialized();
+    ScopedActivePlugins active_plugins({});
+    Slic3r::Orchestrator &orchestrator = Slic3r::Orchestrator::instance();
+    std::vector<std::string> closure;
+    std::string error;
+    REQUIRE(orchestrator.plugin_dependency_closure({"dense_infill.post_infill_order"}, closure, error));
+    CHECK(closure == std::vector<std::string>{"dense_infill.post_infill_order", "dense_infill.recipe_modifier", "dense_infill.surface_marker"});
+    CHECK(orchestrator.active_plugins().empty());
+    REQUIRE(orchestrator.validate_plugin_activation(closure, error));
+    CHECK_FALSE(orchestrator.validate_plugin_activation({"dense_infill.post_infill_order"}, error));
+    CHECK(error.find("dense_infill.recipe_modifier") != std::string::npos);
+    REQUIRE_FALSE(orchestrator.plugin_dependency_closure({"dense_infill.post_infill_order", "missing.plugin"}, closure, error));
+    CHECK(closure.empty());
+    CHECK(error.find("missing.plugin") != std::string::npos);
+    REQUIRE(orchestrator.plugin_dependency_closure({"dense_infill.post_infill_order"}, closure, error));
+    // Lexical order intentionally requests the consumer before its dependencies.
+    for (const std::string &id : closure) REQUIRE(orchestrator.set_plugin_active(id, true));
+    orchestrator.block_unsatisfied_plugin_dependencies();
+    CHECK(orchestrator.active_plugins().size() == 3);
+    CHECK(orchestrator.blocked_plugin_activations().empty());
+}
+
 TEST_CASE("Dense infill marks sparse areas under upper solid surfaces",
           "[plugins][dense-infill]")
 {

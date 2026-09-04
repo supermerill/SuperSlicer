@@ -15,6 +15,7 @@ of the visible list and is written to activated.ini only when the user saves.
 
 #include <algorithm>
 #include <array>
+#include <functional>
 #include <limits>
 #include <map>
 #include <memory>
@@ -31,6 +32,7 @@ of the visible list and is written to activated.ini only when the user saves.
 #include <wx/choice.h>
 #include <wx/dataview.h>
 #include <wx/dcclient.h>
+#include <wx/msgdlg.h>
 #include <wx/panel.h>
 #include <wx/scrolwin.h>
 #include <wx/settings.h>
@@ -209,6 +211,7 @@ public:
         Count
     };
 
+    std::function<void(PluginCatalogEntry &, bool)> change_activation;
     PluginListModel() = default;
     ~PluginListModel() override = default;
 
@@ -510,7 +513,7 @@ bool navigation_matches(const PluginCatalogEntry &entry, const NavigationScope &
     case PluginNavigationKind::Extensions:
         return entry.loaded && is_extension_step(entry.step);
     case PluginNavigationKind::Problems:
-        return !entry.loaded;
+        return !entry.loaded || !entry.diagnostic.empty();
     }
     return false;
 }
@@ -519,6 +522,8 @@ wxString plugin_status(const PluginCatalogEntry &entry)
 {
     if (!entry.loaded)
         return entry.preserve_unavailable_activation ? _L("Not loaded - kept") : _L("Not loaded - orphaned");
+    if (!entry.diagnostic.empty())
+        return _L("Activation blocked");
     return entry.active ? _L("Active") : _L("Inactive");
 }
 
@@ -830,7 +835,7 @@ bool PluginListModel::SetValue(const wxVariant &value, const wxDataViewItem &ite
         !list_node->entry->modifiable)
         return false;
 
-    list_node->entry->active = value.GetBool();
+    change_activation(*list_node->entry, value.GetBool());
     return true;
 }
 
@@ -954,6 +959,51 @@ const std::vector<wxDataViewItem> &PluginListModel::container_items() const
 
 } // namespace
 
+std::vector<std::string> change_plugin_activation(wxWindow *parent,
+    const std::vector<std::string> &current, const std::vector<std::string> &requested, bool active)
+{
+    Orchestrator &orchestrator = Orchestrator::instance();
+    std::set<std::string> selected(current.begin(), current.end());
+    if (active) {
+        std::vector<std::string> closure;
+        std::string error;
+        if (!orchestrator.plugin_dependency_closure(requested, closure, error)) {
+            wxMessageBox(from_u8(error), _L("Cannot activate plugin"), wxOK | wxICON_ERROR, parent);
+            active = false;
+        } else {
+            wxString missing;
+            for (const std::string &id : closure)
+                if (selected.count(id) == 0 && std::find(requested.begin(), requested.end(), id) == requested.end())
+                    missing += "\n" + from_u8(id);
+            if (!missing.empty())
+                active = wxMessageBox(_L("Activate the required plugins as well?") + missing,
+                    _L("Plugin dependencies"), wxYES_NO | wxNO_DEFAULT | wxICON_QUESTION, parent) == wxYES;
+            if (active)
+                selected.insert(closure.begin(), closure.end());
+        }
+    }
+    if (!active)
+        for (const std::string &id : requested)
+            selected.erase(id);
+
+    // Disabling a dependency cannot leave a consumer checked. Iterate to a
+    // fixed point because consumers may themselves have downstream consumers.
+    bool changed;
+    do {
+        changed = false;
+        for (std::set<std::string>::iterator it = selected.begin(); it != selected.end();) {
+            const Plugin *plugin = orchestrator.get_plugin(*it);
+            bool invalid = false;
+            if (plugin != nullptr)
+                for (const std::string &dependency : plugin->get_dependencies())
+                    invalid = invalid || selected.count(dependency) == 0 || orchestrator.get_plugin(dependency) == nullptr;
+            if (invalid) { it = selected.erase(it); changed = true; }
+            else ++it;
+        }
+    } while (changed);
+    return {selected.begin(), selected.end()};
+}
+
 PluginConfigDialog::PluginConfigDialog(wxWindow *parent)
     : DPIDialog(parent, wxID_ANY, _L("Plugin configuration"), wxDefaultPosition, wxDefaultSize,
                 wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER, "plugin_config")
@@ -1025,6 +1075,11 @@ void PluginConfigDialog::build_catalog()
         entry.active = Orchestrator::instance().is_plugin_active(plugin) ||
                        m_state->original_active_plugin_ids.find(entry.id) !=
                            m_state->original_active_plugin_ids.end();
+        const std::map<std::string, std::string> &blocked = Orchestrator::instance().blocked_plugin_activations();
+        if (blocked.count(entry.id) != 0) {
+            entry.active = false;
+            entry.diagnostic = from_u8(blocked.at(entry.id));
+        }
         if (!plugin->get_package_root().empty()) {
             entry.package_id = boost::filesystem::path(plugin->get_package_root()).filename().string();
             entry.external = true;
@@ -1183,7 +1238,7 @@ void PluginConfigDialog::refresh_plugin_list()
             continue;
         if (state_filter == 2 && entry.active)
             continue;
-        if (state_filter == 3 && entry.loaded)
+        if (state_filter == 3 && entry.loaded && entry.diagnostic.empty())
             continue;
         if (origin_filter == 1 && (entry.external || !entry.loaded))
             continue;
@@ -1197,12 +1252,12 @@ void PluginConfigDialog::refresh_plugin_list()
     for (PluginCatalogEntry *entry : visible) {
         std::vector<StepBucket>::iterator bucket = std::find_if(
             step_buckets.begin(), step_buckets.end(), [entry](const StepBucket &candidate) {
-                return candidate.problems == !entry->loaded &&
+                return candidate.problems == (!entry->loaded || !entry->diagnostic.empty()) &&
                        (candidate.problems || candidate.step == entry->step);
             });
         if (bucket == step_buckets.end()) {
             StepBucket created;
-            created.problems = !entry->loaded;
+            created.problems = !entry->loaded || !entry->diagnostic.empty();
             created.step = entry->step;
             created.label = created.problems ? _L("Problems") : entry->step_label;
             step_buckets.push_back(std::move(created));
@@ -1236,8 +1291,9 @@ void PluginConfigDialog::refresh_plugin_list()
 
         std::map<std::string, size_t> group_counts;
         for (const PluginCatalogEntry &catalog_entry : m_state->entries) {
-            const bool same_bucket = step_bucket.problems ? !catalog_entry.loaded :
-                                                           catalog_entry.loaded && catalog_entry.step == step_bucket.step;
+            const bool problem = !catalog_entry.loaded || !catalog_entry.diagnostic.empty();
+            const bool same_bucket = step_bucket.problems ? problem :
+                                                           !problem && catalog_entry.step == step_bucket.step;
             if (same_bucket && !catalog_entry.exclusive_group.empty())
                 ++group_counts[catalog_entry.exclusive_group];
         }
@@ -1421,6 +1477,27 @@ void PluginConfigDialog::build()
         this, wxID_ANY, wxDefaultPosition, wxSize(52 * em_unit(), 32 * em_unit()),
         wxDV_SINGLE | wxDV_ROW_LINES | wxDV_VERT_RULES | wxBORDER_SIMPLE);
     m_state->plugin_list_model = new PluginListModel();
+    m_state->plugin_list_model->change_activation = [this](PluginCatalogEntry &target, bool active) {
+        std::vector<std::string> current;
+        for (const PluginCatalogEntry &entry : m_state->entries)
+            if (entry.active) current.push_back(entry.id);
+        const std::vector<std::string> selected = change_plugin_activation(this, current, {target.id}, active);
+        for (PluginCatalogEntry &entry : m_state->entries) {
+            if (!entry.modifiable) continue;
+            const bool was_active = entry.active;
+            entry.active = std::find(selected.begin(), selected.end(), entry.id) != selected.end();
+            if (entry.active) entry.diagnostic.clear();
+            else if (was_active || !entry.diagnostic.empty() || (&entry == &target && active)) {
+                entry.diagnostic.clear();
+                for (const std::string &dependency : entry.dependencies) {
+                    if (std::find(selected.begin(), selected.end(), dependency) == selected.end()) {
+                        if (!entry.diagnostic.empty()) entry.diagnostic += "\n";
+                        entry.diagnostic += format_wxstr(_L("Required plugin '%1%' is missing or inactive."), from_u8(dependency));
+                    }
+                }
+            }
+        }
+    };
     m_state->plugin_list->AssociateModel(m_state->plugin_list_model);
     m_state->plugin_list_model->DecRef();
     wxDataViewColumn *active_column = m_state->plugin_list->AppendToggleColumn(

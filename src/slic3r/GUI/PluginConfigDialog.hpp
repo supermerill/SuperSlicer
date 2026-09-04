@@ -8,6 +8,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "GUI_Utils.hpp"
 
@@ -18,6 +19,12 @@ class wxWindow;
 namespace Slic3r::GUI {
 
 class PluginConfigDialogState;
+
+// Resolve a draft checkbox operation, asking once for all inactive transitive
+// dependencies. Refusal leaves requested plugins off. Disabling also removes
+// consumers that would otherwise become invalid; runtime state is not changed.
+std::vector<std::string> change_plugin_activation(wxWindow *parent,
+    const std::vector<std::string> &current, const std::vector<std::string> &requested, bool active);
 
 class PluginConfigDialog : public DPIDialog
 {

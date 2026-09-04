@@ -37,6 +37,7 @@ enum class CallbackAction
 struct ServicePluginState
 {
     const char *id = nullptr;
+    std::vector<const char *> dependencies;
     slicing_step_t step = STEP_NONE;
     int32_t priority = 0;
     CallbackAction setup_action = CallbackAction::None;
@@ -106,9 +107,10 @@ slicing_step_t service_step(void *context)
     return static_cast<ServicePluginState *>(context)->step;
 }
 
-const_strings_t service_dependencies(void *)
+const_strings_t service_dependencies(void *context)
 {
-    return {};
+    const ServicePluginState &state = *static_cast<ServicePluginState *>(context);
+    return {state.dependencies.data(), static_cast<uint32_t>(state.dependencies.size())};
 }
 
 int32_t service_priority(void *context)
@@ -274,6 +276,40 @@ private:
 };
 
 } // namespace
+
+TEST_CASE("Missing dependencies block indirect consumers without executing them",
+          "[plugins][orchestrator][dependencies]")
+{
+    Orchestrator &orchestrator = Orchestrator::instance();
+    // Separate registered fixtures keep a real missing edge in the metadata.
+    // The indirect consumer never names the missing plugin itself.
+    static ServicePluginState direct;
+    static ServicePluginState indirect;
+    direct.id = "slic3r.test.dependency.direct";
+    indirect.id = "slic3r.test.dependency.indirect";
+    direct.step = indirect.step = static_cast<slicing_step_t>(12002);
+    direct.dependencies = {"slic3r.test.dependency.not_registered"};
+    indirect.dependencies = {direct.id};
+    register_service_plugin(orchestrator, direct);
+    register_service_plugin(orchestrator, indirect);
+    ActivePluginGuard active(orchestrator, {indirect.id, direct.id});
+    std::vector<std::string> closure;
+    std::string error;
+    REQUIRE_FALSE(orchestrator.plugin_dependency_closure({indirect.id}, closure, error));
+    CHECK(closure.empty());
+    CHECK(error.find(direct.id) != std::string::npos);
+    CHECK(error.find("not_registered") != std::string::npos);
+    orchestrator.block_unsatisfied_plugin_dependencies();
+    CHECK(orchestrator.active_plugins().empty());
+    REQUIRE(orchestrator.blocked_plugin_activations().size() == 2);
+    CHECK(orchestrator.blocked_plugin_activations().at(direct.id).find("not loaded") != std::string::npos);
+    CHECK(orchestrator.blocked_plugin_activations().at(indirect.id).find(direct.id) != std::string::npos);
+    const orchestrator_plugin_handle *plugin = orchestrator_find_plugin(
+        reinterpret_cast<orchestrator_handle *>(&orchestrator), indirect.id);
+    CHECK(orchestrator_execute_plugin(reinterpret_cast<orchestrator_handle *>(&orchestrator),
+        plugin, nullptr, nullptr, 0) == RAW_PLUGIN_EXECUTION_INACTIVE);
+    CHECK(indirect.run_count == 0);
+}
 
 TEST_CASE("The orchestrator registers service steps by stable name",
           "[plugins][orchestrator][service-step]")
