@@ -14,11 +14,13 @@
 # slic3r_package_plugin(my_target my_id VERSION 1.2.0
 #     NAME "My plugin" DESCRIPTION "What the plugin does.")
 # VERSION is optional. Without it, the package uses the slicer's four-part
-# numeric version; compatibility always records the complete slicer SemVer.
+# numeric version; the slicer SemVer is informational. ABI compatibility is
+# generated from the compiled library's static header-version record.
 # INTERNAL marks runtime infrastructure that may register no user-selectable
 # plugin id. It does not hide the package from installation or update tools.
 
 set(_SLIC3R_PLUGIN_PACKAGE_CMAKE_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}")
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 # Convert a SemVer-like package version to the four integer fields required by
 # the Windows resource compiler. Pre-release/build suffixes remain available in
@@ -146,14 +148,23 @@ function(slic3r_package_plugin target package_name)
         SLIC3R_PLUGIN_SLICER_VERSION "${_slicer_version}"
     )
 
+    set(_abi_extra_args)
+    get_target_property(_abi_extra ${target} SLIC3R_PLUGIN_EXTRA_ABI)
+    if (_abi_extra)
+        list(APPEND _abi_extra_args --abi "${_abi_extra}")
+        set_property(TARGET ${target} APPEND PROPERTY LINK_DEPENDS "${_abi_extra}")
+    endif()
+    set_property(TARGET ${target} APPEND PROPERTY LINK_DEPENDS
+        "${_SLIC3R_PLUGIN_PACKAGE_CMAKE_DIRECTORY}/write_plugin_abi_manifest.py")
     add_custom_command(TARGET ${target} POST_BUILD
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${SLIC3R_BUILD_RESOURCES_DIR}/plugins"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${_description}"
             "$<TARGET_FILE_DIR:${target}>/description.ini"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${_version_file}"
-            "$<TARGET_FILE_DIR:${target}>/version.ini"
+        COMMAND "${Python3_EXECUTABLE}" "${_SLIC3R_PLUGIN_PACKAGE_CMAKE_DIRECTORY}/write_plugin_abi_manifest.py"
+            --base "${_version_file}" --binary "$<TARGET_FILE:${target}>"
+            ${_abi_extra_args}
+            --output "$<TARGET_FILE_DIR:${target}>/version.ini"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${SLIC3R_GENERATED_DEFAULT_ACTIVATED_FILE}"
             "${SLIC3R_BUILD_RESOURCES_DIR}/plugins/default_activated.ini"
@@ -214,7 +225,9 @@ function(slic3r_package_python_plugin target package_name entry_file)
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${SLIC3R_BUILD_RESOURCES_DIR}/plugins"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_entry_file}" "${_package_directory}/plugin.py"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_description}" "${_package_directory}/description.ini"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_version_file}" "${_package_directory}/version.ini"
+        COMMAND "${Python3_EXECUTABLE}" "${_SLIC3R_PLUGIN_PACKAGE_CMAKE_DIRECTORY}/write_plugin_abi_manifest.py"
+            --base "${_version_file}" --abi "${SLIC3R_PYTHON_ABI_MANIFEST}"
+            --output "${_package_directory}/version.ini"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${SLIC3R_GENERATED_DEFAULT_ACTIVATED_FILE}"
             "${SLIC3R_BUILD_RESOURCES_DIR}/plugins/default_activated.ini"
@@ -224,7 +237,7 @@ function(slic3r_package_python_plugin target package_name entry_file)
         COMMENT "Packaging Python plugin ${package_name}"
         VERBATIM
     )
-    add_dependencies(${target} Slic3r)
+    add_dependencies(${target} Slic3r slic3r_python_api_generated)
     set_target_properties(${target} PROPERTIES
         FOLDER "plugins"
         SLIC3R_PLUGIN_PACKAGE_VERSION "${_package_version}"

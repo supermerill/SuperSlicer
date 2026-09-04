@@ -77,56 +77,8 @@ after the available plugin set is known.
 #include <boost/nowide/fstream.hpp>
 
 #include "libslic3r/Api/host/Orchestrator.hpp"
-#include "libslic3r/Api/plugin/c/slic3r_bridge_detector.h"
-#include "libslic3r/Api/plugin/c/slic3r_clipper.h"
-#include "libslic3r/Api/plugin/c/slic3r_config.h"
-#include "libslic3r/Api/plugin/c/slic3r_config_def.h"
-#include "libslic3r/Api/plugin/c/slic3r_config_option.h"
-#include "libslic3r/Api/plugin/c/slic3r_config_option_type.h"
-#include "libslic3r/Api/plugin/c/slic3r_config_types.h"
-#include "libslic3r/Api/plugin/c/slic3r_data_tree.h"
-#include "libslic3r/Api/plugin/c/slic3r_def.h"
-#include "libslic3r/Api/plugin/c/slic3r_extrusion_entity.h"
-#include "libslic3r/Api/plugin/c/slic3r_extrusion_polyline.h"
-#include "libslic3r/Api/plugin/c/slic3r_extrusion_property.h"
-#include "libslic3r/Api/plugin/c/slic3r_extrusions.h"
-#include "libslic3r/Api/plugin/c/slic3r_gcode_firmware.h"
-#include "libslic3r/Api/plugin/c/slic3r_gcode_script.h"
-#include "libslic3r/Api/plugin/c/slic3r_geometry.h"
 #include "libslic3r/Api/plugin/c/slic3r_plugin.h"
-#include "libslic3r/Api/plugin/c/slic3r_orchestrator.h"
-#include "libslic3r/Api/plugin/c/slic3r_plugin_run_context.h"
-#include "libslic3r/Api/plugin/c/slic3r_printing_plan.h"
-#include "libslic3r/Api/plugin/c/slic3r_slicing_step.h"
-#include "libslic3r/Api/plugin/c/slic3r_utils.h"
-#include "libslic3r/Api/plugin/c/slic3r_volume.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_bridge_detector.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_common.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_extrusion_edit.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_extrusion_simplification.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_gcode_firmware.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_gcode.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_infill_group.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_infill.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_layer_extrusion_edit.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_layer_height.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_layer_stiching.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_ordering.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_perimeter.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_post_infill.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_post_perimeter.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_post_slicing.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_pre_gcode.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_pre_infill.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_pre_perimeter.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_seam_placer.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_skirt_brim.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_slicing.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_support.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_support_demand.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_support_spot.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_surface_generation.h"
-#include "libslic3r/Api/plugin/c/steps/slic3r_step_wipetower.h"
+#include "libslic3r/Plugins/PluginApiCompatibility.hpp"
 #include "libslic3r/Config/FFFPrintConfig.hpp"
 #include "libslic3r/Config/PrintConfig.hpp"
 #include "libslic3r/Plugins/GCode/CustomGCodePerPrintZ.hpp"
@@ -303,119 +255,6 @@ const char *plugin_package_library_filename()
 #endif
 }
 
-/*
-Build the host table from every public C header. This translation unit is the
-only intentional aggregate include site: normal plugin headers stay narrow so
-a package reports only the contracts visible from its own entry source file.
-*/
-const std::array<slic3r_major_minor_version, SLIC3R_PLUGIN_API_COUNT> &host_plugin_api_versions()
-{
-    static const std::array<slic3r_major_minor_version, SLIC3R_PLUGIN_API_COUNT> versions = []() {
-        std::array<slic3r_major_minor_version, SLIC3R_PLUGIN_API_COUNT> result = {};
-#define SLIC3R_PLUGIN_API_VERSION_ENTRY(name) \
-        result[SLIC3R_PLUGIN_API_##name].major = uint16_t(SLIC3R_PLUGIN_API_##name##_MAJOR); \
-        result[SLIC3R_PLUGIN_API_##name].minor = uint16_t(SLIC3R_PLUGIN_API_##name##_MINOR);
-#include "libslic3r/Api/plugin/c/slic3r_plugin_api_version_entries.inc"
-#undef SLIC3R_PLUGIN_API_VERSION_ENTRY
-        return result;
-    }();
-    return versions;
-}
-
-const char *plugin_api_header_name(uint32_t api_id)
-{
-    static const std::array<const char *, SLIC3R_PLUGIN_API_COUNT> names = {
-        "slic3r_plugin_types.h",
-        "slic3r_bridge_detector.h",
-        "slic3r_clipper.h",
-        "slic3r_config.h",
-        "slic3r_config_def.h",
-        "slic3r_config_option.h",
-        "slic3r_config_option_type.h",
-        "slic3r_config_types.h",
-        "slic3r_data_tree.h",
-        "slic3r_def.h",
-        "slic3r_extrusion_entity.h",
-        "slic3r_extrusion_polyline.h",
-        "slic3r_extrusion_property.h",
-        "slic3r_extrusions.h",
-        "slic3r_gcode_firmware.h",
-        "slic3r_gcode_script.h",
-        "slic3r_geometry.h",
-        "slic3r_orchestrator.h",
-        "slic3r_plugin_run_context.h",
-        "slic3r_plugin.h",
-        "slic3r_printing_plan.h",
-        "slic3r_slicing_step.h",
-        "slic3r_utils.h",
-        "slic3r_volume.h",
-        "steps/slic3r_step_bridge_detector.h",
-        "steps/slic3r_step_common.h",
-        "steps/slic3r_step_extrusion_edit.h",
-        "steps/slic3r_step_extrusion_simplification.h",
-        "steps/slic3r_step_gcode_firmware.h",
-        "steps/slic3r_step_gcode.h",
-        "steps/slic3r_step_infill_group.h",
-        "steps/slic3r_step_infill.h",
-        "steps/slic3r_step_layer_extrusion_edit.h",
-        "steps/slic3r_step_layer_height.h",
-        "steps/slic3r_step_layer_stiching.h",
-        "steps/slic3r_step_ordering.h",
-        "steps/slic3r_step_perimeter.h",
-        "steps/slic3r_step_post_infill.h",
-        "steps/slic3r_step_post_perimeter.h",
-        "steps/slic3r_step_post_slicing.h",
-        "steps/slic3r_step_pre_gcode.h",
-        "steps/slic3r_step_pre_infill.h",
-        "steps/slic3r_step_pre_perimeter.h",
-        "steps/slic3r_step_seam_placer.h",
-        "steps/slic3r_step_skirt_brim.h",
-        "steps/slic3r_step_slicing.h",
-        "steps/slic3r_step_support.h",
-        "steps/slic3r_step_support_demand.h",
-        "steps/slic3r_step_support_spot.h",
-        "steps/slic3r_step_surface_generation.h",
-        "steps/slic3r_step_wipetower.h"
-    };
-    return api_id < names.size() ? names[api_id] : "unknown API header";
-}
-
-bool validate_plugin_api_versions(const std::vector<slic3r_major_minor_version> &plugin_versions,
-                                  std::string &error_message)
-{
-    static_assert(SLIC3R_PLUGIN_API_PLUGIN_TYPES == 0, "The vtable contract must be the first entry.");
-    // Even a package with no optional requirements must declare its vtable layout.
-    // In particular, an old export that never fills the buffer must not pass.
-    if (plugin_versions.empty() || plugin_versions.front().major == 0) {
-        error_message = "The mandatory slic3r_plugin_types.h version is missing.";
-        return false;
-    }
-    const std::array<slic3r_major_minor_version, SLIC3R_PLUGIN_API_COUNT> &host_versions =
-        host_plugin_api_versions();
-    for (uint32_t api_id = 0; api_id < plugin_versions.size(); ++api_id) {
-        const slic3r_major_minor_version plugin_version = plugin_versions[api_id];
-        if (plugin_version.major == 0 && plugin_version.minor == 0)
-            continue;
-
-        // A newer SDK may append unused headers. Only an actual requirement on
-        // an unknown contract prevents an older host from loading the package.
-        if (api_id >= host_versions.size()) {
-            error_message = "The library requires unknown API header id " + std::to_string(api_id) + ".";
-            return false;
-        }
-        const slic3r_major_minor_version host_version = host_versions[api_id];
-        if (plugin_version.major == 0 || host_version.major == 0 ||
-            plugin_version.major != host_version.major || plugin_version.minor > host_version.minor) {
-            error_message = "API header '" + std::string(plugin_api_header_name(api_id)) + "' requires " +
-                            std::to_string(plugin_version.major) + "." +
-                            std::to_string(plugin_version.minor) + ", but the host provides " +
-                            std::to_string(host_version.major) + "." +
-                            std::to_string(host_version.minor) + ".";
-            return false;
-        }
-    }
-    return true;
-}
 
 /*
 Read the package table before registration. Its length is not a compatibility
@@ -435,7 +274,9 @@ bool read_plugin_api_versions(PluginAbiVersionFn version_fn, std::string &error_
             error_message = "The library changed its API header version table size while it was queried.";
             return false;
         }
-        return validate_plugin_api_versions(versions, error_message);
+        const PluginApiCompatibility compatibility = validate_plugin_api_table(versions);
+        error_message = compatibility.message();
+        return compatibility.compatible();
     } catch (const std::bad_alloc &) {
         error_message = "Unable to allocate the library's API header version table.";
     } catch (const std::length_error &) {
@@ -453,6 +294,19 @@ void load_plugin_library(const boost::filesystem::path &plugin_path,
     const PluginLoadClock::time_point start = PluginLoadClock::now();
     Orchestrator &host = *reinterpret_cast<Orchestrator *>(orchestrator);
     host.begin_plugin_package_load(package_id, package_root.string(), internal_package);
+    // Validate the sidecar before executing any native code. The export check
+    // below remains mandatory even when this package declaration is compatible.
+    PluginPackageMetadata metadata;
+    std::string metadata_error;
+    if (!read_plugin_package_metadata((package_root / "version.ini").string(), metadata, metadata_error) ||
+        !metadata.compatibility.compatible()) {
+        PluginPackageLoadIssue issue;
+        issue.code = PluginPackageLoadErrorCode::ApiHeaderVersionMismatch;
+        issue.detail = metadata.compatibility.message();
+        report_plugin_package_issue(host, package_id, std::move(issue));
+        host.finish_plugin_package_load(package_id);
+        return;
+    }
 #ifdef _WIN32
     static std::vector<HMODULE> loaded_modules;
     HMODULE module = LoadLibraryW(plugin_path.wstring().c_str());

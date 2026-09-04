@@ -46,7 +46,7 @@ SLIC3R_PLUGIN_API int32_t slic3r_plugin_abi_version(
         versions[idx].minor = 0;
     }
 
-#define SLIC3R_PLUGIN_API_VERSION_ENTRY(name) \
+#define SLIC3R_PLUGIN_API_VERSION_ENTRY(name, header) \
     versions[SLIC3R_PLUGIN_API_##name].major = (uint16_t)SLIC3R_PLUGIN_API_##name##_MAJOR; \
     versions[SLIC3R_PLUGIN_API_##name].minor = (uint16_t)SLIC3R_PLUGIN_API_##name##_MINOR;
 #include "slic3r_plugin_api_version_entries.inc"
@@ -54,6 +54,30 @@ SLIC3R_PLUGIN_API int32_t slic3r_plugin_abi_version(
 
     return SLIC3R_PLUGIN_API_COUNT;
 }
+
+/*
+Offline manifest record. The package tool reads these bounded ASCII bytes from
+the binary without loading it. Keep the V1 delimiters stable; the terminating
+NUL and end delimiter make truncation detectable. Integer macro suffixes are
+normalized by the packaging tool. This uses the same include set as the export.
+*/
+#define SLIC3R_ABI_STRING_IMPL(value) #value
+#define SLIC3R_ABI_STRING(value) SLIC3R_ABI_STRING_IMPL(value)
+#if defined(__GNUC__)
+#define SLIC3R_ABI_USED __attribute__((used, visibility("default")))
+#else
+#define SLIC3R_ABI_USED
+#endif
+SLIC3R_PLUGIN_API SLIC3R_ABI_USED extern const char slic3r_plugin_abi_manifest[] =
+    "SLIC3R_ABI_MANIFEST_V1_BEGIN\n"
+#define SLIC3R_PLUGIN_API_VERSION_ENTRY(name, header) \
+    header "=" SLIC3R_ABI_STRING(SLIC3R_PLUGIN_API_##name##_MAJOR) "." SLIC3R_ABI_STRING(SLIC3R_PLUGIN_API_##name##_MINOR) "\n"
+#include "slic3r_plugin_api_version_entries.inc"
+#undef SLIC3R_PLUGIN_API_VERSION_ENTRY
+    "SLIC3R_ABI_MANIFEST_V1_END\n";
+#undef SLIC3R_ABI_USED
+#undef SLIC3R_ABI_STRING
+#undef SLIC3R_ABI_STRING_IMPL
 
 #ifdef __cplusplus
 }

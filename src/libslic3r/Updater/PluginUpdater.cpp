@@ -82,23 +82,15 @@ bool read_live_plugin_version(const boost::filesystem::path &package_root,
         return false;
     }
 
-    try {
-        boost::property_tree::ptree tree;
-        boost::property_tree::read_ini((package_root / "version.ini").string(), tree);
-        const boost::property_tree::ptree &plugin = tree.get_child("plugin");
-        PluginInstalledVersion parsed;
-        parsed.package_version = plugin.get<std::string>("package_version", std::string());
-        parsed.slicer_version = plugin.get<std::string>("slicer_version", std::string());
-        if (!Semver::parse(parsed.package_version) || !Semver::parse(parsed.slicer_version)) {
-            error_message = "The live plugin version.ini contains an invalid package or slicer version.";
-            return false;
-        }
-        version = std::move(parsed);
-        return true;
-    } catch (const std::exception &error) {
-        error_message = "Cannot read the live plugin version.ini: " + std::string(error.what());
+    PluginPackageMetadata metadata;
+    if (!read_plugin_package_metadata((package_root / "version.ini").string(), metadata, error_message))
+        return false;
+    if (!Semver::parse(metadata.package_version) || !Semver::parse(metadata.slicer_version)) {
+        error_message = "The live plugin version.ini contains an invalid package or slicer version.";
         return false;
     }
+    version = PluginInstalledVersion{metadata.package_version, metadata.slicer_version};
+    return true;
 }
 
 std::optional<PluginPackageLoadReport> package_manager_load_report(
@@ -208,12 +200,21 @@ UpdaterError PluginSync::parse_tags(const std::string &json)
 
 void PluginSync::sort_available()
 {
+    // Remote tags contain no ABI promises. Local manifests are rechecked with
+    // this host whenever the model is refreshed, not trusted across upgrades.
+    for (PluginAvailable &version : available_packages) {
+        if (version.local_directory.empty()) {
+            version.metadata = {};
+        } else {
+            std::string error;
+            read_plugin_package_metadata((boost::filesystem::path(version.local_directory) / "version.ini").string(),
+                                         version.metadata, error);
+        }
+    }
     std::sort(available_packages.begin(), available_packages.end(), [](const PluginAvailable &lhs, const PluginAvailable &rhs) {
-        const std::optional<Semver> lhs_slicer = Semver::parse(lhs.slicer_version);
-        const std::optional<Semver> rhs_slicer = Semver::parse(rhs.slicer_version);
-        if (*lhs_slicer != *rhs_slicer)
-            return *lhs_slicer > *rhs_slicer;
-        return *Semver::parse(lhs.package_version) > *Semver::parse(rhs.package_version);
+        const Semver lhs_version = *Semver::parse(lhs.package_version);
+        const Semver rhs_version = *Semver::parse(rhs.package_version);
+        return lhs_version != rhs_version ? lhs_version > rhs_version : lhs.tag < rhs.tag;
     });
 
     const PluginAvailable *best = best_available();
@@ -228,13 +229,8 @@ void PluginSync::sort_available()
 
 const PluginAvailable *PluginSync::best_available() const
 {
-    const std::optional<Semver> current_slicer_version = Semver::parse(SLIC3R_VERSION_FULL);
-    if (!current_slicer_version)
-        return nullptr;
-
     for (const PluginAvailable &version : available_packages) {
-        const std::optional<Semver> slicer_version = Semver::parse(version.slicer_version);
-        if (slicer_version && *slicer_version <= *current_slicer_version)
+        if (version.metadata.compatibility.compatible())
             return &version;
     }
     return nullptr;
@@ -296,6 +292,15 @@ void PluginUpdater::reload_all_plugins()
         }
         plugin.is_installed = true;
         plugin.installed_version = version;
+        read_plugin_package_metadata((package_root / "version.ini").string(), plugin.installed_metadata, error_message);
+        if (plugin.installed_metadata.package_version != version.package_version ||
+            plugin.installed_metadata.slicer_version != version.slicer_version) {
+            // A pending installation describes the selected cache version,
+            // which may differ from the library still loaded until restart.
+            const boost::filesystem::path selected = repository_package_cache_path(configuration_directory,
+                RepositoryPackageType::Plugin, id, version.package_version, version.slicer_version);
+            read_plugin_package_metadata((selected / "version.ini").string(), plugin.installed_metadata, error_message);
+        }
         // The installed section is the package manager's source of truth. A
         // missing live directory is therefore a package failure even when no
         // activated plugin id currently refers to this package.
@@ -638,6 +643,24 @@ UpdaterError PluginUpdater::schedule_cached_plugin_install(const std::string &pl
                                                             const PluginAvailable &version)
 {
     std::string error_message;
+    const boost::filesystem::path directory = repository_package_cache_path(boost::filesystem::path(data_dir()),
+        RepositoryPackageType::Plugin, plugin_id, version.package_version, version.slicer_version);
+    PluginPackageMetadata metadata;
+    read_plugin_package_metadata((directory / "version.ini").string(), metadata, error_message);
+    // Publish a failed compatibility check too, so a just-downloaded package
+    // becomes red instead of remaining an unknown remote version in the GUI.
+    {
+        std::lock_guard<std::mutex> guard(m_model_mutex);
+        PluginSync *current = find_plugin_unlocked(plugin_id);
+        if (current != nullptr) {
+            for (PluginAvailable &available : current->available_packages)
+                if (available.package_version == version.package_version && available.slicer_version == version.slicer_version) {
+                    available.local_directory = directory.string();
+                    available.metadata = metadata;
+                }
+            current->sort_available();
+        }
+    }
     if (!request_plugin_install(plugin_id, version.package_version, version.slicer_version, error_message))
         return make_updater_error(UpdaterError::Code::Cache, std::move(error_message));
 
@@ -649,6 +672,7 @@ UpdaterError PluginUpdater::schedule_cached_plugin_install(const std::string &pl
         scheduled->is_installed = true;
         scheduled->installed_version = PluginInstalledVersion{
             version.package_version, version.slicer_version};
+        scheduled->installed_metadata = metadata;
         scheduled->has_cache = true;
         scheduled->sort_available();
     }
@@ -691,6 +715,7 @@ UpdaterError PluginUpdater::uninstall_plugin_files(const std::string &plugin_id)
         if (scheduled != nullptr) {
             scheduled->is_installed = false;
             scheduled->installed_version = {};
+            scheduled->installed_metadata = {};
             scheduled->can_upgrade = false;
         }
     }
@@ -795,6 +820,10 @@ UpdaterError PluginUpdater::clear_cache_plugin_files(const std::string &plugin_i
                 }
                 current->is_installed = live_version.has_value() && package_is_desired;
                 current->installed_version = current->is_installed ? *live_version : PluginInstalledVersion();
+                current->installed_metadata = {};
+                if (current->is_installed)
+                    read_plugin_package_metadata((live_cached_version->directory / "version.ini").string(),
+                                                 current->installed_metadata, error_message);
                 current->sort_available();
             }
         }

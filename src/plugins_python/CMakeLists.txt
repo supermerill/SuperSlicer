@@ -6,9 +6,10 @@
 find_package(Python3 COMPONENTS Interpreter Development QUIET)
 include(../plugins_cpp/PluginPackage.cmake)
 
-if (Python3_FOUND)
+if (TARGET Python3::Python)
     add_library(python_plugin_loader SHARED
         ../libslic3r/Api/host/PythonPluginLoader.cpp
+        ../libslic3r/Plugins/PluginApiCompatibility.cpp
     )
 
     target_compile_definitions(python_plugin_loader PRIVATE SLIC3R_PLUGIN_EXPORTS)
@@ -23,15 +24,18 @@ if (Python3_FOUND)
 
     set(SLIC3R_PYTHON_API_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../libslic3r/Api/plugin/python")
     set(SLIC3R_PYTHON_API_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/slic3r_api_generated.py")
+    set(SLIC3R_PYTHON_ABI_MANIFEST "${CMAKE_CURRENT_BINARY_DIR}/python-api-abi.ini")
+    set_target_properties(python_plugin_loader PROPERTIES SLIC3R_PLUGIN_EXTRA_ABI "${SLIC3R_PYTHON_ABI_MANIFEST}")
     file(GLOB SLIC3R_PLUGIN_C_HEADERS CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/../libslic3r/Api/plugin/c/*.h"
         "${CMAKE_CURRENT_SOURCE_DIR}/../libslic3r/Api/plugin/c/steps/*.h"
     )
 
     add_custom_command(
-        OUTPUT "${SLIC3R_PYTHON_API_GENERATED}"
+        OUTPUT "${SLIC3R_PYTHON_API_GENERATED}" "${SLIC3R_PYTHON_ABI_MANIFEST}"
         COMMAND "${Python3_EXECUTABLE}" "${SLIC3R_PYTHON_API_DIR}/generate_slic3r_api.py"
             --output "${SLIC3R_PYTHON_API_GENERATED}"
+            --abi-output "${SLIC3R_PYTHON_ABI_MANIFEST}"
         DEPENDS
             "${SLIC3R_PYTHON_API_DIR}/generate_slic3r_api.py"
             ${SLIC3R_PLUGIN_C_HEADERS}
@@ -40,7 +44,7 @@ if (Python3_FOUND)
     )
 
     add_custom_target(slic3r_python_api_generated
-        DEPENDS "${SLIC3R_PYTHON_API_GENERATED}"
+        DEPENDS "${SLIC3R_PYTHON_API_GENERATED}" "${SLIC3R_PYTHON_ABI_MANIFEST}"
     )
     add_dependencies(python_plugin_loader slic3r_python_api_generated)
 

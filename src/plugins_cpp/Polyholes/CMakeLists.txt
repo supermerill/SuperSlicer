@@ -26,7 +26,7 @@ set_target_properties(polyholes_plugin PROPERTIES
 slic3r_package_plugin(
     polyholes_plugin
     polyholes
-    VERSION 1.0.0
+    VERSION 1.0.1
     NAME "Polyholes"
     FULL_NAME "Polyholes"
     DESCRIPTION "Convert round vertical holes to polygonal holes tuned for FDM extrusion."

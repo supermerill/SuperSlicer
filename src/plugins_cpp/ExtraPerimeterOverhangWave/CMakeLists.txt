@@ -26,7 +26,7 @@ set_target_properties(extra_perimeter_overhang_wave_plugin PROPERTIES
 slic3r_package_plugin(
     extra_perimeter_overhang_wave_plugin
     extra_perimeter_overhang_wave
-    VERSION 1.0.0
+    VERSION 1.0.1
     NAME "Extra perimeter overhang wave"
     FULL_NAME "Extra perimeter overhang wave"
     DESCRIPTION "Add overhang perimeter anchors by growing printable waves from lower-layer support."

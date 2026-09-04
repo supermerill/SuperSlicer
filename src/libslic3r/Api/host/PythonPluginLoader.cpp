@@ -51,6 +51,7 @@
 #include <boost/nowide/fstream.hpp>
 
 #include "libslic3r/Api/plugin/c/slic3r_plugin.h"
+#include "libslic3r/Plugins/PluginApiCompatibility.hpp"
 
 namespace {
 
@@ -1067,25 +1068,32 @@ void load_python_plugins(orchestrator_handle *orchestrator)
             }
         }
 
-        // Pure Python packages are siblings of native packages. Requiring both
-        // normalized metadata files keeps runtime discovery aligned with cache
-        // validation, while the absence of a library avoids double loading a
+        // Pure Python packages are siblings of native packages. A missing ABI
+        // manifest is reported below, while absence of a library avoids double loading a
         // native package that also ships helper scripts.
         const boost::filesystem::path installed_packages = plugin_repository.parent_path();
         for (boost::filesystem::directory_iterator it(installed_packages), end; it != end; ++it) {
             const boost::filesystem::path package_root = it->path();
             if (!boost::filesystem::is_directory(package_root) || package_root == plugin_repository ||
                 boost::filesystem::is_regular_file(package_root / native_plugin_filename()) ||
-                !boost::filesystem::is_regular_file(package_root / "description.ini") ||
-                !boost::filesystem::is_regular_file(package_root / "version.ini"))
+                !boost::filesystem::is_regular_file(package_root / "description.ini"))
                 continue;
             const boost::filesystem::path plugin_path = external_python_entry(package_root);
             if (plugin_path.empty())
                 continue;
-            append_python_path(package_root);
             functions.begin_package_load(orchestrator, package_root.string().c_str());
             try {
-                load_python_plugin_from_path(plugin_path, api, functions, orchestrator, package_root);
+                Slic3r::PluginPackageMetadata metadata;
+                std::string error;
+                if (!Slic3r::read_plugin_package_metadata((package_root / "version.ini").string(), metadata, error) ||
+                    !metadata.compatibility.compatible()) {
+                    report_python_package_error(functions, orchestrator, package_root,
+                        RAW_PLUGIN_PACKAGE_LOAD_ERROR_API_HEADER_VERSION_MISMATCH,
+                        metadata.compatibility.message());
+                } else {
+                    append_python_path(package_root);
+                    load_python_plugin_from_path(plugin_path, api, functions, orchestrator, package_root);
+                }
             } catch (const std::exception &error) {
                 report_python_package_error(functions, orchestrator, package_root,
                                             RAW_PLUGIN_PACKAGE_LOAD_ERROR_PYTHON_REGISTRATION_FAILED,

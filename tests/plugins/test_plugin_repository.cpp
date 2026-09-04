@@ -169,7 +169,8 @@ std::string version_contents(const std::string &package_version,
 {
     return "[plugin]\n"
            "package_version = " + package_version + "\n"
-           "slicer_version = " + slicer_version + "\n";
+           "slicer_version = " + slicer_version + "\n"
+           "[abi]\nslic3r_plugin_types.h = 1.0\n";
 }
 
 void write_description(const boost::filesystem::path &package_root,
@@ -306,6 +307,33 @@ TEST_CASE("Plugin bundle extraction rejects malformed archives and Zip Slip", "[
         data_directory, Slic3r::RepositoryPackageType::Plugin,
         "unsafe", "1.2.3.4", "2.7.63.0")));
 
+    boost::filesystem::remove_all(root);
+}
+
+TEST_CASE("Incompatible plugin manifests survive caching but prevent publication", "[plugins][repository][abi]")
+{
+    const boost::filesystem::path root = boost::filesystem::temp_directory_path() /
+        boost::filesystem::unique_path("slic3r-abi-cache-%%%%-%%%%");
+    const boost::filesystem::path resources = root / "resources";
+    const boost::filesystem::path data = root / "data";
+    boost::filesystem::create_directories(resources / "plugins");
+    const std::string manifest = "[plugin]\npackage_version = 1.0.0\nslicer_version = 9999.0.0\n"
+        "[abi]\nslic3r_plugin_types.h = 99.0\nsteps/slic3r_step_post_perimeter.h = 1.0\n";
+    REQUIRE(write_zip(resources / "plugins/example_1.0.0_9999.0.0.zip", {
+        {plugin_library_filename(), "library"}, {"description.ini", description_contents("example")},
+        {"version.ini", manifest}}));
+    std::string error;
+    REQUIRE(Slic3r::prepare_plugin_bundle_cache(resources, data, error));
+    const boost::filesystem::path cached = Slic3r::repository_package_cache_path(
+        data, Slic3r::RepositoryPackageType::Plugin, "example", "1.0.0", "9999.0.0");
+    CHECK(read_text_file(cached / "version.ini") == manifest);
+    CHECK(Slic3r::plugin_package_cache_is_valid(data, "example", {"1.0.0", "9999.0.0"}, error));
+    CHECK_FALSE(Slic3r::plugin_package_is_compatible(cached, error));
+    CHECK(error.find("99.0") != std::string::npos);
+    Slic3r::PluginActivationConfig config;
+    config.installed["example"] = {"1.0.0", "9999.0.0"};
+    CHECK_FALSE(Slic3r::reconcile_installed_plugin_packages(data, config, error));
+    CHECK_FALSE(boost::filesystem::exists(data / "plugins/example"));
     boost::filesystem::remove_all(root);
 }
 
@@ -1031,6 +1059,8 @@ TEST_CASE("Pure Python plugin packages install and remove through the normal lif
     {
         boost::nowide::ofstream description((package / "description.ini").string());
         description << description_contents("lifecycle.python");
+        boost::nowide::ofstream version((package / "version.ini").string());
+        version << version_contents("1.0.0.0", "2.7.63.0");
         boost::nowide::ofstream script((package / "plugin.py").string());
         script << "__version__ = '1.0.0.0'\n__slicer_version__ = '2.7.63.0'\n";
     }

@@ -21,6 +21,7 @@
 #include <boost/filesystem/path.hpp>
 
 #include "PluginActivationConfig.hpp"
+#include "PluginApiCompatibility.hpp"
 
 namespace Slic3r {
 
@@ -131,6 +132,11 @@ bool plugin_package_cache_is_valid(const boost::filesystem::path &data_directory
                                    const std::string &package_name,
                                    const PluginInstalledVersion &version,
                                    std::string &error_message);
+
+// Independent of cache structure: reject incompatible/undeclared contracts
+// before scheduling, publishing or loading an installed package.
+bool plugin_package_is_compatible(const boost::filesystem::path &package_root,
+                                  std::string &error_message);
 
 // Reconcile data/plugins with the complete desired package set from
 // activated.ini before loading any DLL. False guarantees that the live tree

@@ -43,7 +43,8 @@ void write_package_metadata(const boost::filesystem::path &package_root,
     }
     {
         boost::nowide::ofstream stream((package_root / "version.ini").string());
-        stream << "[plugin]\npackage_version = 1.0.0\nslicer_version = 2.7.63.0\n";
+        stream << "[plugin]\npackage_version = 1.0.0\nslicer_version = 2.7.63.0\n"
+                  "[abi]\nslic3r_plugin_types.h = 1.0\n";
     }
 }
 
@@ -77,6 +78,31 @@ TEST_CASE("Plugin loader reports a missing registration export",
         boost::filesystem::path(SLIC3R_TEST_PLUGIN_MISSING_REGISTER_DLL), "diagnostic.no_register");
     REQUIRE(report.issues.size() == 1);
     CHECK(report.issues.front().code == Slic3r::PluginPackageLoadErrorCode::MissingRegistrationExport);
+}
+
+TEST_CASE("Plugin loader refuses a missing ABI section before opening a binary",
+          "[plugins][loader][diagnostics][abi]")
+{
+    const boost::filesystem::path repository = boost::filesystem::temp_directory_path() /
+        boost::filesystem::unique_path("slic3r-plugin-abi-%%%%-%%%%");
+    const boost::filesystem::path package = repository / "missing.abi";
+    write_package_metadata(package, "missing.abi");
+    {
+        boost::nowide::ofstream stream((package / "version.ini").string());
+        stream << "[plugin]\npackage_version=1.0.0\nslicer_version=1.0.0\n";
+    }
+    {
+        boost::nowide::ofstream stream((package / plugin_library_filename()).string());
+        stream << "not a library";
+    }
+    Slic3r::Orchestrator &host = Slic3r::Orchestrator::instance();
+    host.clear_plugin_package_load_reports();
+    Slic3r::load_plugin_packages_from_repository(repository, host);
+    const Slic3r::PluginPackageLoadReport *report = host.plugin_package_load_report("missing.abi");
+    REQUIRE(report != nullptr);
+    REQUIRE(report->issues.size() == 1);
+    CHECK(report->issues.front().code == Slic3r::PluginPackageLoadErrorCode::ApiHeaderVersionMismatch);
+    boost::filesystem::remove_all(repository);
 }
 
 TEST_CASE("Plugin loader reports a missing ABI export",

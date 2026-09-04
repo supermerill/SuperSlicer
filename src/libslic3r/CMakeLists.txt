@@ -334,6 +334,8 @@ set(SLIC3R_SOURCES
 	Plugins/Perimeter/SimplePerimeterGenerator.hpp
 	Plugins/PluginActivationConfig.cpp
 	Plugins/PluginActivationConfig.hpp
+	Plugins/PluginApiCompatibility.cpp
+	Plugins/PluginApiCompatibility.hpp
 	Plugins/PluginBinaryMetadata.hpp
 	Plugins/PluginLoader.cpp
 	Plugins/PluginLoader.hpp

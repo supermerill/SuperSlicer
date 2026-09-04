@@ -418,6 +418,14 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
         });
         m_repository_action_controls.emplace_back(version_panel);
     }
+    if (plugin.is_installed) {
+        const PluginApiCompatibility &abi = plugin.installed_metadata.compatibility;
+        if (abi.status != PluginApiCompatibilityStatus::NotChecked)
+            version_button->SetBackgroundColour(abi.compatible() ? wxColour(127, 250, 127) : wxColour(250, 127, 127));
+        version_panel->SetToolTip(from_u8(abi.message()));
+        if (abi.status == PluginApiCompatibilityStatus::Incompatible)
+            version_button->SetToolTip(from_u8(abi.message()));
+    }
     grid.Add(version_panel, 0, wxALIGN_CENTER_VERTICAL | wxEXPAND);
 
     // The upgrade cell reports repository state when there is no immediate
@@ -452,7 +460,7 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
         } else if (!plugin.available_packages.empty() && !has_compatible_version) {
             upgrade_control = new wxStaticText(this, wxID_ANY, _L("No compatible plugin"));
             upgrade_control->SetToolTip(
-                _L("The local cache contains plugin packages, but none target this slicer version."));
+                _L("The local cache contains plugin packages, but none have compatible ABI requirements."));
         } else {
             upgrade_control = new wxStaticText(this, wxID_ANY, _L("Local plugin"));
             upgrade_control->SetToolTip(
@@ -464,9 +472,11 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
             upgrade_control->SetToolTip(
                 _L("This plugin repository does not provide any package version."));
         } else if (!has_compatible_version) {
-            upgrade_control = new wxStaticText(this, wxID_ANY, _L("No compatible plugin"));
-            upgrade_control->SetToolTip(
-                _L("The repository contains plugin packages, but none target this slicer version."));
+            wxButton *check = new wxButton(this, wxID_ANY, _L("Review available versions"));
+            check->SetToolTip(_L("Download an unchecked version to verify its ABI before installation."));
+            bind_repository_action(*check, [this, plugin_id](wxCommandEvent &) { choose_version(plugin_id); });
+            m_repository_action_controls.emplace_back(check);
+            upgrade_control = check;
         } else if (!plugin.is_installed || plugin.can_upgrade) {
             wxButton *upgrade = new wxButton(
                 this, wxID_ANY,
@@ -492,7 +502,7 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
         wxString tooltip = from_u8(format_updater_error(plugin.sync_error));
         if (!plugin.available_packages.empty() && !has_compatible_version) {
             tooltip += "\n\n";
-            tooltip += _L("The local cache also contains no plugin package compatible with this slicer version.");
+            tooltip += _L("The local cache also contains no plugin package with compatible ABI requirements.");
         }
         upgrade_control->SetToolTip(tooltip);
     } else {
@@ -774,19 +784,23 @@ void ChoosePluginVersionDialog::build()
     wxGridBagSizer *grid = new wxGridBagSizer(8, 16);
     grid->AddGrowableCol(2, 1);
     grid->Add(new wxStaticText(m_scroll, wxID_ANY, _L("Plugin version")), wxGBPosition(0, 0));
-    grid->Add(new wxStaticText(m_scroll, wxID_ANY, _L("Slicer version")), wxGBPosition(0, 1));
+    grid->Add(new wxStaticText(m_scroll, wxID_ANY, _L("Built with slicer")), wxGBPosition(0, 1));
     grid->Add(new wxStaticText(m_scroll, wxID_ANY, _L("Changelog")), wxGBPosition(0, 2));
 
     const std::optional<PluginSync> plugin = m_updater.plugin(m_plugin_id);
-    const std::optional<Semver> current_slicer = Semver::parse(SLIC3R_VERSION_FULL);
     int row = 1;
     if (plugin) {
         for (const PluginAvailable &version : plugin->available_packages) {
             const bool selected = plugin->is_installed &&
                 plugin->installed_version.package_version == version.package_version &&
                 plugin->installed_version.slicer_version == version.slicer_version;
-            const std::optional<Semver> target_slicer = Semver::parse(version.slicer_version);
-            const bool compatible = current_slicer && target_slicer && *target_slicer <= *current_slicer;
+            const PluginApiCompatibility &abi = selected ? plugin->installed_metadata.compatibility : version.metadata.compatibility;
+            const bool compatible = abi.compatible();
+            const bool unchecked = abi.status == PluginApiCompatibilityStatus::NotChecked;
+            const wxColour colour = unchecked ? m_scroll->GetBackgroundColour() :
+                (compatible ? wxColour(127, 250, 127) : wxColour(250, 127, 127));
+            const wxString diagnostic = unchecked ? _L("ABI not checked. Download and verify before installation.") :
+                (compatible ? _L("Compatible ABI requirements.") : from_u8(abi.message()));
 
             if (selected) {
                 // This row describes the package selected for startup, so it
@@ -800,25 +814,34 @@ void ChoosePluginVersionDialog::build()
                 installed_sizer->Add(installed, 0, wxALIGN_CENTER_VERTICAL | wxTOP | wxBOTTOM, 5);
                 installed_sizer->AddStretchSpacer();
                 installed_panel->SetSizer(installed_sizer);
-                installed_panel->SetBackgroundColour(wxColour(127, 250, 127));
-                installed->SetBackgroundColour(wxColour(127, 250, 127));
-                installed_panel->SetToolTip(_L("This plugin package is selected for the next application startup."));
-                installed->SetToolTip(_L("This plugin package is selected for the next application startup."));
+                installed_panel->SetBackgroundColour(colour);
+                installed->SetBackgroundColour(colour);
+                installed_panel->SetToolTip(diagnostic);
+                installed->SetToolTip(diagnostic);
                 grid->Add(installed_panel, wxGBPosition(row, 0), wxDefaultSpan, wxEXPAND);
             } else {
-                wxButton *select = new wxButton(m_scroll, wxID_ANY, from_u8(version.package_version));
-                select->Enable(compatible);
-                select->SetToolTip(compatible ?
-                    _L("Download this package and install it after restarting the application.") :
-                    _L("This package requires a newer slicer version."));
+                // A disabled native button cannot display a tooltip on
+                // Windows. Its enabled parent retains the ABI explanation.
+                wxPanel *selection_panel = new wxPanel(m_scroll, wxID_ANY);
+                wxBoxSizer *selection_sizer = new wxBoxSizer(wxHORIZONTAL);
+                wxButton *select = new wxButton(selection_panel, wxID_ANY, from_u8(version.package_version));
+                selection_sizer->Add(select, 1, wxEXPAND);
+                selection_panel->SetSizer(selection_sizer);
+                selection_panel->SetBackgroundColour(colour);
+                selection_panel->SetToolTip(diagnostic);
+                select->Enable(compatible || unchecked);
+                select->SetBackgroundColour(colour);
+                select->SetToolTip(diagnostic);
+                if (unchecked)
+                    select->SetLabel(format(_L("Download and check %1%"), version.package_version));
                 bind_repository_action(*select, [this, version](wxCommandEvent &) {
                     schedule_version(version);
                 });
-                grid->Add(select, wxGBPosition(row, 0), wxDefaultSpan, wxEXPAND);
+                grid->Add(selection_panel, wxGBPosition(row, 0), wxDefaultSpan, wxEXPAND);
             }
 
             wxStaticText *slicer = new wxStaticText(m_scroll, wxID_ANY, from_u8(version.slicer_version));
-            slicer->SetToolTip(format(_L("This package targets slicer version %1%. Current version: %2%."),
+            slicer->SetToolTip(format(_L("Built with slicer %1%. Current version: %2%. This is not an ABI requirement."),
                                       version.slicer_version, SLIC3R_VERSION_FULL));
             grid->Add(slicer, wxGBPosition(row, 1), wxDefaultSpan, wxALIGN_CENTER_VERTICAL);
 
@@ -946,6 +969,10 @@ void ChoosePluginVersionDialog::schedule_version(const PluginAvailable &version)
                 dialog.finish_repository_operation(dialog.m_scroll);
                 if (!error.succeeded()) {
                     wxMessageBox(from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR, &dialog);
+                    // Reopen with the updated model after a failed ABI check;
+                    // the downloaded package must no longer look unchecked.
+                    dialog.GetSizer()->Clear(true);
+                    dialog.build();
                     return;
                 }
                 wxMessageBox(_L("The selected plugin version will be installed after restarting the application."),

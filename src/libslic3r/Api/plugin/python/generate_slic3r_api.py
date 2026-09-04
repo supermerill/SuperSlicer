@@ -656,10 +656,34 @@ def emit_struct_fields(lines: list[str], struct: StructDef, class_names: set[str
     lines.append("")
 
 
+
+def generate_abi_manifest() -> str:
+    """Conservatively cover generated declarations and their quoted dependencies."""
+    pending = header_paths()
+    visited = set()
+    versions = {}
+    while pending:
+        path = pending.pop().resolve()
+        if path in visited or not path.is_file() or HEADER_ROOT.resolve() not in path.parents:
+            continue
+        visited.add(path)
+        text = path.read_text(encoding="utf-8")
+        major = re.search(r"^#define SLIC3R_PLUGIN_API_\w+_MAJOR\s+(\d+)[uU]?\s*$", text, re.MULTILINE)
+        minor = re.search(r"^#define SLIC3R_PLUGIN_API_\w+_MINOR\s+(\d+)[uU]?\s*$", text, re.MULTILINE)
+        if major and minor:
+            versions[path.relative_to(HEADER_ROOT.resolve()).as_posix()] = (int(major[1]), int(minor[1]))
+        for include in re.findall(r'^\s*#include\s+"([^"]+)"', text, re.MULTILINE):
+            pending.append(path.parent / include)
+    if versions.get("slic3r_plugin_types.h", (0, 0))[0] == 0:
+        raise ValueError("Generated Python surface lacks its vtable contract")
+    return "[abi]\n" + "".join(
+        f"{name} = {major}.{minor}\n" for name, (major, minor) in sorted(versions.items()))
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate Python ctypes bindings for the SuperSlicer C plugin ABI.")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="generated Python output path")
     parser.add_argument("--check", action="store_true", help="fail if the output file is not up to date")
+    parser.add_argument("--abi-output", type=Path, help="write the C ABI requirements used by these bindings")
     args = parser.parse_args()
 
     generated = generate()
@@ -668,10 +692,17 @@ def main() -> int:
         if current != generated:
             print(f"{args.output} is not up to date. Regenerate it with generate_slic3r_api.py.")
             return 1
+        if args.abi_output:
+            current_abi = args.abi_output.read_text(encoding="utf-8") if args.abi_output.exists() else ""
+            if current_abi != generate_abi_manifest():
+                print(f"{args.abi_output} is not up to date.")
+                return 1
         return 0
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(generated, encoding="utf-8")
+    if args.abi_output:
+        args.abi_output.write_text(generate_abi_manifest(), encoding="utf-8")
     return 0
 
 

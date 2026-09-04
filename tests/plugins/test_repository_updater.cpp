@@ -717,6 +717,8 @@ void PluginUpdaterFunctionalFixture::write_bundled_plugin(const std::string &pac
     REQUIRE(write_test_zip(
         archive,
         {{"description.ini", plugin_description_contents(plugin_id, package_version, slicer_version, false)},
+         {"version.ini", "[plugin]\npackage_version=" + package_version + "\nslicer_version=" + slicer_version +
+             "\n[abi]\nslic3r_plugin_types.h=1.0\n"},
          {plugin_library_filename(), "bundled library " + package_version}}));
 }
 
@@ -727,7 +729,7 @@ void PluginUpdaterFunctionalFixture::write_installed_plugin(const std::string &p
                     plugin_description_contents(plugin_id, package_version, slicer_version, false));
     write_test_file(package_root / "version.ini",
                     "[plugin]\npackage_version = " + package_version +
-                    "\nslicer_version = " + slicer_version + "\n");
+                    "\nslicer_version = " + slicer_version + "\n[abi]\nslic3r_plugin_types.h = 1.0\n");
     write_test_file(package_root / plugin_library_filename(), "installed library " + package_version);
 
     Slic3r::PluginActivationConfig config;
@@ -745,7 +747,7 @@ boost::filesystem::path PluginUpdaterFunctionalFixture::write_cached_plugin(cons
                     plugin_description_contents(plugin_id, package_version, slicer_version, false));
     write_test_file(package_root / "version.ini",
                     "[plugin]\npackage_version = " + package_version +
-                    "\nslicer_version = " + slicer_version + "\n");
+                    "\nslicer_version = " + slicer_version + "\n[abi]\nslic3r_plugin_types.h = 1.0\n");
     write_test_file(package_root / plugin_library_filename(), "cached library " + package_version);
     return package_root;
 }
@@ -756,6 +758,8 @@ std::string PluginUpdaterFunctionalFixture::make_plugin_archive(const std::strin
     REQUIRE(write_test_zip(
         archive_path,
         {{"description.ini", plugin_description_contents(plugin_id, package_version, slicer_version, false)},
+         {"version.ini", "[plugin]\npackage_version=" + package_version + "\nslicer_version=" + slicer_version +
+             "\n[abi]\nslic3r_plugin_types.h=1.0\n"},
          {plugin_library_filename(), "downloaded library " + package_version}}));
     return read_test_file(archive_path);
 }
@@ -2093,7 +2097,8 @@ TEST_CASE("PluginSync rebuilds remote versions while preserving cached packages"
     REQUIRE(added != plugin.available_packages.end());
     CHECK(added->local_directory.empty());
     CHECK(added->url_zip == "new-zip");
-    CHECK(plugin.can_upgrade);
+    CHECK_FALSE(plugin.can_upgrade);
+    CHECK(added->metadata.compatibility.status == Slic3r::PluginApiCompatibilityStatus::NotChecked);
 
     REQUIRE(plugin.parse_tags("[]").succeeded());
     REQUIRE(plugin.available_packages.size() == 1);
@@ -2195,6 +2200,10 @@ TEST_CASE("Updater snapshots calculate their best version after copy and move", 
     plugin.available_packages = {older_plugin, newer_plugin};
     plugin.sort_available();
 
+    // Remote versions are not automatically eligible until their manifest is read.
+    CHECK(plugin.best_available() == nullptr);
+    for (Slic3r::PluginAvailable &version : plugin.available_packages)
+        version.metadata.compatibility.status = Slic3r::PluginApiCompatibilityStatus::Compatible;
     Slic3r::PluginSync plugin_copy = plugin;
     Slic3r::PluginSync plugin_move = std::move(plugin_copy);
     const Slic3r::PluginAvailable *plugin_best = plugin_move.best_available();
@@ -2392,9 +2401,9 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
 
     std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
     REQUIRE(plugin.has_value());
-    const Slic3r::PluginAvailable *best = plugin->best_available();
-    REQUIRE(best != nullptr);
-    CHECK(best->package_version == "3.0.0.0");
+    CHECK(plugin->best_available() == nullptr);
+    REQUIRE(plugin->available_packages.size() == 3);
+    CHECK(plugin->available_packages.front().package_version == "3.0.0.0");
 
     std::optional<bool> changelogs_succeeded;
     int changelog_callback_count = 0;
@@ -2449,6 +2458,42 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
 }
 
 TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
+                 "Plugin ABI is verified after download before installation is scheduled",
+                 "[plugins][updater][plugin-functional][abi]")
+{
+    const bool compatible = GENERATE(true, false);
+    write_plugin_repository();
+    updater.reload_all_plugins();
+    synchronize({{"2.0.0.0", slicer_version, "https://example.invalid/plugin-2.zip"}});
+    std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
+    REQUIRE(plugin->available_packages.size() == 1);
+    CHECK(plugin->best_available() == nullptr);
+    CHECK(plugin->available_packages.front().metadata.compatibility.status == Slic3r::PluginApiCompatibilityStatus::NotChecked);
+    std::optional<Slic3r::UpdaterError> result;
+    updater.install_plugin(plugin_id, plugin->available_packages.front(),
+        [&result](Slic3r::UpdaterError error) { result = std::move(error); });
+    REQUIRE(http.pending_count() == 1);
+    const boost::filesystem::path archive = temporary.path() / "abi.zip";
+    REQUIRE(write_test_zip(archive, {
+        {"description.ini", plugin_description_contents(plugin_id, "2.0.0.0", slicer_version, false)},
+        {"version.ini", "[plugin]\npackage_version=2.0.0.0\nslicer_version=" + slicer_version +
+            "\n[abi]\nslic3r_plugin_types.h=" + (compatible ? "1.0" : "99.0") + "\n"},
+        {plugin_library_filename(), "test library"}}));
+    http.succeed_front(read_test_file(archive), 200);
+    updater.wait_for_pending_operations();
+    REQUIRE(result.has_value());
+    CHECK(result->succeeded() == compatible);
+    plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
+    CHECK(plugin->available_packages.front().metadata.compatibility.compatible() == compatible);
+    CHECK_FALSE(plugin->available_packages.front().local_directory.empty());
+    CHECK_FALSE(boost::filesystem::exists(data_directory / "plugins" / plugin_id));
+    CHECK((read_activation_config().installed.count(plugin_id) != 0) == compatible);
+    CHECK((plugin->best_available() != nullptr) == compatible);
+}
+
+TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
                  "PluginUpdater reserves a remote installation across its HTTP wait",
                  "[plugins][updater][plugin-functional][concurrency]")
 {
@@ -2458,7 +2503,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
 
     const std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
     REQUIRE(plugin.has_value());
-    const Slic3r::PluginAvailable *selected = plugin->best_available();
+    REQUIRE_FALSE(plugin->available_packages.empty());
+    const Slic3r::PluginAvailable *selected = &plugin->available_packages.front();
     REQUIRE(selected != nullptr);
     const Slic3r::PluginAvailable version = *selected;
 
@@ -2509,7 +2555,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     updater.reload_all_plugins();
     const std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
     REQUIRE(plugin.has_value());
-    const Slic3r::PluginAvailable *selected = plugin->best_available();
+    REQUIRE_FALSE(plugin->available_packages.empty());
+    const Slic3r::PluginAvailable *selected = &plugin->available_packages.front();
     REQUIRE(selected != nullptr);
 
     // The completion callback immediately starts a second mutation. It can be
@@ -2545,7 +2592,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     synchronize({{"2.0.0.0", slicer_version, "https://example.invalid/plugin-2.zip"}});
     const std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
     REQUIRE(plugin.has_value());
-    const Slic3r::PluginAvailable *selected = plugin->best_available();
+    REQUIRE_FALSE(plugin->available_packages.empty());
+    const Slic3r::PluginAvailable *selected = &plugin->available_packages.front();
     REQUIRE(selected != nullptr);
 
     std::optional<Slic3r::UpdaterError> install_result;
@@ -2973,6 +3021,8 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     CHECK(plugin->sync_state == Slic3r::RepositorySyncState::Succeeded);
     CHECK_FALSE(plugin->can_upgrade);
 
+    write_cached_plugin("2.0.0.0");
+    updater.reload_all_plugins();
     synchronize({{"2.0.0.0", slicer_version, "https://example.invalid/plugin-2.zip"}});
     plugin = updater.plugin(plugin_id);
     REQUIRE(plugin.has_value());
@@ -3083,7 +3133,7 @@ TEST_CASE("PluginUpdater lists and manages Python runtime infrastructure",
     write_test_file(visible_package / "description.ini",
                     "[plugin]\nid = python.visible\nname = Visible Python plugin\ninternal = 0\n");
     write_test_file(visible_package / "version.ini",
-                    "[plugin]\npackage_version = 1.0.0\nslicer_version = 2.7.0.0\n");
+                    "[plugin]\npackage_version = 1.0.0\nslicer_version = 2.7.0.0\n[abi]\nslic3r_plugin_types.h = 1.0\n");
     write_test_file(visible_package / "plugin.py", "def register_plugin(api):\n    return None\n");
     Slic3r::RepositoryCachedVersion visible_cached;
     REQUIRE(cache.cache_simple(visible_package, visible_cached, error_message));
@@ -3092,7 +3142,7 @@ TEST_CASE("PluginUpdater lists and manages Python runtime infrastructure",
     write_test_file(internal_package / "description.ini",
                     "[plugin]\nid = python\nname = Python runtime\ninternal = 1\n");
     write_test_file(internal_package / "version.ini",
-                    "[plugin]\npackage_version = 1.0.0\nslicer_version = 2.7.0.0\n");
+                    "[plugin]\npackage_version = 1.0.0\nslicer_version = 2.7.0.0\n[abi]\nslic3r_plugin_types.h = 1.0\n");
     write_test_file(internal_package / "plugin.py", "def register_plugin(api):\n    return None\n");
     Slic3r::RepositoryCachedVersion internal_cached;
     REQUIRE(cache.cache_simple(internal_package, internal_cached, error_message));

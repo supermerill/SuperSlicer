@@ -15,6 +15,7 @@ add_executable(${_TEST_NAME}_tests
     test_extrusion_ordered_leaf.cpp
     test_extrusion_split_by_areas.cpp
     test_plugin_activation_config.cpp
+    test_plugin_api_compatibility.cpp
     test_plugin_config.cpp
     test_plugin_loader_diagnostics.cpp
     test_plugin_property.cpp

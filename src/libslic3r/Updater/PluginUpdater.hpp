@@ -25,8 +25,10 @@
 namespace Slic3r {
 
 struct PluginAvailable : public RepositoryPackageVersion {
-    // Non-empty when this exact package version is already validated in the
-    // local repository cache. The updater can schedule it without HTTP.
+    // NotChecked until a local version.ini has actually been read.
+    PluginPackageMetadata metadata;
+    // Non-empty for structurally valid cached packages, including incompatible
+    // ones. ABI compatibility must still be checked before scheduling.
     std::string local_directory;
     std::string notes;
 };
@@ -34,6 +36,7 @@ struct PluginAvailable : public RepositoryPackageVersion {
 struct PluginSync {
     RepositoryDescription description;
     PluginInstalledVersion installed_version;
+    PluginPackageMetadata installed_metadata;
     bool is_installed = false;
     // True when the repository cache contains this plugin description. The
     // entry may exist before any package version has been downloaded.
@@ -52,7 +55,7 @@ struct PluginSync {
     UpdaterError parse_tags(const std::string &json);
     void sort_available();
 
-    // Return the first slicer-compatible entry from the sorted version list.
+    // Return the first verified ABI-compatible entry from the sorted list.
     // The pointer refers to this snapshot rather than to updater-owned data.
     const PluginAvailable *best_available() const;
 };

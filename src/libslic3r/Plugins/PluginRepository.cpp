@@ -294,23 +294,16 @@ bool read_plugin_version(const boost::filesystem::path &package_root,
                          PluginInstalledVersion &version,
                          std::string &error_message)
 {
-    const boost::filesystem::path version_path = package_root / VERSION_FILENAME;
-    try {
-        boost::property_tree::ptree tree;
-        boost::property_tree::read_ini(version_path.string(), tree);
-        const boost::property_tree::ptree &plugin = tree.get_child("plugin");
-        version.package_version = plugin.get<std::string>("package_version", std::string());
-        version.slicer_version = plugin.get<std::string>("slicer_version", std::string());
-        if (!is_valid_plugin_package_version(version.package_version) ||
-            !is_valid_plugin_package_version(version.slicer_version)) {
-            error_message = "Plugin version.ini contains an invalid package or slicer version.";
-            return false;
-        }
-        return true;
-    } catch (const std::exception &error) {
-        error_message = "Cannot read plugin version.ini: " + std::string(error.what());
+    PluginPackageMetadata metadata;
+    if (!read_plugin_package_metadata((package_root / VERSION_FILENAME).string(), metadata, error_message))
+        return false;
+    version.package_version = metadata.package_version;
+    version.slicer_version = metadata.slicer_version;
+    if (!is_valid_plugin_package_version(version.package_version) || !is_valid_plugin_package_version(version.slicer_version)) {
+        error_message = "Plugin version.ini contains an invalid package or slicer version.";
         return false;
     }
+    return true;
 }
 
 bool validate_plugin_package(const boost::filesystem::path &package_root,
@@ -377,9 +370,13 @@ bool build_plugin_package_transaction(const boost::filesystem::path &data_direct
 
     // Validate the complete desired set before even creating the live plugin
     // directory. Cache problems therefore cannot start a filesystem commit.
-    for (const auto &[package_name, version] : config.installed)
+    for (const auto &[package_name, version] : config.installed) {
         if (!plugin_package_cache_is_valid(data_directory, package_name, version, error_message))
             return false;
+        if (!plugin_package_is_compatible(repository_package_cache_path(data_directory,
+                RepositoryPackageType::Plugin, package_name, version.package_version, version.slicer_version), error_message))
+            return false;
+    }
 
     const boost::filesystem::path plugin_directory = data_directory / PLUGIN_DIRECTORY;
     try {
@@ -446,7 +443,8 @@ bool stage_plugin_package_transaction(std::vector<PluginPackageTransactionEntry>
                 PluginPackageTransactionTestPoint::BeforeStageCopy, entry.package_name);
 #endif
             if (copy_directory_tree(entry.source, entry.staging, error_message) &&
-                validate_plugin_package(entry.staging, entry.package_name, entry.version, error_message))
+                validate_plugin_package(entry.staging, entry.package_name, entry.version, error_message) &&
+                plugin_package_is_compatible(entry.staging, error_message))
                 continue;
         } catch (const std::exception &error) {
             error_message = error.what();
@@ -839,6 +837,15 @@ bool reconcile_installed_plugin_packages(const boost::filesystem::path &data_dir
     return true;
 }
 
+bool plugin_package_is_compatible(const boost::filesystem::path &package_root, std::string &error_message)
+{
+    PluginPackageMetadata metadata;
+    if (!read_plugin_package_metadata((package_root / VERSION_FILENAME).string(), metadata, error_message))
+        return false;
+    error_message = metadata.compatibility.message();
+    return metadata.compatibility.compatible();
+}
+
 bool request_plugin_install(const std::string &package_name,
                             const std::string &package_version,
                             const std::string &slicer_version,
@@ -852,6 +859,9 @@ bool request_plugin_install(const std::string &package_name,
     const boost::filesystem::path data_directory(data_dir());
     if (!prepare_plugin_cache(data_directory, error_message) ||
         !plugin_package_cache_is_valid(data_directory, package_name, version, error_message))
+        return false;
+    if (!plugin_package_is_compatible(repository_package_cache_path(data_directory,
+            RepositoryPackageType::Plugin, package_name, package_version, slicer_version), error_message))
         return false;
 
     PluginActivationConfig config;

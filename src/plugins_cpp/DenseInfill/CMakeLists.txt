@@ -26,7 +26,7 @@ set_target_properties(dense_infill_plugin PROPERTIES
 slic3r_package_plugin(
     dense_infill_plugin
     dense_infill
-    VERSION 1.0.0
+    VERSION 1.0.1
     NAME "Dense infill"
     FULL_NAME "Dense infill"
     DESCRIPTION "Generate and order denser infill below upper solid surfaces."

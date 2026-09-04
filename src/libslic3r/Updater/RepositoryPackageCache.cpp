@@ -28,6 +28,7 @@
 #include "libslic3r/FilesystemTransaction.hpp"
 #include "libslic3r/Config/Preset.hpp"
 #include "libslic3r/Plugins/PluginBinaryMetadata.hpp"
+#include "libslic3r/Plugins/PluginApiCompatibility.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/libslic3r.h"
 
@@ -258,6 +259,25 @@ bool write_plugin_version_file(const boost::filesystem::path &path,
                                std::string &error_message)
 {
     try {
+        // Preserve the original manifest byte-for-byte. In particular, never
+        // erase ABI requirements while normalizing a copied package in cache.
+        if (boost::filesystem::is_regular_file(path)) {
+            PluginPackageMetadata metadata;
+            if (!read_plugin_package_metadata(path.string(), metadata, error_message))
+                return false;
+            if (!metadata.package_version.empty() && !metadata.slicer_version.empty())
+                return true;
+            // Only incomplete legacy identity needs normalization. INI keys
+            // are retained literally, including all existing ABI declarations.
+            boost::property_tree::ptree tree;
+            boost::property_tree::read_ini(path.string(), tree);
+            tree.put("plugin.package_version", version.package_version);
+            tree.put("plugin.slicer_version", version.slicer_version);
+            boost::property_tree::write_ini(path.string(), tree);
+            return true;
+        }
+        // Legacy identity recovery remains available for cache inspection,
+        // but deliberately supplies no ABI: such a package cannot be installed.
         boost::nowide::ofstream stream(path.string(), std::ios::out | std::ios::trunc);
         if (!stream) {
             error_message = "Cannot create plugin version file '" + path.string() + "'.";
@@ -283,17 +303,12 @@ bool read_plugin_version_file(const boost::filesystem::path &path,
                               RepositoryPackageVersion &version,
                               std::string &error_message)
 {
-    try {
-        boost::property_tree::ptree tree;
-        boost::property_tree::read_ini(path.string(), tree);
-        const boost::property_tree::ptree &plugin = tree.get_child("plugin");
-        version.package_version = plugin.get<std::string>("package_version", std::string());
-        version.slicer_version = plugin.get<std::string>("slicer_version", std::string());
-        return true;
-    } catch (const std::exception &error) {
-        error_message = "Cannot read plugin version file '" + path.string() + "': " + error.what();
+    PluginPackageMetadata metadata;
+    if (!read_plugin_package_metadata(path.string(), metadata, error_message))
         return false;
-    }
+    version.package_version = metadata.package_version;
+    version.slicer_version = metadata.slicer_version;
+    return true;
 }
 
 // Copy the complete package tree without following ownership outside source.
