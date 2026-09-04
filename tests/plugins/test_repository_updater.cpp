@@ -2741,6 +2741,7 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
                  "[plugins][updater][plugin-functional]")
 {
     write_installed_plugin("1.0.0.0");
+    write_plugin_repository();
     const boost::filesystem::path cache_root = write_cached_plugin("1.0.0.0");
     Slic3r::PluginActivationConfig configured = read_activation_config();
     configured.activated["example.first"] = true;
@@ -2775,6 +2776,14 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     CHECK_FALSE(plugin->is_installed);
     CHECK(plugin->has_cache);
     CHECK(boost::filesystem::is_directory(cache_root));
+    REQUIRE(plugin->live_version.has_value());
+    CHECK(plugin->live_version->package_version == "1.0.0.0");
+    CHECK_FALSE(plugin->installation_pending());
+    updater.reload_all_plugins();
+    plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
+    REQUIRE(plugin->live_version.has_value());
+    CHECK_FALSE(plugin->is_installed);
 }
 
 TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
@@ -2962,6 +2971,84 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     CHECK(config.installed.at(plugin_id).package_version == "2.0.0.0");
 }
 
+TEST_CASE("Plugin installation state compares both package and build identity",
+          "[plugins][updater][installation-state]")
+{
+    Slic3r::PluginSync plugin;
+    plugin.installed_version = {"1.0.0", "2.7.0"};
+    CHECK_FALSE(plugin.installation_pending());
+    plugin.is_installed = true;
+    CHECK(plugin.installation_pending());
+    plugin.live_version = plugin.installed_version;
+    CHECK_FALSE(plugin.installation_pending());
+    plugin.live_version->slicer_version = "2.7.1";
+    CHECK(plugin.installation_pending());
+    plugin.live_version = plugin.installed_version;
+    plugin.live_version->package_version = "1.0.1";
+    CHECK(plugin.installation_pending());
+}
+
+TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
+                 "PluginUpdater keeps live identity independent of pending selection",
+                 "[plugins][updater][installation-state]")
+{
+    write_plugin_repository();
+    write_cached_plugin("1.0.0.0");
+    write_cached_plugin("2.0.0.0");
+    bool has_live = false;
+    SECTION("First installation") {}
+    SECTION("Update and return to active version") {
+        write_installed_plugin("1.0.0.0");
+        has_live = true;
+    }
+    updater.reload_all_plugins();
+
+    for (const std::string version_number : {"2.0.0.0", "1.0.0.0"}) {
+        Slic3r::PluginAvailable version;
+        version.package_version = version_number;
+        version.slicer_version = slicer_version;
+        std::optional<Slic3r::UpdaterError> result;
+        updater.install_plugin(plugin_id, version, [&result](Slic3r::UpdaterError error) {
+            result = std::move(error);
+        });
+        updater.wait_for_pending_operations();
+        REQUIRE(result.has_value());
+        REQUIRE(result->succeeded());
+        // Check immediately and after a reload: scheduling never updates live files.
+        for (int pass = 0; pass < 2; ++pass) {
+            const std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+            REQUIRE(plugin.has_value());
+            CHECK(plugin->installed_version.package_version == version_number);
+            CHECK(plugin->live_version.has_value() == has_live);
+            if (has_live)
+                CHECK(plugin->live_version->package_version == "1.0.0.0");
+            CHECK(plugin->installation_pending() == (!has_live || version_number != "1.0.0.0"));
+            updater.reload_all_plugins();
+        }
+    }
+}
+
+TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
+                 "PluginUpdater does not presume an unreadable live version is applied",
+                 "[plugins][updater][installation-state]")
+{
+    write_installed_plugin("1.0.0.0");
+    write_cached_plugin("1.0.0.0");
+    const boost::filesystem::path manifest = data_directory / "plugins" / plugin_id / "version.ini";
+    SECTION("Missing version") {
+        boost::filesystem::remove(manifest);
+    }
+    SECTION("Unreadable version identity") {
+        write_test_file(manifest, "[plugin]\npackage_version = invalid\nslicer_version = invalid\n");
+    }
+    updater.reload_all_plugins();
+    const std::optional<Slic3r::PluginSync> plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
+    REQUIRE(plugin->is_installed);
+    CHECK_FALSE(plugin->live_version.has_value());
+    CHECK(plugin->installation_pending());
+}
+
 TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
                  "PluginUpdater does not leave an unusable install request after clearing its cache",
                  "[plugins][updater][plugin-functional][clear-cache]")
@@ -3142,6 +3229,12 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     REQUIRE(install_result->succeeded());
     REQUIRE(read_activation_config().installed.at(plugin_id).package_version == "2.0.0.0");
 
+    plugin = updater.plugin(plugin_id);
+    REQUIRE(plugin.has_value());
+    REQUIRE(plugin->live_version.has_value());
+    CHECK(plugin->live_version->package_version == "1.0.0.0");
+    CHECK(plugin->installation_pending());
+
     std::optional<Slic3r::UpdaterError> clear_result;
     updater.clear_cache_plugin(plugin_id, [&clear_result](Slic3r::UpdaterError error) {
         clear_result = std::move(error);
@@ -3162,6 +3255,9 @@ TEST_CASE_METHOD(PluginUpdaterFunctionalFixture,
     REQUIRE(plugin.has_value());
     CHECK(plugin->is_installed);
     CHECK(plugin->installed_version.package_version == "1.0.0.0");
+    REQUIRE(plugin->live_version.has_value());
+    CHECK(plugin->live_version->package_version == "1.0.0.0");
+    CHECK_FALSE(plugin->installation_pending());
 
     // The current live version remains a valid startup source, while the
     // downloaded update selected before Clear cache has disappeared.

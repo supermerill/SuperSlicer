@@ -12,13 +12,18 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
+
+#include <wx/colour.h>
 
 #include "RepositoryUpdatesDialogBase.hpp"
 
 class wxBoxSizer;
+class wxButton;
 class wxFlexGridSizer;
 class wxGridBagSizer;
+class wxPanel;
 class wxScrolledWindow;
 class wxTextCtrl;
 
@@ -55,9 +60,14 @@ private:
 
     PluginUpdater &m_updater;
     std::unique_ptr<PluginActivationDraft> m_activation_draft;
+    // All controls live below this panel, hidden until reconstruction finishes.
+    wxPanel *m_content = nullptr;
     wxBoxSizer *m_main_sizer = nullptr;
     wxTextCtrl *m_repository_url = nullptr;
+    wxButton *m_save_button = nullptr;
     std::vector<wxWindow *> m_repository_action_controls;
+    // Apply semantic backgrounds after the application themes ordinary controls.
+    std::vector<std::pair<wxWindow *, wxColour>> m_version_colours;
 };
 
 // Lists every package version after its changelog has been loaded. Selecting a

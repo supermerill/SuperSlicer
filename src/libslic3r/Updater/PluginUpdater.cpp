@@ -257,6 +257,13 @@ const PluginAvailable *PluginSync::best_available() const
     return nullptr;
 }
 
+bool PluginSync::installation_pending() const
+{
+    return is_installed && (!live_version ||
+        live_version->package_version != installed_version.package_version ||
+        live_version->slicer_version != installed_version.slicer_version);
+}
+
 void PluginUpdater::reload_all_plugins()
 {
     // Avoid replacing the model while a repository operation is publishing
@@ -335,7 +342,7 @@ void PluginUpdater::reload_all_plugins()
 
     // A failed or missing live package may have no cache descriptor to create
     // its row. The startup report still has a stable package id, so expose a
-    // minimal model entry and let Plugin updates present the repair controls.
+    // minimal model entry and let Plugin Package Manager present the repair controls.
     for (const auto &[package_id, report] : Orchestrator::instance().plugin_package_load_reports()) {
         std::optional<PluginPackageLoadReport> filtered_report = package_manager_load_report(report);
         if (!filtered_report.has_value())
@@ -350,6 +357,12 @@ void PluginUpdater::reload_all_plugins()
         plugin.load_report = std::move(filtered_report);
     }
 
+    // Read live identities independently of the desired installed set. A
+    // scheduled removal still has live files until the next startup.
+    for (auto &[id, plugin] : plugins) {
+        if (!read_live_plugin_version(configuration_directory / "plugins" / id, plugin.live_version, error_message))
+            BOOST_LOG_TRIVIAL(warning) << "Cannot identify active plugin '" << id << "': " << error_message;
+    }
     std::lock_guard<std::mutex> guard(m_model_mutex);
     m_plugins.swap(plugins);
 }
@@ -853,6 +866,7 @@ UpdaterError PluginUpdater::clear_cache_plugin_files(const std::string &plugin_i
                 }
                 current->is_installed = live_version.has_value() && package_is_desired;
                 current->installed_version = current->is_installed ? *live_version : PluginInstalledVersion();
+                current->live_version = live_version;
                 current->installed_metadata = {};
                 if (current->is_installed)
                     read_plugin_package_metadata((live_cached_version->directory / "version.ini").string(),

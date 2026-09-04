@@ -105,7 +105,7 @@ if (TARGET Python3::Python)
 
     # The bridge is runtime infrastructure shared by every pure Python package.
     # INTERNAL lets it load successfully without registering a user-selectable
-    # plugin id; the package itself remains manageable in Plugin updates.
+    # plugin id; the package itself remains manageable in Plugin Package Manager.
     slic3r_package_plugin(
         python_plugin_loader
         python

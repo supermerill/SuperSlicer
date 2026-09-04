@@ -5,7 +5,7 @@
 
 // These tests build minimal installed-package directories and pass them to the
 // production loader. They verify that failures remain structured data suitable
-// for Plugin updates instead of existing only as startup log messages.
+// for Plugin Package Manager instead of existing only as startup log messages.
 
 #include <catch2/catch.hpp>
 

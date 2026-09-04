@@ -42,9 +42,15 @@ struct PluginAvailable : public RepositoryPackageVersion {
 
 struct PluginSync {
     RepositoryDescription description;
+    // Desired selection from activated.ini; it may not be active until restart.
     PluginInstalledVersion installed_version;
     PluginPackageMetadata installed_metadata;
     bool is_installed = false;
+    // Actual live-directory version, independent of pending install/removal.
+    // Missing or unreadable metadata leaves this absent, never presumed active.
+    std::optional<PluginInstalledVersion> live_version;
+    // Compare package and build identities without inspecting files from the GUI.
+    bool installation_pending() const;
     // True when the repository cache contains this plugin description. The
     // entry may exist before any package version has been downloaded.
     bool has_cache = false;

@@ -6,6 +6,9 @@
 // The dialog exposes the same repository lifecycle as vendor updates: add a
 // description, fetch compatible tags, cache an archive, then select it for a
 // later install. It never touches a plugin DLL owned by this running process.
+// Package buttons open the version selector. In the overview, ABI icons refer
+// to the displayed version; coloured backgrounds refer only to a selection
+// and distinguish its live identity from an installation pending restart.
 
 #include "PluginUpdateDialog.hpp"
 
@@ -26,8 +29,10 @@
 #include <wx/panel.h>
 #include <wx/scrolwin.h>
 #include <wx/sizer.h>
+#include <wx/statbmp.h>
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
+#include <wx/wupdlock.h>
 
 #include "libslic3r/Api/host/Orchestrator.hpp"
 #include "libslic3r/Api/host/Plugin.hpp"
@@ -43,6 +48,7 @@
 #include "Plater.hpp"
 #include "slic3r/Utils/Process.hpp"
 #include "UpdaterErrorMessages.hpp"
+#include "wxExtensions.hpp"
 
 namespace Slic3r::GUI {
 
@@ -182,6 +188,26 @@ public:
     bool dirty() const { return !m_changes.empty(); }
     const std::string &error() const { return m_error; }
 
+    // Installation requests are persisted by the updater immediately. Compare
+    // its selected set with the opening snapshot, including removed packages;
+    // cache downloads and compatibility refreshes alone are not changes.
+    bool installation_changed(const std::vector<PluginSync> &plugins) const
+    {
+        size_t selected_count = 0;
+        for (const PluginSync &plugin : plugins) {
+            if (!plugin.is_installed)
+                continue;
+            ++selected_count;
+            const std::map<std::string, PluginInstalledVersion>::const_iterator initial =
+                m_initial_config.installed.find(plugin.description.id);
+            if (initial == m_initial_config.installed.end() ||
+                initial->second.package_version != plugin.installed_version.package_version ||
+                initial->second.slicer_version != plugin.installed_version.slicer_version)
+                return true;
+        }
+        return selected_count != m_initial_config.installed.size();
+    }
+
     bool is_active(const std::string &plugin_id) const
     {
         const std::map<std::string, bool>::const_iterator change = m_changes.find(plugin_id);
@@ -209,6 +235,15 @@ public:
     {
         if (!m_loaded)
             return;
+        // Toggling back to the initial effective value cancels the draft edit.
+        const std::map<std::string, bool>::const_iterator configured = m_initial_config.activated.find(plugin_id);
+        const bool initially_active = configured != m_initial_config.activated.end() ?
+            configured->second : Orchestrator::instance().is_plugin_active(plugin_id);
+        if (active == initially_active) {
+            m_changes.erase(plugin_id);
+            m_package_ids.erase(plugin_id);
+            return;
+        }
         m_changes[plugin_id] = active;
         m_package_ids[plugin_id] = package_id;
     }
@@ -267,34 +302,55 @@ private:
 };
 
 PluginUpdateDialog::PluginUpdateDialog(wxWindow *parent, PluginUpdater &updater)
-    : RepositoryUpdatesDialogBase(parent, _L("Plugin updates"))
+    : RepositoryUpdatesDialogBase(parent, _L("Plugin Package Manager"))
     , m_updater(updater)
     , m_activation_draft(std::make_unique<PluginActivationDraft>())
 {
     m_updater.reload_all_plugins();
     rebuild();
     CentreOnParent();
+    // Recreate scaled icons and reapply semantic colours after theme changes.
+    Bind(wxEVT_SYS_COLOUR_CHANGED, [this](wxSysColourChangedEvent &event) {
+        event.Skip();
+        rebuild();
+    });
+#ifdef __WXMSW__
+    Bind(wxEVT_DPI_CHANGED, [this](wxDPIChangedEvent &event) {
+        event.Skip();
+        rebuild();
+    });
+#endif
 }
 
 PluginUpdateDialog::~PluginUpdateDialog() = default;
 
 void PluginUpdateDialog::rebuild()
 {
-    Freeze();
+    // Balance Freeze/Thaw even when construction or icon loading throws.
+    const wxWindowUpdateLocker update_lock(this);
     const bool first_build = m_main_sizer == nullptr;
-    m_repository_action_controls.clear();
-    if (m_main_sizer != nullptr) {
-        m_main_sizer->Clear(true);
-    } else {
+    if (first_build) {
+        m_content = new wxPanel(this, wxID_ANY);
+        wxBoxSizer *frame = new wxBoxSizer(wxVERTICAL);
+        frame->Add(m_content, 1, wxEXPAND | wxRESERVE_SPACE_EVEN_IF_HIDDEN);
+        SetSizer(frame);
         m_main_sizer = new wxBoxSizer(wxVERTICAL);
-        SetSizer(m_main_sizer);
+        m_content->SetSizer(m_main_sizer);
     }
+    // Freeze only protects existing native windows reliably. Hiding their
+    // common parent also keeps newly created controls invisible at (0, 0).
+    m_content->Hide();
+    const ScopeGuard show_content([this] { m_content->Show(); });
+    m_repository_action_controls.clear();
+    m_version_colours.clear();
+    m_save_button = nullptr;
+    m_main_sizer->Clear(true);
 
     wxBoxSizer *repository_sizer = new wxBoxSizer(wxHORIZONTAL);
-    m_repository_url = new wxTextCtrl(this, wxID_ANY);
-    wxButton *add_button = new wxButton(this, wxID_ANY, _L("Add repository"));
-    wxButton *load_button = new wxButton(this, wxID_ANY, _L("Load plugin folder"));
-    wxButton *check_button = new wxButton(this, wxID_ANY, _L("Check for updates"));
+    m_repository_url = new wxTextCtrl(m_content, wxID_ANY);
+    wxButton *add_button = new wxButton(m_content, wxID_ANY, _L("Add repository"));
+    wxButton *load_button = new wxButton(m_content, wxID_ANY, _L("Load plugin folder"));
+    wxButton *check_button = new wxButton(m_content, wxID_ANY, _L("Check for updates"));
     repository_sizer->Add(m_repository_url, 1, wxRIGHT, 6);
     repository_sizer->Add(add_button, 0, wxRIGHT, 6);
     repository_sizer->Add(load_button, 0, wxRIGHT, 6);
@@ -314,28 +370,30 @@ void PluginUpdateDialog::rebuild()
     m_repository_action_controls.emplace_back(load_button);
     m_repository_action_controls.emplace_back(check_button);
 
-    wxFlexGridSizer *grid = new wxFlexGridSizer(6, 8, 10);
+    wxFlexGridSizer *grid = new wxFlexGridSizer(7, 8, 10);
     grid->AddGrowableCol(1, 1);
-    grid->Add(new wxStaticText(this, wxID_ANY, _L("Package")));
-    grid->Add(new wxStaticText(this, wxID_ANY, _L("Description")));
-    grid->Add(new wxStaticText(this, wxID_ANY, _L("Active plugins")));
-    grid->Add(new wxStaticText(this, wxID_ANY, _L("Selected version")));
-    grid->Add(new wxStaticText(this, wxID_ANY, _L("Upgrade")));
-    grid->Add(new wxStaticText(this, wxID_ANY, _L("Uninstall")));
+    grid->Add(new wxStaticText(m_content, wxID_ANY, _L("Package")));
+    grid->Add(new wxStaticText(m_content, wxID_ANY, _L("Description")));
+    grid->Add(new wxStaticText(m_content, wxID_ANY, _L("Active plugins")));
+    grid->Add(new wxStaticText(m_content, wxID_ANY, _L("Selected version")));
+    grid->Add(FromDIP(20), FromDIP(1));
+    grid->Add(new wxStaticText(m_content, wxID_ANY, _L("Upgrade")));
+    grid->Add(new wxStaticText(m_content, wxID_ANY, _L("Uninstall")));
 
     const std::vector<PluginSync> plugins = m_updater.plugins();
     for (const PluginSync &plugin : plugins)
         add_plugin_row(plugin, *grid);
     if (plugins.empty()) {
-        grid->Add(new wxStaticText(this, wxID_ANY, _L("No plugin repository is configured.")));
-        for (int index = 0; index < 5; ++index)
+        grid->Add(new wxStaticText(m_content, wxID_ANY, _L("No plugin repository is configured.")));
+        for (int index = 0; index < 6; ++index)
             grid->AddSpacer(0);
     }
     m_main_sizer->Add(grid, 1, wxEXPAND | wxLEFT | wxRIGHT, 10);
 
     wxBoxSizer *buttons = new wxBoxSizer(wxHORIZONTAL);
-    wxButton *save = new wxButton(this, wxID_ANY, _L("Save and restart"));
-    wxButton *cancel = new wxButton(this, wxID_CANCEL, _L("Cancel"));
+    wxButton *save = new wxButton(m_content, wxID_ANY, _L("Save and restart"));
+    m_save_button = save;
+    wxButton *cancel = new wxButton(m_content, wxID_CANCEL, _L("Cancel"));
     buttons->AddStretchSpacer();
     buttons->Add(save, 0, wxRIGHT, 6);
     buttons->Add(cancel, 0);
@@ -344,11 +402,20 @@ void PluginUpdateDialog::rebuild()
     m_repository_action_controls.emplace_back(save);
     m_main_sizer->Add(buttons, 0, wxEXPAND | wxALL, 10);
     apply_plugin_operation_state();
-    wxGetApp().UpdateDlgDarkUI(this);
+    // Newly created native controls start at (0, 0). Position them before
+    // theming, which can cause synchronous native redraws and focus events.
     if (first_build)
-        m_main_sizer->Fit(this);
+        GetSizer()->Fit(this);
     Layout();
-    Thaw();
+    m_content->Layout();
+    wxGetApp().UpdateDlgDarkUI(this);
+    // Keep semantic status colours and readable dark text after theme updates.
+    for (const auto &[window, colour] : m_version_colours) {
+        window->SetBackgroundColour(colour);
+        window->SetForegroundColour(*wxBLACK);
+    }
+    Layout();
+    m_content->Layout();
     Refresh();
 }
 
@@ -361,28 +428,55 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
     const wxString display_name = from_u8(
         plugin.description.full_name.empty() ? plugin_id : plugin.description.full_name);
 
-    grid.Add(new wxStaticText(this, wxID_ANY, display_name), 0, wxALIGN_CENTER_VERTICAL);
-    grid.Add(new wxStaticText(this, wxID_ANY, from_u8(plugin.description.description)),
+    wxPanel *package_panel = new wxPanel(m_content, wxID_ANY);
+    wxBoxSizer *package_sizer = new wxBoxSizer(wxHORIZONTAL);
+    wxButton *package_button = new wxButton(package_panel, wxID_ANY, display_name);
+    package_sizer->Add(package_button, 1, wxEXPAND);
+    package_panel->SetSizer(package_sizer);
+    if (plugin.available_packages.empty()) {
+        package_button->Enable(false);
+        package_panel->SetToolTip(_L("No plugin package version is available in the local cache or repository."));
+    } else {
+        package_button->SetToolTip(_L("Choose a plugin package version and review its changelog."));
+        bind_repository_action(*package_button, [this, plugin_id](wxCommandEvent &) { choose_version(plugin_id); });
+        m_repository_action_controls.emplace_back(package_panel);
+    }
+    grid.Add(package_panel, 0, wxALIGN_CENTER_VERTICAL | wxEXPAND);
+    grid.Add(new wxStaticText(m_content, wxID_ANY, from_u8(plugin.description.description)),
              0, wxALIGN_CENTER_VERTICAL | wxEXPAND);
 
     const PackagePluginSummary package_summary = package_plugin_summary(plugin_id);
     if (package_summary.ids.empty()) {
-        wxStaticText *unknown = new wxStaticText(this, wxID_ANY, _L("Unavailable"));
-        unknown->SetToolTip(
-            _L("The package has not provided a plugin list. The list is available after the package is loaded."));
+        // Runtime-only packages can load successfully without registering
+        // plugins. Do not present that case as a loading failure.
+        const bool loaded_empty = package_summary.report != nullptr &&
+            package_summary.report->state == PluginPackageLoadState::Loaded;
+        const wxString label = !plugin.is_installed ? _L("Not installed") :
+            (loaded_empty ? _L("No plugins") : _L("Not loaded"));
+        wxStaticText *unknown = new wxStaticText(m_content, wxID_ANY, label);
+        if (plugin.is_installed && package_summary.report != nullptr && !package_summary.report->issues.empty())
+            unknown->SetToolTip(plugin_package_load_tooltip(*package_summary.report));
+        else
+            unknown->SetToolTip(!plugin.is_installed ?
+                _L("Install this package and restart to list its plugins.") :
+                (loaded_empty ? _L("This package does not register any plugins.") :
+                 _L("No plugin list is available because this package has not been loaded.")));
         grid.Add(unknown, 0, wxALIGN_CENTER_VERTICAL);
     } else {
         const size_t active_count = m_activation_draft->active_count(package_summary.ids);
         wxCheckBox *active = new wxCheckBox(
-            this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize,
-            wxCHK_3STATE | wxCHK_ALLOW_3RD_STATE_FOR_USER);
+            m_content, wxID_ANY, wxString::Format("%zu/%zu", active_count, package_summary.ids.size()),
+            wxDefaultPosition, wxDefaultSize,
+            wxCHK_3STATE);
         active->Set3StateValue(plugin_activation_state(active_count, package_summary.ids.size()));
         active->SetToolTip(format(_L("%1% of %2% plugins are active."), active_count,
                                   package_summary.ids.size()));
         active->Enable(m_activation_draft->available());
-        active->Bind(wxEVT_CHECKBOX, [this, plugin_id, ids = package_summary.ids, active](wxCommandEvent &) {
-            run_repository_gui_action([this, plugin_id, ids, active] {
-                const bool enabled = active->Get3StateValue() != wxCHK_UNCHECKED;
+        active->Bind(wxEVT_CHECKBOX, [this, plugin_id, ids = package_summary.ids](wxCommandEvent &) {
+            run_repository_gui_action([this, plugin_id, ids] {
+                // Mixed is only a summary. Toggle from the draft's state,
+                // independently of the native three-state checkbox cycle.
+                const bool enabled = m_activation_draft->active_count(ids) != ids.size();
                 m_activation_draft->set_package_active(plugin_id, ids, enabled);
                 rebuild();
             });
@@ -392,53 +486,64 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
         grid.Add(active, 0, wxALIGN_CENTER_VERTICAL);
     }
 
-    // Keep the panel enabled when no package is available. On Windows a
-    // disabled native button does not receive mouse events, while its parent
-    // panel can still display the reason through a tooltip.
+    // Compatibility describes the displayed package, independently of whether
+    // it is selected or already present in the active directory.
+    const PluginAvailable *displayed = best != nullptr ? best :
+        (plugin.available_packages.empty() ? nullptr : &plugin.available_packages.front());
+    const PluginApiCompatibility *abi = plugin.is_installed ? &plugin.installed_metadata.compatibility :
+        (displayed != nullptr ? &displayed->metadata.compatibility : nullptr);
     wxString version_label;
     if (plugin.is_installed)
         version_label = from_u8(plugin.installed_version.package_version);
-    else if (!plugin.available_packages.empty())
-        version_label = _L("Choose version");
+    else if (displayed != nullptr)
+        version_label = format(_L("Available: %1%"), displayed->package_version);
     else
         version_label = _L("Not installed");
-    wxPanel *version_panel = new wxPanel(this, wxID_ANY);
+    wxPanel *version_panel = new wxPanel(m_content, wxID_ANY);
     wxBoxSizer *version_sizer = new wxBoxSizer(wxHORIZONTAL);
-    wxButton *version_button = new wxButton(version_panel, wxID_ANY, version_label);
-    version_sizer->Add(version_button, 1, wxEXPAND);
+    wxStaticText *version_text = new wxStaticText(version_panel, wxID_ANY, version_label,
+                                                wxDefaultPosition, wxDefaultSize, wxALIGN_CENTER);
+    version_sizer->Add(version_text, 1, wxALIGN_CENTER_VERTICAL | wxALL, FromDIP(5));
     version_panel->SetSizer(version_sizer);
-    if (plugin.available_packages.empty()) {
-        version_button->Enable(false);
-        version_panel->SetToolTip(
-            _L("No plugin package version is available in the local cache or repository."));
-    } else {
-        version_button->SetToolTip(_L("Choose a plugin package version and review its changelog."));
-        bind_repository_action(*version_button, [this, plugin_id](wxCommandEvent &) {
-            choose_version(plugin_id);
-        });
-        m_repository_action_controls.emplace_back(version_panel);
-    }
-    if (plugin.is_installed) {
-        const PluginApiCompatibility &abi = plugin.installed_metadata.compatibility;
-        if (abi.status != PluginApiCompatibilityStatus::NotChecked)
-            version_button->SetBackgroundColour(abi.compatible() ? wxColour(127, 250, 127) : wxColour(250, 127, 127));
-        version_panel->SetToolTip(from_u8(abi.message()));
-        if (abi.status == PluginApiCompatibilityStatus::Incompatible)
-            version_button->SetToolTip(from_u8(abi.message()));
+    const wxString installation_tooltip = plugin.is_installed ?
+        (plugin.installation_pending() ? _L("Installation scheduled for the next restart.") : _L("Installed version.")) :
+        (displayed != nullptr ? _L("Available version; not selected for installation.") : _L("Not installed"));
+    version_panel->SetToolTip(installation_tooltip);
+    version_text->SetToolTip(installation_tooltip);
+    if (plugin.is_installed && abi->status != PluginApiCompatibilityStatus::NotChecked) {
+        const wxColour colour = !abi->compatible() ? wxColour(250, 127, 127) :
+            (plugin.installation_pending() ? wxColour(255, 225, 127) : wxColour(127, 250, 127));
+        m_version_colours.emplace_back(version_panel, colour);
+        m_version_colours.emplace_back(version_text, colour);
     }
     grid.Add(version_panel, 0, wxALIGN_CENTER_VERTICAL | wxEXPAND);
+
+    if (abi != nullptr) {
+        const bool unknown = abi->status == PluginApiCompatibilityStatus::NotChecked;
+        const ScalableBitmap bitmap(this, unknown ? "question_gray" : (abi->compatible() ? "tick_mark" : "cross_red"), 16);
+        wxStaticBitmap *indicator = new wxStaticBitmap(m_content, wxID_ANY, bitmap.bmp());
+        indicator->SetMinSize(FromDIP(wxSize(20, 20)));
+        wxString tooltip = unknown ? _L("Not verified") : (abi->compatible() ? _L("Compatible") : _L("Incompatible"));
+        indicator->SetName(tooltip);
+        if (!abi->message().empty())
+            tooltip += "\n" + from_u8(abi->message());
+        indicator->SetToolTip(tooltip);
+        grid.Add(indicator, 0, wxALIGN_CENTER);
+    } else {
+        grid.Add(FromDIP(20), FromDIP(20));
+    }
 
     // The upgrade cell reports repository state when there is no immediate
     // install action. This avoids presenting a permanently disabled command as
     // if an update were available.
     wxWindow *upgrade_control = nullptr;
     if (plugin.load_report.has_value() && !plugin.load_report->issues.empty()) {
-        upgrade_control = new wxStaticText(this, wxID_ANY,
+        upgrade_control = new wxStaticText(m_content, wxID_ANY,
                                            plugin_package_load_label(*plugin.load_report));
         upgrade_control->SetToolTip(plugin_package_load_tooltip(*plugin.load_report));
     } else if (!plugin.is_installed && has_compatible_version && !best->local_directory.empty()) {
         wxButton *install = new wxButton(
-            this, wxID_ANY, format(_L("Install %1% (local)"), best->package_version));
+            m_content, wxID_ANY, format(_L("Install %1% (local)"), best->package_version));
         install->SetToolTip(
             _L("Install the compatible plugin package already available in the local cache after restarting the application."));
         bind_repository_action(*install, [this, plugin_id](wxCommandEvent &) {
@@ -449,7 +554,7 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
     } else if (plugin.description.config_update_rest.empty()) {
         if (plugin.can_upgrade && has_compatible_version) {
             wxButton *upgrade = new wxButton(
-                this, wxID_ANY, format(_L("Upgrade to %1%"), best->package_version));
+                m_content, wxID_ANY, format(_L("Upgrade to %1%"), best->package_version));
             upgrade->SetToolTip(
                 _L("Download this plugin version and install it after restarting the application."));
             bind_repository_action(*upgrade, [this, plugin_id](wxCommandEvent &) {
@@ -458,28 +563,28 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
             m_repository_action_controls.emplace_back(upgrade);
             upgrade_control = upgrade;
         } else if (!plugin.available_packages.empty() && !has_compatible_version) {
-            upgrade_control = new wxStaticText(this, wxID_ANY, _L("No compatible plugin"));
+            upgrade_control = new wxStaticText(m_content, wxID_ANY, _L("No compatible plugin"));
             upgrade_control->SetToolTip(
                 _L("The local cache contains plugin packages, but none have compatible ABI requirements."));
         } else {
-            upgrade_control = new wxStaticText(this, wxID_ANY, _L("Local plugin"));
+            upgrade_control = new wxStaticText(m_content, wxID_ANY, _L("Local plugin"));
             upgrade_control->SetToolTip(
                 _L("This plugin has no repository and therefore cannot be checked for online updates."));
         }
     } else if (plugin.sync_state == RepositorySyncState::Succeeded) {
         if (plugin.available_packages.empty()) {
-            upgrade_control = new wxStaticText(this, wxID_ANY, _L("No package available"));
+            upgrade_control = new wxStaticText(m_content, wxID_ANY, _L("No package available"));
             upgrade_control->SetToolTip(
                 _L("This plugin repository does not provide any package version."));
         } else if (!has_compatible_version) {
-            wxButton *check = new wxButton(this, wxID_ANY, _L("Review available versions"));
+            wxButton *check = new wxButton(m_content, wxID_ANY, _L("Review available versions"));
             check->SetToolTip(_L("Download an unchecked version to verify its ABI before installation."));
             bind_repository_action(*check, [this, plugin_id](wxCommandEvent &) { choose_version(plugin_id); });
             m_repository_action_controls.emplace_back(check);
             upgrade_control = check;
         } else if (!plugin.is_installed || plugin.can_upgrade) {
             wxButton *upgrade = new wxButton(
-                this, wxID_ANY,
+                m_content, wxID_ANY,
                 plugin.is_installed ? format(_L("Upgrade to %1%"), best->package_version) :
                                       format(_L("Install %1%"), best->package_version));
             upgrade->SetToolTip(
@@ -490,15 +595,15 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
             m_repository_action_controls.emplace_back(upgrade);
             upgrade_control = upgrade;
         } else {
-            upgrade_control = new wxStaticText(this, wxID_ANY, _L("Up to date"));
+            upgrade_control = new wxStaticText(m_content, wxID_ANY, _L("Up to date"));
         }
     } else if (plugin.sync_state == RepositorySyncState::InProgress) {
-        upgrade_control = new wxStaticText(this, wxID_ANY, _L("Synch with github ..."));
+        upgrade_control = new wxStaticText(m_content, wxID_ANY, _L("Synch with github ..."));
     } else if (plugin.sync_state == RepositorySyncState::Failed) {
         wxString label = from_u8(updater_error_short_label(plugin.sync_error));
         if (label.empty())
             label = _L("Synchronization failed");
-        upgrade_control = new wxStaticText(this, wxID_ANY, label);
+        upgrade_control = new wxStaticText(m_content, wxID_ANY, label);
         wxString tooltip = from_u8(format_updater_error(plugin.sync_error));
         if (!plugin.available_packages.empty() && !has_compatible_version) {
             tooltip += "\n\n";
@@ -506,7 +611,7 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
         }
         upgrade_control->SetToolTip(tooltip);
     } else {
-        upgrade_control = new wxStaticText(this, wxID_ANY, _L("Unchecked"));
+        upgrade_control = new wxStaticText(m_content, wxID_ANY, _L("Unchecked"));
         upgrade_control->SetToolTip(
             _L("This plugin may have a new package available online. Click 'Check for updates' to check."));
     }
@@ -519,7 +624,7 @@ void PluginUpdateDialog::add_plugin_row(const PluginSync &plugin,
         remove_label = _L("Clear cache");
     else
         remove_label = _L("Not installed");
-    wxButton *remove_button = new wxButton(this, wxID_ANY, remove_label);
+    wxButton *remove_button = new wxButton(m_content, wxID_ANY, remove_label);
     if (plugin.is_installed) {
         remove_button->SetToolTip(
             _L("Schedule this plugin for removal when the application next starts."));
@@ -552,7 +657,7 @@ void PluginUpdateDialog::add_repository()
                      dialog.finish_plugin_operation();
                      if (!error.succeeded())
                          wxMessageBox(
-                             from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR, &dialog);
+                             from_u8(format_updater_error(error)), _L("Plugin Package Manager"), wxICON_ERROR, &dialog);
                      else
                          dialog.m_updater.reload_all_plugins();
                      dialog.rebuild();
@@ -600,11 +705,15 @@ void PluginUpdateDialog::choose_version(const std::string &plugin_id)
         repository_operation_callback<bool>(
             *this, [plugin_id](PluginUpdateDialog &dialog, bool) {
                 dialog.finish_plugin_operation();
-                ChoosePluginVersionDialog chooser(&dialog,
+                // Remove the closed child dialog before rebuilding/theming
+                // its parent, so its controls are not traversed again.
+                {
+                    ChoosePluginVersionDialog chooser(&dialog,
                                                   dialog.m_updater,
                                                   plugin_id,
                                                   *dialog.m_activation_draft);
-                chooser.ShowModal();
+                    chooser.ShowModal();
+                }
                 dialog.rebuild();
             }));
 }
@@ -624,10 +733,10 @@ void PluginUpdateDialog::install_latest(const std::string &plugin_id)
                 dialog.finish_plugin_operation();
                 if (!error.succeeded())
                     wxMessageBox(
-                        from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR, &dialog);
+                        from_u8(format_updater_error(error)), _L("Plugin Package Manager"), wxICON_ERROR, &dialog);
                 else
                     wxMessageBox(_L("The selected plugin version will be installed after restarting the application."),
-                                 _L("Plugin updates"), wxICON_INFORMATION, &dialog);
+                                 _L("Plugin Package Manager"), wxICON_INFORMATION, &dialog);
                 dialog.rebuild();
             }));
 }
@@ -651,12 +760,12 @@ void PluginUpdateDialog::uninstall(const std::string &plugin_id)
                            dialog.finish_plugin_operation();
                            if (!error.succeeded()) {
                                wxMessageBox(from_u8(format_updater_error(error)),
-                                            _L("Plugin updates"),
+                                            _L("Plugin Package Manager"),
                                             wxICON_ERROR,
                                             &dialog);
                            } else {
                                wxMessageBox(_L("The plugin will be uninstalled after restarting the application."),
-                                            _L("Plugin updates"),
+                                            _L("Plugin Package Manager"),
                                             wxICON_INFORMATION,
                                             &dialog);
                            }
@@ -683,7 +792,7 @@ void PluginUpdateDialog::clear_cache(const std::string &plugin_id)
                            dialog.finish_plugin_operation();
                            if (!error.succeeded())
                                wxMessageBox(
-                                   from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR, &dialog);
+                                   from_u8(format_updater_error(error)), _L("Plugin Package Manager"), wxICON_ERROR, &dialog);
                            dialog.rebuild();
                        }));
 }
@@ -706,6 +815,10 @@ void PluginUpdateDialog::apply_plugin_operation_state()
                                 !m_updater.repository_change_in_progress();
     for (wxWindow *control : m_repository_action_controls)
         control->Enable(enable_actions);
+    // The shared action toggle must not re-enable Save without a net change.
+    if (m_save_button != nullptr)
+        m_save_button->Enable(enable_actions &&
+            (m_activation_draft->dirty() || m_activation_draft->installation_changed(m_updater.plugins())));
 }
 
 bool PluginUpdateDialog::prepare_restart() const
@@ -728,8 +841,7 @@ bool PluginUpdateDialog::prepare_restart() const
 
 void PluginUpdateDialog::save_and_restart()
 {
-    if (!m_activation_draft->dirty()) {
-        EndModal(wxID_CANCEL);
+    if (!m_activation_draft->dirty() && !m_activation_draft->installation_changed(m_updater.plugins())) {
         return;
     }
     if (!prepare_restart())
@@ -754,7 +866,15 @@ ChoosePluginVersionDialog::ChoosePluginVersionDialog(wxWindow *parent,
                                                      PluginUpdater &updater,
                                                      std::string plugin_id,
                                                      PluginActivationDraft &activation_draft)
-    : RepositoryUpdatesDialogBase(parent, _L("Choose plugin version"))
+    : RepositoryUpdatesDialogBase(
+          parent,
+          format(_L("Manage Plugin Package \"%1%\""),
+                 [&updater, &plugin_id]() {
+                     const std::optional<PluginSync> plugin = updater.plugin(plugin_id);
+                     return from_u8(plugin && !plugin->description.full_name.empty()
+                                        ? plugin->description.full_name
+                                        : plugin_id);
+                 }()))
     , m_updater(updater)
     , m_plugin_id(std::move(plugin_id))
     , m_activation_draft(activation_draft)
@@ -900,7 +1020,7 @@ void ChoosePluginVersionDialog::build()
         plugin_grid->AddGrowableCol(1, 1);
         wxCheckBox *all_active = new wxCheckBox(
             plugin_scroll, wxID_ANY, _L("Active"), wxDefaultPosition, wxDefaultSize,
-            wxCHK_3STATE | wxCHK_ALLOW_3RD_STATE_FOR_USER);
+            wxCHK_3STATE);
         const size_t active_count = m_activation_draft.active_count(package_summary.ids);
         all_active->Set3StateValue(plugin_activation_state(active_count, package_summary.ids.size()));
         all_active->Enable(m_activation_draft.available());
@@ -947,7 +1067,8 @@ void ChoosePluginVersionDialog::build()
                          [this, package_id = m_plugin_id, ids = package_summary.ids,
                           rows = plugin_checkboxes, all_active](wxCommandEvent &) {
                              run_repository_gui_action([this, package_id, ids, rows, all_active] {
-                                 const bool enabled = all_active->Get3StateValue() != wxCHK_UNCHECKED;
+                                 // All active -> disable all; mixed or inactive -> enable all.
+                                 const bool enabled = m_activation_draft.active_count(ids) != ids.size();
                                  m_activation_draft.set_package_active(package_id, ids, enabled);
                                  for (wxCheckBox *row : rows)
                                      row->SetValue(enabled);
@@ -980,7 +1101,7 @@ void ChoosePluginVersionDialog::schedule_version(const PluginAvailable &version)
             *this, [](ChoosePluginVersionDialog &dialog, UpdaterError error) {
                 dialog.finish_repository_operation(dialog.m_scroll);
                 if (!error.succeeded()) {
-                    wxMessageBox(from_u8(format_updater_error(error)), _L("Plugin updates"), wxICON_ERROR, &dialog);
+                    wxMessageBox(from_u8(format_updater_error(error)), _L("Plugin Package Manager"), wxICON_ERROR, &dialog);
                     // Reopen with the updated model after a failed ABI check;
                     // the downloaded package must no longer look unchecked.
                     dialog.GetSizer()->Clear(true);
@@ -988,7 +1109,7 @@ void ChoosePluginVersionDialog::schedule_version(const PluginAvailable &version)
                     return;
                 }
                 wxMessageBox(_L("The selected plugin version will be installed after restarting the application."),
-                             _L("Plugin updates"), wxICON_INFORMATION, &dialog);
+                             _L("Plugin Package Manager"), wxICON_INFORMATION, &dialog);
                 dialog.EndModal(wxID_OK);
             }));
 }

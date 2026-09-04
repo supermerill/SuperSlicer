@@ -367,7 +367,7 @@ wxString unavailable_plugin_tooltip(const std::string &plugin_id,
         Orchestrator::instance().plugin_package_load_report(package_id);
     if (report != nullptr && !report->issues.empty()) {
         return plugin_package_load_diagnostic(*report) + "\n\n" +
-               _L("The activation request is kept when this dialog is saved. Use Plugin updates to repair "
+               _L("The activation request is kept when this dialog is saved. Use Plugin Package Manager to repair "
                   "the package or choose another version.");
     }
     if (report != nullptr && report->state == PluginPackageLoadState::Loaded) {
@@ -380,13 +380,13 @@ wxString unavailable_plugin_tooltip(const std::string &plugin_id,
     if (config.installed.find(package_id) == config.installed.end()) {
         return format_wxstr(
             _L("Plugin '%1%' is enabled, but package '%2%' is not installed. "
-               "Install the package from Plugin updates or disable this id. "
+               "Install the package from Plugin Package Manager or disable this id. "
                "Saving this dialog keeps the activation request."),
             from_u8(plugin_id), from_u8(package_id));
     }
     return format_wxstr(
         _L("Plugin '%1%' is enabled and package '%2%' is selected as installed, but it was not loaded. "
-           "Open Plugin updates to repair the package. Saving this dialog keeps the activation request."),
+           "Open Plugin Package Manager to repair the package. Saving this dialog keeps the activation request."),
         from_u8(plugin_id), from_u8(package_id));
 }
 

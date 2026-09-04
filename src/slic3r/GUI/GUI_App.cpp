@@ -1028,6 +1028,48 @@ void GUI_App::post_init()
     if (app_config->get_bool("show_hints") && ! is_gcode_viewer())
         plater_->get_notification_manager()->push_hint_notification(true);
 
+    // Package loading has completed and the notification canvas now exists.
+    // Only installed packages count: an incompatible cached alternative must
+    // not trigger a startup warning. DLL validation remains authoritative even
+    // when its package manifest declared compatible requirements.
+    if (plugin_updater != nullptr && plater_ != nullptr) {
+        bool incompatible_installed_package = false;
+        for (const PluginSync &plugin : plugin_updater->plugins()) {
+            if (!plugin.is_installed)
+                continue;
+            bool incompatible = plugin.installed_metadata.compatibility.status ==
+                                PluginApiCompatibilityStatus::Incompatible;
+            if (plugin.load_report) {
+                for (const PluginPackageLoadIssue &issue : plugin.load_report->issues)
+                    incompatible = incompatible || issue.code == PluginPackageLoadErrorCode::ApiHeaderVersionMismatch ||
+                                   issue.code == PluginPackageLoadErrorCode::MissingAbiExport;
+            }
+            if (incompatible) {
+                incompatible_installed_package = true;
+                break;
+            }
+        }
+        if (incompatible_installed_package) {
+            plater_->get_notification_manager()->push_notification(
+                NotificationType::CustomNotification,
+                NotificationManager::NotificationLevel::WarningNotificationLevel,
+                _u8L("WARNING:") + std::string("\n") +
+                    _u8L("Some installed plugin packages are incompatible with this application and could not be fully loaded."),
+                _u8L("Open Plugin Package Manager"),
+                [this](wxEvtHandler *) {
+                    // Leave the notification rendering callback before opening
+                    // a modal dialog and its nested event loop.
+                    CallAfter([this] {
+                        if (plugin_updater != nullptr && mainframe != nullptr) {
+                            PluginUpdateDialog dialog(mainframe, *plugin_updater);
+                            dialog.ShowModal();
+                        }
+                    });
+                    return true;
+                });
+        }
+    }
+
     // The extra CallAfter() is needed because of Mac, where this is the only way
     // to popup a modal dialog on start without screwing combo boxes.
     // This is ugly but I honestly found no better way to do it.
@@ -3442,7 +3484,7 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
     if (is_editor()) {
         local_menu->Append(config_id_base + ConfigMenuPlugins, _L("Plugins") + dots,
                            _L("Choose which loaded plugins are active"));
-        local_menu->Append(config_id_base + ConfigMenuPluginUpdates, _L("Plugin updates") + dots,
+        local_menu->Append(config_id_base + ConfigMenuPluginUpdates, _L("Plugin Package Manager") + dots,
                            _L("Install and update plugin packages"));
     }
     local_menu->Append(config_id_base + ConfigMenuPreferences, _L("&Preferences") + dots +
@@ -3519,8 +3561,9 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
         case ConfigMenuPluginUpdates:
         {
             if (plugin_updater != nullptr) {
+                // The dialog applies its theme before its installation-status
+                // colours; a second theme pass here would erase those colours.
                 PluginUpdateDialog dialog(mainframe, *plugin_updater);
-                UpdateDlgDarkUI(&dialog);
                 dialog.ShowModal();
             }
             break;
