@@ -1477,7 +1477,13 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
 
     if (print_regions_reshuffled) {
         // Update Print::m_print_regions from objects.
-        struct cmp { bool operator() (const PrintRegion *l, const PrintRegion *r) const { return l->config_hash() == r->config_hash() && l->config() == r->config(); } };
+        struct cmp {
+            bool operator()(const PrintRegion *l, const PrintRegion *r) const
+            {
+                return l->config_hash() < r->config_hash() ||
+                       (l->config_hash() == r->config_hash() && l->config() < r->config());
+            }
+        };
         std::set<const PrintRegion*, cmp> region_set;
         m_print_regions.clear();
         std::shared_ptr<PrintObjectRegions> print_object_regions;
@@ -1485,7 +1491,8 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
             if (print_object_regions != print_object->m_shared_regions) {
                 print_object_regions = print_object->m_shared_regions;
                 for (std::unique_ptr<Slic3r::PrintRegion> &print_region : print_object_regions->all_regions) {
-                    if (auto it = region_set.find(print_region.get()); it == region_set.end()) {
+                    auto [it, inserted] = region_set.insert(print_region.get());
+                    if (inserted) {
                         int print_region_id = int(m_print_regions.size());
                         m_print_regions.emplace_back(print_region.get());
                         print_region->m_print_region_id = print_region_id;
