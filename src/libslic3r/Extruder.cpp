@@ -52,10 +52,10 @@ std::pair<double, double> Tool::extrude(double dE)
     dE = m_formatter.quantize_e(dE);
     m_E          += dE;
     m_absolute_E += dE;
-    if (m_retracted != 0.) {
-        m_retracted -= dE;
-        m_retracted = std::max(m_retracted, 0.);
-    }
+    // Negative E starts or extends a retraction (including a wipe with no
+    // pre-retraction). Positive E repays it, including WipeTower priming;
+    // extrusion beyond that point must not create a negative retraction.
+    m_retracted = std::max(m_retracted - dE, 0.);
     return std::make_pair(dE, m_E);
 }
 
