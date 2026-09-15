@@ -1856,12 +1856,11 @@ void PrintConfigDef::init_fff_params()
         {{0, 0},{0.55, 0},{2,1.9}}
     )}));
     def->graph_settings = std::make_shared<GraphSettings>();
-    def->graph_settings->title       = L("Overhangs fan speed by % of overlap");
-    def->graph_settings->description = L("Choose the Overhangs maximum fan speed for each percentage of overlap with the layer below."
-        "If the current fan speed (from perimeter, external, of default) is higher, then this setting won't slow the fan."
-        "\n100% overlap is when the extrusion is fully on top of the previous layer's extrusion."
-        "\n0% overlap is when the extrusion centerline is at a distance of 'overhangs threshold for speed'(overhangs_bridge_threshold)"
-        "\nfrom the nearest extrusion of the previous layer.");
+    def->graph_settings->title       = L("Extruder celarance curve");
+    def->graph_settings->description = L(
+        "Create the shape of your nozzle. it can be used for some algorithms to check if islands need to be "
+        "considered as one and need or cna be printed independantly on different layers. Be carfule if you're not on "
+        "a hardened nozzle, they can wear and change shape over time.");
     def->graph_settings->x_label     = L("radius clearance");
     def->graph_settings->y_label     = L("Height from nozzle tip");
     def->graph_settings->label_min_x = L("");
