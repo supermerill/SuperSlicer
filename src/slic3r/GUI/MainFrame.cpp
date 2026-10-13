@@ -10,6 +10,7 @@
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 #include "MainFrame.hpp"
+#include "GitHubBackupDialog.hpp"
 
 #include <wx/debug.h>
 #include <wx/filename.h>
@@ -1880,6 +1881,9 @@ void MainFrame::init_menubar_as_editor()
             []() {return true; }, this);
         append_menu_item(export_menu, wxID_ANY, _L("Export Config &Bundle") + dots, _L("Export all presets to file"),
             [this](wxCommandEvent&) { export_configbundle(); }, "export_config_bundle", nullptr,
+            []() {return true; }, this);
+        append_menu_item(export_menu, wxID_ANY, _L("Back Up Presets to GitHub") + dots, _L("Back up saved user presets to a GitHub repository"),
+            [this](wxCommandEvent&) { show_github_backup_dialog(this); }, "export_config_bundle", nullptr,
             []() {return true; }, this);
         append_menu_item(export_menu, wxID_ANY, _L("Export Config Bundle With Physical Printers") + dots, _L("Export all presets including physical printers to file"),
             [this](wxCommandEvent&) { export_configbundle(true); }, "export_config_bundle", nullptr,

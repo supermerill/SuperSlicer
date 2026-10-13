@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.15)
+project(github_backup_tests LANGUAGES CXX)
+enable_testing()
+add_executable(github_backup_tests github_backup_tests.cpp)
+target_compile_features(github_backup_tests PRIVATE cxx_std_17)
+add_test(NAME github_backup_helpers COMMAND github_backup_tests)
