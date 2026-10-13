@@ -672,6 +672,13 @@ Http Http::put(std::string url)
 	return http;
 }
 
+Http& Http::sensitive()
+{
+    curl_easy_setopt(p->curl, CURLOPT_VERBOSE, 0L);
+    curl_easy_setopt(p->curl, CURLOPT_FOLLOWLOCATION, 0L);
+    return *this;
+}
+
 bool Http::ca_file_supported()
 {
 	::CURL *curl = ::curl_easy_init();
