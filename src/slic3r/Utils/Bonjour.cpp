@@ -5,6 +5,7 @@
 #include "Bonjour.hpp"
 
 #include <cstdint>
+#include <chrono>
 #include <algorithm>
 #include <array>
 #include <vector>
@@ -923,7 +924,7 @@ void Bonjour::priv::lookup_perform()
 			socket->send();
 
 		// timer settings
-		asio::deadline_timer timer(*io_context);
+		asio::steady_timer timer(*io_context);
 		retries--;
 		std::function<void(const error_code&)> timer_handler = [&](const error_code& error) {
 			// end 
@@ -936,7 +937,7 @@ void Bonjour::priv::lookup_perform()
 			// restart timer
 			} else {
 				retries--;
-				timer.expires_from_now(boost::posix_time::seconds(timeout));
+				timer.expires_after(std::chrono::seconds(timeout));
 				timer.async_wait(timer_handler);
 				// trigger another round of queries
 				for (auto * socket : sockets)
@@ -944,7 +945,7 @@ void Bonjour::priv::lookup_perform()
 			}
 		};
 		// start timer
-		timer.expires_from_now(boost::posix_time::seconds(timeout));
+		timer.expires_after(std::chrono::seconds(timeout));
 		timer.async_wait(timer_handler);
 		// start io_service, it will run until it has something to do - so in this case until stop is called in timer
 		io_context->run();
@@ -1016,7 +1017,7 @@ void Bonjour::priv::resolve_perform()
 			socket->send();
 
 		// timer settings
-		asio::deadline_timer timer(*io_context);
+		asio::steady_timer timer(*io_context);
 		retries--;
 		std::function<void(const error_code&)> timer_handler = [&](const error_code& error) {
 			int replies_count = replies.size();
@@ -1030,7 +1031,7 @@ void Bonjour::priv::resolve_perform()
 			// restart timer
 			} else {
 				retries--;
-				timer.expires_from_now(boost::posix_time::seconds(timeout));
+				timer.expires_after(std::chrono::seconds(timeout));
 				timer.async_wait(timer_handler);
 				// trigger another round of queries
 				for (auto * socket : sockets)
@@ -1038,7 +1039,7 @@ void Bonjour::priv::resolve_perform()
 			}
 		};
 		// start timer
-		timer.expires_from_now(boost::posix_time::seconds(timeout));
+		timer.expires_after(std::chrono::seconds(timeout));
 		timer.async_wait(timer_handler);
 		// start io_service, it will run until it has something to do - so in this case until stop is called in timer
 		io_context->run();
