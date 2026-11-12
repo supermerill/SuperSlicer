@@ -12,7 +12,7 @@ on:
 
 jobs:
   build_dep:
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
     - uses: actions/checkout@v3
@@ -52,7 +52,7 @@ jobs:
       run: ./BuildMacOS.sh -ad
 
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     needs: build_dep
 
     steps:
