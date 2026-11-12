@@ -120,6 +120,17 @@ public:
 // Single Tab page containing a{ vsizer } of{ optgroups }
 // package Slic3r::GUI::Tab::Page;
 using ConfigOptionsGroupShp = std::shared_ptr<ConfigOptionsGroup>;
+struct PageDirtyState
+{
+    bool visible_modified = false;
+    bool visible_nonsys = false;
+    bool hidden_modified = false;
+    bool hidden_nonsys = false;
+
+    bool any_modified() const { return visible_modified || hidden_modified; }
+    bool any_nonsys() const { return visible_nonsys || hidden_nonsys; }
+};
+
 class Page// : public wxScrolledWindow
 {
 	Tab*			m_tab = nullptr;
@@ -132,8 +143,7 @@ public:
     Page(Tab* tab, wxWindow* parent, const wxString& title, int iconID);
 	~Page() {}
 
-	bool				m_is_modified_values{ false };
-	bool				m_is_nonsys_values{ true };
+    PageDirtyState      m_dirty_state;
 
 	std::vector<std::string> descriptions;
 public:
@@ -277,6 +287,8 @@ protected:
 
 	ScalableButton*			m_undo_btn = nullptr;
 	ScalableButton*			m_undo_to_sys_btn = nullptr;
+    ScalableButton*			m_undo_all_btn = nullptr;
+    ScalableButton*			m_undo_all_to_sys_btn = nullptr;
 	ScalableButton*			m_question_btn = nullptr;
 
 	// Bitmaps to be shown on the "Revert to system" aka "Lock to system" button next to each input field.
@@ -363,8 +375,6 @@ protected:
 
 	std::vector<GUI_Descriptions::ButtonEntry>	m_icon_descriptions = {};
 
-	bool				m_is_modified_values{ false };
-	bool				m_is_nonsys_values{ true };
 	bool				m_postpone_update_ui {false};
 
     int                 m_em_unit;
@@ -382,7 +392,12 @@ protected:
 	bool				m_page_switch_planned = false;
 	
 	DynamicPrintConfig* m_config = nullptr;
-	ConfigBase*			m_config_base = nullptr;
+    ConfigBase*			m_config_base = nullptr;
+
+    enum class RollbackScope {
+        VisibleOnly,
+        EntirePage
+    };
 public:
 	PresetBundle*		m_preset_bundle = nullptr; //note: it's managed by the GUI_App, we don't own it.
 	bool				m_show_btn_incompatible_presets = false;
@@ -444,11 +459,11 @@ public:
 	void		update_label_colours();
 	void		decorate();
 	void		update_changed_ui();
-    void        get_sys_and_mod_flags(const OptionKeyIdx &opt_key_id, bool &sys_page, bool &modified_page);
+    bool        get_sys_and_mod_flags(const OptionKeyIdx &opt_key_id, bool &is_sys, bool &is_modified);
 	void		update_changed_tree_ui();
 	void		update_undo_buttons();
 
-	void		on_roll_back_value(const bool to_sys = false);
+	void		on_roll_back_value(const bool to_sys = false, RollbackScope scope = RollbackScope::VisibleOnly);
 	
 	int             get_icon_id(const wxString& title, const std::string &icon);
 	virtual PageShp create_options_page(const wxString &title, const std::string &icon);

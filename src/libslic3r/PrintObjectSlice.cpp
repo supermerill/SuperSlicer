@@ -1905,8 +1905,11 @@ void PrintObject::slice_volumes()
                             }
                         }
                     }
-	                // Merge all regions' slices to get islands, sorted topologically, chain them by a shortest path in separate index list
-	                layer->make_slices();
+                    // Geometry compensation above updates raw slices. Keep the temporary untyped surfaces
+                    // in sync because make_slices() still builds layer islands from LayerRegion::slices().
+                    layer->restore_untyped_slices();
+                    // Merge all regions' slices to get islands, sorted topologically, chain them by a shortest path in separate index list
+                    layer->make_slices();
                     //FIXME: can't make it work in multi-region object, it seems useful to avoid bridge on top of first layer compensation
                     //so it's disable, if you want an offset, use the offset field.
                     //if (layer->regions().size() == 1 && ! m_layers.empty() && layer_id == 0 && first_layer_compensation < 0 && m_config.raft_layers == 0) {

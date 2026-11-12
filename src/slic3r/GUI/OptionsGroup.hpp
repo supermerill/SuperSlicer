@@ -236,7 +236,9 @@ public:
     // we have to set same max contrtol width to all of them
 	void				set_max_win_width(int max_win_width);
 	void				set_use_custom_ctrl(bool use_custom_ctrl) { m_use_custom_ctrl = use_custom_ctrl; }
-	//const std::map<OptionKeyIdx, Option>& get_options() { return m_options; }
+    // UI option definitions appended to this group. Unlike ConfigOptionsGroup::opt_set(),
+    // this also contains scripted options that are not backed directly by m_config.
+    const std::map<OptionKeyIdx, Option>& option_defs() const { return m_options; }
 
 	bool				is_activated() { return sizer != nullptr; }
 
@@ -350,6 +352,10 @@ public:
     // return value shows visibility : false => all options are hidden
     void        Hide();
     void        Show(const bool show);
+    // Returns whether this option is displayed by at least one line of this group in the current mode.
+    // If the option was registered/defined but is not attached to a Line, it is considered visible
+    // to avoid hiding reset affordances for custom controls or late-created fields.
+    bool        option_is_visible(const OptionKeyIdx &opt_key_idx, ConfigOptionMode mode) const;
     bool        is_visible(ConfigOptionMode mode);
     bool        update_visibility(ConfigOptionMode mode);
     void        msw_rescale();

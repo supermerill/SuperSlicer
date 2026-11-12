@@ -4445,7 +4445,7 @@ LayerResult GCodeGenerator::process_layer(
             // compute diff 
             const double layer_filament = used_filament - m_last_layer_used_filament[extruder.id()];
             // store results
-            layer_used_filament[extruder.id()] = ((layer_filament > 0.f) ? layer_filament : 0.f);
+            layer_used_filament[extruder.id()] = ((layer_filament > EPSILON) ? layer_filament : 0.f);
             m_last_layer_used_filament[extruder.id()] = used_filament;
         }
 
@@ -7570,7 +7570,9 @@ std::string GCodeGenerator::extrude_path_3D(const ExtrusionPath3D &path, const s
     // ensure the first position is at the right z
     //FIXME: go to the first z offset of simplifed_path
     if (!is_approx(m_writer.get_position().z(), start_gcode_pos.z(), EPSILON)) {
-        gcode += m_writer.travel_to_xyz(start_gcode_pos, false);
+        //gcode += m_writer.travel_to_xyz(start_gcode_pos, false);
+        //currently, Cooling buffer doesn't support a travel inside an extrusion, as it mess with speed ovveride.
+        gcode += m_writer.extrude_to_xyz(start_gcode_pos, 0);
     }
 
     // calculate extrusion length per distance unit
@@ -9086,7 +9088,9 @@ std::string GCodeGenerator::_before_extrude(const ExtrusionPath &path, const std
     }
 
     // unretraction (if needed)
-    gcode += m_writer.unretract();
+    if (m_modifier_override.empty() || !m_modifier_override.back().second->disable_retraction) {
+        gcode += m_writer.unretract();
+    }
 
     //set pa after unretraction (do nothing if it isn't changed)
     m_writer.set_pressure_advance(pa);
@@ -10616,7 +10620,7 @@ std::string GCodeGenerator::set_extruder(uint16_t extruder_id, coord_t print_z, 
     if (this->visitor_root_state == "wp" && m_config.retract_length_toolchange.get_at(extruder_id) > 0 &&
         m_config.retract_restart_wipe_toolchange.get_at(extruder_id) > 0) {
         double max_retration = m_writer.tool()->retracted();
-        assert(max_retration >= m_config.retract_length_toolchange.get_at(extruder_id) || max_retration == 0);
+        assert(max_retration + EPSILON >= m_config.retract_length_toolchange.get_at(extruder_id) || max_retration == 0);
         if (max_retration >= m_config.retract_length_toolchange.get_at(extruder_id)) {
             m_writer.tool()->set_retracted(0, m_writer.tool()->restart_extra());
         }

@@ -761,8 +761,8 @@ void ToolOrdering::assign_custom_gcodes(const Print &print)
 		coord_t print_z_below = 0.;
 		if (auto it_lt_below = it_lt; ++ it_lt_below != m_layer_tools.rend())
 			print_z_below = it_lt_below->_print_z;
-        assert(custom_gcode.print_z_ < 1000);
-		if (Layer::scale_to_layer_coord(custom_gcode.print_z_) > print_z_below) {
+        assert(custom_gcode.print_z_ < scale_t(1000));
+		if (Layer::scale_to_layer_coord(unscaled(custom_gcode.print_z_)) > print_z_below) {
 			// The custom G-code applies to the current layer.
 			bool color_change = custom_gcode.type == CustomGCode::ColorChange;
 			bool tool_change  = custom_gcode.type == CustomGCode::ToolChange;

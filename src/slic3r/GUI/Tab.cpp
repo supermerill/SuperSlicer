@@ -252,9 +252,13 @@ void Tab::create_preset_tab()
 
     add_scaled_button(panel, &m_undo_btn,        m_bmp_white_bullet.name());
     add_scaled_button(panel, &m_undo_to_sys_btn, m_bmp_white_bullet.name());
+    add_scaled_button(panel, &m_undo_all_btn,        m_bmp_white_bullet.name());
+    add_scaled_button(panel, &m_undo_all_to_sys_btn, m_bmp_white_bullet.name());
 
-    m_undo_btn->Bind(wxEVT_BUTTON, ([this](wxCommandEvent) { on_roll_back_value(); }));
-    m_undo_to_sys_btn->Bind(wxEVT_BUTTON, ([this](wxCommandEvent) { on_roll_back_value(true); }));
+    m_undo_btn->Bind(wxEVT_BUTTON, ([this](wxCommandEvent) { on_roll_back_value(false, RollbackScope::VisibleOnly); }));
+    m_undo_to_sys_btn->Bind(wxEVT_BUTTON, ([this](wxCommandEvent) { on_roll_back_value(true, RollbackScope::VisibleOnly); }));
+    m_undo_all_btn->Bind(wxEVT_BUTTON, ([this](wxCommandEvent) { on_roll_back_value(false, RollbackScope::EntirePage); }));
+    m_undo_all_to_sys_btn->Bind(wxEVT_BUTTON, ([this](wxCommandEvent) { on_roll_back_value(true, RollbackScope::EntirePage); }));
     m_question_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent) {
         GUI_Descriptions::Dialog dlg(this, m_icon_descriptions);
         if (dlg.ShowModal() == wxID_OK)
@@ -299,6 +303,9 @@ void Tab::create_preset_tab()
     m_h_buttons_sizer->AddSpacer(int(32 * scale_factor));
     m_h_buttons_sizer->Add(m_undo_to_sys_btn, 0, wxALIGN_CENTER_VERTICAL);
     m_h_buttons_sizer->Add(m_undo_btn, 0, wxALIGN_CENTER_VERTICAL);
+    m_h_buttons_sizer->AddSpacer(int(8 * scale_factor));
+    m_h_buttons_sizer->Add(m_undo_all_to_sys_btn, 0, wxALIGN_CENTER_VERTICAL);
+    m_h_buttons_sizer->Add(m_undo_all_btn, 0, wxALIGN_CENTER_VERTICAL);
     m_h_buttons_sizer->AddSpacer(int(32 * scale_factor));
     m_h_buttons_sizer->Add(m_search_btn, 0, wxALIGN_CENTER_VERTICAL);
     m_h_buttons_sizer->AddSpacer(int(8*scale_factor));
@@ -650,8 +657,8 @@ void Tab::update_label_colours()
             if (translate_category(page->title(), type()) != title)
                 continue;
 
-            const wxColor *clr = !page->m_is_nonsys_values ? &m_sys_label_clr :
-                page->m_is_modified_values ? &m_modified_label_clr :
+            const wxColor *clr = !page->m_dirty_state.visible_nonsys ? &m_sys_label_clr :
+                page->m_dirty_state.visible_modified ? &m_modified_label_clr :
                 &m_default_label_clr;
 
             m_treectrl->SetItemTextColour(cur_item, *clr);
@@ -1009,7 +1016,7 @@ void TabSLAMaterial::init_options_list()
     Tab::init_options_list();
 }
 
-void Tab::get_sys_and_mod_flags(const OptionKeyIdx& opt_key_id, bool& sys_page, bool& modified_page)
+bool Tab::get_sys_and_mod_flags(const OptionKeyIdx& opt_key_id, bool& is_sys, bool& is_modified)
 {
     auto it_opt = m_options_list.find(opt_key_id);
     if (it_opt == m_options_list.end()) {
@@ -1022,12 +1029,13 @@ void Tab::get_sys_and_mod_flags(const OptionKeyIdx& opt_key_id, bool& sys_page, 
             // ask for a scalar and it wasn't initialised? is this a real setting?
             // maybe it's a script?
             assert(m_options_list.find(OptionKeyIdx{opt_key_id.key, 0}) == m_options_list.end());
-            return;
+            return false;
         }
     }
 
-    if (sys_page) sys_page = (it_opt->second & osSystemValue) != 0;
-    modified_page |= (it_opt->second & osInitValue) == 0;
+    is_sys = (it_opt->second & osSystemValue) != 0;
+    is_modified = (it_opt->second & osInitValue) == 0;
+    return true;
 }
 
 void Tab::update_changed_tree_ui()
@@ -1038,8 +1046,33 @@ void Tab::update_changed_tree_ui()
     if (!cur_item || !m_treectrl->IsVisible(cur_item))
         return;
 
-    auto selected_item = m_treectrl->GetSelection();
-    auto selection = selected_item ? m_treectrl->GetItemText(selected_item) : "";
+    auto add_option_state = [this](PageDirtyState &dirty_state, const OptionKeyIdx &opt_key_idx, bool visible) {
+        bool is_sys = true;
+        bool is_modified = false;
+        if (!get_sys_and_mod_flags(opt_key_idx, is_sys, is_modified))
+            return;
+
+        if (visible) {
+            dirty_state.visible_nonsys |= !is_sys;
+            dirty_state.visible_modified |= is_modified;
+        } else {
+            dirty_state.hidden_nonsys |= !is_sys;
+            dirty_state.hidden_modified |= is_modified;
+        }
+    };
+    // Scripted options do not have their own status entry in m_options_list.
+    // Their depends_on entries may be scalar keys or indexed vector-like keys,
+    // so resolve both forms before reading the real dirty flags.
+    auto for_each_status_key = [this](const std::string &opt_key, const auto &fn) {
+        const OptionKeyIdx scalar_key = OptionKeyIdx::scalar(opt_key);
+        if (m_options_list.find(scalar_key) != m_options_list.end()) {
+            fn(scalar_key);
+            return;
+        }
+        for (const auto &opt : m_options_list)
+            if (opt.first.key == opt_key)
+                fn(opt.first);
+    };
 
     while (cur_item) {
         auto title = m_treectrl->GetItemText(cur_item);
@@ -1047,54 +1080,80 @@ void Tab::update_changed_tree_ui()
         {
             if (translate_category(page->title(), type()) != title)
                 continue;
-            bool sys_page = true;
-            bool modified_page = false;
+
+            PageDirtyState dirty_state;
+            auto page_option_is_visible = [this, &page](const OptionKeyIdx &opt_key_idx) {
+                bool found = false;
+                bool visible = false;
+                for (const ConfigOptionsGroupShp &group : page->m_optgroups) {
+                    if (group->opt_set().find(opt_key_idx) == group->opt_set().end() && !group->has_option_def(opt_key_idx))
+                        continue;
+
+                    found = true;
+                    visible |= group->option_is_visible(opt_key_idx, m_mode);
+                }
+
+                // Special page options that are not represented by a Line should behave as visible
+                // to keep the existing reset affordances available.
+                return !found || visible;
+            };
+
             if (page->title() == "General") {
                 std::initializer_list<const char*> optional_keys{ "extruders_count", "bed_shape" };
                 for (auto &opt_key : optional_keys) {
-                    get_sys_and_mod_flags(OptionKeyIdx::scalar(opt_key), sys_page, modified_page);
+                    const OptionKeyIdx opt_key_idx = OptionKeyIdx::scalar(opt_key);
+                    add_option_state(dirty_state, opt_key_idx, page_option_is_visible(opt_key_idx));
                 }
             }
             if (type() == Preset::TYPE_FFF_FILAMENT && page->title() == "Advanced") {
-                get_sys_and_mod_flags({"filament_ramming_parameters", 0}, sys_page, modified_page);
+                const OptionKeyIdx opt_key_idx{"filament_ramming_parameters", 0};
+                add_option_state(dirty_state, opt_key_idx, page_option_is_visible(opt_key_idx));
             }
             if (page->title() == "Dependencies") {
                 if (type() == Slic3r::Preset::TYPE_PRINTER) {
-                    sys_page = m_presets->get_selected_preset_parent() != nullptr;
-                    modified_page = false;
+                    dirty_state.visible_nonsys |= m_presets->get_selected_preset_parent() == nullptr;
                 } else if (type() == Slic3r::Preset::TYPE_FFF_FILAMENT) {
-                    get_sys_and_mod_flags({"compatible_prints", 0}, sys_page, modified_page);
-                    get_sys_and_mod_flags({"compatible_printers", 0}, sys_page, modified_page);
+                    const OptionKeyIdx compatible_prints{"compatible_prints", 0};
+                    const OptionKeyIdx compatible_printers{"compatible_printers", 0};
+                    add_option_state(dirty_state, compatible_prints, page_option_is_visible(compatible_prints));
+                    add_option_state(dirty_state, compatible_printers, page_option_is_visible(compatible_printers));
                 } else {
                     if (type() == Slic3r::Preset::TYPE_SLA_MATERIAL) {
-                        get_sys_and_mod_flags(OptionKeyIdx::scalar("compatible_prints"), sys_page, modified_page);
+                        const OptionKeyIdx compatible_prints = OptionKeyIdx::scalar("compatible_prints");
+                        add_option_state(dirty_state, compatible_prints, page_option_is_visible(compatible_prints));
                     }
-                    get_sys_and_mod_flags(OptionKeyIdx::scalar("compatible_printers"), sys_page, modified_page);
+                    const OptionKeyIdx compatible_printers = OptionKeyIdx::scalar("compatible_printers");
+                    add_option_state(dirty_state, compatible_printers, page_option_is_visible(compatible_printers));
                 }
             }
             for (auto group : page->m_optgroups)
             {
-                if (!sys_page && modified_page)
-                    break;
                 for (const OptionKeyIdx &opt_key_idx : group->opt_set()) {
-                    get_sys_and_mod_flags(opt_key_idx, sys_page, modified_page);
+                    add_option_state(dirty_state, opt_key_idx, group->option_is_visible(opt_key_idx, m_mode));
+                }
+                // m_opt_set intentionally excludes scripted options because they are not
+                // config-backed fields. If a visible script depends on dirty real options,
+                // show that dirty state on this page.
+                for (const auto &opt_def : group->option_defs()) {
+                    const Option &option = opt_def.second;
+                    if (!option.opt.is_script || !group->option_is_visible(opt_def.first, m_mode))
+                        continue;
+
+                    for (const std::string &dep_key : option.opt.depends_on)
+                        for_each_status_key(dep_key, [&](const OptionKeyIdx &dep_key_idx) {
+                            add_option_state(dirty_state, dep_key_idx, true);
+                        });
                 }
             }
 
-            const wxColor *clr = sys_page		?	(m_is_default_preset ? &m_default_label_clr : &m_sys_label_clr) :
-                                 modified_page	?	&m_modified_label_clr :
-                                                    &m_default_label_clr;
+            const wxColor *clr = !dirty_state.visible_nonsys ? (m_is_default_preset ? &m_default_label_clr : &m_sys_label_clr) :
+                                 dirty_state.visible_modified ? &m_modified_label_clr :
+                                                                &m_default_label_clr;
 
             if (page->set_item_colour(clr))
                 m_treectrl->SetItemTextColour(cur_item, *clr);
 
-            page->m_is_nonsys_values = !sys_page;
-            page->m_is_modified_values = modified_page;
-
-            if (selection == title) {
-                m_is_nonsys_values = page->m_is_nonsys_values;
-                m_is_modified_values = page->m_is_modified_values;
-            }
+            page->m_dirty_state = dirty_state;
             break;
         }
         auto next_item = m_treectrl->GetNextVisible(cur_item);
@@ -1106,17 +1165,28 @@ void Tab::update_changed_tree_ui()
 
 void Tab::update_undo_buttons()
 {
-    m_undo_btn->        SetBitmap_(m_is_modified_values ? m_bmp_value_revert.name(): m_bmp_white_bullet.name());
-    m_undo_to_sys_btn-> SetBitmap_(m_is_nonsys_values   ? m_bmp_non_system->name() : m_bmp_value_lock.name());
+    const PageDirtyState dirty_state = m_active_page != nullptr ? m_active_page->m_dirty_state : PageDirtyState{};
 
-    //m_undo_btn->        SetBitmap_(m_is_modified_values ? m_bmp_value_revert: m_bmp_white_bullet);
-    //m_undo_to_sys_btn-> SetBitmap_(m_is_nonsys_values   ? *m_bmp_non_system : m_bmp_value_lock);
+    m_undo_btn->        SetBitmap_(dirty_state.visible_modified ? m_bmp_value_revert.name(): m_bmp_white_bullet.name());
+    m_undo_to_sys_btn-> SetBitmap_(dirty_state.visible_nonsys   ? m_bmp_non_system->name() : m_bmp_value_lock.name());
+    m_undo_all_btn->        SetBitmap_(dirty_state.any_modified() ? m_bmp_value_revert.name(): m_bmp_white_bullet.name());
+    m_undo_all_to_sys_btn-> SetBitmap_(dirty_state.any_nonsys()   ? m_bmp_non_system->name() : m_bmp_value_lock.name());
 
-    m_undo_btn->SetToolTip(m_is_modified_values ? m_ttg_value_revert : m_ttg_white_bullet);
-    m_undo_to_sys_btn->SetToolTip(m_is_nonsys_values ? *m_ttg_non_system : m_ttg_value_lock);
+    m_undo_btn->SetToolTip(dirty_state.visible_modified ?
+        _L("Reset visible settings on this page to the last saved preset.") :
+        m_ttg_white_bullet);
+    m_undo_to_sys_btn->SetToolTip(dirty_state.visible_nonsys ?
+        _L("Reset visible settings on this page to system values.") :
+        m_ttg_value_lock);
+    m_undo_all_btn->SetToolTip(dirty_state.any_modified() ?
+        _L("Reset all settings on this page, including hidden settings, to the last saved preset.") :
+        m_ttg_white_bullet);
+    m_undo_all_to_sys_btn->SetToolTip(dirty_state.any_nonsys() ?
+        _L("Reset all settings on this page, including hidden settings, to system values.") :
+        m_ttg_value_lock);
 }
 
-void Tab::on_roll_back_value(const bool to_sys /*= true*/)
+void Tab::on_roll_back_value(const bool to_sys /*= true*/, RollbackScope scope /*= RollbackScope::VisibleOnly*/)
 {
     if (!m_active_page) return;
     // need init before access, if called very early.
@@ -1126,84 +1196,133 @@ void Tab::on_roll_back_value(const bool to_sys /*= true*/)
 
     int os;
     if (to_sys)	{
-        if (!m_is_nonsys_values) return;
+        if (scope == RollbackScope::VisibleOnly ? !m_active_page->m_dirty_state.visible_nonsys : !m_active_page->m_dirty_state.any_nonsys())
+            return;
         os = osSystemValue;
     }
     else {
-        if (!m_is_modified_values) return;
+        if (scope == RollbackScope::VisibleOnly ? !m_active_page->m_dirty_state.visible_modified : !m_active_page->m_dirty_state.any_modified())
+            return;
         os = osInitValue;
     }
 
+    auto option_in_scope = [this, scope](const ConfigOptionsGroupShp &group, const OptionKeyIdx &opt_key_idx) {
+        return scope == RollbackScope::EntirePage || group->option_is_visible(opt_key_idx, m_mode);
+    };
+    auto needs_rollback = [this, os](const OptionKeyIdx &opt_key_idx) {
+        auto it_opt = m_options_list.find(opt_key_idx);
+        assert(it_opt != m_options_list.end());
+        return it_opt != m_options_list.end() && (it_opt->second & os) == 0;
+    };
+    // Same dependency lookup as in update_changed_tree_ui(): scripted widgets
+    // expose dirty state through their real config dependencies.
+    auto for_each_status_key = [this](const std::string &opt_key, const auto &fn) {
+        const OptionKeyIdx scalar_key = OptionKeyIdx::scalar(opt_key);
+        if (m_options_list.find(scalar_key) != m_options_list.end()) {
+            fn(scalar_key);
+            return;
+        }
+        for (const auto &opt : m_options_list)
+            if (opt.first.key == opt_key)
+                fn(opt.first);
+    };
+    auto dependency_needs_rollback = [&for_each_status_key, &needs_rollback](const std::string &opt_key) {
+        bool needs = false;
+        for_each_status_key(opt_key, [&needs, &needs_rollback](const OptionKeyIdx &opt_key_idx) {
+            needs |= needs_rollback(opt_key_idx);
+        });
+        return needs;
+    };
+    auto rollback_option = [to_sys](const ConfigOptionsGroupShp &group, const OptionKeyIdx &opt_key_idx) {
+        to_sys ? group->back_to_sys_value(opt_key_idx) : group->back_to_initial_value(opt_key_idx);
+    };
+
     m_postpone_update_ui = true;
+    // Once a scripted option has reset its dependencies, skip the regular
+    // config-backed rollback pass for those same keys to avoid duplicate resets.
+    std::set<OptionKeyIdx> scripted_reset_deps;
     // TODO: / FIXME: remove group->title == "xx" for checks
     for (auto group : m_active_page->m_optgroups) {
-        if (group->has_option_def(OptionKeyIdx::scalar("extruders_count"))) {
-            assert(m_options_list.find(OptionKeyIdx::scalar("extruders_count")) != m_options_list.end());
-            if ((m_options_list[OptionKeyIdx::scalar("extruders_count")] & os) == 0)
-                to_sys ? group->back_to_sys_value(OptionKeyIdx::scalar("extruders_count")) :
-                         group->back_to_initial_value(OptionKeyIdx::scalar("extruders_count"));
+        const OptionKeyIdx extruders_count = OptionKeyIdx::scalar("extruders_count");
+        if (group->has_option_def(extruders_count) && option_in_scope(group, extruders_count)) {
+            if (needs_rollback(extruders_count))
+                rollback_option(group, extruders_count);
         }
         if (group->title == "Size and coordinates") {
-            assert(group->has_option_def(OptionKeyIdx::scalar("bed_shape")));
-            assert(m_options_list.find(OptionKeyIdx::scalar("bed_shape")) != m_options_list.end());
-            if ((m_options_list[OptionKeyIdx::scalar("bed_shape")] & os) == 0) {
-                to_sys ? group->back_to_sys_value(OptionKeyIdx::scalar("bed_shape")) :
-                         group->back_to_initial_value(OptionKeyIdx::scalar("bed_shape"));
+            const OptionKeyIdx bed_shape = OptionKeyIdx::scalar("bed_shape");
+            assert(group->has_option_def(bed_shape));
+            if (option_in_scope(group, bed_shape) && needs_rollback(bed_shape)) {
+                rollback_option(group, bed_shape);
                 load_key_value("bed_shape", true/*some value*/, true);
             }
         }
         if (group->title == "Toolchange parameters with single extruder MM printers") {
-            assert(m_options_list.find({"filament_ramming_parameters", 0}) != m_options_list.end());
-            if ((m_options_list[{"filament_ramming_parameters", 0}] & os) == 0)
-                to_sys ? group->back_to_sys_value({"filament_ramming_parameters", 0}) :
-                         group->back_to_initial_value({"filament_ramming_parameters", 0});
+            const OptionKeyIdx filament_ramming_parameters{"filament_ramming_parameters", 0};
+            if (option_in_scope(group, filament_ramming_parameters) && needs_rollback(filament_ramming_parameters))
+                rollback_option(group, filament_ramming_parameters);
         }
         if (group->title == "G-code Substitutions") {
-            assert(m_options_list.find(OptionKeyIdx::scalar("gcode_substitutions")) != m_options_list.end());
-            if ((m_options_list[OptionKeyIdx::scalar("gcode_substitutions")] & os) == 0) {
-                to_sys ? group->back_to_sys_value(OptionKeyIdx::scalar("gcode_substitutions")) :
-                         group->back_to_initial_value(OptionKeyIdx::scalar("gcode_substitutions"));
+            const OptionKeyIdx gcode_substitutions = OptionKeyIdx::scalar("gcode_substitutions");
+            if (option_in_scope(group, gcode_substitutions) && needs_rollback(gcode_substitutions)) {
+                rollback_option(group, gcode_substitutions);
                 load_key_value("gcode_substitutions", true/*some value*/, true);
             }
         }
         if (group->title == "Profile dependencies") {
             if (type() == Preset::TYPE_FFF_FILAMENT) {
                 OptionKeyIdx fil_compatible_prints{"compatible_prints", 0};
-                assert(m_options_list.find(fil_compatible_prints) != m_options_list.end());
-                if ((m_options_list[fil_compatible_prints] & os) == 0) {
-                    to_sys ? group->back_to_sys_value(fil_compatible_prints) :
-                             group->back_to_initial_value(fil_compatible_prints);
+                if (option_in_scope(group, fil_compatible_prints) && needs_rollback(fil_compatible_prints)) {
+                    rollback_option(group, fil_compatible_prints);
                     load_key_value("compatible_prints", true /*some value*/, true, 0);
                 }
                 OptionKeyIdx compatible_printers{"compatible_printers", 0};
-                assert(m_options_list.find(compatible_printers) != m_options_list.end());
-                if ((m_options_list[compatible_printers] & os) == 0) {
-                    to_sys ? group->back_to_sys_value(compatible_printers) :
-                             group->back_to_initial_value(compatible_printers);
+                if (option_in_scope(group, compatible_printers) && needs_rollback(compatible_printers)) {
+                    rollback_option(group, compatible_printers);
                     load_key_value("compatible_printers", true /*some value*/, true, 0);
                 }
             } else {
                 // "compatible_printers" option doesn't exists in Printer Settigs Tab
                 OptionKeyIdx compatible_printers = OptionKeyIdx::scalar("compatible_printers");
                 assert(type() != Preset::TYPE_PRINTER || m_options_list.find(compatible_printers) != m_options_list.end());
-                if (type() != Preset::TYPE_PRINTER && (m_options_list[compatible_printers] & os) == 0) {
-                    to_sys ? group->back_to_sys_value(compatible_printers) :
-                             group->back_to_initial_value(compatible_printers);
+                if (type() != Preset::TYPE_PRINTER && option_in_scope(group, compatible_printers) && needs_rollback(compatible_printers)) {
+                    rollback_option(group, compatible_printers);
                     load_key_value("compatible_printers", true /*some value*/, true);
                 }
                 // "compatible_prints" option exists only in Filament Settimgs and Materials Tabs
                 OptionKeyIdx compatible_prints = OptionKeyIdx::scalar("compatible_prints");
                 assert(type() != Preset::TYPE_SLA_MATERIAL || m_options_list.find(compatible_prints) != m_options_list.end());
-                if (type() == Preset::TYPE_SLA_MATERIAL && (m_options_list[compatible_prints] & os) == 0) {
-                    to_sys ? group->back_to_sys_value(compatible_prints) :
-                             group->back_to_initial_value(compatible_prints);
+                if (type() == Preset::TYPE_SLA_MATERIAL && option_in_scope(group, compatible_prints) && needs_rollback(compatible_prints)) {
+                    rollback_option(group, compatible_prints);
                     load_key_value("compatible_prints", true /*some value*/, true);
                 }
             }
         }
+        for (const auto &opt_def : group->option_defs()) {
+            const OptionKeyIdx &script_key = opt_def.first;
+            const Option &option = opt_def.second;
+            if (!option.opt.is_script || !option_in_scope(group, script_key))
+                continue;
+
+            // Reset the script key itself, not each dependency directly: the script
+            // may have custom reset logic before falling back to depends_on.
+            bool rollback_script = false;
+            for (const std::string &dep_key : option.opt.depends_on)
+                rollback_script |= dependency_needs_rollback(dep_key);
+
+            if (!rollback_script)
+                continue;
+
+            rollback_option(group, script_key);
+            for (const std::string &dep_key : option.opt.depends_on)
+                for_each_status_key(dep_key, [&scripted_reset_deps](const OptionKeyIdx &dep_key_idx) {
+                    scripted_reset_deps.insert(dep_key_idx);
+                });
+        }
         for (const auto &opt_key_idx : group->opt_set()) {
-            if ((m_options_list[opt_key_idx] & os) == 0)
-                to_sys ? group->back_to_sys_value(opt_key_idx) : group->back_to_initial_value(opt_key_idx);
+            if (scripted_reset_deps.find(opt_key_idx) != scripted_reset_deps.end())
+                continue;
+            if (option_in_scope(group, opt_key_idx) && needs_rollback(opt_key_idx))
+                rollback_option(group, opt_key_idx);
         }
     }
 
@@ -4852,8 +4971,6 @@ bool Tab::tree_sel_change_delayed()
         if (translate_category(p->title(), type()) == selection)
         {
             page = p.get();
-            m_is_nonsys_values = page->m_is_nonsys_values;
-            m_is_modified_values = page->m_is_modified_values;
             break;
         }
     if (page == nullptr || m_active_page == page)

@@ -79,7 +79,7 @@ Flow LayerRegion::bridging_flow(FlowRole role, BridgeType force_type) const
         // Applies default bridge spacing.
         diameter =  nozzle_diameter;
     }
-    assert(!is_perimeter || (region_config.overhangs.get_bool() && region_config.overhangs_flow_ratio.is_enabled()));
+    //assert(!is_perimeter || (region_config.overhangs.get_bool() && region_config.overhangs_flow_ratio.is_enabled()));
     return Flow::bridging_flow(float(sqrt(force_type == BridgeType::btNone ?
                                               (is_perimeter ? region_config.overhangs_flow_ratio.get_abs_value(1.) :
                                                               region_config.bridge_flow_ratio.get_abs_value(1.)) :

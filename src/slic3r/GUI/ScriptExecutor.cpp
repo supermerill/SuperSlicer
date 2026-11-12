@@ -449,28 +449,146 @@ void as_get_string_idx(std::string& key, int idx, std::string& val)
 }
 void as_get_string(std::string &key, std::string &val) { as_get_string_idx(key, 0, val); }
 
-void _set_string(DynamicPrintConfig& conf, const PresetCollection* pcoll, const ConfigOption* opt, std::string& key, int idx, std::string& val)
+const ConfigOptionDef *get_option_def(const PresetCollection *pcoll, const std::string &key)
+{
+    if (pcoll == nullptr)
+        throw NoDefinitionExceptionEmitLog("set_string(): error, can't find preset collection for option " + key);
+
+    const ConfigOptionDef *def = pcoll->get_edited_preset().config.get_option_def(key);
+    if (def == nullptr)
+        throw NoDefinitionExceptionEmitLog("set_string(): error, can't find option definition for " + key);
+    return def;
+}
+
+// Open enums are hints over a real backing type (string/int/float/percent).
+// Resolve a scripted label/value to the enum value string when possible, but keep
+// unknown text unchanged because open enums may accept arbitrary user input.
+std::string resolve_enum_text(const ConfigOptionDef &def, const std::string &key, const std::string &val)
+{
+    if (!def.enum_def)
+        return val;
+
+    std::optional<int> value_idx = def.enum_def->value_to_index(val);
+    if (!value_idx)
+        value_idx = def.enum_def->label_to_index(val);
+
+    if (!value_idx)
+        return val;
+    if (!def.enum_def->has_values())
+        return val;
+    if (*value_idx < 0 || *value_idx >= int(def.enum_def->values().size()))
+        throw NoDefinitionExceptionEmitLog("set_string(): error, enum value index is out of range for " + key);
+    return def.enum_def->value(*value_idx);
+}
+
+// String vectors follow the same convention as the numeric setters:
+// idx < 0 means replace all entries, otherwise replace only the requested one.
+void set_string_like_option(DynamicPrintConfig &conf, const ConfigOption *opt, std::string &key, int idx, const std::string &resolved)
 {
     if (opt->type() == ConfigOptionType::coString) {
         ConfigOptionString *copy = static_cast<ConfigOptionString *>(opt->clone());
-        copy->value = val;
+        copy->value = resolved;
         conf.set_key_value(key, copy);
     } else if (opt->type() == ConfigOptionType::coStrings) {
         ConfigOptionStrings *new_val = static_cast<ConfigOptionStrings *>(opt->clone());
-        for(size_t i=0; i<new_val->size(); ++i)
-            new_val->set_at(val, i);
+        if (idx < 0)
+            for (size_t i = 0; i < new_val->size(); ++i)
+                new_val->set_at(resolved, i);
+        else
+            new_val->set_at(resolved, idx);
         conf.set_key_value(key, new_val);
-    } else if (opt->type() == ConfigOptionType::coEnum) {
-        const ConfigOptionDef* def = pcoll->get_edited_preset().config.get_option_def(key);
+    } else {
+        throw NoDefinitionExceptionEmitLog("set_string(): error, option " + key + " is not string-backed");
+    }
+}
+
+// Script set_string() can target an i_enum_open option. The enum label is first
+// resolved to text by resolve_enum_text(), then parsed into the real int option.
+void set_int_like_option(DynamicPrintConfig &conf, const ConfigOption *opt, std::string &key, int idx, const std::string &resolved)
+{
+    try {
+        const int value = boost::lexical_cast<int>(boost::algorithm::trim_copy(resolved));
+        _set_int(conf, opt, key, idx, value);
+    } catch (const boost::bad_lexical_cast &) {
+        throw NoDefinitionExceptionEmitLog("set_string(): error, can't parse int value '" + resolved + "' for " + key);
+    }
+}
+
+// Script set_string() can also target f_enum_open. A trailing '%' is semantic:
+// it selects percent mode for FloatOrPercent-backed options and is rejected for
+// plain float options instead of silently changing the meaning.
+void set_float_like_option(DynamicPrintConfig &conf, const ConfigOption *opt, std::string &key, int idx, const std::string &resolved)
+{
+    std::string value_str = boost::algorithm::trim_copy(resolved);
+    const bool has_percent_suffix = boost::algorithm::ends_with(value_str, "%");
+    if (has_percent_suffix) {
+        value_str.pop_back();
+        boost::algorithm::trim(value_str);
+    }
+
+    try {
+        const float value = boost::lexical_cast<float>(value_str);
+        if (opt->type() == ConfigOptionType::coPercent || opt->type() == ConfigOptionType::coPercents) {
+            _set_percent(conf, opt, key, idx, value);
+        } else if (opt->type() == ConfigOptionType::coFloatOrPercent || opt->type() == ConfigOptionType::coFloatsOrPercents) {
+            has_percent_suffix ? _set_percent(conf, opt, key, idx, value) :
+                                 _set_float(conf, opt, key, idx, value);
+        } else if (has_percent_suffix) {
+            throw NoDefinitionExceptionEmitLog("set_string(): error, option " + key + " does not support percent values");
+        } else {
+            _set_float(conf, opt, key, idx, value);
+        }
+    } catch (const boost::bad_lexical_cast &) {
+        throw NoDefinitionExceptionEmitLog("set_string(): error, can't parse float value '" + resolved + "' for " + key);
+    }
+}
+
+void _set_string(DynamicPrintConfig& conf, const PresetCollection* pcoll, const ConfigOption* opt, std::string& key, int idx, std::string& val)
+{
+    const ConfigOptionDef *def = nullptr;
+    if (opt->type() == ConfigOptionType::coEnum) {
+        // coEnum is a closed enum. Convert GUI value/label index to the internal
+        // enum integer; do not use this path for open enums.
+        def = get_option_def(pcoll, key);
+        if (!def->enum_def || !def->enum_def->is_valid_closed_enum())
+            throw NoDefinitionExceptionEmitLog("set_string(): error, option " + key + " is not a valid closed enum");
+
         std::optional<int> it_idx = def->enum_def->value_to_index(val);
         if (!it_idx) {
             it_idx = def->enum_def->label_to_index(val);
             if (!it_idx)
-                throw NoDefinitionExceptionEmitLog("set_string(): error, can't find enum option '" + val + "' in " + key);
+                throw NoDefinitionExceptionEmitLog("set_string(): error, can't find closed enum option '" + val + "' in " + key);
         }
+        int enum_idx = def->enum_def->index_to_enum(*it_idx);
         ConfigOption* copy = opt->clone();
-        copy->set_enum_int(*it_idx);
+        copy->set_enum_int(enum_idx);
         conf.set_key_value(key, copy);
+    } else if ((def = get_option_def(pcoll, key)) != nullptr && def->enum_def && def->is_gui_type_enum_open()) {
+        // Open enums are not coEnum: they are editable comboboxes backed by a
+        // normal config type. Resolve labels, then write through that backing type.
+        const std::string resolved = resolve_enum_text(*def, key, val);
+        switch (opt->type()) {
+        case ConfigOptionType::coString:
+        case ConfigOptionType::coStrings:
+            set_string_like_option(conf, opt, key, idx, resolved);
+            break;
+        case ConfigOptionType::coInt:
+        case ConfigOptionType::coInts:
+            set_int_like_option(conf, opt, key, idx, resolved);
+            break;
+        case ConfigOptionType::coFloat:
+        case ConfigOptionType::coFloats:
+        case ConfigOptionType::coPercent:
+        case ConfigOptionType::coPercents:
+        case ConfigOptionType::coFloatOrPercent:
+        case ConfigOptionType::coFloatsOrPercents:
+            set_float_like_option(conf, opt, key, idx, resolved);
+            break;
+        default:
+            throw NoDefinitionExceptionEmitLog("set_string(): error, open enum option " + key + " has unsupported backing type");
+        }
+    } else if (opt->type() == ConfigOptionType::coString || opt->type() == ConfigOptionType::coStrings) {
+        set_string_like_option(conf, opt, key, idx, val);
     } else {
         throw NoDefinitionExceptionEmitLog("set_string(): error, can't find string option (wrong type?) " + key);
     }

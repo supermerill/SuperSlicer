@@ -49,26 +49,33 @@ void LabelObjects::init(const Print& print)
     if (m_label_objects_style == LabelObjectsStyle::Disabled)
         return;
 
-    std::map<const ModelObject*, std::vector<const PrintInstance*>> model_object_to_print_instances;
+    std::vector<std::pair<const ModelObject*, std::vector<const PrintInstance*>>> model_object_to_print_instances;
 
     // Iterate over all PrintObjects and their PrintInstances, collect PrintInstances which
     // belong to the same ModelObject.
-    for (const PrintObject* po : print.objects())
-        for (const PrintInstance& pi : po->instances())
-            model_object_to_print_instances[pi.model_instance->get_object()].emplace_back(&pi);
-    
+    for (const PrintObject *po : print.objects()) {
+        model_object_to_print_instances.push_back(
+            std::pair<const ModelObject *, std::vector<const PrintInstance *>>(po->model_object(), {}));
+        for (const PrintInstance &pi : po->instances()) {
+            model_object_to_print_instances.back().second.emplace_back(&pi);
+        }
+    }
+
     // Now go through the map, assign a unique_id to each of the PrintInstances and get the indices of the
     // respective ModelObject and ModelInstance so we can use them in the tags. This will maintain
     // indices even in case that some instances are rotated (those end up in different PrintObjects)
     // or when some are out of bed (these ModelInstances have no corresponding PrintInstances).
     std::regex pattern("[^\\w]+", std::regex_constants::ECMAScript);
     int unique_id = 0;
-    for (const auto& [model_object, print_instances] : model_object_to_print_instances) {
-        const ModelObjectPtrs& model_objects = model_object->get_model()->objects;
-        int object_id = int(std::find(model_objects.begin(), model_objects.end(), model_object) - model_objects.begin());
+    for (size_t object_id = 0; object_id < model_object_to_print_instances.size(); object_id++) {
+        const ModelObject *model_object = model_object_to_print_instances[object_id].first;
+        const auto &print_instances = model_object_to_print_instances[object_id].second;
+        const ModelObjectPtrs &model_objects = model_object->get_model()->objects;
         bool object_has_more_instances = print_instances.size() > 1u;
-        for (const PrintInstance* const pi : print_instances) {
-            int instance_id = int(std::find(model_object->instances.begin(), model_object->instances.end(), pi->model_instance) - model_object->instances.begin());
+        for (const PrintInstance *const pi : print_instances) {
+            int instance_id = int(
+                std::find(model_object->instances.begin(), model_object->instances.end(), pi->model_instance) -
+                model_object->instances.begin());
 
             // Now compose the name of the object and define whether indexing is 0 or 1-based.
             // name only composed of alphanumeric & '_'.
@@ -77,18 +84,18 @@ void LabelObjects::init(const Print& print)
             if (m_label_objects_style == LabelObjectsStyle::Firmware) {
                 // use one-based indexing for objects and instances so indices match what we see in PrusaSlicer.
                 if (object_has_more_instances)
-                    name += " (Instance " + std::to_string(instance_id+1) + ")";
-            }
-            else if (m_label_objects_style != LabelObjectsStyle::Disabled) {
+                    name += " (Instance " + std::to_string(instance_id + 1) + ")";
+            } else if (m_label_objects_style != LabelObjectsStyle::Disabled) {
                 // use zero-based indexing for objects and instances, as we always have done
-                name += " id:" + std::to_string(object_id) + " copy " + std::to_string(instance_id); 
+                name += " id:" + std::to_string(object_id) + " copy " + std::to_string(instance_id);
             }
             if (m_flavor == gcfKlipper) {
                 const std::string banned = "\b\t\n\v\f\r \"#%&\'*-./:;<>\\";
-                std::replace_if(name.begin(), name.end(), [&banned](char c) { return banned.find(c) != std::string::npos; }, '_');
+                std::replace_if(
+                    name.begin(), name.end(), [&banned](char c) { return banned.find(c) != std::string::npos; }, '_');
             }
 
-            m_label_data.emplace(pi, LabelData{name, unique_id, obj_name, object_id, instance_id});
+            m_label_data.emplace(pi, LabelData{name, unique_id, obj_name, int(object_id), instance_id});
             ++unique_id;
         }
     }

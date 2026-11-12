@@ -52,8 +52,10 @@ std::pair<double, double> Tool::extrude(double dE)
     dE = m_formatter.quantize_e(dE);
     m_E          += dE;
     m_absolute_E += dE;
-    if (dE < 0.)
-        m_retracted -= dE;
+    // Negative E starts or extends a retraction (including a wipe with no
+    // pre-retraction). Positive E repays it, including WipeTower priming;
+    // extrusion beyond that point must not create a negative retraction.
+    m_retracted = std::max(m_retracted - dE, 0.);
     return std::make_pair(dE, m_E);
 }
 
@@ -107,6 +109,7 @@ double Tool::retract_to_go(double length) const { return std::max(0., m_formatte
 std::pair<double, double> Tool::unretract()
 {
     auto [dE, emitE] = this->extrude(m_retracted + m_restart_extra + m_restart_extra_toolchange);
+    assert(m_retracted < EPSILON && m_retracted > -EPSILON);
     m_retracted     = 0.;
     m_restart_extra = 0.;
     if(m_restart_extra_toolchange != 0)
@@ -118,7 +121,7 @@ bool Tool::need_unretract() {
     return m_retracted + m_restart_extra + m_restart_extra_toolchange != 0;
 }
 
-// Called after a M600 or somethgin like that, so you don't have to unretract, but the absolute position won't change.
+// Called after a M600 or something like that, so you don't have to unretract, but the absolute position won't change.
 void Tool::reset_retract() {
     m_retracted = 0.;
     m_restart_extra = 0.;

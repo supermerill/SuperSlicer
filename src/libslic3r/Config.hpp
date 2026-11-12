@@ -2858,8 +2858,8 @@ private:
 };
 
 inline bool operator<(const ConfigSubstitution &lhs, const ConfigSubstitution &rhs) throw() {
-    return lhs.opt_def->opt_key < rhs.opt_def->opt_key ||
-           (lhs.opt_def->opt_key == rhs.opt_def->opt_key && lhs.old_value < rhs.old_value);
+    return (lhs.opt_def ? lhs.opt_def->opt_key : lhs.old_name) < (rhs.opt_def? rhs.opt_def->opt_key : rhs.old_name) ||
+           ((lhs.opt_def ? lhs.opt_def->opt_key : lhs.old_name) == (rhs.opt_def ? rhs.opt_def->opt_key : rhs.old_name) && lhs.old_value < rhs.old_value);
 }
 inline bool operator==(const ConfigSubstitution &lhs, const ConfigSubstitution &rhs) throw() {
     return lhs.opt_def == rhs.opt_def && lhs.old_value == rhs.old_value;

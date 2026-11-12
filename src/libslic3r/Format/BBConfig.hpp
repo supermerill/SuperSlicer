@@ -1,7 +1,7 @@
 #ifndef slic3r_Format_BBconfig_hpp_
 #define slic3r_Format_BBconfig_hpp_
 
-#include "miniz_extension.hpp"
+#include "../miniz_extension.hpp"
 
 
 #include <map>

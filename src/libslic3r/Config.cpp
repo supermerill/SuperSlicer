@@ -905,7 +905,8 @@ std::optional<int> ConfigOptionEnumDef::value_to_index(const std::string &value)
 // Look up an index of label of this combo box. Used for open enums.
 std::optional<int> ConfigOptionEnumDef::label_to_index(const std::string &value) const
 {
-    assert(is_valid_open_enum());
+    // is_valid_closed_enum because script may only have the label to modify a closed enum.
+    assert(is_valid_open_enum() || this->is_valid_closed_enum());
     const auto &ls = this->labels();
     auto        it = std::find(ls.begin(), ls.end(), value);
     return it == ls.end() ? std::optional<int>{} : std::optional<int>{it - ls.begin()};

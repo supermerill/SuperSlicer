@@ -280,9 +280,9 @@ public:
         // Input ranges are sorted lexicographically. First range trims the other ranges.
         coord_t last_z = 0;
         for (const std::pair<const t_layer_height_range, ModelConfig> &range : in_mm)
-            if (range.first.second > last_z) {
+            if (Layer::scale_to_layer_coord(range.first.second) > last_z) {
                 coord_t min_z = std::max(Layer::scale_to_layer_coord(range.first.first), coord_t(0));
-                if (min_z > last_z + EPSILON) {
+                if (min_z > last_z + SCALED_EPSILON) {
                     m_ranges.push_back({ std::pair<coord_t, coord_t>(last_z, min_z) });
                     last_z = min_z;
                 }
@@ -1477,7 +1477,13 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
 
     if (print_regions_reshuffled) {
         // Update Print::m_print_regions from objects.
-        struct cmp { bool operator() (const PrintRegion *l, const PrintRegion *r) const { return l->config_hash() == r->config_hash() && l->config() == r->config(); } };
+        struct cmp {
+            bool operator()(const PrintRegion *l, const PrintRegion *r) const
+            {
+                return l->config_hash() < r->config_hash() ||
+                       (l->config_hash() == r->config_hash() && l->config() < r->config());
+            }
+        };
         std::set<const PrintRegion*, cmp> region_set;
         m_print_regions.clear();
         std::shared_ptr<PrintObjectRegions> print_object_regions;
@@ -1485,7 +1491,8 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
             if (print_object_regions != print_object->m_shared_regions) {
                 print_object_regions = print_object->m_shared_regions;
                 for (std::unique_ptr<Slic3r::PrintRegion> &print_region : print_object_regions->all_regions) {
-                    if (auto it = region_set.find(print_region.get()); it == region_set.end()) {
+                    auto [it, inserted] = region_set.insert(print_region.get());
+                    if (inserted) {
                         int print_region_id = int(m_print_regions.size());
                         m_print_regions.emplace_back(print_region.get());
                         print_region->m_print_region_id = print_region_id;

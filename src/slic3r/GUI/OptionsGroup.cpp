@@ -838,6 +838,53 @@ void ConfigOptionsGroup::Show(const bool show)
 #endif /* __WXGTK__ */
 }
 
+bool ConfigOptionsGroup::option_is_visible(const OptionKeyIdx &opt_key_idx, ConfigOptionMode mode) const
+{
+    const bool registered = m_opt_set.find(opt_key_idx) != m_opt_set.end();
+    const bool has_definition = m_options.find(opt_key_idx) != m_options.end();
+
+    auto mode_accepts = [mode](ConfigOptionMode required) {
+        return required == comNone || (required & mode) == mode;
+    };
+
+    for (const Line &line : m_lines) {
+        if (line.is_separator())
+            continue;
+
+        for (const Option &opt : line.get_options()) {
+            if (!(OptionKeyIdx{opt.opt_key, opt.opt_idx} == opt_key_idx))
+                continue;
+
+            // A line-level override controls the whole row. Otherwise the option's own
+            // mode decides whether the field is currently displayed.
+            return line.tags_override != comNone ?
+                mode_accepts(line.tags_override) :
+                mode_accepts(opt.opt.mode);
+        }
+    }
+
+    if (!registered && !has_definition)
+        return false;
+
+    if (m_options_mode.empty())
+        return true;
+
+    auto line_has_visible_items = [&mode_accepts](const std::map<ConfigOptionMode, std::vector<size_t>> &line_modes) {
+        for (const auto &entry : line_modes)
+            if (!entry.second.empty() && mode_accepts(entry.first))
+                return true;
+        return false;
+    };
+
+    // Some registered options are handled by custom controls and do not have a matching
+    // Line entry. Fall back to the group visibility to avoid hiding reset affordances
+    // while still respecting mode-filtered groups.
+    for (const std::map<ConfigOptionMode, std::vector<size_t>> &line_modes : m_options_mode)
+        if (line_has_visible_items(line_modes))
+            return true;
+    return false;
+}
+
 std::vector<size_t> get_visible_idx(const std::map<ConfigOptionMode, std::vector<size_t>>& map, ConfigOptionMode mode) {
     std::vector<size_t> ret;
     for (const auto& entry : map) {

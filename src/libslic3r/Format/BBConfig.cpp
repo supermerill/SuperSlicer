@@ -6,10 +6,13 @@
 
 #include "../../nlohmann/json.hpp"
 
+#include <array>
 #include <map>
 #include <regex>
 #include <string>
+#include <string_view>
 
+#include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/property_tree/ini_parser.hpp>
@@ -52,12 +55,12 @@ std::map<std::string, std::string> key_translation_map;
 std::map<std::string, std::map<std::string, std::string>> value_translation_map;
 std::vector<std::pair<std::string, std::string>> custom_gcode_replace; // vector<pair>, as i want to keep the ordering
 enum BBSettingType: uint8_t{
-    bbstFFF_PRINT = 0<<0,
-    bbstFFF_FILAMENT = 0<<1,
-    bbstFFF_PRINTER = 0<<2,
-    bbstSLA_PRINT = 0<<3,
-    bbstSLA_MATERIAL = 0<<4,
-    bbstSLA_PRINTER = 0<<5,
+    bbstFFF_PRINT = 1 << 0,
+    bbstFFF_FILAMENT = 1 << 1,
+    bbstFFF_PRINTER = 1 << 2,
+    bbstSLA_PRINT = 1 << 3,
+    bbstSLA_MATERIAL = 1 << 4,
+    bbstSLA_PRINTER = 1 << 5,
 
 };
 std::map<std::string, BBSettingType> key_custom_settings_translation_map;
@@ -481,13 +484,13 @@ void init()
 
 /// GCODE
     custom_gcode_replace.emplace_back("[bed_temperature_initial_layer_single]", "{first_layer_bed_temperature[initial_extruder]}");
-    custom_gcode_replace.emplace_back("bed_temperature_initial_layer_single", "first_layer_bed_temperature[initial_extruder]");
+    custom_gcode_replace.emplace_back("bed_temperature_initial_layer_single", "first_layer_bed_temperature");
     custom_gcode_replace.emplace_back("initial_extruder_id", "initial_extruder");
     custom_gcode_replace.emplace_back("bbl_bed_temperature_gcode", "false");
     custom_gcode_replace.emplace_back("bed_temperature_initial_layer", "first_layer_bed_temperature");
     custom_gcode_replace.emplace_back("bed_temperature_initial_layer_vector", "\"\"");
     custom_gcode_replace.emplace_back("[temperature_initial_layer]", "{first_layer_temperature[initial_extruder]}");
-    custom_gcode_replace.emplace_back("temperature_initial_layer", "first_layer_temperature[initial_extruder]");
+    custom_gcode_replace.emplace_back("temperature_initial_layer", "first_layer_temperature");
     //custom_gcode_replace.emplace_back("overall_chamber_temperature", "chamber_temperature"); //fixme: it's a max.
 
     //if plate_name, then add plate_name as custom setting
@@ -626,32 +629,328 @@ void very_complicated_convert(ConfigSubstitutionContext &unconverted_config, Con
 //settings from orca that I can't convert
 // ironing_pattern
 
+// Custom variables are line based. Match the complete name before '=' so that
+// importing "foo" does not accidentally collide with an existing "foo_extra".
+bool has_custom_variable(const std::string &variables, const std::string &name)
+{
+    std::vector<std::string> lines;
+    boost::split(lines, variables, boost::is_any_of("\n"));
+    for (const std::string &line : lines) {
+        const size_t equal_pos = line.find('=');
+        if (equal_pos == std::string::npos)
+            continue;
+        std::string existing_name = line.substr(0, equal_pos);
+        boost::trim(existing_name);
+        if (existing_name == name)
+            return true;
+    }
+    return false;
+}
+
+void append_custom_variable(std::string &variables, const std::string &name, std::string value)
+{
+    if (has_custom_variable(variables, name))
+        return;
+
+    // A custom variable occupies one physical line. PlaceholderParser restores
+    // escaped newlines after it has identified the name/value pair.
+    boost::replace_all(value, "\r", "\\r");
+    boost::replace_all(value, "\n", "\\n");
+    if (!variables.empty() && variables.back() != '\n')
+        variables.push_back('\n');
+    variables += name + "=" + value + "\n";
+}
+
+void merge_custom_variable_block(std::string &destination, const std::string &source)
+{
+    std::vector<std::string> lines;
+    boost::split(lines, source, boost::is_any_of("\n"));
+    for (const std::string &line : lines) {
+        const size_t equal_pos = line.find('=');
+        if (equal_pos == std::string::npos)
+            continue;
+        std::string name = line.substr(0, equal_pos);
+        std::string value = line.substr(equal_pos + 1);
+        boost::trim(name);
+        if (!name.empty())
+            append_custom_variable(destination, name, value);
+    }
+}
+
+ConfigOptionString *ensure_scalar_custom_variables(DynamicPrintConfig &config, const char *option_key)
+{
+    ConfigOptionString *variables = config.opt<ConfigOptionString>(option_key);
+    if (variables == nullptr) {
+        config.set_key_value(option_key, new ConfigOptionString());
+        variables = config.opt<ConfigOptionString>(option_key);
+    }
+    assert(variables != nullptr);
+    return variables;
+}
+
+ConfigOptionStrings *ensure_filament_custom_variables(DynamicPrintConfig &config, size_t extruder_count)
+{
+    ConfigOptionStrings *variables = config.opt<ConfigOptionStrings>("filament_custom_variables");
+    if (variables == nullptr) {
+        config.set_key_value("filament_custom_variables",
+                             new ConfigOptionStrings(std::max<size_t>(extruder_count, 1), std::string()));
+        variables = config.opt<ConfigOptionStrings>("filament_custom_variables");
+    } else if (variables->size() < extruder_count) {
+        variables->resize(extruder_count);
+    }
+    assert(variables != nullptr);
+    return variables;
+}
+
+bool is_bambu_metadata_key(const std::string &key)
+{
+    static constexpr std::array<std::string_view, 20> metadata_keys = {
+        BBL_JSON_KEY_VERSION, BBL_JSON_KEY_IS_CUSTOM, BBL_JSON_KEY_URL, BBL_JSON_KEY_NAME,
+        BBL_JSON_KEY_DESCRIPTION, BBL_JSON_KEY_FORCE_UPDATE, BBL_JSON_KEY_MACHINE_MODEL_LIST,
+        BBL_JSON_KEY_PROCESS_LIST, BBL_JSON_KEY_SUB_PATH, BBL_JSON_KEY_FILAMENT_LIST,
+        BBL_JSON_KEY_MACHINE_LIST, BBL_JSON_KEY_TYPE, BBL_JSON_KEY_FROM, BBL_JSON_KEY_SETTING_ID,
+        BBL_JSON_KEY_BASE_ID, BBL_JSON_KEY_USER_ID, BBL_JSON_KEY_FILAMENT_ID,
+        BBL_JSON_KEY_UPDATE_TIME, BBL_JSON_KEY_INHERITS, BBL_JSON_KEY_INSTANTIATION
+    };
+    const std::string lower_key = boost::algorithm::to_lower_copy(key);
+    return std::any_of(metadata_keys.begin(), metadata_keys.end(), [&lower_key](std::string_view metadata_key) {
+        return lower_key == metadata_key;
+    });
+}
+
+bool is_explicit_custom_variable_option(const std::string &key)
+{
+    return key == "print_custom_variables" || key == "filament_custom_variables" ||
+           key == "printer_custom_variables" || key == "plate_name";
+}
+
+bool belongs_to_print_custom_variables(const std::string &key)
+{
+    static constexpr std::array<std::string_view, 16> print_keywords = {
+        "print", "filament", "wall", "perimeter", "infill", "support", "layer", "bridge", "brim",
+        "skirt", "raft", "seam", "surface", "shell", "ironing", "overhang"
+    };
+    const std::string lower_key = boost::algorithm::to_lower_copy(key);
+    return std::any_of(print_keywords.begin(), print_keywords.end(), [&lower_key](std::string_view keyword) {
+        return lower_key.find(keyword) != std::string::npos;
+    });
+}
+
+void store_unconverted_scalar(DynamicPrintConfig &config, const std::string &key, const std::string &value)
+{
+    const char *destination = belongs_to_print_custom_variables(key) ? "print_custom_variables" :
+                                                                        "printer_custom_variables";
+    append_custom_variable(ensure_scalar_custom_variables(config, destination)->value, key, value);
+}
+
+void add_bambu_generated_custom_variables(DynamicPrintConfig &config)
+{
+    // Snapmaker Orca computes this variable immediately before expanding the
+    // machine start G-code. SuperSlicer cannot reproduce that calculation yet,
+    // so default to strong cooling to keep imported start G-code executable:
+    // 0 = heat preservation (KeepWarm), 1 = weak cooling, 2 = strong cooling.
+    append_custom_variable(ensure_scalar_custom_variables(config, "printer_custom_variables")->value,
+                           "chamber_cooling_mode", "2");
+}
+
+void store_unconverted_vector(DynamicPrintConfig &config,
+                              const std::string &key,
+                              const std::vector<std::string> &values,
+                              size_t extruder_count)
+{
+    if (!values.empty() && values.size() == extruder_count) {
+        ConfigOptionStrings *variables = ensure_filament_custom_variables(config, extruder_count);
+        for (size_t idx = 0; idx < values.size(); ++idx) {
+            std::string current = variables->get_at(idx);
+            append_custom_variable(current, key, values[idx]);
+            variables->set_at(std::move(current), idx);
+        }
+        return;
+    }
+
+    // Non-extruder arrays have no native custom-variable vector representation.
+    // Keep their JSON form as a scalar string so no source data is discarded.
+    store_unconverted_scalar(config, key, nlohmann::json(values).dump());
+}
+
+size_t bambu_extruder_count(const std::map<std::string, std::vector<std::string>> &vector_values,
+                            const DynamicPrintConfig &config)
+{
+    if (auto nozzle_it = vector_values.find(BBL_JSON_KEY_NOZZLE_DIAMETER);
+        nozzle_it != vector_values.end() && !nozzle_it->second.empty())
+        return nozzle_it->second.size();
+    if (const ConfigOptionFloats *nozzles = config.opt<ConfigOptionFloats>("nozzle_diameter");
+        nozzles != nullptr && !nozzles->empty())
+        return nozzles->size();
+    return 1;
+}
+
+bool option_accepts_serialized_value(const ConfigDef &config_def,
+                                     const std::string &key,
+                                     const std::string &value)
+{
+    const ConfigOptionDef *option_def = config_def.get(key);
+    if (option_def == nullptr || option_def->default_value.get() == nullptr)
+        return false;
+    if (option_def->can_phony && value.empty())
+        return true;
+    try {
+        ConfigOptionUniquePtr candidate(option_def->default_value->clone());
+        return candidate->deserialize(value);
+    } catch (const std::exception &) {
+        return false;
+    }
+}
+
+bool deserialize_converted_value(DynamicPrintConfig &config,
+                                 const std::string &key,
+                                 const std::string &value,
+                                 ConfigSubstitutionContext &substitutions)
+{
+    const ConfigDef *config_def = config.def();
+    const ConfigOptionDef *option_def = config_def == nullptr ? nullptr : config_def->get(key);
+    if (option_def == nullptr)
+        return false;
+
+    const bool value_is_valid = option_accepts_serialized_value(*config_def, key, value);
+    const size_t substitution_count = substitutions.get().size();
+    const bool deserialized = config.set_deserialize_nothrow(key, value, substitutions);
+    if (value_is_valid && deserialized)
+        return true;
+
+    // With substitution disabled, set_deserialize_nothrow leaves the invalid
+    // value rejected. Keep the normal usable default and still report what was
+    // lost, because the original value is also retained as a custom variable.
+    ConfigOption *destination = config.option(key, true);
+    if (destination != nullptr && option_def->default_value.get() != nullptr)
+        destination->set(*option_def->default_value);
+    if (substitutions.get().size() == substitution_count)
+        substitutions.emplace(option_def, std::string(value),
+                              ConfigOptionUniquePtr(option_def->default_value->clone()));
+    return false;
+}
+
+bool converted_entries_are_valid(const std::map<std::string, std::string> &entries,
+                                 const DynamicPrintConfig &config)
+{
+    const ConfigDef *config_def = config.def();
+    if (config_def == nullptr || entries.empty())
+        return false;
+    return std::all_of(entries.begin(), entries.end(), [config_def](const auto &entry) {
+        return option_accepts_serialized_value(*config_def, entry.first, entry.second);
+    });
+}
+
+bool bambu_scalar_is_convertible(const std::string &source_key,
+                                 const std::string &source_value,
+                                 const std::map<std::string, std::string> &all_source_values,
+                                 const DynamicPrintConfig &config)
+{
+    if (is_bambu_metadata_key(source_key) || is_explicit_custom_variable_option(source_key))
+        return true;
+
+    std::string key = source_key;
+    std::string value = source_value;
+    if (auto translation = key_translation_map.find(key); translation != key_translation_map.end())
+        key = translation->second;
+    if (key.empty())
+        return true;
+
+    try {
+        std::map<std::string, std::string> additional_values;
+        complicated_convert(key, value, all_source_values, additional_values);
+        if (auto value_map = value_translation_map.find(key); value_map != value_translation_map.end())
+            if (auto translated_value = value_map->second.find(value); translated_value != value_map->second.end())
+                value = translated_value->second;
+        PrintConfigDef::handle_legacy_pair(key, value, false);
+        if (key.empty())
+            return true;
+
+        const ConfigDef *config_def = config.def();
+        if (config_def != nullptr && option_accepts_serialized_value(*config_def, key, value))
+            return true;
+
+        std::map<std::string, std::string> converted = PrintConfigDef::from_prusa(key, value, config);
+        if (!key.empty())
+            converted.emplace(key, value);
+        return converted_entries_are_valid(converted, config);
+    } catch (const std::exception &) {
+        return false;
+    }
+}
+
+std::string serialize_bambu_vector(const std::string &key,
+                                   const std::vector<std::string> &source_values,
+                                   const ConfigDef &config_def)
+{
+    const ConfigOptionDef *option_def = config_def.get(key);
+    const bool strings = option_def != nullptr && option_def->type == coStrings;
+    std::string serialized;
+    for (const std::string &value : source_values) {
+        if (!serialized.empty())
+            serialized += strings ? ";" : ",";
+        if (strings)
+            serialized += "\"" + escape_string_cstyle(value) + "\"";
+        else
+            serialized += value;
+    }
+    return serialized;
+}
+
+bool bambu_vector_is_convertible(const std::string &source_key,
+                                 const std::vector<std::string> &source_values,
+                                 const DynamicPrintConfig &config)
+{
+    if (is_bambu_metadata_key(source_key) || is_explicit_custom_variable_option(source_key))
+        return true;
+
+    std::string key = source_key;
+    if (auto translation = key_translation_map.find(key); translation != key_translation_map.end())
+        key = translation->second;
+    if (key.empty())
+        return true;
+
+    std::vector<std::string> values = source_values;
+    for (std::string &value : values) {
+        PrintConfigDef::handle_legacy_pair(key, value, false);
+        if (key.empty())
+            return true;
+    }
+
+    const ConfigDef *config_def = config.def();
+    if (config_def == nullptr || !config_def->has(key))
+        return false;
+    return option_accepts_serialized_value(*config_def, key,
+                                           serialize_bambu_vector(key, values, *config_def));
+}
+
 bool push_into_custom_variable(DynamicPrintConfig &print_config,
                                const std::string & opt_key,
                                const std::string & opt_value)
 {
     if (auto it = key_custom_settings_translation_map.find(opt_key); it != key_custom_settings_translation_map.end()) {
         if ((it->second & bbstFFF_PRINT) != 0 || (it->second & bbstSLA_PRINT) != 0) {
-            if (print_config.opt<ConfigOptionStrings>("print_custom_variables") == nullptr)
-                print_config.set_deserialize("print_custom_variables", "");
-            std::string &value = print_config.opt<ConfigOptionString>("print_custom_variables")->value;
-            if (value.find(opt_key) == std::string::npos)
-                value += opt_key + std::string("=") + opt_value + std::string("\n");
+            std::string &value = ensure_scalar_custom_variables(print_config, "print_custom_variables")->value;
+            if (opt_key == "print_custom_variables")
+                merge_custom_variable_block(value, opt_value);
+            else
+                append_custom_variable(value, opt_key, opt_value);
         }
         if ((it->second & bbstFFF_FILAMENT) != 0 || (it->second & bbstSLA_MATERIAL) != 0) {
-            if (print_config.opt<ConfigOptionStrings>("filament_custom_variables") == nullptr)
-                print_config.set_deserialize("filament_custom_variables", "");
-            const std::string &val = print_config.opt<ConfigOptionStrings>("filament_custom_variables")->get_at(0);
-            if (val.find(opt_key) == std::string::npos)
-                print_config.opt<ConfigOptionStrings>("filament_custom_variables")
-                    ->set_at(val + opt_key + std::string("=") + opt_value + std::string("\n"), 0);
+            ConfigOptionStrings *variables = ensure_filament_custom_variables(print_config, 1);
+            std::string value = variables->get_at(0);
+            if (opt_key == "filament_custom_variables")
+                merge_custom_variable_block(value, opt_value);
+            else
+                append_custom_variable(value, opt_key, opt_value);
+            variables->set_at(std::move(value), 0);
         }
         if ((it->second & bbstFFF_PRINTER) != 0 || (it->second & bbstSLA_PRINTER) != 0) {
-            if (print_config.opt<ConfigOptionStrings>("printer_custom_variables") == nullptr)
-                print_config.set_deserialize("printer_custom_variables", "");
-            std::string &value = print_config.opt<ConfigOptionString>("printer_custom_variables")->value;
-            if (value.find(opt_key) == std::string::npos)
-                value += opt_key + std::string("=") + opt_value + std::string("\n");
+            std::string &value = ensure_scalar_custom_variables(print_config, "printer_custom_variables")->value;
+            if (opt_key == "printer_custom_variables")
+                merge_custom_variable_block(value, opt_value);
+            else
+                append_custom_variable(value, opt_key, opt_value);
         }
         return true;
     }
@@ -664,13 +963,14 @@ bool push_into_custom_variables(DynamicPrintConfig &            print_config,
 {
     if (auto it = key_custom_settings_translation_map.find(opt_key); it != key_custom_settings_translation_map.end()) {
         if ((it->second & bbstFFF_FILAMENT) != 0 || (it->second & bbstSLA_MATERIAL) != 0) {
-            for (int i = 0; i < opt_value.size(); ++i) {
-                if (print_config.opt<ConfigOptionStrings>("filament_custom_variables") == nullptr)
-                    print_config.set_deserialize("filament_custom_variables", "");
-                const std::string &val = print_config.opt<ConfigOptionStrings>("filament_custom_variables")->get_at(i);
-                if (val.find(opt_key) == std::string::npos)
-                    print_config.opt<ConfigOptionStrings>("filament_custom_variables")
-                        ->set_at(val + opt_key + std::string("=") + opt_value[i] + std::string("\n"), i);
+            ConfigOptionStrings *variables = ensure_filament_custom_variables(print_config, opt_value.size());
+            for (size_t i = 0; i < opt_value.size(); ++i) {
+                std::string value = variables->get_at(i);
+                if (opt_key == "filament_custom_variables")
+                    merge_custom_variable_block(value, opt_value[i]);
+                else
+                    append_custom_variable(value, opt_key, opt_value[i]);
+                variables->set_at(std::move(value), i);
             }
             return true;
         }
@@ -939,7 +1239,7 @@ bool read_json_file_bambu(const std_path &temp_file,
     PrintConfigDef::handle_legacy_map(dict_opt, false);
     for (auto &entry : dict_opt) {
         if (!entry.second.first.empty() && config_def->has(entry.second.first))
-            config.set_deserialize(entry.second.first, entry.second.second, config_substitutions);
+            deserialize_converted_value(config, entry.second.first, entry.second.second, config_substitutions);
     }
 
     // final transform
@@ -968,25 +1268,14 @@ bool read_json_file_bambu(const std_path &temp_file,
                     if (config_substitutions.rule != ForwardCompatibilitySubstitutionRule::Disable) {
                         config_substitutions.add(ConfigSubstitution(saved_key, value));
                     }
-                } else {
-                    try {
-                        config.set_deserialize(opt_key, value, config_substitutions);
-                    } catch (BadOptionValueException &e) {
-                        if (config_substitutions.rule == ForwardCompatibilitySubstitutionRule::Disable)
-                            throw e;
-                        // log the error
-                        if (config_def == nullptr)
-                            throw e;
-                        const ConfigOptionDef *optdef = config_def->get(saved_key);
-                        config_substitutions.emplace(optdef, std::string(saved_value),
-                                                     ConfigOptionUniquePtr(optdef->default_value->clone()));
-                    }
-                }
+                } else
+                    deserialize_converted_value(config, opt_key, value, config_substitutions);
             }
         }
     }
     for (const auto &entry : settings_to_change)
-        config.set_deserialize(entry.first, entry.second, config_substitutions);
+        if (config_def->has(entry.first))
+            deserialize_converted_value(config, entry.first, entry.second, config_substitutions);
 
     custom_gcode_transform(config);
 
@@ -994,6 +1283,18 @@ bool read_json_file_bambu(const std_path &temp_file,
     
     //apply very_complicated_convert
     very_complicated_convert(config_substitutions, config);
+
+    // Preserve only source settings for which the complete conversion pipeline
+    // cannot produce a valid SuperSlicer option. The original Bambu name is
+    // intentional: phase 1 keeps existing custom G-code references usable.
+    const size_t extruder_count = bambu_extruder_count(key_vector_values, config);
+    for (const auto &[key, value] : key_values)
+        if (!bambu_scalar_is_convertible(key, value, key_values, config))
+            store_unconverted_scalar(config, key, value);
+    for (const auto &[key, values] : key_vector_values)
+        if (!bambu_vector_is_convertible(key, values, config))
+            store_unconverted_vector(config, key, values, extruder_count);
+    add_bambu_generated_custom_variables(config);
 
     return true;
 }
@@ -1056,7 +1357,7 @@ bool convert_settings_from_bambu(std::map<std::string, std::string> bambu_settin
     const ConfigDef *config_def = print_config.def();
     for (auto &entry : good_key_values) {
         if(config_def->has(entry.first))
-            print_config.set_deserialize(entry.first, entry.second, config_substitutions);
+            deserialize_converted_value(print_config, entry.first, entry.second, config_substitutions);
         else
             config_substitutions.add(ConfigSubstitution(entry.first, entry.second));
     }
@@ -1066,9 +1367,16 @@ bool convert_settings_from_bambu(std::map<std::string, std::string> bambu_settin
 
     //apply very_complicated_convert
     very_complicated_convert(config_substitutions, print_config);
+
+    // The INI-style overload has already lost vector type information, so an
+    // unresolved serialized value is retained as a scalar custom variable.
+    for (const auto &[key, value] : bambu_settings_serialized)
+        if (!bambu_scalar_is_convertible(key, value, bambu_settings_serialized, print_config))
+            store_unconverted_scalar(print_config, key, value);
     
     //print_config.convert_from_prusa(with_phony);
     custom_gcode_transform(print_config);
+    add_bambu_generated_custom_variables(print_config);
 
     return true;
 }

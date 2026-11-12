@@ -337,6 +337,9 @@ void PrintObject::prepare_infill()
         // to reset to the untyped slices before re-runnning detect_surfaces_type().
         for (Layer* layer : m_layers) {
             layer->clear_fills();
+            for (LayerRegion *layerm : layer->m_regions) {
+                layerm->m_fill_surfaces.clear();
+            }
             layer->restore_untyped_slices();
             m_print->throw_if_canceled();
         }
