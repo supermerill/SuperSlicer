@@ -5,13 +5,38 @@ on:
     branches:
       - rc
       - debug_win
+  workflow_dispatch:
+    inputs:
+      sign:
+        description: 'Sign this release build (requires SIGNPATH_ENABLED and production policy)'
+        type: boolean
+        default: false
+
+env:
+  # Automatic signing is limited to pushes to rc; debug_win never signs automatically.
+  SIGNPATH_ENABLED: ${{ vars.SIGNPATH_ENABLED == 'true' && ((github.event_name == 'push' && github.ref == 'refs/heads/rc') || (github.event_name == 'workflow_dispatch' && inputs.sign)) && 'true' || 'false' }}
+  SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+  SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG || 'superslicer' }}
+  SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
 
 jobs:
   build_dep:
     runs-on: windows-2022
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+    - name: check signing configuration
+      if: env.SIGNPATH_ENABLED == 'true'
+      shell: powershell
+      env:
+        SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      run: |
+        foreach ($name in @('SIGNPATH_ORGANIZATION_ID', 'SIGNPATH_PROJECT_SLUG',
+                            'SIGNPATH_SIGNING_POLICY_SLUG', 'SIGNPATH_API_TOKEN')) {
+          if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+            throw "Missing $name. See .github/signpath/README.md."
+          }
+        }
     - uses: ilammy/msvc-dev-cmd@v1
     - uses: shogo82148/actions-setup-perl@v1
       with:
@@ -21,7 +46,7 @@ jobs:
       run: mkdir deps/build
     - name: dep cache
       id: cache-action
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: win_2.7.63
         path: deps/build/destdir
@@ -35,9 +60,12 @@ jobs:
   build:
     runs-on: windows-2022
     needs: build_dep
-    
+    permissions:
+      contents: read
+      actions: read
+
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: ilammy/msvc-dev-cmd@v1
     - name: update submodule profiles
       working-directory: ./resources/profiles
@@ -53,7 +81,7 @@ jobs:
         (Get-Content version.date.inc) | Foreach-Object {$_ -replace "\+UNKNOWN", ("")} | Set-Content version.date.inc
     - name: dep cache
       id: cache-action
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: win_2.7.63
         path: deps/build/destdir
@@ -110,7 +138,7 @@ jobs:
       shell: cmd
       run: |
         xcopy /RCYIE Slic3r_win_build\local-settings.bat package\${{ github.event.repository.name }}_local-settings.bat
-        xcopy /RCYIE Slic3r_win_build\mesa package\
+        xcopy /RCYIE Slic3r_win_build\mesa package\mesa\
     - name: copy new resources
       working-directory: ./build
       shell: cmd
@@ -128,18 +156,59 @@ jobs:
       run: |
         xcopy /RCYIE src\release\*.dll package\
         xcopy /RCYIE src\release\*.exe package\
-        xcopy /RCYIE c:\windows\system32\VCRUNTIME140* package\
-        xcopy /RCYIE c:\windows\system32\msvcp140* package\
-        del package\opengl32.dll
+    - name: copy required VC runtimes
+      shell: powershell
+      run: ./.github/windows/Copy-VcRuntime.ps1 -PackageDirectory build/package
 #    - name: create zip
 #      working-directory: ./build
 #      shell: cmd
 #      run: '"C:/Program Files/7-Zip/7z.exe" a -tzip nightly.zip *'
+
+    - name: collect own binaries to sign
+      id: signing-input
+      if: env.SIGNPATH_ENABLED == 'true'
+      shell: powershell
+      run: |
+        ./.github/signpath/Prepare-Binaries.ps1 -SourceDirectory build/src/Release -OutputDirectory build/sign-input
+
+    - name: upload unsigned binaries
+      id: upload-unsigned-binaries
+      if: env.SIGNPATH_ENABLED == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: unsigned-binaries-${{ github.run_attempt }}
+        path: build/sign-input/
+        if-no-files-found: error
+        retention-days: 1
+
+    - name: sign binaries
+      if: env.SIGNPATH_ENABLED == 'true'
+      uses: signpath/github-action-submit-signing-request@v3
+      with:
+        api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+        organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
+        project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+        signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY_SLUG }}
+        artifact-configuration-slug: windows-binaries
+        github-artifact-id: ${{ steps.upload-unsigned-binaries.outputs.artifact-id }}
+        wait-for-completion: true
+        wait-for-completion-timeout-in-seconds: 1800
+        output-artifact-directory: build/signed-binaries
+        parameters: |
+          version: ${{ toJSON(steps.signing-input.outputs.product-version) }}
+
+    - name: verify and copy signed binaries into package
+      if: env.SIGNPATH_ENABLED == 'true'
+      shell: powershell
+      run: |
+        ./.github/signpath/Update-SignedArtifacts.ps1 -UnsignedDirectory build/sign-input -SignedDirectory build/signed-binaries -DestinationDirectory build/package
+
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: rc_${{ github.event.repository.name }}-win64
         path: build/package/
+        overwrite: true
 
 # MSI CREATION (need files from the slic3r build, can't be its own step)
   # create_msi:
@@ -196,9 +265,50 @@ jobs:
         candle.exe -dSourceDir="package" -dInstallerVersion="%InstallerVersion%" -dReleaseSuffix="%ReleaseSuffix%" src\winInstaller.wxs files.wxs
         light.exe -b package -ext WixUIExtension winInstaller.wixobj files.wixobj -o %MSIFileName% -sw1076
     - run: dir ./build
+
+    - name: collect unsigned msi
+      if: env.SIGNPATH_ENABLED == 'true'
+      shell: powershell
+      env:
+        MSI_FILE_NAME: ${{ github.event.repository.name }}_${{ env.InstallerVersion }}.msi
+      run: |
+        New-Item -ItemType Directory -Path build/sign-msi-input | Out-Null
+        Copy-Item -LiteralPath "build/$env:MSI_FILE_NAME" -Destination build/sign-msi-input -ErrorAction Stop
+
+    - name: upload unsigned msi
+      id: upload-unsigned-msi
+      if: env.SIGNPATH_ENABLED == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: unsigned-msi-${{ github.run_attempt }}
+        path: build/sign-msi-input/
+        if-no-files-found: error
+        retention-days: 1
+
+    - name: sign msi
+      if: env.SIGNPATH_ENABLED == 'true'
+      uses: signpath/github-action-submit-signing-request@v3
+      with:
+        api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+        organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
+        project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+        signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY_SLUG }}
+        artifact-configuration-slug: windows-msi
+        github-artifact-id: ${{ steps.upload-unsigned-msi.outputs.artifact-id }}
+        wait-for-completion: true
+        wait-for-completion-timeout-in-seconds: 1800
+        output-artifact-directory: build/signed-msi
+
+    - name: verify and replace signed msi
+      if: env.SIGNPATH_ENABLED == 'true'
+      shell: powershell
+      run: |
+        ./.github/signpath/Update-SignedArtifacts.ps1 -UnsignedDirectory build/sign-msi-input -SignedDirectory build/signed-msi -DestinationDirectory build
+
     - name: Upload MSI artifact
       uses: actions/upload-artifact@v4
       with:
         name: rc_${{ github.event.repository.name }}-win64.msi
         path: build/${{ github.event.repository.name }}_${{ env.InstallerVersion }}.msi
+        overwrite: true
 

@@ -11,14 +11,19 @@ on:
       - debug_win
       - nightly_win
   workflow_dispatch:
+    inputs:
+      sign:
+        description: 'Test SignPath signing (two requests; requires test policy and certificate pin)'
+        type: boolean
+        default: false
 
 env:
   # SignPath code signing - see .github/signpath/README.md
-  # Opt in only after the organization, policy and API secret are ready.
-  SIGNPATH_ENABLED: ${{ vars.SIGNPATH_ENABLED || 'false' }}
+  # Test signing requires an explicit manual dispatch; ordinary nightly pushes never sign.
+  SIGNPATH_ENABLED: ${{ github.event_name == 'workflow_dispatch' && inputs.sign && 'true' || 'false' }}
   SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
   SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG || 'superslicer' }}
-  SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+  SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG }}
   SIGNPATH_TEST_CERTIFICATE_THUMBPRINT: ${{ vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT }}
 
 jobs:
@@ -34,7 +39,8 @@ jobs:
         SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
       run: |
         foreach ($name in @('SIGNPATH_ORGANIZATION_ID', 'SIGNPATH_PROJECT_SLUG',
-                            'SIGNPATH_SIGNING_POLICY_SLUG', 'SIGNPATH_API_TOKEN')) {
+                            'SIGNPATH_SIGNING_POLICY_SLUG', 'SIGNPATH_API_TOKEN',
+                            'SIGNPATH_TEST_CERTIFICATE_THUMBPRINT')) {
           if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
             throw "Missing $name. See .github/signpath/README.md."
           }
@@ -136,7 +142,7 @@ jobs:
       shell: cmd
       run: |
         xcopy /RCYIE Slic3r_win_build\local-settings.bat package\${{ github.event.repository.name }}_local-settings.bat
-        xcopy /RCYIE Slic3r_win_build\mesa package\
+        xcopy /RCYIE Slic3r_win_build\mesa package\mesa\
     - name: copy new resources
       working-directory: ./build
       shell: cmd
@@ -152,9 +158,9 @@ jobs:
       run: |
         xcopy /RCYIE src\RelWithDebInfo\*.dll package\
         xcopy /RCYIE src\RelWithDebInfo\*.exe package\
-        xcopy /RCYIE c:\windows\system32\VCRUNTIME140* package\
-        xcopy /RCYIE c:\windows\system32\msvcp140* package\
-        del package\opengl32.dll
+    - name: copy required VC runtimes
+      shell: powershell
+      run: ./.github/windows/Copy-VcRuntime.ps1 -PackageDirectory build/package
 #    - name: create zip
 #      working-directory: ./build
 #      shell: cmd
@@ -174,7 +180,7 @@ jobs:
       if: env.SIGNPATH_ENABLED == 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: unsigned-binaries
+        name: unsigned-binaries-${{ github.run_attempt }}
         path: build/sign-input/
         if-no-files-found: error
         retention-days: 1
@@ -206,6 +212,7 @@ jobs:
       with:
         name: ${{ env.SIGNPATH_ENABLED == 'true' && env.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT != '' && 'test-signed_' || '' }}nightly_${{ github.event.repository.name }}-win64
         path: build/package/
+        overwrite: true
 
 # MSI CREATION
   # create_msi:
@@ -275,7 +282,7 @@ jobs:
       if: env.SIGNPATH_ENABLED == 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: unsigned-msi
+        name: unsigned-msi-${{ github.run_attempt }}
         path: build/sign-msi-input/
         if-no-files-found: error
         retention-days: 1
@@ -305,3 +312,4 @@ jobs:
       with:
         name: ${{ env.SIGNPATH_ENABLED == 'true' && env.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT != '' && 'test-signed_' || '' }}nightly_${{ github.event.repository.name }}-win64.msi
         path: build/${{ github.event.repository.name }}_${{ env.InstallerVersion }}.msi
+        overwrite: true
