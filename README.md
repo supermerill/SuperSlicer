@@ -96,6 +96,12 @@ Sure! You can do the following to find things that are available to help with:
 Before sending patches and pull requests contact me (preferably through opening a GitHub issue or commenting on an existing, related, issue) to discuss your proposed
 changes. This way we can ensure that nobody wastes their time and no conflicts arise in development.
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+Windows code signing through SignPath is being set up; existing releases are not retroactively signed. Team roles, signing scope and privacy information are described in the [code signing policy](doc/Code%20signing%20policy.md). See the [integration instructions](.github/signpath/README.md) for the current setup and test-certificate limitations.
+
 ## License and attribution
 
 SuperSlicer is licensed under the _GNU Affero General Public License, version 3_.

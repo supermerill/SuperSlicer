@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignPath artifact configuration - SuperSlicer Windows binaries.
+
+  The artifact submitted from GitHub is the ZIP produced by actions/upload-artifact,
+  so the root element MUST be <zip-file>. The ZIP only contains files built by this
+  project (build/sign-input): no third-party DLL, no mesa, no VCRUNTIME.
+
+  Paste this content into:
+    Project -> Artifact Configurations -> Add -> Custom
+  and give it the slug "windows-binaries".
+
+  All five binaries carry ProductName "SuperSlicer" and the same ProductVersion.
+  The workflow reads that version from the binaries and passes it as a parameter.
+  Keep this explicit allowlist: the build directory also contains third-party DLLs.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file-set product-name="SuperSlicer" product-version="${version}">
+      <include path="superslicer.exe" />
+      <include path="superslicer_console.exe" />
+      <include path="superslicer-gcodeviewer.exe" />
+      <include path="Slic3r.dll" />
+      <include path="OCCTWrapper.dll" />
+      <for-each>
+        <authenticode-sign />
+      </for-each>
+    </pe-file-set>
+  </zip-file>
+</artifact-configuration>
