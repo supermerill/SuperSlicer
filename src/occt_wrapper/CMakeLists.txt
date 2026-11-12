@@ -8,6 +8,12 @@ else ()
     add_library(OCCTWrapper MODULE OCCTWrapper.cpp)
 endif ()
 
+if (WIN32)
+    set(SLIC3R_DLL_NAME "OCCTWrapper")
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../platform/msw/Dll.rc.in ${CMAKE_CURRENT_BINARY_DIR}/OCCTWrapper.rc @ONLY)
+    target_sources(OCCTWrapper PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/OCCTWrapper.rc)
+endif ()
+
 set_target_properties(OCCTWrapper
     PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src"

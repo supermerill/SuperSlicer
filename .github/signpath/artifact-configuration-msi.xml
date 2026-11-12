@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignPath artifact configuration - SuperSlicer Windows MSI.
+
+  Same rule: the uploaded artifact is a ZIP, so the root element is <zip-file>.
+  Only the .msi is signed here: the executables and DLLs it contains have already
+  been signed in a previous request, and the third-party DLLs bundled in the package
+  must never be signed with our certificate.
+
+  Paste into: Project -> Artifact Configurations -> Add -> Custom
+  Slug: "windows-msi"
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <msi-file path="SuperSlicer_*.msi">
+      <authenticode-sign />
+    </msi-file>
+  </zip-file>
+</artifact-configuration>

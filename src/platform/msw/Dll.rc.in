@@ -1,0 +1,23 @@
+1 VERSIONINFO
+FILEVERSION @SLIC3R_RC_VERSION@
+PRODUCTVERSION @SLIC3R_RC_VERSION@
+FILEOS 0x40004
+FILETYPE 0x2
+{
+ BLOCK "StringFileInfo"
+ {
+  BLOCK "040904E4"
+  {
+   VALUE "FileDescription", "@SLIC3R_APP_NAME@ @SLIC3R_DLL_NAME@ library"
+   VALUE "FileVersion", "@SLIC3R_BUILD_ID@"
+   VALUE "ProductName", "@SLIC3R_APP_NAME@"
+   VALUE "ProductVersion", "@SLIC3R_BUILD_ID@"
+   VALUE "InternalName", "@SLIC3R_DLL_NAME@"
+   VALUE "OriginalFilename", "@SLIC3R_DLL_NAME@.dll"
+  }
+ }
+ BLOCK "VarFileInfo"
+ {
+   VALUE "Translation", 0x409, 1252
+ }
+}
