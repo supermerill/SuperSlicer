@@ -1,8 +1,17 @@
 # Windows code signing (SignPath)
 
-The integration is in `.github/workflows/ccpp_win.yml` (Windows **nightly** only).
-`ccpp_win_rc.yml` and `ccpp_win_debug.yml` are not integrated yet. Signing is **off by
-default**: existing unsigned builds continue until explicitly enabled in GitHub.
+Release signing is in `.github/workflows/ccpp_win_rc.yml` (`Release` binaries).
+`.github/workflows/ccpp_win.yml` (`RelWithDebInfo`) supports **manual test signing only**.
+`ccpp_win_debug.yml` is not integrated. Signing is **off by default**.
+
+| Build | Signing behavior |
+| --- | --- |
+| Ordinary nightly push (including `debug_win`) | Never submits a signing request |
+| Manually dispatched nightly, `sign` unchecked | Ordinary unsigned build |
+| Manually dispatched nightly, `sign` checked | Uses the pinned self-signed certificate and test policy; two requests |
+| Push to `rc` | Production signing only if `SIGNPATH_ENABLED=true`; otherwise unsigned |
+| RC workflow on `debug_win` | Never signs automatically |
+| Manually dispatched RC workflow | Signs only with `sign` checked **and** `SIGNPATH_ENABLED=true` |
 
 ## GitHub settings
 
@@ -11,14 +20,15 @@ Add the following repository **variables** (not secrets):
 
 | Variable | Value |
 | --- | --- |
-| `SIGNPATH_ENABLED` | `true` only when all settings below are ready; unset or `false` disables signing |
+| `SIGNPATH_ENABLED` | enables **RC production** signing only; leave unset/`false` until the production certificate is ready. Does not enable nightly signing |
 | `SIGNPATH_ORGANIZATION_ID` | UUID of the organization actually containing the project and certificate |
 | `SIGNPATH_PROJECT_SLUG` | `superslicer` by default; override if the existing project has another slug |
-| `SIGNPATH_SIGNING_POLICY_SLUG` | the actual policy slug; use a test policy first, e.g. `test-signing` |
-| `SIGNPATH_TEST_CERTIFICATE_THUMBPRINT` | **test only**: SHA-1 thumbprint (40 hex characters) of the self-signed certificate, copied from SignPath or its exported public certificate |
+| `SIGNPATH_SIGNING_POLICY_SLUG` | RC **production** policy slug, e.g. `release-signing` |
+| `SIGNPATH_TEST_SIGNING_POLICY_SLUG` | nightly **test** policy slug, e.g. `test-signing` |
+| `SIGNPATH_TEST_CERTIFICATE_THUMBPRINT` | nightly **test only**, mandatory: SHA-1 thumbprint (40 hex characters) of the self-signed certificate, copied from SignPath or its exported public certificate |
 
 Add `SIGNPATH_API_TOKEN` as a repository **secret**. Do not put it in these files.
-Its user must have **submitter** permission on the selected signing policy. Missing
+Its user must have **submitter** permission on each selected signing policy. Missing
 required settings fail early when signing is enabled; signing failures never silently
 fall back to publishing unsigned binaries.
 
@@ -31,7 +41,8 @@ In the selected organization, create or check these objects. Slugs must match CI
 | Organization | — | its UUID goes in the `SIGNPATH_ORGANIZATION_ID` GitHub variable |
 | Trusted Build System | — | add *GitHub.com*, then link it to the project. SignPath then checks that the artifact really comes from a GitHub workflow |
 | Project | `superslicer` | Settings → connect the GitHub repository |
-| Signing Policy | e.g. `test-signing` | assign the test certificate, authorize the submitter and configure manual approval by the maintainer; put the slug in `SIGNPATH_SIGNING_POLICY_SLUG` |
+| Test Signing Policy | e.g. `test-signing` | assign the self-signed test certificate and put the slug in `SIGNPATH_TEST_SIGNING_POLICY_SLUG` |
+| Production Signing Policy | e.g. `release-signing` | assign the production certificate and put the slug in `SIGNPATH_SIGNING_POLICY_SLUG`; authorize the submitter and require maintainer approval |
 | Artifact Configuration | `windows-binaries` | content of `artifact-configuration-binaries.xml` |
 | Artifact Configuration | `windows-msi` | content of `artifact-configuration-msi.xml` |
 | API token | — | user profile → API tokens, stored as the `SIGNPATH_API_TOKEN` GitHub secret |
@@ -59,7 +70,8 @@ The MSI is verified too. Production uses `signtool verify /pa /all` without exce
 
 Test outputs are named `test-signed_nightly_...` and **must not be published as trusted
 releases**. Self-signed test signatures do not remove Windows publisher warnings.
-Only ask SignPath OSS support for the production certificate after a complete run.
+Only ask SignPath OSS support for the production certificate after a complete manually
+dispatched nightly test. Ordinary nightly runs ignore the signing configuration entirely.
 
 If the project is invalid, read its validation details and check the policy's
 certificate, permissions and artifact configuration. For an expired OSS test
@@ -76,17 +88,19 @@ certificate do not automatically move to the OSS organization:
    submitter/approver permissions and both artifact configurations there.
 3. Change `SIGNPATH_ORGANIZATION_ID`, policy/project slugs if different, the
    `SIGNPATH_API_TOKEN` secret and the test certificate thumbprint in GitHub.
-4. Enable signing and complete an end-to-end test in the OSS organization.
+4. Manually dispatch the nightly workflow with `sign` checked and complete an end-to-end
+   test in the OSS organization. Keep RC production signing disabled during this test.
 
 Once SignPath has reviewed the setup and imported a **production** certificate, assign
-it to a manually approved release policy, select that policy in GitHub, and **remove
-`SIGNPATH_TEST_CERTIFICATE_THUMBPRINT`**. Production verification then uses the normal
-Windows trust chain, with no private certificate imported.
+it to a manually approved release policy, set `SIGNPATH_SIGNING_POLICY_SLUG`, then enable
+`SIGNPATH_ENABLED=true` for RC. RC verification always uses normal Windows trust: it
+never accepts the nightly test certificate. The test policy and thumbprint may remain
+configured for explicitly requested nightly tests.
 
 ## Why the artifact is not the whole package
 
-`build/package/` contains `VCRUNTIME140*`, `msvcp140*` and the mesa DLLs, which are not
-ours to sign. Moreover, `src/RelWithDebInfo/` also contains copied `libgmp-10.dll` and
+`build/package/` contains the required VC runtime DLLs and Mesa, which are not ours to
+sign. Moreover, `src/Release/` and `src/RelWithDebInfo/` also contain copied `libgmp-10.dll` and
 `libmpfr-4.dll`, so **copying `*.dll` from there is unsafe too**.
 
 `Prepare-Binaries.ps1` uses the XML's explicit five-file allowlist, validates their
@@ -97,7 +111,8 @@ as the required `version` parameter and enforced by SignPath on all five files.
 
 The verified signed result is copied into `build/package/` before the MSI is harvested.
 
-The MSI is signed in a second request, after `light.exe`.
+The MSI is signed in a second request, after `light.exe`. See the
+[DLL packaging notes](../windows/README.md) for actual runtime dependencies and Mesa.
 
 ## First run
 
@@ -110,9 +125,15 @@ There are **two signing requests per build**: binaries, then MSI. Both need appr
 when manual approval is configured. Check trial quotas before testing: a trial plan
 may not allow both requests; use the OSS organization's test certificate for integration.
 
-The workflow runs on its listed nightly/debug branches or via `workflow_dispatch`
-(GitHub's manual Run workflow button requires the workflow on the default branch).
+The manual Run workflow button requires the workflow on GitHub's default branch.
 Push these changes to the branch being built before trying the integration.
+
+Ordinary nightly runs can be repeated without any signing credentials or SignPath quota.
+Input artifacts include `github.run_attempt` in their names and final artifacts use
+`overwrite: true`, so GitHub job re-runs do not conflict with immutable artifact names
+left by an earlier attempt. **Re-running an explicitly signed build submits new signing
+requests**, consumes quota again and still requires approval. SignPath pipeline policies
+may disallow re-runs (or cap supported attempts); use a fresh workflow run if required.
 
 Before requesting the production review, link the [code signing policy](../../doc/Code%20signing%20policy.md)
 from the actual project home/download/release pages as well, and confirm the listed
