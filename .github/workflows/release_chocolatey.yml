@@ -1,0 +1,83 @@
+name: Publish stable release to Chocolatey
+
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Published stable tag to submit, e.g. 2.7.63.0 (not a draft or beta)'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chocolatey-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      vars.CHOCO_ENABLED == 'true' && github.repository == 'supermerill/SuperSlicer' &&
+      ((github.event_name == 'release' && !github.event.release.draft && !github.event.release.prerelease) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)))
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test publication guards offline
+        run: python -B -m unittest discover -s .github/scripts/tests -v
+      - name: Check current release, exact MSI and normalized package version
+        id: prepare
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
+        run: >-
+          python -B .github/scripts/chocolatey.py prepare --tag "$env:RELEASE_TAG"
+          --metadata "$env:RUNNER_TEMP/chocolatey-release.json" --output "$env:GITHUB_OUTPUT"
+      - name: Verify signed MSI and pack the script-only package
+        if: steps.prepare.outputs.submit == 'true'
+        shell: powershell
+        run: >-
+          ./.github/chocolatey/Pack-Release.ps1 -MetadataPath "$env:RUNNER_TEMP/chocolatey-release.json"
+          -WorkDirectory "$env:RUNNER_TEMP/chocolatey-download" -OutputDirectory chocolatey-package
+      - name: Keep the exact package submitted for review
+        if: steps.prepare.outputs.submit == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: chocolatey-${{ steps.prepare.outputs.package_version }}-${{ github.run_attempt }}
+          path: chocolatey-package/${{ steps.prepare.outputs.package_file }}
+          if-no-files-found: error
+      - name: Submit to Chocolatey Community Repository
+        if: steps.prepare.outputs.submit == 'true'
+        shell: powershell
+        env:
+          CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
+          PACKAGE_FILE: ${{ steps.prepare.outputs.package_file }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CHOCO_API_KEY)) {
+            throw 'Set CHOCO_API_KEY for an authorized maintainer of superslicer; see .github/chocolatey/README.md.'
+          }
+          choco push "chocolatey-package/$env:PACKAGE_FILE" --source 'https://push.chocolatey.org/' --api-key "$env:CHOCO_API_KEY" --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Chocolatey submission failed; inspect moderation/ownership or an existing submission before retrying.' }
+      - name: Summarize submission
+        shell: powershell
+        env:
+          PACKAGE_VERSION: ${{ steps.prepare.outputs.package_version }}
+          SUBMIT: ${{ steps.prepare.outputs.submit }}
+        run: |
+          $url = "https://community.chocolatey.org/packages/superslicer/$env:PACKAGE_VERSION"
+          if ($env:SUBMIT -eq 'false') {
+            "Chocolatey: version already exists; no overwrite or push. $url" >> $env:GITHUB_STEP_SUMMARY
+          } else {
+            "Chocolatey: submitted for validation/moderation, not guaranteed approved yet. $url" >> $env:GITHUB_STEP_SUMMARY
+          }
