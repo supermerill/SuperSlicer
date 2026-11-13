@@ -106,6 +106,13 @@ The helper owns only its delimited footer block: handwritten release notes befor
 and after it are preserved across retries. You still write the release notes and
 publish the release manually.
 
+After a **stable** release is publicly published, the separate
+[`release_winget.yml`](../workflows/release_winget.yml) can submit its Windows MSI to
+WinGet. It is disabled until the first package is accepted and `WINGET_ENABLED=true`;
+see the [WinGet setup and manual first submission](../winget/README.md). Drafts,
+beta releases and nightly builds are not submitted. The RC master never receives
+the external WinGet token.
+
 ## Offline verification and migration
 
 ```powershell

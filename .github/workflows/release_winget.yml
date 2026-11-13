@@ -1,0 +1,78 @@
+name: Publish stable release to WinGet
+
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Published stable tag to submit, e.g. 2.7.63.0 (not a draft or beta)'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+# The action synchronizes a shared winget-pkgs fork: serialize all versions.
+concurrency:
+  group: winget-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      vars.WINGET_ENABLED == 'true' && github.repository == 'supermerill/SuperSlicer' &&
+      ((github.event_name == 'release' && !github.event.release.draft && !github.event.release.prerelease) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)))
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test publication guards offline
+        run: python -B -m unittest discover -s .github/scripts/tests -v
+      - name: Check current release, exact MSI and existing WinGet package
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
+        run: python .github/scripts/winget.py --tag "$RELEASE_TAG" --output "$GITHUB_OUTPUT"
+      - name: Require the external submission token
+        if: steps.prepare.outputs.submit == 'true'
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          if [ -z "$WINGET_TOKEN" ]; then
+            echo '::error::Set the WINGET_TOKEN repository secret; see .github/winget/README.md.'
+            exit 1
+          fi
+      - name: Open the WinGet update pull request
+        id: winget
+        if: steps.prepare.outputs.submit == 'true'
+        # Pinned upstream main, 2026-11-13. Review before updating this SHA.
+        uses: vedantmgoyal9/winget-releaser@b7370d4d152efdce803a26cc6ca9eee58cb2ad54
+        with:
+          identifier: Supermerill.SuperSlicer
+          version: ${{ steps.prepare.outputs.version }}
+          release-tag: ${{ steps.prepare.outputs.release_tag }}
+          release-repository: supermerill/SuperSlicer
+          installers-regex: ${{ steps.prepare.outputs.installers_regex }}
+          max-versions-to-keep: 0
+          fork-user: ${{ vars.WINGET_FORK_USER || github.repository_owner }}
+          token: ${{ secrets.WINGET_TOKEN }}
+      - name: Summarize submission
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+          SUBMIT: ${{ steps.prepare.outputs.submit }}
+          PR_URL: ${{ steps.winget.outputs.pr-url }}
+        run: |
+          if [ "$SUBMIT" = 'false' ]; then
+            printf 'WinGet: Supermerill.SuperSlicer %s already exists; no PR created.\n' "$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf 'WinGet: Supermerill.SuperSlicer %s submitted for review: %s\n' "$VERSION" "$PR_URL" >> "$GITHUB_STEP_SUMMARY"
+          fi
