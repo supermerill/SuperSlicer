@@ -1,23 +1,41 @@
 name: C/C++ Release candidate ubuntu-GTK3
 
 on:
-  push:
-    branches:
-      - rc
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        required: true
+      release_version:
+        type: string
+        required: true
+      release_id:
+        type: string
+        required: true
+      product:
+        type: string
+        required: true
+
+permissions:
+  contents: read
 
 jobs:
   build:
 
     runs-on: ubuntu-22.04
+    outputs:
+      release_artifact_id: ${{ steps.release-artifact.outputs.artifact-id }}
 
     env:
       EXEC_NAME: "${{ github.event.repository.name }}"
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
-        ref: 'rc'
+        ref: ${{ inputs.source_sha || github.sha }}
+        persist-credentials: false
     - name: Setup cmake
-      uses: jwlawson/actions-setup-cmake@v1.13
+      uses: jwlawson/actions-setup-cmake@v2
       with:
         cmake-version: '3.16.x'
     - name: update clock
@@ -30,7 +48,7 @@ jobs:
       run: sudo ./BuildLinux.sh -u
     - name: dep cache
       id: cache-action
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: ubu_gtk3_2.7.63
         path: deps/build/destdir
@@ -44,8 +62,44 @@ jobs:
       with:
         name: rc_${{ github.event.repository.name }}-linux-x64-GTK3.tgz
         path: build/${{ github.event.repository.name }}-linux-x64-GTK3.tgz
+        if-no-files-found: error
+        overwrite: true
     - name: Upload appimage
       uses: actions/upload-artifact@v4
       with:
         name: rc_${{ github.event.repository.name }}-linux-x64-GTK3.AppImage
         path: build/${{ github.event.repository.name }}-linux-x64-GTK3.AppImage
+        if-no-files-found: error
+        overwrite: true
+    - name: Stage named release files and integrity manifest
+      if: inputs.release_id != ''
+      env:
+        RELEASE_SHA: ${{ inputs.source_sha }}
+        RELEASE_VERSION: ${{ inputs.release_version }}
+        PRODUCT: ${{ inputs.product }}
+      run: >-
+        python3 .github/scripts/release.py stage --platform linux-gtk3
+        --source-sha "$RELEASE_SHA" --version "$RELEASE_VERSION" --product "$PRODUCT"
+    - name: Upload exact files for the draft publisher
+      id: release-artifact
+      if: inputs.release_id != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-linux-gtk3-${{ github.run_attempt }}
+        path: release-assets/
+        if-no-files-found: error
+
+  publish:
+    needs: build
+    if: inputs.release_id != ''
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/release_upload.yml
+    with:
+      source_sha: ${{ inputs.source_sha }}
+      release_version: ${{ inputs.release_version }}
+      release_id: ${{ inputs.release_id }}
+      product: ${{ inputs.product }}
+      platform: linux-gtk3
+      artifact_id: ${{ needs.build.outputs.release_artifact_id }}

@@ -3,15 +3,35 @@ name: C/C++ Release candidate macos
 on:
   push:
     branches:
-      - rc
       - rc-macintel
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        required: true
+      release_version:
+        type: string
+        required: true
+      release_id:
+        type: string
+        required: true
+      product:
+        type: string
+        required: true
+
+permissions:
+  contents: read
 
 jobs:
   build_dep:
     runs-on: macos-15-intel
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.source_sha || github.sha }}
+        persist-credentials: false
     - name: New cmake
       run: cmake --version
     - name: Setup cmake
@@ -41,7 +61,7 @@ jobs:
       run: mkdir deps/build
     - name: dep cache
       id: cache-action
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: macos_intel_2.7.63
         path: deps/build/destdir
@@ -52,9 +72,14 @@ jobs:
   build:
     runs-on: macos-15-intel
     needs: build_dep
+    outputs:
+      release_artifact_id: ${{ steps.release-artifact.outputs.artifact-id }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.source_sha || github.sha }}
+        persist-credentials: false
     - name: New cmake
       run: cmake --version
     - name: Setup cmake
@@ -71,7 +96,7 @@ jobs:
       run: autoconf --version
     - name: update automake for mpfr
       run: |
-        curl -O -L http://ftpmirror.gnu.org/automake/automake-1.16.5.tar.gz
+        curl -O -L https://github.com/supermerill/SuperSlicer_deps/releases/download/automake/automake-1.16.5.tar.gz
         tar -xzf automake-1.16.5.tar.gz
         cd automake-*
         ./configure
@@ -82,7 +107,7 @@ jobs:
       run: brew install texinfo
     - name: dep cache
       id: cache-action
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: macos_intel_2.7.63
         path: deps/build/destdir
@@ -91,10 +116,46 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: rc_${{ github.event.repository.name }}-macOS.tgz
+        name: rc_${{ github.event.repository.name }}-macOS-intel.tgz
         path: build/${{ github.event.repository.name }}-macOS-intel.tgz
+        if-no-files-found: error
+        overwrite: true
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: rc_${{ github.event.repository.name }}-macOS.dmg
+        name: rc_${{ github.event.repository.name }}-macOS-intel.dmg
         path: build/${{ github.event.repository.name }}-macOS-intel.dmg
+        if-no-files-found: error
+        overwrite: true
+    - name: Stage named release files and integrity manifest
+      if: inputs.release_id != ''
+      env:
+        RELEASE_SHA: ${{ inputs.source_sha }}
+        RELEASE_VERSION: ${{ inputs.release_version }}
+        PRODUCT: ${{ inputs.product }}
+      run: >-
+        python3 .github/scripts/release.py stage --platform macos-intel
+        --source-sha "$RELEASE_SHA" --version "$RELEASE_VERSION" --product "$PRODUCT"
+    - name: Upload exact files for the draft publisher
+      id: release-artifact
+      if: inputs.release_id != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-macos-intel-${{ github.run_attempt }}
+        path: release-assets/
+        if-no-files-found: error
+
+  publish:
+    needs: build
+    if: inputs.release_id != ''
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/release_upload.yml
+    with:
+      source_sha: ${{ inputs.source_sha }}
+      release_version: ${{ inputs.release_version }}
+      release_id: ${{ inputs.release_id }}
+      product: ${{ inputs.product }}
+      platform: macos-intel
+      artifact_id: ${{ needs.build.outputs.release_artifact_id }}

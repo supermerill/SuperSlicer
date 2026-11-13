@@ -31,7 +31,7 @@ def get_cmake_var(filepath, var_name):
 	return None
 
 parser = argparse.ArgumentParser(
-	description="Create release folders without overwriting existing ones."
+	description="Legacy manual recovery tool. Prefer the RC release orchestrator in GitHub Actions."
 )
 
 parser.add_argument("branch_name", nargs="?", default="rc", help="Branch name")
@@ -57,10 +57,10 @@ if githubtoken_file.exists():
 		for line in f:
 			if line.startswith("token="):
 				github_auth_token = line.strip().split("=", 1)[1];
-				print(f"file githubtoken.ini found, using token:'{github_auth_token}'");
+				print("file githubtoken.ini found; using configured credentials (value hidden)");
 				break
 else:
-	print(f"file githubtoken.ini not found, using hardcoded token:'{github_auth_token}'");
+	print("file githubtoken.ini not found (credential values are never displayed)");
 	if(not github_auth_token):
 		print("For this scipt to work, please create a 'githubtoken.ini' file, and make at least a line with 'token=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'");
 

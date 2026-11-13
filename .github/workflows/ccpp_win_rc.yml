@@ -3,7 +3,6 @@ name: C/C++ Release candidate windows x64
 on:
   push:
     branches:
-      - rc
       - debug_win
   workflow_dispatch:
     inputs:
@@ -11,10 +10,30 @@ on:
         description: 'Sign this release build (requires SIGNPATH_ENABLED and production policy)'
         type: boolean
         default: false
+  workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        required: true
+      release_version:
+        type: string
+        required: true
+      release_id:
+        type: string
+        required: true
+      product:
+        type: string
+        required: true
+    secrets:
+      SIGNPATH_API_TOKEN:
+        required: false
+
+permissions:
+  contents: read
 
 env:
-  # Automatic signing is limited to pushes to rc; debug_win never signs automatically.
-  SIGNPATH_ENABLED: ${{ vars.SIGNPATH_ENABLED == 'true' && ((github.event_name == 'push' && github.ref == 'refs/heads/rc') || (github.event_name == 'workflow_dispatch' && inputs.sign)) && 'true' || 'false' }}
+  # The orchestrator requires production signing; standalone debug pushes never sign.
+  SIGNPATH_ENABLED: ${{ vars.SIGNPATH_ENABLED == 'true' && (inputs.release_id != '' || (github.event_name == 'workflow_dispatch' && inputs.sign)) && 'true' || 'false' }}
   SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
   SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG || 'superslicer' }}
   SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
@@ -25,6 +44,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.source_sha || github.sha }}
+        persist-credentials: false
+    - name: Require production signing for release assets
+      if: inputs.release_id != '' && env.SIGNPATH_ENABLED != 'true'
+      shell: powershell
+      run: throw 'RC release assets require SIGNPATH_ENABLED=true and a valid production certificate. Use the nightly workflow for self-signed tests.'
     - name: check signing configuration
       if: env.SIGNPATH_ENABLED == 'true'
       shell: powershell
@@ -60,12 +86,17 @@ jobs:
   build:
     runs-on: windows-2022
     needs: build_dep
+    outputs:
+      release_artifact_id: ${{ steps.release-artifact.outputs.artifact-id }}
     permissions:
       contents: read
       actions: read
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.source_sha || github.sha }}
+        persist-credentials: false
     - uses: ilammy/msvc-dev-cmd@v1
     - name: update submodule profiles
       working-directory: ./resources/profiles
@@ -208,6 +239,7 @@ jobs:
       with:
         name: rc_${{ github.event.repository.name }}-win64
         path: build/package/
+        if-no-files-found: error
         overwrite: true
 
 # MSI CREATION (need files from the slic3r build, can't be its own step)
@@ -244,7 +276,10 @@ jobs:
       shell: powershell
       run: |
         $fullVersion = (Get-Content version.inc | Select-String -Pattern 'set\(SLIC3R_RC_VERSION_DOTS \"(.*?)\"\)' | ForEach-Object { $_.Matches.Groups[1].Value })
-        $env:InstallerVersion = "$fullVersion" -replace '\.[0-9]([+-].+)?', '.0'
+        if ($fullVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') {
+          throw 'Invalid SLIC3R_RC_VERSION_DOTS; refusing to generate a mis-versioned installer'
+        }
+        $env:InstallerVersion = "$fullVersion"
         echo "InstallerVersion=$env:InstallerVersion" >> $env:GITHUB_ENV
         $env:ReleaseSuffix = ""
         echo "ReleaseSuffix=$env:ReleaseSuffix" >> $env:GITHUB_ENV
@@ -252,9 +287,7 @@ jobs:
       shell: powershell
       run: |
         if ([string]::IsNullOrWhiteSpace($env:InstallerVersion)) {
-          Write-Warning "InstallerVersion is empty or null. Setting default version to 0.0.0.0"
-          $env:InstallerVersion = "0.0.0.0"
-          echo "InstallerVersion=$env:InstallerVersion" >> $env:GITHUB_ENV
+          throw 'InstallerVersion is empty; refusing to publish a 0.0.0.0 fallback'
         }
         Write-Host "Version validation passed: $env:InstallerVersion"
     - name: Build MSI installer
@@ -310,5 +343,39 @@ jobs:
       with:
         name: rc_${{ github.event.repository.name }}-win64.msi
         path: build/${{ github.event.repository.name }}_${{ env.InstallerVersion }}.msi
+        if-no-files-found: error
         overwrite: true
+    - name: Stage signed release files and integrity manifest
+      if: inputs.release_id != ''
+      shell: powershell
+      env:
+        RELEASE_SHA: ${{ inputs.source_sha }}
+        RELEASE_VERSION: ${{ inputs.release_version }}
+        PRODUCT: ${{ inputs.product }}
+      run: >-
+        python .github/scripts/release.py stage --platform windows
+        --source-sha "$env:RELEASE_SHA" --version "$env:RELEASE_VERSION" --product "$env:PRODUCT"
+    - name: Upload exact files for the draft publisher
+      id: release-artifact
+      if: inputs.release_id != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-windows-${{ github.run_attempt }}
+        path: release-assets/
+        if-no-files-found: error
+
+  publish:
+    needs: build
+    if: inputs.release_id != ''
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/release_upload.yml
+    with:
+      source_sha: ${{ inputs.source_sha }}
+      release_version: ${{ inputs.release_version }}
+      release_id: ${{ inputs.release_id }}
+      product: ${{ inputs.product }}
+      platform: windows
+      artifact_id: ${{ needs.build.outputs.release_artifact_id }}
 
