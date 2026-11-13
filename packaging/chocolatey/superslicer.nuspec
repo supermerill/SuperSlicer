@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>superslicer</id>
+    <version>@PACKAGE_VERSION@</version>
+    <title>SuperSlicer (MSI)</title>
+    <authors>Supermerill</authors>
+    <projectUrl>https://github.com/supermerill/SuperSlicer</projectUrl>
+    <packageSourceUrl>https://github.com/supermerill/SuperSlicer/tree/@SOURCE_VERSION@/packaging/chocolatey</packageSourceUrl>
+    <projectSourceUrl>https://github.com/supermerill/SuperSlicer/tree/@SOURCE_VERSION@</projectSourceUrl>
+    <licenseUrl>https://github.com/supermerill/SuperSlicer/blob/@SOURCE_VERSION@/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <iconUrl>https://cdn.jsdelivr.net/gh/supermerill/SuperSlicer@@SOURCE_VERSION@/resources/icons/SuperSlicer.png</iconUrl>
+    <bugTrackerUrl>https://github.com/supermerill/SuperSlicer/issues</bugTrackerUrl>
+    <tags>superslicer gcode slicer 3d-printing admin</tags>
+    <summary>G-code generator for 3D printers, installed using the upstream Windows MSI.</summary>
+    <description>SuperSlicer converts 3D models into G-code for FFF printers and is based on PrusaSlicer and Slic3r.
+This package installs the upstream production-signed Windows x64 MSI for all users. Administrator privileges are required.
+For an existing portable Chocolatey installation, back up settings and uninstall the old portable package first; automatic portable-to-MSI migration is not performed.</description>
+    <releaseNotes>https://github.com/supermerill/SuperSlicer/releases/tag/@SOURCE_VERSION@</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\chocolateyInstall.ps1" target="tools" />
+    <file src="tools\VERIFICATION.txt" target="tools" />
+  </files>
+</package>

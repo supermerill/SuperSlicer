@@ -113,6 +113,12 @@ see the [WinGet setup and manual first submission](../winget/README.md). Drafts,
 beta releases and nightly builds are not submitted. The RC master never receives
 the external WinGet token.
 
+The separate [`release_chocolatey.yml`](../workflows/release_chocolatey.yml) can submit
+the same public stable MSI to Chocolatey after `CHOCO_ENABLED=true`. It requires
+publishing rights for the existing `superslicer` package and an agreed/tested transition
+from its portable ZIP package; see [Chocolatey setup](../chocolatey/README.md). The RC
+master never receives `CHOCO_API_KEY`, and a push does not bypass community moderation.
+
 ## Offline verification and migration
 
 ```powershell
