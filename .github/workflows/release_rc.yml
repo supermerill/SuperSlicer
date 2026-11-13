@@ -1,0 +1,142 @@
+name: RC release orchestrator
+
+on:
+  push:
+    branches: [rc]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Do not cancel an in-progress release when rc receives another push.
+# GitHub may replace a pending run with the newest pending run in this group.
+concurrency:
+  group: rc-release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    outputs:
+      product: ${{ steps.release.outputs.product }}
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      source_sha: ${{ steps.release.outputs.source_sha }}
+      release_id: ${{ steps.release.outputs.release_id }}
+      windows: ${{ steps.release.outputs.windows }}
+      macos_intel: ${{ steps.release.outputs.macos_intel }}
+      macos_arm: ${{ steps.release.outputs.macos_arm }}
+      linux_gtk3: ${{ steps.release.outputs.linux_gtk3 }}
+      linux_gtk2: ${{ steps.release.outputs.linux_gtk2 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test release logic offline before any GitHub write
+        run: python -B -m unittest discover -s .github/scripts/tests -v
+      - name: Prepare immutable tag and draft release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .github/scripts/release.py prepare --source-sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT"
+
+  windows:
+    needs: prepare
+    if: needs.prepare.outputs.windows == 'true'
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/ccpp_win_rc.yml
+    with:
+      source_sha: ${{ needs.prepare.outputs.source_sha }}
+      release_version: ${{ needs.prepare.outputs.version }}
+      release_id: ${{ needs.prepare.outputs.release_id }}
+      product: ${{ needs.prepare.outputs.product }}
+    secrets:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+
+  macos_intel:
+    needs: prepare
+    if: needs.prepare.outputs.macos_intel == 'true'
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/ccpp_mac_rc.yml
+    with:
+      source_sha: ${{ needs.prepare.outputs.source_sha }}
+      release_version: ${{ needs.prepare.outputs.version }}
+      release_id: ${{ needs.prepare.outputs.release_id }}
+      product: ${{ needs.prepare.outputs.product }}
+
+  macos_arm:
+    needs: prepare
+    if: needs.prepare.outputs.macos_arm == 'true'
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/ccpp_mac_arm_rc.yml
+    with:
+      source_sha: ${{ needs.prepare.outputs.source_sha }}
+      release_version: ${{ needs.prepare.outputs.version }}
+      release_id: ${{ needs.prepare.outputs.release_id }}
+      product: ${{ needs.prepare.outputs.product }}
+
+  linux_gtk3:
+    needs: prepare
+    if: needs.prepare.outputs.linux_gtk3 == 'true'
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/ccpp_ubuntu_gtk3_rc.yml
+    with:
+      source_sha: ${{ needs.prepare.outputs.source_sha }}
+      release_version: ${{ needs.prepare.outputs.version }}
+      release_id: ${{ needs.prepare.outputs.release_id }}
+      product: ${{ needs.prepare.outputs.product }}
+
+  linux_gtk2:
+    needs: prepare
+    if: needs.prepare.outputs.linux_gtk2 == 'true'
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/ccpp_ubuntu_gtk2_rc.yml
+    with:
+      source_sha: ${{ needs.prepare.outputs.source_sha }}
+      release_version: ${{ needs.prepare.outputs.version }}
+      release_id: ${{ needs.prepare.outputs.release_id }}
+      product: ${{ needs.prepare.outputs.product }}
+
+  summary:
+    needs: [prepare, windows, macos_intel, macos_arm, linux_gtk3, linux_gtk2]
+    if: ${{ always() && needs.prepare.result == 'success' }}
+    runs-on: ubuntu-22.04
+    permissions:
+      # GitHub requires push access even for GET requests on a draft release.
+      # The verify command itself performs no writes.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check all assets and leave the release in draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
+          PRODUCT: ${{ needs.prepare.outputs.product }}
+          RELEASE_JOB_RESULTS: ${{ toJSON(needs) }}
+        run: >-
+          python .github/scripts/release.py verify --source-sha "$RELEASE_SHA"
+          --version "$RELEASE_VERSION" --product "$PRODUCT" --release-id "$RELEASE_ID"

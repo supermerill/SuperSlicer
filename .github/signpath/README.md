@@ -1,6 +1,8 @@
 # Windows code signing (SignPath)
 
 Release signing is in `.github/workflows/ccpp_win_rc.yml` (`Release` binaries).
+It is called by the [RC release orchestrator](../release/README.md), which prepares
+the version tag and draft and only builds missing platforms.
 `.github/workflows/ccpp_win.yml` (`RelWithDebInfo`) supports **manual test signing only**.
 `ccpp_win_debug.yml` is not integrated. Signing is **off by default**.
 
@@ -9,7 +11,7 @@ Release signing is in `.github/workflows/ccpp_win_rc.yml` (`Release` binaries).
 | Ordinary nightly push (including `debug_win`) | Never submits a signing request |
 | Manually dispatched nightly, `sign` unchecked | Ordinary unsigned build |
 | Manually dispatched nightly, `sign` checked | Uses the pinned self-signed certificate and test policy; two requests |
-| Push to `rc` | Production signing only if `SIGNPATH_ENABLED=true`; otherwise unsigned |
+| Push to `rc` | The master calls Windows when its release files are missing; requires production signing, otherwise the Windows worker fails without publishing unsigned release files |
 | RC workflow on `debug_win` | Never signs automatically |
 | Manually dispatched RC workflow | Signs only with `sign` checked **and** `SIGNPATH_ENABLED=true` |
 
@@ -45,7 +47,12 @@ In the selected organization, create or check these objects. Slugs must match CI
 | Production Signing Policy | e.g. `release-signing` | assign the production certificate and put the slug in `SIGNPATH_SIGNING_POLICY_SLUG`; authorize the submitter and require maintainer approval |
 | Artifact Configuration | `windows-binaries` | content of `artifact-configuration-binaries.xml` |
 | Artifact Configuration | `windows-msi` | content of `artifact-configuration-msi.xml` |
-| API token | — | user profile → API tokens, stored as the `SIGNPATH_API_TOKEN` GitHub secret |
+| API token | — | token of the project's CI user, stored as the `SIGNPATH_API_TOKEN` GitHub secret |
+
+For OSS trusted-build verification, use the existing **CI builds** technical user as
+Submitter. Do not substitute an interactive administrator's personal token. A personal
+account can remain an Approver; a CI user does not need a dashboard login or email
+confirmation to authenticate with its token.
 
 Use MFA for both GitHub and SignPath accounts. Restrict the project's allowed source
 repository/branches to the intended SuperSlicer builds. When requested by SignPath's
@@ -117,7 +124,7 @@ The MSI is signed in a second request, after `light.exe`. See the
 ## First run
 
 `wait-for-completion: true` means CI waits for the signing request to be approved.
-If the signing policy requires manual approval, open SignPath → *My Requests* and approve
+If the signing policy requires manual approval, open SignPath → *Browse* and approve
 while the workflow is running. If it times out, raise
 `wait-for-completion-timeout-in-seconds` in the workflow.
 
@@ -134,6 +141,11 @@ Input artifacts include `github.run_attempt` in their names and final artifacts 
 left by an earlier attempt. **Re-running an explicitly signed build submits new signing
 requests**, consumes quota again and still requires approval. SignPath pipeline policies
 may disallow re-runs (or cap supported attempts); use a fresh workflow run if required.
+
+For RC draft publication, an already complete Windows platform is skipped before
+building or submitting a signing request. A partial draft may rebuild Windows and
+submit both signing requests again, but keeps existing release assets unchanged.
+The orchestrator always keeps the tag's original SHA and never modifies a public release.
 
 Before requesting the production review, link the [code signing policy](../../doc/Code%20signing%20policy.md)
 from the actual project home/download/release pages as well, and confirm the listed

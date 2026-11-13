@@ -1,16 +1,34 @@
 name: C/C++ Release candidate arm macos
 
 on:
-  push:
-    branches:
-      - rc
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        required: true
+      release_version:
+        type: string
+        required: true
+      release_id:
+        type: string
+        required: true
+      product:
+        type: string
+        required: true
+
+permissions:
+  contents: read
 
 jobs:
   build_dep:
     runs-on: macos-15
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.source_sha || github.sha }}
+        persist-credentials: false
     - name: New cmake
       run: cmake --version
     - name: Setup cmake
@@ -38,7 +56,7 @@ jobs:
       run: mkdir deps/build
     - name: dep cache
       id: cache-action
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: macos_arm_2.7.63
         path: deps/build/destdir
@@ -49,9 +67,14 @@ jobs:
   build:
     runs-on: macos-14
     needs: build_dep
+    outputs:
+      release_artifact_id: ${{ steps.release-artifact.outputs.artifact-id }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.source_sha || github.sha }}
+        persist-credentials: false
     - name: New cmake
       run: cmake --version
     - name: Setup cmake
@@ -62,7 +85,7 @@ jobs:
       run: cmake --version
     - name: dep cache
       id: cache-action
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: macos_arm_2.7.63
         path: deps/build/destdir
@@ -73,8 +96,44 @@ jobs:
       with:
         name: rc_${{ github.event.repository.name }}-macOS-arm.dmg
         path: build/${{ github.event.repository.name }}-macOS-arm.dmg
+        if-no-files-found: error
+        overwrite: true
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: rc_${{ github.event.repository.name }}-macOS-arm.tgz
         path: build/${{ github.event.repository.name }}-macOS-arm.tgz
+        if-no-files-found: error
+        overwrite: true
+    - name: Stage named release files and integrity manifest
+      if: inputs.release_id != ''
+      env:
+        RELEASE_SHA: ${{ inputs.source_sha }}
+        RELEASE_VERSION: ${{ inputs.release_version }}
+        PRODUCT: ${{ inputs.product }}
+      run: >-
+        python3 .github/scripts/release.py stage --platform macos-arm
+        --source-sha "$RELEASE_SHA" --version "$RELEASE_VERSION" --product "$PRODUCT"
+    - name: Upload exact files for the draft publisher
+      id: release-artifact
+      if: inputs.release_id != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-macos-arm-${{ github.run_attempt }}
+        path: release-assets/
+        if-no-files-found: error
+
+  publish:
+    needs: build
+    if: inputs.release_id != ''
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/release_upload.yml
+    with:
+      source_sha: ${{ inputs.source_sha }}
+      release_version: ${{ inputs.release_version }}
+      release_id: ${{ inputs.release_id }}
+      product: ${{ inputs.product }}
+      platform: macos-arm
+      artifact_id: ${{ needs.build.outputs.release_artifact_id }}

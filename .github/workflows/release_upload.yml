@@ -1,0 +1,59 @@
+name: Upload platform assets to an RC draft
+
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        required: true
+      release_version:
+        type: string
+        required: true
+      release_id:
+        type: string
+        required: true
+      product:
+        type: string
+        required: true
+      platform:
+        type: string
+        required: true
+      artifact_id:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download the exact output of this platform in this workflow run
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ inputs.artifact_id }}
+          merge-multiple: true
+          path: release-assets
+      - name: Verify manifest, tag and draft; upload only missing files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.source_sha }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          PRODUCT: ${{ inputs.product }}
+          PLATFORM: ${{ inputs.platform }}
+        run: >-
+          python .github/scripts/release.py upload --source-sha "$RELEASE_SHA"
+          --version "$RELEASE_VERSION" --product "$PRODUCT" --release-id "$RELEASE_ID"
+          --platform "$PLATFORM" --assets-directory release-assets
