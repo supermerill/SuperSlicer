@@ -70,15 +70,16 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
     - uses: ilammy/msvc-dev-cmd@v1
     - name: update submodule profiles
       working-directory: ./resources/profiles
       run: git submodule update --init
-    - name: change date in version
+    - name: Prepare dated nightly version and MSI identity
       shell: powershell
-      run: |
-        copy version.inc version.date.inc
-        (Get-Content version.date.inc) | Foreach-Object {$_ -replace "\+UNKNOWN", ("-" + [datetime]::Today.ToString("yyyy-MM-dd"))} | Set-Content version.date.inc
+      run: python -B .github/scripts/nightly_version.py --github-env "$env:GITHUB_ENV"
     - name: dep cache
       uses: actions/cache/restore@v4
       with:
@@ -229,38 +230,17 @@ jobs:
       working-directory: ./build
       run: |
         heat.exe dir package -dr INSTALLFOLDER -cg Package -gg -sreg -srd -var var.SourceDir -out files.wxs -sfrag
-    - name: Generate installer version
-      shell: powershell
-      run: |
-        $fullVersion = (Get-Content version.inc | Select-String -Pattern 'set\(SLIC3R_RC_VERSION_DOTS \"(.*?)\"\)' | ForEach-Object { $_.Matches.Groups[1].Value })
-        $dateSuffix = (Get-Date -Format 'yyMMdd')
-        $env:InstallerVersion = "$fullVersion$dateSuffix" -replace '\.[0-9]([+-].+)?', '.0'
-        echo "InstallerVersion=$env:InstallerVersion" >> $env:GITHUB_ENV
-        $env:ReleaseSuffix = "-Beta-Nightly"
-        echo "ReleaseSuffix=$env:ReleaseSuffix" >> $env:GITHUB_ENV
-    - name: Check version number is not empty
-      shell: powershell
-      run: |
-        if ([string]::IsNullOrWhiteSpace($env:InstallerVersion)) {
-          Write-Warning "InstallerVersion is empty or null. Setting default version to 0.0.0.0"
-          $env:InstallerVersion = "0.0.0.0"
-          echo "InstallerVersion=$env:InstallerVersion" >> $env:GITHUB_ENV
-        }
-        Write-Host "Version validation passed: $env:InstallerVersion"
     - name: Build MSI installer
       shell: cmd
       working-directory: ./build
       run: |
-        set MSIFileName=${{ github.event.repository.name }}_%InstallerVersion%.msi
         candle.exe -dSourceDir="package" -dInstallerVersion="%InstallerVersion%" -dReleaseSuffix="%ReleaseSuffix%" src\winInstaller.wxs files.wxs
-        light.exe -b package -ext WixUIExtension winInstaller.wixobj files.wixobj -o %MSIFileName% -sw1076
+        light.exe -b package -ext WixUIExtension winInstaller.wixobj files.wixobj -o "%MSI_FILE_NAME%" -sw1076
 
     # ---- code signing: installer ----------------------------------------
     - name: collect unsigned msi
       if: env.SIGNPATH_ENABLED == 'true'
       shell: powershell
-      env:
-        MSI_FILE_NAME: ${{ github.event.repository.name }}_${{ env.InstallerVersion }}.msi
       run: |
         New-Item -ItemType Directory -Path build/sign-msi-input | Out-Null
         Copy-Item -LiteralPath "build/$env:MSI_FILE_NAME" -Destination build/sign-msi-input -ErrorAction Stop
@@ -299,5 +279,6 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ env.SIGNPATH_ENABLED == 'true' && env.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT != '' && 'test-signed_' || '' }}nightly_${{ github.event.repository.name }}-win64.msi
-        path: build/${{ github.event.repository.name }}_${{ env.InstallerVersion }}.msi
+        path: build/${{ env.MSI_FILE_NAME }}
+        if-no-files-found: error
         overwrite: true
