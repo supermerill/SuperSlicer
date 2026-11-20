@@ -538,7 +538,7 @@ class WorkflowContractTests(unittest.TestCase):
         script = "windows/Invoke-MsvcBuild.ps1"
         self.assertTrue((ROOT / script).is_file())
         keys = set()
-        for name, target in (("ccpp_win.yml", "RelWithDebInfo"), ("ccpp_win_rc.yml", "Release"),
+        for name, target in (("ccpp_win.yml", "RelWithDebInfo"), ("windows_build.yml", "$env:CONFIGURATION"),
                              ("ccpp_win_debug.yml", "Debug")):
             with self.subTest(workflow=name):
                 workflow = self.workflow(name)
@@ -607,16 +607,27 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_windows_publication_requires_production_signing(self):
         workflow = self.workflow("ccpp_win_rc.yml")
-        steps = workflow["jobs"]["build_dep"]["steps"]
-        guard = next(step for step in steps if step.get("name") == "Require production signing for release assets")
+        jobs = workflow["jobs"]
+        guard = next(step for step in jobs["signing"]["steps"] if step.get("name") == "Require production signing for release assets")
         self.assertIn("inputs.release_id != ''", guard["if"])
         self.assertIn("env.SIGNPATH_ENABLED != 'true'", guard["if"])
-        self.assertIn("throw", guard["run"])
-        build = workflow["jobs"]["build"]["steps"]
-        names = [step.get("name") for step in build]
-        self.assertLess(names.index("verify and replace signed msi"), names.index("Stage signed release files and integrity manifest"))
-        version = next(step["run"] for step in build if step.get("name") == "Generate installer version")
-        self.assertNotIn("-replace", version)
+        self.assertIn("exit 1", guard["run"])
+        # The signing decision precedes compilation; packaging uses the exact build artifact.
+        self.assertEqual("signing", jobs["build"]["needs"])
+        self.assertEqual("./.github/workflows/windows_build.yml", jobs["build"]["uses"])
+        self.assertNotIn("secrets", jobs["build"])
+        package = jobs["package"]
+        self.assertEqual("./.github/workflows/windows_package.yml", package["uses"])
+        self.assertEqual("${{ needs.build.outputs.artifact_id }}", package["with"]["artifact_id"])
+        self.assertEqual("${{ needs.signing.outputs.mode }}", package["with"]["signing"])
+        self.assertEqual("${{ inputs.release_id != '' }}", package["with"]["stage_release"])
+        self.assertEqual("${{ needs.signing.outputs.mode == 'production' && secrets.SIGNPATH_API_TOKEN || '' }}",
+                         package["secrets"]["SIGNPATH_API_TOKEN"])
+        self.assertEqual("package", jobs["publish"]["needs"])
+        self.assertEqual("${{ needs.package.outputs.release_artifact_id }}", jobs["publish"]["with"]["artifact_id"])
+        mode = next(step["run"] for step in jobs["signing"]["steps"] if step.get("id") == "mode")
+        self.assertIn("production", mode)
+        self.assertNotIn("secrets.SIGNPATH_API_TOKEN }}", json.dumps(jobs["signing"]))
 
     def test_rc_signing_opt_in_truth_table(self):
         workflow = self.workflow("ccpp_win_rc.yml")

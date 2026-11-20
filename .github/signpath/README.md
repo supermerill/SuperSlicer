@@ -1,6 +1,8 @@
 # Windows code signing (SignPath)
 
-Release signing is in `.github/workflows/ccpp_win_rc.yml` (`Release` binaries).
+Release signing is requested by `.github/workflows/ccpp_win_rc.yml` (`Release` binaries) and
+performed by its packaging worker `windows_package.yml`, after `windows_build.yml` has compiled
+the commit in a separate job without any SignPath secret.
 It is called by the [RC release orchestrator](../release/README.md), which prepares
 the version tag and draft and only builds missing platforms.
 `.github/workflows/ccpp_win.yml` (`RelWithDebInfo`) supports **manual test signing only**.
