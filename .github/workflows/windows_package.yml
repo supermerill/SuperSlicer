@@ -47,7 +47,7 @@ permissions:
 
 jobs:
   package:
-    name: Sign and package
+    name: ${{ inputs.signing == 'none' && 'Package (unsigned)' || format('Sign ({0}) and package', inputs.signing) }}
     runs-on: windows-2022
     permissions:
       contents: read
@@ -170,11 +170,17 @@ jobs:
     - name: Install WiX Toolset 3.14.1
       shell: powershell
       run: |
-        choco install wixtoolset --version=3.14.1 -y --no-progress
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        # windows-2022 images ship this Chocolatey package; install it only where it is missing.
         $bin = Join-Path ${env:ProgramFiles(x86)} 'WiX Toolset v3.14\bin'
+        if (-not (Test-Path -LiteralPath "$bin\light.exe")) {
+          choco install wixtoolset --version=3.14.1.20250415 -y --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        }
+        # The template and heat/candle/light are WiX 3; 3.14.1 completes its security fix.
         $banner = @(& "$bin\light.exe" -?)[0]
-        if ($banner -notmatch 'version 3\.14\.1\.') { throw "Unexpected WiX linker: $banner" }
+        if ($banner -notmatch 'version (3\.\d+\.\d+\.\d+)' -or [version]$Matches[1] -lt [version]'3.14.1.0') {
+          throw "WiX 3 at least 3.14.1 is required: $banner"
+        }
         "WIX_BIN=$bin" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - name: Prepare license file for MSI
       shell: powershell
