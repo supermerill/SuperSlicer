@@ -72,3 +72,28 @@ headers and `.lib` files to CGAL, using the same GMP import library in Debug and
 Release. The CMake log should report `libgmp-10.lib` and `libmpfr-4.lib` in that
 prefix, not `libgmp.a` or `libmpfr.a` from the runner. The shared cache key includes
 the dependency recipes and build script and does not fall back to `win_2.7.63`.
+
+## Nightly MSI version and date
+
+The Windows nightly calls `.github/scripts/nightly_version.py` before compilation.
+It captures one date for both `version.date.inc` and the MSI filename, even if packaging
+happens after midnight. `+UNKNOWN` is still replaced by `-YYYY-MM-DD` in the binary
+version strings. The source `version.inc` is not modified.
+
+For `2.7.63.0`, `-beta+UNKNOWN` and 2026-11-14:
+
+- MSI `ProductVersion` / WiX `InstallerVersion`: **`2.7.63.0`**, unchanged numerically.
+- MSI filename: **`SuperSlicer_2.7.63.0-beta-2026-11-14.msi`**.
+- Binary ProductVersion string: `SuperSlicer_2.7.63.0-beta-2026-11-14`.
+- MSI display-name suffix: `-Beta-Nightly`, unchanged.
+
+`MSI_FILE_NAME` is shared by linking, signing-input collection and final upload.
+Malformed/mismatched version fields, missing nightly markers and out-of-range numeric
+components fail before compilation; there is no silent `0.0.0.0` fallback. Unit tests
+are included in `python -B -m unittest discover -s .github/scripts/tests -v`.
+
+Windows Installer compares only the first three version components. The existing MSI
+template keeps `Product Id="*"` and `AllowSameVersionUpgrades="yes"`: a rebuilt nightly
+can replace one with the same version, but this does not order nightlies chronologically
+or prevent returning to an older nightly. Installation/upgrade behavior still needs a
+VM test. RC versions and the manual-only SignPath test-signing rules are unchanged.

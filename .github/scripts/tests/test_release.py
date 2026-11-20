@@ -622,8 +622,8 @@ class WorkflowContractTests(unittest.TestCase):
                 })
                 self.assertEqual("true" if event == "workflow_dispatch" and sign else "false", result)
         commands = "\n".join(step.get("run", "") for step in nightly["jobs"]["build"]["steps"])
-        self.assertIn("[datetime]::Today", commands)
-        self.assertIn("UNKNOWN", commands)
+        self.assertIn(".github/scripts/nightly_version.py", commands)
+        self.assertIn("+UNKNOWN", (ROOT / "scripts/nightly_version.py").read_text(encoding="utf-8"))
         self.assertEqual("${{ vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG }}", nightly["env"]["SIGNPATH_SIGNING_POLICY_SLUG"])
 
     def test_publisher_uses_exact_artifact_id_and_separate_write_permissions(self):
