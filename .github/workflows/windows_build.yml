@@ -1,0 +1,176 @@
+name: Build Windows package
+
+# Compiles one commit and uploads the unsigned package folder with windows-build.json.
+# No WiX, no SignPath and no secret: windows_package.yml signs and assembles it.
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        required: true
+      mode:
+        description: 'rc (Release, version without date) or nightly (RelWithDebInfo, dated version)'
+        type: string
+        required: true
+    outputs:
+      artifact_id:
+        description: ID of the unsigned package artifact in this workflow run
+        value: ${{ jobs.build.outputs.artifact_id }}
+
+permissions:
+  contents: read
+
+jobs:
+  build_dep:
+    name: MSVC dependencies
+    runs-on: windows-2022
+    steps:
+    - name: Check inputs
+      shell: powershell
+      env:
+        SOURCE_SHA: ${{ inputs.source_sha }}
+        BUILD_MODE: ${{ inputs.mode }}
+      run: |
+        if ($env:SOURCE_SHA -cnotmatch '^[0-9a-f]{40}$') { throw 'source_sha must be a complete lowercase commit SHA' }
+        if ($env:BUILD_MODE -cnotin @('rc', 'nightly')) { throw 'mode must be rc or nightly' }
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.source_sha }}
+        persist-credentials: false
+    - uses: ilammy/msvc-dev-cmd@v1
+    - name: dep cache
+      id: cache-action
+      uses: actions/cache@v4
+      with:
+        key: win-vs2022-x64-msvc-v2-${{ hashFiles('deps/CMakeLists.txt', 'deps/+*/**', 'cmake/modules/**', '.github/windows/Invoke-MsvcBuild.ps1') }}
+        path: deps/build/destdir
+    - if: steps.cache-action.outputs.cache-hit != 'true'
+      name: Build MSVC dependencies
+      shell: powershell
+      run: ./.github/windows/Invoke-MsvcBuild.ps1 -Target Dependencies
+
+  build:
+    name: Compile
+    runs-on: windows-2022
+    needs: build_dep
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    env:
+      CONFIGURATION: ${{ inputs.mode == 'rc' && 'Release' || 'RelWithDebInfo' }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.source_sha }}
+        persist-credentials: false
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - uses: ilammy/msvc-dev-cmd@v1
+    - name: update submodule profiles
+      working-directory: ./resources/profiles
+      run: git submodule update --init
+    - name: Remove the unknown build marker from the RC version
+      if: inputs.mode == 'rc'
+      shell: powershell
+      run: |
+        copy version.inc version.date.inc
+        (Get-Content version.date.inc) | Foreach-Object {$_ -replace "\+UNKNOWN", ("")} | Set-Content version.date.inc
+    - name: Prepare dated nightly version and MSI identity
+      if: inputs.mode == 'nightly'
+      shell: powershell
+      run: python -B .github/scripts/nightly_version.py --github-env "$env:GITHUB_ENV"
+    - name: dep cache
+      uses: actions/cache/restore@v4
+      with:
+        key: win-vs2022-x64-msvc-v2-${{ hashFiles('deps/CMakeLists.txt', 'deps/+*/**', 'cmake/modules/**', '.github/windows/Invoke-MsvcBuild.ps1') }}
+        path: deps/build/destdir
+        fail-on-cache-miss: true
+    - run: mkdir msgfmt_bin
+    - name: copy gettext
+      working-directory: ./msgfmt_bin
+      shell: powershell
+      run: '(new-object System.Net.WebClient).DownloadFile("https://github.com/supermerill/SuperSlicer_deps/releases/download/gettext/gettext-tools-static-0.18.1.1.zip", "gettext.zip")'
+    - name: unzip
+      working-directory: ./msgfmt_bin
+      shell: cmd
+      run: '"C:/Program Files/7-Zip/7z.exe" x gettext.zip'
+    - name: add msgfmt to path
+      shell: powershell
+      working-directory: msgfmt_bin
+      run: echo "$pwd;" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+    - name: Configure and build SuperSlicer
+      shell: powershell
+      run: ./.github/windows/Invoke-MsvcBuild.ps1 -Target $env:CONFIGURATION
+    - name: make .mo
+      working-directory: ./build
+      run: msbuild /m /P:Configuration=${{ env.CONFIGURATION }} gettext_po_to_mo.vcxproj
+    - name: make .pot
+      working-directory: ./build
+      run: msbuild /m /P:Configuration=${{ env.CONFIGURATION }} gettext_make_pot.vcxproj
+    - name: create OCCT wrapper
+      working-directory: ./build
+      run: msbuild /m /P:Configuration=${{ env.CONFIGURATION }} src\occt_wrapper\OCCTWrapper.vcxproj
+    - name: copy dll
+      working-directory: ./build
+      run: msbuild /m /P:Configuration=${{ env.CONFIGURATION }} src\slic3rDllsCopy.vcxproj
+    - name: create package directory
+      working-directory: ./build
+      shell: powershell
+      run: mkdir package
+    - name: copy from release
+      working-directory: ./build
+      shell: powershell
+      run: '(new-object System.Net.WebClient).DownloadFile("https://github.com/supermerill/SuperSlicer_deps/releases/download/1.8/Slic3r_win_build.zip", "Slic3r_win_build.zip")'
+    - name: unzip
+      working-directory: ./build
+      shell: cmd
+      run: '"C:/Program Files/7-Zip/7z.exe" x Slic3r_win_build.zip'
+    - name: copy missing dll content from old release
+      working-directory: ./build
+      shell: cmd
+      run: |
+        xcopy /RCYIE Slic3r_win_build\local-settings.bat package\${{ github.event.repository.name }}_local-settings.bat
+        xcopy /RCYIE Slic3r_win_build\mesa package\mesa\
+    - name: copy new resources
+      working-directory: ./build
+      shell: cmd
+      run: xcopy /RCYIE ..\resources package\resources
+    - name: remove compiled localization libraries from the RC package
+      if: inputs.mode == 'rc'
+      working-directory: ./build
+      shell: cmd
+      run: del /S /Q package\resources\localization\*.so
+    - name: copy profiles from registered github repositories
+      working-directory: ./build
+      shell: cmd
+      run: |
+        python ..\src\platform\download_vendor_bundles.py package/resources
+    - name: copy dll & exe
+      working-directory: ./build
+      shell: cmd
+      run: |
+        xcopy /RCYIE src\%CONFIGURATION%\*.dll package\
+        xcopy /RCYIE src\%CONFIGURATION%\*.exe package\
+    - name: copy required VC runtimes
+      shell: powershell
+      run: ./.github/windows/Copy-VcRuntime.ps1 -PackageDirectory build/package
+    - name: Record the unsigned package
+      shell: powershell
+      env:
+        SOURCE_SHA: ${{ inputs.source_sha }}
+        BUILD_MODE: ${{ inputs.mode }}
+      run: |
+        $arguments = @('--mode', $env:BUILD_MODE, '--source-sha', $env:SOURCE_SHA)
+        if ($env:BUILD_MODE -eq 'nightly') { $arguments += @('--nightly-date', $env:NightlyDate) }
+        python -B .github/scripts/windows_package.py manifest @arguments
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    - name: Upload the unsigned package for packaging
+      id: upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-input-${{ inputs.mode }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: |
+          build/package/
+          build/windows-build.json
+        if-no-files-found: error
+        retention-days: 7

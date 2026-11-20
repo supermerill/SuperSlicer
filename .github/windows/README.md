@@ -1,6 +1,6 @@
 # Windows DLL packaging
 
-Both nightly (`ccpp_win.yml`) and release (`ccpp_win_rc.yml`) call
+Both nightly (`ccpp_win.yml`) and release (`ccpp_win_rc.yml`, through `windows_build.yml`) call
 `Copy-VcRuntime.ps1` after collecting the application files and before signing/packaging.
 It scans the normal and delay-load imports of **all** packaged EXE/DLL files, then
 recursively resolves Microsoft VC runtime imports from the x64 CRT redistributable
@@ -78,6 +78,29 @@ builds in `Debug` and uploads the binaries and `.pdb` files as a CI artifact, wi
 signing or publishing a release. Run these binaries on a machine with the VS 2022
 C++ development tools and debug runtime installed; the debug CRT is not redistributable
 and is not copied into the artifact.
+
+## RC build and packaging jobs
+
+`ccpp_win_rc.yml` no longer compiles, signs and packages in one job. Its run shows:
+
+1. **Signing mode**: decides `none` or `production` before any compilation and fails early
+   when release files would need production signing that is not configured.
+2. **`windows_build.yml`**: MSVC dependencies, then compilation of the requested commit. It
+   uploads the unsigned `package/` folder with `windows-build.json` (commit, mode, versions,
+   MSI name and the size and SHA-256 of every file) and outputs that artifact ID. It has no
+   secret, runs no WiX and never calls SignPath.
+3. **`windows_package.yml`**: downloads that exact artifact ID from the same run, checks out
+   the same commit and refuses any missing, extra or modified file, another commit or a
+   version that does not match `version.inc`. The five SuperSlicer binaries must report the
+   recorded ProductVersion. It then signs (production only), builds the MSI with WiX 3.14.1
+   from `src/platform/msw/winInstaller.wxs.in` rendered from this checkout (never a WiX
+   source from the artifact), and stages the release files when called by the RC master.
+4. **Publisher**: unchanged, only for the RC master.
+
+Triggers, artifact names (`rc_SuperSlicer-win64`, `rc_SuperSlicer-win64.msi`) and signing
+rules are unchanged. The unsigned package is kept 7 days so that a failed packaging job can be
+re-run without recompiling; that re-run must still be confirmed on GitHub before relying on it.
+Unsigned packaging never receives the SignPath token.
 
 ## Nightly MSI version and date
 
