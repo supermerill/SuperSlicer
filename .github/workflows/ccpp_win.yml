@@ -17,268 +17,63 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
 env:
   # SignPath code signing - see .github/signpath/README.md
   # Test signing requires an explicit manual dispatch; ordinary nightly pushes never sign.
   SIGNPATH_ENABLED: ${{ github.event_name == 'workflow_dispatch' && inputs.sign && 'true' || 'false' }}
-  SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-  SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG || 'superslicer' }}
-  SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG }}
-  SIGNPATH_TEST_CERTIFICATE_THUMBPRINT: ${{ vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT }}
 
+# Same jobs as the RC: dependencies and compilation (windows_build.yml), then signing
+# and packaging (windows_package.yml) from that exact artifact. No release publication.
 jobs:
-  build_dep:
-    runs-on: windows-2022
-
+  signing:
+    name: Signing mode
+    runs-on: ubuntu-22.04
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
     steps:
-    - uses: actions/checkout@v4
     - name: check signing configuration
       if: env.SIGNPATH_ENABLED == 'true'
-      shell: powershell
       env:
-        SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+        SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG || 'superslicer' }}
+        SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG }}
+        SIGNPATH_TEST_CERTIFICATE_THUMBPRINT: ${{ vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT }}
+        # Only whether the secret is set; its value is not given to this job.
+        SIGNPATH_API_TOKEN_SET: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
       run: |
-        foreach ($name in @('SIGNPATH_ORGANIZATION_ID', 'SIGNPATH_PROJECT_SLUG',
-                            'SIGNPATH_SIGNING_POLICY_SLUG', 'SIGNPATH_API_TOKEN',
-                            'SIGNPATH_TEST_CERTIFICATE_THUMBPRINT')) {
-          if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
-            throw "Missing $name. See .github/signpath/README.md."
-          }
-        }
-        if ($env:SIGNPATH_TEST_CERTIFICATE_THUMBPRINT -and
-            ($env:SIGNPATH_TEST_CERTIFICATE_THUMBPRINT -replace '\s', '') -notmatch '^[0-9a-fA-F]{40}$') {
-          throw 'SIGNPATH_TEST_CERTIFICATE_THUMBPRINT must be the SHA-1 thumbprint of the test certificate.'
-        }
-    - uses: ilammy/msvc-dev-cmd@v1
-    - name: dep cache
-      id: cache-action
-      uses: actions/cache@v4
-      with:
-        key: win-vs2022-x64-msvc-v2-${{ hashFiles('deps/CMakeLists.txt', 'deps/+*/**', 'cmake/modules/**', '.github/windows/Invoke-MsvcBuild.ps1') }}
-        path: deps/build/destdir
-    - if: steps.cache-action.outputs.cache-hit != 'true'
-      name: Build MSVC dependencies
-      shell: powershell
-      run: ./.github/windows/Invoke-MsvcBuild.ps1 -Target Dependencies
+        for name in SIGNPATH_ORGANIZATION_ID SIGNPATH_PROJECT_SLUG SIGNPATH_SIGNING_POLICY_SLUG SIGNPATH_TEST_CERTIFICATE_THUMBPRINT; do
+          value="${!name}"
+          if [ -z "${value//[[:space:]]/}" ]; then echo "::error::Missing $name. See .github/signpath/README.md."; exit 1; fi
+        done
+        if [ "$SIGNPATH_API_TOKEN_SET" != 'true' ]; then echo '::error::Missing SIGNPATH_API_TOKEN. See .github/signpath/README.md.'; exit 1; fi
+        if ! [[ "${SIGNPATH_TEST_CERTIFICATE_THUMBPRINT//[[:space:]]/}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+          echo '::error::SIGNPATH_TEST_CERTIFICATE_THUMBPRINT must be the SHA-1 thumbprint of the test certificate.'; exit 1
+        fi
+    - name: Select the signing mode
+      id: mode
+      run: echo "mode=$([ "$SIGNPATH_ENABLED" = 'true' ] && echo test || echo none)" >> "$GITHUB_OUTPUT"
 
   build:
-    runs-on: windows-2022
-    needs: build_dep
+    needs: signing
+    uses: ./.github/workflows/windows_build.yml
+    with:
+      source_sha: ${{ github.sha }}
+      mode: nightly
+
+  package:
+    needs: [signing, build]
     permissions:
       contents: read
       actions: read
-
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-    - uses: ilammy/msvc-dev-cmd@v1
-    - name: update submodule profiles
-      working-directory: ./resources/profiles
-      run: git submodule update --init
-    - name: Prepare dated nightly version and MSI identity
-      shell: powershell
-      run: python -B .github/scripts/nightly_version.py --github-env "$env:GITHUB_ENV"
-    - name: dep cache
-      uses: actions/cache/restore@v4
-      with:
-        key: win-vs2022-x64-msvc-v2-${{ hashFiles('deps/CMakeLists.txt', 'deps/+*/**', 'cmake/modules/**', '.github/windows/Invoke-MsvcBuild.ps1') }}
-        path: deps/build/destdir
-        fail-on-cache-miss: true
-    - run: mkdir msgfmt_bin
-    - name: copy gettext
-      working-directory: ./msgfmt_bin
-      shell: powershell
-      run: '(new-object System.Net.WebClient).DownloadFile("https://github.com/supermerill/SuperSlicer_deps/releases/download/gettext/gettext-tools-static-0.18.1.1.zip", "gettext.zip")'
-    - name: unzip
-      working-directory: ./msgfmt_bin
-      shell: cmd
-      run: '"C:/Program Files/7-Zip/7z.exe" x gettext.zip'
-    - name: add msgfmt to path
-      shell: powershell
-      working-directory: msgfmt_bin
-      run: echo "$pwd;" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-    - name: Configure and build SuperSlicer
-      shell: powershell
-      run: ./.github/windows/Invoke-MsvcBuild.ps1 -Target RelWithDebInfo
-    - name: make .mo
-      working-directory: ./build
-      run: msbuild /m /P:Configuration=RelWithDebInfo gettext_po_to_mo.vcxproj
-    - name: make .pot
-      working-directory: ./build
-      run: msbuild /m /P:Configuration=RelWithDebInfo gettext_make_pot.vcxproj
-    - name: create OCCT wrapper
-      working-directory: ./build
-      run: msbuild /m /P:Configuration=RelWithDebInfo src\occt_wrapper\OCCTWrapper.vcxproj
-    - name: copy dll
-      working-directory: ./build
-      run: msbuild /m /P:Configuration=RelWithDebInfo src\slic3rDllsCopy.vcxproj
-    - name: create package directory
-      working-directory: ./build
-      shell: powershell
-      run: mkdir package
-    - name: download dll package
-      working-directory: ./build
-      shell: powershell
-      run: '(new-object System.Net.WebClient).DownloadFile("https://github.com/supermerill/SuperSlicer_deps/releases/download/1.8/Slic3r_win_build.zip", "Slic3r_win_build.zip")'
-    - name: unzip dll package
-      working-directory: ./build
-      shell: cmd
-      run: '"C:/Program Files/7-Zip/7z.exe" x Slic3r_win_build.zip'
-    - name: copy missing dll content from old release
-      working-directory: ./build
-      shell: cmd
-      run: |
-        xcopy /RCYIE Slic3r_win_build\local-settings.bat package\${{ github.event.repository.name }}_local-settings.bat
-        xcopy /RCYIE Slic3r_win_build\mesa package\mesa\
-    - name: copy new resources
-      working-directory: ./build
-      shell: cmd
-      run: xcopy /RCYIE ..\resources package\resources
-    - name: copy profiles from registered github repositories
-      working-directory: ./build
-      shell: cmd
-      run: |
-        python ..\src\platform\download_vendor_bundles.py package/resources
-    - name: copy dll & exe
-      working-directory: ./build
-      shell: cmd
-      run: |
-        xcopy /RCYIE src\RelWithDebInfo\*.dll package\
-        xcopy /RCYIE src\RelWithDebInfo\*.exe package\
-    - name: copy required VC runtimes
-      shell: powershell
-      run: ./.github/windows/Copy-VcRuntime.ps1 -PackageDirectory build/package
-#    - name: create zip
-#      working-directory: ./build
-#      shell: cmd
-#      run: '"C:/Program Files/7-Zip/7z.exe" a -tzip nightly.zip *'
-
-    # ---- code signing: own binaries -------------------------------------
-    # Use an explicit allowlist: src\RelWithDebInfo also contains copied GMP/MPFR DLLs.
-    - name: collect own binaries to sign
-      id: signing-input
-      if: env.SIGNPATH_ENABLED == 'true'
-      shell: powershell
-      run: |
-        ./.github/signpath/Prepare-Binaries.ps1 -SourceDirectory build/src/RelWithDebInfo -OutputDirectory build/sign-input
-
-    - name: upload unsigned binaries
-      id: upload-unsigned-binaries
-      if: env.SIGNPATH_ENABLED == 'true'
-      uses: actions/upload-artifact@v4
-      with:
-        name: unsigned-binaries-${{ github.run_attempt }}
-        path: build/sign-input/
-        if-no-files-found: error
-        retention-days: 1
-
-    - name: sign binaries
-      if: env.SIGNPATH_ENABLED == 'true'
-      uses: signpath/github-action-submit-signing-request@v3
-      with:
-        api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-        organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
-        project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
-        signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY_SLUG }}
-        artifact-configuration-slug: windows-binaries
-        github-artifact-id: ${{ steps.upload-unsigned-binaries.outputs.artifact-id }}
-        wait-for-completion: true
-        wait-for-completion-timeout-in-seconds: 1800
-        output-artifact-directory: build/signed-binaries
-        parameters: |
-          version: ${{ toJSON(steps.signing-input.outputs.product-version) }}
-
-    - name: verify and copy signed binaries into package
-      if: env.SIGNPATH_ENABLED == 'true'
-      shell: powershell
-      run: |
-        ./.github/signpath/Update-SignedArtifacts.ps1 -UnsignedDirectory build/sign-input -SignedDirectory build/signed-binaries -DestinationDirectory build/package -TestCertificateThumbprint $env:SIGNPATH_TEST_CERTIFICATE_THUMBPRINT
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.SIGNPATH_ENABLED == 'true' && env.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT != '' && 'test-signed_' || '' }}nightly_${{ github.event.repository.name }}-win64
-        path: build/package/
-        overwrite: true
-
-# MSI CREATION
-  # create_msi:
-    # runs-on: windows-2022
-    # needs: build
-
-    # steps:
-    # - uses: actions/checkout@v3
-    # - name: Download build artifact
-      # uses: actions/download-artifact@v4
-      # with:
-        # name: nightly_win64
-        # path: build/package
-    - name: Install WiX Toolset
-      run: choco install wixtoolset -y
-    - name: Prepare license file for MSI
-      shell: powershell
-      working-directory: ./build
-      run: |
-        # Convert LICENSE to RTF format for WiX installer
-        $licenseContent = Get-Content ..\LICENSE -Raw
-        $rtfContent = "{\rtf1\ansi\deff0 {\fonttbl {\f0 Times New Roman;}}{\f0\fs20 " + $licenseContent.Replace('\', '\\').Replace("`n", "\par ") + "}}"
-        $rtfContent | Out-File -FilePath "package\LICENSE.rtf" -Encoding ASCII
-    - name: Harvest files for MSI
-      shell: cmd
-      working-directory: ./build
-      run: |
-        heat.exe dir package -dr INSTALLFOLDER -cg Package -gg -sreg -srd -var var.SourceDir -out files.wxs -sfrag
-    - name: Build MSI installer
-      shell: cmd
-      working-directory: ./build
-      run: |
-        candle.exe -dSourceDir="package" -dInstallerVersion="%InstallerVersion%" -dReleaseSuffix="%ReleaseSuffix%" src\winInstaller.wxs files.wxs
-        light.exe -b package -ext WixUIExtension winInstaller.wixobj files.wixobj -o "%MSI_FILE_NAME%" -sw1076
-
-    # ---- code signing: installer ----------------------------------------
-    - name: collect unsigned msi
-      if: env.SIGNPATH_ENABLED == 'true'
-      shell: powershell
-      run: |
-        New-Item -ItemType Directory -Path build/sign-msi-input | Out-Null
-        Copy-Item -LiteralPath "build/$env:MSI_FILE_NAME" -Destination build/sign-msi-input -ErrorAction Stop
-
-    - name: upload unsigned msi
-      id: upload-unsigned-msi
-      if: env.SIGNPATH_ENABLED == 'true'
-      uses: actions/upload-artifact@v4
-      with:
-        name: unsigned-msi-${{ github.run_attempt }}
-        path: build/sign-msi-input/
-        if-no-files-found: error
-        retention-days: 1
-
-    - name: sign msi
-      if: env.SIGNPATH_ENABLED == 'true'
-      uses: signpath/github-action-submit-signing-request@v3
-      with:
-        api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-        organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
-        project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
-        signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY_SLUG }}
-        artifact-configuration-slug: windows-msi
-        github-artifact-id: ${{ steps.upload-unsigned-msi.outputs.artifact-id }}
-        wait-for-completion: true
-        wait-for-completion-timeout-in-seconds: 1800
-        output-artifact-directory: build/signed-msi
-
-    - name: verify and replace signed msi
-      if: env.SIGNPATH_ENABLED == 'true'
-      shell: powershell
-      run: |
-        ./.github/signpath/Update-SignedArtifacts.ps1 -UnsignedDirectory build/sign-msi-input -SignedDirectory build/signed-msi -DestinationDirectory build -TestCertificateThumbprint $env:SIGNPATH_TEST_CERTIFICATE_THUMBPRINT
-
-    - name: Upload MSI artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.SIGNPATH_ENABLED == 'true' && env.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT != '' && 'test-signed_' || '' }}nightly_${{ github.event.repository.name }}-win64.msi
-        path: build/${{ env.MSI_FILE_NAME }}
-        if-no-files-found: error
-        overwrite: true
+    uses: ./.github/workflows/windows_package.yml
+    with:
+      artifact_id: ${{ needs.build.outputs.artifact_id }}
+      source_sha: ${{ github.sha }}
+      mode: nightly
+      signing: ${{ needs.signing.outputs.mode }}
+    secrets:
+      # Unsigned packaging does not receive the SignPath token at all.
+      SIGNPATH_API_TOKEN: ${{ needs.signing.outputs.mode == 'test' && secrets.SIGNPATH_API_TOKEN || '' }}

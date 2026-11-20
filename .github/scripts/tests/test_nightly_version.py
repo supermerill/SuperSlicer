@@ -190,40 +190,60 @@ except ImportError:
 @unittest.skipIf(yaml is None, "Install PyYAML to validate workflow contracts")
 class NightlyWorkflowTests(unittest.TestCase):
     def setUp(self):
-        self.workflow = yaml.load((ROOT / ".github/workflows/ccpp_win.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
-        self.steps = self.workflow["jobs"]["build"]["steps"]
+        load = lambda name: yaml.load((ROOT / ".github/workflows" / name).read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+        self.workflow = load("ccpp_win.yml")
+        self.steps = load("windows_build.yml")["jobs"]["build"]["steps"]
+        self.package = load("windows_package.yml")["jobs"]["package"]
+        self.package_steps = self.package["steps"]
 
-    def step(self, name):
-        return next(step for step in self.steps if step.get("name") == name)
+    def step(self, name, steps=None):
+        return next(step for step in (steps or self.steps) if step.get("name") == name)
+
+    def test_nightly_uses_the_shared_workers_in_nightly_mode(self):
+        jobs = self.workflow["jobs"]
+        self.assertEqual("./.github/workflows/windows_build.yml", jobs["build"]["uses"])
+        self.assertEqual("nightly", jobs["build"]["with"]["mode"])
+        self.assertEqual("./.github/workflows/windows_package.yml", jobs["package"]["uses"])
+        self.assertEqual("nightly", jobs["package"]["with"]["mode"])
+        self.assertEqual("${{ needs.build.outputs.artifact_id }}", jobs["package"]["with"]["artifact_id"])
+        self.assertEqual("${{ needs.signing.outputs.mode }}", jobs["package"]["with"]["signing"])
 
     def test_preparation_once_before_compilation_and_packaging(self):
         preparations = [step for step in self.steps if "nightly_version.py" in step.get("run", "")]
         self.assertEqual(1, len(preparations))
+        self.assertEqual("inputs.mode == 'nightly'", preparations[0]["if"])
         self.assertLess(self.steps.index(preparations[0]), self.steps.index(self.step("Configure and build SuperSlicer")))
         setup = next(step for step in self.steps if step.get("uses", "").startswith("actions/setup-python@"))
         self.assertLess(self.steps.index(setup), self.steps.index(preparations[0]))
         self.assertEqual("3.11", setup["with"]["python-version"])
-        commands = "\n".join(step.get("run", "") for step in self.steps)
-        for old_expression in ("dateSuffix", "Get-Date", "[datetime]::Today", "Setting default version", "-replace"):
+        # The recorded date reaches the manifest; packaging never reads the clock again.
+        self.assertIn("$env:NightlyDate", self.step("Record the unsigned package")["run"])
+        commands = "\n".join(step.get("run", "") for step in self.steps + self.package_steps)
+        for old_expression in ("dateSuffix", "Get-Date", "[datetime]::Today", "Setting default version"):
             self.assertNotIn(old_expression, commands)
 
     def test_same_filename_used_for_linking_signing_collection_and_upload(self):
-        build = self.step("Build MSI installer")["run"]
+        build = self.step("Build MSI installer", self.package_steps)["run"]
         self.assertIn('-dInstallerVersion="%InstallerVersion%"', build)
         self.assertIn('-o "%MSI_FILE_NAME%"', build)
-        collect = self.step("collect unsigned msi")
+        collect = self.step("collect unsigned msi", self.package_steps)
         self.assertIn('"build/$env:MSI_FILE_NAME"', collect["run"])
         self.assertNotIn("MSI_FILE_NAME", collect.get("env", {}))
-        upload = self.step("Upload MSI artifact")["with"]
+        upload = self.step("Upload MSI artifact", self.package_steps)["with"]
         self.assertEqual("build/${{ env.MSI_FILE_NAME }}", upload["path"])
         self.assertEqual("error", upload["if-no-files-found"])
 
     def test_unsigned_artifact_collection_precedes_signing_and_verified_upload(self):
-        names = [step.get("name") for step in self.steps]
+        names = [step.get("name") for step in self.package_steps]
         self.assertLess(names.index("Build MSI installer"), names.index("collect unsigned msi"))
         self.assertLess(names.index("collect unsigned msi"), names.index("sign msi"))
-        self.assertLess(names.index("verify and replace signed msi"), names.index("Upload MSI artifact"))
-        self.assertEqual("${{ vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG }}", self.workflow["env"]["SIGNPATH_SIGNING_POLICY_SLUG"])
+        self.assertLess(names.index("verify and replace signed msi"), names.index("Check the installer contents"))
+        self.assertLess(names.index("Check the installer contents"), names.index("Upload MSI artifact"))
+        self.assertEqual("${{ inputs.signing == 'test' && vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG || "
+                         "inputs.signing == 'production' && vars.SIGNPATH_SIGNING_POLICY_SLUG || '' }}",
+                         self.package["env"]["SIGNPATH_SIGNING_POLICY_SLUG"])
+        check = self.step("check signing configuration", self.workflow["jobs"]["signing"]["steps"])
+        self.assertEqual("${{ vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG }}", check["env"]["SIGNPATH_SIGNING_POLICY_SLUG"])
 
 
 if __name__ == "__main__":
