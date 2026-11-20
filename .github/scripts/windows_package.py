@@ -111,18 +111,21 @@ def package_files(package):
         raise PackageError("Windows package directory is missing")
     root = package.resolve()
     entries = {}
-    # Sorted: a linked directory is refused before anything below it is read.
-    for path in sorted(package.rglob("*")):
-        if is_link(path) or not path.resolve().is_relative_to(root):
-            raise PackageError(f"Unexpected link in the Windows package: {path.name}")
-        if path.is_dir():
-            continue
-        if not path.is_file():
-            raise PackageError(f"Unexpected special file in the Windows package: {path.name}")
-        relative = path.relative_to(package).as_posix()
-        if relative.casefold() in entries:
-            raise PackageError(f"Duplicate path in the Windows package: {relative}")
-        entries[relative.casefold()] = {"path": relative, "size": path.stat().st_size, "sha256": release.sha256(path)}
+    # Top-down: a link or junction is refused before anything below it is listed.
+    pending = [package]
+    while pending:
+        for path in sorted(pending.pop().iterdir()):
+            if is_link(path) or not path.resolve().is_relative_to(root):
+                raise PackageError(f"Unexpected link in the Windows package: {path.name}")
+            if path.is_dir():
+                pending.append(path)
+                continue
+            if not path.is_file():
+                raise PackageError(f"Unexpected special file in the Windows package: {path.name}")
+            relative = path.relative_to(package).as_posix()
+            if relative.casefold() in entries:
+                raise PackageError(f"Duplicate path in the Windows package: {relative}")
+            entries[relative.casefold()] = {"path": relative, "size": path.stat().st_size, "sha256": release.sha256(path)}
     if not entries:
         raise PackageError("Windows package is empty")
     return sorted(entries.values(), key=lambda entry: entry["path"])

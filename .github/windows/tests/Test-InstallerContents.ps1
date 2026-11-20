@@ -58,8 +58,8 @@ function New-Zip([string]$Package, [string]$Output, [string[]]$Roots = @('SuperS
 
 function Invoke-Checker([string]$Msi, [string]$Package, [string]$Zip = '', [string]$Expected = $version) {
     $script:cases++
-    $arguments = @{ MsiPath = $Msi; PackageDirectory = $Package; ExpectedVersion = $Expected; Launcher = 'superslicer.exe'
-                    WorkDirectory = Join-Path $WorkDirectory "check-$script:cases" }
+    $arguments = @{ PackageDirectory = $Package; Launcher = 'superslicer.exe'; WorkDirectory = Join-Path $WorkDirectory "check-$script:cases" }
+    if ($Msi) { $arguments.MsiPath = $Msi; $arguments.ExpectedVersion = $Expected }
     if ($Zip) { $arguments.ZipPath = $Zip }
     & $checker @arguments | Out-Host
 }
@@ -96,6 +96,11 @@ Remove-Item -LiteralPath "$changed/mesa/opengl32.dll"
 Assert-Rejected { Invoke-Checker $msi $changed } 'unexpected: mesa/opengl32\.dll' 'a binary the package does not have'
 Remove-Item -LiteralPath "$changed/OCCTWrapper.dll"
 Assert-Rejected { Invoke-Checker $msi $changed } 'no OCCTWrapper\.dll' 'a package without a signed binary'
+$hiddenPackage = Join-Path $WorkDirectory 'hidden'
+Copy-Item -LiteralPath $package -Destination $hiddenPackage -Recurse
+New-Item -ItemType Directory -Path "$hiddenPackage/.cache" | Out-Null
+Set-Content -LiteralPath "$hiddenPackage/.cache/plugin.dll" -Value 'hidden' -Encoding ASCII
+Assert-Rejected { Invoke-Checker $msi $hiddenPackage } 'hidden path.*\.cache/plugin\.dll' 'a binary under a hidden path'
 
 # Portable ZIP problems.
 $badZip = Join-Path $WorkDirectory 'two-roots.zip'
@@ -107,6 +112,14 @@ Assert-Rejected { Invoke-Checker $msi $package $badZip } 'installer' 'a ZIP cont
 $badZip = Join-Path $WorkDirectory 'traversal.zip'
 New-Zip $package $badZip -Extra 'SuperSlicer_fixture/../evil.dll'
 Assert-Rejected { Invoke-Checker $msi $package $badZip } 'Unsafe ZIP entry' 'a ZIP path traversal'
+$badZip = Join-Path $WorkDirectory 'dot-root.zip'
+New-Zip $package $badZip @('.')
+Assert-Rejected { Invoke-Checker '' $package $badZip } 'Unsafe ZIP entry' 'a ZIP whose root is "."'
+$badZip = Join-Path $WorkDirectory 'trailing-dot.zip'
+New-Zip $package $badZip -Extra 'SuperSlicer_fixture/extra.dll.'
+Assert-Rejected { Invoke-Checker '' $package $badZip } 'Unsafe ZIP entry' 'a ZIP name that Windows would normalize'
+# The ZIP alone can be checked, as for the staged RC release files.
+Invoke-Checker '' $package $zip
 $otherPackage = Join-Path $WorkDirectory 'other'
 Copy-Item -LiteralPath $package -Destination $otherPackage -Recurse
 Set-Content -LiteralPath "$otherPackage/superslicer_console.exe" -Value 'other build' -Encoding ASCII
