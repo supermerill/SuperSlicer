@@ -534,6 +534,36 @@ class WorkflowContractTests(unittest.TestCase):
     def workflow(self, name):
         return yaml.load((ROOT / "workflows" / name).read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
 
+    def test_windows_msvc_workers_share_a_clean_dependency_cache(self):
+        script = "windows/Invoke-MsvcBuild.ps1"
+        self.assertTrue((ROOT / script).is_file())
+        keys = set()
+        for name, target in (("ccpp_win.yml", "RelWithDebInfo"), ("ccpp_win_rc.yml", "Release")):
+            with self.subTest(workflow=name):
+                workflow = self.workflow(name)
+                for job, build_target in (("build_dep", "Dependencies"), ("build", target)):
+                    steps = workflow["jobs"][job]["steps"]
+                    by_name = {step.get("name"): step for step in steps}
+                    cache = by_name["dep cache"]
+                    keys.add(cache["with"]["key"])
+                    self.assertIn("hashFiles(", cache["with"]["key"])
+                    self.assertIn(f".github/{script}", cache["with"]["key"])
+                    self.assertEqual("deps/build/destdir", cache["with"]["path"])
+                    self.assertNotIn("restore-keys", cache["with"])
+                    self.assertFalse(any("setup-perl" in step.get("uses", "") for step in steps))
+                    if job == "build_dep":
+                        build = by_name["Build MSVC dependencies"]
+                        self.assertEqual("actions/cache@v4", cache["uses"])
+                        self.assertIn("cache-hit != 'true'", build["if"])
+                    else:
+                        build = by_name["Configure and build SuperSlicer"]
+                        self.assertEqual("actions/cache/restore@v4", cache["uses"])
+                        self.assertEqual("true", cache["with"]["fail-on-cache-miss"])
+                    self.assertLess(steps.index(cache), steps.index(build))
+                    self.assertEqual("powershell", build["shell"])
+                    self.assertEqual(f"./.github/{script} -Target {build_target}", build["run"])
+        self.assertEqual(1, len(keys))
+
     def test_single_rc_trigger_and_pinned_checkouts(self):
         master = self.workflow("release_rc.yml")
         self.assertEqual(["rc"], master["on"]["push"]["branches"])
