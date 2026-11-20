@@ -5,7 +5,8 @@ performed by its packaging worker `windows_package.yml`, after `windows_build.ym
 the commit in a separate job without any SignPath secret.
 It is called by the [RC release orchestrator](../release/README.md), which prepares
 the version tag and draft and only builds missing platforms.
-`.github/workflows/ccpp_win.yml` (`RelWithDebInfo`) supports **manual test signing only**.
+`.github/workflows/ccpp_win.yml` (`RelWithDebInfo`) supports **manual test signing only**,
+through the same two workers.
 `ccpp_win_debug.yml` is not integrated. Signing is **off by default**.
 
 | Build | Signing behavior |

@@ -538,8 +538,7 @@ class WorkflowContractTests(unittest.TestCase):
         script = "windows/Invoke-MsvcBuild.ps1"
         self.assertTrue((ROOT / script).is_file())
         keys = set()
-        for name, target in (("ccpp_win.yml", "RelWithDebInfo"), ("windows_build.yml", "$env:CONFIGURATION"),
-                             ("ccpp_win_debug.yml", "Debug")):
+        for name, target in (("windows_build.yml", "$env:CONFIGURATION"), ("ccpp_win_debug.yml", "Debug")):
             with self.subTest(workflow=name):
                 workflow = self.workflow(name)
                 for job, build_target in (("build_dep", "Dependencies"), ("build", target)):
@@ -654,10 +653,13 @@ class WorkflowContractTests(unittest.TestCase):
                     "inputs": types.SimpleNamespace(sign=sign),
                 })
                 self.assertEqual("true" if event == "workflow_dispatch" and sign else "false", result)
-        commands = "\n".join(step.get("run", "") for step in nightly["jobs"]["build"]["steps"])
+        commands = "\n".join(step.get("run", "") for step in self.workflow("windows_build.yml")["jobs"]["build"]["steps"])
         self.assertIn(".github/scripts/nightly_version.py", commands)
         self.assertIn("+UNKNOWN", (ROOT / "scripts/nightly_version.py").read_text(encoding="utf-8"))
-        self.assertEqual("${{ vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG }}", nightly["env"]["SIGNPATH_SIGNING_POLICY_SLUG"])
+        mode = next(step["run"] for step in nightly["jobs"]["signing"]["steps"] if step.get("id") == "mode")
+        self.assertIn("echo test || echo none", mode)
+        self.assertEqual("${{ needs.signing.outputs.mode == 'test' && secrets.SIGNPATH_API_TOKEN || '' }}",
+                         nightly["jobs"]["package"]["secrets"]["SIGNPATH_API_TOKEN"])
 
     def test_publisher_uses_exact_artifact_id_and_separate_write_permissions(self):
         publisher = self.workflow("release_upload.yml")

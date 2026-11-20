@@ -1,6 +1,6 @@
 # Windows DLL packaging
 
-Both nightly (`ccpp_win.yml`) and release (`ccpp_win_rc.yml`, through `windows_build.yml`) call
+Both nightly (`ccpp_win.yml`) and release (`ccpp_win_rc.yml`), through `windows_build.yml`, call
 `Copy-VcRuntime.ps1` after collecting the application files and before signing/packaging.
 It scans the normal and delay-load imports of **all** packaged EXE/DLL files, then
 recursively resolves Microsoft VC runtime imports from the x64 CRT redistributable
@@ -79,12 +79,14 @@ signing or publishing a release. Run these binaries on a machine with the VS 202
 C++ development tools and debug runtime installed; the debug CRT is not redistributable
 and is not copied into the artifact.
 
-## RC build and packaging jobs
+## Build and packaging jobs
 
-`ccpp_win_rc.yml` no longer compiles, signs and packages in one job. Its run shows:
+`ccpp_win_rc.yml` and `ccpp_win.yml` no longer compile, sign and package in one job. Both
+use the same two workers; a run shows:
 
-1. **Signing mode**: decides `none` or `production` before any compilation and fails early
-   when release files would need production signing that is not configured.
+1. **Signing mode**: decides before any compilation: `none` or `production` for the RC,
+   `none` or `test` for the nightly (`test` only on a manual dispatch with `sign`). It fails
+   early when release files would need production signing that is not configured.
 2. **`windows_build.yml`**: MSVC dependencies, then compilation of the requested commit. It
    uploads the unsigned `package/` folder with `windows-build.json` (commit, mode, versions,
    MSI name and the size and SHA-256 of every file) and outputs that artifact ID. It has no
@@ -92,13 +94,23 @@ and is not copied into the artifact.
 3. **`windows_package.yml`**: downloads that exact artifact ID from the same run, checks out
    the same commit and refuses any missing, extra or modified file, another commit or a
    version that does not match `version.inc`. The five SuperSlicer binaries must report the
-   recorded ProductVersion. It then signs (production only), builds the MSI with WiX 3.14.1
+   recorded ProductVersion. It then signs (if requested), builds the MSI with WiX 3.14.1
    from `src/platform/msw/winInstaller.wxs.in` rendered from this checkout (never a WiX
    source from the artifact), and stages the release files when called by the RC master.
+   Each signing mode uses only its own SignPath policy; a missing slug is an error.
 4. **Publisher**: unchanged, only for the RC master.
 
-Triggers, artifact names (`rc_SuperSlicer-win64`, `rc_SuperSlicer-win64.msi`) and signing
-rules are unchanged. The unsigned package is kept 7 days so that a failed packaging job can be
+Before any upload, `Test-InstallerPayload.ps1` unpacks the MSI with an administrative
+extraction (`msiexec /a`, nothing installed) and requires exactly the EXE/DLL files of the
+package folder, byte for byte, and the expected MSI ProductVersion. It refuses an MSI that
+would run a custom action during that extraction. For RC release files it also checks that
+the portable ZIP has a single root folder, no installer and the same EXE/DLL files. The
+fixture test is `.github/windows/tests/Test-InstallerContents.ps1` (Windows, WiX v3).
+
+Triggers, artifact names (`rc_SuperSlicer-win64`, `rc_SuperSlicer-win64.msi`,
+`nightly_SuperSlicer-win64`, `nightly_SuperSlicer-win64.msi`, `test-signed_nightly_...`) and
+signing rules are unchanged. The nightly date is recorded once in `windows-build.json`;
+packaging after midnight keeps it. The unsigned package is kept 7 days so that a failed packaging job can be
 re-run without recompiling; that re-run must still be confirmed on GitHub before relying on it.
 Unsigned packaging never receives the SignPath token.
 
