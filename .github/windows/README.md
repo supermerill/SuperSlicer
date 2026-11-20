@@ -104,7 +104,8 @@ Before any upload, `Test-InstallerPayload.ps1` unpacks the MSI with an administr
 extraction (`msiexec /a`, nothing installed) and requires exactly the EXE/DLL files of the
 package folder, byte for byte, and the expected MSI ProductVersion. It refuses an MSI that
 would run a custom action during that extraction. For RC release files it also checks that
-the portable ZIP has a single root folder, no installer and the same EXE/DLL files. The
+the portable ZIP has a single root folder, no installer and the same EXE/DLL files. This
+compares contents only; installation and upgrade are tested separately in a VM. The
 fixture test is `.github/windows/tests/Test-InstallerContents.ps1` (Windows, WiX v3).
 
 Triggers, artifact names (`rc_SuperSlicer-win64`, `rc_SuperSlicer-win64.msi`,

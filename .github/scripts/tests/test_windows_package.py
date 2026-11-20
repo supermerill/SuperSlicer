@@ -313,9 +313,9 @@ class WindowsWorkerWorkflowTests(unittest.TestCase):
         order = ["Verify the package against this commit", "collect own binaries to sign", "sign binaries",
                  "verify and copy signed binaries into package", "Prepare license file for MSI",
                  "Render the installer source", "Harvest files for MSI", "Build MSI installer", "sign msi",
-                 "verify and replace signed msi", "Check the installer contents", "Upload artifact",
-                 "Upload MSI artifact", "Stage signed release files and integrity manifest",
-                 "Check the release files", "Upload exact files for the draft publisher"]
+                 "verify and replace signed msi", "Check the installer contents",
+                 "Stage signed release files and integrity manifest", "Check the release files", "Upload artifact",
+                 "Upload MSI artifact", "Upload exact files for the draft publisher"]
         self.assertEqual(order, [name for name in names if name in order])
         build = steps[names.index("Build MSI installer")]["run"]
         self.assertIn("winInstaller.wxs files.wxs", build)
@@ -325,7 +325,9 @@ class WindowsWorkerWorkflowTests(unittest.TestCase):
                      "Upload exact files for the draft publisher"):
             self.assertEqual("inputs.stage_release", steps[names.index(name)]["if"])
         self.assertIn("-ExpectedProductVersion $env:BINARY_VERSION", steps[names.index("collect own binaries to sign")]["run"])
-        self.assertIn("-ZipPath", steps[names.index("Check the release files")]["run"])
+        release_check = steps[names.index("Check the release files")]["run"]
+        self.assertIn("-ZipPath", release_check)
+        self.assertIn('Get-FileHash -LiteralPath "build/$env:MSI_FILE_NAME"', release_check)
         self.assertEqual("build/package/\n!build/package/LICENSE.rtf\n", steps[names.index("Upload artifact")]["with"]["path"])
         self.assertEqual({"Upload artifact": "${{ env.ARTIFACT_PREFIX }}_${{ github.event.repository.name }}-win64",
                           "Upload MSI artifact": "${{ env.ARTIFACT_PREFIX }}_${{ github.event.repository.name }}-win64.msi",

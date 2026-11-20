@@ -1,17 +1,18 @@
 param(
-    [Parameter(Mandatory = $true)][string]$MsiPath,
     [Parameter(Mandatory = $true)][string]$PackageDirectory,
-    [Parameter(Mandatory = $true)][string]$ExpectedVersion,
     [Parameter(Mandatory = $true)][string]$Launcher,
     [Parameter(Mandatory = $true)][string]$WorkDirectory,
+    [string]$MsiPath = '',
+    [string]$ExpectedVersion = '',
     [string]$ZipPath = ''
 )
 
-# Checks, before any upload, that the MSI installs exactly the EXE/DLL files of the
-# package folder (same relative paths, same SHA-256) and has the expected ProductVersion.
-# With -ZipPath, also checks that the portable ZIP contains the same EXE/DLL files under a
-# single root folder. The MSI is only unpacked (administrative extraction); nothing is
-# installed or executed.
+# Compares the contents of a MSI built by the Windows workflow (-MsiPath) and/or of the
+# portable ZIP (-ZipPath) with the package folder they were made from: exactly the same
+# EXE/DLL files, same relative paths and SHA-256. The MSI must also have the expected
+# ProductVersion. The MSI is unpacked by an administrative extraction (msiexec /a), refused
+# if its administrative sequences schedule a custom action; it is not installed. This does
+# not validate a normal installation or upgrade: that is a separate test in a VM.
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -42,18 +43,30 @@ function Assert-SameBinaries([hashtable]$Expected, [hashtable]$Actual, [string]$
     if ($problems) { throw "$What does not contain the package binaries ($($problems -join '; '))" }
 }
 
+# A ZIP path segment that Windows extracts under exactly this name.
+function Test-WindowsName([string]$Segment) {
+    return $Segment -ne '' -and $Segment -ne '.' -and $Segment -ne '..' -and $Segment -notmatch '[. ]$' -and
+        $Segment -notmatch '[\x00-\x1F<>:"/\\|?*]'
+}
+
+if (-not $MsiPath -and -not $ZipPath) { throw 'Give -MsiPath, -ZipPath or both' }
+if ($MsiPath -and -not $ExpectedVersion) { throw '-MsiPath requires -ExpectedVersion' }
 if (Test-Path -LiteralPath $WorkDirectory) { throw "Work directory already exists: $WorkDirectory" }
 New-Item -ItemType Directory -Path $WorkDirectory | Out-Null
-$msi = (Resolve-Path -LiteralPath $MsiPath).Path
 
 # The package must at least contain the launcher and the five binaries we sign.
 $package = Get-BinaryMap $PackageDirectory
+# upload-artifact drops hidden paths from the portable artifact: such a binary would be lost.
+$hidden = @($package.Keys | Where-Object { ($_.Split('/') | Where-Object { $_.StartsWith('.') }) } | Sort-Object)
+if ($hidden) { throw "Binaries under a hidden path would be missing from the portable artifact: $($hidden -join ', ')" }
 [xml]$allowlist = Get-Content -LiteralPath "$PSScriptRoot/../signpath/artifact-configuration-binaries.xml"
 $required = @($Launcher) + @($allowlist.SelectNodes("//*[local-name()='include']") | ForEach-Object { $_.GetAttribute('path') })
 foreach ($name in $required | Sort-Object -Unique) {
     if (-not $package.ContainsKey($name.ToLowerInvariant())) { throw "The package has no $name at its root" }
 }
 
+if ($MsiPath) {
+$msi = (Resolve-Path -LiteralPath $MsiPath).Path
 # ProductVersion, and no custom action that an administrative extraction would run.
 $installer = New-Object -ComObject WindowsInstaller.Installer
 $database = $installer.OpenDatabase($msi, 0)
@@ -110,6 +123,7 @@ $outside = @(Get-ChildItem -LiteralPath $image -Recurse -File -Force | Where-Obj
 if ($outside) { throw "The MSI installs binaries outside the application folder: $($outside.Name -join ', ')" }
 Assert-SameBinaries $package (Get-BinaryMap $installRoot) 'The MSI'
 Write-Host "PASS: MSI ProductVersion $ExpectedVersion installs the $($package.Count) package binaries unchanged"
+}
 
 if ($ZipPath) {
     $zipMap = @{}
@@ -118,13 +132,13 @@ if ($ZipPath) {
     try {
         foreach ($entry in $archive.Entries) {
             $name = $entry.FullName
-            if ($name.Contains('\') -or $name.StartsWith('/') -or ($name.Split('/') -contains '..') -or $name -match '^[A-Za-z]:') {
-                throw "Unsafe ZIP entry: $name"
-            }
+            # Every segment (a directory entry ends with '/') must be a plain Windows name.
+            $segments = $name.TrimEnd('/').Split('/')
+            if (@($segments | Where-Object { -not (Test-WindowsName $_) }).Count -ne 0) { throw "Unsafe ZIP entry: $name" }
             $parts = $name.Split('/', 2)
             if ($parts.Count -lt 2) { throw "ZIP entry outside the root folder: $name" }
             if ($null -eq $root) { $root = $parts[0] }
-            if ($parts[0] -ine $root -or $parts[0] -eq '') { throw 'The portable ZIP must have exactly one root folder' }
+            if ($parts[0] -ine $root) { throw 'The portable ZIP must have exactly one root folder' }
             if ($name.EndsWith('/')) { continue }
             if ([IO.Path]::GetExtension($name) -ieq '.msi') { throw "The portable ZIP contains an installer: $name" }
             if ([IO.Path]::GetExtension($name) -notmatch $executable) { continue }

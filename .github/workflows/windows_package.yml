@@ -234,31 +234,12 @@ jobs:
       run: |
         ./.github/signpath/Update-SignedArtifacts.ps1 -UnsignedDirectory build/sign-msi-input -SignedDirectory build/signed-msi -DestinationDirectory build -TestCertificateThumbprint $env:SIGNPATH_TEST_CERTIFICATE_THUMBPRINT
 
-    # ---- nothing is uploaded before the MSI is shown to contain the package binaries ----
+    # ---- nothing is uploaded before the MSI (and the RC release files) are checked ----
     - name: Check the installer contents
       shell: powershell
       run: |
         ./.github/windows/Test-InstallerPayload.ps1 -MsiPath "build/$env:MSI_FILE_NAME" -PackageDirectory build/package `
           -ExpectedVersion $env:InstallerVersion -Launcher $env:LAUNCHER -WorkDirectory "$env:RUNNER_TEMP/msi-payload"
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.ARTIFACT_PREFIX }}_${{ github.event.repository.name }}-win64
-        # LICENSE.rtf only exists for WiX; the portable artifact keeps its previous content.
-        path: |
-          build/package/
-          !build/package/LICENSE.rtf
-        if-no-files-found: error
-        overwrite: true
-    - name: Upload MSI artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.ARTIFACT_PREFIX }}_${{ github.event.repository.name }}-win64.msi
-        path: build/${{ env.MSI_FILE_NAME }}
-        if-no-files-found: error
-        overwrite: true
-
-    # ---- RC release files for the draft publisher ----
     - name: Stage signed release files and integrity manifest
       if: inputs.stage_release
       shell: powershell
@@ -276,8 +257,29 @@ jobs:
         $zip = @(Get-ChildItem -LiteralPath release-assets -Filter *.zip)
         $msi = @(Get-ChildItem -LiteralPath release-assets -Filter *.msi)
         if ($zip.Count -ne 1 -or $msi.Count -ne 1) { throw 'Expected one portable ZIP and one MSI in the release files' }
-        ./.github/windows/Test-InstallerPayload.ps1 -MsiPath $msi[0].FullName -ZipPath $zip[0].FullName -PackageDirectory build/package `
-          -ExpectedVersion $env:InstallerVersion -Launcher $env:LAUNCHER -WorkDirectory "$env:RUNNER_TEMP/release-payload"
+        # The staged MSI must be the one checked above; the ZIP is checked on its own.
+        if ((Get-FileHash -LiteralPath $msi[0].FullName).Hash -cne (Get-FileHash -LiteralPath "build/$env:MSI_FILE_NAME").Hash) {
+          throw 'The staged MSI is not the checked installer'
+        }
+        ./.github/windows/Test-InstallerPayload.ps1 -ZipPath $zip[0].FullName -PackageDirectory build/package `
+          -Launcher $env:LAUNCHER -WorkDirectory "$env:RUNNER_TEMP/release-payload"
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.ARTIFACT_PREFIX }}_${{ github.event.repository.name }}-win64
+        # LICENSE.rtf only exists for WiX; the portable artifact keeps its previous content.
+        path: |
+          build/package/
+          !build/package/LICENSE.rtf
+        if-no-files-found: error
+        overwrite: true
+    - name: Upload MSI artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.ARTIFACT_PREFIX }}_${{ github.event.repository.name }}-win64.msi
+        path: build/${{ env.MSI_FILE_NAME }}
+        if-no-files-found: error
+        overwrite: true
     - name: Upload exact files for the draft publisher
       id: release-artifact
       if: inputs.stage_release
