@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import stat
 import subprocess
 import sys
 from xml.sax.saxutils import escape
@@ -44,6 +45,22 @@ def literal(content, name):
     return matches[0]
 
 
+def numeric_version(content):
+    """The four-part MSI ProductVersion, read from SLIC3R_RC_VERSION_DOTS like the old RC workflow."""
+    numeric = literal(content, "SLIC3R_RC_VERSION_DOTS")
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+", numeric):
+        raise PackageError("Expected a four-part numeric SLIC3R_RC_VERSION_DOTS")
+    parts = tuple(int(part) for part in numeric.split("."))
+    # MSI uses the first three fields; VERSIONINFO's fourth field is a WORD.
+    if any(value > limit for value, limit in zip(parts, (255, 255, 65535, 65535))):
+        raise PackageError("Numeric version exceeds Windows MSI/resource limits")
+    resource = literal(content, "SLIC3R_RC_VERSION")
+    if (not re.fullmatch(r"[0-9]+(?:\s*,\s*[0-9]+){3}", resource)
+            or tuple(int(part.strip()) for part in resource.split(",")) != parts):
+        raise PackageError("SLIC3R_RC_VERSION and SLIC3R_RC_VERSION_DOTS disagree")
+    return numeric
+
+
 def identity(version_file, mode, nightly_date=None):
     """Expected names and versions of a build of this commit in the given mode."""
     if mode not in CONFIGURATIONS:
@@ -54,16 +71,16 @@ def identity(version_file, mode, nightly_date=None):
         product, version = release.read_version(version_file)
     except release.ReleaseError as error:
         raise PackageError(str(error)) from None
-    numeric = version.split("-", 1)[0]
+    content = Path(version_file).read_text(encoding="utf-8-sig")
     if mode == "rc":
+        numeric = numeric_version(content)
         binary, msi, suffix = f"{product}_{version}", f"{product}_{numeric}.msi", ""
     else:
-        content = Path(version_file).read_text(encoding="utf-8-sig")
         try:
             _, values = nightly_version.prepare(content, nightly_date)
         except nightly_version.NightlyVersionError as error:
             raise PackageError(str(error)) from None
-        msi, suffix = values["MSI_FILE_NAME"], values["ReleaseSuffix"]
+        numeric, msi, suffix = values["InstallerVersion"], values["MSI_FILE_NAME"], values["ReleaseSuffix"]
         # Same SLIC3R_BUILD_ID as version.inc: <app key>_<numeric><dated suffix>.
         binary = msi[:-len(".msi")]
     return {"mode": mode, "configuration": CONFIGURATIONS[mode], "product": product,
@@ -83,14 +100,20 @@ def require_checkout(source_sha):
         raise PackageError("The checked-out commit is not the requested source commit")
 
 
+def is_link(path):
+    """Symbolic link, or any other Windows reparse point such as a directory junction."""
+    return path.is_symlink() or bool(getattr(os.lstat(path), "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+
+
 def package_files(package):
     """Relative path, size and SHA-256 of every file in the package folder."""
-    if not package.is_dir():
+    if not package.is_dir() or is_link(package):
         raise PackageError("Windows package directory is missing")
     root = package.resolve()
     entries = {}
+    # Sorted: a linked directory is refused before anything below it is read.
     for path in sorted(package.rglob("*")):
-        if path.is_symlink() or not path.resolve().is_relative_to(root):
+        if is_link(path) or not path.resolve().is_relative_to(root):
             raise PackageError(f"Unexpected link in the Windows package: {path.name}")
         if path.is_dir():
             continue
@@ -126,6 +149,9 @@ def verify(build, version_file, mode, source_sha, product=None, release_version=
     require_checkout(source_sha)
     if {path.name for path in build.iterdir()} != {"package", MANIFEST}:
         raise PackageError("Unexpected or missing files in the Windows build artifact")
+    manifest_path = build / MANIFEST
+    if is_link(manifest_path) or not manifest_path.is_file():
+        raise PackageError("The Windows build manifest is not a regular file")
     try:
         manifest = json.loads((build / MANIFEST).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -211,9 +237,13 @@ def main(argv=None):
                           args.product, args.release_version)
         print(f"Verified the Windows build artifact for {expected['msi_build_name']}")
         if os.environ.get("GITHUB_ENV"):
+            launcher = literal(args.version_file.read_text(encoding="utf-8-sig"), "SLIC3R_APP_CMD")
+            if not re.fullmatch(WIX_PLACEHOLDERS["SLIC3R_APP_CMD"], launcher):
+                raise PackageError("Unexpected SLIC3R_APP_CMD value for the launcher")
             write_outputs(os.environ["GITHUB_ENV"], {
                 "InstallerVersion": expected["product_version"], "ReleaseSuffix": expected["installer_display_suffix"],
-                "MSI_FILE_NAME": expected["msi_build_name"], "BINARY_VERSION": expected["binary_version"]})
+                "MSI_FILE_NAME": expected["msi_build_name"], "BINARY_VERSION": expected["binary_version"],
+                "LAUNCHER": launcher + ".exe"})
     else:
         if not args.output:
             parser.error("--output is required")

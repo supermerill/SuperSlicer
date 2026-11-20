@@ -1,8 +1,9 @@
 name: Sign and assemble Windows package
 
 # Downloads the exact unsigned package produced by windows_build.yml in this run,
-# checks it against this checkout, then signs (if requested), assembles and uploads
-# the portable folder, the MSI and, for an RC release, the staged release files.
+# checks it against this checkout, then signs (if requested) and assembles the MSI. The
+# portable folder, the MSI and, for an RC release, the staged release files are uploaded
+# only after Test-InstallerPayload.ps1 shows they contain the same binaries.
 on:
   workflow_call:
     inputs:
@@ -56,7 +57,8 @@ jobs:
     env:
       SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
       SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG || 'superslicer' }}
-      SIGNPATH_SIGNING_POLICY_SLUG: ${{ inputs.signing == 'test' && vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG || vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+      # Each mode uses only its own policy; a missing slug is an error, never the other policy.
+      SIGNPATH_SIGNING_POLICY_SLUG: ${{ inputs.signing == 'test' && vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG || inputs.signing == 'production' && vars.SIGNPATH_SIGNING_POLICY_SLUG || '' }}
       # Only the test mode accepts the pinned self-signed certificate; production needs normal trust.
       SIGNPATH_TEST_CERTIFICATE_THUMBPRINT: ${{ inputs.signing == 'test' && vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT || '' }}
       ARTIFACT_PREFIX: ${{ inputs.mode == 'rc' && 'rc' || (inputs.signing == 'test' && 'test-signed_nightly' || 'nightly') }}
@@ -133,15 +135,7 @@ jobs:
       id: signing-input
       shell: powershell
       run: |
-        ./.github/signpath/Prepare-Binaries.ps1 -SourceDirectory build/package -OutputDirectory build/sign-input
-    - name: Check the binary version recorded at build time
-      shell: powershell
-      env:
-        PRODUCT_VERSION: ${{ steps.signing-input.outputs.product-version }}
-      run: |
-        if ($env:PRODUCT_VERSION -cne $env:BINARY_VERSION) {
-          throw "Binaries report ProductVersion '$env:PRODUCT_VERSION', expected '$env:BINARY_VERSION'"
-        }
+        ./.github/signpath/Prepare-Binaries.ps1 -SourceDirectory build/package -OutputDirectory build/sign-input -ExpectedProductVersion $env:BINARY_VERSION
     - name: upload unsigned binaries
       id: upload-unsigned-binaries
       if: inputs.signing != 'none'
@@ -171,13 +165,6 @@ jobs:
       shell: powershell
       run: |
         ./.github/signpath/Update-SignedArtifacts.ps1 -UnsignedDirectory build/sign-input -SignedDirectory build/signed-binaries -DestinationDirectory build/package -TestCertificateThumbprint $env:SIGNPATH_TEST_CERTIFICATE_THUMBPRINT
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.ARTIFACT_PREFIX }}_${{ github.event.repository.name }}-win64
-        path: build/package/
-        if-no-files-found: error
-        overwrite: true
 
     # ---- MSI from the trusted template of this checkout ----
     - name: Install WiX Toolset 3.14.1
@@ -246,6 +233,23 @@ jobs:
       shell: powershell
       run: |
         ./.github/signpath/Update-SignedArtifacts.ps1 -UnsignedDirectory build/sign-msi-input -SignedDirectory build/signed-msi -DestinationDirectory build -TestCertificateThumbprint $env:SIGNPATH_TEST_CERTIFICATE_THUMBPRINT
+
+    # ---- nothing is uploaded before the MSI is shown to contain the package binaries ----
+    - name: Check the installer contents
+      shell: powershell
+      run: |
+        ./.github/windows/Test-InstallerPayload.ps1 -MsiPath "build/$env:MSI_FILE_NAME" -PackageDirectory build/package `
+          -ExpectedVersion $env:InstallerVersion -Launcher $env:LAUNCHER -WorkDirectory "$env:RUNNER_TEMP/msi-payload"
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.ARTIFACT_PREFIX }}_${{ github.event.repository.name }}-win64
+        # LICENSE.rtf only exists for WiX; the portable artifact keeps its previous content.
+        path: |
+          build/package/
+          !build/package/LICENSE.rtf
+        if-no-files-found: error
+        overwrite: true
     - name: Upload MSI artifact
       uses: actions/upload-artifact@v4
       with:
@@ -265,6 +269,15 @@ jobs:
       run: >-
         python .github/scripts/release.py stage --platform windows
         --source-sha "$env:RELEASE_SHA" --version "$env:RELEASE_VERSION" --product "$env:PRODUCT"
+    - name: Check the release files
+      if: inputs.stage_release
+      shell: powershell
+      run: |
+        $zip = @(Get-ChildItem -LiteralPath release-assets -Filter *.zip)
+        $msi = @(Get-ChildItem -LiteralPath release-assets -Filter *.msi)
+        if ($zip.Count -ne 1 -or $msi.Count -ne 1) { throw 'Expected one portable ZIP and one MSI in the release files' }
+        ./.github/windows/Test-InstallerPayload.ps1 -MsiPath $msi[0].FullName -ZipPath $zip[0].FullName -PackageDirectory build/package `
+          -ExpectedVersion $env:InstallerVersion -Launcher $env:LAUNCHER -WorkDirectory "$env:RUNNER_TEMP/release-payload"
     - name: Upload exact files for the draft publisher
       id: release-artifact
       if: inputs.stage_release

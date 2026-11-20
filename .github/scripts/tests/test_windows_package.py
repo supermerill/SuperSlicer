@@ -21,7 +21,16 @@ package = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(package)
 SHA = "a" * 40
 DAY = date(2026, 11, 20)
-VERSION = (ROOT / "version.inc").read_text(encoding="utf-8-sig")
+# Fixed identity: the tests must not depend on the version currently in version.inc.
+FIXTURE = '''set(SLIC3R_APP_NAME "SuperSlicer")
+set(SLIC3R_APP_KEY "SuperSlicer")
+set(SLIC3R_APP_CMD "superslicer")
+set(SLIC3R_APP_PROG_ID "superslicer.1")
+set(SLIC3R_GUID "a81705b0-978a-4a7d-bf67-8671e631dd4c")
+set(SLIC3R_VERSION_TAG "-beta+UNKNOWN")
+set(SLIC3R_RC_VERSION "2,7,63,12")
+set(SLIC3R_RC_VERSION_DOTS "2.7.63.12")
+'''
 
 
 class PackageContractTests(unittest.TestCase):
@@ -30,8 +39,7 @@ class PackageContractTests(unittest.TestCase):
         self.folder = tempfile.TemporaryDirectory(dir=approved_temp if approved_temp.is_dir() else None)
         self.root = Path(self.folder.name)
         self.version = self.root / "version.inc"
-        self.version.write_text(VERSION.replace('"2.7.63.0"', '"2.7.63.12"').replace('"2,7,63,0"', '"2,7,63,12"'),
-                                encoding="utf-8")
+        self.version.write_text(FIXTURE, encoding="utf-8")
         self.build = self.root / "build"
         files = {"superslicer.exe": b"launcher", "Slic3r.dll": b"core", "mesa/opengl32.dll": b"mesa",
                  "resources/profiles/Vendor.ini": b"[vendor]"}
@@ -76,6 +84,20 @@ class PackageContractTests(unittest.TestCase):
         # Packaging on another day keeps the recorded date.
         self.assertEqual("2026-11-20", package.verify(self.build, self.version, "nightly", SHA)["nightly_date"])
 
+    def test_rc_msi_version_comes_from_the_numeric_field(self):
+        self.version.write_text(FIXTURE.replace('"-beta+UNKNOWN"', '"+build.1+UNKNOWN"'), encoding="utf-8")
+        values = package.identity(self.version, "rc")
+        self.assertEqual("2.7.63.12", values["product_version"])
+        self.assertEqual("SuperSlicer_2.7.63.12.msi", values["msi_build_name"])
+        self.assertEqual("SuperSlicer_2.7.63.12+build.1", values["binary_version"])
+        for dots, resource, message in (("2.7.63", "2,7,63", "Invalid RC version"), ("2.7.65536.0", "2,7,65536,0", "limits"),
+                                        ("2.7.63.12", "2,7,63,1", "disagree")):
+            with self.subTest(dots=dots):
+                content = FIXTURE.replace('"2.7.63.12"', f'"{dots}"').replace('"2,7,63,12"', f'"{resource}"')
+                self.version.write_text(content, encoding="utf-8")
+                with self.assertRaisesRegex(package.PackageError, message):
+                    package.identity(self.version, "rc")
+
     def test_date_presence_must_match_the_mode(self):
         with self.assertRaisesRegex(package.PackageError, "build date"):
             package.identity(self.version, "rc", DAY)
@@ -117,7 +139,8 @@ class PackageContractTests(unittest.TestCase):
 
     def test_modified_missing_and_extra_files_are_rejected(self):
         changes = {
-            "modified": lambda: (self.build / "package/Slic3r.dll").write_bytes(b"other"),
+            # Same size as b"core": only the SHA-256 can detect it.
+            "modified": lambda: (self.build / "package/Slic3r.dll").write_bytes(b"cord"),
             "missing": lambda: (self.build / "package/mesa/opengl32.dll").unlink(),
             "extra": lambda: (self.build / "package/extra.dll").write_bytes(b"extra"),
         }
@@ -168,6 +191,26 @@ class PackageContractTests(unittest.TestCase):
         with self.assertRaisesRegex(package.PackageError, "Unreadable"):
             package.verify(self.build, self.version, "rc", SHA)
 
+    @unittest.skipUnless(os.name == "nt", "Directory junctions are Windows-only")
+    def test_directory_junctions_are_rejected(self):
+        outside = self.root / "outside"
+        outside.mkdir()
+        (outside / "Slic3r.dll").write_bytes(b"core")
+
+        def junction(link, target):
+            import subprocess
+            subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], check=True, capture_output=True)
+
+        junction(self.build / "package/linked", outside)
+        with self.assertRaisesRegex(package.PackageError, "link"):
+            self.manifest()
+        (self.build / "package/linked").rmdir()
+        self.manifest()
+        (self.build / "package").rename(self.root / "real-package")
+        junction(self.build / "package", self.root / "real-package")
+        with self.assertRaisesRegex(package.PackageError, "missing"):
+            package.verify(self.build, self.version, "rc", SHA)
+
     def test_empty_package_is_rejected(self):
         for path in sorted((self.build / "package").rglob("*"), reverse=True):
             path.unlink() if path.is_file() else path.rmdir()
@@ -183,7 +226,8 @@ class PackageContractTests(unittest.TestCase):
             package.main(arguments)
         self.assertEqual(["InstallerVersion=2.7.63.12", "ReleaseSuffix=-Beta-Nightly",
                           "MSI_FILE_NAME=SuperSlicer_2.7.63.12-beta-2026-11-20.msi",
-                          "BINARY_VERSION=SuperSlicer_2.7.63.12-beta-2026-11-20"],
+                          "BINARY_VERSION=SuperSlicer_2.7.63.12-beta-2026-11-20",
+                          "LAUNCHER=superslicer.exe"],
                          environment.read_text(encoding="utf-8").splitlines())
 
 
@@ -192,7 +236,7 @@ class InstallerSourceTests(unittest.TestCase):
         self.template = (ROOT / "src/platform/msw/winInstaller.wxs.in").read_text(encoding="utf-8")
 
     def test_template_is_rendered_from_the_five_identity_values(self):
-        rendered = package.render_wxs(self.template, VERSION)
+        rendered = package.render_wxs(self.template, FIXTURE)
         self.assertNotRegex(rendered, r"@[A-Za-z0-9_]+@")
         self.assertIn('UpgradeCode="a81705b0-978a-4a7d-bf67-8671e631dd4c"', rendered)
         self.assertIn('Name="SuperSlicer$(var.ReleaseSuffix)"', rendered)
@@ -203,15 +247,15 @@ class InstallerSourceTests(unittest.TestCase):
 
     def test_unknown_placeholders_and_unexpected_values_are_rejected(self):
         with self.assertRaisesRegex(package.PackageError, "SLIC3R_VERSION"):
-            package.render_wxs(self.template + "<!-- @SLIC3R_VERSION@ -->", VERSION)
+            package.render_wxs(self.template + "<!-- @SLIC3R_VERSION@ -->", FIXTURE)
         for name, value in (("SLIC3R_APP_KEY", 'Super"Slicer'), ("SLIC3R_GUID", "not-a-guid"),
                             ("SLIC3R_APP_CMD", "super slicer")):
             with self.subTest(name=name):
-                content = re.sub(rf'set\({name} "[^"]*"\)', f'set({name} "{value}")', VERSION)
+                content = re.sub(rf'set\({name} "[^"]*"\)', f'set({name} "{value}")', FIXTURE)
                 with self.assertRaisesRegex(package.PackageError, name):
                     package.render_wxs(self.template, content)
         with self.assertRaisesRegex(package.PackageError, "exactly one"):
-            package.render_wxs(self.template, VERSION + '\nset(SLIC3R_GUID "a81705b0-978a-4a7d-bf67-8671e631dd4c")\n')
+            package.render_wxs(self.template, FIXTURE + 'set(SLIC3R_GUID "a81705b0-978a-4a7d-bf67-8671e631dd4c")\n')
 
 
 try:
@@ -241,6 +285,7 @@ class WindowsWorkerWorkflowTests(unittest.TestCase):
         upload = steps[names.index("Upload the unsigned package for packaging")]
         self.assertEqual("build/package/\nbuild/windows-build.json\n", upload["with"]["path"])
         self.assertEqual("7", upload["with"]["retention-days"])
+        self.assertEqual("true", upload["with"]["include-hidden-files"])
         self.assertEqual("${{ steps.upload.outputs.artifact-id }}", workflow["jobs"]["build"]["outputs"]["artifact_id"])
         for job in workflow["jobs"].values():
             checkout = next(step for step in job["steps"] if step.get("uses", "").startswith("actions/checkout@"))
@@ -257,35 +302,50 @@ class WindowsWorkerWorkflowTests(unittest.TestCase):
         names = [step.get("name") for step in steps]
         download = steps[names.index("Download the unsigned package from this run")]
         self.assertEqual("${{ inputs.artifact_id }}", download["with"]["artifact-ids"])
+        self.assertEqual("true", download["with"]["merge-multiple"])
+        self.assertEqual("build", download["with"]["path"])
         self.assertNotIn("run-id", download["with"])
         self.assertNotIn("pattern", download["with"])
         for step in steps:
             uses_secret = "secrets." in json.dumps(step)
             if "signpath" in step.get("uses", "").lower() or uses_secret or step.get("name", "").startswith("upload unsigned"):
                 self.assertEqual("inputs.signing != 'none'", step.get("if"), step.get("name"))
-        order = ["Verify the package against this commit", "collect own binaries to sign",
-                 "Check the binary version recorded at build time", "sign binaries",
-                 "verify and copy signed binaries into package", "Upload artifact", "Prepare license file for MSI",
+        order = ["Verify the package against this commit", "collect own binaries to sign", "sign binaries",
+                 "verify and copy signed binaries into package", "Prepare license file for MSI",
                  "Render the installer source", "Harvest files for MSI", "Build MSI installer", "sign msi",
-                 "verify and replace signed msi", "Upload MSI artifact",
-                 "Stage signed release files and integrity manifest", "Upload exact files for the draft publisher"]
+                 "verify and replace signed msi", "Check the installer contents", "Upload artifact",
+                 "Upload MSI artifact", "Stage signed release files and integrity manifest",
+                 "Check the release files", "Upload exact files for the draft publisher"]
         self.assertEqual(order, [name for name in names if name in order])
         build = steps[names.index("Build MSI installer")]["run"]
         self.assertIn("winInstaller.wxs files.wxs", build)
         self.assertNotIn(r"src\winInstaller.wxs", build)
         self.assertIn("--version=3.14.1", steps[names.index("Install WiX Toolset 3.14.1")]["run"])
-        for name in ("Stage signed release files and integrity manifest", "Upload exact files for the draft publisher"):
+        for name in ("Stage signed release files and integrity manifest", "Check the release files",
+                     "Upload exact files for the draft publisher"):
             self.assertEqual("inputs.stage_release", steps[names.index(name)]["if"])
+        self.assertIn("-ExpectedProductVersion $env:BINARY_VERSION", steps[names.index("collect own binaries to sign")]["run"])
+        self.assertIn("-ZipPath", steps[names.index("Check the release files")]["run"])
+        self.assertEqual("build/package/\n!build/package/LICENSE.rtf\n", steps[names.index("Upload artifact")]["with"]["path"])
+        self.assertEqual({"Upload artifact": "${{ env.ARTIFACT_PREFIX }}_${{ github.event.repository.name }}-win64",
+                          "Upload MSI artifact": "${{ env.ARTIFACT_PREFIX }}_${{ github.event.repository.name }}-win64.msi",
+                          "Upload exact files for the draft publisher": "release-windows-${{ github.run_attempt }}"},
+                         {name: steps[names.index(name)]["with"]["name"] for name in
+                          ("Upload artifact", "Upload MSI artifact", "Upload exact files for the draft publisher")})
         self.assertEqual("${{ inputs.signing == 'test' && vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT || '' }}",
                          job["env"]["SIGNPATH_TEST_CERTIFICATE_THUMBPRINT"])
 
-    def test_package_worker_keeps_existing_artifact_names(self):
-        prefix = self.workflow("windows_package.yml")["jobs"]["package"]["env"]["ARTIFACT_PREFIX"][3:-2]
-        expression = prefix.replace("&&", " and ").replace("||", " or ")
-        for mode, signing, expected in (("rc", "none", "rc"), ("rc", "production", "rc"),
-                                        ("nightly", "none", "nightly"), ("nightly", "test", "test-signed_nightly")):
-            inputs = type("Inputs", (), {"mode": mode, "signing": signing})
-            self.assertEqual(expected, eval(expression, {"__builtins__": {}}, {"inputs": inputs}))
+    def test_package_worker_keeps_existing_artifact_names_and_separate_policies(self):
+        env = self.workflow("windows_package.yml")["jobs"]["package"]["env"]
+        self.assertEqual("${{ inputs.mode == 'rc' && 'rc' || (inputs.signing == 'test' && 'test-signed_nightly' || 'nightly') }}",
+                         env["ARTIFACT_PREFIX"])
+        # No fallback from one signing policy to the other when a slug is missing.
+        self.assertEqual("${{ inputs.signing == 'test' && vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG || "
+                         "inputs.signing == 'production' && vars.SIGNPATH_SIGNING_POLICY_SLUG || '' }}",
+                         env["SIGNPATH_SIGNING_POLICY_SLUG"])
+        check = next(step for step in self.workflow("windows_package.yml")["jobs"]["package"]["steps"]
+                     if step.get("name") == "check signing configuration")
+        self.assertIn("'SIGNPATH_SIGNING_POLICY_SLUG'", check["run"])
 
 
 if __name__ == "__main__":
