@@ -320,7 +320,11 @@ class WindowsWorkerWorkflowTests(unittest.TestCase):
         build = steps[names.index("Build MSI installer")]["run"]
         self.assertIn("winInstaller.wxs files.wxs", build)
         self.assertNotIn(r"src\winInstaller.wxs", build)
-        self.assertIn("--version=3.14.1", steps[names.index("Install WiX Toolset 3.14.1")]["run"])
+        wix = steps[names.index("Install WiX Toolset 3.14.1")]["run"]
+        # The runner image's package revision: an older one is a refused downgrade.
+        self.assertIn("--version=3.14.1.20250415", wix)
+        self.assertIn("version (3\\.\\d+\\.\\d+\\.\\d+)", wix)
+        self.assertIn("-lt [version]'3.14.1.0'", wix)
         for name in ("Stage signed release files and integrity manifest", "Check the release files",
                      "Upload exact files for the draft publisher"):
             self.assertEqual("inputs.stage_release", steps[names.index(name)]["if"])
@@ -338,7 +342,11 @@ class WindowsWorkerWorkflowTests(unittest.TestCase):
                          job["env"]["SIGNPATH_TEST_CERTIFICATE_THUMBPRINT"])
 
     def test_package_worker_keeps_existing_artifact_names_and_separate_policies(self):
-        env = self.workflow("windows_package.yml")["jobs"]["package"]["env"]
+        job = self.workflow("windows_package.yml")["jobs"]["package"]
+        # The job name shows whether this run signs.
+        self.assertEqual("${{ inputs.signing == 'none' && 'Package (unsigned)' || "
+                         "format('Sign ({0}) and package', inputs.signing) }}", job["name"])
+        env = job["env"]
         self.assertEqual("${{ inputs.mode == 'rc' && 'rc' || (inputs.signing == 'test' && 'test-signed_nightly' || 'nightly') }}",
                          env["ARTIFACT_PREFIX"])
         # No fallback from one signing policy to the other when a slug is missing.
