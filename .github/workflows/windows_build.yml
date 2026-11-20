@@ -173,4 +173,6 @@ jobs:
           build/package/
           build/windows-build.json
         if-no-files-found: error
+        # The manifest lists every file, hidden ones included, as the MSI and ZIP use them.
+        include-hidden-files: true
         retention-days: 7

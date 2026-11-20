@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$SourceDirectory,
-    [Parameter(Mandatory = $true)][string]$OutputDirectory
+    [Parameter(Mandatory = $true)][string]$OutputDirectory,
+    # When given, every binary must report exactly this ProductVersion.
+    [string]$ExpectedProductVersion = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,6 +27,9 @@ $files = foreach ($include in $fileSet.SelectNodes('s:include', $namespaces)) {
     if ([string]::IsNullOrWhiteSpace($productVersion)) { throw "Missing ProductVersion on $name" }
     if ($null -ne $version -and $productVersion -cne $version) {
         throw "ProductVersion mismatch on $name"
+    }
+    if ($ExpectedProductVersion -and $productVersion -cne $ExpectedProductVersion) {
+        throw "Unexpected ProductVersion on $name (expected $ExpectedProductVersion)"
     }
     $version = $productVersion
     $file
