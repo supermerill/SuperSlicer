@@ -538,7 +538,8 @@ class WorkflowContractTests(unittest.TestCase):
         script = "windows/Invoke-MsvcBuild.ps1"
         self.assertTrue((ROOT / script).is_file())
         keys = set()
-        for name, target in (("ccpp_win.yml", "RelWithDebInfo"), ("ccpp_win_rc.yml", "Release")):
+        for name, target in (("ccpp_win.yml", "RelWithDebInfo"), ("ccpp_win_rc.yml", "Release"),
+                             ("ccpp_win_debug.yml", "Debug")):
             with self.subTest(workflow=name):
                 workflow = self.workflow(name)
                 for job, build_target in (("build_dep", "Dependencies"), ("build", target)):
@@ -551,6 +552,8 @@ class WorkflowContractTests(unittest.TestCase):
                     self.assertEqual("deps/build/destdir", cache["with"]["path"])
                     self.assertNotIn("restore-keys", cache["with"])
                     self.assertFalse(any("setup-perl" in step.get("uses", "") for step in steps))
+                    checkout = next(step for step in steps if step.get("uses", "").startswith("actions/checkout@"))
+                    self.assertNotEqual("actions/checkout@v3", checkout["uses"])
                     if job == "build_dep":
                         build = by_name["Build MSVC dependencies"]
                         self.assertEqual("actions/cache@v4", cache["uses"])
@@ -563,6 +566,25 @@ class WorkflowContractTests(unittest.TestCase):
                     self.assertEqual("powershell", build["shell"])
                     self.assertEqual(f"./.github/{script} -Target {build_target}", build["run"])
         self.assertEqual(1, len(keys))
+
+    def test_windows_debug_keeps_symbols_and_uploads_only_a_ci_artifact(self):
+        workflow = self.workflow("ccpp_win_debug.yml")
+        self.assertEqual({"push": {"branches": ["debug_win"]}}, workflow["on"])
+        self.assertEqual({"contents": "read"}, workflow["permissions"])
+        self.assertEqual({"build_dep", "build"}, set(workflow["jobs"]))
+        job = workflow["jobs"]["build"]
+        self.assertEqual("build_dep", job["needs"])
+        steps = job["steps"]
+        commands = "\n".join(step.get("run", "") for step in steps)
+        self.assertIn(r"src\Debug\*.pdb", commands)
+        self.assertIn(r"package\mesa", commands)
+        self.assertIn("/P:Configuration=Debug gettext_po_to_mo.vcxproj", commands)
+        self.assertIn("/P:Configuration=Debug gettext_make_pot.vcxproj", commands)
+        self.assertNotIn("system32", commands.lower())
+        self.assertFalse(any("signpath" in step.get("uses", "").lower() for step in steps))
+        upload = next(step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@"))
+        self.assertEqual("build/package/", upload["with"]["path"])
+        self.assertEqual("error", upload["with"]["if-no-files-found"])
 
     def test_single_rc_trigger_and_pinned_checkouts(self):
         master = self.workflow("release_rc.yml")

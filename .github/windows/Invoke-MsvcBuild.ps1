@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('Dependencies', 'Release', 'RelWithDebInfo')]
+    [ValidateSet('Dependencies', 'Debug', 'Release', 'RelWithDebInfo')]
     [string]$Target
 )
 

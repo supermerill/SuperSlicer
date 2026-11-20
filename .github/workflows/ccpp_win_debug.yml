@@ -5,87 +5,34 @@ on:
     branches:
       - debug_win
 
+permissions:
+  contents: read
+
 jobs:
 
   build_dep:
     runs-on: windows-2022
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: ilammy/msvc-dev-cmd@v1
-    - uses: shogo82148/actions-setup-perl@v1
-      with:
-        perl-version: "5.42"
-        distribution: strawberry
-    - name: mkdir in deps
-      run: mkdir deps/build
     - name: dep cache
       id: cache-action
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
-        key: win_debug_2.7.63
+        key: win-vs2022-x64-msvc-v2-${{ hashFiles('deps/CMakeLists.txt', 'deps/+*/**', 'cmake/modules/**', '.github/windows/Invoke-MsvcBuild.ps1') }}
         path: deps/build/destdir
     - if: steps.cache-action.outputs.cache-hit != 'true'
-      name: build deps if new cache
-      working-directory: ./deps/build
-      run: |
-        cmake .. -G "Visual Studio 17 2022" -A x64
-        msbuild /m ALL_BUILD.vcxproj
-
-  build_pot:
-    runs-on: windows-2022
-    needs: build_dep
-    
-    steps:
-    - uses: actions/checkout@v3
-    - uses: ilammy/msvc-dev-cmd@v1
-    - name: update submodule profiles
-      working-directory: ./resources/profiles
-      run: git submodule update --init
-    - uses: shogo82148/actions-setup-perl@v1
-      with:
-        perl-version: "5.42"
-        distribution: strawberry
-    - name: dep cache
-      id: cache-action
-      uses: actions/cache@v3
-      with:
-        key: win_debug_2.7.63
-        path: deps/build/destdir
-    - run: dir deps
-    - run: dir deps/build
-    - run: dir deps/build/destdir
-    - run: dir deps/build/destdir/usr
-    - run: mkdir msgfmt_bin
-    - name: copy gettext
-      working-directory: ./msgfmt_bin
+      name: Build MSVC dependencies
       shell: powershell
-      run: '(new-object System.Net.WebClient).DownloadFile("https://github.com/supermerill/SuperSlicer_deps/releases/download/gettext/gettext-tools-static-0.18.1.1.zip", "gettext.zip")'
-    - name: unzip
-      working-directory: ./msgfmt_bin
-      shell: cmd
-      run: '"C:/Program Files/7-Zip/7z.exe" x gettext.zip'
-    - name: add msgfmt to path
-      shell: powershell
-      working-directory: msgfmt_bin
-      run: echo "$pwd;" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-    - run: mkdir build
-    - name: cmake
-      working-directory: ./build
-      run: cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="d:\a\${{ github.event.repository.name }}\${{ github.event.repository.name }}\deps\build\destdir\usr\local"
-    - name: make .mo
-      working-directory: ./build
-      run: msbuild /m /P:Configuration=RelWithDebInfo gettext_po_to_mo.vcxproj
-    - name: make .pot
-      working-directory: ./build
-      run: msbuild /m /P:Configuration=RelWithDebInfo gettext_make_pot.vcxproj
+      run: ./.github/windows/Invoke-MsvcBuild.ps1 -Target Dependencies
 
   build:
     runs-on: windows-2022
     needs: build_dep
-    
+
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: ilammy/msvc-dev-cmd@v1
     - name: update submodule profiles
       working-directory: ./resources/profiles
@@ -95,16 +42,12 @@ jobs:
       run: |
         copy version.inc version.date.inc
         (Get-Content version.date.inc) | Foreach-Object {$_ -replace "\+UNKNOWN", ("_" + [datetime]::Today.ToString("yyyy-MM-dd"))} | Set-Content version.date.inc
-    - name: mkdir in deps directory
-      run: mkdir deps/destdir
     - name: dep cache
-      id: cache-action
-      uses: actions/cache@v3
+      uses: actions/cache/restore@v4
       with:
-        key: win_2.7
+        key: win-vs2022-x64-msvc-v2-${{ hashFiles('deps/CMakeLists.txt', 'deps/+*/**', 'cmake/modules/**', '.github/windows/Invoke-MsvcBuild.ps1') }}
         path: deps/build/destdir
-    - run: dir deps
-    - run: dir deps/destdir
+        fail-on-cache-miss: true
     - run: mkdir msgfmt_bin
     - name: copy gettext
       working-directory: ./msgfmt_bin
@@ -117,30 +60,25 @@ jobs:
     - name: add msgfmt to path
       shell: powershell
       working-directory: msgfmt_bin
-      run: echo "$pwd;" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-    - run: mkdir build
-    - name: cmake
-      working-directory: ./build
-      run: cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="d:\a\${{ github.event.repository.name }}\${{ github.event.repository.name }}\deps\build\destdir\usr\local"
-    - name: make
-      working-directory: ./build
-      run: msbuild /m /P:Configuration=Debug INSTALL.vcxproj
+      run: $PWD.Path | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+    - name: Configure and build SuperSlicer
+      shell: powershell
+      run: ./.github/windows/Invoke-MsvcBuild.ps1 -Target Debug
     - name: make .mo
       working-directory: ./build
       run: msbuild /m /P:Configuration=Debug gettext_po_to_mo.vcxproj
+    - name: make .pot
+      working-directory: ./build
+      run: msbuild /m /P:Configuration=Debug gettext_make_pot.vcxproj
     - name: create OCCT wrapper
       working-directory: ./build
       run: msbuild /m /P:Configuration=Debug src\occt_wrapper\OCCTWrapper.vcxproj
     - name: copy dll
       working-directory: ./build
       run: msbuild /m /P:Configuration=Debug src\slic3rDllsCopy.vcxproj
-    - name: create directory and copy into it
-      working-directory: ./build
-      run: ls
-    - name: create directory and copy into it
+    - name: create package directory
       working-directory: ./build
       shell: powershell
-        #todo: add the opengl folder
       run: mkdir package
     - name: copy from release
       working-directory: ./build
@@ -154,8 +92,8 @@ jobs:
       working-directory: ./build
       shell: cmd
       run: |
-        xcopy /RCYIE Slic3r_win_build\local-settings.bat package\${{ github.event.repository.name }}_local-settings.bat
-        xcopy /RCYIE Slic3r_win_build\mesa package\
+        copy /Y "Slic3r_win_build\local-settings.bat" "package\${{ github.event.repository.name }}_local-settings.bat" || exit /b 1
+        xcopy /RCYIE Slic3r_win_build\mesa package\mesa\
     - name: copy new resources
       working-directory: ./build
       shell: cmd
@@ -165,21 +103,17 @@ jobs:
       shell: cmd
       run: |
         python ..\src\platform\download_vendor_bundles.py package/resources
-    - name: copy dll & exe
+    - name: copy binaries and debug symbols
       working-directory: ./build
       shell: cmd
       run: |
-        xcopy /RCYIE src\debug\*.dll package\
-        xcopy /RCYIE src\debug\*.exe package\
-        xcopy /RCYIE src\debug\*.pdb package\
-        xcopy /RCYIE c:\windows\system32\VCRUNTIME140* package\
-        del package\opengl32.dll
-#    - name: create zip
-#      working-directory: ./build
-#      shell: cmd
-#      run: '"C:/Program Files/7-Zip/7z.exe" a -tzip nightly.zip *'
+        xcopy /RCYIE src\Debug\*.dll package\ || exit /b 1
+        xcopy /RCYIE src\Debug\*.exe package\ || exit /b 1
+        xcopy /RCYIE src\Debug\*.pdb package\ || exit /b 1
+    # The MSVC debug CRT is for developer machines and is not redistributable.
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: debug_${{ github.event.repository.name }}-win64
         path: build/package/
+        if-no-files-found: error
