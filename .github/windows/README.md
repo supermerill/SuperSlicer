@@ -58,3 +58,17 @@ With VS 2022, CMake and the Windows SDK installed:
 
 Builds tiny normal/delay-import C++ executables, checks runtime selection, removal of
 stale debug copies, source hashes, startup, repeatability and missing-redist failure.
+
+## MSVC dependency discovery on GitHub Actions
+
+The Windows nightly and RC use `Invoke-MsvcBuild.ps1` for both the dependency build
+and the main configure/build. The script strips Strawberry Perl/MinGW/MSYS tool
+directories from the process `PATH` so that CMake and its dependency sub-builds
+do not discover their GNU archives. Perl setup is not needed by these workflows.
+
+The main build checks that the GMP/MPFR headers, MSVC import libraries and
+matching DLLs exist in `deps/build/destdir/usr/local`; it explicitly passes the
+headers and `.lib` files to CGAL, using the same GMP import library in Debug and
+Release. The CMake log should report `libgmp-10.lib` and `libmpfr-4.lib` in that
+prefix, not `libgmp.a` or `libmpfr.a` from the runner. The shared cache key includes
+the dependency recipes and build script and does not fall back to `win_2.7.63`.

@@ -50,20 +50,16 @@ jobs:
           throw 'SIGNPATH_TEST_CERTIFICATE_THUMBPRINT must be the SHA-1 thumbprint of the test certificate.'
         }
     - uses: ilammy/msvc-dev-cmd@v1
-    - name: mkdir in deps
-      run: mkdir deps/build
     - name: dep cache
       id: cache-action
       uses: actions/cache@v4
       with:
-        key: win_2.7.63
+        key: win-vs2022-x64-msvc-v2-${{ hashFiles('deps/CMakeLists.txt', 'deps/+*/**', 'cmake/modules/**', '.github/windows/Invoke-MsvcBuild.ps1') }}
         path: deps/build/destdir
     - if: steps.cache-action.outputs.cache-hit != 'true'
-      name: build deps if new cache
-      working-directory: ./deps/build
-      run: |
-        cmake .. -G "Visual Studio 17 2022" -A x64
-        msbuild /m ALL_BUILD.vcxproj
+      name: Build MSVC dependencies
+      shell: powershell
+      run: ./.github/windows/Invoke-MsvcBuild.ps1 -Target Dependencies
 
   build:
     runs-on: windows-2022
@@ -84,15 +80,11 @@ jobs:
         copy version.inc version.date.inc
         (Get-Content version.date.inc) | Foreach-Object {$_ -replace "\+UNKNOWN", ("-" + [datetime]::Today.ToString("yyyy-MM-dd"))} | Set-Content version.date.inc
     - name: dep cache
-      id: cache-action
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v4
       with:
-        key: win_2.7.63
+        key: win-vs2022-x64-msvc-v2-${{ hashFiles('deps/CMakeLists.txt', 'deps/+*/**', 'cmake/modules/**', '.github/windows/Invoke-MsvcBuild.ps1') }}
         path: deps/build/destdir
-    - run: dir deps
-    - run: dir deps/build
-    - run: dir deps/build/destdir
-    - run: dir deps/build/destdir/usr
+        fail-on-cache-miss: true
     - run: mkdir msgfmt_bin
     - name: copy gettext
       working-directory: ./msgfmt_bin
@@ -106,13 +98,9 @@ jobs:
       shell: powershell
       working-directory: msgfmt_bin
       run: echo "$pwd;" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-    - run: mkdir build
-    - name: cmake
-      working-directory: ./build
-      run: cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="d:\a\${{ github.event.repository.name }}\${{ github.event.repository.name }}\deps\build\destdir\usr\local"
-    - name: make
-      working-directory: ./build
-      run: msbuild /m /P:Configuration=RelWithDebInfo INSTALL.vcxproj
+    - name: Configure and build SuperSlicer
+      shell: powershell
+      run: ./.github/windows/Invoke-MsvcBuild.ps1 -Target RelWithDebInfo
     - name: make .mo
       working-directory: ./build
       run: msbuild /m /P:Configuration=RelWithDebInfo gettext_po_to_mo.vcxproj
