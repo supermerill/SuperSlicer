@@ -324,8 +324,7 @@ then
         make dep_MPFR -j$NCORES
         echo -e "[4/8] Building dep_Catch2 ...\n"
         make dep_Catch2 -j$NCORES
-        echo -e "[4/8] Building dep_OpenSSL ...\n"
-        make dep_OpenSSL -j$NCORES
+        # No dep_OpenSSL: macOS uses the system CURL, and OpenSSL 1.1.0 cannot target arm64.
 #    fi
 
     # make deps
