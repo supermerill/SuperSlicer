@@ -2,20 +2,29 @@ name: C/C++ Release candidate arm macos
 
 on:
   workflow_dispatch:
+  # Called by ci_rc.yml (branch rc, no release files) and release_rc.yml (version tag,
+  # stage_release). Publication to the draft is done by release_rc.yml, not here.
   workflow_call:
     inputs:
       source_sha:
         type: string
         required: true
-      release_version:
-        type: string
-        required: true
-      release_id:
-        type: string
-        required: true
+      stage_release:
+        description: Stage the release files and their manifest for the draft publisher
+        type: boolean
+        default: false
       product:
+        description: Release product name, required with stage_release
         type: string
-        required: true
+        default: ''
+      release_version:
+        description: Full release version, required with stage_release
+        type: string
+        default: ''
+    outputs:
+      release_artifact_id:
+        description: ID of the staged release files (empty unless stage_release)
+        value: ${{ jobs.build.outputs.release_artifact_id }}
 
 permissions:
   contents: read
@@ -106,7 +115,7 @@ jobs:
         if-no-files-found: error
         overwrite: true
     - name: Stage named release files and integrity manifest
-      if: inputs.release_id != ''
+      if: inputs.stage_release
       env:
         RELEASE_SHA: ${{ inputs.source_sha }}
         RELEASE_VERSION: ${{ inputs.release_version }}
@@ -116,24 +125,9 @@ jobs:
         --source-sha "$RELEASE_SHA" --version "$RELEASE_VERSION" --product "$PRODUCT"
     - name: Upload exact files for the draft publisher
       id: release-artifact
-      if: inputs.release_id != ''
+      if: inputs.stage_release
       uses: actions/upload-artifact@v4
       with:
         name: release-macos-arm-${{ github.run_attempt }}
         path: release-assets/
         if-no-files-found: error
-
-  publish:
-    needs: build
-    if: inputs.release_id != ''
-    permissions:
-      contents: write
-      actions: read
-    uses: ./.github/workflows/release_upload.yml
-    with:
-      source_sha: ${{ inputs.source_sha }}
-      release_version: ${{ inputs.release_version }}
-      release_id: ${{ inputs.release_id }}
-      product: ${{ inputs.product }}
-      platform: macos-arm
-      artifact_id: ${{ needs.build.outputs.release_artifact_id }}

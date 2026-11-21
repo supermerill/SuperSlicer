@@ -1,10 +1,10 @@
 # Windows code signing (SignPath)
 
-Release signing is requested by `.github/workflows/ccpp_win_rc.yml` (`Release` binaries) and
-performed by its packaging worker `windows_package.yml`, after `windows_build.yml` has compiled
-the commit in a separate job without any SignPath secret.
-It is called by the [RC release orchestrator](../release/README.md), which prepares
-the version tag and draft and only builds missing platforms.
+Release signing is requested by the [RC release orchestrator](../release/README.md)
+`release_rc.yml` for a pushed version tag (`Release` binaries) and performed by the
+packaging worker `windows_package.yml`, after `windows_build.yml` has compiled the commit
+in a separate job without any SignPath secret. The worker refuses production signing for
+any other caller, and test signing for anything but a manual run of the nightly.
 `.github/workflows/ccpp_win.yml` (`RelWithDebInfo`) supports **manual test signing only**,
 through the same two workers.
 `ccpp_win_debug.yml` is not integrated. Signing is **off by default**.
@@ -14,7 +14,8 @@ through the same two workers.
 | Ordinary nightly push (including `debug_win`) | Never submits a signing request |
 | Manually dispatched nightly, `sign` unchecked | Ordinary unsigned build |
 | Manually dispatched nightly, `sign` checked | Uses the pinned self-signed certificate and test policy; two requests |
-| Push to `rc` | The master calls Windows when its release files are missing; requires production signing, otherwise the Windows worker fails without publishing unsigned release files |
+| Push of a version tag | `release_rc.yml` builds Windows when its release files are missing; requires production signing, otherwise it fails before compiling and publishes nothing for Windows |
+| Push to `rc`, `debug_win`, manual Windows RC | Never signs (`ci_rc.yml`, `ccpp_win_rc.yml`) |
 | RC workflow on `debug_win` | Never signs automatically |
 | Manually dispatched RC workflow | Signs only with `sign` checked **and** `SIGNPATH_ENABLED=true` |
 

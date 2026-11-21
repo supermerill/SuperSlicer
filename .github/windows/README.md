@@ -1,6 +1,6 @@
 # Windows DLL packaging
 
-Both nightly (`ccpp_win.yml`) and release (`ccpp_win_rc.yml`), through `windows_build.yml`, call
+Nightly (`ccpp_win.yml`) and RC (`release_rc.yml`, `ci_rc.yml`, `ccpp_win_rc.yml`), through `windows_build.yml`, call
 `Copy-VcRuntime.ps1` after collecting the application files and before signing/packaging.
 It scans the normal and delay-load imports of **all** packaged EXE/DLL files, then
 recursively resolves Microsoft VC runtime imports from the x64 CRT redistributable
@@ -81,12 +81,12 @@ and is not copied into the artifact.
 
 ## Build and packaging jobs
 
-`ccpp_win_rc.yml` and `ccpp_win.yml` no longer compile, sign and package in one job. Both
-use the same two workers; a run shows:
+The Windows nightly and the three RC entry points use the same two workers; a run shows:
 
-1. **Signing mode**: decides before any compilation: `none` or `production` for the RC,
-   `none` or `test` for the nightly (`test` only on a manual dispatch with `sign`). It fails
-   early when release files would need production signing that is not configured.
+1. **Signing**: decided before any compilation. `production` only in `release_rc.yml` (tag
+   push), whose first Windows job fails if production signing is not configured; `test`
+   only for a manual nightly with `sign`; `none` everywhere else (`ci_rc.yml`,
+   `ccpp_win_rc.yml`, nightly pushes).
 2. **`windows_build.yml`**: MSVC dependencies, then compilation of the requested commit. It
    uploads the unsigned `package/` folder with `windows-build.json` (commit, mode, versions,
    MSI name and the size and SHA-256 of every file) and outputs that artifact ID. It has no
@@ -96,9 +96,9 @@ use the same two workers; a run shows:
    version that does not match `version.inc`. The five SuperSlicer binaries must report the
    recorded ProductVersion. It then signs (if requested), builds the MSI with WiX 3.14.1
    from `src/platform/msw/winInstaller.wxs.in` rendered from this checkout (never a WiX
-   source from the artifact), and stages the release files when called by the RC master.
+   source from the artifact), and stages the release files when called by `release_rc.yml`.
    Each signing mode uses only its own SignPath policy; a missing slug is an error.
-4. **Publisher**: unchanged, only for the RC master.
+4. **Publisher**: `publish_windows` in `release_rc.yml` only.
 
 Before any upload, `Test-InstallerPayload.ps1` unpacks the MSI with an administrative
 extraction (`msiexec /a`, nothing installed) and requires exactly the EXE/DLL files of the

@@ -1,8 +1,15 @@
 # RC release pipeline
 
-`release_rc.yml` is the **only** workflow triggered by a push to `rc`. It prepares an
-immutable version tag and a draft release, then calls the five RC workflows for
-platforms with missing files. No build passes through a maintainer's computer.
+A release starts when a maintainer **pushes a version tag**. `release_rc.yml` runs only
+for the push that creates that tag: it prepares a draft release for it, then builds and
+uploads the platforms with missing files. No build passes through a maintainer's computer.
+
+| Event | Workflow | Result |
+| --- | --- | --- |
+| Push of a new tag `n.n.n.n` or `n.n.n.n-suffix` | `release_rc.yml` | Draft release of that tag, Windows signed in production |
+| Push to branch `rc` | `ci_rc.yml` | Five unsigned RC builds as Actions artifacts; no tag, no draft, read-only |
+| Push to `debug_win`, or manual run | `ccpp_win_rc.yml` | Unsigned Windows RC diagnostic |
+| Push to `rc-macintel`, or manual run of a macOS/Linux RC workflow | that workflow | Unsigned diagnostic of one target |
 
 ## Version and files
 
@@ -26,10 +33,24 @@ available in the individual macOS/GTK2 build artifacts.
 
 ## Trigger and permissions
 
-Push the complete release pipeline and the intended version to `rc`, or manually run
-**RC release orchestrator**, selecting branch `rc`. A manual run on another branch
-fails before any GitHub write. GitHub only shows the manual button after the workflow
-is also available on the repository's default branch.
+Create the tag on the release commit and push **that tag alone**:
+
+```bash
+git tag 2.7.63.0-beta <commit>
+git push origin 2.7.63.0-beta
+```
+
+The tag must equal the version of `version.inc` at that commit (`2.7.63.0`,
+`2.7.63.0-beta`, `2.7.63.0-rc.1`; no `v` prefix, no `+...`). Preparation refuses, before
+any GitHub write: another event, a deleted or force-updated tag, a tag that does not match
+`version.inc`, and a tag that does not point at the checked-out commit (annotated tags are
+resolved to their commit). There is no manual run and no branch run. Push one tag per
+`git push`: GitHub does not start workflows for a push of more than three tags.
+
+CI **never creates, moves or deletes a tag**. If the tag disappears, preparation stops
+before creating the draft: creating a release would recreate the tag implicitly. Before
+the first tag, protect version tags in the repository rules so that only maintainers can
+create them and nobody (including GitHub Actions) can update or delete them.
 
 **Deploy the workflow definitions to the default branch before the first RC run.**
 GitHub can refuse release creation/update with `GITHUB_TOKEN` when the target commit's
@@ -38,16 +59,16 @@ Workflows write permission, which `GITHUB_TOKEN` cannot have. Keep these definit
 synchronized on the default branch and `rc`; do not work around the refusal by moving
 a version tag or adding a maintainer PAT. See [GitHub's create-release restrictions](https://docs.github.com/en/rest/releases/releases#create-a-release).
 
-Preparation creates the tag at the **triggering commit SHA**. All dependency and
-application jobs check out that same SHA, including Linux (never a floating `rc`).
-Local `workflow_call` references also resolve to the caller's workflow revision.
-The legacy independent `push rc` triggers are removed to prevent double builds.
-`debug_win`, `rc-macintel` and individual manual diagnostic builds do not publish
-release assets without the master's inputs.
+All dependency and application jobs check out the **tagged commit**, never a floating
+branch. Local `workflow_call` references resolve to the workflow revision of that tag, so
+a re-run uses the definitions of the tag, not later fixes. Only `release_rc.yml` passes
+`stage_release` to the build workflows; they never publish anything themselves.
 
-Preparation has `contents: write` to create refs/drafts. Compilation/signing jobs have
-read-only repository access and do not persist checkout credentials. Each platform's
-publisher calls `release_upload.yml`, with `contents: write`, on a fresh hosted runner.
+Offline tests run first, in a job without write access. Preparation has
+`contents: write` to create the draft. Compilation/signing jobs have read-only repository
+access and do not persist checkout credentials. Each platform has its own publisher job
+(`publish_windows`, `publish_macos_intel`, ...) that calls `release_upload.yml`, with
+`contents: write`, on a fresh hosted runner, after that platform's build only.
 It downloads the **exact artifact ID from the same workflow run**. A manifest binds
 the filenames, platform, version and source SHA and verifies each file's SHA-256 after
 transfer, before posting the raw files to GitHub Releases. The manifest itself is an
@@ -67,8 +88,8 @@ The API helper uses only the job's `GH_TOKEN` (`github.token`). It never reads
   including release scripts after a tag has already been created.
 - An existing **public** release makes the build **fail**, even if some assets are
   missing. This pipeline only creates/completes **drafts**.
-- Existing drafts must still have their matching tag. A missing tag is an error,
-  not an invitation to silently recreate it.
+- The tag must exist and still point at the tagged commit before every write. A
+  missing tag is an error, never an invitation to recreate it.
 - A complete platform is skipped with a warning. A partially uploaded platform is
   rebuilt, but its publisher sends only the absent names. Existing uploaded assets
   are kept unchanged and never overwritten or deleted, even if a rebuild produces
@@ -86,17 +107,19 @@ Release filenames do not change the next day. Intermediate Actions artifact name
 include `run_attempt`; diagnostics can be replaced inside the same run, but release
 assets cannot. Expired intermediate artifacts may require rebuilding their platform.
 
-The master's concurrency group serializes RC runs and does not cancel a running
-release. GitHub can replace an older *pending* run with a newer pending run. Ref and
+The master's concurrency group serializes runs of the same tag and does not cancel a
+running release; different tags do not wait for each other. GitHub can replace an older *pending* run with a newer pending run. Ref and
 draft state are checked again before each publication. GitHub does not offer an
 atomic "upload only while draft" operation: **do not publish the draft manually
 until the workflow has finished**. Never publish it while jobs are still uploading.
 
 ## Signing and notes
 
-The Windows release worker requires `SIGNPATH_ENABLED=true`, the production policy
-and a valid production certificate. It fails **before compilation** if production
-signing is disabled, rather than filling a draft with unsigned final Windows files.
+The Windows release requires `SIGNPATH_ENABLED=true`, the production policy and a
+valid production certificate. Its first job fails **before compilation** if production
+signing is disabled, rather than filling a draft with unsigned final Windows files. The
+packaging worker also refuses production signing unless it is called by
+`release_rc.yml` for a tag push.
 Other platforms are independent. Self-signed integration tests remain exclusively in
 the manually opted-in nightly workflow; see [SignPath setup](../signpath/README.md).
 
@@ -127,10 +150,11 @@ python -B -m unittest discover -s .github/scripts/tests -v
 
 Tests use a fake API: no credentials, real refs/releases, upload or remote builds.
 Install PyYAML to include the workflow-structure tests; core release tests use only
-the standard library. Also run `actionlint` on the master, publisher and five workers,
+the standard library. Also run `actionlint` on the master, `ci_rc.yml`, the publisher and the workers,
 plus the local SignPath/runtime packaging smoke tests where their Windows prerequisites
 are installed. These do not replace five real platform builds or a production-signing
-integration test. The master runs the offline tests before its first GitHub write.
+integration test. The master runs the offline tests, with PyYAML, before its first
+GitHub write.
 
 `create_release.py` is now a **legacy manual recovery tool**, not part of the release
 pipeline. Do not use it to assemble the new RC drafts: it selects Actions artifacts
