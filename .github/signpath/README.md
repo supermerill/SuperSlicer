@@ -14,10 +14,14 @@ through the same two workers.
 | Ordinary nightly push (including `debug_win`) | Never submits a signing request |
 | Manually dispatched nightly, `sign` unchecked | Ordinary unsigned build |
 | Manually dispatched nightly, `sign` checked | Uses the pinned self-signed certificate and test policy; two requests |
-| Push of a version tag | `release_rc.yml` builds Windows when its release files are missing; requires production signing, otherwise it fails before compiling and publishes nothing for Windows |
+| Push of a version tag | `release_rc.yml` builds Windows when its release files are missing; requires production signing. Before compiling it checks only the public variables; the token and the signature are checked by the packaging job. Otherwise it fails and publishes nothing for Windows |
 | Push to `rc`, `debug_win`, manual Windows RC | Never signs (`ci_rc.yml`, `ccpp_win_rc.yml`) |
-| RC workflow on `debug_win` | Never signs automatically |
-| Manually dispatched RC workflow | Signs only with `sign` checked **and** `SIGNPATH_ENABLED=true` |
+
+**Before setting `SIGNPATH_ENABLED=true`**, separate the tokens: the shared repository
+secret can be read by any workflow of the repository, whatever the caller check of the
+packaging worker. Put the production token in a `release-signing` environment restricted
+to version tags with required approval, and give the nightly a token limited to the test
+policy. Keep SignPath's own approval on the production policy.
 
 ## GitHub settings
 

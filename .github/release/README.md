@@ -48,9 +48,11 @@ resolved to their commit). There is no manual run and no branch run. Push one ta
 `git push`: GitHub does not start workflows for a push of more than three tags.
 
 CI **never creates, moves or deletes a tag**. If the tag disappears, preparation stops
-before creating the draft: creating a release would recreate the tag implicitly. Before
-the first tag, protect version tags in the repository rules so that only maintainers can
-create them and nobody (including GitHub Actions) can update or delete them.
+before creating the draft: creating a release would recreate the tag implicitly. This
+check is a second line of defense, not an atomic guarantee: the tag could still vanish
+between the check and the draft creation. **Before the first tag**, protect version tags
+in the repository rules so that only maintainers can create them and nobody (including
+GitHub Actions) can update or delete them.
 
 **Deploy the workflow definitions to the default branch before the first RC run.**
 GitHub can refuse release creation/update with `GITHUB_TOKEN` when the target commit's

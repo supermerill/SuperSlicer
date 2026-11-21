@@ -8,6 +8,8 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -340,6 +342,34 @@ class WindowsWorkerWorkflowTests(unittest.TestCase):
                           ("Upload artifact", "Upload MSI artifact", "Upload exact files for the draft publisher")})
         self.assertEqual("${{ inputs.signing == 'test' && vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT || '' }}",
                          job["env"]["SIGNPATH_TEST_CERTIFICATE_THUMBPRINT"])
+
+    @unittest.skipUnless(shutil.which("pwsh") or shutil.which("powershell"), "PowerShell is required")
+    def test_package_worker_signs_only_for_its_two_callers(self):
+        step = next(step for step in self.workflow("windows_package.yml")["jobs"]["package"]["steps"]
+                    if step.get("name") == "Check inputs")
+        release = "example/SuperSlicer/.github/workflows/release_rc.yml@refs/tags/2.7.63.0-beta"
+        nightly = "example/SuperSlicer/.github/workflows/ccpp_win.yml@refs/heads/debug_win"
+        cases = [  # mode, signing, event, caller, accepted
+            ("rc", "production", "push", release, True),
+            ("rc", "production", "workflow_dispatch", release, False),
+            ("rc", "production", "push", "example/SuperSlicer/.github/workflows/ci_rc.yml@refs/heads/rc", False),
+            ("rc", "production", "push", "example/SuperSlicer/.github/workflows/release_rc.yml@refs/heads/rc", False),
+            ("rc", "production", "push", "other/SuperSlicer/.github/workflows/release_rc.yml@refs/tags/2.7.63.0", False),
+            ("nightly", "test", "workflow_dispatch", nightly, True),
+            ("nightly", "test", "push", nightly, False),
+            ("nightly", "test", "workflow_dispatch", release, False),
+            ("rc", "none", "push", "example/SuperSlicer/.github/workflows/ci_rc.yml@refs/heads/rc", True),
+            ("nightly", "none", "push", nightly, True),
+        ]
+        shell = shutil.which("pwsh") or shutil.which("powershell")
+        for mode, signing, event, caller, accepted in cases:
+            with self.subTest(signing=signing, event=event, caller=caller):
+                environment = dict(os.environ, ARTIFACT_ID="1", SOURCE_SHA=SHA, BUILD_MODE=mode, SIGNING=signing,
+                                   STAGE_RELEASE="false", PRODUCT="", RELEASE_VERSION="", EVENT_NAME=event,
+                                   WORKFLOW_REF=caller, REPOSITORY="example/SuperSlicer")
+                result = subprocess.run([shell, "-NoProfile", "-NonInteractive", "-Command", step["run"]],
+                                        env=environment, capture_output=True, text=True)
+                self.assertEqual(accepted, result.returncode == 0, result.stdout + result.stderr)
 
     def test_package_worker_keeps_existing_artifact_names_and_separate_policies(self):
         job = self.workflow("windows_package.yml")["jobs"]["package"]
