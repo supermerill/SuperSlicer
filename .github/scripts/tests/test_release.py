@@ -788,6 +788,13 @@ class WorkflowContractTests(unittest.TestCase):
             self.assertEqual(f"needs.prepare.outputs.{key} == 'true'", jobs[key]["if"])
             self.assertEqual("true", jobs[key]["with"]["stage_release"])
             self.assertNotIn("secrets", jobs[key])
+        # Displayed names start with the platform (job IDs stay the keys used by the summary).
+        labels = {"windows": "Windows", "macos_intel": "macOS Intel", "macos_arm": "macOS ARM",
+                  "linux_gtk3": "Linux GTK3", "linux_gtk2": "Linux GTK2"}
+        for job_id, job in jobs.items():
+            label = next((value for key, value in labels.items() if key in job_id), "Release")
+            if job_id != "tests":
+                self.assertTrue(job["name"].startswith(label), job_id)
         # The summary sees every job of every platform, as release.py names them.
         expected = {"prepare"} | {job for names in release.PLATFORM_JOBS.values() for job in names}
         self.assertEqual(expected, set(jobs["summary"]["needs"]))

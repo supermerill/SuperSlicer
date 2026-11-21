@@ -11,12 +11,14 @@ permissions:
 
 jobs:
   windows_build:
+    name: Windows
     uses: ./.github/workflows/windows_build.yml
     with:
       source_sha: ${{ github.sha }}
       mode: rc
 
   windows_package:
+    name: Windows
     needs: windows_build
     permissions:
       contents: read
@@ -29,21 +31,25 @@ jobs:
       signing: none
 
   macos_intel:
+    name: macOS Intel
     uses: ./.github/workflows/ccpp_mac_rc.yml
     with:
       source_sha: ${{ github.sha }}
 
   macos_arm:
+    name: macOS ARM
     uses: ./.github/workflows/ccpp_mac_arm_rc.yml
     with:
       source_sha: ${{ github.sha }}
 
   linux_gtk3:
+    name: Linux GTK3
     uses: ./.github/workflows/ccpp_ubuntu_gtk3_rc.yml
     with:
       source_sha: ${{ github.sha }}
 
   linux_gtk2:
+    name: Linux GTK2
     uses: ./.github/workflows/ccpp_ubuntu_gtk2_rc.yml
     with:
       source_sha: ${{ github.sha }}

@@ -36,6 +36,7 @@ jobs:
           python -B -m unittest discover -s .github/scripts/tests -v
 
   prepare:
+    name: Release / prepare
     needs: tests
     runs-on: ubuntu-22.04
     permissions:
@@ -67,7 +68,7 @@ jobs:
 
   # ---- Windows: signing check, compilation, production signing and packaging ----
   windows_signing:
-    name: Windows production signing check
+    name: Windows / signing check
     needs: prepare
     if: needs.prepare.outputs.windows == 'true'
     runs-on: ubuntu-22.04
@@ -89,6 +90,7 @@ jobs:
           done
 
   windows_build:
+    name: Windows
     needs: [prepare, windows_signing]
     uses: ./.github/workflows/windows_build.yml
     with:
@@ -96,6 +98,7 @@ jobs:
       mode: rc
 
   windows_package:
+    name: Windows
     needs: [prepare, windows_build]
     permissions:
       contents: read
@@ -113,6 +116,7 @@ jobs:
       SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
 
   publish_windows:
+    name: Windows
     needs: [prepare, windows_package]
     permissions:
       contents: write
@@ -128,6 +132,7 @@ jobs:
 
   # ---- macOS and Linux: one build and one publisher per target ----
   macos_intel:
+    name: macOS Intel
     needs: prepare
     if: needs.prepare.outputs.macos_intel == 'true'
     uses: ./.github/workflows/ccpp_mac_rc.yml
@@ -138,6 +143,7 @@ jobs:
       release_version: ${{ needs.prepare.outputs.version }}
 
   publish_macos_intel:
+    name: macOS Intel
     needs: [prepare, macos_intel]
     permissions:
       contents: write
@@ -152,6 +158,7 @@ jobs:
       artifact_id: ${{ needs.macos_intel.outputs.release_artifact_id }}
 
   macos_arm:
+    name: macOS ARM
     needs: prepare
     if: needs.prepare.outputs.macos_arm == 'true'
     uses: ./.github/workflows/ccpp_mac_arm_rc.yml
@@ -162,6 +169,7 @@ jobs:
       release_version: ${{ needs.prepare.outputs.version }}
 
   publish_macos_arm:
+    name: macOS ARM
     needs: [prepare, macos_arm]
     permissions:
       contents: write
@@ -176,6 +184,7 @@ jobs:
       artifact_id: ${{ needs.macos_arm.outputs.release_artifact_id }}
 
   linux_gtk3:
+    name: Linux GTK3
     needs: prepare
     if: needs.prepare.outputs.linux_gtk3 == 'true'
     uses: ./.github/workflows/ccpp_ubuntu_gtk3_rc.yml
@@ -186,6 +195,7 @@ jobs:
       release_version: ${{ needs.prepare.outputs.version }}
 
   publish_linux_gtk3:
+    name: Linux GTK3
     needs: [prepare, linux_gtk3]
     permissions:
       contents: write
@@ -200,6 +210,7 @@ jobs:
       artifact_id: ${{ needs.linux_gtk3.outputs.release_artifact_id }}
 
   linux_gtk2:
+    name: Linux GTK2
     needs: prepare
     if: needs.prepare.outputs.linux_gtk2 == 'true'
     uses: ./.github/workflows/ccpp_ubuntu_gtk2_rc.yml
@@ -210,6 +221,7 @@ jobs:
       release_version: ${{ needs.prepare.outputs.version }}
 
   publish_linux_gtk2:
+    name: Linux GTK2
     needs: [prepare, linux_gtk2]
     permissions:
       contents: write
@@ -224,6 +236,7 @@ jobs:
       artifact_id: ${{ needs.linux_gtk2.outputs.release_artifact_id }}
 
   summary:
+    name: Release / summary
     needs: [prepare, windows_signing, windows_build, windows_package, publish_windows,
             macos_intel, publish_macos_intel, macos_arm, publish_macos_arm,
             linux_gtk3, publish_linux_gtk3, linux_gtk2, publish_linux_gtk2]
