@@ -236,7 +236,7 @@ std::string GCodeWriter::write_pressure_advance(double pa) {
         }
     } else if (FLAVOR_IS(gcfKlipper)) {
         gcode = std::string("SET_PRESSURE_ADVANCE ADVANCE=") + to_string_nozero(pa, 4);
-        if (this->config.tool_name.size() > tool_id && !this->config.tool_name.get_at(tool_id).empty()) {
+        if (!this->config.single_extruder_multi_material.value && this->config.tool_name.size() > tool_id && !this->config.tool_name.get_at(tool_id).empty()) {
             gcode += std::string(" EXTRUDER=") + this->config.tool_name.get_at(tool_id);
             } else if(tool_id > 0){
                 gcode += std::string(" EXTRUDER=extruder") + std::to_string(tool_id);
