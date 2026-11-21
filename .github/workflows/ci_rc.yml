@@ -1,0 +1,49 @@
+name: RC builds (branch rc)
+
+# A push to rc builds the five RC targets for diagnosis only: no tag, no draft, no
+# signing and no write access. Releases are built by release_rc.yml from a version tag.
+on:
+  push:
+    branches: [rc]
+
+permissions:
+  contents: read
+
+jobs:
+  windows_build:
+    uses: ./.github/workflows/windows_build.yml
+    with:
+      source_sha: ${{ github.sha }}
+      mode: rc
+
+  windows_package:
+    needs: windows_build
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/windows_package.yml
+    with:
+      artifact_id: ${{ needs.windows_build.outputs.artifact_id }}
+      source_sha: ${{ github.sha }}
+      mode: rc
+      signing: none
+
+  macos_intel:
+    uses: ./.github/workflows/ccpp_mac_rc.yml
+    with:
+      source_sha: ${{ github.sha }}
+
+  macos_arm:
+    uses: ./.github/workflows/ccpp_mac_arm_rc.yml
+    with:
+      source_sha: ${{ github.sha }}
+
+  linux_gtk3:
+    uses: ./.github/workflows/ccpp_ubuntu_gtk3_rc.yml
+    with:
+      source_sha: ${{ github.sha }}
+
+  linux_gtk2:
+    uses: ./.github/workflows/ccpp_ubuntu_gtk2_rc.yml
+    with:
+      source_sha: ${{ github.sha }}

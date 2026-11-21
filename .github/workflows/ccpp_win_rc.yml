@@ -1,108 +1,31 @@
 name: C/C++ Release candidate windows x64
 
+# Standalone, never signed diagnostic of the Windows RC build. Branch rc uses
+# ci_rc.yml and version tags use release_rc.yml; both call the same two workers.
 on:
   push:
     branches:
       - debug_win
   workflow_dispatch:
-    inputs:
-      sign:
-        description: 'Sign this release build (requires SIGNPATH_ENABLED and production policy)'
-        type: boolean
-        default: false
-  workflow_call:
-    inputs:
-      source_sha:
-        type: string
-        required: true
-      release_version:
-        type: string
-        required: true
-      release_id:
-        type: string
-        required: true
-      product:
-        type: string
-        required: true
-    secrets:
-      SIGNPATH_API_TOKEN:
-        required: false
 
 permissions:
   contents: read
 
-env:
-  # The orchestrator requires production signing; standalone debug pushes never sign.
-  SIGNPATH_ENABLED: ${{ vars.SIGNPATH_ENABLED == 'true' && (inputs.release_id != '' || (github.event_name == 'workflow_dispatch' && inputs.sign)) && 'true' || 'false' }}
-
-# Dependencies and compilation (windows_build.yml), then signing and packaging
-# (windows_package.yml) from that exact artifact, then the draft publisher.
 jobs:
-  signing:
-    name: Signing mode
-    runs-on: ubuntu-22.04
-    outputs:
-      mode: ${{ steps.mode.outputs.mode }}
-    steps:
-    - name: Require production signing for release assets
-      if: inputs.release_id != '' && env.SIGNPATH_ENABLED != 'true'
-      run: |
-        echo '::error::RC release assets require SIGNPATH_ENABLED=true and a valid production certificate. Use the nightly workflow for self-signed tests.'
-        exit 1
-    - name: check signing configuration
-      if: env.SIGNPATH_ENABLED == 'true'
-      env:
-        SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-        SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG || 'superslicer' }}
-        SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-        # Only whether the secret is set; its value is not given to this job.
-        SIGNPATH_API_TOKEN_SET: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
-      run: |
-        for name in SIGNPATH_ORGANIZATION_ID SIGNPATH_PROJECT_SLUG SIGNPATH_SIGNING_POLICY_SLUG; do
-          value="${!name}"
-          if [ -z "${value//[[:space:]]/}" ]; then echo "::error::Missing $name. See .github/signpath/README.md."; exit 1; fi
-        done
-        if [ "$SIGNPATH_API_TOKEN_SET" != 'true' ]; then echo '::error::Missing SIGNPATH_API_TOKEN. See .github/signpath/README.md.'; exit 1; fi
-    - name: Select the signing mode
-      id: mode
-      run: echo "mode=$([ "$SIGNPATH_ENABLED" = 'true' ] && echo production || echo none)" >> "$GITHUB_OUTPUT"
-
   build:
-    needs: signing
     uses: ./.github/workflows/windows_build.yml
     with:
-      source_sha: ${{ inputs.source_sha || github.sha }}
+      source_sha: ${{ github.sha }}
       mode: rc
 
   package:
-    needs: [signing, build]
+    needs: build
     permissions:
       contents: read
       actions: read
     uses: ./.github/workflows/windows_package.yml
     with:
       artifact_id: ${{ needs.build.outputs.artifact_id }}
-      source_sha: ${{ inputs.source_sha || github.sha }}
+      source_sha: ${{ github.sha }}
       mode: rc
-      signing: ${{ needs.signing.outputs.mode }}
-      stage_release: ${{ inputs.release_id != '' }}
-      product: ${{ inputs.product }}
-      release_version: ${{ inputs.release_version }}
-    secrets:
-      # Unsigned packaging does not receive the SignPath token at all.
-      SIGNPATH_API_TOKEN: ${{ needs.signing.outputs.mode == 'production' && secrets.SIGNPATH_API_TOKEN || '' }}
-
-  publish:
-    needs: package
-    if: inputs.release_id != ''
-    permissions:
-      contents: write
-      actions: read
-    uses: ./.github/workflows/release_upload.yml
-    with:
-      source_sha: ${{ inputs.source_sha }}
-      release_version: ${{ inputs.release_version }}
-      release_id: ${{ inputs.release_id }}
-      product: ${{ inputs.product }}
-      platform: windows
-      artifact_id: ${{ needs.package.outputs.release_artifact_id }}
+      signing: none

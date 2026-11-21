@@ -73,8 +73,19 @@ jobs:
         STAGE_RELEASE: ${{ inputs.stage_release }}
         PRODUCT: ${{ inputs.product }}
         RELEASE_VERSION: ${{ inputs.release_version }}
+        # The github context is the calling workflow's: it identifies who asks to sign.
+        EVENT_NAME: ${{ github.event_name }}
+        WORKFLOW_REF: ${{ github.workflow_ref }}
+        REPOSITORY: ${{ github.repository }}
       run: |
         if ($env:ARTIFACT_ID -cnotmatch '^[1-9][0-9]*$') { throw 'artifact_id must be the numeric ID output by windows_build.yml' }
+        # Production only for a tag push through release_rc.yml; test only for a manual nightly.
+        $callers = @{ production = @('push', "$env:REPOSITORY/.github/workflows/release_rc.yml@refs/tags/")
+                      test = @('workflow_dispatch', "$env:REPOSITORY/.github/workflows/ccpp_win.yml@") }
+        if ($callers.ContainsKey($env:SIGNING) -and ($env:EVENT_NAME -cne $callers[$env:SIGNING][0] -or
+            -not $env:WORKFLOW_REF.StartsWith($callers[$env:SIGNING][1], [StringComparison]::Ordinal))) {
+          throw "Signing mode $env:SIGNING is not allowed for $env:EVENT_NAME from $env:WORKFLOW_REF"
+        }
         if ($env:SOURCE_SHA -cnotmatch '^[0-9a-f]{40}$') { throw 'source_sha must be a complete lowercase commit SHA' }
         $allowed = @{ rc = @('none', 'production'); nightly = @('none', 'test') }
         if (-not $allowed.ContainsKey($env:BUILD_MODE) -or $env:SIGNING -cnotin $allowed[$env:BUILD_MODE]) {

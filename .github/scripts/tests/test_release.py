@@ -63,12 +63,6 @@ class FakeGitHub(release.GitHub):
             result = {"object": self.refs[tag]}
         elif method == "GET" and endpoint.startswith("/git/tags/"):
             result = {"object": self.tag_objects[endpoint.rsplit("/", 1)[1]]}
-        elif method == "POST" and endpoint == "/git/refs":
-            tag = data["ref"][len("refs/tags/"):]
-            if tag in self.refs:
-                raise release.ApiError(422, method, path)
-            self.refs[tag] = {"type": "commit", "sha": data["sha"]}
-            result = {"object": self.refs[tag]}
         elif method == "GET" and endpoint == "/releases":
             start = (int(query["page"][0]) - 1) * 100
             result = self.releases[start:start + 100]
@@ -159,15 +153,32 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn("gtk2", names["linux-gtk2"][0])
         self.assertEqual(names, release.asset_names(PRODUCT, VERSION))
 
-    def test_new_tag_and_draft_created_at_exact_commit(self):
+    def test_draft_created_for_the_pushed_tag_at_exact_commit(self):
+        self.api.refs[VERSION] = {"type": "commit", "sha": SHA}
         result = self.prepare()
-        self.assertEqual(SHA, self.api.tag_sha(VERSION))
+        self.assertEqual([("POST", "/releases")], [call[:2] for call in self.api.writes()])
         self.assertTrue(self.api.releases[0]["draft"])
         self.assertTrue(self.api.releases[0]["prerelease"])
         self.assertEqual(SHA, self.api.releases[0]["target_commitish"])
         self.assertEqual(VERSION, result["tag"])
         self.assertTrue(all(result[platform.replace("-", "_")] == "true" for platform in release.PLATFORMS))
         self.assertIn(f"/blob/{VERSION}/doc/", self.api.releases[0]["body"])
+
+    def test_missing_tag_is_never_created(self):
+        with self.assertRaisesRegex(release.ReleaseError, "does not exist"):
+            self.prepare()
+        self.assertEqual([], self.api.writes())
+
+    def test_tag_deleted_before_draft_creation_fails_without_writes(self):
+        self.api.refs[VERSION] = {"type": "commit", "sha": SHA}
+        def delete_tag(method, path, data, file):
+            if method == "GET" and path.startswith("/releases?"):
+                self.api.refs.pop(VERSION, None)
+        self.api.hook = delete_tag
+        # POST /releases would recreate the tag: it must not be sent.
+        with self.assertRaisesRegex(release.ReleaseError, "does not exist"):
+            self.prepare()
+        self.assertEqual([], self.api.writes())
 
     def test_tag_conflict_fails_without_writes(self):
         self.api.refs[VERSION] = {"type": "commit", "sha": OTHER_SHA}
@@ -210,7 +221,7 @@ class ReleaseTests(unittest.TestCase):
     def test_existing_draft_missing_its_tag_fails(self):
         self.api.add_draft()
         del self.api.refs[VERSION]
-        with self.assertRaisesRegex(release.ReleaseError, "lost its tag"):
+        with self.assertRaisesRegex(release.ReleaseError, "does not exist"):
             self.prepare()
         self.assertEqual([], self.api.writes())
 
@@ -291,10 +302,9 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(str(draft["id"]), result["release_id"])
         self.assertEqual("false", result["macos_arm"])
 
-    def test_concurrent_tag_and_release_creation_reuses_matching_draft(self):
+    def test_concurrent_release_creation_reuses_matching_draft(self):
+        self.api.refs[VERSION] = {"type": "commit", "sha": SHA}
         def race(method, path, data, file):
-            if method == "POST" and path == "/git/refs":
-                self.api.refs[VERSION] = {"type": "commit", "sha": SHA}
             if method == "POST" and path == "/releases":
                 self.api.add_draft()
         self.api.hook = race
@@ -432,8 +442,8 @@ class ReleaseTests(unittest.TestCase):
         self.api.add_asset(draft, release.asset_names(PRODUCT, VERSION)["macos-arm"][0])
         with self.assertRaisesRegex(release.ReleaseError, "Draft is incomplete"):
             release.verify(self.api, PRODUCT, VERSION, SHA, draft["id"],
-                           {"windows": {"result": "failure"}, "macos_arm": {"result": "success"}})
-        self.assertIn("failure", self.output.getvalue())
+                           {"windows_signing": {"result": "failure"}, "macos_arm": {"result": "success"}})
+        self.assertIn("windows_signing: failure", self.output.getvalue())
         self.assertIn("macos-arm | Complete", self.output.getvalue())
 
     def test_verify_full_draft_does_not_publish(self):
@@ -445,13 +455,63 @@ class ReleaseTests(unittest.TestCase):
         self.assertTrue(draft["draft"])
         self.assertEqual([], self.api.writes())
 
-    def test_prepare_cli_rejects_wrong_branch_and_commit_before_api(self):
-        with mock.patch.dict(os.environ, {"GITHUB_REF": "refs/heads/master", "GITHUB_SHA": SHA}):
-            with self.assertRaisesRegex(release.ReleaseError, "branch rc"):
-                release.main(["prepare", "--source-sha", SHA])
-        with mock.patch.dict(os.environ, {"GITHUB_REF": "refs/heads/rc", "GITHUB_SHA": OTHER_SHA}):
-            with self.assertRaisesRegex(release.ReleaseError, "triggering"):
-                release.main(["prepare", "--source-sha", SHA])
+    def run_prepare_cli(self, tag, version=VERSION, event=None, environ=None, commits=None):
+        """main(["prepare"]) for a tag push; GitHub is the fake API, git is mocked."""
+        version_file = self.root / "version.inc"
+        numeric, _, suffix = version.partition("-")
+        version_file.write_text(f'set(SLIC3R_APP_KEY "SuperSlicer")\nset(SLIC3R_RC_VERSION_DOTS "{numeric}")\n'
+                                f'set(SLIC3R_VERSION_TAG "{"-" + suffix if suffix else ""}+UNKNOWN")\n', encoding="utf-8")
+        footer = self.root / "footer.md"
+        footer.write_text(FOOTER, encoding="utf-8")
+        event_file = self.root / "event.json"
+        payload = {"ref": f"refs/tags/{tag}", "created": True, "deleted": False, "forced": False}
+        event_file.write_text(json.dumps({**payload, **(event or {})}), encoding="utf-8")
+        environment = {"GITHUB_EVENT_NAME": "push", "GITHUB_REF": f"refs/tags/{tag}", "GITHUB_REF_NAME": tag,
+                       "GITHUB_SHA": SHA, "GITHUB_EVENT_PATH": str(event_file), **(environ or {})}
+        resolved = {"HEAD": SHA, SHA: SHA, **(commits or {})}
+        output = self.root / "output"
+        output.unlink(missing_ok=True)
+        with mock.patch.dict(os.environ, environment), \
+                mock.patch.object(release, "resolve_commit", side_effect=lambda revision: resolved[revision]), \
+                mock.patch.object(release, "GitHub", return_value=self.api):
+            release.main(["prepare", "--version-file", str(version_file), "--footer-file", str(footer),
+                          "--output", str(output)])
+        return dict(line.split("=", 1) for line in output.read_text(encoding="utf-8").splitlines())
+
+    def test_prepare_cli_accepts_only_the_push_creating_a_matching_tag(self):
+        for tag in ("2.7.63.0", "2.7.63.0-beta", "2.7.63.0-rc.1"):
+            with self.subTest(tag=tag):
+                self.api.refs[tag] = {"type": "commit", "sha": SHA}
+                result = self.run_prepare_cli(tag, version=tag)
+                self.assertEqual((tag, SHA), (result["tag"], result["source_sha"]))
+        writes = len(self.api.writes())
+        rejected = {
+            "not a push": dict(environ={"GITHUB_EVENT_NAME": "workflow_dispatch"}),
+            "branch rc": dict(environ={"GITHUB_REF": "refs/heads/rc", "GITHUB_REF_NAME": "rc"}),
+            "ref name": dict(environ={"GITHUB_REF_NAME": "2.7.63.1-beta"}),
+            "deleted": dict(event={"deleted": True}),
+            "forced": dict(event={"forced": True}),
+            "not created": dict(event={"created": False}),
+            "event ref": dict(event={"ref": "refs/tags/2.7.63.1-beta"}),
+            "other version": dict(version="2.7.63.0"),
+            "commit is not HEAD": dict(commits={"HEAD": OTHER_SHA}),
+        }
+        for name, case in rejected.items():
+            with self.subTest(case=name), self.assertRaises(release.ReleaseError):
+                self.run_prepare_cli(VERSION, **case)
+        for tag in ("v2.7.63.0", "2.7.63", "2.7.63.0.1", "2.7.63.0+build", "2.7.63.0-", "2.7.63.0-beta/x"):
+            with self.subTest(tag=tag), self.assertRaisesRegex(release.ReleaseError, "Not a release tag"):
+                self.run_prepare_cli(tag)
+        self.assertEqual(writes, len(self.api.writes()))
+
+    def test_summary_reports_the_first_job_that_did_not_succeed(self):
+        results = {job: {"result": "success"} for jobs in release.PLATFORM_JOBS.values() for job in jobs}
+        results.update({"windows_package": {"result": "failure"}, "publish_windows": {"result": "skipped"},
+                        "macos_arm": {"result": "skipped"}, "publish_macos_arm": {"result": "skipped"}})
+        self.assertEqual("windows_package: failure", release.job_state("windows", results))
+        self.assertEqual("skipped", release.job_state("macos-arm", results))
+        self.assertEqual("success", release.job_state("linux-gtk2", results))
+        self.assertEqual("macos_intel: unknown", release.job_state("macos-intel", {}))
 
     def test_invalid_versions_and_paths_fail(self):
         for version in ("2.7.63.0+UNKNOWN", "../2.7.63", "2.7.63", "2.7.63.0\nINJECTED=1"):
@@ -585,63 +645,107 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual("build/package/", upload["with"]["path"])
         self.assertEqual("error", upload["with"]["if-no-files-found"])
 
-    def test_single_rc_trigger_and_pinned_checkouts(self):
+    WORKERS = {"macos_intel": ("ccpp_mac_rc.yml", "macos-intel"), "macos_arm": ("ccpp_mac_arm_rc.yml", "macos-arm"),
+               "linux_gtk3": ("ccpp_ubuntu_gtk3_rc.yml", "linux-gtk3"), "linux_gtk2": ("ccpp_ubuntu_gtk2_rc.yml", "linux-gtk2")}
+
+    def test_release_only_on_tags_and_branch_rc_only_builds(self):
         master = self.workflow("release_rc.yml")
-        self.assertEqual(["rc"], master["on"]["push"]["branches"])
+        self.assertEqual({"push": {"tags": ["*.*.*.*"]}}, master["on"])
+        self.assertIn("github.ref_name", master["concurrency"]["group"])
         self.assertEqual("false", master["concurrency"]["cancel-in-progress"])
-        for name in ("ccpp_win_rc.yml", "ccpp_mac_rc.yml", "ccpp_mac_arm_rc.yml", "ccpp_ubuntu_gtk3_rc.yml", "ccpp_ubuntu_gtk2_rc.yml"):
-            workflow = self.workflow(name)
-            self.assertIn("workflow_call", workflow["on"])
-            self.assertNotIn("rc", (workflow["on"].get("push") or {}).get("branches", []))
-            for job_name, job in workflow["jobs"].items():
-                if job_name == "publish":
-                    self.assertIn("artifact_id", job["with"])
-                    continue
-                permissions = job.get("permissions", workflow.get("permissions"))
-                self.assertEqual("read", permissions["contents"])
-                for step in job.get("steps", []):
-                    if step.get("uses", "").startswith("actions/checkout"):
-                        self.assertEqual("${{ inputs.source_sha || github.sha }}", step["with"]["ref"])
-                        self.assertEqual("false", step["with"]["persist-credentials"])
+        branch = self.workflow("ci_rc.yml")
+        self.assertEqual({"push": {"branches": ["rc"]}}, branch["on"])
+        self.assertEqual({"contents": "read"}, branch["permissions"])
+        self.assertNotIn("secrets", json.dumps(branch))
+        self.assertNotIn("write", json.dumps(branch))
+        self.assertEqual("none", branch["jobs"]["windows_package"]["with"]["signing"])
+        for job, (worker, _) in self.WORKERS.items():
+            self.assertEqual({"source_sha": "${{ github.sha }}"}, branch["jobs"][job]["with"])
+            self.assertEqual(f"./.github/workflows/{worker}", branch["jobs"][job]["uses"])
+        # No other workflow reacts to a push on rc.
+        for path in (ROOT / "workflows").glob("*.yml"):
+            events = self.workflow(path.name)["on"]
+            push = events.get("push") if isinstance(events, dict) else None
+            branches = push.get("branches", []) if isinstance(push, dict) else []
+            self.assertEqual(path.name == "ci_rc.yml", "rc" in branches, path.name)
 
-    def test_windows_publication_requires_production_signing(self):
+    def test_standalone_windows_rc_is_unsigned_and_not_callable(self):
         workflow = self.workflow("ccpp_win_rc.yml")
-        jobs = workflow["jobs"]
-        guard = next(step for step in jobs["signing"]["steps"] if step.get("name") == "Require production signing for release assets")
-        self.assertIn("inputs.release_id != ''", guard["if"])
-        self.assertIn("env.SIGNPATH_ENABLED != 'true'", guard["if"])
-        self.assertIn("exit 1", guard["run"])
-        # The signing decision precedes compilation; packaging uses the exact build artifact.
-        self.assertEqual("signing", jobs["build"]["needs"])
-        self.assertEqual("./.github/workflows/windows_build.yml", jobs["build"]["uses"])
-        self.assertNotIn("secrets", jobs["build"])
-        package = jobs["package"]
-        self.assertEqual("./.github/workflows/windows_package.yml", package["uses"])
-        self.assertEqual("${{ needs.build.outputs.artifact_id }}", package["with"]["artifact_id"])
-        self.assertEqual("${{ needs.signing.outputs.mode }}", package["with"]["signing"])
-        self.assertEqual("${{ inputs.release_id != '' }}", package["with"]["stage_release"])
-        self.assertEqual("${{ needs.signing.outputs.mode == 'production' && secrets.SIGNPATH_API_TOKEN || '' }}",
-                         package["secrets"]["SIGNPATH_API_TOKEN"])
-        self.assertEqual("package", jobs["publish"]["needs"])
-        self.assertEqual("${{ needs.package.outputs.release_artifact_id }}", jobs["publish"]["with"]["artifact_id"])
-        mode = next(step["run"] for step in jobs["signing"]["steps"] if step.get("id") == "mode")
-        self.assertIn("production", mode)
-        self.assertNotIn("secrets.SIGNPATH_API_TOKEN }}", json.dumps(jobs["signing"]))
+        self.assertEqual({"push": {"branches": ["debug_win"]}, "workflow_dispatch": ""}, workflow["on"])
+        self.assertNotIn("secrets", json.dumps(workflow))
+        self.assertNotIn("SIGNPATH", json.dumps(workflow))
+        self.assertEqual("none", workflow["jobs"]["package"]["with"]["signing"])
+        self.assertEqual("${{ needs.build.outputs.artifact_id }}", workflow["jobs"]["package"]["with"]["artifact_id"])
 
-    def test_rc_signing_opt_in_truth_table(self):
-        workflow = self.workflow("ccpp_win_rc.yml")
-        expression = workflow["env"]["SIGNPATH_ENABLED"][3:-2].replace("&&", " and ").replace("||", " or ")
-        for enabled in ("false", "true"):
-            for event in ("push", "workflow_dispatch"):
-                for sign in (False, True):
-                    for release_id in ("", "42"):
-                        result = eval(expression, {"__builtins__": {}}, {
-                            "vars": types.SimpleNamespace(SIGNPATH_ENABLED=enabled),
-                            "github": types.SimpleNamespace(event_name=event),
-                            "inputs": types.SimpleNamespace(sign=sign, release_id=release_id),
-                        })
-                        expected = enabled == "true" and (release_id != "" or (event == "workflow_dispatch" and sign))
-                        self.assertEqual("true" if expected else "false", result)
+    def test_platform_workers_stage_but_never_publish(self):
+        for job, (name, platform) in self.WORKERS.items():
+            with self.subTest(worker=name):
+                workflow = self.workflow(name)
+                call = workflow["on"]["workflow_call"]
+                self.assertEqual({"source_sha", "stage_release", "product", "release_version"}, set(call["inputs"]))
+                self.assertEqual("false", call["inputs"]["stage_release"]["default"])
+                self.assertEqual("${{ jobs.build.outputs.release_artifact_id }}", call["outputs"]["release_artifact_id"]["value"])
+                self.assertNotIn("release_id", json.dumps(workflow))
+                self.assertNotIn("publish", workflow["jobs"])
+                for job_name, item in workflow["jobs"].items():
+                    self.assertEqual("read", item.get("permissions", workflow["permissions"])["contents"])
+                    for step in item["steps"]:
+                        if step.get("uses", "").startswith("actions/checkout"):
+                            self.assertEqual("${{ inputs.source_sha || github.sha }}", step["with"]["ref"])
+                            self.assertEqual("false", step["with"]["persist-credentials"])
+                        if "release.py stage" in step.get("run", "") or step.get("id") == "release-artifact":
+                            self.assertEqual("inputs.stage_release", step["if"])
+                stage = next(step["run"] for step in workflow["jobs"]["build"]["steps"] if "release.py stage" in step.get("run", ""))
+                self.assertIn(f"--platform {platform}", stage)
+
+    def test_release_jobs_permissions_and_exact_publishers(self):
+        jobs = self.workflow("release_rc.yml")["jobs"]
+        self.assertEqual({"contents": "read"}, self.workflow("release_rc.yml")["permissions"])
+        self.assertNotIn("inherit", json.dumps(jobs))
+        writers = {name for name, job in jobs.items() if job.get("permissions", {}).get("contents") == "write"}
+        publishers = {f"publish_{key}" for key in ("windows", "macos_intel", "macos_arm", "linux_gtk3", "linux_gtk2")}
+        self.assertEqual({"prepare", "summary"} | publishers, writers)
+        self.assertEqual("tests", jobs["prepare"]["needs"])
+        self.assertIn("PyYAML", json.dumps(jobs["tests"]))
+        self.assertNotIn("--source-sha", jobs["prepare"]["steps"][-1]["run"])
+        builders = {"windows": "windows_package", **{key: key for key in self.WORKERS}}
+        for key, builder in builders.items():
+            platform = "windows" if key == "windows" else self.WORKERS[key][1]
+            publisher = jobs[f"publish_{key}"]
+            self.assertEqual(["prepare", builder], publisher["needs"])
+            self.assertEqual("./.github/workflows/release_upload.yml", publisher["uses"])
+            self.assertEqual(platform, publisher["with"]["platform"])
+            self.assertEqual(f"${{{{ needs.{builder}.outputs.release_artifact_id }}}}", publisher["with"]["artifact_id"])
+            self.assertEqual("${{ needs.prepare.outputs.release_id }}", publisher["with"]["release_id"])
+        for key, (worker, _) in self.WORKERS.items():
+            self.assertEqual(f"needs.prepare.outputs.{key} == 'true'", jobs[key]["if"])
+            self.assertEqual("true", jobs[key]["with"]["stage_release"])
+            self.assertNotIn("secrets", jobs[key])
+        # The summary sees every job of every platform, as release.py names them.
+        expected = {"prepare"} | {job for names in release.PLATFORM_JOBS.values() for job in names}
+        self.assertEqual(expected, set(jobs["summary"]["needs"]))
+        self.assertEqual(set(jobs) - {"tests", "summary"}, expected)
+
+    def test_windows_release_requires_production_signing(self):
+        jobs = self.workflow("release_rc.yml")["jobs"]
+        check = jobs["windows_signing"]
+        self.assertEqual("needs.prepare.outputs.windows == 'true'", check["if"])
+        self.assertNotIn("secrets.", json.dumps(check))
+        # No checkout and no action: the check reads only public variables.
+        self.assertFalse(any("uses" in step for step in check["steps"]))
+        self.assertIn('"$SIGNPATH_ENABLED" != \'true\'', check["steps"][0]["run"])
+        self.assertEqual(["prepare", "windows_signing"], jobs["windows_build"]["needs"])
+        self.assertNotIn("secrets", jobs["windows_build"])
+        package = jobs["windows_package"]
+        self.assertEqual("${{ needs.windows_build.outputs.artifact_id }}", package["with"]["artifact_id"])
+        self.assertEqual(("production", "true"), (package["with"]["signing"], package["with"]["stage_release"]))
+        self.assertEqual({"SIGNPATH_API_TOKEN": "${{ secrets.SIGNPATH_API_TOKEN }}"}, package["secrets"])
+        # The package worker itself refuses signing requested by any other caller.
+        check_inputs = next(step for step in self.workflow("windows_package.yml")["jobs"]["package"]["steps"]
+                            if step.get("name") == "Check inputs")
+        self.assertIn('/.github/workflows/release_rc.yml@refs/tags/', check_inputs["run"])
+        self.assertIn('/.github/workflows/ccpp_win.yml@', check_inputs["run"])
+        self.assertEqual("${{ github.workflow_ref }}", check_inputs["env"]["WORKFLOW_REF"])
 
     def test_nightly_still_manual_test_only_and_dated(self):
         nightly = self.workflow("ccpp_win.yml")

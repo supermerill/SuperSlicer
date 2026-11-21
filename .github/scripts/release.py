@@ -1,7 +1,8 @@
 """Prepare/resume draft RC releases and publish exact CI outputs. No local PAT files.
 
-Only prepare/upload access GitHub; stage is local. Unit tests use a fake API.
-All commands fail closed on a moved tag or a published release.
+prepare runs only for the push that creates a version tag; it never creates, moves or
+deletes a tag. Only prepare/upload/verify access GitHub; stage is local. Unit tests use
+a fake API. All commands fail closed on a moved tag or a published release.
 """
 
 import argparse
@@ -12,6 +13,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
 import sys
 import urllib.error
 import urllib.parse
@@ -24,6 +26,16 @@ MANIFEST = "release-manifest.json"
 FOOTER_START = "<!-- superslicer-release-footer:start -->"
 FOOTER_END = "<!-- superslicer-release-footer:end -->"
 VERSION_RE = re.compile(r"\d+\.\d+\.\d+\.\d+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?(?:\+[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?")
+# Release tags: four numeric fields and an optional suffix, no "v" prefix and no "+..." metadata.
+TAG_RE = re.compile(r"[0-9]+(?:[.][0-9]+){3}(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?")
+# Jobs of release_rc.yml for each platform, in pipeline order, for the summary.
+PLATFORM_JOBS = {
+    "windows": ("windows_signing", "windows_build", "windows_package", "publish_windows"),
+    "macos-intel": ("macos_intel", "publish_macos_intel"),
+    "macos-arm": ("macos_arm", "publish_macos_arm"),
+    "linux-gtk3": ("linux_gtk3", "publish_linux_gtk3"),
+    "linux-gtk2": ("linux_gtk2", "publish_linux_gtk2"),
+}
 
 
 class ReleaseError(Exception):
@@ -163,8 +175,39 @@ def require_draft(release, tag):
 
 
 def require_tag(api, tag, sha):
-    if api.tag_sha(tag) != sha:
+    try:
+        actual = api.tag_sha(tag)
+    except ApiError as error:
+        if error.status != 404:
+            raise
+        # Never create it: POST /releases would also create a missing tag implicitly.
+        raise ReleaseError(f"Tag {tag} does not exist (or was deleted); push the version tag, never let CI create it") from None
+    if actual != sha:
         raise ReleaseError(f"Tag {tag} points to a different commit; increment the version, never move the tag")
+
+
+def admit_tag_push(environ, event):
+    """Return the version tag created by this push, or fail before any GitHub access."""
+    if environ.get("GITHUB_EVENT_NAME") != "push":
+        raise ReleaseError("The release orchestrator only runs for a pushed version tag")
+    ref = environ.get("GITHUB_REF", "")
+    tag = ref[len("refs/tags/"):] if ref.startswith("refs/tags/") else ""
+    if not tag or environ.get("GITHUB_REF_NAME") != tag or not TAG_RE.fullmatch(tag):
+        raise ReleaseError(f"Not a release tag: {ref!r} (expected refs/tags/<n.n.n.n[-suffix]>)")
+    if not isinstance(event, dict) or event.get("ref") != ref:
+        raise ReleaseError("The push event does not match the workflow ref")
+    if event.get("created") is not True or event.get("deleted") is not False or event.get("forced") is not False:
+        raise ReleaseError("Only the push that creates a tag can prepare a release (not a deletion or forced update)")
+    return tag
+
+
+def resolve_commit(revision):
+    result = subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"{revision}^{{commit}}"],
+                            capture_output=True, text=True)
+    sha = result.stdout.strip()
+    if result.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40}", sha):
+        raise ReleaseError("Cannot resolve the tagged revision to a commit in this checkout")
+    return sha
 
 
 def usable_asset(asset):
@@ -206,25 +249,13 @@ def prepare(api, product, version, sha, footer):
     release = api.find_release(tag)
     if release:
         require_draft(release, tag)
-    try:
-        require_tag(api, tag, sha)
-    except ApiError as error:
-        if error.status != 404:
-            raise
-        if release:
-            raise ReleaseError("Existing draft has lost its tag; refusing to recreate it silently") from None
-        try:
-            api.request("POST", "/git/refs", {"ref": f"refs/tags/{tag}", "sha": sha})
-        except ApiError as conflict:
-            if conflict.status != 422:
-                raise
-        require_tag(api, tag, sha)  # also handles concurrent tag creation
+    # Checked right before the draft creation: POST /releases would recreate a deleted tag.
+    require_tag(api, tag, sha)
     if not release:
-        body = managed_body("", footer, api.repository, tag)
         try:
             release = api.request("POST", "/releases", {
-                "tag_name": tag, "target_commitish": sha, "name": version,
-                "draft": True, "prerelease": "-" in version.split("+", 1)[0], "body": body,
+                "tag_name": tag, "target_commitish": sha, "name": version, "draft": True,
+                "prerelease": "-" in version.split("+", 1)[0], "body": managed_body("", footer, api.repository, tag),
             })
         except ApiError as conflict:
             if conflict.status != 422:
@@ -361,6 +392,15 @@ def upload(api, platform, product, version, sha, release_id, directory):
         print(f"Uploaded {name}")
 
 
+def job_state(platform, job_results):
+    """"success", "skipped", or the first job of the platform that did not succeed."""
+    results = [(job, job_results.get(job, {}).get("result", "unknown")) for job in PLATFORM_JOBS[platform]]
+    if all(result == "skipped" for _, result in results):
+        return "skipped"
+    failed = [f"{job}: {result}" for job, result in results if result != "success"]
+    return failed[0] if failed else "success"
+
+
 def verify(api, product, version, sha, release_id, job_results=None):
     validate_identity(product, version, sha)
     require_tag(api, version, sha)
@@ -374,7 +414,7 @@ def verify(api, product, version, sha, release_id, job_results=None):
     for platform, files in names.items():
         absent = [name for name in files if name not in assets]
         missing.extend(absent)
-        job = (job_results or {}).get(platform.replace("-", "_"), {}).get("result", "unknown")
+        job = job_state(platform, job_results or {})
         lines.append(f"| {platform} | {'Missing: ' + ', '.join(absent) if absent else 'Complete'} | {job} |")
     summary = "\n".join(lines) + "\n"
     print(summary)
@@ -389,7 +429,7 @@ def verify(api, product, version, sha, release_id, job_results=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("prepare", "stage", "upload", "verify"))
-    parser.add_argument("--source-sha", required=True)
+    parser.add_argument("--source-sha")
     parser.add_argument("--version-file", type=Path, default=Path("version.inc"))
     parser.add_argument("--footer-file", type=Path, default=Path(".github/release-footer.md"))
     parser.add_argument("--output", type=Path)
@@ -401,12 +441,18 @@ def main(argv=None):
     parser.add_argument("--assets-directory", type=Path, default=Path("release-assets"))
     args = parser.parse_args(argv)
     if args.command == "prepare":
-        if os.environ.get("GITHUB_REF") != "refs/heads/rc":
-            raise ReleaseError("The release orchestrator must run on branch rc")
-        if os.environ.get("GITHUB_SHA") != args.source_sha:
-            raise ReleaseError("Release source must be the triggering workflow commit")
+        # Identity of the tag push, checked before reading anything from GitHub.
+        event = json.loads(Path(os.environ.get("GITHUB_EVENT_PATH", "")).read_text(encoding="utf-8"))
+        tag = admit_tag_push(os.environ, event)
         product, version = read_version(args.version_file)
+        if tag != version:
+            raise ReleaseError(f"Tag {tag} does not match version.inc ({version})")
+        args.source_sha = resolve_commit(os.environ.get("GITHUB_SHA", ""))
+        if resolve_commit("HEAD") != args.source_sha:
+            raise ReleaseError("The checkout is not the tagged commit")
     else:
+        if not args.source_sha:
+            parser.error("--source-sha is required")
         if not args.product or not args.version:
             parser.error("--product and --version are required")
         product, version = args.product, args.version
