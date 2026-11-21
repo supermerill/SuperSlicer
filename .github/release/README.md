@@ -92,6 +92,11 @@ The API helper uses only the job's `GH_TOKEN` (`github.token`). It never reads
   missing. This pipeline only creates/completes **drafts**.
 - The tag must exist and still point at the tagged commit before every write. A
   missing tag is an error, never an invitation to recreate it.
+- Each draft records, in its managed footer, the commit it was created for. A draft
+  left over from a deleted tag that pointed at another commit is refused before any
+  build or upload: delete that draft first, so that a draft never mixes files of two
+  commits. A draft created before this record existed is adopted only while it has no
+  release files. Edit release notes only outside the managed footer block.
 - A complete platform is skipped with a warning. A partially uploaded platform is
   rebuilt, but its publisher sends only the absent names. Existing uploaded assets
   are kept unchanged and never overwritten or deleted, even if a rebuild produces

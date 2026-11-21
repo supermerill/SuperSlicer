@@ -25,6 +25,8 @@ PLATFORMS = ("windows", "macos-intel", "macos-arm", "linux-gtk3", "linux-gtk2")
 MANIFEST = "release-manifest.json"
 FOOTER_START = "<!-- superslicer-release-footer:start -->"
 FOOTER_END = "<!-- superslicer-release-footer:end -->"
+# Inside the managed footer: the commit the draft was created for.
+COMMIT_MARK = re.compile(r"<!-- superslicer-release-commit: ([0-9a-f]{40}) -->")
 VERSION_RE = re.compile(r"\d+\.\d+\.\d+\.\d+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?(?:\+[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?")
 # Release tags: four numeric fields and an optional suffix, no "v" prefix and no "+..." metadata.
 TAG_RE = re.compile(r"[0-9]+(?:[.][0-9]+){3}(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?")
@@ -223,14 +225,14 @@ def inspect_assets(api, release_id, names):
     return assets
 
 
-def managed_body(body, footer, repository, tag):
+def managed_body(body, footer, repository, tag, sha):
     policy_url = f"https://github.com/{repository}/blob/{urllib.parse.quote(tag, safe='')}/doc/Code%20signing%20policy.md"
     footer = footer.replace("{{CODE_SIGNING_POLICY_URL}}", policy_url).strip()
     if not footer:
         raise ReleaseError("Release footer must not be empty")
-    if FOOTER_START in footer or FOOTER_END in footer:
+    if FOOTER_START in footer or FOOTER_END in footer or "superslicer-release-commit" in footer:
         raise ReleaseError("Footer template must not contain managed delimiters")
-    block = f"{FOOTER_START}\n{footer}\n{FOOTER_END}"
+    block = f"{FOOTER_START}\n<!-- superslicer-release-commit: {sha} -->\n{footer}\n{FOOTER_END}"
     body = body or ""
     if body.count(FOOTER_START) != body.count(FOOTER_END) or body.count(FOOTER_START) > 1:
         raise ReleaseError("Malformed managed footer in existing draft; preserve notes and repair manually")
@@ -240,6 +242,38 @@ def managed_body(body, footer, repository, tag):
             raise ReleaseError("Malformed managed footer order")
         return body[:start] + block + body[end + len(FOOTER_END):]
     return body.rstrip() + ("\n\n" if body.strip() else "") + block + "\n"
+
+
+def draft_commit(release):
+    """Commit recorded in the managed footer of a draft, or None for an older draft."""
+    body = release.get("body") or ""
+    starts, ends = body.count(FOOTER_START), body.count(FOOTER_END)
+    if starts == ends == 0:
+        return None
+    if starts != 1 or ends != 1 or body.index(FOOTER_END) < body.index(FOOTER_START):
+        raise ReleaseError("Malformed managed footer in the draft; repair it manually")
+    block = body[body.index(FOOTER_START):body.index(FOOTER_END)]
+    marks = COMMIT_MARK.findall(block)
+    if len(marks) > 1 or block.count("superslicer-release-commit") != len(marks):
+        raise ReleaseError("Malformed commit record in the draft footer; repair it manually")
+    return marks[0] if marks else None
+
+
+def require_draft_commit(release, sha, assets=None):
+    """Never mix files of two commits: the draft must belong to this commit.
+
+    A draft created before commits were recorded is accepted only while it has none of
+    the release files (assets given); upload and verify require the recorded commit.
+    """
+    recorded = draft_commit(release)
+    if recorded == sha:
+        return
+    if recorded:
+        raise ReleaseError(f"Draft {release['tag_name']} was created for commit {recorded[:12]}, not {sha[:12]} "
+                           "(was the tag deleted and pushed again?); delete this draft before releasing this commit")
+    if assets is None or any(assets):
+        raise ReleaseError(f"Draft {release['tag_name']} records no commit and already has release files; "
+                           "delete it or check its files manually")
 
 
 def prepare(api, product, version, sha, footer):
@@ -255,7 +289,8 @@ def prepare(api, product, version, sha, footer):
         try:
             release = api.request("POST", "/releases", {
                 "tag_name": tag, "target_commitish": sha, "name": version, "draft": True,
-                "prerelease": "-" in version.split("+", 1)[0], "body": managed_body("", footer, api.repository, tag),
+                "prerelease": "-" in version.split("+", 1)[0],
+                "body": managed_body("", footer, api.repository, tag, sha),
             })
         except ApiError as conflict:
             if conflict.status != 422:
@@ -267,13 +302,19 @@ def prepare(api, product, version, sha, footer):
     require_tag(api, tag, sha)
     names = asset_names(product, version)
     assets = inspect_assets(api, release["id"], names)
-    body = managed_body(release.get("body"), footer, api.repository, tag)
+    expected = [name for files in names.values() for name in files if name in assets]
+    require_draft_commit(release, sha, expected)
+    body = managed_body(release.get("body"), footer, api.repository, tag, sha)
     if body != (release.get("body") or ""):
         # Recheck immediately before a write, including publication by a human.
         current = api.request("GET", f'/releases/{release["id"]}')
         require_draft(current, tag)
+        # Files may have been added since the first listing: an unmarked draft must still be empty.
+        assets = inspect_assets(api, release["id"], names)
+        expected = [name for files in names.values() for name in files if name in assets]
+        require_draft_commit(current, sha, expected)
         require_tag(api, tag, sha)
-        body = managed_body(current.get("body"), footer, api.repository, tag)
+        body = managed_body(current.get("body"), footer, api.repository, tag, sha)
         api.request("PATCH", f'/releases/{release["id"]}', {"body": body})
     result = {"product": product, "version": version, "tag": tag, "source_sha": sha,
               "release_id": str(release["id"])}
@@ -366,13 +407,16 @@ def upload(api, platform, product, version, sha, release_id, directory):
         require_tag(api, version, sha)
         release = api.request("GET", f"/releases/{release_id}")
         require_draft(release, version)
+        require_draft_commit(release, sha)
         assets = inspect_assets(api, release_id, expected)
         if name in assets:
             annotation("warning", f"Asset {name} already exists; keeping it unchanged")
             continue
         file = directory / name
         require_tag(api, version, sha)
-        require_draft(api.request("GET", f"/releases/{release_id}"), version)
+        release = api.request("GET", f"/releases/{release_id}")
+        require_draft(release, version)
+        require_draft_commit(release, sha)
         try:
             result = api.request("POST", f"/releases/{release_id}/assets?name=" + urllib.parse.quote(name, safe=""), file=file)
         except ApiError as conflict:
@@ -406,6 +450,7 @@ def verify(api, product, version, sha, release_id, job_results=None):
     require_tag(api, version, sha)
     release = api.request("GET", f"/releases/{release_id}")
     require_draft(release, version)
+    require_draft_commit(release, sha)
     names = asset_names(product, version)
     assets = inspect_assets(api, release_id, names)
     lines = [f"## RC release `{version}`", f"Commit: `{sha}` — release remains **draft**.", "",

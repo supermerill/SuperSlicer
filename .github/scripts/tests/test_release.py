@@ -35,8 +35,11 @@ class FakeGitHub(release.GitHub):
         self.calls = []
         self.hook = None
 
-    def add_draft(self, tag=VERSION, sha=SHA, body="Manual notes", draft=True):
+    def add_draft(self, tag=VERSION, sha=SHA, body="Manual notes", draft=True, recorded=SHA):
+        """A draft for tag at sha; recorded is the commit in its managed footer (None: older draft)."""
         self.refs[tag] = {"type": "commit", "sha": sha}
+        if recorded:
+            body = release.managed_body(body, FOOTER, self.repository, tag, recorded)
         item = {"id": len(self.releases) + 1, "tag_name": tag, "draft": draft, "body": body}
         self.releases.append(item)
         self.files[item["id"]] = []
@@ -263,22 +266,26 @@ class ReleaseTests(unittest.TestCase):
 
     def test_managed_footer_update_preserves_text_on_both_sides(self):
         body = f"Manual prefix\n{release.FOOTER_START}\nold\n{release.FOOTER_END}\nManual suffix"
-        result = release.managed_body(body, FOOTER, self.api.repository, VERSION)
+        result = release.managed_body(body, FOOTER, self.api.repository, VERSION, SHA)
         self.assertTrue(result.startswith("Manual prefix\n"))
         self.assertTrue(result.endswith("\nManual suffix"))
         self.assertNotIn("\nold\n", result)
 
     def test_prepare_preserves_notes_changed_during_asset_listing(self):
-        draft = self.api.add_draft()
+        # Without a managed footer yet, so that preparation has to write it.
+        draft = self.api.add_draft(recorded=None)
         def edit_notes(method, path, data, file):
             if method == "GET" and "/assets?" in path:
                 draft["body"] = "Notes edited during preparation\n"
         self.api.hook = edit_notes
         self.prepare()
         self.assertTrue(draft["body"].startswith("Notes edited during preparation\n"))
+        self.assertEqual(SHA, release.draft_commit(draft))
+        self.assertIn("PATCH", [call[0] for call in self.api.writes()])
 
     def test_prepare_rejects_publication_during_asset_listing(self):
-        draft = self.api.add_draft()
+        # Without a managed footer yet, so that preparation has to write it.
+        draft = self.api.add_draft(recorded=None)
         def publish(method, path, data, file):
             if method == "GET" and "/assets?" in path:
                 draft["draft"] = False
@@ -287,9 +294,69 @@ class ReleaseTests(unittest.TestCase):
             self.prepare()
         self.assertEqual([], self.api.writes())
 
+    def test_new_draft_records_its_commit_in_the_managed_footer(self):
+        self.api.refs[VERSION] = {"type": "commit", "sha": SHA}
+        self.prepare()
+        self.assertEqual(SHA, release.draft_commit(self.api.releases[0]))
+        self.assertIn(f"<!-- superslicer-release-commit: {SHA} -->", self.api.releases[0]["body"])
+
+    def test_draft_left_from_a_deleted_tag_of_another_commit_is_refused(self):
+        # Tag deleted and pushed again on another commit, draft not deleted.
+        draft = self.api.add_draft(sha=OTHER_SHA, recorded=SHA)
+        self.api.add_asset(draft, release.asset_names(PRODUCT, VERSION)["macos-intel"][0])
+        with self.assertRaisesRegex(release.ReleaseError, "created for commit aaaaaaaaaaaa, not bbbbbbbbbbbb"):
+            release.prepare(self.api, PRODUCT, VERSION, OTHER_SHA, FOOTER)
+        self.assertEqual([], self.api.writes())
+
+    def test_older_draft_without_commit_is_adopted_only_while_empty(self):
+        draft = self.api.add_draft(body="Notes\n", recorded=None)
+        self.prepare()
+        self.assertEqual(SHA, release.draft_commit(draft))
+        self.assertTrue(draft["body"].startswith("Notes\n"))
+        other = self.api.add_draft(tag="2.7.63.1-beta", body="Notes\n", recorded=None)
+        self.api.add_asset(other, release.asset_names(PRODUCT, "2.7.63.1-beta")["linux-gtk2"][0])
+        writes = len(self.api.writes())
+        with self.assertRaisesRegex(release.ReleaseError, "records no commit and already has release files"):
+            release.prepare(self.api, PRODUCT, "2.7.63.1-beta", SHA, FOOTER)
+        self.assertEqual(writes, len(self.api.writes()))
+
+    def test_older_draft_receiving_files_during_preparation_is_not_adopted(self):
+        draft = self.api.add_draft(recorded=None)
+        name = release.asset_names(PRODUCT, VERSION)["linux-gtk3"][0]
+        def upload_during_recheck(method, path, data, file):
+            if method == "GET" and path == f'/releases/{draft["id"]}':
+                self.api.add_asset(draft, name)
+        self.api.hook = upload_during_recheck
+        with self.assertRaisesRegex(release.ReleaseError, "records no commit"):
+            self.prepare()
+        self.assertEqual([], self.api.writes())
+
+    def test_malformed_or_duplicated_commit_records_are_refused(self):
+        marker = f"<!-- superslicer-release-commit: {SHA} -->"
+        for body in (f"{release.FOOTER_START}\n{marker}\n{marker}\n{release.FOOTER_END}",
+                     f"{release.FOOTER_START}\n<!-- superslicer-release-commit: abc -->\n{release.FOOTER_END}",
+                     f"{release.FOOTER_START}\n{marker}\n{release.FOOTER_END}\n{release.FOOTER_START}\n{release.FOOTER_END}"):
+            with self.subTest(body=body), self.assertRaisesRegex(release.ReleaseError, "Malformed"):
+                release.draft_commit({"body": body})
+        self.assertIsNone(release.draft_commit({"body": "Notes only"}))
+
+    def test_upload_and_verify_refuse_a_draft_of_another_commit(self):
+        directory = self.payload("macos-arm")
+        draft = self.api.add_draft(recorded=OTHER_SHA)
+        with self.assertRaisesRegex(release.ReleaseError, "created for commit"):
+            release.upload(self.api, "macos-arm", PRODUCT, VERSION, SHA, draft["id"], directory)
+        with self.assertRaisesRegex(release.ReleaseError, "created for commit"):
+            release.verify(self.api, PRODUCT, VERSION, SHA, draft["id"])
+        legacy = self.api.add_draft(tag=VERSION + ".x", recorded=None)
+        self.api.releases.remove(draft)
+        legacy["tag_name"] = VERSION
+        with self.assertRaisesRegex(release.ReleaseError, "records no commit"):
+            release.upload(self.api, "macos-arm", PRODUCT, VERSION, SHA, legacy["id"], directory)
+        self.assertEqual([], self.api.writes())
+
     def test_malformed_footer_fails(self):
         with self.assertRaisesRegex(release.ReleaseError, "Malformed"):
-            release.managed_body(release.FOOTER_START, FOOTER, self.api.repository, VERSION)
+            release.managed_body(release.FOOTER_START, FOOTER, self.api.repository, VERSION, SHA)
 
     def test_pagination_for_drafts_and_assets(self):
         for index in range(100):
