@@ -8,6 +8,7 @@
 
 #include "libslic3r.h"
 #include "PresetBundle.hpp"
+#include "GitHubBackup.hpp"
 #include "Utils.hpp"
 #include "Model.hpp"
 #include "format.hpp"
@@ -1949,9 +1950,10 @@ void PresetBundle::update_compatible(PresetSelectCompatibleType select_other_pri
     }
 }
 
-void PresetBundle::export_configbundle(const std::string &path, bool export_system_settings, bool export_physical_printers/* = false*/)
+void PresetBundle::export_configbundle(const std::string &path, bool export_system_settings, bool export_physical_printers/* = false*/, bool exclude_connection_settings/* = false*/)
 {
     boost::nowide::ofstream c;
+    if (exclude_connection_settings) c.exceptions(std::ios::failbit | std::ios::badbit);
     c.open(path, std::ios::out | std::ios::trunc);
 
     // Put a comment at the first line including the time stamp and Slic3r version.
@@ -1969,11 +1971,12 @@ void PresetBundle::export_configbundle(const std::string &path, bool export_syst
                 continue;
             c << std::endl << "[" << presets->section_name() << ":" << preset.name << "]" << std::endl;
             for (const std::string &opt_key : preset.config.keys())
-                c << opt_key << " = " << preset.config.opt_serialize(opt_key) << std::endl;
+                if (!exclude_connection_settings || !GitHubBackup::excluded_option(opt_key))
+                    c << opt_key << " = " << preset.config.opt_serialize(opt_key) << std::endl;
         }
     }
 
-    if (export_physical_printers) {
+    if (export_physical_printers && !exclude_connection_settings) {
         for (const PhysicalPrinter& ph_printer : this->physical_printers) {
             c << std::endl << "[physical_printer:" << ph_printer.name << "]" << std::endl;
             for (const std::string& opt_key : ph_printer.config.keys())
@@ -1996,7 +1999,7 @@ void PresetBundle::export_configbundle(const std::string &path, bool export_syst
         c << "filament" << suffix << " = " << this->extruders_filaments[i].get_selected_preset_name() << std::endl;
     }
 
-    if (export_physical_printers && this->physical_printers.get_selected_idx() >= 0)
+    if (export_physical_printers && !exclude_connection_settings && this->physical_printers.get_selected_idx() >= 0)
         c << "physical_printer = " << this->physical_printers.get_selected_printer_name() << std::endl;
 #if 0
     // Export the following setting values from the provided setting repository.
