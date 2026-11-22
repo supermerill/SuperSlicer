@@ -52,6 +52,8 @@ set(SLIC3R_SOURCES
     BuildVolume.cpp
     BuildVolume.hpp
     BoostAdapter.hpp
+    BoostProcessCompat.hpp
+    CGALCompat.hpp
     clipper.cpp
     clipper.hpp
     ClipperUtils.cpp

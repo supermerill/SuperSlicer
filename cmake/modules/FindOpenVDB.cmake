@@ -349,7 +349,7 @@ endmacro()
 
 find_package(TBB ${_quiet} ${_required} COMPONENTS tbb)
 find_package(ZLIB ${_quiet} ${_required})
-find_package(Boost ${_quiet} ${_required} COMPONENTS iostreams system )
+find_package(Boost ${_quiet} ${_required} COMPONENTS system filesystem process)
 
 # Use GetPrerequisites to see which libraries this OpenVDB lib has linked to
 # which we can query for optional deps. This basically runs ldd/otoll/objdump
@@ -450,8 +450,9 @@ endif()
 # headers
 
 set(_OPENVDB_VISIBLE_DEPENDENCIES
-  Boost::iostreams
+  Boost::process
   Boost::system
+  Boost::filesystem
 )
 
 set(_OPENVDB_DEFINITIONS)
